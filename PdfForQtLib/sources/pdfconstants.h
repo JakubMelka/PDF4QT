@@ -1,0 +1,47 @@
+//    Copyright (C) 2018 Jakub Melka
+//
+//    This file is part of PdfForQt.
+//
+//    PdfForQt is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU Lesser General Public License as published by
+//    the Free Software Foundation, either version 3 of the License, or
+//    (at your option) any later version.
+//
+//    PdfForQt is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU Lesser General Public License for more details.
+//
+//    You should have received a copy of the GNU Lesser General Public License
+//    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
+
+
+#ifndef PDFCONSTANTS_H
+#define PDFCONSTANTS_H
+
+namespace pdf
+{
+
+// Structure file constants
+static constexpr const char* PDF_END_OF_FILE_MARK = "%%EOF";
+static constexpr const char* PDF_START_OF_XREF_MARK = "startxref";
+
+static constexpr const char* PDF_FILE_HEADER_V1 = "%PDF-?.?";
+static constexpr const char* PDF_FILE_HEADER_V2 = "%!PS-Adobe-?.? PDF-?.?";
+static constexpr const char* PDF_FILE_HEADER_REGEXP = "%PDF-([[:digit:]]\\.[[:digit:]])|%!PS-Adobe-[[:digit:]]\\.[[:digit:]] PDF-([[:digit:]]\\.[[:digit:]])";
+
+static constexpr const int PDF_HEADER_SCAN_LIMIT = 1024;
+static constexpr const int PDF_FOOTER_SCAN_LIMIT = 1024;
+
+// Stream dictionary constants - entries common to all stream dictionaries
+static constexpr const char* PDF_STREAM_DICT_LENGTH = "Length";
+static constexpr const char* PDF_STREAM_DICT_FILTER = "Filter";
+static constexpr const char* PDF_STREAM_DICT_DECODE_PARMS = "DecodeParms";
+static constexpr const char* PDF_STREAM_DICT_FILE_SPECIFICATION = "F";
+static constexpr const char* PDF_STREAM_DICT_FILE_FILTER = "FFilter";
+static constexpr const char* PDF_STREAM_DICT_FDECODE_PARMS = "FDecodeParms";
+static constexpr const char* PDF_STREAM_DICT_DECODED_LENGTH = "DL";
+
+}   // namespace pdf
+
+#endif // PDFCONSTANTS_H
