@@ -19,6 +19,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfparser.h"
 #include "pdfconstants.h"
+#include "pdfxreftable.h"
 
 #include <QFile>
 
@@ -114,6 +115,15 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             throw PDFParserException(tr("Start of object reference table not found."));
         }
 
+        Q_ASSERT(startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK) < buffer.size());
+        PDFLexicalAnalyzer analyzer(buffer.constData() + startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK), buffer.constData() + buffer.size());
+        const PDFLexicalAnalyzer::Token token = analyzer.fetch();
+        if (token.type != PDFLexicalAnalyzer::TokenType::Integer)
+        {
+            throw PDFParserException(tr("Start of object reference table not found."));
+        }
+        const PDFInteger firstXrefTableOffset = token.data.toLongLong();
+
         // HEADER CHECKING
         //  1) Check if header is present
         //  2) Scan header version
@@ -123,7 +133,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         //  - %!PS-Adobe-y.y PDF-x.x
         // We will search for both of these formats.
 
-        std::regex headerRegExp("(%PDF-[[:digit:]]\\.[[:digit:]])|(%!PS-Adobe-[[:digit:]]\\.[[:digit:]] PDF-[[:digit:]]\\.[[:digit:]])");
+        std::regex headerRegExp(PDF_FILE_HEADER_REGEXP);
         std::cmatch headerMatch;
 
         auto itBegin = buffer.cbegin();
@@ -156,6 +166,9 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             throw PDFParserException(tr("Version of the PDF file is not valid."));
         }
 
+        // Now, we are ready to scan xref table
+        PDFXRefTable xrefTable;
+        xrefTable.readXRefTable(nullptr, buffer, firstXrefTableOffset);
 
     }
     catch (PDFParserException parserException)

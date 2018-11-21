@@ -30,6 +30,14 @@ QByteArray PDFObject::getString() const
     return string->getString();
 }
 
+const PDFDictionary*PDFObject::getDictionary() const
+{
+    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
+
+    Q_ASSERT(dynamic_cast<const PDFDictionary*>(objectContent.get()));
+    return static_cast<const PDFDictionary*>(objectContent.get());
+}
+
 bool PDFObject::operator==(const PDFObject &other) const
 {
     if (m_type == other.m_type)

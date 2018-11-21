@@ -460,6 +460,19 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
     return Token(TokenType::EndOfFile);
 }
 
+void PDFLexicalAnalyzer::seek(PDFInteger offset)
+{
+    const PDFInteger limit = std::distance(m_begin, m_end);
+    if (offset >= 0 && offset < limit)
+    {
+        m_current = std::next(m_begin, offset);
+    }
+    else
+    {
+        error(tr("Trying to seek stream position to %1 bytes from the start, byte offset is invalid.").arg(offset));
+    }
+}
+
 void PDFLexicalAnalyzer::skipWhitespaceAndComments()
 {
     bool isComment = false;
@@ -601,9 +614,19 @@ void PDFParsingContext::endParsingObject(PDFObjectReference reference)
     m_activeParsedObjectSet.erase(reference);
 }
 
-PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* context) :
+PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Features features) :
     m_context(context),
-    m_lexicalAnalyzer(begin, end)
+    m_lexicalAnalyzer(data.constData(), data.constData() + data.size()),
+    m_features(features)
+{
+    m_lookAhead1 = m_lexicalAnalyzer.fetch();
+    m_lookAhead2 = m_lexicalAnalyzer.fetch();
+}
+
+PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* context, Features features) :
+    m_context(context),
+    m_lexicalAnalyzer(begin, end),
+    m_features(features)
 {
     m_lookAhead1 = m_lexicalAnalyzer.fetch();
     m_lookAhead2 = m_lexicalAnalyzer.fetch();
@@ -611,13 +634,6 @@ PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* cont
 
 PDFObject PDFParser::getObject()
 {
-    /*
-     *
-        // Complex PDF objects
-        ,
-        Dictionary,
-        Stream,
-        */
     switch (m_lookAhead1.type)
     {
         case PDFLexicalAnalyzer::TokenType::Boolean:
@@ -744,6 +760,11 @@ PDFObject PDFParser::getObject()
             if (m_lookAhead2.type == PDFLexicalAnalyzer::TokenType::Command &&
                 m_lookAhead2.data.toByteArray() == PDF_STREAM_START_COMMAND)
             {
+                if (!m_features.testFlag(AllowStreams))
+                {
+                    error(tr("Streams are not allowed in this context."));
+                }
+
                 // Read stream content. According to the PDF Reference 1.7, chapter 3.2.7, stream
                 // content can be placed in the file. If this is the case, then try to load file
                 // content in the memory. But even in this case, stream content should be skipped.
@@ -850,6 +871,27 @@ PDFObject PDFParser::getObject(PDFObjectReference reference)
 void PDFParser::error(const QString& message) const
 {
     throw new PDFParserException(message);
+}
+
+void PDFParser::seek(PDFInteger offset)
+{
+    m_lexicalAnalyzer.seek(offset);
+
+    // We must read lookahead symbols, because we invalidated them
+    m_lookAhead1 = m_lexicalAnalyzer.fetch();
+    m_lookAhead2 = m_lexicalAnalyzer.fetch();
+}
+
+bool PDFParser::fetchCommand(const char* command)
+{
+    if (m_lookAhead1.type == PDFLexicalAnalyzer::TokenType::Command &&
+        m_lookAhead1.data.toByteArray() == command)
+    {
+        shift();
+        return true;
+    }
+
+    return false;
 }
 
 void PDFParser::shift()

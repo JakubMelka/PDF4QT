@@ -39,7 +39,8 @@ SOURCES += \
     sources/pdfobject.cpp \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
-    sources/pdfdocumentreader.cpp
+    sources/pdfdocumentreader.cpp \
+    sources/pdfxreftable.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -47,7 +48,8 @@ HEADERS += \
     sources/pdfglobal.h \
     sources/pdfconstants.h \
     sources/pdfdocument.h \
-    sources/pdfdocumentreader.h
+    sources/pdfdocumentreader.h \
+    sources/pdfxreftable.h
 
 unix {
     target.path = /usr/lib

@@ -138,6 +138,10 @@ public:
     /// stream, then EndOfFile token is returned.
     Token fetch();
 
+    /// Seeks stream from the start. If stream cannot be seeked (position is invalid),
+    /// then exception is thrown.
+    void seek(PDFInteger offset);
+
     /// Skips whitespace and comments
     void skipWhitespaceAndComments();
 
@@ -242,14 +246,23 @@ class PDFParser
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFParser)
 
 public:
-    explicit PDFParser(const char* begin, const char* end, PDFParsingContext* context);
+    enum Feature
+    {
+        None            = 0x0000,
+        AllowStreams    = 0x0001,
+    };
+
+    Q_DECLARE_FLAGS(Features, Feature)
+
+    explicit PDFParser(const QByteArray& data, PDFParsingContext* context, Features features);
+    explicit PDFParser(const char* begin, const char* end, PDFParsingContext* context, Features features);
 
     /// Fetches single object from the stream. Does not check
     /// cyclical references. If object cannot be fetched, then
     /// exception is thrown.
     PDFObject getObject();
 
-    /// Fetches signle object from the stream. Performs check for
+    /// Fetches single object from the stream. Performs check for
     /// cyclical references. If object cannot be fetched, then
     /// exception is thrown.
     PDFObject getObject(PDFObjectReference reference);
@@ -257,11 +270,26 @@ public:
     /// Throws an error exception
     void error(const QString& message) const;
 
+    /// Seeks stream from the start. If stream cannot be seeked (position is invalid),
+    /// then exception is thrown.
+    void seek(PDFInteger offset);
+
+    /// Returns currently scanned token
+    const PDFLexicalAnalyzer::Token& lookahead() const { return m_lookAhead1; }
+
+    /// If current token is a command with same string, then eat this command
+    /// and return true. Otherwise do nothing and return false.
+    /// \param command Command to be fetched
+    bool fetchCommand(const char* command);
+
 private:
     void shift();
 
     /// Parsing context (multiple parsers can share it)
     PDFParsingContext* m_context;
+
+    /// Enabled features
+    Features m_features;
 
     /// Lexical analyzer for scanning tokens
     PDFLexicalAnalyzer m_lexicalAnalyzer;

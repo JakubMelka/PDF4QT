@@ -29,6 +29,7 @@
 
 namespace pdf
 {
+class PDFDictionary;
 
 /// This class represents a content of the PDF object. It can be
 /// array of objects, dictionary, content stream data, or string data.
@@ -98,6 +99,7 @@ public:
 
     inline PDFInteger getInteger() const { return std::get<PDFInteger>(m_data); }
     QByteArray getString() const;
+    const PDFDictionary* getDictionary() const;
 
     bool operator==(const PDFObject& other) const;
     bool operator!=(const PDFObject& other) const { return !(*this == other); }

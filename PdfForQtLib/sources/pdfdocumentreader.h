@@ -31,12 +31,17 @@ namespace pdf
 /// This class is a reader of PDF document from various devices (file, io device,
 /// byte buffer). This class doesn't throw exceptions, to check errors, use
 /// appropriate functions.
-class PDFDocumentReader
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentReader
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 
 public:
     explicit PDFDocumentReader();
+
+    constexpr inline PDFDocumentReader(const PDFDocumentReader&) = delete;
+    constexpr inline PDFDocumentReader(PDFDocumentReader&&) = delete;
+    constexpr inline PDFDocumentReader& operator=(const PDFDocumentReader&) = delete;
+    constexpr inline PDFDocumentReader& operator=(PDFDocumentReader&&) = delete;
 
     /// Reads a PDF document from the specified file. If file doesn't exist,
     /// cannot be opened or contain invalid pdf, empty PDF file is returned.
@@ -55,6 +60,9 @@ public:
 
     /// Returns true, if document was successfully read from device
     bool isSuccessfull() const { return m_successfull; }
+
+    /// Returns error message, if document reading was unsuccessfull
+    const QString& getErrorMessage() const { return m_errorMessage; }
 
 private:
     static constexpr const int FIND_NOT_FOUND_RESULT = -1;

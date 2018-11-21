@@ -42,6 +42,14 @@ static constexpr const char* PDF_STREAM_DICT_FILE_FILTER = "FFilter";
 static constexpr const char* PDF_STREAM_DICT_FDECODE_PARMS = "FDecodeParms";
 static constexpr const char* PDF_STREAM_DICT_DECODED_LENGTH = "DL";
 
+// xref table constants
+static constexpr const char* PDF_XREF_HEADER = "xref";
+static constexpr const char* PDF_XREF_TRAILER = "trailer";
+static constexpr const char* PDF_XREF_TRAILER_PREVIOUS = "Prev";
+static constexpr const char* PDF_XREF_TRAILER_XREFSTM = "XRefStm";
+static constexpr const char* PDF_XREF_FREE = "f";
+static constexpr const char* PDF_XREF_OCCUPIED = "n";
+
 }   // namespace pdf
 
 #endif // PDFCONSTANTS_H

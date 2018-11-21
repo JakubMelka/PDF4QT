@@ -19,5 +19,6 @@ TEMPLATE = subdirs
 
 SUBDIRS += \
     PdfForQtLib \
-    UnitTests
+    UnitTests \
+    PdfForQtViewer
 
