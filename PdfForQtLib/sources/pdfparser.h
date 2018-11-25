@@ -23,10 +23,12 @@
 #include "pdfobject.h"
 
 #include <QtCore>
+#include <QMutex>
 #include <QVariant>
 #include <QByteArray>
 
 #include <set>
+#include <functional>
 
 namespace pdf
 {
@@ -199,12 +201,14 @@ private:
     const char* m_end;
 };
 
-/// Parsing context. Used for example to detect cyclic reference errors.
+/// Parsing context. Used for example to detect cyclic reference errors. Can handle multiple threads
+/// simultaneously (e.g class is thread safe).
 class PDFParsingContext
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFParsingContext)
 
 public:
+    explicit PDFParsingContext() = default;
 
     /// Guard guarding the cyclical references.
     class PDFParsingContextGuard
@@ -231,12 +235,32 @@ public:
     /// then same object is returned.
     PDFObject getObject(const PDFObject& object) const;
 
+    /// Sets function which provides object fetching
+    void setObjectFetcher(std::function<PDFObject(PDFObjectReference)> objectFetcher) { m_objectFetcher = std::move(objectFetcher); }
+
 private:
     void beginParsingObject(PDFObjectReference reference);
     void endParsingObject(PDFObjectReference reference);
 
+    struct Key
+    {
+        constexpr inline Key() = default;
+        constexpr inline Key(Qt::HANDLE threadContext, PDFObjectReference reference) : threadContext(threadContext), reference(reference) { }
+
+        Qt::HANDLE threadContext = nullptr;
+        PDFObjectReference reference;
+
+        inline bool operator<(const Key& other) const { return std::tie(threadContext, reference) < std::tie(other.threadContext, other.reference); }
+    };
+
+    /// This function fetches object, if it is needed
+    std::function<PDFObject(PDFObjectReference)> m_objectFetcher;
+
     /// Set containing objects currently being parsed.
-    std::set<PDFObjectReference> m_activeParsedObjectSet;
+    std::set<Key> m_activeParsedObjectSet;
+
+    /// Mutex protecting object for multiple thread access
+    QMutex m_mutex;
 };
 
 /// Class for parsing objects. Checks cyclical references. If

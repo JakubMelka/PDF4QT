@@ -100,6 +100,7 @@ public:
     inline PDFInteger getInteger() const { return std::get<PDFInteger>(m_data); }
     QByteArray getString() const;
     const PDFDictionary* getDictionary() const;
+    PDFObjectReference getReference() const { return std::get<PDFObjectReference>(m_data); }
 
     bool operator==(const PDFObject& other) const;
     bool operator!=(const PDFObject& other) const { return !(*this == other); }

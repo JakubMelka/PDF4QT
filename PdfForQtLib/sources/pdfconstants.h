@@ -50,6 +50,11 @@ static constexpr const char* PDF_XREF_TRAILER_XREFSTM = "XRefStm";
 static constexpr const char* PDF_XREF_FREE = "f";
 static constexpr const char* PDF_XREF_OCCUPIED = "n";
 
+// objects
+
+static constexpr const char* PDF_OBJECT_START_MARK = "obj";
+static constexpr const char* PDF_OBJECT_END_MARK = "endobj";
+
 }   // namespace pdf
 
 #endif // PDFCONSTANTS_H

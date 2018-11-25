@@ -67,6 +67,16 @@ public:
     /// \param startTableOffset Offset of first reference table
     void readXRefTable(PDFParsingContext* context, const QByteArray& byteArray, PDFInteger startTableOffset);
 
+    /// Filters only occupied entries and returns them
+    std::vector<Entry> getOccupiedEntries() const;
+
+    /// Returns size of the reference table
+    std::size_t getSize() const { return m_entries.size(); }
+
+    /// Gets the entry for given reference. If entry for given reference is not found,
+    /// then free entry is returned.
+    const Entry& getEntry(PDFObjectReference reference) const;
+
 private:
     /// Reference table entries
     std::vector<Entry> m_entries;

@@ -103,7 +103,10 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                         entry.type = EntryType::Occupied;
                     }
 
-                    m_entries[objectNumber] = std::move(entry);
+                    if (m_entries[objectNumber].type == EntryType::Free)
+                    {
+                        m_entries[objectNumber] = std::move(entry);
+                    }
                 }
             }
 
@@ -142,6 +145,31 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
         {
             throw PDFParserException(tr("Invalid format of reference table."));
         }
+    }
+}
+
+std::vector<PDFXRefTable::Entry> PDFXRefTable::getOccupiedEntries() const
+{
+    std::vector<PDFXRefTable::Entry> result;
+
+    // Suppose majority of items are occupied
+    result.reserve(m_entries.size());
+    std::copy_if(m_entries.cbegin(), m_entries.cend(), std::back_inserter(result), [](const Entry& entry) { return entry.type == EntryType::Occupied; });
+
+    return result;
+}
+
+const PDFXRefTable::Entry& PDFXRefTable::getEntry(PDFObjectReference reference) const
+{
+    // We must also check generation number here. For this reason, we compare references of the entry at given position.
+    if (reference.objectNumber >= 0 && reference.objectNumber < m_entries.size() && m_entries[reference.objectNumber].reference == reference)
+    {
+        return m_entries[reference.objectNumber];
+    }
+    else
+    {
+        static Entry dummy;
+        return dummy;
     }
 }
 

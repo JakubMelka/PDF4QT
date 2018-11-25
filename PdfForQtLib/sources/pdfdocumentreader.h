@@ -79,8 +79,12 @@ private:
     /// \returns Position of string, or FIND_NOT_FOUND_RESULT
     int findFromEnd(const char* what, const QByteArray& byteArray, int limit);
 
+    /// Mutex for access to variables of this reader from more threads
+    /// (providing thread safety)
+    QMutex m_mutex;
+
     /// This bool flag is set, if pdf document was successfully read from the device
-    bool m_successfull;
+    std::atomic<bool> m_successfull;
 
     /// In case if error occurs, it is stored here
     QString m_errorMessage;

@@ -56,4 +56,8 @@ unix {
     INSTALLS += target
 }
 
+
+CONFIG += force_debug_info
+
+
 QMAKE_CXXFLAGS += /std:c++latest

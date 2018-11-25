@@ -37,7 +37,7 @@ void PDFViewerMainWindow::onActionOpenTriggered()
         }
         else
         {
-            QMessageBox::information(this, tr("PDF Reader"), tr("Document read error: %1").arg(fileName));
+            QMessageBox::information(this, tr("PDF Reader"), tr("Document read error: %1").arg(reader.getErrorMessage()));
         }
     }
 }

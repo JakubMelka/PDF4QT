@@ -20,6 +20,7 @@
 #include "pdfconstants.h"
 
 #include <QFile>
+#include <QThread>
 
 #include <cctype>
 #include <memory>
@@ -125,9 +126,9 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                         }
                     }
                 }
-                else if (isWhitespace(lookChar()))
+                else if (isWhitespace(lookChar()) || isDelimiter(lookChar()))
                 {
-                    // Whitespace appeared - whitespaces delimits tokens - break
+                    // Whitespace appeared - whitespaces/delimiters delimits tokens - break
                     break;
                 }
                 else
@@ -587,31 +588,43 @@ constexpr bool PDFLexicalAnalyzer::isHexCharacter(const char character)
 
 void PDFLexicalAnalyzer::error(const QString& message) const
 {
-    throw PDFParserException(message);
+    std::size_t distance = std::distance(m_begin, m_current);
+    throw PDFParserException(tr("Error near position %1. %2").arg(distance).arg(message));
 }
 
 PDFObject PDFParsingContext::getObject(const PDFObject& object) const
 {
-    Q_ASSERT(false);
-    return PDFObject();
+    if (object.isReference())
+    {
+        Q_ASSERT(m_objectFetcher);
+        return m_objectFetcher(object.getReference());
+    }
+
+    return object;
 }
 
 void PDFParsingContext::beginParsingObject(PDFObjectReference reference)
 {
-    if (m_activeParsedObjectSet.count(reference))
+    QMutexLocker lock(&m_mutex);
+
+    Key key(QThread::currentThreadId(), reference);
+    if (m_activeParsedObjectSet.count(key))
     {
         throw PDFParserException(tr("Cyclical reference found while parsing object %1 %2.").arg(reference.objectNumber).arg(reference.generation));
     }
     else
     {
-        m_activeParsedObjectSet.insert(reference);
+        m_activeParsedObjectSet.insert(key);
     }
 }
 
 void PDFParsingContext::endParsingObject(PDFObjectReference reference)
 {
-    Q_ASSERT(m_activeParsedObjectSet.count(reference));
-    m_activeParsedObjectSet.erase(reference);
+    QMutexLocker lock(&m_mutex);
+
+    Key key(QThread::currentThreadId(), reference);
+    Q_ASSERT(m_activeParsedObjectSet.count(key));
+    m_activeParsedObjectSet.erase(key);
 }
 
 PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Features features) :
@@ -786,6 +799,8 @@ PDFObject PDFParser::getObject()
                     error(tr("Length of the stream buffer is negative (%1). It must be a positive number.").arg(length));
                 }
 
+                // Skip the stream start, then fetch data of the stream
+                m_lexicalAnalyzer.skipStreamStart();
                 QByteArray buffer = m_lexicalAnalyzer.fetchByteArray(length);
 
                 // According to the PDF Reference 1.7, chapter 3.2.7, stream content can also be specified
