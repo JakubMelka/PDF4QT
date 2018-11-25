@@ -162,7 +162,7 @@ std::vector<PDFXRefTable::Entry> PDFXRefTable::getOccupiedEntries() const
 const PDFXRefTable::Entry& PDFXRefTable::getEntry(PDFObjectReference reference) const
 {
     // We must also check generation number here. For this reason, we compare references of the entry at given position.
-    if (reference.objectNumber >= 0 && reference.objectNumber < m_entries.size() && m_entries[reference.objectNumber].reference == reference)
+    if (reference.objectNumber >= 0 && reference.objectNumber < static_cast<PDFInteger>(m_entries.size()) && m_entries[reference.objectNumber].reference == reference)
     {
         return m_entries[reference.objectNumber];
     }

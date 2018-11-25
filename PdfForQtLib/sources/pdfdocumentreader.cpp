@@ -171,15 +171,13 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         PDFXRefTable xrefTable;
         xrefTable.readXRefTable(nullptr, buffer, firstXrefTableOffset);
 
-        PDFParsingContext context;
-
         // This lambda function fetches object from the buffer from the specified offset.
         // Can throw exception, returns a pair of scanned reference and object content.
-        auto getObject = [&buffer, &context](PDFInteger offset, PDFObjectReference reference) -> PDFObject
+        auto getObject = [&buffer](PDFParsingContext* context, PDFInteger offset, PDFObjectReference reference) -> PDFObject
         {
-            PDFParsingContext::PDFParsingContextGuard guard(&context, reference);
+            PDFParsingContext::PDFParsingContextGuard guard(context, reference);
 
-            PDFParser parser(buffer, &context, PDFParser::AllowStreams);
+            PDFParser parser(buffer, context, PDFParser::AllowStreams);
             parser.seek(offset);
 
             PDFObject objectNumber = parser.getObject();
@@ -211,7 +209,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             return object;
         };
 
-        auto objectFetcher = [&getObject, &xrefTable](PDFObjectReference reference) -> PDFObject
+        auto objectFetcher = [&getObject, &xrefTable](PDFParsingContext* context, PDFObjectReference reference) -> PDFObject
         {
             const PDFXRefTable::Entry& entry = xrefTable.getEntry(reference);
             switch (entry.type)
@@ -222,24 +220,25 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                 case PDFXRefTable::EntryType::Occupied:
                 {
                     Q_ASSERT(entry.reference == reference);
-                    return getObject(entry.offset, reference);
+                    return getObject(context, entry.offset, reference);
                 }
 
                 default:
+                {
                     Q_ASSERT(false);
                     break;
+                }
             }
 
             return PDFObject();
         };
-        context.setObjectFetcher(objectFetcher);
 
         PDFObjectStorage::PDFObjects objects;
         objects.resize(xrefTable.getSize());
 
         std::vector<PDFXRefTable::Entry> occupiedEntries = xrefTable.getOccupiedEntries();
 
-        auto processEntry = [this, &getObject, &objects](const PDFXRefTable::Entry& entry)
+        auto processEntry = [this, &getObject, &objectFetcher, &objects](const PDFXRefTable::Entry& entry)
         {
             Q_ASSERT(entry.type == PDFXRefTable::EntryType::Occupied);
 
@@ -247,7 +246,8 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             {
                 try
                 {
-                   objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, getObject(entry.offset, entry.reference));
+                    PDFParsingContext context(objectFetcher);
+                    objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, getObject(&context, entry.offset, entry.reference));
                 }
                 catch (PDFParserException exception)
                 {
@@ -259,7 +259,6 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         };
 
         // Now, we are ready to scan all objects
-        //std::for_each<std::execution::parallel_policy, std::vector<PDFXRefTable::Entry>::const_iterator, decltype(processEntry)>(occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
     }
     catch (PDFParserException parserException)

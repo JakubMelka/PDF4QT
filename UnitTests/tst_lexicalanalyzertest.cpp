@@ -21,6 +21,7 @@
 
 #include "pdfparser.h"
 #include "pdfconstants.h"
+#include "pdfflatmap.h"
 
 #include <regex>
 
@@ -42,6 +43,7 @@ private slots:
     void test_command();
     void test_invalid_input();
     void test_header_regexp();
+    void test_flat_map();
 
 private:
     void scanWholeStream(const char* stream);
@@ -233,6 +235,62 @@ void LexicalAnalyzerTest::test_header_regexp()
             QVERIFY(cmatch.size() == 3);
             QVERIFY(cmatch[1].matched || cmatch[2].matched);
         }
+    }
+}
+
+void LexicalAnalyzerTest::test_flat_map()
+{
+    using Map = pdf::PDFFlatMap<int, 2>;
+
+    struct Item
+    {
+        int order;
+        int number;
+        bool erase;
+
+        bool operator<(const Item& other) const { return order < other.order; }
+    };
+
+    for (int count = 1; count < 5; ++count)
+    {
+        std::vector<Item> items;
+        items.reserve(2 * count);
+
+        int order = 0;
+        for (int i = 0; i < count; ++i)
+        {
+            items.emplace_back(Item{order++, i, false});
+            items.emplace_back(Item{order++, i, true});
+        }
+
+        do
+        {
+            std::set<int> testSet;
+            Map testFlatMap;
+
+            for (const Item& item : items)
+            {
+                if (!item.erase)
+                {
+                    testSet.insert(item.number);
+                    testFlatMap.insert(item.number);
+                }
+                else
+                {
+                    testSet.erase(item.number);
+                    testFlatMap.erase(item.number);
+                }
+
+                QCOMPARE(testSet.size(), testFlatMap.size());
+                QCOMPARE(testSet.empty(), testFlatMap.empty());
+
+                for (const int testInteger : testSet)
+                {
+                    QVERIFY(testFlatMap.search(testInteger));
+                }
+            }
+
+        } while (std::next_permutation(items.begin(), items.end()));
     }
 }
 

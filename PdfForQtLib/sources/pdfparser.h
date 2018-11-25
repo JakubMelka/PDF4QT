@@ -21,9 +21,9 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfflatmap.h"
 
 #include <QtCore>
-#include <QMutex>
 #include <QVariant>
 #include <QByteArray>
 
@@ -208,7 +208,11 @@ class PDFParsingContext
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFParsingContext)
 
 public:
-    explicit PDFParsingContext() = default;
+    explicit PDFParsingContext(std::function<PDFObject(PDFParsingContext*, PDFObjectReference)> objectFetcher) :
+        m_objectFetcher(std::move(objectFetcher))
+    {
+
+    }
 
     /// Guard guarding the cyclical references.
     class PDFParsingContextGuard
@@ -233,34 +237,19 @@ public:
 
     /// Returns dereferenced object, if object is a reference. If it is not a reference,
     /// then same object is returned.
-    PDFObject getObject(const PDFObject& object) const;
-
-    /// Sets function which provides object fetching
-    void setObjectFetcher(std::function<PDFObject(PDFObjectReference)> objectFetcher) { m_objectFetcher = std::move(objectFetcher); }
+    PDFObject getObject(const PDFObject& object);
 
 private:
     void beginParsingObject(PDFObjectReference reference);
     void endParsingObject(PDFObjectReference reference);
 
-    struct Key
-    {
-        constexpr inline Key() = default;
-        constexpr inline Key(Qt::HANDLE threadContext, PDFObjectReference reference) : threadContext(threadContext), reference(reference) { }
-
-        Qt::HANDLE threadContext = nullptr;
-        PDFObjectReference reference;
-
-        inline bool operator<(const Key& other) const { return std::tie(threadContext, reference) < std::tie(other.threadContext, other.reference); }
-    };
+    using KeySet = PDFFlatMap<PDFObjectReference, 2>;
 
     /// This function fetches object, if it is needed
-    std::function<PDFObject(PDFObjectReference)> m_objectFetcher;
+    std::function<PDFObject(PDFParsingContext*, PDFObjectReference)> m_objectFetcher;
 
     /// Set containing objects currently being parsed.
-    std::set<Key> m_activeParsedObjectSet;
-
-    /// Mutex protecting object for multiple thread access
-    QMutex m_mutex;
+    KeySet m_activeParsedObjectSet;
 };
 
 /// Class for parsing objects. Checks cyclical references. If

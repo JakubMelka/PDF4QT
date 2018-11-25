@@ -592,12 +592,12 @@ void PDFLexicalAnalyzer::error(const QString& message) const
     throw PDFParserException(tr("Error near position %1. %2").arg(distance).arg(message));
 }
 
-PDFObject PDFParsingContext::getObject(const PDFObject& object) const
+PDFObject PDFParsingContext::getObject(const PDFObject& object)
 {
     if (object.isReference())
     {
         Q_ASSERT(m_objectFetcher);
-        return m_objectFetcher(object.getReference());
+        return m_objectFetcher(this, object.getReference());
     }
 
     return object;
@@ -605,26 +605,20 @@ PDFObject PDFParsingContext::getObject(const PDFObject& object) const
 
 void PDFParsingContext::beginParsingObject(PDFObjectReference reference)
 {
-    QMutexLocker lock(&m_mutex);
-
-    Key key(QThread::currentThreadId(), reference);
-    if (m_activeParsedObjectSet.count(key))
+    if (m_activeParsedObjectSet.search(reference))
     {
         throw PDFParserException(tr("Cyclical reference found while parsing object %1 %2.").arg(reference.objectNumber).arg(reference.generation));
     }
     else
     {
-        m_activeParsedObjectSet.insert(key);
+        m_activeParsedObjectSet.insert(reference);
     }
 }
 
 void PDFParsingContext::endParsingObject(PDFObjectReference reference)
 {
-    QMutexLocker lock(&m_mutex);
-
-    Key key(QThread::currentThreadId(), reference);
-    Q_ASSERT(m_activeParsedObjectSet.count(key));
-    m_activeParsedObjectSet.erase(key);
+    Q_ASSERT(m_activeParsedObjectSet.search(reference));
+    m_activeParsedObjectSet.erase(reference);
 }
 
 PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Features features) :

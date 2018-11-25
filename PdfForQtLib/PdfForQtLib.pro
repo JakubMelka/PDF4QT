@@ -49,7 +49,8 @@ HEADERS += \
     sources/pdfconstants.h \
     sources/pdfdocument.h \
     sources/pdfdocumentreader.h \
-    sources/pdfxreftable.h
+    sources/pdfxreftable.h \
+    sources/pdfflatmap.h
 
 unix {
     target.path = /usr/lib
