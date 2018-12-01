@@ -147,6 +147,11 @@ void PDFString::setString(const QByteArray& string)
     m_string = string;
 }
 
+void PDFString::optimize()
+{
+    m_string.shrink_to_fit();
+}
+
 bool PDFArray::equals(const PDFObjectContent* other) const
 {
     Q_ASSERT(dynamic_cast<const PDFArray*>(other));
@@ -157,6 +162,11 @@ bool PDFArray::equals(const PDFObjectContent* other) const
 void PDFArray::appendItem(PDFObject object)
 {
     m_objects.push_back(std::move(object));
+}
+
+void PDFArray::optimize()
+{
+    m_objects.shrink_to_fit();
 }
 
 bool PDFDictionary::equals(const PDFObjectContent* other) const
@@ -191,6 +201,16 @@ const PDFObject& PDFDictionary::get(const char* key) const
     {
         static PDFObject dummy;
         return dummy;
+    }
+}
+
+void PDFDictionary::optimize()
+{
+    m_dictionary.shrink_to_fit();
+
+    for (DictionaryEntry& entry : m_dictionary)
+    {
+        entry.first.shrink_to_fit();
     }
 }
 

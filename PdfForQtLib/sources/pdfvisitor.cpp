@@ -51,7 +51,6 @@ void PDFAbstractVisitor::acceptStream(const PDFStream* stream)
 PDFStatisticsCollector::PDFStatisticsCollector()
 {
     // We must avoid to allocate map item
-    //std::vector<PDFObject::Type> types = PDFObject::getTypes();
     for (PDFObject::Type type : PDFObject::getTypes())
     {
         m_statistics.emplace(std::make_pair(type, Statistics()));
@@ -119,6 +118,13 @@ void PDFStatisticsCollector::visitStream(const PDFStream* stream)
 {
     Statistics& statistics = m_statistics[PDFObject::Type::Stream];
     collectStatisticsOfDictionary(statistics, stream->getDictionary());
+
+    const QByteArray& byteArray = *stream->getContent();
+    const uint64_t memoryConsumption = byteArray.size() * sizeof(char);
+    const uint64_t memoryOverhead = (byteArray.capacity() - byteArray.size()) * sizeof(char);
+
+    statistics.memoryConsumptionEstimate += memoryConsumption;
+    statistics.memoryOverheadEstimate += memoryOverhead;
 
     acceptStream(stream);
 }

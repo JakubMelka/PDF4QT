@@ -47,6 +47,9 @@ public:
     /// Equals operator. Returns true, if content of this object is
     /// equal to the content of the other object.
     virtual bool equals(const PDFObjectContent* other) const = 0;
+
+    /// Optimizes memory consumption of this object
+    virtual void optimize() = 0;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFObject
@@ -133,22 +136,22 @@ public:
     static inline PDFObject createReal(PDFReal value) { return PDFObject(Type::Real, value); }
 
     /// Creates a name object
-    static inline PDFObject createName(PDFObjectContentPointer&& value) { return PDFObject(Type::Name, std::move(value)); }
+    static inline PDFObject createName(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Name, std::move(value)); }
 
     /// Creates a reference object
     static inline PDFObject createReference(const PDFObjectReference& reference) { return PDFObject(Type::Reference, reference); }
 
     /// Creates a string object
-    static inline PDFObject createString(PDFObjectContentPointer&& value) { return PDFObject(Type::String, std::move(value)); }
+    static inline PDFObject createString(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::String, std::move(value)); }
 
     /// Creates an array object
-    static inline PDFObject createArray(PDFObjectContentPointer&& value) { return PDFObject(Type::Array, std::move(value)); }
+    static inline PDFObject createArray(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Array, std::move(value)); }
 
     /// Creates a dictionary object
-    static inline PDFObject createDictionary(PDFObjectContentPointer&& value) { return PDFObject(Type::Dictionary, std::move(value)); }
+    static inline PDFObject createDictionary(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Dictionary, std::move(value)); }
 
     /// Creates a stream object
-    static inline PDFObject createStream(PDFObjectContentPointer&& value) { return PDFObject(Type::Stream, std::move(value)); }
+    static inline PDFObject createStream(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Stream, std::move(value)); }
 
 private:
     template<typename T>
@@ -183,6 +186,9 @@ public:
     const QByteArray& getString() const { return m_string; }
     void setString(const QByteArray &getString);
 
+    /// Optimizes the string for memory consumption
+    virtual void optimize() override;
+
 private:
     QByteArray m_string;
 };
@@ -208,6 +214,9 @@ public:
 
     /// Appends object to the end of object list
     void appendItem(PDFObject object);
+
+    /// Optimizes the array for memory consumption
+    virtual void optimize() override;
 
 private:
     std::vector<PDFObject> m_objects;
@@ -265,6 +274,9 @@ public:
     /// \param index Zero-based index of value in the dictionary
     const PDFObject& getValue(size_t index) const { return m_dictionary[index].second; }
 
+    /// Optimizes the dictionary for memory consumption
+    virtual void optimize() override;
+
 private:
     /// Finds an item in the dictionary array, if the item is not in the dictionary,
     /// then end iterator is returned.
@@ -298,6 +310,12 @@ public:
 
     /// Returns dictionary for this content stream
     const PDFDictionary* getDictionary() const { return &m_dictionary; }
+
+    /// Optimizes the stream for memory consumption
+    virtual void optimize() override { m_dictionary.optimize(); m_content.shrink_to_fit(); }
+
+    /// Returns content of the stream
+    const QByteArray* getContent() const { return &m_content; }
 
 private:
     PDFDictionary m_dictionary;
