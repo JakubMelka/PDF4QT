@@ -2,6 +2,7 @@
 #include "ui_pdfviewermainwindow.h"
 
 #include "pdfdocumentreader.h"
+#include "pdfvisitor.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -30,6 +31,8 @@ void PDFViewerMainWindow::onActionOpenTriggered()
     {
         pdf::PDFDocumentReader reader;
         pdf::PDFDocument document = reader.readFromFile(fileName);
+        pdf::PDFStatisticsCollector collector;
+        pdf::PDFApplyVisitor(document, &collector);
 
         if (reader.isSuccessfull())
         {

@@ -38,7 +38,6 @@ public:
     constexpr inline PDFObjectStorage& operator=(const PDFObjectStorage&) = default;
     constexpr inline PDFObjectStorage& operator=(PDFObjectStorage&&) = default;
 
-
     struct Entry
     {
         constexpr inline explicit Entry() = default;
@@ -50,16 +49,41 @@ public:
 
     using PDFObjects = std::vector<Entry>;
 
+    explicit PDFObjectStorage(PDFObjects&& objects, PDFObject&& trailerDictionary) :
+        m_objects(std::move(objects)),
+        m_trailerDictionary(std::move(trailerDictionary))
+    {
+
+    }
+
+    /// Returns array of objects stored in this storage
+    const PDFObjects& getObjects() const { return m_objects; }
+
+    /// Returns trailer dictionary
+    const PDFObject& getTrailerDictionary() const { return m_trailerDictionary; }
+
 private:
-    PDFObjects m_pdfObjects;
+    PDFObjects m_objects;
+    PDFObject m_trailerDictionary;
 };
 
+/// PDF document main class.
 class PDFDocument
 {
 public:
     explicit PDFDocument() = default;
 
+    const PDFObjectStorage& getStorage() const { return m_pdfObjectStorage; }
+
 private:
+    friend class PDFDocumentReader;
+
+    explicit PDFDocument(PDFObjectStorage&& storage) :
+        m_pdfObjectStorage(std::move(storage))
+    {
+
+    }
+
     /// Storage of objects
     PDFObjectStorage m_pdfObjectStorage;
 };

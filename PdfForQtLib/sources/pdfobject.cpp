@@ -17,6 +17,7 @@
 
 
 #include "pdfobject.h"
+#include "pdfvisitor.h"
 
 namespace pdf
 {
@@ -30,12 +31,36 @@ QByteArray PDFObject::getString() const
     return string->getString();
 }
 
-const PDFDictionary*PDFObject::getDictionary() const
+const PDFDictionary* PDFObject::getDictionary() const
 {
     const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
 
     Q_ASSERT(dynamic_cast<const PDFDictionary*>(objectContent.get()));
     return static_cast<const PDFDictionary*>(objectContent.get());
+}
+
+const PDFString* PDFObject::getStringObject() const
+{
+    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
+
+    Q_ASSERT(dynamic_cast<const PDFString*>(objectContent.get()));
+    return static_cast<const PDFString*>(objectContent.get());
+}
+
+const PDFStream* PDFObject::getStream() const
+{
+    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
+
+    Q_ASSERT(dynamic_cast<const PDFStream*>(objectContent.get()));
+    return static_cast<const PDFStream*>(objectContent.get());
+}
+
+const PDFArray* PDFObject::getArray() const
+{
+    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
+
+    Q_ASSERT(dynamic_cast<const PDFArray*>(objectContent.get()));
+    return static_cast<const PDFArray*>(objectContent.get());
 }
 
 bool PDFObject::operator==(const PDFObject &other) const
@@ -61,16 +86,60 @@ bool PDFObject::operator==(const PDFObject &other) const
     return false;
 }
 
+void PDFObject::accept(PDFAbstractVisitor* visitor) const
+{
+    switch (m_type)
+    {
+        case Type::Null:
+            visitor->visitNull();
+            break;
+
+        case Type::Bool:
+            visitor->visitBool(getBool());
+            break;
+
+        case Type::Int:
+            visitor->visitInt(getInteger());
+            break;
+
+        case Type::Real:
+            visitor->visitReal(getReal());
+            break;
+
+        case Type::String:
+            visitor->visitString(getStringObject());
+            break;
+
+        case Type::Name:
+            visitor->visitName(getStringObject());
+            break;
+
+        case Type::Array:
+            visitor->visitArray(getArray());
+            break;
+
+        case Type::Dictionary:
+            visitor->visitDictionary(getDictionary());
+            break;
+
+        case Type::Stream:
+            visitor->visitStream(getStream());
+            break;
+
+        case Type::Reference:
+            visitor->visitReference(getReference());
+            break;
+
+        default:
+            Q_ASSERT(false);
+    }
+}
+
 bool PDFString::equals(const PDFObjectContent* other) const
 {
     Q_ASSERT(dynamic_cast<const PDFString*>(other));
     const PDFString* otherString = static_cast<const PDFString*>(other);
     return m_string == otherString->m_string;
-}
-
-QByteArray PDFString::getString() const
-{
-    return m_string;
 }
 
 void PDFString::setString(const QByteArray& string)

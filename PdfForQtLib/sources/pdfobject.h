@@ -26,10 +26,15 @@
 #include <memory>
 #include <vector>
 #include <variant>
+#include <initializer_list>
 
 namespace pdf
 {
+class PDFArray;
+class PDFString;
+class PDFStream;
 class PDFDictionary;
+class PDFAbstractVisitor;
 
 /// This class represents a content of the PDF object. It can be
 /// array of objects, dictionary, content stream data, or string data.
@@ -64,6 +69,8 @@ public:
         Reference
     };
 
+    static std::vector<Type> getTypes() { return { Type::Null, Type::Bool, Type::Int, Type::Real, Type::String, Type::Name, Type::Array, Type::Dictionary, Type::Stream, Type::Reference }; }
+
     typedef std::shared_ptr<PDFObjectContent> PDFObjectContentPointer;
 
     // Default constructor should be constexpr
@@ -97,13 +104,21 @@ public:
     inline bool isStream() const { return m_type == Type::Stream; }
     inline bool isReference() const { return m_type == Type::Reference; }
 
+    inline bool getBool() const { return std::get<bool>(m_data); }
     inline PDFInteger getInteger() const { return std::get<PDFInteger>(m_data); }
+    inline PDFReal getReal() const { return std::get<PDFReal>(m_data); }
     QByteArray getString() const;
     const PDFDictionary* getDictionary() const;
     PDFObjectReference getReference() const { return std::get<PDFObjectReference>(m_data); }
+    const PDFString* getStringObject() const;
+    const PDFStream* getStream() const;
+    const PDFArray* getArray() const;
 
     bool operator==(const PDFObject& other) const;
     bool operator!=(const PDFObject& other) const { return !(*this == other); }
+
+    /// Accepts the visitor
+    void accept(PDFAbstractVisitor* visitor) const;
 
     /// Creates a null object
     static inline PDFObject createNull() { return PDFObject(); }
@@ -165,7 +180,7 @@ public:
 
     virtual bool equals(const PDFObjectContent* other) const override;
 
-    QByteArray getString() const;
+    const QByteArray& getString() const { return m_string; }
     void setString(const QByteArray &getString);
 
 private:
@@ -187,6 +202,9 @@ public:
 
     /// Returns size of the array (number of elements)
     size_t getCount() const { return m_objects.size(); }
+
+    /// Returns capacity of the array (theoretical number of elements before reallocation)
+    size_t getCapacity() const { return m_objects.capacity(); }
 
     /// Appends object to the end of object list
     void appendItem(PDFObject object);
@@ -232,6 +250,20 @@ public:
     /// \param key Key
     /// \param value Value
     void addEntry(QByteArray&& key, PDFObject&& value) { m_dictionary.emplace_back(std::move(key), std::move(value)); }
+
+    /// Returns count of items in the dictionary
+    size_t getCount() const { return m_dictionary.size(); }
+
+    /// Returns capacity of items in the dictionary
+    size_t getCapacity() const { return m_dictionary.capacity(); }
+
+    /// Returns n-th key of the dictionary
+    /// \param index Zero-based index of key in the dictionary
+    const QByteArray& getKey(size_t index) const { return m_dictionary[index].first; }
+
+    /// Returns n-th value of the dictionary
+    /// \param index Zero-based index of value in the dictionary
+    const PDFObject& getValue(size_t index) const { return m_dictionary[index].second; }
 
 private:
     /// Finds an item in the dictionary array, if the item is not in the dictionary,

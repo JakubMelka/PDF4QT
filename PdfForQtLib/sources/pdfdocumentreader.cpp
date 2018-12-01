@@ -260,6 +260,9 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
         // Now, we are ready to scan all objects
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
+
+        PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()));
+        return PDFDocument(std::move(storage));
     }
     catch (PDFParserException parserException)
     {

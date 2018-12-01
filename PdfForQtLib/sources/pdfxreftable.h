@@ -77,6 +77,9 @@ public:
     /// then free entry is returned.
     const Entry& getEntry(PDFObjectReference reference) const;
 
+    /// Returns the trailer dictionary
+    const PDFObject& getTrailerDictionary() const { return m_trailerDictionary; }
+
 private:
     /// Reference table entries
     std::vector<Entry> m_entries;
