@@ -93,7 +93,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                     treatAsReal = true;
                     real = integer;
                 }
-                else if (std::isdigit(lookChar()))
+                else if (std::isdigit(static_cast<unsigned char>(lookChar())))
                 {
                     atLeastOneDigit = true;
                     PDFInteger digit = lookChar() - '0';
@@ -257,6 +257,9 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
 
                             default:
                             {
+                                // Undo fetch char, we do not want to miss first digit
+                                --m_current;
+
                                 // Try to scan octal value. Octal number can have 3 digits in this case.
                                 // According to specification, overflow value can be truncated.
                                 int octalNumber = -1;

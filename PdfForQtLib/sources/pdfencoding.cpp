@@ -1925,7 +1925,7 @@ QDateTime PDFEncoding::convertToDateTime(const QByteArray& stream)
             for (int i = 0; i < size; ++i)
             {
                 const char currentChar = *it++;
-                if (std::isdigit(currentChar))
+                if (std::isdigit(static_cast<unsigned char>(currentChar)))
                 {
                     value = value * 10 + currentChar - '0';
                 }
