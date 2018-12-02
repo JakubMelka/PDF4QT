@@ -41,7 +41,8 @@ SOURCES += \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \
     sources/pdfxreftable.cpp \
-    sources/pdfvisitor.cpp
+    sources/pdfvisitor.cpp \
+    sources/pdfencoding.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -52,7 +53,8 @@ HEADERS += \
     sources/pdfdocumentreader.h \
     sources/pdfxreftable.h \
     sources/pdfflatmap.h \
-    sources/pdfvisitor.h
+    sources/pdfvisitor.h \
+    sources/pdfencoding.h
 
 unix {
     target.path = /usr/lib
@@ -63,4 +65,4 @@ unix {
 CONFIG += force_debug_info
 
 
-QMAKE_CXXFLAGS += /std:c++latest
+QMAKE_CXXFLAGS += /std:c++latest /utf-8

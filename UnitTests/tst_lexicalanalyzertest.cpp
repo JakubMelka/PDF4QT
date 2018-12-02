@@ -103,6 +103,7 @@ void LexicalAnalyzerTest::test_strings()
     testTokens("(Text with special character: \\))", { Token(Type::String, QByteArray("Text with special character: )")) });
     testTokens("(Text with special character: \\\\)", { Token(Type::String, QByteArray("Text with special character: \\")) });
     testTokens("(\53)", { Token(Type::String, QByteArray("+")) });
+    testTokens("(\376\377)", { Token(Type::String, QByteArray("\376\377")) });
     testTokens("(\0533)", { Token(Type::String, QByteArray("+3")) });
     testTokens("(\053)", { Token(Type::String, QByteArray("+")) });
     testTokens("(\053053)", { Token(Type::String, QByteArray("+053")) });
