@@ -1,0 +1,162 @@
+//    Copyright (C) 2018 Jakub Melka
+//
+//    This file is part of PdfForQt.
+//
+//    PdfForQt is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU Lesser General Public License as published by
+//    the Free Software Foundation, either version 3 of the License, or
+//    (at your option) any later version.
+//
+//    PdfForQt is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU Lesser General Public License for more details.
+//
+//    You should have received a copy of the GNU Lesser General Public License
+//    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
+
+#ifndef PDFCATALOG_H
+#define PDFCATALOG_H
+
+#include "pdfobject.h"
+
+#include <QtCore>
+
+#include <array>
+#include <vector>
+#include <utility>
+
+namespace pdf
+{
+
+class PDFDocument;
+
+/// Defines page layout. Default value is SinglePage. This enum specifies the page layout
+/// to be used in viewer application.
+enum class PageLayout
+{
+    SinglePage,     ///< Display one page at time (single page on screen)
+    OneColumn,      ///< Displays pages in one column (continuous mode)
+    TwoColumnLeft,  ///< Display pages in two continuous columns, odd numbered pages are on the left
+    TwoColumnRight, ///< Display pages in two continuous columns, even numbered pages are on the left
+    TwoPagesLeft,   ///< Display two pages on the screen, odd numbered pages are on the left
+    TwoPagesRight   ///< Display two pages on the screen, even numbered pages are on the left
+};
+
+/// Specifies, how the document should be displayed in the viewer application.
+enum class PageMode
+{
+    UseNone,            ///< Default value, neither document outline or thumbnails are visible
+    UseOutlines,        ///< Document outline window is selected and visible
+    UseThumbnails,      ///< Document thumbnails window is selected and visible
+    Fullscreen,         ///< Use fullscreen mode, no menu bars, window controls, or any other window visible (presentation mode)
+    UseOptionalContent, ///< Optional content group window is selected and visible
+    UseAttachments,     ///< Attachments window is selected and visible
+};
+
+class PDFViewerPreferences
+{
+public:
+
+    enum OptionFlag
+    {
+        None                = 0x0000,   ///< Empty flag
+        HideToolbar         = 0x0001,   ///< Hide toolbar
+        HideMenubar         = 0x0002,   ///< Hide menubar
+        HideWindowUI        = 0x0004,   ///< Hide window UI (for example scrollbars, navigation controls, etc.)
+        FitWindow           = 0x0008,   ///< Resize window to fit first displayed page
+        CenterWindow        = 0x0010,   ///< Position of the document's window should be centered on the screen
+        DisplayDocTitle     = 0x0020,   ///< Display documents title instead of file name (introduced in PDF 1.4)
+        PickTrayByPDFSize   = 0x0040    ///< Pick tray by PDF size (printing option)
+    };
+
+    Q_DECLARE_FLAGS(OptionFlags, OptionFlag)
+
+    /// This enum specifies, how to display document, when exiting full screen mode.
+    enum class NonFullScreenPageMode
+    {
+        UseNone,
+        UseOutline,
+        UseThumbnails,
+        UseOptionalContent
+    };
+
+    /// Predominant reading order of text.
+    enum class Direction
+    {
+        LeftToRight,    ///< Default
+        RightToLeft     ///< Reading order is right to left. Also used for vertical writing systems (Chinese/Japan etc.)
+    };
+
+    /// Printer settings - paper handling option to use when printing the document.
+    enum class Duplex
+    {
+        None,
+        Simplex,
+        DuplexFlipShortEdge,
+        DuplexFlipLongEdge
+    };
+
+    enum class PrintScaling
+    {
+        None,
+        AppDefault
+    };
+
+    enum Properties
+    {
+        ViewArea,
+        ViewClip,
+        PrintArea,
+        PrintClip,
+        EndProperties
+    };
+
+    constexpr inline PDFViewerPreferences() = default;
+
+    constexpr inline PDFViewerPreferences(const PDFViewerPreferences&) = default;
+    constexpr inline PDFViewerPreferences(PDFViewerPreferences&&) = default;
+
+    constexpr inline PDFViewerPreferences& operator=(const PDFViewerPreferences&) = default;
+    constexpr inline PDFViewerPreferences& operator=(PDFViewerPreferences&&) = default;
+
+    /// Parses viewer preferences from catalog dictionary. If object cannot be parsed, or error occurs,
+    /// then exception is thrown.
+    static PDFViewerPreferences parse(const PDFObject& catalogDictionary, const PDFDocument* document);
+
+private:
+    OptionFlags m_optionFlags = None;
+    std::array<QByteArray, EndProperties> m_properties;
+    NonFullScreenPageMode m_nonFullScreenPageMode = NonFullScreenPageMode::UseNone;
+    Direction m_direction = Direction::LeftToRight;
+    Duplex m_duplex = Duplex::None;
+    PrintScaling m_printScaling = PrintScaling::AppDefault;
+    std::vector<std::pair<PDFInteger, PDFInteger>> m_printPageRanges;
+    PDFInteger m_numberOfCopies = 1;
+};
+
+class PDFCatalog
+{
+public:
+    constexpr inline PDFCatalog() = default;
+
+    constexpr inline PDFCatalog(const PDFCatalog&) = default;
+    constexpr inline PDFCatalog(PDFCatalog&&) = default;
+
+    constexpr inline PDFCatalog& operator=(const PDFCatalog&) = default;
+    constexpr inline PDFCatalog& operator=(PDFCatalog&&) = default;
+
+    /// Returns viewer preferences of the application
+    const PDFViewerPreferences* getViewerPreferences() const { return &m_viewerPreferences; }
+
+    /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
+    /// then exception is thrown.
+    static PDFCatalog parse(const PDFObject& catalog, const PDFDocument* document);
+
+private:
+    PDFViewerPreferences m_viewerPreferences;
+};
+
+}   // namespace pdf
+
+#endif // PDFCATALOG_H

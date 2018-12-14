@@ -19,6 +19,7 @@
 #ifndef PDFGLOBAL_H
 #define PDFGLOBAL_H
 
+#include <QtCore>
 #include <QtGlobal>
 
 #include <limits>
@@ -96,6 +97,11 @@ struct PDFVersion
     uint16_t minor = 0;
 
     bool isValid() const { return major > 0; }
+};
+
+struct PDFTranslationContext
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFTranslationContext)
 };
 
 }   // namespace pdf

@@ -110,6 +110,12 @@ public:
     /// Returns info about the document (title, author, etc.)
     const Info* getInfo() const { return &m_info; }
 
+    /// If object is reference, the dereference attempt is performed
+    /// and object is returned. If it is not a reference, then self
+    /// is returned. If dereference attempt fails, then null object
+    /// is returned (no exception is thrown).
+    const PDFObject& getObject(const PDFObject& object) const;
+
 private:
     friend class PDFDocumentReader;
 
@@ -127,12 +133,6 @@ private:
     /// If document info is not present, then default document
     /// info is used. If error is detected, exception is thrown.
     void initInfo();
-
-    /// If object is reference, the dereference attempt is performed
-    /// and object is returned. If it is not a reference, then self
-    /// is returned. If dereference attempt fails, then null object
-    /// is returned (no exception is thrown).
-    const PDFObject& getObject(const PDFObject& object) const;
 
     /// Storage of objects
     PDFObjectStorage m_pdfObjectStorage;

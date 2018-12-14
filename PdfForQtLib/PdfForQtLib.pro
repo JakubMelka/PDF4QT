@@ -42,7 +42,8 @@ SOURCES += \
     sources/pdfdocumentreader.cpp \
     sources/pdfxreftable.cpp \
     sources/pdfvisitor.cpp \
-    sources/pdfencoding.cpp
+    sources/pdfencoding.cpp \
+    sources/pdfcatalog.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -54,7 +55,8 @@ HEADERS += \
     sources/pdfxreftable.h \
     sources/pdfflatmap.h \
     sources/pdfvisitor.h \
-    sources/pdfencoding.h
+    sources/pdfencoding.h \
+    sources/pdfcatalog.h
 
 unix {
     target.path = /usr/lib
