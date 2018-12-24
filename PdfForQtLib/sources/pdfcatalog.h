@@ -54,6 +54,52 @@ enum class PageMode
     UseAttachments,     ///< Attachments window is selected and visible
 };
 
+/// Represents page numbering definition object
+class PDFPageLabel
+{
+public:
+
+    enum class NumberingStyle
+    {
+        None,               ///< This means, only prefix is used, no numbering
+        DecimalArabic,
+        UppercaseRoman,
+        LowercaseRoman,
+        UppercaseLetters,
+        LowercaseLetters
+    };
+
+    explicit inline PDFPageLabel() :
+        m_numberingType(NumberingStyle::None),
+        m_prefix(),
+        m_pageIndex(0),
+        m_startNumber(0)
+    {
+
+    }
+
+    explicit inline PDFPageLabel(NumberingStyle numberingType, const QString& prefix, PDFInteger pageIndex, PDFInteger startNumber) :
+        m_numberingType(numberingType),
+        m_prefix(prefix),
+        m_pageIndex(pageIndex),
+        m_startNumber(startNumber)
+    {
+
+    }
+
+    /// Comparison operator, works only with page indices (because they should be unique)
+    bool operator<(const PDFPageLabel& other) const { return m_pageIndex < other.m_pageIndex; }
+
+    /// Parses page label object from PDF object, according to PDF Reference 1.7, Table 8.10
+    static PDFPageLabel parse(PDFInteger pageIndex, const PDFDocument* document, const PDFObject& object);
+
+private:
+    NumberingStyle m_numberingType;
+    QString m_prefix;
+    PDFInteger m_pageIndex;
+    PDFInteger m_startNumber;
+};
+
 class PDFViewerPreferences
 {
 public:
@@ -155,6 +201,7 @@ public:
 
 private:
     PDFViewerPreferences m_viewerPreferences;
+    std::vector<PDFPageLabel> m_pageLabels;
 };
 
 }   // namespace pdf

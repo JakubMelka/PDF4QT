@@ -21,12 +21,14 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfcatalog.h"
 
 #include <QtCore>
 #include <QDateTime>
 
 namespace pdf
 {
+class PDFDocument;
 
 /// Storage for objects. This class is not thread safe for writing (calling non-const functions). Caller must ensure
 /// locking, if this object is used from multiple threads. Calling const functions should be thread safe.
@@ -72,6 +74,56 @@ public:
 private:
     PDFObjects m_objects;
     PDFObject m_trailerDictionary;
+};
+
+/// Loads data from the object contained in the PDF document, such as integers,
+/// bools, ... This object has two sets of functions - first one with default values,
+/// then if object with valid data is not found, default value is used, and second one,
+/// without default value, if valid data are not found, then exception is thrown.
+/// This class uses Decorator design pattern.
+class PDFDocumentDataLoaderDecorator
+{
+public:
+    inline explicit PDFDocumentDataLoaderDecorator(const PDFDocument* document) : m_document(document) { }
+    inline ~PDFDocumentDataLoaderDecorator() = default;
+
+    /// Reads an integer from the object, if it is possible.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    /// \param defaultValue Default value
+    PDFInteger readInteger(const PDFObject& object, PDFInteger defaultValue) const;
+
+    /// Reads a text string from the object, if it is possible.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    /// \param defaultValue Default value
+    QString readTextString(const PDFObject& object, const QString& defaultValue) const;
+
+    /// Reads enum from name object, if it is possible.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    /// \param begin Begin of the enum search array
+    /// \param end End of the enum search array
+    /// \param default value Default value
+    template<typename Enum, typename Iterator>
+    Enum readEnumByName(const PDFObject& object, Iterator begin, Iterator end, Enum defaultValue) const
+    {
+        const PDFObject& dereferencedObject = m_document->getObject(object);
+        if (dereferencedObject.isName())
+        {
+            QByteArray name = dereferencedObject.getString();
+
+            for (Iterator it = begin; it != end; ++it)
+            {
+                if (name == (*it).first)
+                {
+                    return (*it).second;
+                }
+            }
+        }
+
+        return defaultValue;
+    }
+
+private:
+    const PDFDocument* m_document;
 };
 
 /// PDF document main class.
@@ -139,7 +191,12 @@ private:
 
     /// Info about the PDF document
     Info m_info;
+
+    /// Catalog object
+    PDFCatalog m_catalog;
 };
+
+// Implementation
 
 inline
 const PDFObject& PDFDocument::getObject(const PDFObject& object) const

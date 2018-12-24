@@ -18,6 +18,7 @@
 #include "pdfcatalog.h"
 #include "pdfparser.h"
 #include "pdfdocument.h"
+#include "pdfnumbertreeloader.h"
 
 namespace pdf
 {
@@ -48,8 +49,12 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         throw PDFParserException(PDFTranslationContext::tr("Catalog must be a dictionary."));
     }
 
+    const PDFDictionary* catalogDictionary = catalog.getDictionary();
+    Q_ASSERT(catalogDictionary);
+
     PDFCatalog catalogObject;
     catalogObject.m_viewerPreferences = PDFViewerPreferences::parse(catalog, document);
+    catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(document, catalogDictionary->get("PageLabels"));
     return catalogObject;
 }
 
@@ -313,6 +318,32 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
     }
 
     return result;
+}
+
+PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFDocument* document, const PDFObject& object)
+{
+    const PDFObject& dereferencedObject = document->getObject(object);
+    if (dereferencedObject.isDictionary())
+    {
+        std::array<std::pair<const char*, NumberingStyle>, 5> numberingStyles = { std::pair<const char*, NumberingStyle>{ "D", NumberingStyle::DecimalArabic},
+                                                                                  std::pair<const char*, NumberingStyle>{ "R", NumberingStyle::UppercaseRoman },
+                                                                                  std::pair<const char*, NumberingStyle>{ "r", NumberingStyle::LowercaseRoman },
+                                                                                  std::pair<const char*, NumberingStyle>{ "A", NumberingStyle::UppercaseLetters},
+                                                                                  std::pair<const char*, NumberingStyle>{ "a", NumberingStyle::LowercaseLetters} };
+
+        const PDFDictionary* dictionary = dereferencedObject.getDictionary();
+        const PDFDocumentDataLoaderDecorator loader(document);
+        const NumberingStyle numberingStyle = loader.readEnumByName(dictionary->get("S"), numberingStyles.cbegin(), numberingStyles.cend(), NumberingStyle::None);
+        const QString prefix = loader.readTextString(dictionary->get("P"), QString());
+        const PDFInteger startNumber = loader.readInteger(dictionary->get("St"), 1);
+        return PDFPageLabel(numberingStyle, prefix, pageIndex, startNumber);
+    }
+    else
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Expected page label dictionary."));
+    }
+
+    return PDFPageLabel();
 }
 
 }   // namespace pdf

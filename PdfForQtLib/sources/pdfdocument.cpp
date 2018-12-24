@@ -41,6 +41,16 @@ static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown"
 void PDFDocument::init()
 {
     initInfo();
+
+    const PDFObject& trailerDictionary = m_pdfObjectStorage.getTrailerDictionary();
+
+    // Trailer object should be dictionary here. It is verified in the document reader.
+    Q_ASSERT(trailerDictionary.isDictionary());
+
+    const PDFDictionary* dictionary = trailerDictionary.getDictionary();
+    Q_ASSERT(dictionary);
+
+    m_catalog = PDFCatalog::parse(getObject(dictionary->get("Root")), this);
 }
 
 void PDFDocument::initInfo()
@@ -158,6 +168,28 @@ const PDFObject& PDFObjectStorage::getObject(PDFObjectReference reference) const
         static const PDFObject dummy;
         return dummy;
     }
+}
+
+PDFInteger PDFDocumentDataLoaderDecorator::readInteger(const PDFObject& object, PDFInteger defaultValue) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isInt())
+    {
+        return dereferencedObject.getInteger();
+    }
+
+    return defaultValue;
+}
+
+QString PDFDocumentDataLoaderDecorator::readTextString(const PDFObject& object, const QString& defaultValue) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isString())
+    {
+        return PDFEncoding::convertTextString(dereferencedObject.getString());
+    }
+
+    return defaultValue;
 }
 
 }   // namespace pdf

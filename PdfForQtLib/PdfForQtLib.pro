@@ -56,7 +56,8 @@ HEADERS += \
     sources/pdfflatmap.h \
     sources/pdfvisitor.h \
     sources/pdfencoding.h \
-    sources/pdfcatalog.h
+    sources/pdfcatalog.h \
+    sources/pdfnumbertreeloader.h
 
 unix {
     target.path = /usr/lib
