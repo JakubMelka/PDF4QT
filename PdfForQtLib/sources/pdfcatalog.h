@@ -19,6 +19,7 @@
 #define PDFCATALOG_H
 
 #include "pdfobject.h"
+#include "pdfpage.h"
 
 #include <QtCore>
 
@@ -201,6 +202,7 @@ public:
 
 private:
     PDFViewerPreferences m_viewerPreferences;
+    std::vector<PDFPage> m_pages;
     std::vector<PDFPageLabel> m_pageLabels;
 };
 

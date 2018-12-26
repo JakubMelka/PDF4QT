@@ -54,6 +54,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
 
     PDFCatalog catalogObject;
     catalogObject.m_viewerPreferences = PDFViewerPreferences::parse(catalog, document);
+    catalogObject.m_pages = PDFPage::parse(document, catalogDictionary->get("Pages"));
     catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(document, catalogDictionary->get("PageLabels"));
     return catalogObject;
 }

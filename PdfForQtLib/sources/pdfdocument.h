@@ -97,6 +97,11 @@ public:
     /// \param defaultValue Default value
     QString readTextString(const PDFObject& object, const QString& defaultValue) const;
 
+    /// Reads a rectangle from the object, if it is possible.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    /// \param defaultValue Default value
+    QRectF readRectangle(const PDFObject& object, const QRectF& defaultValue) const;
+
     /// Reads enum from name object, if it is possible.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
     /// \param begin Begin of the enum search array

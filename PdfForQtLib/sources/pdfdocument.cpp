@@ -192,4 +192,42 @@ QString PDFDocumentDataLoaderDecorator::readTextString(const PDFObject& object, 
     return defaultValue;
 }
 
+QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, const QRectF& defaultValue) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        if (array->getCount() == 4)
+        {
+            std::array<PDFReal, 4> items;
+            for (size_t i = 0; i < 4; ++i)
+            {
+                const PDFObject& object = m_document->getObject(array->getItem(i));
+                if (object.isReal())
+                {
+                    items[i] = object.getReal();
+                }
+                else if (object.isInt())
+                {
+                    items[i] = object.getInteger();
+                }
+                else
+                {
+                    return defaultValue;
+                }
+            }
+
+            const PDFReal xMin = qMin(items[0], items[2]);
+            const PDFReal xMax = qMax(items[0], items[2]);
+            const PDFReal yMin = qMin(items[1], items[3]);
+            const PDFReal yMax = qMax(items[1], items[3]);
+
+            return QRectF(xMin, yMin, xMax - xMin, yMax - yMin);
+        }
+    }
+
+    return defaultValue;
+}
+
 }   // namespace pdf
