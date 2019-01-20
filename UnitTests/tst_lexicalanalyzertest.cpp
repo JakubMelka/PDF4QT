@@ -22,6 +22,7 @@
 #include "pdfparser.h"
 #include "pdfconstants.h"
 #include "pdfflatmap.h"
+#include "pdfstreamfilters.h"
 
 #include <regex>
 
@@ -44,6 +45,7 @@ private slots:
     void test_invalid_input();
     void test_header_regexp();
     void test_flat_map();
+    void test_lzw_filter();
 
 private:
     void scanWholeStream(const char* stream);
@@ -293,6 +295,17 @@ void LexicalAnalyzerTest::test_flat_map()
 
         } while (std::next_permutation(items.begin(), items.end()));
     }
+}
+
+void LexicalAnalyzerTest::test_lzw_filter()
+{
+    // This example is from PDF 1.7 Reference
+    QByteArray byteArray = QByteArray::fromHex("800B6050220C0C8501");
+    pdf::PDFLzwDecodeFilter filter;
+    QByteArray decoded = filter.apply(byteArray, nullptr, pdf::PDFObject());
+    QByteArray valid = "-----A---B";
+
+    QCOMPARE(decoded, valid);
 }
 
 void LexicalAnalyzerTest::scanWholeStream(const char* stream)

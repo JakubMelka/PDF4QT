@@ -76,14 +76,24 @@ public:
     /// \param root Root object of page tree
     static std::vector<PDFPage> parse(const PDFDocument* document, const PDFObject& root);
 
-    const QRectF& getMediaBox() const { return m_mediaBox; }
-    const QRectF& getCropBox() const { return m_cropBox; }
-    const QRectF& getBleedBox() const { return m_bleedBox; }
-    const QRectF& getTrimBox() const { return m_trimBox; }
-    const QRectF& getArtBox() const { return m_artBox; }
-    PageRotation getPageRotation() const { return m_pageRotation; }
-    const PDFObject& getResources() const { return m_resources; }
-    const PDFObject& getContents() const { return m_contents; }
+    inline const QRectF& getMediaBox() const { return m_mediaBox; }
+    inline const QRectF& getCropBox() const { return m_cropBox; }
+    inline const QRectF& getBleedBox() const { return m_bleedBox; }
+    inline const QRectF& getTrimBox() const { return m_trimBox; }
+    inline const QRectF& getArtBox() const { return m_artBox; }
+    inline PageRotation getPageRotation() const { return m_pageRotation; }
+    inline const PDFObject& getResources() const { return m_resources; }
+    inline const PDFObject& getContents() const { return m_contents; }
+
+    QRectF getRectMM(const QRectF& rect) const;
+
+    inline QRectF getMediaBoxMM() const { return getRectMM(m_mediaBox); }
+    inline QRectF getCropBoxMM() const { return getRectMM(m_cropBox); }
+    inline QRectF getBleedBoxMM() const { return getRectMM(m_bleedBox); }
+    inline QRectF getTrimBoxMM() const { return getRectMM(m_trimBox); }
+    inline QRectF getArtBoxMM() const { return getRectMM(m_artBox); }
+
+    static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);
 
 private:
     /// Parses the page tree (implementation). If error occurs, then exception is thrown.

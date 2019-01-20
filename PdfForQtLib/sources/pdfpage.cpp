@@ -108,6 +108,31 @@ std::vector<PDFPage> PDFPage::parse(const PDFDocument* document, const PDFObject
     return result;
 }
 
+QRectF PDFPage::getRectMM(const QRectF& rect) const
+{
+    return QRectF(convertPDFPointToMM(rect.left()),
+                  convertPDFPointToMM(rect.top()),
+                  convertPDFPointToMM(rect.width()),
+                  convertPDFPointToMM(rect.height()));
+}
+
+QRectF PDFPage::getRotatedBox(const QRectF& rect, PageRotation rotation)
+{
+    switch (rotation)
+    {
+        case PageRotation::None:
+        case PageRotation::Rotate180:
+            // Preserve rotation
+            break;
+
+        case PageRotation::Rotate90:
+        case PageRotation::Rotate270:
+            return rect.transposed();
+    }
+
+    return rect;
+}
+
 void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                         std::set<PDFObjectReference>& visitedReferences,
                         const PDFPageInheritableAttributes& templateAttributes,
@@ -165,7 +190,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
 
                 page.m_mediaBox = currentInheritableAttributes.getMediaBox();
                 page.m_cropBox = currentInheritableAttributes.getCropBox();
-                page.m_resources = currentInheritableAttributes.getResources();
+                page.m_resources = document->getObject(currentInheritableAttributes.getResources());
                 page.m_pageRotation = currentInheritableAttributes.getPageRotation();
 
                 if (!page.m_cropBox.isValid())

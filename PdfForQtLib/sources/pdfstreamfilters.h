@@ -26,7 +26,7 @@ namespace pdf
 {
 class PDFDocument;
 
-class PDFStreamFilter
+class PDFFORQTLIBSHARED_EXPORT PDFStreamFilter
 {
 public:
     explicit PDFStreamFilter() = default;
@@ -35,7 +35,7 @@ public:
     virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const = 0;
 };
 
-class PDFAsciiHexDecodeFilter : public PDFStreamFilter
+class PDFFORQTLIBSHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFAsciiHexDecodeFilter() = default;
@@ -44,7 +44,7 @@ public:
     virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
 };
 
-class PDFAscii85DecodeFilter : public PDFStreamFilter
+class PDFFORQTLIBSHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFAscii85DecodeFilter() = default;
@@ -53,7 +53,7 @@ public:
     virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
 };
 
-class PDFLzwDecodeFilter : public PDFStreamFilter
+class PDFFORQTLIBSHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFLzwDecodeFilter() = default;
@@ -62,7 +62,7 @@ public:
     virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
 };
 
-class PDFFlateDecodeFilter : public PDFStreamFilter
+class PDFFORQTLIBSHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFFlateDecodeFilter() = default;
@@ -71,7 +71,7 @@ public:
     virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
 };
 
-class PDFRunLengthDecodeFilter : public PDFStreamFilter
+class PDFFORQTLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFRunLengthDecodeFilter() = default;

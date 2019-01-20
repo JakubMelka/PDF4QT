@@ -45,7 +45,8 @@ SOURCES += \
     sources/pdfencoding.cpp \
     sources/pdfcatalog.cpp \
     sources/pdfpage.cpp \
-    sources/pdfstreamfilters.cpp
+    sources/pdfstreamfilters.cpp \
+    sources/pdfdrawspacecontroller.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -61,7 +62,8 @@ HEADERS += \
     sources/pdfcatalog.h \
     sources/pdfnumbertreeloader.h \
     sources/pdfpage.h \
-    sources/pdfstreamfilters.h
+    sources/pdfstreamfilters.h \
+    sources/pdfdrawspacecontroller.h
 
 unix {
     target.path = /usr/lib

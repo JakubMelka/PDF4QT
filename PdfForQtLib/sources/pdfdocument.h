@@ -173,6 +173,9 @@ public:
     /// is returned (no exception is thrown).
     const PDFObject& getObject(const PDFObject& object) const;
 
+    /// Returns the document catalog
+    const PDFCatalog* getCatalog() const { return &m_catalog; }
+
 private:
     friend class PDFDocumentReader;
 

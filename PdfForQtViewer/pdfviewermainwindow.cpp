@@ -3,6 +3,7 @@
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
+#include "pdfstreamfilters.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -41,6 +42,18 @@ void PDFViewerMainWindow::onActionOpenTriggered()
         else
         {
             QMessageBox::information(this, tr("PDF Reader"), tr("Document read error: %1").arg(reader.getErrorMessage()));
+        }
+
+        const pdf::PDFCatalog* catalog = document.getCatalog();
+        const pdf::PDFPage* page = catalog->getPage(0);
+        const pdf::PDFObject& contents = page->getContents();
+
+        if (contents.isStream())
+        {
+            const pdf::PDFStream* stream = contents.getStream();
+            const QByteArray* compressed = stream->getContent();
+            pdf::PDFFlateDecodeFilter fd;
+            QByteArray uncompressed = fd.apply(*compressed, &document, pdf::PDFObject());
         }
     }
 }

@@ -104,6 +104,15 @@ struct PDFTranslationContext
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFTranslationContext)
 };
 
+constexpr PDFReal PDF_POINT_TO_INCH = 1.0 / 72.0;
+constexpr PDFReal PDF_INT_TO_MM = 25.4;
+constexpr PDFReal PDF_POINT_TO_MM = PDF_POINT_TO_INCH * PDF_INT_TO_MM;
+
+constexpr PDFReal convertPDFPointToMM(PDFReal point)
+{
+    return point * PDF_POINT_TO_MM;
+}
+
 }   // namespace pdf
 
 #endif // PDFGLOBAL_H

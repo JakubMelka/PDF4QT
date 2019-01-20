@@ -196,6 +196,12 @@ public:
     /// Returns viewer preferences of the application
     const PDFViewerPreferences* getViewerPreferences() const { return &m_viewerPreferences; }
 
+    /// Returns the page count
+    size_t getPageCount() const { return m_pages.size(); }
+
+    /// Returns the page
+    const PDFPage* getPage(size_t index) const { return &m_pages.at(index); }
+
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.
     static PDFCatalog parse(const PDFObject& catalog, const PDFDocument* document);
