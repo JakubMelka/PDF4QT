@@ -105,13 +105,36 @@ struct PDFTranslationContext
 };
 
 constexpr PDFReal PDF_POINT_TO_INCH = 1.0 / 72.0;
-constexpr PDFReal PDF_INT_TO_MM = 25.4;
-constexpr PDFReal PDF_POINT_TO_MM = PDF_POINT_TO_INCH * PDF_INT_TO_MM;
+constexpr PDFReal PDF_INCH_TO_MM = 25.4; // [mm / inch]
+constexpr PDFReal PDF_POINT_TO_MM = PDF_POINT_TO_INCH * PDF_INCH_TO_MM;
+
+/// This is default "DPI", but in milimeters, so the name is DPMM (device pixel per milimeter)
+constexpr PDFReal PDF_DEFAULT_DPMM = 96.0 / PDF_INCH_TO_MM;
 
 constexpr PDFReal convertPDFPointToMM(PDFReal point)
 {
     return point * PDF_POINT_TO_MM;
 }
+
+class PDFBoolGuard final
+{
+public:
+    inline explicit PDFBoolGuard(bool& value) :
+        m_value(value),
+        m_oldValue(value)
+    {
+        m_value = true;
+    }
+
+    inline ~PDFBoolGuard()
+    {
+        m_value = m_oldValue;
+    }
+
+private:
+    bool& m_value;
+    bool m_oldValue;
+};
 
 }   // namespace pdf
 

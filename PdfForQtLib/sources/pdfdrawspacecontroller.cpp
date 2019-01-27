@@ -17,6 +17,9 @@
 
 
 #include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
+
+#include <QPainter>
 
 namespace pdf
 {
@@ -29,6 +32,54 @@ PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     m_horizontalSpacingMM(1.0)
 {
 
+}
+
+void PDFDrawSpaceController::setDocument(const PDFDocument* document)
+{
+    if (document != m_document)
+    {
+        m_document = document;
+        recalculate();
+    }
+}
+
+void PDFDrawSpaceController::setPageLayout(PageLayout pageLayout)
+{
+    if (m_pageLayoutMode != pageLayout)
+    {
+        m_pageLayoutMode = pageLayout;
+        recalculate();
+    }
+}
+
+QRectF PDFDrawSpaceController::getBlockBoundingRectangle(size_t blockIndex) const
+{
+    if (blockIndex < m_blockItems.size())
+    {
+        return m_blockItems[blockIndex].blockRectMM;
+    }
+
+    return QRectF();
+}
+
+PDFDrawSpaceController::LayoutItems PDFDrawSpaceController::getLayoutItems(size_t blockIndex) const
+{
+    LayoutItems result;
+
+    auto comparator = [](const LayoutItem& l, const LayoutItem& r)
+    {
+        return l.blockIndex < r.blockIndex;
+    };
+    Q_ASSERT(std::is_sorted(m_layoutItems.cbegin(), m_layoutItems.cend(), comparator));
+
+    LayoutItem templateItem;
+    templateItem.blockIndex = blockIndex;
+
+    auto range = std::equal_range(m_layoutItems.cbegin(), m_layoutItems.cend(), templateItem, comparator);
+    result.reserve(std::distance(range.first, range.second));
+    std::copy(range.first, range.second, std::back_inserter(result));
+
+    return result;
 }
 
 void PDFDrawSpaceController::recalculate()
@@ -54,6 +105,9 @@ void PDFDrawSpaceController::recalculate()
     {
         pageRotation[layoutItem.pageIndex] = layoutItem.pageRotation;
     }
+
+    // Clear the old draw space
+    clear(false);
 
     static constexpr size_t INVALID_PAGE_INDEX = std::numeric_limits<size_t>::max();
 
@@ -267,6 +321,233 @@ void PDFDrawSpaceController::clear(bool emitSignal)
     {
         emit drawSpaceChanged();
     }
+}
+
+PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
+    QObject(parent),
+    m_updateDisabled(false),
+    m_currentBlock(INVALID_BLOCK_INDEX),
+    m_pixelPerMM(PDF_DEFAULT_DPMM),
+    m_zoom(1.0),
+    m_pixelToDeviceSpaceUnit(0.0),
+    m_deviceSpaceUnitToPixel(0.0),
+    m_verticalOffset(0),
+    m_horizontalOffset(0),
+    m_controller(nullptr),
+    m_widget(nullptr),
+    m_horizontalScrollbar(nullptr),
+    m_verticalScrollbar(nullptr)
+{
+    m_controller = new PDFDrawSpaceController(this);
+    connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
+}
+
+void PDFDrawWidgetProxy::setDocument(const PDFDocument* document)
+{
+    m_controller->setDocument(document);
+}
+
+void PDFDrawWidgetProxy::init(PDFWidget* widget)
+{
+    m_widget = widget->getDrawWidget();
+    m_horizontalScrollbar = widget->getHorizontalScrollbar();
+    m_verticalScrollbar = widget->getVerticalScrollbar();
+
+    // We must update the draw space - widget has been set
+    update();
+}
+
+void PDFDrawWidgetProxy::update()
+{
+    if (m_updateDisabled)
+    {
+        return;
+    }
+    PDFBoolGuard guard(m_updateDisabled);
+
+    Q_ASSERT(m_widget);
+    Q_ASSERT(m_horizontalScrollbar);
+    Q_ASSERT(m_verticalScrollbar);
+
+    // First, we must calculate pixel per mm ratio to obtain DPMM (device pixel per mm),
+    // we also assume, that zoom is correctly set.
+    m_pixelPerMM = static_cast<PDFReal>(m_widget->width()) / static_cast<PDFReal>(m_widget->widthMM());
+
+    Q_ASSERT(m_zoom > 0.0);
+    Q_ASSERT(m_pixelPerMM > 0.0);
+
+    m_deviceSpaceUnitToPixel = m_pixelPerMM * m_zoom;
+    m_pixelToDeviceSpaceUnit = 1.0 / m_deviceSpaceUnitToPixel;
+
+    m_layout.clear();
+
+    // Switch to the first block, if we haven't selected any, otherwise fix active
+    // block item (select first block available).
+    if (m_controller->getBlockCount() > 0)
+    {
+        if (m_currentBlock == INVALID_BLOCK_INDEX)
+        {
+            m_currentBlock = 0;
+        }
+        else
+        {
+            m_currentBlock = qBound<PDFInteger>(0, m_currentBlock, m_controller->getBlockCount());
+        }
+    }
+    else
+    {
+        m_currentBlock = INVALID_BLOCK_INDEX;
+    }
+
+    // Then, create pixel size layout of the pages using the draw space controller
+    QRectF rectangle = m_controller->getBlockBoundingRectangle(m_currentBlock);
+    if (rectangle.isValid())
+    {
+        // We must have a valid block
+        PDFDrawSpaceController::LayoutItems items = m_controller->getLayoutItems(m_currentBlock);
+
+        m_layout.items.reserve(items.size());
+        for (const PDFDrawSpaceController::LayoutItem& item : items)
+        {
+            m_layout.items.emplace_back(item.pageIndex, item.pageRotation, fromDeviceSpace(item.pageRectMM).toRect());
+        }
+
+        m_layout.blockRect = fromDeviceSpace(rectangle).toRect();
+    }
+
+    QSize blockSize = m_layout.blockRect.size();
+    QSize widgetSize = m_widget->size();
+
+    // Horizontal scrollbar
+    const int horizontalDifference = blockSize.width() - widgetSize.width();
+    if (horizontalDifference > 0)
+    {
+        m_horizontalScrollbar->setVisible(true);
+        m_horizontalScrollbar->setMinimum(0);
+        m_horizontalScrollbar->setMaximum(horizontalDifference);
+
+        m_horizontalOffset = qBound<PDFInteger>(0, m_horizontalOffset, horizontalDifference);
+        m_horizontalScrollbar->setValue(m_horizontalOffset);
+    }
+    else
+    {
+        // We do not need the horizontal scrollbar, because block can be draw onto widget entirely.
+        // We set the offset to the half of available empty space.
+        m_horizontalScrollbar->setVisible(false);
+        m_horizontalOffset = -horizontalDifference / 2;
+    }
+
+    // Vertical scrollbar - has two meanings, in block mode, it switches between blocks,
+    // in continuous mode, it controls the vertical offset.
+    if (isBlockMode())
+    {
+        size_t blockCount = m_controller->getBlockCount();
+        if (blockCount > 0)
+        {
+            Q_ASSERT(m_currentBlock != INVALID_BLOCK_INDEX);
+
+            m_verticalScrollbar->setVisible(blockCount > 1);
+            m_verticalScrollbar->setMinimum(0);
+            m_verticalScrollbar->setMaximum(static_cast<int>(blockCount - 1));
+            m_verticalScrollbar->setValue(static_cast<int>(m_currentBlock));
+            m_verticalScrollbar->setSingleStep(1);
+            m_verticalScrollbar->setPageStep(1);
+        }
+        else
+        {
+            Q_ASSERT(m_currentBlock == INVALID_BLOCK_INDEX);
+            m_verticalScrollbar->setVisible(false);
+        }
+
+        // We must fix case, when we can display everything on the widget (we have
+        // enough space). Then we will center the page on the widget.
+        const int verticalDifference = blockSize.height() - widgetSize.height();
+        if (verticalDifference < 0)
+        {
+            m_verticalOffset = -verticalDifference / 2;
+        }
+    }
+    else
+    {
+        const int verticalDifference = blockSize.height() - widgetSize.height();
+        if (verticalDifference > 0)
+        {
+            m_verticalScrollbar->setVisible(true);
+            m_verticalScrollbar->setMinimum(0);
+            m_verticalScrollbar->setMaximum(verticalDifference);
+
+            // We must also calculate single step/page step. Because pages can have different size,
+            // we use first page to compute page step.
+            if (!m_layout.items.empty())
+            {
+                const LayoutItem& item = m_layout.items.front();
+
+                const int pageStep = qMax(item.pageRect.height(), 1);
+                const int singleStep = qMax(pageStep / 10, 1);
+
+                m_verticalScrollbar->setPageStep(pageStep);
+                m_verticalScrollbar->setSingleStep(singleStep);
+            }
+
+            m_verticalOffset = qBound<PDFInteger>(0, m_verticalOffset, verticalDifference);
+            m_verticalScrollbar->setValue(m_verticalOffset);
+        }
+        else
+        {
+            m_verticalScrollbar->setVisible(false);
+            m_verticalOffset = -verticalDifference / 2;
+        }
+    }
+
+    emit drawSpaceChanged();
+}
+
+void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
+{
+    painter->fillRect(rect, Qt::lightGray);
+
+    // Iterate trough pages and display them on the painter device
+    for (const LayoutItem& item : m_layout.items)
+    {
+        // The offsets m_horizontalOffset and m_verticalOffset are offsets to the
+        // topleft point of the block. But block maybe doesn't start at (0, 0),
+        // so we must also use translation from the block beginning.
+        QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+        if (placedRect.intersects(rect))
+        {
+            // Clear the page space by white color
+            painter->fillRect(placedRect, Qt::white);
+        }
+    }
+}
+
+QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
+{
+    Q_ASSERT(rect.isValid());
+
+    return QRectF(rect.left() * m_deviceSpaceUnitToPixel,
+                  rect.top() * m_deviceSpaceUnitToPixel,
+                  rect.width() * m_deviceSpaceUnitToPixel,
+                  rect.height() * m_deviceSpaceUnitToPixel);
+}
+
+bool PDFDrawWidgetProxy::isBlockMode() const
+{
+    switch (m_controller->getPageLayout())
+    {
+        case PageLayout::OneColumn:
+        case PageLayout::TwoColumnLeft:
+        case PageLayout::TwoColumnRight:
+            return false;
+
+        case PageLayout::SinglePage:
+        case PageLayout::TwoPagesLeft:
+        case PageLayout::TwoPagesRight:
+            return true;
+    }
+
+    Q_ASSERT(false);
+    return false;
 }
 
 }   // namespace pdf

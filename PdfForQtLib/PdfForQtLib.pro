@@ -15,7 +15,7 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-QT       -= gui
+QT       += gui widgets
 
 TARGET = PdfForQtLib
 TEMPLATE = lib
@@ -46,7 +46,8 @@ SOURCES += \
     sources/pdfcatalog.cpp \
     sources/pdfpage.cpp \
     sources/pdfstreamfilters.cpp \
-    sources/pdfdrawspacecontroller.cpp
+    sources/pdfdrawspacecontroller.cpp \
+    sources/pdfdrawwidget.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -63,7 +64,8 @@ HEADERS += \
     sources/pdfnumbertreeloader.h \
     sources/pdfpage.h \
     sources/pdfstreamfilters.h \
-    sources/pdfdrawspacecontroller.h
+    sources/pdfdrawspacecontroller.h \
+    sources/pdfdrawwidget.h
 
 unix {
     target.path = /usr/lib
