@@ -22,6 +22,7 @@
 #include "pdfvisitor.h"
 #include "pdfstreamfilters.h"
 #include "pdfdrawwidget.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -49,6 +50,26 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);
+
+    auto createGoToAction = [this](QMenu* menu, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation)
+    {
+        QAction* action = new QAction(text, this);
+        action->setShortcut(key);
+        menu->addAction(action);
+
+        auto onTriggered = [this, operation]()
+        {
+            m_pdfWidget->getDrawWidgetProxy()->performOperation(operation);
+        };
+        connect(action, &QAction::triggered, this, onTriggered);
+    };
+
+    createGoToAction(ui->menuGoTo, tr("Go to document start"), QKeySequence::MoveToStartOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentStart);
+    createGoToAction(ui->menuGoTo, tr("Go to document end"), QKeySequence::MoveToEndOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentEnd);
+    createGoToAction(ui->menuGoTo, tr("Go to next page"), QKeySequence::MoveToNextPage, pdf::PDFDrawWidgetProxy::NavigateNextPage);
+    createGoToAction(ui->menuGoTo, tr("Go to previous page"), QKeySequence::MoveToPreviousPage, pdf::PDFDrawWidgetProxy::NavigatePreviousPage);
+    createGoToAction(ui->menuGoTo, tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep);
+    createGoToAction(ui->menuGoTo, tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep);
 
     m_pdfWidget = new pdf::PDFWidget(this);
     setCentralWidget(m_pdfWidget);

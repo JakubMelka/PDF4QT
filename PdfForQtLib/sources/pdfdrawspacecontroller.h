@@ -18,6 +18,7 @@
 #ifndef PDFDRAWSPACECONTROLLER_H
 #define PDFDRAWSPACECONTROLLER_H
 
+#include "pdfglobal.h"
 #include "pdfdocument.h"
 
 #include <QRectF>
@@ -115,7 +116,7 @@ private:
 
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
 /// (on the controlled widget) and device space (device is draw space controller).
-class PDFDrawWidgetProxy : public QObject
+class PDFFORQTLIBSHARED_EXPORT PDFDrawWidgetProxy : public QObject
 {
     Q_OBJECT
 
@@ -137,6 +138,36 @@ public:
     /// \param painter Painter to paint the PDF pages
     /// \param rect Rectangle in which the content is painted
     void draw(QPainter* painter, QRect rect);
+
+    enum Operation
+    {
+        NavigateDocumentStart,
+        NavigateDocumentEnd,
+        NavigateNextPage,
+        NavigatePreviousPage,
+        NavigateNextStep,
+        NavigatePreviousStep
+    };
+
+    /// Performs the desired operation (for example navigation).
+    /// \param operation Operation to be performed
+    void performOperation(Operation operation);
+
+    /// Scrolls by pixels, if it is possible. If it is not possible to scroll,
+    /// then nothing happens.
+    /// \param offset Offset in pixels
+    void scrollByPixels(QPoint offset);
+
+    /// Sets the zoom. Tries to preserve current offsets (so the current visible
+    /// area will be visible after the zoom).
+    /// \param zoom New zoom
+    void zoom(PDFReal zoom);
+
+    /// Returns current zoom from widget space to device space. So, for example 2.00 corresponds to 200% zoom,
+    /// and each 1 cm of widget area corresponds to 0.5 cm of the device space area.
+    PDFReal getZoom() const { return m_zoom; }
+
+    static constexpr PDFReal ZOOM_STEP = 1.2;
 
 signals:
     void drawSpaceChanged();
@@ -181,6 +212,29 @@ private:
     /// or continuous mode (single block with continuous list of separated pages).
     bool isBlockMode() const;
 
+    void onHorizontalScrollbarValueChanged(int value);
+    void onVerticalScrollbarValueChanged(int value);
+
+    void setHorizontalOffset(int value);
+    void setVerticalOffset(int value);
+    void setBlockIndex(int index);
+
+    void updateHorizontalScrollbarFromOffset();
+    void updateVerticalScrollbarFromOffset();
+
+    template<typename T>
+    struct Range
+    {
+        constexpr inline Range() : min(T()), max(T()) { }
+        constexpr inline Range(T value) : min(value), max(value) { }
+        constexpr inline Range(T min, T max) : min(min), max(max) { }
+
+        T min;
+        T max;
+
+        constexpr inline T bound(T value) { return qBound(min, value, max); }
+    };
+
     /// Flag, disables the update
     bool m_updateDisabled;
 
@@ -205,9 +259,15 @@ private:
     /// with this vertical offset)
     PDFInteger m_verticalOffset;
 
+    /// Range of vertical offset
+    Range<PDFInteger> m_verticalOffsetRange;
+
     /// Actual horizontal offset of the draw space area in the widget (so block will be drawn
     /// with this horizontal offset)
     PDFInteger m_horizontalOffset;
+
+    /// Range for horizontal offset
+    Range<PDFInteger> m_horizontalOffsetRange;
 
     /// Draw space controller
     PDFDrawSpaceController* m_controller;

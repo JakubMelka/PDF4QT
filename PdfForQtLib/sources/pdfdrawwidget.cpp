@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QGridLayout>
 #include <QKeyEvent>
+#include <QApplication>
 
 namespace pdf
 {
@@ -62,7 +63,8 @@ void PDFWidget::setDocument(const PDFDocument* document)
 
 PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
     QWidget(parent),
-    m_widget(widget)
+    m_widget(widget),
+    m_mouseOperation(MouseOperation::None)
 {
     setFocusPolicy(Qt::StrongFocus);
 }
@@ -99,21 +101,125 @@ void PDFDrawWidget::keyPressEvent(QKeyEvent* event)
     // Vertical navigation
     if (verticalScrollbar->isVisible())
     {
-        if (event->matches(QKeySequence::MoveToStartOfDocument))
+        constexpr std::pair<QKeySequence::StandardKey, PDFDrawWidgetProxy::Operation> keyToOperations[] =
         {
-            verticalScrollbar->setValue(0);
-        }
-        else if (event->matches(QKeySequence::MoveToEndOfDocument))
+            { QKeySequence::MoveToStartOfDocument, PDFDrawWidgetProxy::NavigateDocumentStart },
+            { QKeySequence::MoveToEndOfDocument, PDFDrawWidgetProxy::NavigateDocumentEnd },
+            { QKeySequence::MoveToNextPage, PDFDrawWidgetProxy::NavigateNextPage },
+            { QKeySequence::MoveToPreviousPage, PDFDrawWidgetProxy::NavigatePreviousPage },
+            { QKeySequence::MoveToNextLine, PDFDrawWidgetProxy::NavigateNextStep },
+            { QKeySequence::MoveToPreviousLine, PDFDrawWidgetProxy::NavigatePreviousStep }
+        };
+
+        for (const std::pair<QKeySequence::StandardKey, PDFDrawWidgetProxy::Operation>& keyToOperation : keyToOperations)
         {
-            verticalScrollbar->setValue(verticalScrollbar->maximum());
-        }
-        else if (event->matches(QKeySequence::MoveToNextPage))
-        {
-            verticalScrollbar->setValue(verticalScrollbar->value() + verticalScrollbar->pageStep());
+            if (event->matches(keyToOperation.first))
+            {
+                m_widget->getDrawWidgetProxy()->performOperation(keyToOperation.second);
+            }
         }
     }
 
     event->accept();
+}
+
+void PDFDrawWidget::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton)
+    {
+        m_mouseOperation = MouseOperation::Translate;
+        m_lastMousePosition = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+    }
+
+    event->accept();
+}
+
+void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    performMouseOperation(event->pos());
+
+    switch (m_mouseOperation)
+    {
+        case MouseOperation::None:
+            break;
+
+        case MouseOperation::Translate:
+        {
+            m_mouseOperation = MouseOperation::None;
+            unsetCursor();
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+    }
+
+    event->accept();
+}
+
+void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    performMouseOperation(event->pos());
+    event->accept();
+}
+
+void PDFDrawWidget::wheelEvent(QWheelEvent* event)
+{
+    Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
+
+    if (keyboardModifiers.testFlag(Qt::ControlModifier))
+    {
+        // Zoom in/Zoom out
+        const int angleDeltaY = event->angleDelta().y();
+        const PDFReal zoom = m_widget->getDrawWidgetProxy()->getZoom();
+        const PDFReal zoomStep = std::pow(PDFDrawWidgetProxy::ZOOM_STEP, static_cast<PDFReal>(angleDeltaY) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep));
+        const PDFReal newZoom = zoom * zoomStep;
+        m_widget->getDrawWidgetProxy()->zoom(newZoom);
+    }
+    else
+    {
+        // Move Up/Down. Angle is negative, if wheel is scrolled down. First we try to scroll by pixel delta.
+        // Otherwise we compute scroll using angle.
+        QPoint scrollByPixels = event->pixelDelta();
+        if (scrollByPixels.isNull())
+        {
+            const QPoint angleDelta = event->angleDelta();
+            const bool shiftModifier = keyboardModifiers.testFlag(Qt::ShiftModifier);
+            const int stepVertical = shiftModifier ? m_widget->getVerticalScrollbar()->pageStep() : m_widget->getVerticalScrollbar()->singleStep();
+            const int stepHorizontal = shiftModifier ? m_widget->getHorizontalScrollbar()->pageStep() : m_widget->getHorizontalScrollbar()->singleStep();
+
+            const int scrollVertical = stepVertical * static_cast<PDFReal>(angleDelta.y()) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep);
+            const int scrollHorizontal = stepHorizontal * static_cast<PDFReal>(angleDelta.x()) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep);
+
+            scrollByPixels = QPoint(scrollHorizontal, scrollVertical);
+        }
+
+        m_widget->getDrawWidgetProxy()->scrollByPixels(scrollByPixels);
+    }
+
+    event->accept();
+}
+
+void PDFDrawWidget::performMouseOperation(QPoint currentMousePosition)
+{
+    switch (m_mouseOperation)
+    {
+        case MouseOperation::None:
+            // No operation performed
+            break;
+
+        case MouseOperation::Translate:
+        {
+            QPoint difference = currentMousePosition - m_lastMousePosition;
+            m_widget->getDrawWidgetProxy()->scrollByPixels(difference);
+            m_lastMousePosition = currentMousePosition;
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+    }
 }
 
 }   // namespace pdf

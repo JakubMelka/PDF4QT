@@ -27,7 +27,7 @@ namespace pdf
 PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     QObject(parent),
     m_document(nullptr),
-    m_pageLayoutMode(PageLayout::SinglePage),
+    m_pageLayoutMode(PageLayout::OneColumn),
     m_verticalSpacingMM(5.0),
     m_horizontalSpacingMM(1.0)
 {
@@ -353,6 +353,10 @@ void PDFDrawWidgetProxy::init(PDFWidget* widget)
     m_horizontalScrollbar = widget->getHorizontalScrollbar();
     m_verticalScrollbar = widget->getVerticalScrollbar();
 
+    connect(m_horizontalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged);
+    connect(m_verticalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onVerticalScrollbarValueChanged);
+    connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, m_widget, QOverload<void>::of(&PDFDrawWidget::update));
+
     // We must update the draw space - widget has been set
     update();
 }
@@ -426,8 +430,9 @@ void PDFDrawWidgetProxy::update()
         m_horizontalScrollbar->setMinimum(0);
         m_horizontalScrollbar->setMaximum(horizontalDifference);
 
-        m_horizontalOffset = qBound<PDFInteger>(0, m_horizontalOffset, horizontalDifference);
-        m_horizontalScrollbar->setValue(m_horizontalOffset);
+        m_horizontalOffsetRange = Range<PDFInteger>(-horizontalDifference, 0);
+        m_horizontalOffset = m_horizontalOffsetRange.bound(m_horizontalOffset);
+        m_horizontalScrollbar->setValue(-m_horizontalOffset);
     }
     else
     {
@@ -435,6 +440,7 @@ void PDFDrawWidgetProxy::update()
         // We set the offset to the half of available empty space.
         m_horizontalScrollbar->setVisible(false);
         m_horizontalOffset = -horizontalDifference / 2;
+        m_horizontalOffsetRange = Range<PDFInteger>(m_horizontalOffset);
     }
 
     // Vertical scrollbar - has two meanings, in block mode, it switches between blocks,
@@ -465,6 +471,12 @@ void PDFDrawWidgetProxy::update()
         if (verticalDifference < 0)
         {
             m_verticalOffset = -verticalDifference / 2;
+            m_verticalOffsetRange = Range<PDFInteger>(m_verticalOffset);
+        }
+        else
+        {
+            m_verticalOffsetRange = Range<PDFInteger>(-verticalDifference, 0);
+            m_verticalOffset = m_verticalOffsetRange.bound(m_verticalOffset);
         }
     }
     else
@@ -489,13 +501,15 @@ void PDFDrawWidgetProxy::update()
                 m_verticalScrollbar->setSingleStep(singleStep);
             }
 
-            m_verticalOffset = qBound<PDFInteger>(0, m_verticalOffset, verticalDifference);
-            m_verticalScrollbar->setValue(m_verticalOffset);
+            m_verticalOffsetRange = Range<PDFInteger>(-verticalDifference, 0);
+            m_verticalOffset = m_verticalOffsetRange.bound(m_verticalOffset);
+            m_verticalScrollbar->setValue(-m_verticalOffset);
         }
         else
         {
             m_verticalScrollbar->setVisible(false);
             m_verticalOffset = -verticalDifference / 2;
+            m_verticalOffsetRange = Range<PDFInteger>(m_verticalOffset);
         }
     }
 
@@ -517,7 +531,102 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
         {
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
+
+            QFont font = m_widget->font();
+            font.setPixelSize(placedRect.height() * 0.75);
+            painter->setFont(font);
+            painter->drawText(placedRect, Qt::AlignCenter, QString::number(item.pageIndex + 1));
         }
+    }
+}
+
+void PDFDrawWidgetProxy::performOperation(Operation operation)
+{
+    switch (operation)
+    {
+        case NavigateDocumentStart:
+        {
+            if (m_verticalScrollbar->isVisible())
+            {
+                m_verticalScrollbar->setValue(0);
+            }
+            break;
+        }
+
+        case NavigateDocumentEnd:
+        {
+            if (m_verticalScrollbar->isVisible())
+            {
+                m_verticalScrollbar->setValue(m_verticalScrollbar->maximum());
+            }
+            break;
+        }
+
+        case NavigateNextPage:
+        {
+            if (m_verticalScrollbar->isVisible())
+            {
+                m_verticalScrollbar->setValue(m_verticalScrollbar->value() + m_verticalScrollbar->pageStep());
+            }
+            break;
+        }
+
+        case NavigatePreviousPage:
+        {
+            if (m_verticalScrollbar->isVisible())
+            {
+                m_verticalScrollbar->setValue(m_verticalScrollbar->value() - m_verticalScrollbar->pageStep());
+            }
+            break;
+        }
+
+        case NavigateNextStep:
+        {
+            if (m_verticalScrollbar->isVisible())
+            {
+                m_verticalScrollbar->setValue(m_verticalScrollbar->value() + m_verticalScrollbar->singleStep());
+            }
+            break;
+        }
+
+        case NavigatePreviousStep:
+        {
+            if (m_verticalScrollbar->isVisible())
+            {
+                m_verticalScrollbar->setValue(m_verticalScrollbar->value() - m_verticalScrollbar->singleStep());
+            }
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+}
+
+void PDFDrawWidgetProxy::scrollByPixels(QPoint offset)
+{
+    setHorizontalOffset(m_horizontalOffset + offset.x());
+    setVerticalOffset(m_verticalOffset + offset.y());
+}
+
+void PDFDrawWidgetProxy::zoom(PDFReal zoom)
+{
+    const PDFReal clampedZoom = qBound(MIN_ZOOM, zoom, MAX_ZOOM);
+    if (m_zoom != clampedZoom)
+    {
+        const PDFReal oldHorizontalOffsetMM = m_horizontalOffset * m_pixelToDeviceSpaceUnit;
+        const PDFReal oldVerticalOffsetMM = m_verticalOffset * m_pixelToDeviceSpaceUnit;
+
+        m_zoom = clampedZoom;
+
+        update();
+
+        // Try to restore offsets, so we are in the same place
+        setHorizontalOffset(oldHorizontalOffsetMM * m_deviceSpaceUnitToPixel);
+        setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
     }
 }
 
@@ -548,6 +657,80 @@ bool PDFDrawWidgetProxy::isBlockMode() const
 
     Q_ASSERT(false);
     return false;
+}
+
+void PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged(int value)
+{
+    if (!m_updateDisabled && !m_horizontalScrollbar->isHidden())
+    {
+        setHorizontalOffset(-value);
+    }
+}
+
+void PDFDrawWidgetProxy::onVerticalScrollbarValueChanged(int value)
+{
+    if (!m_updateDisabled && !m_verticalScrollbar->isHidden())
+    {
+        if (isBlockMode())
+        {
+            setBlockIndex(value);
+        }
+        else
+        {
+            setVerticalOffset(-value);
+        }
+    }
+}
+
+void PDFDrawWidgetProxy::setHorizontalOffset(int value)
+{
+    const PDFInteger horizontalOffset = m_horizontalOffsetRange.bound(value);
+
+    if (m_horizontalOffset != horizontalOffset)
+    {
+        m_horizontalOffset = horizontalOffset;
+        updateHorizontalScrollbarFromOffset();
+        emit drawSpaceChanged();
+    }
+}
+
+void PDFDrawWidgetProxy::setVerticalOffset(int value)
+{
+    const PDFInteger verticalOffset = m_verticalOffsetRange.bound(value);
+
+    if (m_verticalOffset != verticalOffset)
+    {
+        m_verticalOffset = verticalOffset;
+        updateVerticalScrollbarFromOffset();
+        emit drawSpaceChanged();
+    }
+}
+
+void PDFDrawWidgetProxy::setBlockIndex(int index)
+{
+    if (m_currentBlock != index)
+    {
+        m_currentBlock = static_cast<size_t>(index);
+        update();
+    }
+}
+
+void PDFDrawWidgetProxy::updateHorizontalScrollbarFromOffset()
+{
+    if (!m_horizontalScrollbar->isHidden())
+    {
+        PDFBoolGuard guard(m_updateDisabled);
+        m_horizontalScrollbar->setValue(-m_horizontalOffset);
+    }
+}
+
+void PDFDrawWidgetProxy::updateVerticalScrollbarFromOffset()
+{
+    if (!m_verticalScrollbar->isHidden() && !isBlockMode())
+    {
+        PDFBoolGuard guard(m_updateDisabled);
+        m_verticalScrollbar->setValue(-m_verticalOffset);
+    }
 }
 
 }   // namespace pdf

@@ -69,9 +69,25 @@ protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void resizeEvent(QResizeEvent* event) override;
     virtual void keyPressEvent(QKeyEvent* event) override;
+    virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QMouseEvent* event) override;
+    virtual void wheelEvent(QWheelEvent* event) override;
 
 private:
+    enum class MouseOperation
+    {
+        None,
+        Translate
+    };
+
+    /// Performs the mouse operation (under the current mouse position)
+    /// \param currentMousePosition Current position of the mouse
+    void performMouseOperation(QPoint currentMousePosition);
+
     PDFWidget* m_widget;
+    QPoint m_lastMousePosition;
+    MouseOperation m_mouseOperation;
 };
 
 }   // namespace pdf
