@@ -36,7 +36,25 @@
      <string>Go To</string>
     </property>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <widget class="QMenu" name="menuPage_Layout">
+     <property name="title">
+      <string>Page Layout</string>
+     </property>
+     <addaction name="actionPageLayoutSinglePage"/>
+     <addaction name="actionPageLayoutContinuous"/>
+     <addaction name="actionPageLayoutTwoPages"/>
+     <addaction name="actionPageLayoutTwoColumns"/>
+     <addaction name="separator"/>
+     <addaction name="actionFirstPageOnRightSide"/>
+    </widget>
+    <addaction name="menuPage_Layout"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuView"/>
    <addaction name="menuGoTo"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
@@ -61,6 +79,64 @@
   <action name="actionQuit">
    <property name="text">
     <string>Quit</string>
+   </property>
+  </action>
+  <action name="actionPageLayoutSinglePage">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Single Page</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+1</string>
+   </property>
+  </action>
+  <action name="actionPageLayoutContinuous">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Continuous</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+2</string>
+   </property>
+  </action>
+  <action name="actionPageLayoutTwoPages">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Two Pages</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+3</string>
+   </property>
+  </action>
+  <action name="actionPageLayoutTwoColumns">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Two columns</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+4</string>
+   </property>
+  </action>
+  <action name="actionFirstPageOnRightSide">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>First page on right side</string>
+   </property>
+   <property name="toolTip">
+    <string>First page on right side</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+5</string>
    </property>
   </action>
  </widget>

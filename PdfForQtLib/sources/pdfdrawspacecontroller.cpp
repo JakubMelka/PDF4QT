@@ -630,6 +630,15 @@ void PDFDrawWidgetProxy::zoom(PDFReal zoom)
     }
 }
 
+void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
+{
+    if (getPageLayout() != pageLayout)
+    {
+        m_controller->setPageLayout(pageLayout);
+        emit pageLayoutChanged();
+    }
+}
+
 QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
 {
     Q_ASSERT(rect.isValid());

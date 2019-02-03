@@ -18,6 +18,8 @@
 #ifndef PDFVIEWERMAINWINDOW_H
 #define PDFVIEWERMAINWINDOW_H
 
+#include "pdfcatalog.h"
+
 #include <QMainWindow>
 #include <QSharedPointer>
 
@@ -45,6 +47,13 @@ public:
 
     virtual void closeEvent(QCloseEvent* event) override;
 
+private slots:
+    void on_actionPageLayoutSinglePage_triggered();
+    void on_actionPageLayoutContinuous_triggered();
+    void on_actionPageLayoutTwoPages_triggered();
+    void on_actionPageLayoutTwoColumns_triggered();
+    void on_actionFirstPageOnRightSide_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
@@ -54,10 +63,13 @@ private:
     void writeSettings();
 
     void updateTitle();
+    void updatePageLayoutActions();
 
     void openDocument(const QString& fileName);
     void setDocument(const pdf::PDFDocument* document);
     void closeDocument();
+
+    void setPageLayout(pdf::PageLayout pageLayout);
 
     Ui::PDFViewerMainWindow* ui;
     pdf::PDFWidget* m_pdfWidget;

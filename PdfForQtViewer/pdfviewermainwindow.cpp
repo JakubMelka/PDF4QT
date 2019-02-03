@@ -75,7 +75,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
 
+    connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::updatePageLayoutActions);
+
     readSettings();
+    updatePageLayoutActions();
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
@@ -153,6 +156,41 @@ void PDFViewerMainWindow::updateTitle()
     }
 }
 
+void PDFViewerMainWindow::updatePageLayoutActions()
+{
+    for (QAction* action : { ui->actionPageLayoutContinuous, ui->actionPageLayoutSinglePage, ui->actionPageLayoutTwoColumns, ui->actionPageLayoutTwoPages })
+    {
+        action->setChecked(false);
+    }
+
+    const pdf::PageLayout pageLayout = m_pdfWidget->getDrawWidgetProxy()->getPageLayout();
+    switch (pageLayout)
+    {
+        case pdf::PageLayout::SinglePage:
+            ui->actionPageLayoutSinglePage->setChecked(true);
+            break;
+
+        case pdf::PageLayout::OneColumn:
+            ui->actionPageLayoutContinuous->setChecked(true);
+            break;
+
+        case pdf::PageLayout::TwoColumnLeft:
+        case pdf::PageLayout::TwoColumnRight:
+            ui->actionPageLayoutTwoColumns->setChecked(true);
+            ui->actionFirstPageOnRightSide->setChecked(pageLayout == pdf::PageLayout::TwoColumnRight);
+            break;
+
+        case pdf::PageLayout::TwoPagesLeft:
+        case pdf::PageLayout::TwoPagesRight:
+            ui->actionPageLayoutTwoPages->setChecked(true);
+            ui->actionFirstPageOnRightSide->setChecked(pageLayout == pdf::PageLayout::TwoPagesRight);
+            break;
+
+        default:
+            Q_ASSERT(false);
+    }
+}
+
 void PDFViewerMainWindow::openDocument(const QString& fileName)
 {
     // First close old document
@@ -194,11 +232,59 @@ void PDFViewerMainWindow::closeDocument()
     m_pdfDocument.reset();
 }
 
+void PDFViewerMainWindow::setPageLayout(pdf::PageLayout pageLayout)
+{
+    m_pdfWidget->getDrawWidgetProxy()->setPageLayout(pageLayout);
+}
+
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 {
     writeSettings();
     closeDocument();
     event->accept();
+}
+
+void PDFViewerMainWindow::on_actionPageLayoutSinglePage_triggered()
+{
+    setPageLayout(pdf::PageLayout::SinglePage);
+}
+
+void PDFViewerMainWindow::on_actionPageLayoutContinuous_triggered()
+{
+    setPageLayout(pdf::PageLayout::OneColumn);
+}
+
+void PDFViewerMainWindow::on_actionPageLayoutTwoPages_triggered()
+{
+    setPageLayout(ui->actionFirstPageOnRightSide->isChecked() ? pdf::PageLayout::TwoPagesRight : pdf::PageLayout::TwoPagesLeft);
+}
+
+void PDFViewerMainWindow::on_actionPageLayoutTwoColumns_triggered()
+{
+    setPageLayout(ui->actionFirstPageOnRightSide->isChecked() ? pdf::PageLayout::TwoColumnRight : pdf::PageLayout::TwoColumnLeft);
+}
+
+void PDFViewerMainWindow::on_actionFirstPageOnRightSide_triggered()
+{
+    switch (m_pdfWidget->getDrawWidgetProxy()->getPageLayout())
+    {
+        case pdf::PageLayout::SinglePage:
+        case pdf::PageLayout::OneColumn:
+            break;
+
+        case pdf::PageLayout::TwoColumnLeft:
+        case pdf::PageLayout::TwoColumnRight:
+            on_actionPageLayoutTwoColumns_triggered();
+            break;
+
+        case pdf::PageLayout::TwoPagesLeft:
+        case pdf::PageLayout::TwoPagesRight:
+            on_actionPageLayoutTwoPages_triggered();
+            break;
+
+        default:
+            Q_ASSERT(false);
+    }
 }
 
 }   // namespace pdfviewer

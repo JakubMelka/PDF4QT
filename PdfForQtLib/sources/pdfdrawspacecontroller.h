@@ -167,10 +167,18 @@ public:
     /// and each 1 cm of widget area corresponds to 0.5 cm of the device space area.
     PDFReal getZoom() const { return m_zoom; }
 
+    /// Sets the page layout. Page layout can be one of the PDF's page layouts.
+    /// \param pageLayout Page layout
+    void setPageLayout(PageLayout pageLayout);
+
+    /// Returns the page layout
+    PageLayout getPageLayout() const { return m_controller->getPageLayout(); }
+
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
 signals:
     void drawSpaceChanged();
+    void pageLayoutChanged();
 
 private:
     struct LayoutItem
