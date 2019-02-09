@@ -47,7 +47,9 @@ SOURCES += \
     sources/pdfpage.cpp \
     sources/pdfstreamfilters.cpp \
     sources/pdfdrawspacecontroller.cpp \
-    sources/pdfdrawwidget.cpp
+    sources/pdfdrawwidget.cpp \
+    sources/pdfcolorspaces.cpp \
+    sources/pdfrenderer.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -65,7 +67,10 @@ HEADERS += \
     sources/pdfpage.h \
     sources/pdfstreamfilters.h \
     sources/pdfdrawspacecontroller.h \
-    sources/pdfdrawwidget.h
+    sources/pdfdrawwidget.h \
+    sources/pdfflatarray.h \
+    sources/pdfcolorspaces.h \
+    sources/pdfrenderer.h
 
 unix {
     target.path = /usr/lib

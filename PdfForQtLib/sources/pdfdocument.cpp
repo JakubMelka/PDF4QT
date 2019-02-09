@@ -19,6 +19,8 @@
 #include "pdfdocument.h"
 #include "pdfparser.h"
 #include "pdfencoding.h"
+#include "pdfstreamfilters.h"
+#include "pdfconstants.h"
 
 namespace pdf
 {
@@ -37,6 +39,96 @@ static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED = "Trapped";
 static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_TRUE = "True";
 static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_FALSE = "False";
 static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown";
+
+QByteArray PDFDocument::getDecodedStream(const PDFStream* stream) const
+{
+    const PDFDictionary* dictionary = stream->getDictionary();
+
+    // Retrieve filters
+    PDFObject filters;
+    if (dictionary->hasKey(PDF_STREAM_DICT_FILTER))
+    {
+        filters = getObject(dictionary->get(PDF_STREAM_DICT_FILTER));
+    }
+    else if (dictionary->hasKey(PDF_STREAM_DICT_FILE_FILTER))
+    {
+        filters = getObject(dictionary->get(PDF_STREAM_DICT_FILE_FILTER));
+    }
+
+    // Retrieve filter parameters
+    PDFObject filterParameters;
+    if (dictionary->hasKey(PDF_STREAM_DICT_DECODE_PARMS))
+    {
+        filterParameters = getObject(dictionary->get(PDF_STREAM_DICT_DECODE_PARMS));
+    }
+    else if (dictionary->hasKey(PDF_STREAM_DICT_FDECODE_PARMS))
+    {
+        filterParameters = getObject(dictionary->get(PDF_STREAM_DICT_FDECODE_PARMS));
+    }
+
+    std::vector<const PDFStreamFilter*> filterObjects;
+    std::vector<PDFObject> filterParameterObjects;
+
+    if (filters.isName())
+    {
+        filterObjects.push_back(PDFStreamFilterStorage::getFilter(filters.getString()));
+    }
+    else if (filters.isArray())
+    {
+        const PDFArray* filterArray = filters.getArray();
+        const size_t filterCount = filterArray->getCount();
+        for (size_t i = 0; i < filterCount; ++i)
+        {
+            const PDFObject& object = getObject(filterArray->getItem(i));
+            if (object.isName())
+            {
+                filterObjects.push_back(PDFStreamFilterStorage::getFilter(object.getString()));
+            }
+            else
+            {
+                return QByteArray();
+            }
+        }
+    }
+    else if (!filters.isNull())
+    {
+        return QByteArray();
+    }
+
+    if (filterParameters.isArray())
+    {
+        const PDFArray* filterParameterArray = filterParameters.getArray();
+        const size_t filterParameterCount = filterParameterArray->getCount();
+        for (size_t i = 0; i < filterParameterCount; ++i)
+        {
+            const PDFObject& object = getObject(filterParameterArray->getItem(i));
+            filterParameterObjects.push_back(object);
+        }
+    }
+    else
+    {
+        filterParameterObjects.push_back(filterParameters);
+    }
+
+    filterParameterObjects.resize(filterObjects.size());
+    std::reverse(filterObjects.begin(), filterObjects.end());
+    std::reverse(filterParameterObjects.begin(), filterParameterObjects.end());
+
+    QByteArray result = *stream->getContent();
+
+    for (size_t i = 0, count = filterObjects.size(); i < count; ++i)
+    {
+        const PDFStreamFilter* streamFilter = filterObjects[i];
+        const PDFObject& streamFilterParameters = filterParameterObjects[i];
+
+        if (streamFilter)
+        {
+            result = streamFilter->apply(result, this, streamFilterParameters);
+        }
+    }
+
+    return result;
+}
 
 void PDFDocument::init()
 {

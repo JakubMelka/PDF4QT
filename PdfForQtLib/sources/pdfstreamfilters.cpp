@@ -401,4 +401,46 @@ QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data, const PDFDocu
     return result;
 }
 
+const PDFStreamFilter* PDFStreamFilterStorage::getFilter(const QByteArray& filterName)
+{
+    const PDFStreamFilterStorage* instance = getInstance();
+    auto it = instance->m_filters.find(filterName);
+    if (it != instance->m_filters.cend())
+    {
+        return it->second.get();
+    }
+
+    auto itNameDecoded = instance->m_abbreviations.find(filterName);
+    if (itNameDecoded != instance->m_abbreviations.cend())
+    {
+        return getFilter(itNameDecoded->second);
+    }
+
+    return nullptr;
+}
+
+PDFStreamFilterStorage::PDFStreamFilterStorage()
+{
+    // Initialize map with the filters
+    m_filters["ASCIIHexDecode"] = std::make_unique<PDFAsciiHexDecodeFilter>();
+    m_filters["ASCII85Decode"] = std::make_unique<PDFAscii85DecodeFilter>();
+    m_filters["LZWDecode"] = std::make_unique<PDFLzwDecodeFilter>();
+    m_filters["FlateDecode"] = std::make_unique<PDFFlateDecodeFilter>();
+    m_filters["RunLengthDecode"] = std::make_unique<PDFRunLengthDecodeFilter>();
+
+    m_abbreviations["AHx"] = "ASCIIHexDecode";
+    m_abbreviations["A85"] = "ASCII85Decode";
+    m_abbreviations["LZW"] = "LZWDecode";
+    m_abbreviations["Fl"] = "FlateDecode";
+    m_abbreviations["RL"] = "RunLengthDecode";
+    m_abbreviations["CCF"] = "CCITFaxDecode";
+    m_abbreviations["DCT"] = "DCTDecode";
+}
+
+const PDFStreamFilterStorage* PDFStreamFilterStorage::getInstance()
+{
+    static PDFStreamFilterStorage instance;
+    return &instance;
+}
+
 }   // namespace pdf

@@ -18,6 +18,7 @@
 
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
+#include "pdfrenderer.h"
 
 #include <QPainter>
 
@@ -536,6 +537,9 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             font.setPixelSize(placedRect.height() * 0.75);
             painter->setFont(font);
             painter->drawText(placedRect, Qt::AlignCenter, QString::number(item.pageIndex + 1));
+
+            PDFRenderer renderer(m_controller->getDocument());
+            QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
         }
     }
 }

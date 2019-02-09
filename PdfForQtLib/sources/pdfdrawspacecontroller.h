@@ -84,6 +84,9 @@ public:
     /// \param blockIndex Index of the block
     LayoutItems getLayoutItems(size_t blockIndex) const;
 
+    /// Returns the document
+    const PDFDocument* getDocument() const { return m_document; }
+
 signals:
     void drawSpaceChanged();
 

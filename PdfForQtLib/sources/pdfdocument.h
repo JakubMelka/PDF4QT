@@ -176,6 +176,11 @@ public:
     /// Returns the document catalog
     const PDFCatalog* getCatalog() const { return &m_catalog; }
 
+    /// Returns the decoded stream. If stream data cannot be decoded,
+    /// then empty byte array is returned.
+    /// \param stream Stream to be decoded
+    QByteArray getDecodedStream(const PDFStream* stream) const;
+
 private:
     friend class PDFDocumentReader;
 

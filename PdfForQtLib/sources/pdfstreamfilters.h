@@ -22,9 +22,35 @@
 
 #include <QByteArray>
 
+#include <memory>
+
 namespace pdf
 {
 class PDFDocument;
+class PDFStreamFilter;
+
+/// Storage for stream filters. Can retrieve stream filters by name. Using singleton
+/// design pattern. Use static methods to retrieve filters.
+class PDFStreamFilterStorage
+{
+public:
+    /// Retrieves filter by filter name. If filter with that name doesn't exist,
+    /// then nullptr is returned. This function is thread safe.
+    /// \param filterName Name of the filter to be retrieved.
+    static const PDFStreamFilter* getFilter(const QByteArray& filterName);
+
+private:
+    explicit PDFStreamFilterStorage();
+
+    static const PDFStreamFilterStorage* getInstance();
+
+    /// Maps names to the instances of the stream filters
+    std::map<QByteArray, std::unique_ptr<PDFStreamFilter>> m_filters;
+
+    /// Filter stream names can be specified in simplified (shorter) form.
+    /// This map maps shorter form to the longer form.
+    std::map<QByteArray, QByteArray> m_abbreviations;
+};
 
 class PDFFORQTLIBSHARED_EXPORT PDFStreamFilter
 {

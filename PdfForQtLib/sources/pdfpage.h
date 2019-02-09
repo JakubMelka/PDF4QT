@@ -82,6 +82,7 @@ public:
     inline const QRectF& getTrimBox() const { return m_trimBox; }
     inline const QRectF& getArtBox() const { return m_artBox; }
     inline PageRotation getPageRotation() const { return m_pageRotation; }
+
     inline const PDFObject& getResources() const { return m_resources; }
     inline const PDFObject& getContents() const { return m_contents; }
 
