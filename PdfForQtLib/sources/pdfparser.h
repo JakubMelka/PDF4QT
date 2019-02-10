@@ -201,8 +201,7 @@ private:
     const char* m_end;
 };
 
-/// Parsing context. Used for example to detect cyclic reference errors. Can handle multiple threads
-/// simultaneously (e.g class is thread safe).
+/// Parsing context. Used for example to detect cyclic reference errors.
 class PDFParsingContext
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFParsingContext)

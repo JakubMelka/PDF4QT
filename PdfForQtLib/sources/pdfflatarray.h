@@ -104,6 +104,24 @@ public:
         }
     }
 
+    void clear()
+    {
+        m_flatBlockEndIterator = m_flatBlock.begin();
+        m_variableBlock.clear();
+    }
+
+    void push_back(T object)
+    {
+        if (m_flatBlockEndIterator != m_flatBlock.cend())
+        {
+            *m_flatBlockEndIterator++ = std::move(object);
+        }
+        else
+        {
+            m_variableBlock.emplace_back(std::move(object));
+        }
+    }
+
 private:
     size_t getFlatBlockSize() const { return std::distance(m_flatBlock.cbegin(), std::array<T, FlatSize>::const_iterator(m_flatBlockEndIterator)); }
 

@@ -21,6 +21,27 @@
 namespace pdf
 {
 
+// Graphic state operators - mapping from PDF name to the enum, splitted into groups.
+// Please see Table 4.1 in PDF Reference 1.7, chapter 4.1 - Graphic Objects.
+//
+//  General graphic state:      w, J, j, M, d, ri, i, gs
+//  Special graphic state:      q, Q, cm
+//  Path construction:          m, l, c, v, y, h, re
+//  Path painting:              S, s, F, f, f*, B, B*, b, b*, n
+//  Clipping paths:             W, W*
+//  Text object:                BT, ET
+//  Text state:                 Tc, Tw, Tz, TL, Tf, Tr, Ts
+//  Text positioning:           Td, TD, Tm, T*
+//  Text showing:               Tj, TJ, ', "
+//  Type 3 font:                d0, d1
+//  Color:                      CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
+//  Shading pattern:            sh
+//  Inline images:              BI, ID, EI
+//  XObject:                    Do
+//  Marked content:             MP, DP, BMC, BDC, EMC
+//  Compatibility:              BX, EX
+
+
 PDFRenderer::PDFRenderer(const PDFDocument* document) :
     m_document(document),
     m_features(Antialasing | TextAntialiasing)
@@ -94,7 +115,45 @@ QList<PDFRenderError> PDFPageContentProcessor::processContentStream(const PDFStr
 {
     QByteArray content = m_document->getDecodedStream(stream);
 
-    return QList<PDFRenderError>();
+    PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());
+
+    QList<PDFRenderError> errors;
+    while (!parser.isAtEnd())
+    {
+        try
+        {
+            PDFLexicalAnalyzer::Token token = parser.fetch();
+            switch (token.type)
+            {
+                case PDFLexicalAnalyzer::TokenType::Command:
+                {
+                    // Process the command, then clear the operand stack
+                    processCommand(token.data.toByteArray(), errors);
+                    m_operands.clear();
+                    break;
+                }
+
+                case PDFLexicalAnalyzer::TokenType::EndOfFile:
+                {
+                    // Do nothing, just break, we are at the end
+                    break;
+                }
+
+                default:
+                {
+                    // Push the operand onto the operand stack
+                    m_operands.push_back(std::move(token));
+                    break;
+                }
+            }
+        }
+        catch (PDFParserException exception)
+        {
+            errors.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
+        }
+    }
+
+    return errors;
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
