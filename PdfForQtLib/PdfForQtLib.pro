@@ -70,7 +70,8 @@ HEADERS += \
     sources/pdfdrawwidget.h \
     sources/pdfflatarray.h \
     sources/pdfcolorspaces.h \
-    sources/pdfrenderer.h
+    sources/pdfrenderer.h \
+    sources/pdfrenderer_impl.h
 
 unix {
     target.path = /usr/lib

@@ -170,6 +170,10 @@ public:
     /// \param character Character to be tested
     static constexpr bool isRegular(char character) { return !isWhitespace(character) && !isDelimiter(character); }
 
+    /// Returns string from operand type
+    /// \param type Token type
+    static QString getStringFromOperandType(TokenType type);
+
 private:
     inline char lookChar() const { Q_ASSERT(m_current != m_end); return *m_current; }
 

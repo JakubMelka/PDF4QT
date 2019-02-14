@@ -533,6 +533,17 @@ QByteArray PDFLexicalAnalyzer::fetchByteArray(PDFInteger length)
     return result;
 }
 
+QString PDFLexicalAnalyzer::getStringFromOperandType(TokenType type)
+{
+    QMetaEnum metaEnum = QMetaEnum::fromType<TokenType>();
+    Q_ASSERT(metaEnum.isValid());
+
+    const char* typeName = metaEnum.valueToKey(static_cast<int>(type));
+    Q_ASSERT(typeName);
+
+    return typeName;
+}
+
 bool PDFLexicalAnalyzer::fetchChar(const char character)
 {
     if (!isAtEnd() && lookChar() == character)

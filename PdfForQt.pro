@@ -22,3 +22,5 @@ SUBDIRS += \
     UnitTests \
     PdfForQtViewer
 
+UnitTests.depends = PdfForQtLib
+PdfForQtViewer.depends = PdfForQtLib
