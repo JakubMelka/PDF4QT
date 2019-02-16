@@ -92,6 +92,12 @@ public:
     /// \param defaultValue Default value
     PDFInteger readInteger(const PDFObject& object, PDFInteger defaultValue) const;
 
+    /// Reads a real number from the object, if it is possible. If integer appears as object,
+    /// then it is converted to real number.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    /// \param defaultValue Default value
+    PDFReal readNumber(const PDFObject& object, PDFInteger defaultValue) const;
+
     /// Reads a text string from the object, if it is possible.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
     /// \param defaultValue Default value
@@ -126,6 +132,59 @@ public:
 
         return defaultValue;
     }
+
+    /// Tries to read array of real values. Reads as much values as possible.
+    /// If array size differs, then nothing happens.
+    /// \param object Array of integers
+    /// \param first First iterator
+    /// \param second Second iterator
+    template<typename T>
+    void readNumberArray(const PDFObject& object, T first, T last)
+    {
+        const PDFObject& dereferencedObject = m_document->getObject(object);
+        if (dereferencedObject.isArray())
+        {
+            const PDFArray* array = dereferencedObject.getArray();
+
+            size_t distance = std::distance(first, last);
+            if (array->getCount() == distance)
+            {
+                T it = first;
+                for (size_t i = 0; i < distance; ++i)
+                {
+                    *it = readNumber(array->getItem(i), *it);
+                    ++it;
+                }
+            }
+        }
+    }
+
+    /// Tries to read array of real values from dictionary. Reads as much values as possible.
+    /// If array size differs, or entry dictionary doesn't exist, then nothing happens.
+    /// \param dictionary Dictionary with desired values
+    /// \param key Entry key
+    /// \param first First iterator
+    /// \param second Second iterator
+    template<typename T>
+    void readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key, T first, T last)
+    {
+        if (dictionary->hasKey(key))
+        {
+            readNumberArray(dictionary->get(key), first, last);
+        }
+    }
+
+    /// Reads number from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    /// \param defaultValue Default value
+    PDFReal readNumberFromDictionary(const PDFDictionary* dictionary, const char* key, PDFReal defaultValue) const;
+
+    /// Reads integer from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    /// \param defaultValue Default value
+    PDFInteger readIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue) const;
 
 private:
     const PDFDocument* m_document;

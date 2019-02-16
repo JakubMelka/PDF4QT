@@ -69,16 +69,16 @@ static constexpr const std::pair<const char*, PDFPageContentProcessor::Operator>
     { "re", PDFPageContentProcessor::Operator::Rectangle },
 
     // Path painting:               S, s, f, F, f*, B, B*, b, b*, n
-    { "S", PDFPageContentProcessor::Operator::StrokePath },
-    { "s", PDFPageContentProcessor::Operator::CloseAndStrokePath },
-    { "f", PDFPageContentProcessor::Operator::FillPathWinding },
-    { "F", PDFPageContentProcessor::Operator::FillPathWinding2 },
-    { "f*", PDFPageContentProcessor::Operator::FillPathEvenOdd },
-    { "B", PDFPageContentProcessor::Operator::StrokeAndFillWinding },
-    { "B*", PDFPageContentProcessor::Operator::StrokeAndFillEvenOdd },
-    { "b", PDFPageContentProcessor::Operator::CloseAndStrokeAndFillWinding },
-    { "b*", PDFPageContentProcessor::Operator::CloseAndStrokeAndFillEvenOdd },
-    { "n", PDFPageContentProcessor::Operator::ClearPath },
+    { "S", PDFPageContentProcessor::Operator::PathStroke },
+    { "s", PDFPageContentProcessor::Operator::PathCloseStroke },
+    { "f", PDFPageContentProcessor::Operator::PathFillWinding },
+    { "F", PDFPageContentProcessor::Operator::PathFillWinding2 },
+    { "f*", PDFPageContentProcessor::Operator::PathFillEvenOdd },
+    { "B", PDFPageContentProcessor::Operator::PathFillStrokeWinding },
+    { "B*", PDFPageContentProcessor::Operator::PathFillStrokeEvenOdd },
+    { "b", PDFPageContentProcessor::Operator::PathCloseFillStrokeWinding },
+    { "b*", PDFPageContentProcessor::Operator::PathCloseFillStrokeEvenOdd },
+    { "n", PDFPageContentProcessor::Operator::PathClear },
 
     // Clipping paths:             W, W*
     { "W", PDFPageContentProcessor::Operator::ClipWinding },
@@ -221,6 +221,14 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     return m_errorList;
 }
 
+void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule)
+{
+    Q_UNUSED(path);
+    Q_UNUSED(stroke);
+    Q_UNUSED(fill);
+    Q_UNUSED(fillRule);
+}
+
 void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
 {
     QByteArray content = m_document->getDecodedStream(stream);
@@ -325,6 +333,61 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
             break;
         }
 
+        case Operator::PathStroke:
+        {
+            operatorPathStroke();
+            break;
+        }
+
+        case Operator::PathCloseStroke:
+        {
+            operatorPathCloseStroke();
+            break;
+        }
+
+        case Operator::PathFillWinding:
+        case Operator::PathFillWinding2:
+        {
+            operatorPathFillWinding();
+            break;
+        }
+
+        case Operator::PathFillEvenOdd:
+        {
+            operatorPathFillEvenOdd();
+            break;
+        }
+
+        case Operator::PathFillStrokeWinding:
+        {
+            operatorPathFillStrokeWinding();
+            break;
+        }
+
+        case Operator::PathFillStrokeEvenOdd:
+        {
+            operatorPathFillStrokeEvenOdd();
+            break;
+        }
+
+        case Operator::PathCloseFillStrokeWinding:
+        {
+            operatorPathCloseFillStrokeWinding();
+            break;
+        }
+
+        case Operator::PathCloseFillStrokeEvenOdd:
+        {
+            operatorPathCloseFillStrokeEvenOdd();
+            break;
+        }
+
+        case Operator::PathClear:
+        {
+            operatorPathClear();
+            break;
+        }
+
         case Operator::Invalid:
         {
             m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Unknown operator '%1'.").arg(QString::fromLatin1(command))));
@@ -358,7 +421,7 @@ QPointF PDFPageContentProcessor::getCurrentPoint() const
 template<>
 PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const
 {
-    if (m_operands.size() < index)
+    if (index < m_operands.size())
     {
         const PDFLexicalAnalyzer::Token& token = m_operands[index];
 
@@ -419,6 +482,94 @@ void PDFPageContentProcessor::operatorRectangle(PDFReal x, PDFReal y, PDFReal wi
     }
 
     m_currentPath.addRect(QRectF(x, y, width, height));
+}
+
+void PDFPageContentProcessor::operatorPathStroke()
+{
+    // Do not close the path
+    if (!m_currentPath.isEmpty())
+    {
+        performPathPainting(m_currentPath, true, false, Qt::WindingFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathCloseStroke()
+{
+    // Close the path
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.closeSubpath();
+        performPathPainting(m_currentPath, true, false, Qt::WindingFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathFillWinding()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.setFillRule(Qt::WindingFill);
+        performPathPainting(m_currentPath, false, true, Qt::WindingFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathFillEvenOdd()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.setFillRule(Qt::OddEvenFill);
+        performPathPainting(m_currentPath, false, true, Qt::OddEvenFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathFillStrokeWinding()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.setFillRule(Qt::WindingFill);
+        performPathPainting(m_currentPath, true, true, Qt::WindingFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathFillStrokeEvenOdd()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.setFillRule(Qt::OddEvenFill);
+        performPathPainting(m_currentPath, true, true, Qt::OddEvenFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathCloseFillStrokeWinding()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.closeSubpath();
+        m_currentPath.setFillRule(Qt::WindingFill);
+        performPathPainting(m_currentPath, true, true, Qt::WindingFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathCloseFillStrokeEvenOdd()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.closeSubpath();
+        m_currentPath.setFillRule(Qt::OddEvenFill);
+        performPathPainting(m_currentPath, true, true, Qt::OddEvenFill);
+        m_currentPath = QPainterPath();
+    }
+}
+
+void PDFPageContentProcessor::operatorPathClear()
+{
+    m_currentPath = QPainterPath();
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :

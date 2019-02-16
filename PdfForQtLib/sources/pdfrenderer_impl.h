@@ -81,16 +81,16 @@ public:
         Rectangle,                          ///< re, adds rectangle
 
         // Path painting:               S, s, f, F, f*, B, B*, b, b*, n
-        StrokePath,                         ///< S, stroke the path
-        CloseAndStrokePath,                 ///< s, close the path and then stroke (equivalent of operators h S)
-        FillPathWinding,                    ///< f, close the path, and then fill the path using "Non zero winding number rule"
-        FillPathWinding2,                   ///< F, same as previous, see PDF Reference 1.7, Table 4.10
-        FillPathEvenOdd,                    ///< f*, fill the path using "Even-odd rule"
-        StrokeAndFillWinding,               ///< B, stroke and fill path, using "Non zero winding number rule"
-        StrokeAndFillEvenOdd,               ///< B*, stroke and fill path, using "Even-odd rule"
-        CloseAndStrokeAndFillWinding,       ///< b, close, stroke and fill path, using "Non zero winding number rule", equivalent of operators h B
-        CloseAndStrokeAndFillEvenOdd,       ///< b*, close, stroke and fill path, using "Even-odd rule", equivalent of operators h B*
-        ClearPath,                          ///< n, clear parh (close current) path, "no-operation", used with clipping
+        PathStroke,                         ///< S, Stroke
+        PathCloseStroke,                    ///< s, Close, Stroke (equivalent of operators h S)
+        PathFillWinding,                    ///< f, Fill, Winding
+        PathFillWinding2,                   ///< F, same as previous, see PDF Reference 1.7, Table 4.10
+        PathFillEvenOdd,                    ///< f*, Fill, Even-Odd
+        PathFillStrokeWinding,              ///< B, Fill, Stroke, Winding
+        PathFillStrokeEvenOdd,              ///< B*, Fill, Stroke, Even-Odd
+        PathCloseFillStrokeWinding,         ///< b, Close, Fill, Stroke, Winding (equivalent of operators h B)
+        PathCloseFillStrokeEvenOdd,         ///< b*, Close, Fill, Stroke, Even-Odd (equivalent of operators h B*)
+        PathClear,                          ///< n, clear path (close current) path, "no-operation", used with clipping
 
         // Clipping paths:             W, W*
         ClipWinding,                        ///< W, modify current clipping path by intersecting it with current path using "Non zero winding number rule"
@@ -166,6 +166,15 @@ public:
     /// Process the contents of the page
     QList<PDFRenderError> processContents();
 
+protected:
+    /// This function has to be implemented in the client drawing implementation, it should
+    /// draw the path according to the parameters.
+    /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)
+    /// \param stroke Stroke the path
+    /// \param fill Fill the path using given rule
+    /// \param fillRule Fill rule used in the fill mode
+    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule);
+
 private:
     /// Process the content stream
     void processContentStream(const PDFStream* stream);
@@ -210,6 +219,17 @@ private:
     void operatorBezier13To(PDFReal x1, PDFReal y1, PDFReal x3, PDFReal y3);
     void operatorEndSubpath();
     void operatorRectangle(PDFReal x, PDFReal y, PDFReal width, PDFReal height);
+
+    // Path painting operators
+    void operatorPathStroke();
+    void operatorPathCloseStroke();
+    void operatorPathFillWinding();
+    void operatorPathFillEvenOdd();
+    void operatorPathFillStrokeWinding();
+    void operatorPathFillStrokeEvenOdd();
+    void operatorPathCloseFillStrokeWinding();
+    void operatorPathCloseFillStrokeEvenOdd();
+    void operatorPathClear();
 
     /// Represents graphic state of the PDF (holding current graphic state parameters).
     /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"

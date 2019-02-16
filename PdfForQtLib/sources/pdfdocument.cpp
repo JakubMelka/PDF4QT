@@ -273,6 +273,21 @@ PDFInteger PDFDocumentDataLoaderDecorator::readInteger(const PDFObject& object, 
     return defaultValue;
 }
 
+PDFReal PDFDocumentDataLoaderDecorator::readNumber(const PDFObject& object, PDFInteger defaultValue) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+
+    if (dereferencedObject.isReal())
+    {
+        return dereferencedObject.getReal();
+    } else if (dereferencedObject.isInt())
+    {
+        return dereferencedObject.getInteger();
+    }
+
+    return defaultValue;
+}
+
 QString PDFDocumentDataLoaderDecorator::readTextString(const PDFObject& object, const QString& defaultValue) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
@@ -317,6 +332,26 @@ QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, co
 
             return QRectF(xMin, yMin, xMax - xMin, yMax - yMin);
         }
+    }
+
+    return defaultValue;
+}
+
+PDFReal PDFDocumentDataLoaderDecorator::readNumberFromDictionary(const PDFDictionary* dictionary, const char* key, PDFReal defaultValue) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readNumber(dictionary->get(key), defaultValue);
+    }
+
+    return defaultValue;
+}
+
+PDFInteger PDFDocumentDataLoaderDecorator::readIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readInteger(dictionary->get(key), defaultValue);
     }
 
     return defaultValue;

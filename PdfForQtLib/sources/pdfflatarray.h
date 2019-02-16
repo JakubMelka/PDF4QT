@@ -104,6 +104,20 @@ public:
         }
     }
 
+   T& operator[] (size_t index)
+   {
+       Q_ASSERT(index < size());
+
+       if (index < FlatSize)
+       {
+           return m_flatBlock[index];
+       }
+       else
+       {
+           return m_variableBlock[index - FlatSize];
+       }
+   }
+
     void clear()
     {
         m_flatBlockEndIterator = m_flatBlock.begin();
