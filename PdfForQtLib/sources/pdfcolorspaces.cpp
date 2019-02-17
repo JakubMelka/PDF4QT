@@ -23,6 +23,11 @@
 namespace pdf
 {
 
+QColor PDFDeviceGrayColorSpace::getDefaultColor() const
+{
+    return QColor(Qt::black);
+}
+
 QColor PDFDeviceGrayColorSpace::getColor(const PDFColor& color) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
@@ -39,6 +44,11 @@ size_t PDFDeviceGrayColorSpace::getColorComponentCount() const
     return 1;
 }
 
+QColor PDFDeviceRGBColorSpace::getDefaultColor() const
+{
+    return QColor(Qt::black);
+}
+
 QColor PDFDeviceRGBColorSpace::getColor(const PDFColor& color) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
@@ -49,6 +59,11 @@ QColor PDFDeviceRGBColorSpace::getColor(const PDFColor& color) const
 size_t PDFDeviceRGBColorSpace::getColorComponentCount() const
 {
     return 3;
+}
+
+QColor PDFDeviceCMYKColorSpace::getDefaultColor() const
+{
+    return QColor(Qt::black);
 }
 
 QColor PDFDeviceCMYKColorSpace::getColor(const PDFColor& color) const
@@ -71,16 +86,23 @@ size_t PDFDeviceCMYKColorSpace::getColorComponentCount() const
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpace(const PDFDictionary* colorSpaceDictionary,
-                                                                              const PDFDocument* document,
-                                                                              const PDFObject& colorSpace)
+                                                             const PDFDocument* document,
+                                                             const PDFObject& colorSpace)
 {
     return createColorSpaceImpl(colorSpaceDictionary, document, colorSpace, COLOR_SPACE_MAX_LEVEL_OF_RECURSION);
 }
 
+PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByName(const PDFDictionary* colorSpaceDictionary,
+                                                                         const PDFDocument* document,
+                                                                         const QByteArray& name)
+{
+    return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, name, COLOR_SPACE_MAX_LEVEL_OF_RECURSION);
+}
+
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
-                                                                                  const PDFDocument* document,
-                                                                                  const PDFObject& colorSpace,
-                                                                                  int recursion)
+                                                                 const PDFDocument* document,
+                                                                 const PDFObject& colorSpace,
+                                                                 int recursion)
 {
     if (--recursion <= 0)
     {
@@ -89,41 +111,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 
     if (colorSpace.isName())
     {
-        QByteArray name = colorSpace.getString();
-
-        if (name == COLOR_SPACE_NAME_DEVICE_GRAY || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_GRAY)
-        {
-            if (colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_GRAY))
-            {
-                return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_GRAY)), recursion);
-            }
-            else
-            {
-                return PDFColorSpacePointer(new PDFDeviceGrayColorSpace());
-            }
-        }
-        else if (name == COLOR_SPACE_NAME_DEVICE_RGB || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_RGB)
-        {
-            if (colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_RGB))
-            {
-                return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_RGB)), recursion);
-            }
-            else
-            {
-                return PDFColorSpacePointer(new PDFDeviceRGBColorSpace());
-            }
-        }
-        else if (name == COLOR_SPACE_NAME_DEVICE_CMYK || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_CMYK)
-        {
-            if (colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_CMYK))
-            {
-                return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_CMYK)), recursion);
-            }
-            else
-            {
-                return PDFColorSpacePointer(new PDFDeviceCMYKColorSpace());
-            }
-        }
+        return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, colorSpace.getString(), recursion);
     }
     else if (colorSpace.isArray())
     {
@@ -175,9 +163,62 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, stream, recursion);
                 }
 
+                if (name == COLOR_SPACE_NAME_INDEXED && count == 4)
+                {
+                    return PDFIndexedColorSpace::createIndexedColorSpace(colorSpaceDictionary, document, array, recursion);
+                }
+
                 // Try to just load by standard way - we can have "standard" color space stored in array
                 return createColorSpaceImpl(colorSpaceDictionary, document, colorSpaceIdentifier, recursion);
             }
+        }
+    }
+
+    throw PDFParserException(PDFTranslationContext::tr("Invalid color space."));
+    return PDFColorSpacePointer();
+}
+
+PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
+                                                                             const PDFDocument* document,
+                                                                             const QByteArray& name,
+                                                                             int recursion)
+{
+    if (--recursion <= 0)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
+    }
+
+    if (name == COLOR_SPACE_NAME_DEVICE_GRAY || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_GRAY)
+    {
+        if (colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_GRAY))
+        {
+            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_GRAY)), recursion);
+        }
+        else
+        {
+            return PDFColorSpacePointer(new PDFDeviceGrayColorSpace());
+        }
+    }
+    else if (name == COLOR_SPACE_NAME_DEVICE_RGB || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_RGB)
+    {
+        if (colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_RGB))
+        {
+            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_RGB)), recursion);
+        }
+        else
+        {
+            return PDFColorSpacePointer(new PDFDeviceRGBColorSpace());
+        }
+    }
+    else if (name == COLOR_SPACE_NAME_DEVICE_CMYK || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_CMYK)
+    {
+        if (colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_CMYK))
+        {
+            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_CMYK)), recursion);
+        }
+        else
+        {
+            return PDFColorSpacePointer(new PDFDeviceCMYKColorSpace());
         }
     }
 
@@ -198,10 +239,20 @@ PDFColor3 PDFAbstractColorSpace::convertXYZtoRGB(const PDFColor3& xyzColor)
     return matrixXYZtoRGB * xyzColor;
 }
 
-PDFCalGrayColorSpace::PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent gamma) :
+
+QColor PDFXYZColorSpace::getDefaultColor() const
+{
+    PDFColor color;
+    const size_t componentCount = getColorComponentCount();
+    for (size_t i = 0; i < componentCount; ++i)
+    {
+        color.push_back(0.0f);
+    }
+    return getColor(color);
+}
+
+PDFXYZColorSpace::PDFXYZColorSpace(PDFColor3 whitePoint) :
     m_whitePoint(whitePoint),
-    m_blackPoint(blackPoint),
-    m_gamma(gamma),
     m_correctionCoefficients()
 {
     PDFColor3 mappedWhitePoint = convertXYZtoRGB(m_whitePoint);
@@ -209,6 +260,14 @@ PDFCalGrayColorSpace::PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 black
     m_correctionCoefficients[0] = 1.0f / mappedWhitePoint[0];
     m_correctionCoefficients[1] = 1.0f / mappedWhitePoint[1];
     m_correctionCoefficients[2] = 1.0f / mappedWhitePoint[2];
+}
+
+PDFCalGrayColorSpace::PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent gamma) :
+    PDFXYZColorSpace(whitePoint),
+    m_blackPoint(blackPoint),
+    m_gamma(gamma)
+{
+
 }
 
 QColor PDFCalGrayColorSpace::getColor(const PDFColor& color) const
@@ -244,17 +303,12 @@ PDFColorSpacePointer PDFCalGrayColorSpace::createCalGrayColorSpace(const PDFDocu
 }
 
 PDFCalRGBColorSpace::PDFCalRGBColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColor3 gamma, PDFColorComponentMatrix_3x3 matrix) :
-    m_whitePoint(whitePoint),
+    PDFXYZColorSpace(whitePoint),
     m_blackPoint(blackPoint),
     m_gamma(gamma),
-    m_matrix(matrix),
-    m_correctionCoefficients()
+    m_matrix(matrix)
 {
-    PDFColor3 mappedWhitePoint = convertXYZtoRGB(m_whitePoint);
 
-    m_correctionCoefficients[0] = 1.0f / mappedWhitePoint[0];
-    m_correctionCoefficients[1] = 1.0f / mappedWhitePoint[1];
-    m_correctionCoefficients[2] = 1.0f / mappedWhitePoint[2];
 }
 
 QColor PDFCalRGBColorSpace::getColor(const PDFColor& color) const
@@ -299,19 +353,14 @@ PDFLabColorSpace::PDFLabColorSpace(PDFColor3 whitePoint,
                                    PDFColorComponent aMax,
                                    PDFColorComponent bMin,
                                    PDFColorComponent bMax) :
-    m_whitePoint(whitePoint),
+    PDFXYZColorSpace(whitePoint),
     m_blackPoint(blackPoint),
     m_aMin(aMin),
     m_aMax(aMax),
     m_bMin(bMin),
-    m_bMax(bMax),
-    m_correctionCoefficients()
+    m_bMax(bMax)
 {
-    PDFColor3 mappedWhitePoint = convertXYZtoRGB(m_whitePoint);
 
-    m_correctionCoefficients[0] = 1.0f / mappedWhitePoint[0];
-    m_correctionCoefficients[1] = 1.0f / mappedWhitePoint[1];
-    m_correctionCoefficients[2] = 1.0f / mappedWhitePoint[2];
 }
 
 QColor PDFLabColorSpace::getColor(const PDFColor& color) const
@@ -382,6 +431,17 @@ PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColor
     m_range(range)
 {
 
+}
+
+QColor PDFICCBasedColorSpace::getDefaultColor() const
+{
+    PDFColor color;
+    const size_t componentCount = getColorComponentCount();
+    for (size_t i = 0; i < componentCount; ++i)
+    {
+        color.push_back(0.0f);
+    }
+    return getColor(color);
 }
 
 QColor PDFICCBasedColorSpace::getColor(const PDFColor& color) const
@@ -475,6 +535,93 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     loader.readNumberArrayFromDictionary(dictionary, ICCBASED_RANGE, itStart, itEnd);
 
     return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges));
+}
+
+PDFIndexedColorSpace::PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue) :
+    m_baseColorSpace(qMove(baseColorSpace)),
+    m_colors(qMove(colors)),
+    m_maxValue(maxValue)
+{
+
+}
+
+QColor PDFIndexedColorSpace::getDefaultColor() const
+{
+    return getColor(PDFColor(0.0f));
+}
+
+QColor PDFIndexedColorSpace::getColor(const PDFColor& color) const
+{
+    // Indexed color space value must have exactly one component!
+    Q_ASSERT(color.size() == 1);
+
+    const int colorIndex = qBound(MIN_VALUE, static_cast<int>(color[0]), m_maxValue);
+    const int componentCount = static_cast<int>(m_baseColorSpace->getColorComponentCount());
+    const int byteOffset = colorIndex * componentCount;
+
+    // We must point into the array. Check first and last component.
+    Q_ASSERT(byteOffset + componentCount - 1 < m_colors.size());
+
+    PDFColor decodedColor;
+    const char* bytePointer = m_colors.constData() + byteOffset;
+
+    for (int i = 0; i < componentCount; ++i)
+    {
+        const unsigned char value = *bytePointer++;
+        const PDFColorComponent component = static_cast<PDFColorComponent>(value) / 255.0f;
+        decodedColor.push_back(component);
+    }
+
+    return m_baseColorSpace->getColor(decodedColor);
+}
+
+size_t PDFIndexedColorSpace::getColorComponentCount() const
+{
+    return 1;
+}
+
+PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                                   const PDFDocument* document,
+                                                                   const PDFArray* array,
+                                                                   int recursion)
+{
+    Q_ASSERT(array->getCount() == 4);
+
+    // Read base color space
+    PDFColorSpacePointer baseColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion);
+
+    if (!baseColorSpace)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't determine base color space for indexed color space."));
+    }
+
+    // Read maximum value
+    PDFDocumentDataLoaderDecorator loader(document);
+    const int maxValue = qBound<int>(MIN_VALUE, loader.readInteger(array->getItem(2), 0), MAX_VALUE);
+
+    // Read stream/byte string with corresponding color values
+    QByteArray colors;
+    const PDFObject& colorDataObject = document->getObject(array->getItem(3));
+
+    if (colorDataObject.isString())
+    {
+        colors = colorDataObject.getString();
+    }
+    else if (colorDataObject.isStream())
+    {
+        colors = document->getDecodedStream(colorDataObject.getStream());
+    }
+
+    // Check, if we have enough colors
+    const int colorCount = maxValue - MIN_VALUE + 1;
+    const int componentCount = static_cast<int>(baseColorSpace->getColorComponentCount());
+    const int byteCount = colorCount * componentCount;
+    if (byteCount != colors.size())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.").arg(colorCount).arg(componentCount).arg(byteCount).arg(colors.size()));
+    }
+
+    return PDFColorSpacePointer(new PDFIndexedColorSpace(qMove(baseColorSpace), qMove(colors), maxValue));
 }
 
 }   // namespace pdf

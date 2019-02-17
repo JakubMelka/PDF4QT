@@ -25,6 +25,7 @@
 
 namespace pdf
 {
+class PDFArray;
 class PDFObject;
 class PDFStream;
 class PDFDocument;
@@ -36,6 +37,8 @@ using PDFColor = PDFFlatArray<PDFColorComponent, 4>;
 using PDFColorSpacePointer = QSharedPointer<PDFAbstractColorSpace>;
 
 static constexpr const int COLOR_SPACE_MAX_LEVEL_OF_RECURSION = 12;
+
+static constexpr const char* COLOR_SPACE_DICTIONARY = "ColorSpace";
 
 static constexpr const char* COLOR_SPACE_NAME_DEVICE_GRAY = "DeviceGray";
 static constexpr const char* COLOR_SPACE_NAME_DEVICE_RGB = "DeviceRGB";
@@ -53,6 +56,7 @@ static constexpr const char* COLOR_SPACE_NAME_CAL_GRAY = "CalGray";
 static constexpr const char* COLOR_SPACE_NAME_CAL_RGB = "CalRGB";
 static constexpr const char* COLOR_SPACE_NAME_LAB = "Lab";
 static constexpr const char* COLOR_SPACE_NAME_ICCBASED = "ICCBased";
+static constexpr const char* COLOR_SPACE_NAME_INDEXED = "Indexed";
 
 static constexpr const char* CAL_WHITE_POINT = "WhitePoint";
 static constexpr const char* CAL_BLACK_POINT = "BlackPoint";
@@ -108,6 +112,7 @@ public:
     explicit PDFAbstractColorSpace() = default;
     virtual ~PDFAbstractColorSpace() = default;
 
+    virtual QColor getDefaultColor() const = 0;
     virtual QColor getColor(const PDFColor& color) const = 0;
     virtual size_t getColorComponentCount() const = 0;
 
@@ -119,6 +124,15 @@ public:
     static PDFColorSpacePointer createColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                  const PDFDocument* document,
                                                  const PDFObject& colorSpace);
+
+    /// Creates device color space by name. Color space can be created by this function only, if
+    /// it is simple - one of the basic device color spaces (gray, RGB or CMYK).
+    /// \param colorSpaceDictionary Dictionary containing color spaces of the page
+    /// \param document Document (for loading objects)
+    /// \param name Name of the color space
+    static PDFColorSpacePointer createDeviceColorSpaceByName(const PDFDictionary* colorSpaceDictionary,
+                                                             const PDFDocument* document,
+                                                             const QByteArray& name);
 
 protected:
     /// Clips the color component to range [0, 1]
@@ -147,6 +161,16 @@ protected:
                                                      const PDFDocument* document,
                                                      const PDFObject& colorSpace,
                                                      int recursion);
+
+    /// Creates device color space by name. Color space can be created by this function only, if
+    /// it is simple - one of the basic device color spaces (gray, RGB or CMYK).
+    /// \param colorSpaceDictionary Dictionary containing color spaces of the page
+    /// \param document Document (for loading objects)
+    /// \param name Name of the color space
+    static PDFColorSpacePointer createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
+                                                                 const PDFDocument* document,
+                                                                 const QByteArray& name,
+                                                                 int recursion);
 
     /// Converts XYZ value to the standard RGB value (linear). No gamma correction is applied.
     /// Default transformation matrix is applied.
@@ -212,6 +236,7 @@ public:
     explicit PDFDeviceGrayColorSpace() = default;
     virtual ~PDFDeviceGrayColorSpace() = default;
 
+    virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
 };
@@ -222,6 +247,7 @@ public:
     explicit PDFDeviceRGBColorSpace() = default;
     virtual ~PDFDeviceRGBColorSpace() = default;
 
+    virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
 };
@@ -232,11 +258,30 @@ public:
     explicit PDFDeviceCMYKColorSpace() = default;
     virtual ~PDFDeviceCMYKColorSpace() = default;
 
+    virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
 };
 
-class PDFCalGrayColorSpace : public PDFAbstractColorSpace
+class PDFXYZColorSpace : public PDFAbstractColorSpace
+{
+public:
+    virtual QColor getDefaultColor() const override;
+
+protected:
+    explicit PDFXYZColorSpace(PDFColor3 whitePoint);
+    virtual ~PDFXYZColorSpace() = default;
+
+    PDFColor3 m_whitePoint;
+
+    /// What are these coefficients? We want to map white point from XYZ space to white point
+    /// of RGB space. These coefficients are reciprocal values to the point converted from XYZ white
+    /// point. So, if we call getColor(m_whitePoint), then we should get vector (1.0, 1.0, 1.0)
+    /// after multiplication by these coefficients.
+    PDFColor3 m_correctionCoefficients;
+};
+
+class PDFCalGrayColorSpace : public PDFXYZColorSpace
 {
 public:
     explicit inline PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent gamma);
@@ -251,18 +296,11 @@ public:
     static PDFColorSpacePointer createCalGrayColorSpace(const PDFDocument* document, const PDFDictionary* dictionary);
 
 private:
-    PDFColor3 m_whitePoint;
     PDFColor3 m_blackPoint;
     PDFColorComponent m_gamma;
-
-    /// What are these coefficients? We want to map white point from XYZ space to white point
-    /// of RGB space. These coefficients are reciprocal values to the point converted from XYZ white
-    /// point. So, if we call getColor(m_whitePoint), then we should get vector (1.0, 1.0, 1.0)
-    /// after multiplication by these coefficients.
-    PDFColor3 m_correctionCoefficients;
 };
 
-class PDFCalRGBColorSpace : public PDFAbstractColorSpace
+class PDFCalRGBColorSpace : public PDFXYZColorSpace
 {
 public:
     explicit inline PDFCalRGBColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColor3 gamma, PDFColorComponentMatrix_3x3 matrix);
@@ -277,19 +315,12 @@ public:
     static PDFColorSpacePointer createCalRGBColorSpace(const PDFDocument* document, const PDFDictionary* dictionary);
 
 private:
-    PDFColor3 m_whitePoint;
     PDFColor3 m_blackPoint;
     PDFColor3 m_gamma;
     PDFColorComponentMatrix_3x3 m_matrix;
-
-    /// What are these coefficients? We want to map white point from XYZ space to white point
-    /// of RGB space. These coefficients are reciprocal values to the point converted from XYZ white
-    /// point. So, if we call getColor(m_whitePoint), then we should get vector (1.0, 1.0, 1.0)
-    /// after multiplication by these coefficients.
-    PDFColor3 m_correctionCoefficients;
 };
 
-class PDFLabColorSpace : public PDFAbstractColorSpace
+class PDFLabColorSpace : public PDFXYZColorSpace
 {
 public:
     explicit inline PDFLabColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent aMin, PDFColorComponent aMax, PDFColorComponent bMin, PDFColorComponent bMax);
@@ -304,18 +335,11 @@ public:
     static PDFColorSpacePointer createLabColorSpace(const PDFDocument* document, const PDFDictionary* dictionary);
 
 private:
-    PDFColor3 m_whitePoint;
     PDFColor3 m_blackPoint;
     PDFColorComponent m_aMin;
     PDFColorComponent m_aMax;
     PDFColorComponent m_bMin;
     PDFColorComponent m_bMax;
-
-    /// What are these coefficients? We want to map white point from XYZ space to white point
-    /// of RGB space. These coefficients are reciprocal values to the point converted from XYZ white
-    /// point. So, if we call getColor(m_whitePoint), then we should get vector (1.0, 1.0, 1.0)
-    /// after multiplication by these coefficients.
-    PDFColor3 m_correctionCoefficients;
 };
 
 class PDFICCBasedColorSpace : public PDFAbstractColorSpace
@@ -328,6 +352,7 @@ public:
     explicit inline PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range);
     virtual ~PDFICCBasedColorSpace() = default;
 
+    virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
 
@@ -342,6 +367,36 @@ private:
     PDFColorSpacePointer m_alternateColorSpace;
     Ranges m_range;
 };
+
+class PDFIndexedColorSpace : public PDFAbstractColorSpace
+{
+public:
+    explicit inline PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue);
+    virtual ~PDFIndexedColorSpace() = default;
+
+    virtual QColor getDefaultColor() const override;
+    virtual QColor getColor(const PDFColor& color) const override;
+    virtual size_t getColorComponentCount() const override;
+
+    /// Creates indexed color space from provided values.
+    /// \param colorSpaceDictionary Color space dictionary
+    /// \param document Document
+    /// \param array Array with indexed color space definition
+    /// \param recursion Recursion guard
+    static PDFColorSpacePointer createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFArray* array, int recursion);
+
+private:
+    static constexpr const int MIN_VALUE = 0;
+    static constexpr const int MAX_VALUE = 255;
+
+    PDFColorSpacePointer m_baseColorSpace;
+    QByteArray m_colors;
+    int m_maxValue;
+};
+
+// TODO: Implement Separation color space
+// TODO: Implement DeviceN color space
+// TODO: Implement Pattern color space
 
 }   // namespace pdf
 

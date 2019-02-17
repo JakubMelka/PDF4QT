@@ -49,9 +49,9 @@ public:
 
     }
 
-    template<typename... Arguments, typename std::enable_if<sizeof...(Arguments) < FlatSize, int>::type = 0>
+    template<typename... Arguments, typename std::enable_if<sizeof...(Arguments) <= FlatSize, int>::type = 0>
     explicit inline PDFFlatArray(Arguments... arguments) :
-        m_flatBlock(arguments...),
+        m_flatBlock({ arguments... }),
         m_flatBlockEndIterator(std::next(m_flatBlock.begin(), sizeof...(Arguments))),
         m_variableBlock()
     {

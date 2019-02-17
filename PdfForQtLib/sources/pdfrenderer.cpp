@@ -178,10 +178,21 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
 
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document) :
     m_page(page),
-    m_document(document)
+    m_document(document),
+    m_colorSpaceDictionary(nullptr)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
+
+    const PDFObject& resources = m_document->getObject(m_page->getResources());
+    if (resources.isDictionary() && resources.getDictionary()->hasKey(COLOR_SPACE_DICTIONARY))
+    {
+        const PDFObject& colorSpace = m_document->getObject(resources.getDictionary()->get(COLOR_SPACE_DICTIONARY));
+        if (colorSpace.isDictionary())
+        {
+            m_colorSpaceDictionary = colorSpace.getDictionary();
+        }
+    }
 }
 
 QList<PDFRenderError> PDFPageContentProcessor::processContents()
@@ -190,6 +201,23 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
 
     // Clear the old errors
     m_errorList.clear();
+
+    // Initialize default color spaces (gray, RGB, CMYK)
+    try
+    {
+        m_deviceGrayColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_GRAY);
+        m_deviceRGBColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_RGB);
+        m_deviceCMYKColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_CMYK);
+    }
+    catch (PDFParserException exception)
+    {
+        m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
+
+        // Create default color spaces anyway, but do not try to load them...
+        m_deviceGrayColorSpace.reset(new PDFDeviceGrayColorSpace);
+        m_deviceRGBColorSpace.reset(new PDFDeviceRGBColorSpace);
+        m_deviceCMYKColorSpace.reset(new PDFDeviceCMYKColorSpace);
+    }
 
     if (contents.isArray())
     {
@@ -227,6 +255,17 @@ void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool
     Q_UNUSED(stroke);
     Q_UNUSED(fill);
     Q_UNUSED(fillRule);
+}
+
+void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
+{
+    Q_UNUSED(path);
+    Q_UNUSED(fillRule);
+}
+
+void PDFPageContentProcessor::performUpdateGraphicsState(const PDFPageContentProcessor::PDFPageContentProcessorState& state)
+{
+    Q_UNUSED(state);
 }
 
 void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
@@ -388,6 +427,102 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
             break;
         }
 
+        case Operator::ClipEvenOdd:
+        {
+            operatorClipEvenOdd();
+            break;
+        }
+
+        case Operator::ClipWinding:
+        {
+            operatorClipWinding();
+            break;
+        }
+
+        case Operator::ColorSetStrokingColorSpace:
+        {
+            // CS, set current color space for stroking operations
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetStrokingColorSpace);
+            break;
+        }
+
+        case Operator::ColorSetFillingColorSpace:
+        {
+            // cs, set current color space for filling operations
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetFillingColorSpace);
+            break;
+        }
+
+        case Operator::ColorSetStrokingColor:
+        {
+            // SC, set current stroking color
+            operatorColorSetStrokingColor();
+            break;
+        }
+
+        case Operator::ColorSetStrokingColorN:
+        {
+            // SCN, same as SC, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
+            operatorColorSetStrokingColorN();
+            break;
+        }
+
+        case Operator::ColorSetFillingColor:
+        {
+            // sc, set current filling color
+            operatorColorSetFillingColor();
+            break;
+        }
+
+        case Operator::ColorSetFillingColorN:
+        {
+            // scn, same as sc, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
+            operatorColorSetFillingColorN();
+            break;
+        }
+
+        case Operator::ColorSetDeviceGrayStroking:
+        {
+            // G, set DeviceGray color space for stroking color and set color
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetDeviceGrayStroking);
+            break;
+        }
+
+        case Operator::ColorSetDeviceGrayFilling:
+        {
+            // g, set DeviceGray color space for filling color and set color
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetDeviceGrayFilling);
+            break;
+        }
+
+        case Operator::ColorSetDeviceRGBStroking:
+        {
+            // RG, set DeviceRGB color space for stroking color and set color
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetDeviceRGBStroking);
+            break;
+        }
+
+        case Operator::ColorSetDeviceRGBFilling:
+        {
+            // rg, set DeviceRGB color space for filling color and set color
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetDeviceRGBFilling);
+            break;
+        }
+
+        case Operator::ColorSetDeviceCMYKStroking:
+        {
+            // K, set DeviceCMYK color space for stroking color and set color
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking);
+            break;
+        }
+
+        case Operator::ColorSetDeviceCMYKFilling:
+        {
+            // k, set DeviceCMYK color space for filling color and set color
+            invokeOperator(&PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling);
+            break;
+        }
+
         case Operator::Invalid:
         {
             m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Unknown operator '%1'.").arg(QString::fromLatin1(command))));
@@ -418,6 +553,15 @@ QPointF PDFPageContentProcessor::getCurrentPoint() const
     return QPointF();
 }
 
+void PDFPageContentProcessor::updateGraphicState()
+{
+    if (m_graphicState.getStateFlags())
+    {
+        performUpdateGraphicsState(m_graphicState);
+        m_graphicState.setStateFlags(PDFPageContentProcessorState::StateUnchanged);
+    }
+}
+
 template<>
 PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const
 {
@@ -441,6 +585,31 @@ PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const
     }
 
     return 0.0;
+}
+
+
+template<>
+PDFPageContentProcessor::PDFName PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFName>(size_t index) const
+{
+    if (index < m_operands.size())
+    {
+        const PDFLexicalAnalyzer::Token& token = m_operands[index];
+
+        switch (token.type)
+        {
+            case PDFLexicalAnalyzer::TokenType::Name:
+                return PDFName{ token.data.toByteArray() };
+
+            default:
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (name) on index %1. Operand is of type '%2'.").arg(index + 1).arg(PDFLexicalAnalyzer::getStringFromOperandType(token.type)));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (name) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
+    }
+
+    return PDFName();
 }
 
 void PDFPageContentProcessor::operatorMoveCurrentPoint(PDFReal x, PDFReal y)
@@ -572,6 +741,154 @@ void PDFPageContentProcessor::operatorPathClear()
     m_currentPath = QPainterPath();
 }
 
+void PDFPageContentProcessor::operatorClipWinding()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.setFillRule(Qt::WindingFill);
+        performClipping(m_currentPath, Qt::WindingFill);
+    }
+}
+
+void PDFPageContentProcessor::operatorClipEvenOdd()
+{
+    if (!m_currentPath.isEmpty())
+    {
+        m_currentPath.setFillRule(Qt::OddEvenFill);
+        performClipping(m_currentPath, Qt::OddEvenFill);
+    }
+}
+
+void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentProcessor::PDFName name)
+{
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
+    if (colorSpace)
+    {
+        // We must also set default color (it can depend on the color space)
+        m_graphicState.setStrokeColorSpace(colorSpace);
+        m_graphicState.setStrokeColor(colorSpace->getDefaultColor());
+        updateGraphicState();
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color space."));
+    }
+}
+
+void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFName name)
+{
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
+    if (colorSpace)
+    {
+        // We must also set default color (it can depend on the color space)
+        m_graphicState.setFillColorSpace(colorSpace);
+        m_graphicState.setFillColor(colorSpace->getDefaultColor());
+        updateGraphicState();
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color space."));
+    }
+}
+
+void PDFPageContentProcessor::operatorColorSetStrokingColor()
+{
+    const PDFAbstractColorSpace* colorSpace = m_graphicState.getStrokeColorSpace();
+    const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
+    const size_t operandCount = m_operands.size();
+
+    if (operandCount == colorSpaceComponentCount)
+    {
+        PDFColor color;
+        for (size_t i = 0; i < operandCount; ++i)
+        {
+            color.push_back(readOperand<PDFReal>(i));
+        }
+        m_graphicState.setStrokeColor(colorSpace->getColor(color));
+        updateGraphicState();
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color component count. Provided %1, required %2.").arg(operandCount).arg(colorSpaceComponentCount));
+    }
+}
+
+void PDFPageContentProcessor::operatorColorSetStrokingColorN()
+{
+    // TODO: Implement operator SCN
+    throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented!"));
+}
+
+void PDFPageContentProcessor::operatorColorSetFillingColor()
+{
+    const PDFAbstractColorSpace* colorSpace = m_graphicState.getFillColorSpace();
+    const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
+    const size_t operandCount = m_operands.size();
+
+    if (operandCount == colorSpaceComponentCount)
+    {
+        PDFColor color;
+        for (size_t i = 0; i < operandCount; ++i)
+        {
+            color.push_back(readOperand<PDFReal>(i));
+        }
+        m_graphicState.setFillColor(colorSpace->getColor(color));
+        updateGraphicState();
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color component count. Provided %1, required %2.").arg(operandCount).arg(colorSpaceComponentCount));
+    }
+}
+
+void PDFPageContentProcessor::operatorColorSetFillingColorN()
+{
+    // TODO: Implement operator scn
+    throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented!"));
+}
+
+void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)
+{
+    m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
+    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), gray));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorColorSetDeviceGrayFilling(PDFReal gray)
+{
+    m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
+    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), gray));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorColorSetDeviceRGBStroking(PDFReal r, PDFReal g, PDFReal b)
+{
+    m_graphicState.setStrokeColorSpace(m_deviceRGBColorSpace);
+    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), r, g, b));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorColorSetDeviceRGBFilling(PDFReal r, PDFReal g, PDFReal b)
+{
+    m_graphicState.setFillColorSpace(m_deviceRGBColorSpace);
+    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), r, g, b));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking(PDFReal c, PDFReal m, PDFReal y, PDFReal k)
+{
+    m_graphicState.setStrokeColorSpace(m_deviceCMYKColorSpace);
+    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), c, m, y, k));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFReal m, PDFReal y, PDFReal k)
+{
+    m_graphicState.setFillColorSpace(m_deviceCMYKColorSpace);
+    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), c, m, y, k));
+    updateGraphicState();
+}
+
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
     m_currentTransformationMatrix(),
     m_fillColorSpace(),
@@ -584,7 +901,8 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_mitterLimit(10.0),
     m_renderingIntent(),
     m_flatness(1.0),
-    m_smoothness(0.01)
+    m_smoothness(0.01),
+    m_stateFlags(StateUnchanged)
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
     m_strokeColorSpace = m_fillColorSpace;
@@ -593,6 +911,131 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
 PDFPageContentProcessor::PDFPageContentProcessorState::~PDFPageContentProcessorState()
 {
 
+}
+
+PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::PDFPageContentProcessorState::operator=(const PDFPageContentProcessor::PDFPageContentProcessorState& other)
+{
+    setCurrentTransformationMatrix(other.getCurrentTransformationMatrix());
+    setStrokeColorSpace(other.m_strokeColorSpace);
+    setFillColorSpace(other.m_fillColorSpace);
+    setStrokeColor(other.getStrokeColor());
+    setFillColor(other.getFillColor());
+    setLineWidth(other.getLineWidth());
+    setLineCapStyle(other.getLineCapStyle());
+    setLineJoinStyle(other.getLineJoinStyle());
+    setMitterLimit(other.getMitterLimit());
+    setRenderingIntent(other.getRenderingIntent());
+    setFlatness(other.getFlatness());
+    setSmoothness(other.getSmoothness());
+    return *this;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setCurrentTransformationMatrix(const QMatrix& currentTransformationMatrix)
+{
+    if (m_currentTransformationMatrix != currentTransformationMatrix)
+    {
+        m_currentTransformationMatrix = currentTransformationMatrix;
+        m_stateFlags |= StateCurrentTransformationMatrix;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeColorSpace(const QSharedPointer<PDFAbstractColorSpace>& strokeColorSpace)
+{
+    if (m_strokeColorSpace != strokeColorSpace)
+    {
+        m_strokeColorSpace = strokeColorSpace;
+        m_stateFlags |= StateStrokeColorSpace;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColorSpace(const QSharedPointer<PDFAbstractColorSpace>& fillColorSpace)
+{
+    if (m_fillColorSpace != fillColorSpace)
+    {
+        m_fillColorSpace = fillColorSpace;
+        m_stateFlags |= StateFillColorSpace;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeColor(const QColor& strokeColor)
+{
+    if (m_strokeColor != strokeColor)
+    {
+        m_strokeColor = strokeColor;
+        m_stateFlags |= StateStrokeColor;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColor(const QColor& fillColor)
+{
+    if (m_fillColor != fillColor)
+    {
+        m_fillColor = fillColor;
+        m_stateFlags |= StateFillColor;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setLineWidth(PDFReal lineWidth)
+{
+    if (m_lineWidth != lineWidth)
+    {
+        m_lineWidth = lineWidth;
+        m_stateFlags |= StateLineWidth;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setLineCapStyle(Qt::PenCapStyle lineCapStyle)
+{
+    if (m_lineCapStyle != lineCapStyle)
+    {
+        m_lineCapStyle = lineCapStyle;
+        m_stateFlags |= StateLineCapStyle;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setLineJoinStyle(Qt::PenJoinStyle lineJoinStyle)
+{
+    if (m_lineJoinStyle != lineJoinStyle)
+    {
+        m_lineJoinStyle = lineJoinStyle;
+        m_stateFlags |= StateLineJoinStyle;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setMitterLimit(const PDFReal& mitterLimit)
+{
+    if (m_mitterLimit != mitterLimit)
+    {
+        m_mitterLimit = mitterLimit;
+        m_stateFlags |= StateMitterLimit;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setRenderingIntent(const QByteArray& renderingIntent)
+{
+    if (m_renderingIntent != renderingIntent)
+    {
+        m_renderingIntent = renderingIntent;
+        m_stateFlags |= StateRenderingIntent;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setFlatness(PDFReal flatness)
+{
+    if (m_flatness != flatness)
+    {
+        m_flatness = flatness;
+        m_stateFlags |= StateFlatness;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setSmoothness(PDFReal smoothness)
+{
+    if (m_smoothness != smoothness)
+    {
+        m_smoothness = smoothness;
+        m_stateFlags |= StateSmoothness;
+    }
 }
 
 }   // namespace pdf

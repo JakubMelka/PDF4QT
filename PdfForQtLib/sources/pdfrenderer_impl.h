@@ -129,9 +129,9 @@ public:
         ColorSetStrokingColorSpace,         ///< CS, set current color space for stroking operations
         ColorSetFillingColorSpace,          ///< cs, set current color space for filling operations
         ColorSetStrokingColor,              ///< SC, set current stroking color
-        ColorSetStrokingColorN,             ///< SCN, same as SC, but also supports Pattern, Separtion, DeviceN and ICCBased color spaces
+        ColorSetStrokingColorN,             ///< SCN, same as SC, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
         ColorSetFillingColor,               ///< sc, set current filling color
-        ColorSetFillingColorN,              ///< scn, same as sc, but also supports Pattern, Separtion, DeviceN and ICCBased color spaces
+        ColorSetFillingColorN,              ///< scn, same as sc, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
         ColorSetDeviceGrayStroking,         ///< G, set DeviceGray color space for stroking color and set color
         ColorSetDeviceGrayFilling,          ///< g, set DeviceGray color space for filling color and set color
         ColorSetDeviceRGBStroking,          ///< RG, set DeviceRGB color space for stroking color and set color
@@ -167,6 +167,94 @@ public:
     QList<PDFRenderError> processContents();
 
 protected:
+    /// Represents graphic state of the PDF (holding current graphic state parameters).
+    /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"
+    class PDFPageContentProcessorState
+    {
+    public:
+        explicit PDFPageContentProcessorState();
+        ~PDFPageContentProcessorState();
+
+        PDFPageContentProcessorState(const PDFPageContentProcessorState&) = default;
+        PDFPageContentProcessorState(PDFPageContentProcessorState&&) = default;
+
+        PDFPageContentProcessorState& operator=(PDFPageContentProcessorState&&) = delete;
+        PDFPageContentProcessorState& operator=(const PDFPageContentProcessorState& other);
+
+        enum StateFlag
+        {
+            StateUnchanged                      = 0x0000,
+            StateCurrentTransformationMatrix    = 0x0001,
+            StateStrokeColorSpace               = 0x0002,
+            StateFillColorSpace                 = 0x0004,
+            StateStrokeColor                    = 0x0008,
+            StateFillColor                      = 0x0010,
+            StateLineWidth                      = 0x0020,
+            StateLineCapStyle                   = 0x0040,
+            StateLineJoinStyle                  = 0x0080,
+            StateMitterLimit                    = 0x0100,
+            StateRenderingIntent                = 0x0200,
+            StateFlatness                       = 0x0400,
+            StateSmoothness                     = 0x0800
+        };
+
+        Q_DECLARE_FLAGS(StateFlags, StateFlag)
+
+        const QMatrix& getCurrentTransformationMatrix() const { return m_currentTransformationMatrix; }
+        void setCurrentTransformationMatrix(const QMatrix& currentTransformationMatrix);
+
+        const PDFAbstractColorSpace* getStrokeColorSpace() const { return m_strokeColorSpace.data(); }
+        void setStrokeColorSpace(const QSharedPointer<PDFAbstractColorSpace>& strokeColorSpace);
+
+        const PDFAbstractColorSpace* getFillColorSpace() const { return m_fillColorSpace.data(); }
+        void setFillColorSpace(const QSharedPointer<PDFAbstractColorSpace>& fillColorSpace);
+
+        const QColor& getStrokeColor() const { return m_strokeColor; }
+        void setStrokeColor(const QColor& strokeColor);
+
+        const QColor& getFillColor() const { return m_fillColor; }
+        void setFillColor(const QColor& fillColor);
+
+        PDFReal getLineWidth() const { return m_lineWidth; }
+        void setLineWidth(PDFReal lineWidth);
+
+        Qt::PenCapStyle getLineCapStyle() const { return m_lineCapStyle; }
+        void setLineCapStyle(Qt::PenCapStyle lineCapStyle);
+
+        Qt::PenJoinStyle getLineJoinStyle() const { return m_lineJoinStyle; }
+        void setLineJoinStyle(Qt::PenJoinStyle lineJoinStyle);
+
+        PDFReal getMitterLimit() const { return m_mitterLimit; }
+        void setMitterLimit(const PDFReal& mitterLimit);
+
+        const QByteArray& getRenderingIntent() const { return m_renderingIntent; }
+        void setRenderingIntent(const QByteArray& renderingIntent);
+
+        PDFReal getFlatness() const { return m_flatness; }
+        void setFlatness(PDFReal flatness);
+
+        PDFReal getSmoothness() const { return m_smoothness; }
+        void setSmoothness(PDFReal smoothness);
+
+        StateFlags getStateFlags() const { return m_stateFlags; }
+        void setStateFlags(StateFlags stateFlags) { m_stateFlags = stateFlags; }
+
+    private:
+        QMatrix m_currentTransformationMatrix;
+        PDFColorSpacePointer m_strokeColorSpace;
+        PDFColorSpacePointer m_fillColorSpace;
+        QColor m_strokeColor;
+        QColor m_fillColor;
+        PDFReal m_lineWidth;
+        Qt::PenCapStyle m_lineCapStyle;
+        Qt::PenJoinStyle m_lineJoinStyle;
+        PDFReal m_mitterLimit;
+        QByteArray m_renderingIntent;
+        PDFReal m_flatness;
+        PDFReal m_smoothness;
+        StateFlags m_stateFlags;
+    };
+
     /// This function has to be implemented in the client drawing implementation, it should
     /// draw the path according to the parameters.
     /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)
@@ -175,6 +263,15 @@ protected:
     /// \param fillRule Fill rule used in the fill mode
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule);
 
+    /// This function has to be implemented in the client drawing implementation, it should
+    /// clip along the path (intersect with current clipping path).
+    virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule);
+
+    /// This function has to be implemented in the client drawing implementation, it should
+    /// update the device accordin to the graphic state change. The flags are set when
+    /// the value differs from the previous graphic state.
+    virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state);
+
 private:
     /// Process the content stream
     void processContentStream(const PDFStream* stream);
@@ -182,11 +279,20 @@ private:
     /// Processes single command
     void processCommand(const QByteArray& command);
 
+    /// Wrapper for PDF Name
+    struct PDFName
+    {
+        QByteArray name;
+    };
+
     template<typename T>
     T readOperand(size_t index) const;
 
     template<>
     PDFReal readOperand<PDFReal>(size_t index) const;
+
+    template<>
+    PDFName readOperand<PDFName>(size_t index) const;
 
     template<size_t index, typename T>
     inline T readOperand() const { return readOperand<T>(index); }
@@ -211,6 +317,28 @@ private:
     /// exception is thrown.
     QPointF getCurrentPoint() const;
 
+    /// Notifies the updated graphic state. If nothing changed in graphic state, then nothing happens.
+    void updateGraphicState();
+
+    template<typename... Operands>
+    inline QColor getColorFromColorSpace(const PDFAbstractColorSpace* colorSpace, Operands... operands)
+    {
+
+
+        constexpr const size_t operandCount = sizeof...(Operands);
+        const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
+        if (operandCount == colorSpaceComponentCount)
+        {
+            return colorSpace->getColor(PDFColor(static_cast<PDFColorComponent>(operands)...));
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color component count. Provided %1, required %2.").arg(operandCount).arg(colorSpaceComponentCount));
+        }
+
+        return QColor();
+    }
+
     // Path construction operators
     void operatorMoveCurrentPoint(PDFReal x, PDFReal y);
     void operatorLineTo(PDFReal x, PDFReal y);
@@ -231,37 +359,41 @@ private:
     void operatorPathCloseFillStrokeEvenOdd();
     void operatorPathClear();
 
-    /// Represents graphic state of the PDF (holding current graphic state parameters).
-    /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"
-    class PDFPageContentProcessorState
-    {
-    public:
-        explicit PDFPageContentProcessorState();
-        ~PDFPageContentProcessorState();
+    // Clipping paths:             W, W*
+    void operatorClipWinding(); ///< W, modify current clipping path by intersecting it with current path using "Non zero winding number rule"
+    void operatorClipEvenOdd(); ///< W*, modify current clipping path by intersecting it with current path using "Even-odd rule"
 
-    private:
-        QMatrix m_currentTransformationMatrix;
-        QSharedPointer<PDFAbstractColorSpace> m_fillColorSpace;
-        QSharedPointer<PDFAbstractColorSpace> m_strokeColorSpace;
-        QColor m_fillColor;
-        QColor m_strokeColor;
-        PDFReal m_lineWidth;
-        Qt::PenCapStyle m_lineCapStyle;
-        Qt::PenJoinStyle m_lineJoinStyle;
-        PDFReal m_mitterLimit;
-        QByteArray m_renderingIntent;
-        PDFReal m_flatness;
-        PDFReal m_smoothness;
-    };
+    // Color:                      CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
+    void operatorColorSetStrokingColorSpace(PDFName name);                           ///< CS, set current color space for stroking operations
+    void operatorColorSetFillingColorSpace(PDFName name);                            ///< cs, set current color space for filling operations
+    void operatorColorSetStrokingColor();                                                   ///< SC, set current stroking color
+    void operatorColorSetStrokingColorN();                                                  ///< SCN, same as SC, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
+    void operatorColorSetFillingColor();                                                    ///< sc, set current filling color
+    void operatorColorSetFillingColorN();                                                   ///< scn, same as sc, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
+    void operatorColorSetDeviceGrayStroking(PDFReal gray);                                  ///< G, set DeviceGray color space for stroking color and set color
+    void operatorColorSetDeviceGrayFilling(PDFReal gray);                                   ///< g, set DeviceGray color space for filling color and set color
+    void operatorColorSetDeviceRGBStroking(PDFReal r, PDFReal g, PDFReal b);                ///< RG, set DeviceRGB color space for stroking color and set color
+    void operatorColorSetDeviceRGBFilling(PDFReal r, PDFReal g, PDFReal b);                 ///< rg, set DeviceRGB color space for filling color and set color
+    void operatorColorSetDeviceCMYKStroking(PDFReal c, PDFReal m, PDFReal y, PDFReal k);    ///< K, set DeviceCMYK color space for stroking color and set color
+    void operatorColorSetDeviceCMYKFilling(PDFReal c, PDFReal m, PDFReal y, PDFReal k);     ///< k, set DeviceCMYK color space for filling color and set color
 
     const PDFPage* m_page;
     const PDFDocument* m_document;
+    const PDFDictionary* m_colorSpaceDictionary;
+
+    // Default color spaces
+    PDFColorSpacePointer m_deviceGrayColorSpace;
+    PDFColorSpacePointer m_deviceRGBColorSpace;
+    PDFColorSpacePointer m_deviceCMYKColorSpace;
 
     /// Array with current operand arguments
     PDFFlatArray<PDFLexicalAnalyzer::Token, 33> m_operands;
 
-    /// Stack with current graphic states
+    /// Stack with saved graphic states
     std::stack<PDFPageContentProcessorState> m_stack;
+
+    /// Current graphic state
+    PDFPageContentProcessorState m_graphicState;
 
     /// List of errors
     QList<PDFRenderError> m_errorList;
