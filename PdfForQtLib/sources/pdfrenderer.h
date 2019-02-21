@@ -53,7 +53,7 @@ public:
 
     enum Feature
     {
-        Antialasing,        ///< Antialiasing for lines, shapes, etc.
+        Antialiasing,       ///< Antialiasing for lines, shapes, etc.
         TextAntialiasing,   ///< Antialiasing for drawing text
         SmoothImages        ///< Adjust images to the device space using smooth transformation (slower, but better performance quality)
     };

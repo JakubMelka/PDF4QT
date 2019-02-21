@@ -152,7 +152,7 @@ static constexpr const std::pair<const char*, PDFPageContentProcessor::Operator>
 
 PDFRenderer::PDFRenderer(const PDFDocument* document) :
     m_document(document),
-    m_features(Antialasing | TextAntialiasing)
+    m_features(Antialiasing | TextAntialiasing)
 {
     Q_ASSERT(document);
 }
@@ -246,6 +246,17 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
         m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page contents.")));
     }
 
+    if (!m_stack.empty())
+    {
+        // Stack is not empty. There was more saves than restores. This is error.
+        m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state stack was saved more times, than was restored.")));
+
+        while (!m_stack.empty())
+        {
+            operatorRestoreGraphicState();
+        }
+    }
+
     return m_errorList;
 }
 
@@ -266,6 +277,16 @@ void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::Fill
 void PDFPageContentProcessor::performUpdateGraphicsState(const PDFPageContentProcessor::PDFPageContentProcessorState& state)
 {
     Q_UNUSED(state);
+}
+
+void PDFPageContentProcessor::performSaveGraphicState(PDFPageContentProcessor::ProcessOrder order)
+{
+    Q_UNUSED(order);
+}
+
+void PDFPageContentProcessor::performRestoreGraphicState(PDFPageContentProcessor::ProcessOrder order)
+{
+    Q_UNUSED(order);
 }
 
 void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
@@ -330,6 +351,72 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
 
     switch (op)
     {
+        case Operator::SetLineWidth:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetLineWidth);
+            break;
+        }
+
+        case Operator::SetLineCap:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetLineCap);
+            break;
+        }
+
+        case Operator::SetLineJoin:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetLineJoin);
+            break;
+        }
+
+        case Operator::SetMitterLimit:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetMitterLimit);
+            break;
+        }
+
+        case Operator::SetLineDashPattern:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetLineDashPattern);
+            break;
+        }
+
+        case Operator::SetRenderingIntent:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetRenderingIntent);
+            break;
+        }
+
+        case Operator::SetFlatness:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetFlatness);
+            break;
+        }
+
+        case Operator::SetGraphicState:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorSetGraphicState);
+            break;
+        }
+
+        case Operator::SaveGraphicState:
+        {
+            operatorSaveGraphicState();
+            break;
+        }
+
+        case Operator::RestoreGraphicState:
+        {
+            operatorRestoreGraphicState();
+            break;
+        }
+
+        case Operator::AdjustCurrentTransformationMatrix:
+        {
+            invokeOperator(&PDFPageContentProcessor::operatorAdjustCurrentTransformationMatrix);
+            break;
+        }
+
         case Operator::MoveCurrentPoint:
         {
             invokeOperator(&PDFPageContentProcessor::operatorMoveCurrentPoint);
@@ -562,6 +649,196 @@ void PDFPageContentProcessor::updateGraphicState()
     }
 }
 
+void PDFPageContentProcessor::operatorSetLineWidth(PDFReal lineWidth)
+{
+    lineWidth = qMax(0.0, lineWidth);
+    m_graphicState.setLineWidth(lineWidth);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetLineCap(PDFInteger lineCap)
+{
+    lineCap = qBound<PDFInteger>(0, lineCap, 2);
+
+    Qt::PenCapStyle penCapStyle = Qt::FlatCap;
+    switch (penCapStyle)
+    {
+        case 0:
+        {
+            penCapStyle = Qt::FlatCap;
+            break;
+        }
+
+        case 1:
+        {
+            penCapStyle = Qt::RoundCap;
+            break;
+        }
+
+        case 2:
+        {
+            penCapStyle = Qt::SquareCap;
+            break;
+        }
+
+        default:
+        {
+            // This case can't occur, because we are correcting invalid values above.
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    m_graphicState.setLineCapStyle(penCapStyle);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetLineJoin(PDFInteger lineJoin)
+{
+    lineJoin = qBound<PDFInteger>(0, lineJoin, 2);
+
+    Qt::PenJoinStyle penJoinStyle = Qt::MiterJoin;
+    switch (penJoinStyle)
+    {
+        case 0:
+        {
+            penJoinStyle = Qt::MiterJoin;
+            break;
+        }
+
+        case 1:
+        {
+            penJoinStyle = Qt::RoundJoin;
+            break;
+        }
+
+        case 2:
+        {
+            penJoinStyle = Qt::BevelJoin;
+            break;
+        }
+
+        default:
+        {
+            // This case can't occur, because we are correcting invalid values above.
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    m_graphicState.setLineJoinStyle(penJoinStyle);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetMitterLimit(PDFReal mitterLimit)
+{
+    mitterLimit = qMax(0.0, mitterLimit);
+    m_graphicState.setMitterLimit(mitterLimit);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetLineDashPattern()
+{
+    // Operand stack must be of this form [ ... numbers ... ] offset. We check it.
+    // Minimal number of operands is [] 0.
+
+    if (m_operands.size() < 3)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid line dash pattern."));
+    }
+
+    // Now, we have at least 3 arguments. Check we have an array
+    if (m_operands[0].type != PDFLexicalAnalyzer::TokenType::ArrayStart ||
+        m_operands[m_operands.size() - 2].type != PDFLexicalAnalyzer::TokenType::ArrayEnd)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid line dash pattern."));
+    }
+
+    const size_t dashArrayStartIndex = 1;
+    const size_t dashArrayEndIndex = m_operands.size() - 2;
+    const size_t dashOffsetIndex = m_operands.size() - 1;
+
+    std::vector<PDFReal> dashArray;
+    dashArray.reserve(dashArrayEndIndex - dashArrayStartIndex);
+    for (size_t i = dashArrayStartIndex; i < dashArrayEndIndex; ++i)
+    {
+        dashArray.push_back(readOperand<PDFReal>(i));
+    }
+
+    const PDFReal dashOffset = readOperand<PDFReal>(dashOffsetIndex);
+    PDFLineDashPattern pattern(std::move(dashArray), dashOffset);
+    m_graphicState.setLineDashPattern(std::move(pattern));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetRenderingIntent(PDFName intent)
+{
+    m_graphicState.setRenderingIntent(intent.name);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetFlatness(PDFReal flatness)
+{
+    flatness = qBound(0.0, flatness, 100.0);
+    m_graphicState.setFlatness(flatness);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSaveGraphicState()
+{
+    performSaveGraphicState(ProcessOrder::BeforeOperation);
+    m_stack.push(m_graphicState);
+    m_stack.top().setStateFlags(PDFPageContentProcessorState::StateUnchanged);
+    performSaveGraphicState(ProcessOrder::AfterOperation);
+}
+
+void PDFPageContentProcessor::operatorRestoreGraphicState()
+{
+    if (m_stack.empty())
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Trying to restore graphic state more times than it was saved."));
+    }
+
+    performRestoreGraphicState(ProcessOrder::BeforeOperation);
+    m_graphicState = m_stack.top();
+    m_stack.pop();
+    updateGraphicState();
+    performRestoreGraphicState(ProcessOrder::AfterOperation);
+}
+
+void PDFPageContentProcessor::operatorAdjustCurrentTransformationMatrix(PDFReal a, PDFReal b, PDFReal c, PDFReal d, PDFReal e, PDFReal f)
+{
+    // We will comment following equation:
+    //  Adobe PDF Reference 1.7 says, that we have this transformation using coefficient a, b, c, d, e and f:
+    //                             [ a, b, 0 ]
+    //  [x', y', 1] = [ x, y, 1] * [ c, d, 0 ]
+    //                             [ e, f, 1 ]
+    // If we transpose this equation (we want this, because Qt uses transposed matrices (QMatrix).
+    // So, we will get following result:
+    //
+    // [ x' ]   [ a, c, e]    [ x ]
+    // [ y' ] = [ b, d, f] *  [ y ]
+    // [ 1  ]   [ 0, 0, 1]    [ 1 ]
+    //
+    // So, it is obvious, than we will have following coefficients:
+    //  m_11 = a, m_21 = c, dx = e
+    //  m_12 = b, m_22 = d, dy = f
+    //
+    // We must also check, that matrix is invertible. If it is not, then we will throw exception
+    // to avoid errors later (for some operations, we assume matrix is invertible).
+
+    QMatrix matrix(a, b, c, d, e, f);
+    QMatrix transformMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix;
+
+    if (!transformMatrix.isInvertible())
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Transformation matrix is not invertible."));
+    }
+
+    m_graphicState.setCurrentTransformationMatrix(transformMatrix);
+    updateGraphicState();
+}
+
 template<>
 PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const
 {
@@ -587,6 +864,29 @@ PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const
     return 0.0;
 }
 
+template<>
+PDFInteger PDFPageContentProcessor::readOperand<PDFInteger>(size_t index) const
+{
+    if (index < m_operands.size())
+    {
+        const PDFLexicalAnalyzer::Token& token = m_operands[index];
+
+        switch (token.type)
+        {
+            case PDFLexicalAnalyzer::TokenType::Integer:
+                return token.data.value<PDFInteger>();
+
+            default:
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (integer) on index %1. Operand is of type '%2'.").arg(index + 1).arg(PDFLexicalAnalyzer::getStringFromOperandType(token.type)));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (integer) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
+    }
+
+    return 0;
+}
 
 template<>
 PDFPageContentProcessor::PDFName PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFName>(size_t index) const
@@ -924,6 +1224,7 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setLineCapStyle(other.getLineCapStyle());
     setLineJoinStyle(other.getLineJoinStyle());
     setMitterLimit(other.getMitterLimit());
+    setLineDashPattern(other.getLineDashPattern());
     setRenderingIntent(other.getRenderingIntent());
     setFlatness(other.getFlatness());
     setSmoothness(other.getSmoothness());
@@ -1008,6 +1309,15 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setMitterLimit(const
     {
         m_mitterLimit = mitterLimit;
         m_stateFlags |= StateMitterLimit;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setLineDashPattern(PDFLineDashPattern pattern)
+{
+    if (m_lineDashPattern != pattern)
+    {
+        m_lineDashPattern = std::move(pattern);
+        m_stateFlags |= StateLineDashPattern;
     }
 }
 

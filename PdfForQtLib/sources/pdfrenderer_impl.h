@@ -167,6 +167,32 @@ public:
     QList<PDFRenderError> processContents();
 
 protected:
+
+    class PDFLineDashPattern
+    {
+    public:
+        explicit inline PDFLineDashPattern() = default;
+        explicit inline PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset) :
+            m_dashArray(dashArray),
+            m_dashOffset(dashOffset)
+        {
+
+        }
+
+        inline const std::vector<PDFReal>& getDashArray() const { return m_dashArray; }
+        inline void setDashArray(const std::vector<PDFReal>& dashArray) { m_dashArray = dashArray; }
+
+        inline PDFReal getDashOffset() const { return m_dashOffset; }
+        inline void setDashOffset(PDFReal dashOffset) { m_dashOffset = dashOffset; }
+
+        inline bool operator==(const PDFLineDashPattern& other) const { return m_dashArray == other.m_dashArray && m_dashOffset == other.m_dashOffset; }
+        inline bool operator!=(const PDFLineDashPattern& other) const { return !(*this == other); }
+
+    private:
+        std::vector<PDFReal> m_dashArray;
+        PDFReal m_dashOffset = 0.0;
+    };
+
     /// Represents graphic state of the PDF (holding current graphic state parameters).
     /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"
     class PDFPageContentProcessorState
@@ -193,9 +219,10 @@ protected:
             StateLineCapStyle                   = 0x0040,
             StateLineJoinStyle                  = 0x0080,
             StateMitterLimit                    = 0x0100,
-            StateRenderingIntent                = 0x0200,
-            StateFlatness                       = 0x0400,
-            StateSmoothness                     = 0x0800
+            StateLineDashPattern                = 0x0200,
+            StateRenderingIntent                = 0x0400,
+            StateFlatness                       = 0x0800,
+            StateSmoothness                     = 0x1000
         };
 
         Q_DECLARE_FLAGS(StateFlags, StateFlag)
@@ -227,6 +254,9 @@ protected:
         PDFReal getMitterLimit() const { return m_mitterLimit; }
         void setMitterLimit(const PDFReal& mitterLimit);
 
+        const PDFLineDashPattern& getLineDashPattern() const { return m_lineDashPattern; }
+        void setLineDashPattern(PDFLineDashPattern pattern);
+
         const QByteArray& getRenderingIntent() const { return m_renderingIntent; }
         void setRenderingIntent(const QByteArray& renderingIntent);
 
@@ -249,10 +279,17 @@ protected:
         Qt::PenCapStyle m_lineCapStyle;
         Qt::PenJoinStyle m_lineJoinStyle;
         PDFReal m_mitterLimit;
+        PDFLineDashPattern m_lineDashPattern;
         QByteArray m_renderingIntent;
         PDFReal m_flatness;
         PDFReal m_smoothness;
         StateFlags m_stateFlags;
+    };
+
+    enum class ProcessOrder
+    {
+        BeforeOperation,
+        AfterOperation
     };
 
     /// This function has to be implemented in the client drawing implementation, it should
@@ -268,9 +305,21 @@ protected:
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule);
 
     /// This function has to be implemented in the client drawing implementation, it should
-    /// update the device accordin to the graphic state change. The flags are set when
+    /// update the device according to the graphic state change. The flags are set when
     /// the value differs from the previous graphic state.
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state);
+
+    /// Implement to perform save of the graphic state. This function is called two times -
+    /// before the operation and after the operation. Parameter \p order determines when
+    /// this function is called.
+    /// \param order If this function is called before the operation, or after the operation.
+    virtual void performSaveGraphicState(ProcessOrder order);
+
+    /// Implement to perform restore of the graphic state. This function is called two times -
+    /// before the operation and after the operation. Parameter \p order determines when
+    /// this function is called.
+    /// \param order If this function is called before the operation, or after the operation.
+    virtual void performRestoreGraphicState(ProcessOrder order);
 
 private:
     /// Process the content stream
@@ -290,6 +339,9 @@ private:
 
     template<>
     PDFReal readOperand<PDFReal>(size_t index) const;
+
+    template<>
+    PDFInteger readOperand<PDFInteger>(size_t index) const;
 
     template<>
     PDFName readOperand<PDFName>(size_t index) const;
@@ -338,6 +390,21 @@ private:
 
         return QColor();
     }
+
+    // General graphic state        w, J, j, M, d, ri, i, gs
+    void operatorSetLineWidth(PDFReal lineWidth);           ///< w, sets the line width
+    void operatorSetLineCap(PDFInteger lineCap);            ///< J, sets the line cap
+    void operatorSetLineJoin(PDFInteger lineJoin);          ///< j, sets the line join
+    void operatorSetMitterLimit(PDFReal mitterLimit);       ///< M, sets the mitter limit
+    void operatorSetLineDashPattern();                      ///< d, sets the line dash pattern
+    void operatorSetRenderingIntent(PDFName intent);        ///< ri, sets the rendering intent
+    void operatorSetFlatness(PDFReal flatness);             ///< i, sets the flattness (number in range from 0 to 100)
+    void operatorSetGraphicState(PDFName dictionaryName);   ///< gs, sets the whole graphic state (stored in resource dictionary)
+
+    // Special graphic state:       q, Q, cm
+    void operatorSaveGraphicState();                   ///< q, saves the graphic state
+    void operatorRestoreGraphicState();                ///< Q, restores the graphic state
+    void operatorAdjustCurrentTransformationMatrix(PDFReal a, PDFReal b, PDFReal c, PDFReal d, PDFReal e, PDFReal f);  ///< cm, modify the current transformation matrix by matrix multiplication
 
     // Path construction operators
     void operatorMoveCurrentPoint(PDFReal x, PDFReal y);
