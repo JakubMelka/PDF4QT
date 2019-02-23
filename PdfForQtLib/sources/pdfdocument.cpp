@@ -273,7 +273,7 @@ PDFInteger PDFDocumentDataLoaderDecorator::readInteger(const PDFObject& object, 
     return defaultValue;
 }
 
-PDFReal PDFDocumentDataLoaderDecorator::readNumber(const PDFObject& object, PDFInteger defaultValue) const
+PDFReal PDFDocumentDataLoaderDecorator::readNumber(const PDFObject& object, PDFReal defaultValue) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
 
@@ -355,6 +355,34 @@ PDFInteger PDFDocumentDataLoaderDecorator::readIntegerFromDictionary(const PDFDi
     }
 
     return defaultValue;
+}
+
+std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        std::vector<PDFReal> result;
+        const size_t count = array->getCount();
+        result.reserve(count);
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFReal number = readNumber(array->getItem(i), std::numeric_limits<PDFReal>::quiet_NaN());
+            if (std::isnan(number))
+            {
+                return std::vector<PDFReal>();
+            }
+            result.push_back(number);
+        }
+
+        // We assume, that RVO (return value optimization) will not work for this function
+        // (multiple return points).
+        return std::move(result);
+    }
+
+    return std::vector<PDFReal>();
 }
 
 }   // namespace pdf

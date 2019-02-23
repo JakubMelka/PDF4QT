@@ -656,12 +656,12 @@ void PDFPageContentProcessor::operatorSetLineWidth(PDFReal lineWidth)
     updateGraphicState();
 }
 
-void PDFPageContentProcessor::operatorSetLineCap(PDFInteger lineCap)
+Qt::PenCapStyle PDFPageContentProcessor::convertLineCapToPenCapStyle(PDFInteger lineCap)
 {
     lineCap = qBound<PDFInteger>(0, lineCap, 2);
 
     Qt::PenCapStyle penCapStyle = Qt::FlatCap;
-    switch (penCapStyle)
+    switch (lineCap)
     {
         case 0:
         {
@@ -689,16 +689,42 @@ void PDFPageContentProcessor::operatorSetLineCap(PDFInteger lineCap)
         }
     }
 
+    return penCapStyle;
+}
+
+PDFInteger PDFPageContentProcessor::convertPenCapStyleToLineCap(Qt::PenCapStyle penCapStyle)
+{
+    switch (penCapStyle)
+    {
+        case Qt::FlatCap:
+            return 0;
+        case Qt::SquareCap:
+            return 2;
+        case Qt::RoundCap:
+            return 1;
+
+        default:
+            break;
+    }
+
+    // Invalid pen cap style occured
+    Q_ASSERT(false);
+    return 0;
+}
+
+void PDFPageContentProcessor::operatorSetLineCap(PDFInteger lineCap)
+{
+    const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(lineCap);
     m_graphicState.setLineCapStyle(penCapStyle);
     updateGraphicState();
 }
 
-void PDFPageContentProcessor::operatorSetLineJoin(PDFInteger lineJoin)
+Qt::PenJoinStyle PDFPageContentProcessor::convertLineJoinToPenJoinStyle(PDFInteger lineJoin)
 {
     lineJoin = qBound<PDFInteger>(0, lineJoin, 2);
 
     Qt::PenJoinStyle penJoinStyle = Qt::MiterJoin;
-    switch (penJoinStyle)
+    switch (lineJoin)
     {
         case 0:
         {
@@ -726,6 +752,32 @@ void PDFPageContentProcessor::operatorSetLineJoin(PDFInteger lineJoin)
         }
     }
 
+    return penJoinStyle;
+}
+
+PDFInteger PDFPageContentProcessor::convertPenJoinStyleToLineJoin(Qt::PenJoinStyle penJoinStyle)
+{
+    switch (penJoinStyle)
+    {
+        case Qt::MiterJoin:
+            return 0;
+        case Qt::BevelJoin:
+            return 2;
+        case Qt::RoundJoin:
+            return 1;
+
+        default:
+            break;
+    }
+
+    // Invalid pen join style occured
+    Q_ASSERT(false);
+    return 0;
+}
+
+void PDFPageContentProcessor::operatorSetLineJoin(PDFInteger lineJoin)
+{
+    const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(lineJoin);
     m_graphicState.setLineJoinStyle(penJoinStyle);
     updateGraphicState();
 }
@@ -782,6 +834,85 @@ void PDFPageContentProcessor::operatorSetFlatness(PDFReal flatness)
     flatness = qBound(0.0, flatness, 100.0);
     m_graphicState.setFlatness(flatness);
     updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorSetGraphicState(PDFName dictionaryName)
+{
+    const PDFObject& resources = m_page->getResources();
+    if (resources.isDictionary())
+    {
+        const PDFDictionary* resourcesDictionary = resources.getDictionary();
+        if (resourcesDictionary->hasKey(PDF_RESOURCE_EXTGSTATE))
+        {
+            const PDFObject& graphicStatesObject = m_document->getObject(resourcesDictionary->get(PDF_RESOURCE_EXTGSTATE));
+            if (graphicStatesObject.isDictionary())
+            {
+                const PDFDictionary* graphicStatesDictionary = graphicStatesObject.getDictionary();
+                if (graphicStatesDictionary->hasKey(dictionaryName.name))
+                {
+                    const PDFObject& graphicStateObject = m_document->getObject(graphicStatesDictionary->get(dictionaryName.name));
+                    if (graphicStateObject.isDictionary())
+                    {
+                        const PDFDictionary* graphicStateDictionary = graphicStateObject.getDictionary();
+
+                        PDFDocumentDataLoaderDecorator loader(m_document);
+                        const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
+                        const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
+                        const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
+                        const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "MT", m_graphicState.getMitterLimit());
+
+                        const PDFObject& lineDashPatternObject = m_document->getObject(graphicStateDictionary->get("D"));
+                        if (lineDashPatternObject.isArray())
+                        {
+                            const PDFArray* lineDashPatternDefinitionArray = lineDashPatternObject.getArray();
+                            if (lineDashPatternDefinitionArray->getCount() == 2)
+                            {
+                                PDFLineDashPattern pattern(loader.readNumberArray(lineDashPatternDefinitionArray->getItem(0)), loader.readNumber(lineDashPatternDefinitionArray->getItem(1), 0.0));
+                                m_graphicState.setLineDashPattern(pattern);
+                            }
+                        }
+
+                        const PDFObject& renderingIntentObject = m_document->getObject(graphicStateDictionary->get("RI"));
+                        if (renderingIntentObject.isName())
+                        {
+                            m_graphicState.setRenderingIntent(renderingIntentObject.getString());
+                        }
+
+                        const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
+                        const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
+
+                        m_graphicState.setLineWidth(lineWidth);
+                        m_graphicState.setLineCapStyle(penCapStyle);
+                        m_graphicState.setLineJoinStyle(penJoinStyle);
+                        m_graphicState.setMitterLimit(mitterLimit);
+                        m_graphicState.setFlatness(flatness);
+                        m_graphicState.setSmoothness(smoothness);
+                        updateGraphicState();
+                    }
+                    else
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state '%1' found, but invalid in resource dictionary.").arg(QString::fromLatin1(dictionaryName.name)));
+                    }
+                }
+                else
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state '%1' not found in resource dictionary.").arg(QString::fromLatin1(dictionaryName.name)));
+                }
+            }
+            else
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page resource dictionary."));
+            }
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page resource dictionary."));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page resource dictionary."));
+    }
 }
 
 void PDFPageContentProcessor::operatorSaveGraphicState()

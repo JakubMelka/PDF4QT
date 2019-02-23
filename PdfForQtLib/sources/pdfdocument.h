@@ -96,7 +96,7 @@ public:
     /// then it is converted to real number.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
     /// \param defaultValue Default value
-    PDFReal readNumber(const PDFObject& object, PDFInteger defaultValue) const;
+    PDFReal readNumber(const PDFObject& object, PDFReal defaultValue) const;
 
     /// Reads a text string from the object, if it is possible.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
@@ -185,6 +185,12 @@ public:
     /// \param key Entry key
     /// \param defaultValue Default value
     PDFInteger readIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue) const;
+
+    /// Reads number array from dictionary. Reads all values. If some value is not
+    /// real number (or integer number), empty array is returned. Empty array is also returned,
+    /// if \p object is invalid.
+    /// \param object Object containing array of numbers
+    std::vector<PDFReal> readNumberArray(const PDFObject& object) const;
 
 private:
     const PDFDocument* m_document;
