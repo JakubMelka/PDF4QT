@@ -43,7 +43,7 @@ class PDFFlatArray
 public:
     explicit PDFFlatArray() :
         m_flatBlock(),
-        m_flatBlockEndIterator(m_flatBlock.begin()),
+        m_flatBlockItemCount(0),
         m_variableBlock()
     {
 
@@ -52,7 +52,7 @@ public:
     template<typename... Arguments, typename std::enable_if<sizeof...(Arguments) <= FlatSize, int>::type = 0>
     explicit inline PDFFlatArray(Arguments... arguments) :
         m_flatBlock({ arguments... }),
-        m_flatBlockEndIterator(std::next(m_flatBlock.begin(), sizeof...(Arguments))),
+        m_flatBlockItemCount(sizeof...(Arguments)),
         m_variableBlock()
     {
 
@@ -120,15 +120,15 @@ public:
 
     void clear()
     {
-        m_flatBlockEndIterator = m_flatBlock.begin();
+        m_flatBlockItemCount = 0;
         m_variableBlock.clear();
     }
 
     void push_back(T object)
     {
-        if (m_flatBlockEndIterator != m_flatBlock.cend())
+        if (m_flatBlockItemCount < m_flatBlock.size())
         {
-            *m_flatBlockEndIterator++ = std::move(object);
+            m_flatBlock[m_flatBlockItemCount++] = std::move(object);
         }
         else
         {
@@ -137,10 +137,10 @@ public:
     }
 
 private:
-    size_t getFlatBlockSize() const { return std::distance(m_flatBlock.cbegin(), std::array<T, FlatSize>::const_iterator(m_flatBlockEndIterator)); }
+    size_t getFlatBlockSize() const { return m_flatBlockItemCount; }
 
     std::array<T, FlatSize> m_flatBlock;
-    typename std::array<T, FlatSize>::iterator m_flatBlockEndIterator; ///< Pointer to the end of flat block
+    size_t m_flatBlockItemCount; ///< Number of items in the flat block
     std::vector<T> m_variableBlock;
 };
 

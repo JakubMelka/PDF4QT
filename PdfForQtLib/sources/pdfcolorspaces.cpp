@@ -221,6 +221,10 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
             return PDFColorSpacePointer(new PDFDeviceCMYKColorSpace());
         }
     }
+    else if (colorSpaceDictionary && colorSpaceDictionary->hasKey(name))
+    {
+        return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(name)), recursion);
+    }
 
     throw PDFParserException(PDFTranslationContext::tr("Invalid color space."));
     return PDFColorSpacePointer();

@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef PDFRENDERER_IMPL_H
-#define PDFRENDERER_IMPL_H
+#ifndef PDFPAGECONTENTPROCESSOR_H
+#define PDFPAGECONTENTPROCESSOR_H
 
 #include "pdfrenderer.h"
 #include "pdfparser.h"
@@ -54,6 +54,7 @@ class PDFPageContentProcessor
 {
 public:
     explicit PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document);
+    virtual ~PDFPageContentProcessor();
 
     enum class Operator
     {
@@ -189,6 +190,9 @@ protected:
         inline bool operator==(const PDFLineDashPattern& other) const { return m_dashArray == other.m_dashArray && m_dashOffset == other.m_dashOffset; }
         inline bool operator!=(const PDFLineDashPattern& other) const { return !(*this == other); }
 
+        /// Is line solid? Function returns true, if yes.
+        bool isSolid() const { return m_dashArray.empty(); }
+
     private:
         std::vector<PDFReal> m_dashArray;
         PDFReal m_dashOffset = 0.0;
@@ -223,7 +227,8 @@ protected:
             StateLineDashPattern                = 0x0200,
             StateRenderingIntent                = 0x0400,
             StateFlatness                       = 0x0800,
-            StateSmoothness                     = 0x1000
+            StateSmoothness                     = 0x1000,
+            StateAll                            = 0xFFFF
         };
 
         Q_DECLARE_FLAGS(StateFlags, StateFlag)
@@ -321,6 +326,13 @@ protected:
     /// this function is called.
     /// \param order If this function is called before the operation, or after the operation.
     virtual void performRestoreGraphicState(ProcessOrder order);
+
+    /// Returns current graphic state
+    const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
+
+    /// Adds error to the error list
+    /// \param error Error message
+    void addError(const QString& error) { m_errorList.append(PDFRenderError(RenderErrorType::Error, error)); }
 
 private:
     /// Process the content stream
@@ -490,4 +502,4 @@ private:
 
 }   // namespace pdf
 
-#endif // PDFRENDERER_IMPL_H
+#endif // PDFPAGECONTENTPROCESSOR_H

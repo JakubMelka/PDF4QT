@@ -53,9 +53,9 @@ public:
 
     enum Feature
     {
-        Antialiasing,       ///< Antialiasing for lines, shapes, etc.
-        TextAntialiasing,   ///< Antialiasing for drawing text
-        SmoothImages        ///< Adjust images to the device space using smooth transformation (slower, but better performance quality)
+        Antialiasing        = 0x0001,   ///< Antialiasing for lines, shapes, etc.
+        TextAntialiasing    = 0x0002,   ///< Antialiasing for drawing text
+        SmoothImages        = 0x0004    ///< Adjust images to the device space using smooth transformation (slower, but better performance quality)
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
@@ -67,6 +67,11 @@ public:
     /// \param rectangle Paint area for the page
     /// \param pageIndex Index of the page to be painted
     QList<PDFRenderError> render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const;
+
+    /// Paints desired page onto the painter. Page is painted using \p matrix, which maps page coordinates
+    /// to the device coordinates. If the page doesn't exist, then error is returned. No exception is thrown.
+    /// Rendering errors are reported and returned in the error list. If no error occured, empty list is returned.
+    QList<PDFRenderError> render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const;
 
 private:
     const PDFDocument* m_document;

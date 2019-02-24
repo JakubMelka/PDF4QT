@@ -533,11 +533,6 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            QFont font = m_widget->font();
-            font.setPixelSize(placedRect.height() * 0.75);
-            painter->setFont(font);
-            painter->drawText(placedRect, Qt::AlignCenter, QString::number(item.pageIndex + 1));
-
             PDFRenderer renderer(m_controller->getDocument());
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
         }
