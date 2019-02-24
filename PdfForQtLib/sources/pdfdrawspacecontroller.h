@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfdocument.h"
+#include "pdfrenderer.h"
 
 #include <QRectF>
 #include <QObject>
@@ -177,11 +178,16 @@ public:
     /// Returns the page layout
     PageLayout getPageLayout() const { return m_controller->getPageLayout(); }
 
+    /// Returns pages, which are intersecting rectangle (even partially)
+    /// \param rect Rectangle to test
+    std::vector<PDFInteger> getPagesIntersectingRect(QRect rect) const;
+
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
+    void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
 
 private:
     struct LayoutItem

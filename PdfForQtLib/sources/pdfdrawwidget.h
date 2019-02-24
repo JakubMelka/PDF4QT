@@ -20,6 +20,7 @@
 #define PDFDRAWWIDGET_H
 
 #include "pdfglobal.h"
+#include "pdfrenderer.h"
 
 #include <QWidget>
 #include <QScrollBar>
@@ -38,6 +39,8 @@ public:
     explicit PDFWidget(QWidget* parent);
     virtual ~PDFWidget() override;
 
+    using PageRenderingErrors = std::map<PDFInteger, QList<PDFRenderError>>;
+
     /// Sets the document to be viewed in this widget. Document can be nullptr,
     /// in that case, widget contents are cleared.
     /// \param document Document
@@ -47,12 +50,20 @@ public:
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
     QScrollBar* getVerticalScrollbar() const { return m_verticalScrollBar; }
     PDFDrawWidgetProxy* getDrawWidgetProxy() const { return m_proxy; }
+    const PageRenderingErrors* getPageRenderingErrors() const { return &m_pageRenderingErrors; }
+    int getPageRenderingErrorCount() const;
+
+signals:
+    void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
 
 private:
+    void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+
     PDFDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;
     PDFDrawWidgetProxy* m_proxy;
+    PageRenderingErrors m_pageRenderingErrors;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFDrawWidget : public QWidget
@@ -62,6 +73,9 @@ class PDFFORQTLIBSHARED_EXPORT PDFDrawWidget : public QWidget
 public:
     explicit PDFDrawWidget(PDFWidget* widget, QWidget* parent);
     virtual ~PDFDrawWidget() override;
+
+    /// Returns page indices, which are currently displayed in the widget
+    std::vector<PDFInteger> getCurrentPages() const;
 
     virtual QSize minimumSizeHint() const override;
 

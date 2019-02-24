@@ -23,6 +23,7 @@
 #include "pdfstreamfilters.h"
 #include "pdfdrawwidget.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfrenderingerrorswidget.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -76,6 +77,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     setFocusProxy(m_pdfWidget);
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::updatePageLayoutActions);
+    connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
 
     readSettings();
     updatePageLayoutActions();
@@ -103,6 +105,14 @@ void PDFViewerMainWindow::onActionCloseTriggered()
 void PDFViewerMainWindow::onActionQuitTriggered()
 {
     close();
+}
+
+void PDFViewerMainWindow::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)
+{
+    if (errorsCount > 0)
+    {
+        statusBar()->showMessage(tr("Rendering of page %1: %2 errors occured.").arg(pageIndex + 1).arg(errorsCount), 4000);
+    }
 }
 
 void PDFViewerMainWindow::readSettings()
@@ -285,6 +295,12 @@ void PDFViewerMainWindow::on_actionFirstPageOnRightSide_triggered()
         default:
             Q_ASSERT(false);
     }
+}
+
+void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
+{
+    pdf::PDFRenderingErrorsWidget renderingErrorsDialog(this, m_pdfWidget);
+    renderingErrorsDialog.exec();
 }
 
 }   // namespace pdfviewer

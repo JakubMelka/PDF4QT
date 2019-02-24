@@ -51,7 +51,8 @@ SOURCES += \
     sources/pdfcolorspaces.cpp \
     sources/pdfrenderer.cpp \
     sources/pdfpagecontentprocessor.cpp \
-    sources/pdfpainter.cpp
+    sources/pdfpainter.cpp \
+    sources/pdfrenderingerrorswidget.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -75,7 +76,8 @@ HEADERS += \
     sources/pdfrenderer.h \
     sources/pdfpagecontentprocessor.h \
     sources/pdfpainter.h \
-    sources/pdfutils.h
+    sources/pdfutils.h \
+    sources/pdfrenderingerrorswidget.h
 
 unix {
     target.path = /usr/lib
@@ -87,3 +89,6 @@ CONFIG += force_debug_info
 
 
 QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+FORMS += \
+    sources/pdfrenderingerrorswidget.ui

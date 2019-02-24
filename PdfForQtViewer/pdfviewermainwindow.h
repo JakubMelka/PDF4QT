@@ -19,6 +19,7 @@
 #define PDFVIEWERMAINWINDOW_H
 
 #include "pdfcatalog.h"
+#include "pdfrenderer.h"
 
 #include <QMainWindow>
 #include <QSharedPointer>
@@ -54,10 +55,13 @@ private slots:
     void on_actionPageLayoutTwoColumns_triggered();
     void on_actionFirstPageOnRightSide_triggered();
 
+    void on_actionRendering_Errors_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
     void onActionQuitTriggered();
+    void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
 
     void readSettings();
     void writeSettings();

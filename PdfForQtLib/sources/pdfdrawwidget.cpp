@@ -49,6 +49,7 @@ PDFWidget::PDFWidget(QWidget* parent) :
 
     m_proxy = new PDFDrawWidgetProxy(this);
     m_proxy->init(this);
+    connect(m_proxy, &PDFDrawWidgetProxy::renderingError, this, &PDFWidget::onRenderingError);
 }
 
 PDFWidget::~PDFWidget()
@@ -59,6 +60,24 @@ PDFWidget::~PDFWidget()
 void PDFWidget::setDocument(const PDFDocument* document)
 {
     m_proxy->setDocument(document);
+}
+
+int PDFWidget::getPageRenderingErrorCount() const
+{
+    int count = 0;
+    for (const auto& item : m_pageRenderingErrors)
+    {
+        count += item.second.size();
+    }
+    return count;
+}
+
+void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors)
+{
+    // Empty list of error should not be reported!
+    Q_ASSERT(!errors.empty());
+    m_pageRenderingErrors[pageIndex] = errors;
+    emit pageRenderingErrorsChanged(pageIndex, errors.size());
 }
 
 PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
@@ -72,6 +91,11 @@ PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
 PDFDrawWidget::~PDFDrawWidget()
 {
 
+}
+
+std::vector<PDFInteger> PDFDrawWidget::getCurrentPages() const
+{
+    return m_widget->getDrawWidgetProxy()->getPagesIntersectingRect(this->rect());
 }
 
 QSize PDFDrawWidget::minimumSizeHint() const

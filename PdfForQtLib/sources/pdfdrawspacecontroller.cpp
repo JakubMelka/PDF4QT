@@ -535,8 +535,36 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 
             PDFRenderer renderer(m_controller->getDocument());
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
+
+            if (!errors.empty())
+            {
+                emit renderingError(item.pageIndex, errors);
+            }
         }
     }
+}
+
+std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect) const
+{
+    std::vector<PDFInteger> pages;
+
+    // We assume, that no more, than 32 pages will be displayed in the rectangle
+    pages.reserve(32);
+
+    // Iterate trough pages, place them and test, if they intersects with rectangle
+    for (const LayoutItem& item : m_layout.items)
+    {
+        // The offsets m_horizontalOffset and m_verticalOffset are offsets to the
+        // topleft point of the block. But block maybe doesn't start at (0, 0),
+        // so we must also use translation from the block beginning.
+        QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+        if (placedRect.intersects(rect))
+        {
+            pages.push_back(item.pageIndex);
+        }
+    }
+
+    return pages;
 }
 
 void PDFDrawWidgetProxy::performOperation(Operation operation)
