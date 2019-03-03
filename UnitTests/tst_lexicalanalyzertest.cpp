@@ -23,6 +23,7 @@
 #include "pdfconstants.h"
 #include "pdfflatmap.h"
 #include "pdfstreamfilters.h"
+#include "pdffunction.h"
 
 #include <regex>
 
@@ -46,6 +47,7 @@ private slots:
     void test_header_regexp();
     void test_flat_map();
     void test_lzw_filter();
+    void test_sampled_function();
 
 private:
     void scanWholeStream(const char* stream);
@@ -306,6 +308,37 @@ void LexicalAnalyzerTest::test_lzw_filter()
     QByteArray valid = "-----A---B";
 
     QCOMPARE(decoded, valid);
+}
+
+void LexicalAnalyzerTest::test_sampled_function()
+{
+    // Calculate hypercube offsets. Offsets are indexed in bits, from the lowest
+    // bit to the highest. We assume, that we do not have more, than 32 input
+    // variables (we probably run out of memory in that time). Example:
+    //
+    // We have m = 3, f(x_0, x_1, x_2) is sampled function of 3 variables, n = 1.
+    // We have 2, 4, 6 samples for x_0, x_1 and x_2 (so sample count differs).
+    // Then the i-th bit corresponds to variable x_i. We will have m_hypercubeNodeCount == 8,
+    // hypercube offset indices are from 0 to 7.
+
+    /*    explicit PDFSampledFunction(uint32_t m,
+                                uint32_t n,
+                                std::vector<PDFReal>&& domain,
+                                std::vector<PDFReal>&& range,
+                                std::vector<uint32_t>&& size,
+                                std::vector<PDFReal>&& samples,
+                                std::vector<PDFReal>&& encoder,
+                                std::vector<PDFReal>&& decoder);*/
+    std::vector<pdf::PDFReal> samples;
+    samples.resize(2 * 4 * 6, 0);
+    pdf::PDFSampledFunction function(3, 1,
+                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
+                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
+                                     { 2, 4, 6 },
+                                     std::move(samples),
+                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
+                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
+                                     1.0);
 }
 
 void LexicalAnalyzerTest::scanWholeStream(const char* stream)

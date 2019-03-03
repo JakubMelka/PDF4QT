@@ -136,6 +136,20 @@ public:
         }
     }
 
+    void resize(std::size_t size)
+    {
+        if (size <= FlatSize)
+        {
+            m_flatBlockItemCount = size;
+            m_variableBlock.clear();
+        }
+        else
+        {
+            m_flatBlockItemCount = FlatSize;
+            m_variableBlock.resize(size - FlatSize);
+        }
+    }
+
 private:
     size_t getFlatBlockSize() const { return m_flatBlockItemCount; }
 
