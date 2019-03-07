@@ -337,6 +337,26 @@ QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, co
     return defaultValue;
 }
 
+std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
+{
+    if (dictionary->hasKey(key))
+    {
+        return readNumberArray(dictionary->get(key));
+    }
+
+    return std::vector<PDFReal>();
+}
+
+std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
+{
+    if (dictionary->hasKey(key))
+    {
+        return readIntegerArray(dictionary->get(key));
+    }
+
+    return std::vector<PDFInteger>();
+}
+
 PDFReal PDFDocumentDataLoaderDecorator::readNumberFromDictionary(const PDFDictionary* dictionary, const char* key, PDFReal defaultValue) const
 {
     if (dictionary->hasKey(key))
@@ -383,6 +403,37 @@ std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFOb
     }
 
     return std::vector<PDFReal>();
+}
+
+std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        std::vector<PDFInteger> result;
+        const size_t count = array->getCount();
+        result.reserve(count);
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            // This value is not representable in the current PDF parser. So we assume we
+            // can't get this value.
+            constexpr const PDFInteger INVALID_VALUE = std::numeric_limits<PDFInteger>::max();
+            const PDFReal number = readInteger(array->getItem(i), INVALID_VALUE);
+            if (number == INVALID_VALUE)
+            {
+                return std::vector<PDFInteger>();
+            }
+            result.push_back(number);
+        }
+
+        // We assume, that RVO (return value optimization) will not work for this function
+        // (multiple return points).
+        return std::move(result);
+    }
+
+    return std::vector<PDFInteger>();
 }
 
 }   // namespace pdf

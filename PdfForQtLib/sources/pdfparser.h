@@ -217,7 +217,7 @@ public:
 
     }
 
-    /// Guard guarding the cyclical references.
+    /// Guard guarding the cyclical references (by reference).
     class PDFParsingContextGuard
     {
     public:
@@ -236,6 +236,33 @@ public:
     private:
         PDFParsingContext* m_context;
         PDFObjectReference m_reference;
+    };
+
+    /// Guard guarding the cyclical references (by object).
+    class PDFParsingContextObjectGuard
+    {
+    public:
+        explicit inline PDFParsingContextObjectGuard(PDFParsingContext* context, const PDFObject* object) :
+            m_context(context),
+            m_object(object)
+        {
+            if (object->isReference())
+            {
+                m_context->beginParsingObject(object->getReference());
+            }
+        }
+
+        inline ~PDFParsingContextObjectGuard()
+        {
+            if (m_object->isReference())
+            {
+                m_context->endParsingObject(m_object->getReference());
+            }
+        }
+
+    private:
+        PDFParsingContext* m_context;
+        const PDFObject* m_object;
     };
 
     /// Returns dereferenced object, if object is a reference. If it is not a reference,
@@ -257,7 +284,7 @@ private:
 
 /// Class for parsing objects. Checks cyclical references. If
 /// the object cannot be obtained from the stream, exception is thrown.
-class PDFParser
+class PDFFORQTLIBSHARED_EXPORT PDFParser
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFParser)
 

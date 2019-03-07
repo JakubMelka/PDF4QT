@@ -24,6 +24,7 @@
 #include "pdfflatmap.h"
 #include "pdfstreamfilters.h"
 #include "pdffunction.h"
+#include "pdfdocument.h"
 
 #include <regex>
 
@@ -48,6 +49,7 @@ private slots:
     void test_flat_map();
     void test_lzw_filter();
     void test_sampled_function();
+    void test_exponential_function();
 
 private:
     void scanWholeStream(const char* stream);
@@ -312,33 +314,535 @@ void LexicalAnalyzerTest::test_lzw_filter()
 
 void LexicalAnalyzerTest::test_sampled_function()
 {
-    // Calculate hypercube offsets. Offsets are indexed in bits, from the lowest
-    // bit to the highest. We assume, that we do not have more, than 32 input
-    // variables (we probably run out of memory in that time). Example:
-    //
-    // We have m = 3, f(x_0, x_1, x_2) is sampled function of 3 variables, n = 1.
-    // We have 2, 4, 6 samples for x_0, x_1 and x_2 (so sample count differs).
-    // Then the i-th bit corresponds to variable x_i. We will have m_hypercubeNodeCount == 8,
-    // hypercube offset indices are from 0 to 7.
+    {
+        // Positions in stream: f(0, 0) =    0  =   0   = 0.00
+        //                      f(1, 0) = \377  = 255   = 1.00
+        //                      f(0, 1) = \200  = 128   = 0.50
+        //                      f(1, 1) = \300  = 192   = 0.75
 
-    /*    explicit PDFSampledFunction(uint32_t m,
-                                uint32_t n,
-                                std::vector<PDFReal>&& domain,
-                                std::vector<PDFReal>&& range,
-                                std::vector<uint32_t>&& size,
-                                std::vector<PDFReal>&& samples,
-                                std::vector<PDFReal>&& encoder,
-                                std::vector<PDFReal>&& decoder);*/
-    std::vector<pdf::PDFReal> samples;
-    samples.resize(2 * 4 * 6, 0);
-    pdf::PDFSampledFunction function(3, 1,
-                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
-                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
-                                     { 2, 4, 6 },
-                                     std::move(samples),
-                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
-                                     { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 },
-                                     1.0);
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+
+        auto apply = [&function](pdf::PDFReal x, pdf::PDFReal y) -> pdf::PDFReal
+        {
+            pdf::PDFReal values[2] = {x, y};
+            pdf::PDFReal output = -1.0;
+            function->apply(values, values + std::size(values), &output, &output + 1);
+            return output;
+        };
+
+        auto bilinear = [](pdf::PDFReal x, pdf::PDFReal y)
+        {
+            // See https://en.wikipedia.org/wiki/Bilinear_interpolation - formulas are taken from here.
+            // We are interpolating on unit square.
+            const pdf::PDFReal f00 = 0.00;
+            const pdf::PDFReal f10 = 1.00;
+            const pdf::PDFReal f01 = 0.50;
+            const pdf::PDFReal f11 = 0.75;
+
+            const pdf::PDFReal a00 = f00;
+            const pdf::PDFReal a10 = f10 - f00;
+            const pdf::PDFReal a01 = f01 - f00;
+            const pdf::PDFReal a11 = f11 + f00 - f10 - f01;
+
+            return a00 + a10 * x + a01 * y + a11 * x * y;
+        };
+
+        auto compare = [](pdf::PDFReal x, pdf::PDFReal y)
+        {
+            // We are using 8 bits, so we need 2-digit accuracy
+            return std::abs(x - y) < 0.01;
+        };
+
+        QVERIFY(compare(apply(0.0, 0.0), 0.00));
+        QVERIFY(compare(apply(1.0, 0.0), 1.00));
+        QVERIFY(compare(apply(0.0, 1.0), 0.50));
+        QVERIFY(compare(apply(1.0, 1.0), 0.75));
+
+        for (pdf::PDFReal x = 0.0; x <= 1.0; x += 0.01)
+        {
+            for (pdf::PDFReal y = 0.0; y <= 1.0; y += 0.01)
+            {
+                const pdf::PDFReal actual = apply(x, y);
+                const pdf::PDFReal expected = bilinear(x, y);
+                QVERIFY(compare(actual, expected));
+            }
+        }
+    }
+
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 2 "
+                            " >> "
+                            " stream\n\377\000 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        auto apply = [&function](pdf::PDFReal x) -> pdf::PDFReal
+        {
+            pdf::PDFReal output = -1.0;
+            function->apply(&x, &x + 1, &output, &output + 1);
+            return output;
+        };
+
+        auto compare = [&apply](pdf::PDFReal x)
+        {
+            const pdf::PDFReal actual = apply(x);
+            const pdf::PDFReal expected = 1.0 - x;
+            return qFuzzyCompare(actual, expected);
+        };
+
+        for (pdf::PDFReal x = 0.0; x <= 1.0; x += 0.01)
+        {
+            QVERIFY(compare(x));
+        }
+
+        QVERIFY(qFuzzyCompare(apply(-1.0), 1.0));
+        QVERIFY(qFuzzyCompare(apply(2.0), 0.0));
+    }
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 2 "
+                            " >> "
+                            " stream\n\000\377 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample -5 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /Encode [ 1 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Range [ 0 1 ] "
+                            "     /Decode [ 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Domain [ 0 1 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        const char data[] = " << "
+                            "     /FunctionType 0 "
+                            "     /Range [ 0 1 ] "
+                            "     /Size [ 2 2 ] "
+                            "     /BitsPerSample 8 "
+                            "     /Order 1 "
+                            "     /Length 4 "
+                            " >> "
+                            " stream\n\000\377\200\300 endstream ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, data + std::size(data), nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+}
+
+void LexicalAnalyzerTest::test_exponential_function()
+{
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /Range [ 0 2 ] "
+                          "     /N 1.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+        for (double value = -1.0; value <= 3.0; value += 0.01)
+        {
+            const double expected = qBound(0.0, value, 2.0);
+
+            double actual = 0.0;
+            QVERIFY(function->apply(&value, &value + 1, &actual, &actual + 1));
+            QVERIFY(qFuzzyCompare(expected, actual));
+        }
+    }
+
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /Range [ 0 4 ] "
+                          "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+        for (double value = -1.0; value <= 3.0; value += 0.01)
+        {
+            const double expected = std::pow(qBound(0.0, value, 2.0), 2.0);
+
+            double actual = 0.0;
+            QVERIFY(function->apply(&value, &value + 1, &actual, &actual + 1));
+            QVERIFY(qFuzzyCompare(expected, actual));
+        }
+    }
+
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /Range [ -4 4 ] "
+                          "     /C0 [ 1.0 ] "
+                          "     /C1 [ 0.0 ] "
+                          "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+        for (double value = -1.0; value <= 3.0; value += 0.01)
+        {
+            const double expected = qBound(-4.0, 1.0 - std::pow(qBound(0.0, value, 2.0), 2.0), 4.0);
+
+            double actual = 0.0;
+            QVERIFY(function->apply(&value, &value + 1, &actual, &actual + 1));
+            QVERIFY(qFuzzyCompare(expected, actual));
+        }
+    }
+
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /Range [ 0 4 -4 4 ] "
+                          "     /C0 [ 0.0 1.0 ] "
+                          "     /C1 [ 1.0 0.0 ] "
+                          "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+        for (double value = -1.0; value <= 3.0; value += 0.01)
+        {
+            const double expected1 = std::pow(qBound(0.0, value, 2.0), 2.0);
+            const double expected2 = qBound(-4.0, 1.0 - std::pow(qBound(0.0, value, 2.0), 2.0), 4.0);
+
+            double actual[2] = { };
+            QVERIFY(function->apply(&value, &value + 1, actual, actual + std::size(actual)));
+            QVERIFY(qFuzzyCompare(expected1, actual[0]));
+            QVERIFY(qFuzzyCompare(expected2, actual[1]));
+        }
+    }
+
+    // Test invalid inputs
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 ] "
+                          "     /Range [ 0 2 ] "
+                          "     /N 1.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ -1 2 ] "
+                          "     /N -1.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /N -1.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ -1 2 ] "
+                          "     /N 3.4 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 2 0] "
+                          "     /Range [ 0 4 -4 4 ] "
+                          "     /C0 [ 0.0 1.0 ] "
+                          "     /C1 [ 1.0 0.0 ] "
+                          "     /N 2.0 "
+                                      " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /C0 [ 0.0 1.0 3.0 ] "
+                          "     /C1 [ 1.0 0.0 ] "
+                          "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain [ 0 2 ] "
+                          "     /C0 [ 0.0 ] "
+                          "     /C1 [ 1.0 0.0 ] "
+                          "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 2 "
+                          "     /Domain /Something "
+                          "     /C0 [ 0.0 ] "
+                          "     /C1 [ 1.0 0.0 ] "
+                          "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
 }
 
 void LexicalAnalyzerTest::scanWholeStream(const char* stream)

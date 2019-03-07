@@ -21,16 +21,25 @@
 
 #include "pdfglobal.h"
 
+#include <memory>
+
 namespace pdf
 {
+class PDFObject;
+class PDFFunction;
+class PDFDocument;
+class PDFParsingContext;
 
 enum class FunctionType
 {
+    Identity = -1,
     Sampled = 0,
     Exponential = 2,
     Stitching = 3,
     PostScript = 4
 };
+
+using PDFFunctionPtr = std::shared_ptr<PDFFunction>;
 
 /// Represents PDF function, as defined in Adobe PDF Reference 1.7, chapter 3.9.
 /// Generally, function is m to n relation, f(x_1, ... , x_m) = (y_1, ..., y_n).
@@ -71,8 +80,19 @@ public:
     /// \param y_n Iterator to the end of the output values (one item after last value)
     virtual FunctionResult apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const = 0;
 
+    /// Creates function from the object. If error occurs, exception is thrown.
+    /// \param document Document, owning the pdf object
+    /// \param object Object defining the function
+    static PDFFunctionPtr createFunction(const PDFDocument* document, const PDFObject& object);
+
 protected:
     static constexpr const size_t DEFAULT_OPERAND_COUNT = 32;
+
+    /// Creates function from the object. If error occurs, exception is thrown.
+    /// \param document Document, owning the pdf object
+    /// \param object Object defining the function
+    /// \param context Parsing context (to avoid circural references)
+    static PDFFunctionPtr createFunctionImpl(const PDFDocument* document, const PDFObject& object, PDFParsingContext* context);
 
     /// Clamps input value to the domain range.
     /// \param index Index of the input variable, in range [0, m - 1]
@@ -115,9 +135,24 @@ protected:
     std::vector<PDFReal> m_range;
 };
 
-using PDFFunctionPtr = QSharedPointer<PDFFunction>;
+/// Identity function
+class PDFFORQTLIBSHARED_EXPORT PDFIdentityFunction : public PDFFunction
+{
+public:
+    explicit PDFIdentityFunction();
+    virtual ~PDFIdentityFunction() = default;
 
-/// Sampled function (Type 0 function)
+    /// Transforms input values to the output values.
+    /// \param x_1 Iterator to the first input value
+    /// \param x_n Iterator to the end of the input values (one item after last value)
+    /// \param y_1 Iterator to the first output value
+    /// \param y_n Iterator to the end of the output values (one item after last value)
+    virtual FunctionResult apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const override;
+};
+
+/// Sampled function (Type 0 function).
+/// \note Order is ignored, linear interpolation is always performed. No cubic spline
+/// interpolation occurs.
 class PDFFORQTLIBSHARED_EXPORT PDFSampledFunction : public PDFFunction
 {
 public:
@@ -182,6 +217,7 @@ private:
 /// then linear interpolation is used instead.
 class PDFExponentialFunction : public PDFFunction
 {
+public:
     /// Construct new exponential function.
     /// \param m Number of input variables (must be always 1!)
     /// \param n Number of output variables

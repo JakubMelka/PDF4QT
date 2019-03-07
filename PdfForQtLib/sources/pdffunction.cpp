@@ -17,6 +17,8 @@
 
 #include "pdffunction.h"
 #include "pdfflatarray.h"
+#include "pdfparser.h"
+#include "pdfdocument.h"
 
 namespace pdf
 {
@@ -28,6 +30,218 @@ PDFFunction::PDFFunction(uint32_t m, uint32_t n, std::vector<PDFReal>&& domain, 
     m_range(std::move(range))
 {
 
+}
+
+PDFFunctionPtr PDFFunction::createFunction(const PDFDocument* document, const PDFObject& object)
+{
+    PDFParsingContext context(nullptr);
+    return createFunctionImpl(document, object, &context);
+}
+
+PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, const PDFObject& object, PDFParsingContext* context)
+{
+    PDFParsingContext::PDFParsingContextObjectGuard guard(context, &object);
+
+    const PDFDictionary* dictionary = nullptr;
+    QByteArray streamData;
+
+    const PDFObject& dereferencedObject = document->getObject(object);
+    if (dereferencedObject.isName() && dereferencedObject.getString() == "Identity")
+    {
+        return std::make_shared<PDFIdentityFunction>();
+    }
+    else if (dereferencedObject.isDictionary())
+    {
+        dictionary = dereferencedObject.getDictionary();
+    }
+    else if (dereferencedObject.isStream())
+    {
+        const PDFStream* stream = dereferencedObject.getStream();
+        dictionary = stream->getDictionary();
+        streamData = document->getDecodedStream(stream);
+    }
+
+    if (!dictionary)
+    {
+        throw PDFParserException(PDFParsingContext::tr("Function dictionary expected."));
+    }
+
+    PDFDocumentDataLoaderDecorator loader(document);
+    const PDFInteger functionType = loader.readIntegerFromDictionary(dictionary, "FunctionType", -1);
+    std::vector<PDFReal> domain = loader.readNumberArrayFromDictionary(dictionary, "Domain");
+    std::vector<PDFReal> range = loader.readNumberArrayFromDictionary(dictionary, "Range");
+
+    // Domain is required for all function
+    if (domain.empty())
+    {
+        throw PDFParserException(PDFParsingContext::tr("Fuction has invalid domain."));
+    }
+
+    if ((functionType == 0 || functionType == 4) && range.empty())
+    {
+        throw PDFParserException(PDFParsingContext::tr("Fuction has invalid range."));
+    }
+
+    switch (functionType)
+    {
+        case 0:
+        {
+            // Sampled function
+            std::vector<PDFInteger> size = loader.readIntegerArrayFromDictionary(dictionary, "Size");
+            const size_t bitsPerSample = loader.readIntegerFromDictionary(dictionary, "BitsPerSample", 0);
+            std::vector<PDFReal> encode = loader.readNumberArrayFromDictionary(dictionary, "Encode");
+            std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(dictionary, "Decode");
+
+            if (size.empty() || !std::all_of(size.cbegin(), size.cend(), [](PDFInteger size) { return size >= 1; }))
+            {
+                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid sample size."));
+            }
+
+            if (bitsPerSample < 1 || bitsPerSample > 32)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid count of bits per sample."));
+            }
+
+            if (encode.empty())
+            {
+                // Construct default array according to the PDF 1.7 specification
+                encode.resize(2 * size.size(), 0);
+                for (size_t i = 0, count = size.size(); i < count; ++i)
+                {
+                    encode[2 * i + 1] = size[i] - 1;
+                }
+            }
+
+            if (decode.empty())
+            {
+                // Default decode array is same as range, see PDF 1.7 specification
+                decode = range;
+            }
+
+            const size_t m = size.size();
+            const size_t n = range.size() / 2;
+
+            if (n == 0)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Sampled function hasn't any output."));
+            }
+
+            if (domain.size() != encode.size())
+            {
+                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid encode array."));
+            }
+
+            if (range.size() != decode.size())
+            {
+                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid decode array."));
+            }
+
+            const uint64_t sampleMaxValueInteger = (static_cast<uint64_t>(1) << static_cast<uint64_t>(bitsPerSample)) - 1;
+            const PDFReal sampleMaxValue = sampleMaxValueInteger;
+
+            // Load samples - first see, how much of them will be needed.
+            const PDFInteger sampleCount = std::accumulate(size.cbegin(), size.cend(), 1, [](PDFInteger a, PDFInteger b) { return a * b; } ) * n;
+            std::vector<PDFReal> samples;
+            samples.resize(sampleCount, 0.0);
+
+            // We must use 64 bit, because we can have 32 bit values
+            uint64_t buffer = 0;
+            uint64_t bitsWritten = 0;
+            uint64_t bitMask = sampleMaxValueInteger;
+
+            QDataStream reader(&streamData, QIODevice::ReadOnly);
+            for (PDFReal& sample : samples)
+            {
+                while (bitsWritten < bitsPerSample)
+                {
+                    if (!reader.atEnd())
+                    {
+                        uint8_t currentByte = 0;
+                        reader >> currentByte;
+                        buffer = (buffer << 8) | currentByte;
+                        bitsWritten += 8;
+                    }
+                    else
+                    {
+                        throw PDFParserException(PDFParsingContext::tr("Not enough samples for sampled function."));
+                    }
+                }
+
+                // Now we have enough bits to read the data
+                uint64_t sampleUint = (buffer >> (bitsWritten - bitsPerSample)) & bitMask;
+                bitsWritten -= bitsPerSample;
+                sample = sampleUint;
+            }
+
+            std::vector<uint32_t> sizeAsUint;
+            std::transform(size.cbegin(), size.cend(), std::back_inserter(sizeAsUint), [](PDFInteger integer) { return static_cast<uint32_t>(integer); });
+
+            return std::make_shared<PDFSampledFunction>(static_cast<uint32_t>(m), static_cast<uint32_t>(n), std::move(domain), std::move(range), std::move(sizeAsUint), std::move(samples), std::move(encode), std::move(decode), sampleMaxValue);
+        }
+        case 2:
+        {
+            // Exponential function
+            std::vector<PDFReal> c0 = loader.readNumberArrayFromDictionary(dictionary, "C0");
+            std::vector<PDFReal> c1 = loader.readNumberArrayFromDictionary(dictionary, "C1");
+            const PDFReal exponent = loader.readNumberFromDictionary(dictionary, "N", 1.0);
+
+            if (domain.size() != 2)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Exponential function can have only one input value."));
+            }
+
+            if (exponent < 0.0 && domain[0] <= 0.0)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Invalid domain of exponential function."));
+            }
+
+            if (!qFuzzyIsNull(std::fmod(exponent, 1.0)) && domain[0] < 0.0)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Invalid domain of exponential function."));
+            }
+
+            const uint32_t m = 1;
+
+            // Determine n.
+            uint32_t n = static_cast<uint32_t>(std::max({ static_cast<size_t>(1), range.size() / 2, c0.size(), c1.size() }));
+
+            // Resolve default values
+            if (c0.empty())
+            {
+                c0.resize(n, 0.0);
+            }
+            if (c1.empty())
+            {
+                c1.resize(n, 1.0);
+            }
+
+            if (c0.size() != n)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 0.0)."));
+            }
+            if (c1.size() != n)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 1.0)."));
+            }
+
+            return std::make_shared<PDFExponentialFunction>(1, n, std::move(domain), std::move(range), std::move(c0), std::move(c1), exponent);
+        }
+        case 3:
+        {
+            // Stitching function
+        }
+        case 4:
+        {
+            // Postscript function
+        }
+
+        default:
+        {
+            throw PDFParserException(PDFParsingContext::tr("Invalid function type: %1.").arg(functionType));
+        }
+    }
+
+    return nullptr;
 }
 
 PDFSampledFunction::PDFSampledFunction(uint32_t m, uint32_t n,
@@ -229,7 +443,7 @@ PDFFunction::FunctionResult PDFExponentialFunction::apply(PDFFunction::const_ite
     }
 
     Q_ASSERT(m == 1);
-    const PDFReal x = clampInput(0, *x1);
+    const PDFReal x = clampInput(0, *x_1);
 
     if (!m_isLinear)
     {
@@ -280,7 +494,7 @@ PDFFunction::FunctionResult PDFStitchingFunction::apply(const_iterator x_1,
     }
 
     Q_ASSERT(m == 1);
-    const PDFReal x = clampInput(0, *x1);
+    const PDFReal x = clampInput(0, *x_1);
 
     // First search for partial function, which defines our range. Use algorithm
     // similar to the std::lower_bound.
@@ -321,6 +535,29 @@ PDFFunction::FunctionResult PDFStitchingFunction::apply(const_iterator x_1,
     }
 
     return result;
+}
+
+PDFIdentityFunction::PDFIdentityFunction() :
+    PDFFunction(0, 0, std::vector<PDFReal>(), std::vector<PDFReal>())
+{
+
+}
+
+PDFFunction::FunctionResult PDFIdentityFunction::apply(const_iterator x_1,
+                                                       const_iterator x_m,
+                                                       iterator y_1,
+                                                       iterator y_n) const
+{
+    const size_t m = std::distance(x_1, x_m);
+    const size_t n = std::distance(y_1, y_n);
+
+    if (m != n)
+    {
+        return PDFTranslationContext::tr("Invalid number of operands for identity function. Expected %1, provided %2.").arg(n).arg(m);
+    }
+
+    std::copy(x_1, x_m, y_1);
+    return true;
 }
 
 }   // namespace pdf
