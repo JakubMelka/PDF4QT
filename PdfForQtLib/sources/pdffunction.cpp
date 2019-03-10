@@ -229,6 +229,74 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
         case 3:
         {
             // Stitching function
+            std::vector<PDFReal> bounds = loader.readNumberArrayFromDictionary(dictionary, "Bounds");
+            std::vector<PDFReal> encode = loader.readNumberArrayFromDictionary(dictionary, "Encode");
+
+            if (domain.size() != 2)
+            {
+                throw PDFParserException(PDFParsingContext::tr("Stitching function can have only one input value."));
+            }
+
+            if (dictionary->hasKey("Functions"))
+            {
+                const PDFObject& functions = document->getObject(dictionary->get("Functions"));
+                if (functions.isArray())
+                {
+                    const PDFArray* array = functions.getArray();
+                    if (array->getCount() != bounds.size() + 1)
+                    {
+                        throw PDFParserException(PDFParsingContext::tr("Stitching function has different function count. Expected %1, actual %2.").arg(array->getCount()).arg(bounds.size() + 1));
+                    }
+
+                    std::vector<PDFStitchingFunction::PartialFunction> partialFunctions;
+                    partialFunctions.resize(array->getCount());
+
+                    if (encode.size() != partialFunctions.size() * 2)
+                    {
+                        throw PDFParserException(PDFParsingContext::tr("Stitching function has invalid encode array. Expected %1 items, actual %2.").arg(partialFunctions.size() * 2).arg(encode.size()));
+                    }
+
+                    std::vector<PDFReal> boundsAdjusted;
+                    boundsAdjusted.resize(bounds.size() + 2);
+                    boundsAdjusted.front() = domain.front();
+                    boundsAdjusted.back() = domain.back();
+                    std::copy(bounds.cbegin(), bounds.cend(), std::next(boundsAdjusted.begin()));
+
+                    Q_ASSERT(boundsAdjusted.size() == partialFunctions.size() + 1);
+
+                    uint32_t n = 0;
+                    for (size_t i = 0; i < partialFunctions.size(); ++i)
+                    {
+                        PDFStitchingFunction::PartialFunction& partialFunction = partialFunctions[i];
+                        partialFunction.function = createFunctionImpl(document, array->getItem(i), context);
+                        partialFunction.bound0 = boundsAdjusted[i];
+                        partialFunction.bound1 = boundsAdjusted[i + 1];
+                        partialFunction.encode0 = encode[2 * i];
+                        partialFunction.encode1 = encode[2 * i + 1];
+
+                        const uint32_t nLocal = partialFunction.function->getOutputVariableCount();
+
+                        if (n == 0)
+                        {
+                            n = nLocal;
+                        }
+                        else if (n != nLocal)
+                        {
+                            throw PDFParserException(PDFParsingContext::tr("Functions in stitching function has different number of output variables."));
+                        }
+                    }
+
+                    return std::make_shared<PDFStitchingFunction>(1, n, std::move(domain), std::move(range), std::move(partialFunctions));
+                }
+                else
+                {
+                    throw PDFParserException(PDFParsingContext::tr("Stitching function has invalid functions."));
+                }
+            }
+            else
+            {
+                throw PDFParserException(PDFParsingContext::tr("Stitching function hasn't functions array."));
+            }
         }
         case 4:
         {
@@ -474,6 +542,21 @@ PDFFunction::FunctionResult PDFExponentialFunction::apply(PDFFunction::const_ite
     }
 
     return true;
+}
+
+PDFStitchingFunction::PDFStitchingFunction(uint32_t m, uint32_t n,
+                                           std::vector<PDFReal>&& domain,
+                                           std::vector<PDFReal>&& range,
+                                           std::vector<PDFStitchingFunction::PartialFunction>&& partialFunctions) :
+    PDFFunction(m, n, std::move(domain), std::move(range)),
+    m_partialFunctions(std::move(partialFunctions))
+{
+    Q_ASSERT(m == 1);
+}
+
+PDFStitchingFunction::~PDFStitchingFunction()
+{
+
 }
 
 PDFFunction::FunctionResult PDFStitchingFunction::apply(const_iterator x_1,

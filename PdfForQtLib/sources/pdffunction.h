@@ -70,6 +70,12 @@ public:
         QString errorMessage;
     };
 
+    /// Returns number of input variables
+    inline uint32_t getInputVariableCount() const { return m_m; }
+
+    /// Returns number of output variables
+    inline uint32_t getOutputVariableCount() const { return m_n; }
+
     using iterator = PDFReal*;
     using const_iterator = const PDFReal*;
 
@@ -112,7 +118,7 @@ protected:
     /// \param y_max End of the output interval
     static inline constexpr PDFReal interpolate(PDFReal x, PDFReal x_min, PDFReal x_max, PDFReal y_min, PDFReal y_max)
     {
-        return y_min + x * (y_max - y_min) / (x_max - x_min);
+        return y_min + (x - x_min) * (y_max - y_min) / (x_max - x_min);
     }
 
     /// Performs linear interpolation between c0 and c1 using x (in range [0.0, 1.0]). If x is not of this range,
@@ -215,7 +221,7 @@ private:
 /// is defined as f(x) = c0 + x^exponent * (c1 - c0). If exponent is 1.0, then linear interpolation
 /// is performed as f(x) = c0 * (1 - x) + x * c1. To be more precise, if exponent is nearly 1.0,
 /// then linear interpolation is used instead.
-class PDFExponentialFunction : public PDFFunction
+class PDFFORQTLIBSHARED_EXPORT PDFExponentialFunction : public PDFFunction
 {
 public:
     /// Construct new exponential function.
@@ -252,7 +258,7 @@ private:
 /// Stitching function (Type 3 function)
 /// This type of function has always exactly one input. Transformation of this function
 /// is defined via k subfunctions which are used in defined intervals of the input value.
-class PDFStitchingFunction : public PDFFunction
+class PDFFORQTLIBSHARED_EXPORT PDFStitchingFunction : public PDFFunction
 {
 public:
     struct PartialFunction

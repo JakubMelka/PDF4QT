@@ -50,6 +50,7 @@ private slots:
     void test_lzw_filter();
     void test_sampled_function();
     void test_exponential_function();
+    void test_stitching_function();
 
 private:
     void scanWholeStream(const char* stream);
@@ -835,6 +836,117 @@ void LexicalAnalyzerTest::test_exponential_function()
                           "     /C0 [ 0.0 ] "
                           "     /C1 [ 1.0 0.0 ] "
                           "     /N 2.0 "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+}
+
+void LexicalAnalyzerTest::test_stitching_function()
+{
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 3 "
+                          "     /Domain [ 0 1 ] "
+                          "     /Bounds [ 0.5 ] "
+                          "     /Encode [ 0 0.5 0.5 1.0 ] "
+                          "     /Functions [ /Identity << /FunctionType 2 /Domain [ 0.5 1.0 ] /N 2.0 >> ] "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+        for (double value = -1.0; value <= 3.0; value += 0.01)
+        {
+            const double clampedValue = qBound(0.0, value, 1.0);
+            const double expected = clampedValue < 0.5 ? clampedValue : clampedValue * clampedValue;
+
+            double actual = 0.0;
+            QVERIFY(function->apply(&value, &value + 1, &actual, &actual + 1));
+            QVERIFY(qFuzzyCompare(expected, actual));
+        }
+    }
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 3 "
+                          "     /Domain [ 0 1 ] "
+                          "     /Bounds [ 0.5 ] "
+                          "     /Encode [ 0 0.5 0.5 ] "
+                          "     /Functions [ /Identity << /FunctionType 2 /Domain [ 0.5 1.0 ] /N 2.0 >> ] "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 3 "
+                          "     /Domain [ 0 ] "
+                          "     /Bounds [ 0.5 ] "
+                          "     /Encode [ 0 0.5 0.5 1.0 ] "
+                          "     /Functions [ /Identity << /FunctionType 2 /Domain [ 0.5 1.0 ] /N 2.0 >> ] "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 3 "
+                          "     /Domain [ 0 1 ] "
+                          "     /Bounds [ 0.5 0.5 ] "
+                          "     /Encode [ 0 0.5 0.5 1.0 ] "
+                          "     /Functions [ /Identity << /FunctionType 2 /Domain [ 0.5 1.0 ] /N 2.0 >> ] "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 3 "
+                          "     /Domain [ 0 1 ] "
+                          "     /Encode [ 0 0.5 0.5 1.0 ] "
+                          "     /Functions [ /Identity << /FunctionType 2 /Domain [ 0.5 1.0 ] /N 2.0 >> ] "
+                          " >> ";
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(!function);
+    }, pdf::PDFParserException);
+
+    QVERIFY_EXCEPTION_THROWN(
+    {
+        QByteArray data = " << "
+                          "     /FunctionType 3 "
+                          "     /Domain [ 0 1 ] "
+                          "     /Bounds [ 0.5 ] "
+                          "     /Functions [ /Identity << /FunctionType 2 /Domain [ 0.5 1.0 ] /N 2.0 >> ] "
                           " >> ";
 
         pdf::PDFDocument document;
