@@ -315,6 +315,140 @@ private:
     std::vector<PartialFunction> m_partialFunctions;
 };
 
+/// Postscript function (Type 4 function)
+/// Implements subset of postscript language
+class PDFFORQTLIBSHARED_EXPORT PDFPostScriptFunction : public PDFFunction
+{
+public:
+
+private:
+    class PDFPostScriptFunctionException : public std::exception
+    {
+    public:
+        inline explicit PDFPostScriptFunctionException(const QString& message) :
+            m_message(message)
+        {
+
+        }
+
+        /// Returns error message
+        const QString& getMessage() const { return m_message; }
+
+    private:
+        QString m_message;
+    };
+
+    using InstructionPointer = size_t;
+
+    enum class OperandType
+    {
+        Real,               ///< Real number
+        Integer,            ///< Integer number
+        Boolean,            ///< Boolean
+        InstructionPointer  ///< Instruction pointer
+    };
+
+    enum class Code
+    {
+        // B.1 Arithmetic operators
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Idiv,
+        Mod,
+        Neg,
+        Abs,
+        Ceiling,
+        Floor,
+        Round,
+        Truncate,
+        Sqrt,
+        Sin,
+        Cos,
+        Atan,
+        Exp,
+        Ln,
+        Log,
+        Cvi,
+        Cvr,
+
+        // B.2 Relational, Boolean and Bitwise operators
+        Eq,
+        Ne,
+        Gt,
+        Ge,
+        Lt,
+        Le,
+        And,
+        Or,
+        Xor,
+        Not,
+        Bitshift,
+        True,
+        False,
+
+        // B.3 Conditional operators
+        If,
+        IfElse,
+
+        // B.4 Stack operators
+        Pop,
+        Exch,
+        Dup,
+        Copy,
+        Index,
+        Roll,
+
+        // Special codes not present in PDF reference, but needed to implement
+        // blocks (call and return function).
+        Call,
+        Return,
+        Push
+    };
+
+    struct OperandObject
+    {
+        explicit inline constexpr OperandObject() :
+            type(OperandType::Real),
+            realNumber(0.0)
+        {
+
+        }
+
+        static inline OperandObject createReal(PDFReal value) { OperandObject object; object.type = OperandType::Real; object.realNumber = value; return object; }
+        static inline OperandObject createInteger(PDFInteger value) { OperandObject object; object.type = OperandType::Integer; object.integerNumber = value; return object; }
+        static inline OperandObject createBoolean(bool value) { OperandObject object; object.type = OperandType::Boolean; object.boolean = value; return object; }
+        static inline OperandObject createInstructionPointer(InstructionPointer value) { OperandObject object; object.type = OperandType::InstructionPointer; object.instructionPointer = value; return object; }
+
+        OperandType type;
+
+        union
+        {
+            PDFReal realNumber;
+            PDFInteger integerNumber;
+            bool boolean;
+            InstructionPointer instructionPointer;
+        };
+    };
+
+    static constexpr const InstructionPointer INVALID_INSTRUCTION_POINTER = std::numeric_limits<InstructionPointer>::max();
+
+    struct CodeObject
+    {
+        explicit inline CodeObject() : code(Code::Return), next(INVALID_INSTRUCTION_POINTER), operand() { }
+
+        Code code;
+        InstructionPointer next;
+        OperandObject operand;
+    };
+
+    using Program = std::vector<CodeObject>;
+
+    friend class PDFPostScriptFunctionStack;
+    friend class PDFPostScriptFunctionExecutor;
+};
+
 }   // namespace pdf
 
 #endif // PDFFUNCTION_H

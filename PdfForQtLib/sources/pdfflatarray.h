@@ -150,6 +150,12 @@ public:
         }
     }
 
+    /// Returns the last element of the array
+    inline const T& back() const { return m_variableBlock.empty() ? m_flatBlock[m_flatBlockItemCount - 1] : m_variableBlock.back(); }
+
+    /// Erases the last element from the array
+    inline void pop_back() { resize(size() - 1); }
+
 private:
     size_t getFlatBlockSize() const { return m_flatBlockItemCount; }
 

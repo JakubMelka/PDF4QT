@@ -20,6 +20,9 @@
 #include "pdfparser.h"
 #include "pdfdocument.h"
 
+#include <stack>
+#include <type_traits>
+
 namespace pdf
 {
 
@@ -641,6 +644,916 @@ PDFFunction::FunctionResult PDFIdentityFunction::apply(const_iterator x_1,
 
     std::copy(x_1, x_m, y_1);
     return true;
+}
+
+class PDFPostScriptFunctionStack
+{
+public:
+    inline explicit PDFPostScriptFunctionStack() = default;
+
+    using OperandObject = PDFPostScriptFunction::OperandObject;
+    using InstructionPointer = PDFPostScriptFunction::InstructionPointer;
+
+    inline void pushReal(PDFReal value) { m_stack.push_back(OperandObject::createReal(value)); checkOverflow(); }
+    inline void pushInteger(PDFInteger value) { m_stack.push_back(OperandObject::createInteger(value)); checkOverflow(); }
+    inline void pushBoolean(bool value) { m_stack.push_back(OperandObject::createBoolean(value)); checkOverflow(); }
+    inline void pushInstructionPointer(InstructionPointer value) { m_stack.push_back(OperandObject::createInstructionPointer(value)); checkOverflow(); }
+
+    /// Returns true, if integer operation should be performed instead of operation with real values.
+    /// (two top elements are integer).
+    bool isBinaryOperationInteger() const;
+
+    /// Returns true, if boolean operation should be performed instead of operation with integer values.
+    /// (two top elements are boolean).
+    bool isBinaryOperationBoolean() const;
+
+    /// Pops the real value from the stack (throw exception, if stack underflow occurs,
+    /// or value is not of type real).
+    PDFReal popReal();
+
+    /// Pops the integer value from the stack (throw exception, if stack underflow occurs,
+    /// or value is not of type integer).
+    PDFInteger popInteger();
+
+    /// Pops the boolean value from the stack (throw exception, if stack underflow occurs,
+    /// or value is not of type boolean).
+    bool popBoolean();
+
+    /// Pops the instruction pointer from the stack (throw exception, if stack underflow occurs,
+    /// or value is not of type instruction pointer).
+    InstructionPointer popInstructionPointer();
+
+    /// Pops number (integer is converted to the real value) form the stack (throw exception, if stack underflow occurs,
+    /// or value is not of type real or integer).
+    PDFReal popNumber();
+
+    /// Returns true, if current value is real
+    bool isReal() const { checkUnderflow(); return m_stack.back().type == PDFPostScriptFunction::OperandType::Real; }
+
+    /// Returns true, if current value is integer
+    bool isInteger() const { checkUnderflow(); return m_stack.back().type == PDFPostScriptFunction::OperandType::Integer; }
+
+    /// Pops the current value
+    inline void pop() { checkUnderflow(); m_stack.pop_back(); }
+
+    /// Exchange the two top elements
+    void exch();
+
+    /// Duplicate the top element
+    void dup();
+
+    /// Copy the n elements
+    /// \param n Number of elements to be copied
+    void copy(PDFInteger n);
+
+    /// Copy the n-th element on the stack
+    /// \param n Index of the element (indexed is from the top - top has index 0, bottom has index size() - 1)
+    void index(PDFInteger n);
+
+    /// Roll n elements on the stack j-times left
+    /// \param n Number of elements to be rolled
+    /// \param j Roll j-times
+    void roll(PDFInteger n, PDFInteger j);
+
+    /// Pushes the operand onto the stack
+    void push(const OperandObject& operand) { m_stack.push_back(operand); checkOverflow(); }
+
+private:
+    /// Check operand stack overflow (maximum limit is 100, according to the PDF 1.7 specification)
+    void checkOverflow() const;
+
+    /// Check operand stack underflow (if stack has at least \p n values)
+    /// \param n Number of values to check
+    void checkUnderflow(size_t n = 1) const;
+
+    PDFFlatArray<OperandObject, 8> m_stack;
+};
+
+/// Executes the postscript program. Can throw PDFPostScriptFunctionException.
+class PDFPostScriptFunctionExecutor
+{
+public:
+    using Program = PDFPostScriptFunction::Program;
+    using Stack = PDFPostScriptFunctionStack;
+    using InstructionPointer = PDFPostScriptFunction::InstructionPointer;
+    using CodeObject = PDFPostScriptFunction::CodeObject;
+    using PDFIntegerUnsigned = std::make_unsigned<PDFInteger>::type;
+
+    /// Creates new postscript program
+    explicit inline PDFPostScriptFunctionExecutor(const Program& program, Stack& stack) :
+        m_program(program),
+        m_stack(stack)
+    {
+
+    }
+
+    /// Executes the postscript program
+    void execute();
+
+private:
+   template<template<typename> typename Comparator>
+    void executeRelationOperator()
+    {
+        if (m_stack.isBinaryOperationInteger())
+        {
+            const PDFInteger b = m_stack.popInteger();
+            const PDFInteger a = m_stack.popInteger();
+            m_stack.pushBoolean(Comparator<PDFInteger>()(a, b));
+        }
+        else
+        {
+            const PDFReal b = m_stack.popReal();
+            const PDFReal a = m_stack.popReal();
+            m_stack.pushBoolean(Comparator<PDFReal>()(a, b));
+        }
+    }
+
+    const Program& m_program;
+    Stack& m_stack;
+};
+
+void PDFPostScriptFunctionExecutor::execute()
+{
+    Q_ASSERT(!m_program.empty());
+
+    std::stack<InstructionPointer> callStack;
+
+    InstructionPointer ip = 0; // First instruction is at zero
+    while (ip != PDFPostScriptFunction::INVALID_INSTRUCTION_POINTER)
+    {
+        if (ip >= m_program.size())
+        {
+            throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Invalid instruction pointer."));
+        }
+
+        const CodeObject& instruction = m_program[ip];
+        switch (instruction.code)
+        {
+            case PDFPostScriptFunction::Code::Add:
+            {
+                if (m_stack.isBinaryOperationInteger())
+                {
+                    const PDFInteger b = m_stack.popInteger();
+                    const PDFInteger a = m_stack.popInteger();
+                    m_stack.pushInteger(a + b);
+                }
+                else
+                {
+                    const PDFReal b = m_stack.popReal();
+                    const PDFReal a = m_stack.popReal();
+                    m_stack.pushReal(a + b);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Sub:
+            {
+                if (m_stack.isBinaryOperationInteger())
+                {
+                    const PDFInteger b = m_stack.popInteger();
+                    const PDFInteger a = m_stack.popInteger();
+                    m_stack.pushInteger(a - b);
+                }
+                else
+                {
+                    const PDFReal b = m_stack.popReal();
+                    const PDFReal a = m_stack.popReal();
+                    m_stack.pushReal(a - b);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Mul:
+            {
+                if (m_stack.isBinaryOperationInteger())
+                {
+                    const PDFInteger b = m_stack.popInteger();
+                    const PDFInteger a = m_stack.popInteger();
+                    m_stack.pushInteger(a * b);
+                }
+                else
+                {
+                    const PDFReal b = m_stack.popReal();
+                    const PDFReal a = m_stack.popReal();
+                    m_stack.pushReal(a * b);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Div:
+            {
+                const PDFReal b = m_stack.popNumber();
+                const PDFReal a = m_stack.popNumber();
+
+                if (qFuzzyIsNull(b))
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Division by zero (PostScript engine)."));
+                }
+
+                m_stack.pushReal(a / b);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Idiv:
+            {
+                const PDFInteger b = m_stack.popInteger();
+                const PDFInteger a = m_stack.popInteger();
+
+                if (b == 0)
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Division by zero (PostScript engine)."));
+                }
+
+                m_stack.pushInteger(a / b);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Mod:
+            {
+                const PDFInteger b = m_stack.popInteger();
+                const PDFInteger a = m_stack.popInteger();
+
+                if (b == 0)
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Division by zero (PostScript engine)."));
+                }
+
+                m_stack.pushInteger(a % b);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Neg:
+            {
+                if (m_stack.isInteger())
+                {
+                    m_stack.pushInteger(-m_stack.popInteger());
+                }
+                else
+                {
+                    m_stack.pushReal(-m_stack.popReal());
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Abs:
+            {
+                if (m_stack.isInteger())
+                {
+                    m_stack.pushInteger(qAbs(m_stack.popInteger()));
+                }
+                else
+                {
+                    m_stack.pushReal(qAbs(m_stack.popReal()));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Ceiling:
+            {
+                if (m_stack.isReal())
+                {
+                    m_stack.pushReal(std::ceil(m_stack.popReal()));
+                }
+                else if (!m_stack.isInteger())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Number expected for ceil function (PostScript engine)."));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Floor:
+            {
+                if (m_stack.isReal())
+                {
+                    m_stack.pushReal(std::floor(m_stack.popReal()));
+                }
+                else if (!m_stack.isInteger())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Number expected for floor function (PostScript engine)."));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Round:
+            {
+                if (m_stack.isReal())
+                {
+                    m_stack.pushReal(qRound(m_stack.popReal()));
+                }
+                else if (!m_stack.isInteger())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Number expected for round function (PostScript engine)."));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Truncate:
+            {
+                if (m_stack.isReal())
+                {
+                    m_stack.pushReal(std::trunc(m_stack.popReal()));
+                }
+                else if (!m_stack.isInteger())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Number expected for truncate function (PostScript engine)."));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Sqrt:
+            {
+                const PDFReal value = m_stack.popNumber();
+
+                if (value < 0.0)
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Square root of negative value can't be computed (PostScript engine)."));
+                }
+
+                m_stack.pushReal(std::sqrt(value));
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Sin:
+            {
+                m_stack.pushReal(qSin(qDegreesToRadians(m_stack.popNumber())));
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Cos:
+            {
+                m_stack.pushReal(qCos(qDegreesToRadians(m_stack.popNumber())));
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Atan:
+            {
+                const PDFReal b = m_stack.popNumber();
+                const PDFReal a = m_stack.popNumber();
+
+                const PDFReal angles = qRadiansToDegrees(qAtan2(a, b));
+                m_stack.pushReal(angles < 0.0 ? (angles + 360.0) : angles);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Exp:
+            {
+                const PDFReal exponent = m_stack.popNumber();
+                const PDFReal base = m_stack.popNumber();
+                m_stack.pushReal(qPow(base, exponent));
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Ln:
+            {
+                const PDFReal value = m_stack.popNumber();
+
+                if (value < 0.0 || qFuzzyIsNull(value))
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Logarithm's input should be positive value  (PostScript engine)."));
+                }
+
+                m_stack.pushReal(qLn(value));
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Log:
+            {
+                const PDFReal value = m_stack.popNumber();
+
+                if (value < 0.0 || qFuzzyIsNull(value))
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Logarithm's input should be positive value (PostScript engine)."));
+                }
+
+                m_stack.pushReal(std::log10(value));
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Cvi:
+            {
+                if (m_stack.isReal())
+                {
+                    m_stack.pushInteger(static_cast<PDFInteger>(m_stack.popReal()));
+                }
+                else if (!m_stack.isInteger())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Real value expected for conversion to integer (PostScript engine)."));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Cvr:
+            {
+                if (m_stack.isInteger())
+                {
+                    m_stack.pushReal(m_stack.popInteger());
+                }
+                else if (!m_stack.isReal())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Integer value expected for conversion to real (PostScript engine)."));
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Eq:
+            {
+                if (m_stack.isBinaryOperationInteger())
+                {
+                    const PDFInteger b = m_stack.popInteger();
+                    const PDFInteger a = m_stack.popInteger();
+                    m_stack.pushBoolean(a == b);
+                }
+                else if (m_stack.isBinaryOperationBoolean())
+                {
+                    const bool b = m_stack.popBoolean();
+                    const bool a = m_stack.popBoolean();
+                    m_stack.pushBoolean(a == b);
+                }
+                else
+                {
+                    // Real values
+                    const PDFReal b = m_stack.popReal();
+                    const PDFReal a = m_stack.popReal();
+                    m_stack.pushBoolean(a == b);
+                }
+
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Ne:
+            {
+                if (m_stack.isBinaryOperationInteger())
+                {
+                    const PDFInteger b = m_stack.popInteger();
+                    const PDFInteger a = m_stack.popInteger();
+                    m_stack.pushBoolean(a != b);
+                }
+                else if (m_stack.isBinaryOperationBoolean())
+                {
+                    const bool b = m_stack.popBoolean();
+                    const bool a = m_stack.popBoolean();
+                    m_stack.pushBoolean(a != b);
+                }
+                else
+                {
+                    // Real values
+                    const PDFReal b = m_stack.popReal();
+                    const PDFReal a = m_stack.popReal();
+                    m_stack.pushBoolean(a != b);
+                }
+
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Gt:
+            {
+                executeRelationOperator<std::greater>();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Ge:
+            {
+                executeRelationOperator<std::greater_equal>();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Lt:
+            {
+                executeRelationOperator<std::less>();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Le:
+            {
+                executeRelationOperator<std::less_equal>();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::And:
+            {
+                if (m_stack.isBinaryOperationBoolean())
+                {
+                    const bool a = m_stack.popBoolean();
+                    const bool b = m_stack.popBoolean();
+                    m_stack.pushBoolean(a && b);
+                }
+                else
+                {
+                    const PDFIntegerUnsigned a = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    const PDFIntegerUnsigned b = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    m_stack.pushInteger(a & b);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Or:
+            {
+                if (m_stack.isBinaryOperationBoolean())
+                {
+                    const bool a = m_stack.popBoolean();
+                    const bool b = m_stack.popBoolean();
+                    m_stack.pushBoolean(a || b);
+                }
+                else
+                {
+                    const PDFIntegerUnsigned a = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    const PDFIntegerUnsigned b = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    m_stack.pushInteger(a | b);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Xor:
+            {
+                if (m_stack.isBinaryOperationBoolean())
+                {
+                    const bool a = m_stack.popBoolean();
+                    const bool b = m_stack.popBoolean();
+                    m_stack.pushBoolean(a != b);
+                }
+                else
+                {
+                    const PDFIntegerUnsigned a = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    const PDFIntegerUnsigned b = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    m_stack.pushInteger(a ^ b);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Not:
+            {
+                if (m_stack.isInteger())
+                {
+                    const PDFIntegerUnsigned value = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                    m_stack.pushInteger(~value);
+                }
+                else
+                {
+                    const bool value = m_stack.popBoolean();
+                    m_stack.pushBoolean(!value);
+                }
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Bitshift:
+            {
+                const PDFInteger shift = m_stack.popInteger();
+                const PDFIntegerUnsigned value = static_cast<PDFIntegerUnsigned>(m_stack.popInteger());
+                PDFIntegerUnsigned shiftedValue = value;
+
+                if (shift > 0)
+                {
+                    // Positive is left
+                    shiftedValue = value << shift;
+                }
+                else if (shift < 0)
+                {
+                    // Negative is right
+                    shiftedValue = value >> -shift;
+                }
+
+                m_stack.pushInteger(shiftedValue);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::True:
+            {
+                m_stack.pushBoolean(true);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::False:
+            {
+                m_stack.pushBoolean(false);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::If:
+            {
+                const PDFPostScriptFunctionStack::InstructionPointer callIp = m_stack.popInstructionPointer();
+                const bool condition = m_stack.popBoolean();
+
+                if (condition)
+                {
+                    // Call the if block
+                    callStack.push(instruction.next);
+                    ip = callIp;
+                    continue;
+                }
+
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::IfElse:
+            {
+                const PDFPostScriptFunctionStack::InstructionPointer falsePartIp = m_stack.popInstructionPointer();
+                const PDFPostScriptFunctionStack::InstructionPointer truePartIp = m_stack.popInstructionPointer();
+                const bool condition = m_stack.popBoolean();
+
+                callStack.push(instruction.next);
+                if (condition)
+                {
+                    // Call the if part
+                    ip = truePartIp;
+                }
+                else
+                {
+                    // Call the else part
+                    ip = falsePartIp;
+                }
+
+                continue;
+            }
+            case PDFPostScriptFunction::Code::Pop:
+            {
+                m_stack.pop();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Exch:
+            {
+                m_stack.exch();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Dup:
+            {
+                m_stack.dup();
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Copy:
+            {
+                const PDFInteger n = m_stack.popInteger();
+
+                if (n < 0)
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Can't copy negative number of arguments (PostScript engine)."));
+                }
+
+                if (n > 0)
+                {
+                    m_stack.copy(n);
+                }
+
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Index:
+            {
+                const PDFInteger n = m_stack.popInteger();
+
+                if (n < 0)
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Negative index of operand (PostScript engine)."));
+                }
+
+                m_stack.index(n);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Roll:
+            {
+                const PDFInteger j = m_stack.popInteger();
+                const PDFInteger n = m_stack.popInteger();
+
+                if (n < 0)
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Negative number of operands (PostScript engine)."));
+                }
+
+                m_stack.roll(n, j);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Call:
+            {
+                Q_ASSERT(instruction.operand.type == PDFPostScriptFunction::OperandType::InstructionPointer);
+                m_stack.pushInstructionPointer(instruction.operand.instructionPointer);
+                break;
+            }
+
+            case PDFPostScriptFunction::Code::Return:
+            {
+                if (callStack.empty())
+                {
+                    throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Call stack underflow (PostScript engine)."));
+                }
+
+                ip = callStack.top();
+                callStack.pop();
+                continue;
+            }
+
+            case PDFPostScriptFunction::Code::Push:
+            {
+                m_stack.push(instruction.operand);
+                break;
+            }
+        }
+
+        // Move to the next instruction
+        ip = instruction.next;
+    }
+}
+
+bool PDFPostScriptFunctionStack::isBinaryOperationInteger() const
+{
+    checkUnderflow(2);
+
+    const size_t size = m_stack.size();
+    return m_stack[size - 1].type == PDFPostScriptFunction::OperandType::Integer &&
+            m_stack[size - 2].type == PDFPostScriptFunction::OperandType::Integer;
+}
+
+bool PDFPostScriptFunctionStack::isBinaryOperationBoolean() const
+{
+    checkUnderflow(2);
+
+    const size_t size = m_stack.size();
+    return m_stack[size - 1].type == PDFPostScriptFunction::OperandType::Boolean &&
+            m_stack[size - 2].type == PDFPostScriptFunction::OperandType::Boolean;
+}
+
+PDFReal PDFPostScriptFunctionStack::popReal()
+{
+    checkUnderflow();
+
+    const PDFPostScriptFunction::OperandObject& topElement = m_stack.back();
+    if (topElement.type == PDFPostScriptFunction::OperandType::Real)
+    {
+        const PDFReal value = topElement.realNumber;
+        m_stack.pop_back();
+        return value;
+    }
+    else
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Real value expected (PostScript engine)."));
+    }
+}
+
+PDFInteger PDFPostScriptFunctionStack::popInteger()
+{
+    checkUnderflow();
+
+    const PDFPostScriptFunction::OperandObject& topElement = m_stack.back();
+    if (topElement.type == PDFPostScriptFunction::OperandType::Integer)
+    {
+        const PDFInteger value = topElement.integerNumber;
+        m_stack.pop_back();
+        return value;
+    }
+    else
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Integer value expected (PostScript engine)."));
+    }
+}
+
+bool PDFPostScriptFunctionStack::popBoolean()
+{
+    checkUnderflow();
+
+    const PDFPostScriptFunction::OperandObject& topElement = m_stack.back();
+    if (topElement.type == PDFPostScriptFunction::OperandType::Boolean)
+    {
+        const bool value = topElement.boolean;
+        m_stack.pop_back();
+        return value;
+    }
+    else
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Boolean value expected (PostScript engine)."));
+    }
+}
+
+PDFPostScriptFunctionStack::InstructionPointer PDFPostScriptFunctionStack::popInstructionPointer()
+{
+    checkUnderflow();
+
+    const PDFPostScriptFunction::OperandObject& topElement = m_stack.back();
+    if (topElement.type == PDFPostScriptFunction::OperandType::InstructionPointer)
+    {
+        const InstructionPointer value = topElement.instructionPointer;
+        m_stack.pop_back();
+        return value;
+    }
+    else
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Instruction pointer expected (PostScript engine)."));
+    }
+}
+
+PDFReal PDFPostScriptFunctionStack::popNumber()
+{
+    checkUnderflow();
+
+    const PDFPostScriptFunction::OperandObject& topElement = m_stack.back();
+    if (topElement.type == PDFPostScriptFunction::OperandType::Real)
+    {
+        const PDFReal value = topElement.realNumber;
+        m_stack.pop_back();
+        return value;
+    }
+    else if (topElement.type == PDFPostScriptFunction::OperandType::Integer)
+    {
+        const PDFInteger value = topElement.integerNumber;
+        m_stack.pop_back();
+        return value;
+    }
+    else
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Instruction pointer expected (PostScript engine)."));
+    }
+}
+
+void PDFPostScriptFunctionStack::exch()
+{
+    checkUnderflow(2);
+
+    const size_t size = m_stack.size();
+    std::swap(m_stack[size - 2], m_stack[size - 1]);
+}
+
+void PDFPostScriptFunctionStack::dup()
+{
+    checkUnderflow();
+    m_stack.push_back(m_stack.back());
+    checkOverflow();
+}
+
+void PDFPostScriptFunctionStack::copy(PDFInteger n)
+{
+    Q_ASSERT(n > 0);
+
+    checkUnderflow(static_cast<size_t>(n));
+
+    size_t startIndex = m_stack.size() - n;
+    for (size_t i = 0; i < static_cast<size_t>(n); ++i)
+    {
+        m_stack.push_back(m_stack[startIndex + i]);
+        checkOverflow();
+    }
+}
+
+void PDFPostScriptFunctionStack::index(PDFInteger n)
+{
+    Q_ASSERT(n >= 0);
+
+    checkUnderflow(static_cast<size_t>(n) + 1);
+    m_stack.push_back(m_stack[m_stack.size() - 1 - n]);
+}
+
+void PDFPostScriptFunctionStack::roll(PDFInteger n, PDFInteger j)
+{
+    if (n == 0 || j == 0)
+    {
+        // If n is zero, then we are rolling zero arguments - do nothing
+        // If j is zero, then we don't roll anything at all - do nothing
+        return;
+    }
+
+    checkUnderflow(n);
+
+    // Load operands into temporary array
+    const size_t firstIndexOnStack = m_stack.size() - n;
+    std::vector<OperandObject> operands(n);
+    for (size_t i = 0; i < static_cast<size_t>(n); ++i)
+    {
+        operands[i] = m_stack[firstIndexOnStack + i];
+    }
+
+    if (j > 0)
+    {
+        // Rotate left j times
+        std::rotate(operands.begin(), operands.begin() + j, operands.end());
+    }
+    else
+    {
+        // Rotate right j times
+        std::rotate(operands.rbegin(), operands.rbegin() - j, operands.rend());
+    }
+
+    // Load data back from temporary array
+    for (size_t i = 0; i < static_cast<size_t>(n); ++i)
+    {
+        m_stack[firstIndexOnStack + i] = operands[i];
+    }
+}
+
+void PDFPostScriptFunctionStack::checkOverflow() const
+{
+    if (m_stack.size() > 100)
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Stack overflow occured (PostScript engine)."));
+    }
+}
+
+void PDFPostScriptFunctionStack::checkUnderflow(size_t n) const
+{
+    if (m_stack.size() < n)
+    {
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Stack underflow occured (PostScript engine)."));
+    }
 }
 
 }   // namespace pdf
