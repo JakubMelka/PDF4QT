@@ -321,7 +321,6 @@ class PDFFORQTLIBSHARED_EXPORT PDFPostScriptFunction : public PDFFunction
 {
 public:
 
-private:
     class PDFPostScriptFunctionException : public std::exception
     {
     public:
@@ -407,6 +406,11 @@ private:
         Push
     };
 
+    /// Gets the code from the byte array. If byte array contains invalid data,
+    /// then exception is thrown.
+    /// \param byteArray Byte array to be converted to the code
+    static Code getCode(const QByteArray& byteArray);
+
     struct OperandObject
     {
         explicit inline constexpr OperandObject() :
@@ -437,6 +441,8 @@ private:
     struct CodeObject
     {
         explicit inline CodeObject() : code(Code::Return), next(INVALID_INSTRUCTION_POINTER), operand() { }
+        explicit inline CodeObject(OperandObject operand, InstructionPointer next) : code(Code::Push), next(next), operand(std::move(operand)) { }
+        explicit inline CodeObject(Code code, InstructionPointer next) : code(code), next(next), operand() { }
 
         Code code;
         InstructionPointer next;
@@ -444,6 +450,11 @@ private:
     };
 
     using Program = std::vector<CodeObject>;
+
+    static Program parseProgram(const QByteArray& byteArray);
+
+private:
+    Program m_program;
 
     friend class PDFPostScriptFunctionStack;
     friend class PDFPostScriptFunctionExecutor;

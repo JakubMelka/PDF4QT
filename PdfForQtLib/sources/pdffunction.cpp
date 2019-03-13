@@ -1556,4 +1556,154 @@ void PDFPostScriptFunctionStack::checkUnderflow(size_t n) const
     }
 }
 
+PDFPostScriptFunction::Code PDFPostScriptFunction::getCode(const QByteArray& byteArray)
+{
+    static constexpr const std::pair<Code, const  char*> codes[] =
+    {
+        // B.1 Arithmetic operators
+        std::pair<Code, const  char*>{ Code::Add, "add" },
+        std::pair<Code, const  char*>{ Code::Sub, "sub" },
+        std::pair<Code, const  char*>{ Code::Mul, "mul" },
+        std::pair<Code, const  char*>{ Code::Div, "div" },
+        std::pair<Code, const  char*>{ Code::Idiv, "idiv" },
+        std::pair<Code, const  char*>{ Code::Mod, "mod" },
+        std::pair<Code, const  char*>{ Code::Neg, "neg" },
+        std::pair<Code, const  char*>{ Code::Abs, "abs" },
+        std::pair<Code, const  char*>{ Code::Ceiling, "ceiling" },
+        std::pair<Code, const  char*>{ Code::Floor, "floor" },
+        std::pair<Code, const  char*>{ Code::Round, "round" },
+        std::pair<Code, const  char*>{ Code::Truncate, "truncate" },
+        std::pair<Code, const  char*>{ Code::Sqrt, "sqrt" },
+        std::pair<Code, const  char*>{ Code::Sin, "sin" },
+        std::pair<Code, const  char*>{ Code::Cos, "cos" },
+        std::pair<Code, const  char*>{ Code::Atan, "atan" },
+        std::pair<Code, const  char*>{ Code::Exp, "exp" },
+        std::pair<Code, const  char*>{ Code::Ln, "ln" },
+        std::pair<Code, const  char*>{ Code::Log, "log" },
+        std::pair<Code, const  char*>{ Code::Cvi, "cvi" },
+        std::pair<Code, const  char*>{ Code::Cvr, "cvr" },
+
+        // B.2 Relational, Boolean and Bitwise operators
+        std::pair<Code, const  char*>{ Code::Eq, "eq" },
+        std::pair<Code, const  char*>{ Code::Ne, "ne" },
+        std::pair<Code, const  char*>{ Code::Gt, "gt" },
+        std::pair<Code, const  char*>{ Code::Ge, "ge" },
+        std::pair<Code, const  char*>{ Code::Lt, "lt" },
+        std::pair<Code, const  char*>{ Code::Le, "le" },
+        std::pair<Code, const  char*>{ Code::And, "and" },
+        std::pair<Code, const  char*>{ Code::Or, "or" },
+        std::pair<Code, const  char*>{ Code::Xor, "xor" },
+        std::pair<Code, const  char*>{ Code::Not, "not" },
+        std::pair<Code, const  char*>{ Code::Bitshift, "bitshift" },
+        std::pair<Code, const  char*>{ Code::True, "true" },
+        std::pair<Code, const  char*>{ Code::False, "false" },
+
+        // B.3 Conditional operators
+        std::pair<Code, const  char*>{ Code::If, "if" },
+        std::pair<Code, const  char*>{ Code::IfElse, "ifelse" },
+
+        // B.4 Stack operators
+        std::pair<Code, const  char*>{ Code::Pop, "pop" },
+        std::pair<Code, const  char*>{ Code::Exch, "exch" },
+        std::pair<Code, const  char*>{ Code::Dup, "dup" },
+        std::pair<Code, const  char*>{ Code::Copy, "copy" },
+        std::pair<Code, const  char*>{ Code::Index, "index" },
+        std::pair<Code, const  char*>{ Code::Roll, "roll" }
+    };
+
+    for (const std::pair<Code, const  char*>& codeItem : codes)
+    {
+        if (byteArray == codeItem.second)
+        {
+            return codeItem.first;
+        }
+    }
+
+    throw PDFParserException(PDFTranslationContext::tr("Invalid operator (PostScript function) '%1'.").arg(QString::fromLatin1(byteArray)));
+}
+
+PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteArray& byteArray)
+{
+    Program result;
+    PDFLexicalAnalyzer parser(byteArray.constBegin(), byteArray.constEnd());
+
+    std::stack<InstructionPointer> blockCallStack;
+    while (true)
+    {
+        PDFLexicalAnalyzer::Token token = parser.fetch();
+        if (token.type == PDFLexicalAnalyzer::TokenType::EndOfFile)
+        {
+            // We are at end, stop the parsing
+            break;
+        }
+
+        switch (token.type)
+        {
+            case PDFLexicalAnalyzer::TokenType::Boolean:
+            {
+                result.emplace_back(OperandObject::createBoolean(token.data.toBool()), result.size() + 1);
+                break;
+            }
+
+            case PDFLexicalAnalyzer::TokenType::Integer:
+            {
+                result.emplace_back(OperandObject::createInteger(token.data.toLongLong()), result.size() + 1);
+                break;
+            }
+
+            case PDFLexicalAnalyzer::TokenType::Real:
+            {
+                result.emplace_back(OperandObject::createInteger(token.data.toDouble()), result.size() + 1);
+                break;
+            }
+
+            case PDFLexicalAnalyzer::TokenType::Command:
+            {
+                QByteArray command = token.data.toByteArray();
+                if (command == "{")
+                {
+                    // Opening bracket - means start of block
+                    blockCallStack.push(result.size());
+                    result.emplace_back(Code::Call, INVALID_INSTRUCTION_POINTER);
+                    result.back().operand = OperandObject::createInstructionPointer(result.size());
+                }
+                else if (command == "}")
+                {
+                    // Closing bracket - means end of block
+                    if (blockCallStack.empty())
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Invalid program - bad enclosing brackets (PostScript function)."));
+                    }
+
+                    result[blockCallStack.top()].next = result.size() + 1;
+                    blockCallStack.pop();
+                    result.emplace_back(Code::Return, INVALID_INSTRUCTION_POINTER);
+                }
+                else
+                {
+                    result.emplace_back(getCode(command), result.size() + 1);
+                }
+
+                break;
+            }
+
+            default:
+            {
+                // All other tokens treat as invalid.
+                throw PDFParserException(PDFTranslationContext::tr("Invalid program (PostScript function)."));
+            }
+        }
+    }
+
+    if (result.empty())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Empty program (PostScript function)."));
+    }
+
+    // Mark we are at the end of the program
+    result.back().next = INVALID_INSTRUCTION_POINTER;
+
+    return result;
+}
+
 }   // namespace pdf
