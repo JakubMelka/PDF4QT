@@ -51,6 +51,7 @@ private slots:
     void test_sampled_function();
     void test_exponential_function();
     void test_stitching_function();
+    void test_postscript_function();
 
 private:
     void scanWholeStream(const char* stream);
@@ -954,7 +955,81 @@ void LexicalAnalyzerTest::test_stitching_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFParserException);
+                }, pdf::PDFParserException);
+}
+
+void LexicalAnalyzerTest::test_postscript_function()
+{
+    auto makeStream = [](pdf::PDFReal xMin, pdf::PDFReal xMax, pdf::PDFReal yMin, pdf::PDFReal yMax, const char* stream) -> QByteArray
+    {
+        QByteArray result;
+        QDataStream dataStream(&result, QIODevice::WriteOnly);
+
+        QByteArray dictionaryData = (QString(" << /FunctionType 4 ") +
+                                    QString(" /Domain [ %1 %2 ] ").arg(xMin).arg(xMax) +
+                                    QString(" /Range [ %1 %2 ] ").arg(yMin).arg(yMax) +
+                                    QString(" /Length %1 ").arg(std::strlen(stream)) +
+                                    QString(">> stream\n")).toLocal8Bit();
+        QByteArray remainder = " endstream";
+
+        dataStream.writeRawData(dictionaryData.constBegin(), dictionaryData.size());
+        dataStream.writeRawData(stream, int(std::strlen(stream)));
+        dataStream.writeRawData(remainder, remainder.size());
+        return result;
+    };
+
+    auto test01 = [&](const char* program, auto verifyFunction)
+    {
+        QByteArray data = makeStream(0, 1, 0, 1, program);
+
+        pdf::PDFDocument document;
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::AllowStreams);
+        pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
+
+        QVERIFY(function);
+        for (double value = -1.0; value <= 3.0; value += 0.01)
+        {
+            const double clampedValue = qBound(0.0, value, 1.0);
+            const double expected = verifyFunction(clampedValue);
+
+            double actual = 0.0;
+            pdf::PDFFunction::FunctionResult functionResult = function->apply(&value, &value + 1, &actual, &actual + 1);
+
+            if (!functionResult)
+            {
+                qInfo() << qPrintable(QString("Program: %1").arg(QString::fromLatin1(program)));
+                qInfo() << qPrintable(QString("Program execution failed: %1").arg(functionResult.errorMessage));
+                QVERIFY(false);
+            }
+            else
+            {
+                bool isSame = std::abs(expected - actual) < 1e-10;
+                if (!isSame)
+                {
+                    qInfo() << qPrintable(QString("Program: %1").arg(QString::fromLatin1(program)));
+                    qInfo() << qPrintable(QString("    Expected: %1, Actual: %2, input value was: %3").arg(expected).arg(actual).arg(value));
+                }
+
+                QVERIFY(isSame);
+            }
+        }
+    };
+
+    test01("dup mul", [](double x) { return x * x; });
+    test01("1.0 exch sub", [](double x) { return 1.0 - x; });
+    test01("dup add", [](double x) { return qBound(0.0, x + x, 1.0); });
+    test01("dup 1.0 add div", [](double x) { return x / (1.0 + x); });
+    test01("100.0 mul cvi 10 idiv cvr 10.0 div", [](double x) { return static_cast<double>(static_cast<int>(x * 100.0) / 10) / 10.0; });
+    test01("100.0 mul cvi 2 mod cvr 0.5 mul", [](double x) { return (static_cast<int>(x * 100.0) % 2) * 0.5; });
+    test01("neg 1.0 exch add", [](double x) { return 1.0 - x; });
+    test01("neg 0.5 add abs", [](double x) { return std::abs(0.5 - x); });
+    test01("10.0 mul ceiling 10.0 div", [](double x) { return std::ceil(10.0 * x) / 10.0; });
+    test01("10.0 mul floor 10.0 div", [](double x) { return std::floor(10.0 * x) / 10.0; });
+    test01("10.0 mul round 10.0 div", [](double x) { return std::round(10.0 * x) / 10.0; });
+    test01("10.0 mul truncate 10.0 div", [](double x) { return std::trunc(10.0 * x) / 10.0; });
+    test01("sqrt", [](double x) { return std::sqrt(x); });
+    test01("360.0 mul sin 2 div 0.5 add", [](double x) { return std::sin(qDegreesToRadians(360.0 * x)) / 2.0 + 0.5; });
+    test01("360.0 mul cos 2 div 0.5 add", [](double x) { return std::cos(qDegreesToRadians(360.0 * x)) / 2.0 + 0.5; });
 }
 
 void LexicalAnalyzerTest::scanWholeStream(const char* stream)

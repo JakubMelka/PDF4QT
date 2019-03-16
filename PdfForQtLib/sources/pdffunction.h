@@ -451,7 +451,23 @@ public:
 
     using Program = std::vector<CodeObject>;
 
+    /// Construct new postscript function.
+    /// \param m Number of input variables
+    /// \param n Number of output variables
+    /// \param domain Array of 2 x m variables of input range - [x1 min, x1 max, x2 min, x2 max, ... ]
+    /// \param range Array of 2 x n variables of output range - [y1 min, y1 max, y2 min, y2 max, ... ]
+    explicit PDFPostScriptFunction(uint32_t m, uint32_t n, std::vector<PDFReal>&& domain, std::vector<PDFReal>&& range, Program&& program);
+    virtual ~PDFPostScriptFunction() override;
+
+    /// Create a PostScript program from the byte array
     static Program parseProgram(const QByteArray& byteArray);
+
+    /// Transforms input values to the output values.
+    /// \param x_1 Iterator to the first input value
+    /// \param x_n Iterator to the end of the input values (one item after last value)
+    /// \param y_1 Iterator to the first output value
+    /// \param y_n Iterator to the end of the output values (one item after last value)
+    virtual FunctionResult apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const override;
 
 private:
     Program m_program;

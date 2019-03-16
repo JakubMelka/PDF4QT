@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 
 #include <stack>
+#include <iterator>
 #include <type_traits>
 
 namespace pdf
@@ -203,7 +204,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
                 throw PDFParserException(PDFParsingContext::tr("Invalid domain of exponential function."));
             }
 
-            const uint32_t m = 1;
+            constexpr uint32_t m = 1;
 
             // Determine n.
             uint32_t n = static_cast<uint32_t>(std::max({ static_cast<size_t>(1), range.size() / 2, c0.size(), c1.size() }));
@@ -227,7 +228,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
                 throw PDFParserException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 1.0)."));
             }
 
-            return std::make_shared<PDFExponentialFunction>(1, n, std::move(domain), std::move(range), std::move(c0), std::move(c1), exponent);
+            return std::make_shared<PDFExponentialFunction>(m, n, std::move(domain), std::move(range), std::move(c0), std::move(c1), exponent);
         }
         case 3:
         {
@@ -304,6 +305,17 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
         case 4:
         {
             // Postscript function
+            PDFPostScriptFunction::Program program = PDFPostScriptFunction::parseProgram(streamData);
+
+            const uint32_t m = static_cast<uint32_t>(domain.size()) / 2;
+            const uint32_t n = static_cast<uint32_t>(range.size()) / 2;
+
+            if (program.empty())
+            {
+                throw PDFParserException(PDFParsingContext::tr("Empty program in PostScript function."));
+            }
+
+            return std::make_shared<PDFPostScriptFunction>(m, n, std::move(domain), std::move(range), std::move(program));
         }
 
         default:
@@ -718,6 +730,12 @@ public:
     /// Pushes the operand onto the stack
     void push(const OperandObject& operand) { m_stack.push_back(operand); checkOverflow(); }
 
+    /// Returns true, if stack is empty
+    bool empty() const { return m_stack.empty(); }
+
+    /// Returns size of the stack
+    std::size_t size() const { return m_stack.size(); }
+
 private:
     /// Check operand stack overflow (maximum limit is 100, according to the PDF 1.7 specification)
     void checkOverflow() const;
@@ -762,8 +780,8 @@ private:
         }
         else
         {
-            const PDFReal b = m_stack.popReal();
-            const PDFReal a = m_stack.popReal();
+            const PDFReal b = m_stack.popNumber();
+            const PDFReal a = m_stack.popNumber();
             m_stack.pushBoolean(Comparator<PDFReal>()(a, b));
         }
     }
@@ -799,8 +817,8 @@ void PDFPostScriptFunctionExecutor::execute()
                 }
                 else
                 {
-                    const PDFReal b = m_stack.popReal();
-                    const PDFReal a = m_stack.popReal();
+                    const PDFReal b = m_stack.popNumber();
+                    const PDFReal a = m_stack.popNumber();
                     m_stack.pushReal(a + b);
                 }
                 break;
@@ -816,8 +834,8 @@ void PDFPostScriptFunctionExecutor::execute()
                 }
                 else
                 {
-                    const PDFReal b = m_stack.popReal();
-                    const PDFReal a = m_stack.popReal();
+                    const PDFReal b = m_stack.popNumber();
+                    const PDFReal a = m_stack.popNumber();
                     m_stack.pushReal(a - b);
                 }
                 break;
@@ -833,8 +851,8 @@ void PDFPostScriptFunctionExecutor::execute()
                 }
                 else
                 {
-                    const PDFReal b = m_stack.popReal();
-                    const PDFReal a = m_stack.popReal();
+                    const PDFReal b = m_stack.popNumber();
+                    const PDFReal a = m_stack.popNumber();
                     m_stack.pushReal(a * b);
                 }
                 break;
@@ -1072,8 +1090,8 @@ void PDFPostScriptFunctionExecutor::execute()
                 else
                 {
                     // Real values
-                    const PDFReal b = m_stack.popReal();
-                    const PDFReal a = m_stack.popReal();
+                    const PDFReal b = m_stack.popNumber();
+                    const PDFReal a = m_stack.popNumber();
                     m_stack.pushBoolean(a == b);
                 }
 
@@ -1097,8 +1115,8 @@ void PDFPostScriptFunctionExecutor::execute()
                 else
                 {
                     // Real values
-                    const PDFReal b = m_stack.popReal();
-                    const PDFReal a = m_stack.popReal();
+                    const PDFReal b = m_stack.popNumber();
+                    const PDFReal a = m_stack.popNumber();
                     m_stack.pushBoolean(a != b);
                 }
 
@@ -1622,6 +1640,18 @@ PDFPostScriptFunction::Code PDFPostScriptFunction::getCode(const QByteArray& byt
     throw PDFParserException(PDFTranslationContext::tr("Invalid operator (PostScript function) '%1'.").arg(QString::fromLatin1(byteArray)));
 }
 
+PDFPostScriptFunction::PDFPostScriptFunction(uint32_t m, uint32_t n, std::vector<PDFReal>&& domain, std::vector<PDFReal>&& range, PDFPostScriptFunction::Program&& program) :
+    PDFFunction(m, n, std::move(domain), std::move(range)),
+    m_program(std::move(program))
+{
+    Q_ASSERT(!m_program.empty());
+}
+
+PDFPostScriptFunction::~PDFPostScriptFunction()
+{
+
+}
+
 PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteArray& byteArray)
 {
     Program result;
@@ -1653,7 +1683,7 @@ PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteAr
 
             case PDFLexicalAnalyzer::TokenType::Real:
             {
-                result.emplace_back(OperandObject::createInteger(token.data.toDouble()), result.size() + 1);
+                result.emplace_back(OperandObject::createReal(token.data.toDouble()), result.size() + 1);
                 break;
             }
 
@@ -1704,6 +1734,58 @@ PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteAr
     result.back().next = INVALID_INSTRUCTION_POINTER;
 
     return result;
+}
+
+PDFFunction::FunctionResult PDFPostScriptFunction::apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const
+{
+    const size_t m = std::distance(x_1, x_m);
+    const size_t n = std::distance(y_1, y_n);
+
+    if (m != m_m)
+    {
+        return PDFTranslationContext::tr("Invalid number of operands for function. Expected %1, provided %2.").arg(m_m).arg(m);
+    }
+    if (n != m_n)
+    {
+        return PDFTranslationContext::tr("Invalid number of output variables for function. Expected %1, provided %2.").arg(m_n).arg(n);
+    }
+
+    try
+    {
+        PDFPostScriptFunctionStack stack;
+
+        // Insert input values
+        for (uint32_t i = 0; i < m; ++i)
+        {
+            const PDFReal x = *std::next(x_1, i);
+            const PDFReal xClamped = clampInput(i, x);
+            stack.pushReal(xClamped);
+        }
+
+        PDFPostScriptFunctionExecutor executor(m_program, stack);
+        executor.execute();
+
+        uint32_t i = static_cast<uint32_t>(n);
+        auto it = std::make_reverse_iterator(y_n);
+        auto itEnd = std::make_reverse_iterator(y_1);
+        for (; it != itEnd; ++it)
+        {
+            const PDFReal y = stack.popReal();
+            const PDFReal yClamped = clampOutput(--i, y);
+            *it = yClamped;
+        }
+
+        if (!stack.empty())
+        {
+            return PDFTranslationContext::tr("Stack contains more values, than output size (%1 remains) (PostScript function).").arg(stack.size());
+        }
+    }
+    catch (PDFPostScriptFunction::PDFPostScriptFunctionException exception)
+    {
+        return exception.getMessage();
+    }
+
+    return true;
 }
 
 }   // namespace pdf
