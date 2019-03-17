@@ -1030,6 +1030,29 @@ void LexicalAnalyzerTest::test_postscript_function()
     test01("sqrt", [](double x) { return std::sqrt(x); });
     test01("360.0 mul sin 2 div 0.5 add", [](double x) { return std::sin(qDegreesToRadians(360.0 * x)) / 2.0 + 0.5; });
     test01("360.0 mul cos 2 div 0.5 add", [](double x) { return std::cos(qDegreesToRadians(360.0 * x)) / 2.0 + 0.5; });
+    test01("0.2 atan 360.0 div", [](double x) { return qBound(0.0, qRadiansToDegrees(qAtan2(x, 0.2)) / 360.0, 1.0); });
+    test01("0.5 exp", [](double x) { return std::sqrt(x); });
+    test01("2 exp", [](double x) { return x * x; });
+    test01("1 add ln", [](double x) { return std::log(1 + x); });
+    test01("1 add log", [](double x) { return std::log10(1 + x); });
+    test01("dup 0.5 gt { 1.0 exch sub } if", [](double x) { return (x > 0.5) ? (1.0 - x) : x; });
+    test01("dup 0.5 gt { 1.0 exch sub } { 2.0 mul } ifelse", [](double x) { return (x > 0.5) ? (1.0 - x) : (2.0 * x); });
+    test01("0.0 eq { 1.0 } { 0.0 } ifelse", [](double x) { return (x == 0.0) ? 1.0 : 0.0; });
+    test01("0.0 ne { 1.0 } { 0.0 } ifelse", [](double x) { return (x != 0.0) ? 1.0 : 0.0; });
+    test01("0.5 ge { 1.0 } { 0.0 } ifelse", [](double x) { return (x >= 0.5) ? 1.0 : 0.0; });
+    test01("0.5 gt { 1.0 } { 0.0 } ifelse", [](double x) { return (x > 0.5) ? 1.0 : 0.0; });
+    test01("0.5 le { 1.0 } { 0.0 } ifelse", [](double x) { return (x <= 0.5) ? 1.0 : 0.0; });
+    test01("0.5 lt { 1.0 } { 0.0 } ifelse", [](double x) { return (x < 0.5) ? 1.0 : 0.0; });
+    test01("dup 0.25 gt exch 0.75 lt and { 1.0 } { 0.0 } ifelse", [](double x) { return (x > 0.25 && x < 0.75) ? 1.0 : 0.0; });
+    test01("dup 0.25 le exch 0.75 ge or { 1.0 } { 0.0 } ifelse", [](double x) { return !(x > 0.25 && x < 0.75) ? 1.0 : 0.0; });
+    test01("pop true false xor { 1.0 } { 0.0 } ifelse", [](double) { return 1.0; });
+    test01("pop true false xor not { 0.0 } { 1.0 } ifelse", [](double) { return 1.0; });
+    test01("1 2 bitshift cvr div", [](double x) { return x / 4.0; });
+    test01("16 -2 bitshift cvr div", [](double x) { return x / 4.0; });
+    test01("pop 4 3 2 1   3 1 roll 2 eq { 3 eq { 1 eq { 4 eq { 1.0 } { 0.0 } ifelse } { 0.0 } ifelse } { 0.0 } ifelse } { 0.0 } ifelse", [](double) { return 1.0; }); // we should have 4 1 3 2
+    test01("pop 4 3 2 1   3 -1 roll 3 eq { 1 eq { 2 eq { 4 eq { 1.0 } { 0.0 } ifelse } { 0.0 } ifelse } { 0.0 } ifelse } { 0.0 } ifelse", [](double) { return 1.0; }); // we should have 4 2 1 3
+    test01("2.0 2 copy div 3 1 roll exp add", [](double x) { return qBound(0.0, 0.5 * x + std::pow(x, 2.0), 1.0); });
+    test01("2.0 1 index exch div exch pop", [](double x) { return x / 2.0; });
 }
 
 void LexicalAnalyzerTest::scanWholeStream(const char* stream)

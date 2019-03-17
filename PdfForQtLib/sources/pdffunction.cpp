@@ -1523,9 +1523,16 @@ void PDFPostScriptFunctionStack::index(PDFInteger n)
 
 void PDFPostScriptFunctionStack::roll(PDFInteger n, PDFInteger j)
 {
-    if (n == 0 || j == 0)
+    if (n == 0)
     {
         // If n is zero, then we are rolling zero arguments - do nothing
+        return;
+    }
+
+    // If we roll n-times, then we get original sequence
+    j = j % n;
+    if (j == 0)
+    {
         // If j is zero, then we don't roll anything at all - do nothing
         return;
     }
@@ -1543,12 +1550,12 @@ void PDFPostScriptFunctionStack::roll(PDFInteger n, PDFInteger j)
     if (j > 0)
     {
         // Rotate left j times
-        std::rotate(operands.begin(), operands.begin() + j, operands.end());
+        std::rotate(operands.begin(), operands.end() - j, operands.end());
     }
     else
     {
         // Rotate right j times
-        std::rotate(operands.rbegin(), operands.rbegin() - j, operands.rend());
+        std::rotate(operands.rbegin(), operands.rend() + j, operands.rend());
     }
 
     // Load data back from temporary array
