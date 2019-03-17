@@ -75,14 +75,7 @@ void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool
 void PDFPainter::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
 {
     Q_ASSERT(path.fillRule() == fillRule);
-    if (m_painter->hasClipping())
-    {
-        m_painter->setClipPath(path, Qt::IntersectClip);
-    }
-    else
-    {
-        addError(PDFTranslationContext::tr("The paint device doesn't support clipping. Path was not clipped."));
-    }
+    m_painter->setClipPath(path, Qt::IntersectClip);
 }
 
 void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& state)

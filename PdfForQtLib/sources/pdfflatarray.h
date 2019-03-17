@@ -58,6 +58,8 @@ public:
 
     }
 
+    using value_type = T;
+
     /// Returns the size of the array
     size_t size() const { return getFlatBlockSize() + m_variableBlock.size(); }
 

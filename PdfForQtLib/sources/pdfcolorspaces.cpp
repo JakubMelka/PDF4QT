@@ -168,6 +168,11 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     return PDFIndexedColorSpace::createIndexedColorSpace(colorSpaceDictionary, document, array, recursion);
                 }
 
+                if (name == COLOR_SPACE_NAME_SEPARATION && count == 4)
+                {
+                    return PDFSeparationColorSpace::createSeparationColorSpace(colorSpaceDictionary, document, array, recursion);
+                }
+
                 // Try to just load by standard way - we can have "standard" color space stored in array
                 return createColorSpaceImpl(colorSpaceDictionary, document, colorSpaceIdentifier, recursion);
             }
@@ -626,6 +631,81 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
     }
 
     return PDFColorSpacePointer(new PDFIndexedColorSpace(qMove(baseColorSpace), qMove(colors), maxValue));
+}
+
+PDFSeparationColorSpace::PDFSeparationColorSpace(QByteArray&& colorName, PDFColorSpacePointer alternateColorSpace, PDFFunctionPtr tintTransform) :
+    m_colorName(qMove(colorName)),
+    m_alternateColorSpace(qMove(alternateColorSpace)),
+    m_tintTransform(qMove(tintTransform))
+{
+
+}
+
+QColor PDFSeparationColorSpace::getDefaultColor() const
+{
+    return getColor(PDFColor(0.0f));
+}
+
+QColor PDFSeparationColorSpace::getColor(const PDFColor& color) const
+{
+    // Separation color space value must have exactly one component!
+    Q_ASSERT(color.size() == 1);
+
+    // Input value
+    double tint = color.back();
+
+    // Output values
+    std::vector<double> outputColor;
+    outputColor.resize(m_alternateColorSpace->getColorComponentCount(), 0.0);
+    PDFFunction::FunctionResult result = m_tintTransform->apply(&tint, &tint + 1, outputColor.data(), outputColor.data() + outputColor.size());
+
+    if (result)
+    {
+        PDFColor color;
+        std::for_each(outputColor.cbegin(), outputColor.cend(), [&color](double value) { color.push_back(static_cast<float>(value)); });
+        return m_alternateColorSpace->getColor(color);
+    }
+    else
+    {
+        // Return invalid color
+        return QColor();
+    }
+}
+
+size_t PDFSeparationColorSpace::getColorComponentCount() const
+{
+    return 1;
+}
+
+PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                                         const PDFDocument* document,
+                                                                         const PDFArray* array,
+                                                                         int recursion)
+{
+    Q_ASSERT(array->getCount() == 4);
+
+    // Read color name
+    const PDFObject& colorNameObject = document->getObject(array->getItem(1));
+    if (!colorNameObject.isName())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't determine color name for separation color space."));
+    }
+    QByteArray colorName = colorNameObject.getString();
+
+    // Read alternate color space
+    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion);
+    if (!alternateColorSpace)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't determine alternate color space for separation color space."));
+    }
+
+    PDFFunctionPtr tintTransform = PDFFunction::createFunction(document, array->getItem(3));
+    if (!tintTransform)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't determine tint transform for separation color space."));
+    }
+
+    return PDFColorSpacePointer(new PDFSeparationColorSpace(qMove(colorName), qMove(alternateColorSpace), qMove(tintTransform)));
 }
 
 }   // namespace pdf

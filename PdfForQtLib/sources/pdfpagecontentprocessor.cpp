@@ -311,10 +311,12 @@ void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
         }
         catch (PDFParserException exception)
         {
+            m_operands.clear();
             m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
         }
         catch (PDFRendererException exception)
         {
+            m_operands.clear();
             m_errorList.append(exception.getError());
         }
     }
@@ -1061,12 +1063,14 @@ void PDFPageContentProcessor::operatorEndSubpath()
 
 void PDFPageContentProcessor::operatorRectangle(PDFReal x, PDFReal y, PDFReal width, PDFReal height)
 {
-    if (width < 0 || height < 0)
-    {
-        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid size of rectangle (%1 x %2).").arg(width).arg(height));
-    }
+    const PDFReal xMin = qMin(x, x + width);
+    const PDFReal xMax = qMax(x, x + width);
+    const PDFReal yMin = qMin(y, y + height);
+    const PDFReal yMax = qMax(y, y + height);
+    const PDFReal correctedWidth = xMax - xMin;
+    const PDFReal correctedHeight = yMax - yMin;
 
-    m_currentPath.addRect(QRectF(x, y, width, height));
+    m_currentPath.addRect(QRectF(xMin, yMin, correctedWidth, correctedHeight));
 }
 
 void PDFPageContentProcessor::operatorPathStroke()
@@ -1233,8 +1237,10 @@ void PDFPageContentProcessor::operatorColorSetStrokingColor()
 
 void PDFPageContentProcessor::operatorColorSetStrokingColorN()
 {
-    // TODO: Implement operator SCN
-    throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented!"));
+    // In our implementation, operator 'SC' can also set color using all color spaces
+    // PDF reference 1.7 allows here Pattern, Separation, DeviceN and ICCBased color spaces here,
+    // but default operator can use them (with exception of Pattern color space).
+    operatorColorSetStrokingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetFillingColor()
@@ -1261,8 +1267,10 @@ void PDFPageContentProcessor::operatorColorSetFillingColor()
 
 void PDFPageContentProcessor::operatorColorSetFillingColorN()
 {
-    // TODO: Implement operator scn
-    throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented!"));
+    // In our implementation, operator 'sc' can also set color using all color spaces
+    // PDF reference 1.7 allows here Pattern, Separation, DeviceN and ICCBased color spaces here,
+    // but default operator can use them (with exception of Pattern color space).
+    operatorColorSetFillingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)

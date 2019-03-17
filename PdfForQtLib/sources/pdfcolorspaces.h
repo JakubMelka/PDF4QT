@@ -19,6 +19,7 @@
 #define PDFCOLORSPACES_H
 
 #include "pdfflatarray.h"
+#include "pdffunction.h"
 
 #include <QColor>
 #include <QSharedPointer>
@@ -57,6 +58,7 @@ static constexpr const char* COLOR_SPACE_NAME_CAL_RGB = "CalRGB";
 static constexpr const char* COLOR_SPACE_NAME_LAB = "Lab";
 static constexpr const char* COLOR_SPACE_NAME_ICCBASED = "ICCBased";
 static constexpr const char* COLOR_SPACE_NAME_INDEXED = "Indexed";
+static constexpr const char* COLOR_SPACE_NAME_SEPARATION = "Separation";
 
 static constexpr const char* CAL_WHITE_POINT = "WhitePoint";
 static constexpr const char* CAL_BLACK_POINT = "BlackPoint";
@@ -284,7 +286,7 @@ protected:
 class PDFCalGrayColorSpace : public PDFXYZColorSpace
 {
 public:
-    explicit inline PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent gamma);
+    explicit PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent gamma);
     virtual ~PDFCalGrayColorSpace() = default;
 
     virtual QColor getColor(const PDFColor& color) const override;
@@ -303,7 +305,7 @@ private:
 class PDFCalRGBColorSpace : public PDFXYZColorSpace
 {
 public:
-    explicit inline PDFCalRGBColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColor3 gamma, PDFColorComponentMatrix_3x3 matrix);
+    explicit PDFCalRGBColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColor3 gamma, PDFColorComponentMatrix_3x3 matrix);
     virtual ~PDFCalRGBColorSpace() = default;
 
     virtual QColor getColor(const PDFColor& color) const override;
@@ -323,7 +325,7 @@ private:
 class PDFLabColorSpace : public PDFXYZColorSpace
 {
 public:
-    explicit inline PDFLabColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent aMin, PDFColorComponent aMax, PDFColorComponent bMin, PDFColorComponent bMax);
+    explicit PDFLabColorSpace(PDFColor3 whitePoint, PDFColor3 blackPoint, PDFColorComponent aMin, PDFColorComponent aMax, PDFColorComponent bMin, PDFColorComponent bMax);
     virtual ~PDFLabColorSpace() = default;
 
     virtual QColor getColor(const PDFColor& color) const override;
@@ -349,7 +351,7 @@ private:
     using Ranges = std::array<PDFColorComponent, MAX_COLOR_COMPONENTS * 2>;
 
 public:
-    explicit inline PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range);
+    explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range);
     virtual ~PDFICCBasedColorSpace() = default;
 
     virtual QColor getDefaultColor() const override;
@@ -371,7 +373,7 @@ private:
 class PDFIndexedColorSpace : public PDFAbstractColorSpace
 {
 public:
-    explicit inline PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue);
+    explicit PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue);
     virtual ~PDFIndexedColorSpace() = default;
 
     virtual QColor getDefaultColor() const override;
@@ -394,7 +396,29 @@ private:
     int m_maxValue;
 };
 
-// TODO: Implement Separation color space
+class PDFSeparationColorSpace : public PDFAbstractColorSpace
+{
+public:
+    explicit PDFSeparationColorSpace(QByteArray&& colorName, PDFColorSpacePointer alternateColorSpace, PDFFunctionPtr tintTransform);
+    virtual ~PDFSeparationColorSpace() = default;
+
+    virtual QColor getDefaultColor() const override;
+    virtual QColor getColor(const PDFColor& color) const override;
+    virtual size_t getColorComponentCount() const override;
+
+    /// Creates separation color space from provided values.
+    /// \param colorSpaceDictionary Color space dictionary
+    /// \param document Document
+    /// \param array Array with separation color space definition
+    /// \param recursion Recursion guard
+    static PDFColorSpacePointer createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFArray* array, int recursion);
+
+private:
+    QByteArray m_colorName;
+    PDFColorSpacePointer m_alternateColorSpace;
+    PDFFunctionPtr m_tintTransform;
+};
+
 // TODO: Implement DeviceN color space
 // TODO: Implement Pattern color space
 
