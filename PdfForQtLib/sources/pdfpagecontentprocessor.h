@@ -21,6 +21,7 @@
 #include "pdfrenderer.h"
 #include "pdfparser.h"
 #include "pdfcolorspaces.h"
+#include "pdffont.h"
 
 #include <QMatrix>
 #include <QPainterPath>
@@ -113,7 +114,7 @@ public:
 
         // Text positioning:           Td, TD, Tm, T*
         TextMoveByOffset,                   ///< Td, move by offset
-        TextSetLeadingAndMoveByOffset,      ///< TD, sets thext leading and moves by offset, x y TD is equivalent to sequence -y TL x y Td
+        TextSetLeadingAndMoveByOffset,      ///< TD, sets text leading and moves by offset, x y TD is equivalent to sequence -y TL x y Td
         TextSetMatrix,                      ///< Tm, set text matrix
         TextMoveByLeading,                  ///< T*, moves text by leading, equivalent to 0 leading Td
 
@@ -214,20 +215,31 @@ protected:
 
         enum StateFlag
         {
-            StateUnchanged                      = 0x0000,
-            StateCurrentTransformationMatrix    = 0x0001,
-            StateStrokeColorSpace               = 0x0002,
-            StateFillColorSpace                 = 0x0004,
-            StateStrokeColor                    = 0x0008,
-            StateFillColor                      = 0x0010,
-            StateLineWidth                      = 0x0020,
-            StateLineCapStyle                   = 0x0040,
-            StateLineJoinStyle                  = 0x0080,
-            StateMitterLimit                    = 0x0100,
-            StateLineDashPattern                = 0x0200,
-            StateRenderingIntent                = 0x0400,
-            StateFlatness                       = 0x0800,
-            StateSmoothness                     = 0x1000,
+            StateUnchanged                      = 0x00000000,
+            StateCurrentTransformationMatrix    = 0x00000001,
+            StateStrokeColorSpace               = 0x00000002,
+            StateFillColorSpace                 = 0x00000004,
+            StateStrokeColor                    = 0x00000008,
+            StateFillColor                      = 0x00000010,
+            StateLineWidth                      = 0x00000020,
+            StateLineCapStyle                   = 0x00000040,
+            StateLineJoinStyle                  = 0x00000080,
+            StateMitterLimit                    = 0x00000100,
+            StateLineDashPattern                = 0x00000200,
+            StateRenderingIntent                = 0x00000400,
+            StateFlatness                       = 0x00000800,
+            StateSmoothness                     = 0x00001000,
+            StateTextMatrix                     = 0x00002000,
+            StateTextLineMatrix                 = 0x00004000,
+            StateTextCharacterSpacing           = 0x00008000,
+            StateTextWordSpacing                = 0x00010000,
+            StateTextHorizontalScaling          = 0x00020000,
+            StateTextLeading                    = 0x00040000,
+            StateTextFont                       = 0x00080000,
+            StateTextFontSize                   = 0x00100000,
+            StateTextRenderingMode              = 0x00200000,
+            StateTextRise                       = 0x00400000,
+            StateTextKnockout                   = 0x00800000,
             StateAll                            = 0xFFFF
         };
 
@@ -258,7 +270,7 @@ protected:
         void setLineJoinStyle(Qt::PenJoinStyle lineJoinStyle);
 
         PDFReal getMitterLimit() const { return m_mitterLimit; }
-        void setMitterLimit(const PDFReal& mitterLimit);
+        void setMitterLimit(PDFReal mitterLimit);
 
         const PDFLineDashPattern& getLineDashPattern() const { return m_lineDashPattern; }
         void setLineDashPattern(PDFLineDashPattern pattern);
@@ -275,6 +287,39 @@ protected:
         StateFlags getStateFlags() const { return m_stateFlags; }
         void setStateFlags(StateFlags stateFlags) { m_stateFlags = stateFlags; }
 
+        PDFReal getTextCharacterSpacing() const { return m_textCharacterSpacing; }
+        void setTextCharacterSpacing(PDFReal textCharacterSpacing);
+
+        PDFReal getTextWordSpacing() const { return m_textWordSpacing; }
+        void setTextWordSpacing(PDFReal textWordSpacing);
+
+        PDFReal getTextHorizontalScaling() const { return m_textHorizontalScaling; }
+        void setTextHorizontalScaling(PDFReal textHorizontalScaling);
+
+        PDFReal getTextLeading() const { return m_textLeading; }
+        void setTextLeading(PDFReal textLeading);
+
+        const PDFFontPointer& getTextFont() const { return m_textFont; }
+        void setTextFont(const PDFFontPointer& textFont);
+
+        PDFReal getTextFontSize() const { return m_textFontSize; }
+        void setTextFontSize(PDFReal textFontSize);
+
+        TextRenderingMode getTextRenderingMode() const { return m_textRenderingMode; }
+        void setTextRenderingMode(TextRenderingMode textRenderingMode);
+
+        PDFReal getTextRise() const { return m_textRise; }
+        void setTextRise(PDFReal textRise);
+
+        bool getTextKnockout() const { return m_textKnockout; }
+        void setTextKnockout(bool textKnockout);
+
+        const QMatrix& getTextMatrix() const { return m_textMatrix; }
+        void setTextMatrix(const QMatrix& textMatrix);
+
+        const QMatrix& getTextLineMatrix() const { return m_textLineMatrix; }
+        void setTextLineMatrix(const QMatrix& textLineMatrix);
+
     private:
         QMatrix m_currentTransformationMatrix;
         PDFColorSpacePointer m_strokeColorSpace;
@@ -289,6 +334,17 @@ protected:
         QByteArray m_renderingIntent;
         PDFReal m_flatness;
         PDFReal m_smoothness;
+        PDFReal m_textCharacterSpacing; // T_c
+        PDFReal m_textWordSpacing;  // T_w
+        PDFReal m_textHorizontalScaling; // T_h, percentage
+        PDFReal m_textLeading; // T_l
+        PDFFontPointer m_textFont; // Text font
+        PDFReal m_textFontSize; // T_fs
+        TextRenderingMode m_textRenderingMode; // Text rendering mode
+        PDFReal m_textRise; // T_rise
+        bool m_textKnockout;
+        QMatrix m_textMatrix;
+        QMatrix m_textLineMatrix;
         StateFlags m_stateFlags;
     };
 
@@ -475,6 +531,25 @@ private:
     void operatorColorSetDeviceCMYKStroking(PDFReal c, PDFReal m, PDFReal y, PDFReal k);    ///< K, set DeviceCMYK color space for stroking color and set color
     void operatorColorSetDeviceCMYKFilling(PDFReal c, PDFReal m, PDFReal y, PDFReal k);     ///< k, set DeviceCMYK color space for filling color and set color
 
+    // Text object:                BT, ET
+    void operatorTextBegin();                          ///< BT, begin text object, initialize text matrices, cannot be nested
+    void operatorTextEnd();                            ///< ET, end text object, cannot be nested
+
+    // Text state:                 Tc, Tw, Tz, TL, Tf, Tr, Ts
+    void operatorTextSetCharacterSpacing(PDFReal charSpacing);                  ///< Tc, set text character spacing
+    void operatorTextSetWordSpacing(PDFReal wordSpacing);                       ///< Tw, set text word spacing
+    void operatorTextSetHorizontalScale(PDFReal horizontalScaling);             ///< Tz, set text horizontal scaling (in percents, 100% = normal scaling)
+    void operatorTextSetLeading(PDFReal leading);                               ///< TL, set text leading
+    void operatorTextSetFontAndFontSize(PDFName fontName, PDFReal fontSize);    ///< Tf, set text font (name from dictionary) and its size
+    void operatorTextSetRenderMode(PDFInteger mode);                            ///< Tr, set text render mode
+    void operatorTextSetRise(PDFReal rise);                                     ///< Ts, set text rise
+
+    // Text positioning:           Td, TD, Tm, T*
+    void operatorTextMoveByOffset(PDFReal t_x, PDFReal t_y);                                        ///< Td, move by offset
+    void operatorTextSetLeadingAndMoveByOffset(PDFReal t_x, PDFReal t_y);                           ///< TD, sets text leading and moves by offset, x y TD is equivalent to sequence -y TL x y Td
+    void operatorTextSetMatrix(PDFReal a, PDFReal b, PDFReal c, PDFReal d, PDFReal e, PDFReal f);   ///< Tm, set text matrix
+    void operatorTextMoveByLeading();                                                               ///< T*, moves text by leading, equivalent to 0 leading Td
+
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFDictionary* m_colorSpaceDictionary;
@@ -498,6 +573,9 @@ private:
 
     /// Current painter path
     QPainterPath m_currentPath;
+
+    /// Nesting level of the begin/end of text object
+    int m_textBeginEndState;
 };
 
 }   // namespace pdf

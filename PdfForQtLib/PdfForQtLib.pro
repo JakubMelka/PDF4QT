@@ -53,7 +53,9 @@ SOURCES += \
     sources/pdfpagecontentprocessor.cpp \
     sources/pdfpainter.cpp \
     sources/pdfrenderingerrorswidget.cpp \
-    sources/pdffunction.cpp
+    sources/pdffunction.cpp \
+    sources/pdfnametounicode.cpp \
+    sources/pdffont.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -79,7 +81,9 @@ HEADERS += \
     sources/pdfpainter.h \
     sources/pdfutils.h \
     sources/pdfrenderingerrorswidget.h \
-    sources/pdffunction.h
+    sources/pdffunction.h \
+    sources/pdfnametounicode.h \
+    sources/pdffont.h
 
 unix {
     target.path = /usr/lib

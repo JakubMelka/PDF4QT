@@ -288,6 +288,18 @@ PDFReal PDFDocumentDataLoaderDecorator::readNumber(const PDFObject& object, PDFR
     return defaultValue;
 }
 
+bool PDFDocumentDataLoaderDecorator::readBoolean(const PDFObject& object, bool defaultValue) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+
+    if (dereferencedObject.isBool())
+    {
+        return dereferencedObject.getBool();
+    }
+
+    return defaultValue;
+}
+
 QString PDFDocumentDataLoaderDecorator::readTextString(const PDFObject& object, const QString& defaultValue) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
@@ -434,6 +446,16 @@ std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const P
     }
 
     return std::vector<PDFInteger>();
+}
+
+bool PDFDocumentDataLoaderDecorator::readBooleanFromDictionary(const PDFDictionary* dictionary, const char* key, bool defaultValue) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readBoolean(dictionary->get(key), defaultValue);
+    }
+
+    return defaultValue;
 }
 
 }   // namespace pdf

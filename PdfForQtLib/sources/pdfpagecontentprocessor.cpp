@@ -152,7 +152,8 @@ static constexpr const std::pair<const char*, PDFPageContentProcessor::Operator>
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document) :
     m_page(page),
     m_document(document),
-    m_colorSpaceDictionary(nullptr)
+    m_colorSpaceDictionary(nullptr),
+    m_textBeginEndState(0)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
@@ -597,6 +598,97 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
             break;
         }
 
+        case Operator::TextBegin:
+        {
+            // BT, begin text object, initialize text matrices, cannot be nested
+            operatorTextBegin();
+            break;
+        }
+
+        case Operator::TextEnd:
+        {
+            // ET, end text object, cannot be nested
+            operatorTextEnd();
+            break;
+        }
+
+        case Operator::TextSetCharacterSpacing:
+        {
+            // Tc, set text character spacing
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetCharacterSpacing);
+            break;
+        }
+
+        case Operator::TextSetWordSpacing:
+        {
+            // Tw, set text word spacing
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetWordSpacing);
+            break;
+        }
+
+        case Operator::TextSetHorizontalScale:
+        {
+            // Tz, set text horizontal scaling (in percents, 100% = normal scaling)
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetHorizontalScale);
+            break;
+        }
+
+        case Operator::TextSetLeading:
+        {
+            // TL, set text leading
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetLeading);
+            break;
+        }
+
+        case Operator::TextSetFontAndFontSize:
+        {
+            // Tf, set text font (name from dictionary) and its size
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetFontAndFontSize);
+            break;
+        }
+
+        case Operator::TextSetRenderMode:
+        {
+            // Tr, set text render mode
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetRenderMode);
+            break;
+        }
+
+        case Operator::TextSetRise:
+        {
+            // Ts, set text rise
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetRise);
+            break;
+        }
+
+        case Operator::TextMoveByOffset:
+        {
+            // Td, move by offset
+            invokeOperator(&PDFPageContentProcessor::operatorTextMoveByOffset);
+            break;
+        }
+
+        case Operator::TextSetLeadingAndMoveByOffset:
+        {
+            // TD, sets text leading and moves by offset, x y TD is equivalent to sequence -y TL x y Td
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetLeadingAndMoveByOffset);
+            break;
+        }
+
+        case Operator::TextSetMatrix:
+        {
+            // Tm, set text matrix
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetMatrix);
+            break;
+        }
+
+        case Operator::TextMoveByLeading:
+        {
+            // T*, moves text by leading, equivalent to 0 leading Td
+            operatorTextMoveByLeading();
+            break;
+        }
+
         case Operator::Invalid:
         {
             m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Unknown operator '%1'.").arg(QString::fromLatin1(command))));
@@ -867,6 +959,7 @@ void PDFPageContentProcessor::operatorSetGraphicState(PDFName dictionaryName)
 
                         const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
                         const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
+                        const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
 
                         m_graphicState.setLineWidth(lineWidth);
                         m_graphicState.setLineCapStyle(penCapStyle);
@@ -874,6 +967,7 @@ void PDFPageContentProcessor::operatorSetGraphicState(PDFName dictionaryName)
                         m_graphicState.setMitterLimit(mitterLimit);
                         m_graphicState.setFlatness(flatness);
                         m_graphicState.setSmoothness(smoothness);
+                        m_graphicState.setTextKnockout(textKnockout);
                         updateGraphicState();
                     }
                     else
@@ -1315,6 +1409,130 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFRe
     updateGraphicState();
 }
 
+void PDFPageContentProcessor::operatorTextBegin()
+{
+    m_graphicState.setTextMatrix(QMatrix());
+    m_graphicState.setTextLineMatrix(QMatrix());
+    updateGraphicState();
+
+    ++m_textBeginEndState;
+
+    if (m_textBeginEndState > 1)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Text object already started."));
+    }
+}
+
+void PDFPageContentProcessor::operatorTextEnd()
+{
+    if (--m_textBeginEndState < 0)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Text object ended more than once."));
+    }
+}
+
+void PDFPageContentProcessor::operatorTextSetCharacterSpacing(PDFReal charSpacing)
+{
+    m_graphicState.setTextCharacterSpacing(charSpacing);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextSetWordSpacing(PDFReal wordSpacing)
+{
+    m_graphicState.setTextWordSpacing(wordSpacing);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextSetHorizontalScale(PDFReal horizontalScaling)
+{
+    // We disable horizontal scaling to less than 1%
+    horizontalScaling = qMax(horizontalScaling, 1.0);
+
+    m_graphicState.setTextHorizontalScaling(horizontalScaling / 100.0);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextSetLeading(PDFReal leading)
+{
+    m_graphicState.setTextLeading(leading);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFPageContentProcessor::PDFName fontName, PDFReal fontSize)
+{
+    Q_UNUSED(fontName);
+    Q_UNUSED(fontSize);
+
+    // TODO: Implement this operator
+    throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Set font not implemented."));
+}
+
+void PDFPageContentProcessor::operatorTextSetRenderMode(PDFInteger mode)
+{
+    mode = qBound<PDFInteger>(0, mode, 7);
+    m_graphicState.setTextRenderingMode(static_cast<TextRenderingMode>(mode));
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextSetRise(PDFReal rise)
+{
+    m_graphicState.setTextRise(rise);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextMoveByOffset(PDFReal t_x, PDFReal t_y)
+{
+    const QMatrix& textLineMatrix = m_graphicState.getTextLineMatrix();
+
+    QMatrix translationMatrix;
+    translationMatrix.translate(t_x, t_y);
+
+    QMatrix resultMatrix = textLineMatrix * translationMatrix;
+    m_graphicState.setTextMatrix(resultMatrix);
+    m_graphicState.setTextLineMatrix(resultMatrix);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextSetLeadingAndMoveByOffset(PDFReal t_x, PDFReal t_y)
+{
+    // Update of graphic state is
+    m_graphicState.setTextLeading(-t_y);
+    operatorTextMoveByOffset(t_x, t_y);
+}
+
+void PDFPageContentProcessor::operatorTextSetMatrix(PDFReal a, PDFReal b, PDFReal c, PDFReal d, PDFReal e, PDFReal f)
+{
+    // We will comment following equation:
+    //  Adobe PDF Reference 1.7 says, that we have this transformation using coefficient a, b, c, d, e and f:
+    //                             [ a, b, 0 ]
+    //  [x', y', 1] = [ x, y, 1] * [ c, d, 0 ]
+    //                             [ e, f, 1 ]
+    // If we transpose this equation (we want this, because Qt uses transposed matrices (QMatrix).
+    // So, we will get following result:
+    //
+    // [ x' ]   [ a, c, e]    [ x ]
+    // [ y' ] = [ b, d, f] *  [ y ]
+    // [ 1  ]   [ 0, 0, 1]    [ 1 ]
+    //
+    // So, it is obvious, than we will have following coefficients:
+    //  m_11 = a, m_21 = c, dx = e
+    //  m_12 = b, m_22 = d, dy = f
+    //
+    // We must also check, that matrix is invertible. If it is not, then we will throw exception
+    // to avoid errors later (for some operations, we assume matrix is invertible).
+
+    QMatrix matrix(a, b, c, d, e, f);
+
+    m_graphicState.setTextMatrix(matrix);
+    m_graphicState.setTextLineMatrix(matrix);
+    updateGraphicState();
+}
+
+void PDFPageContentProcessor::operatorTextMoveByLeading()
+{
+    operatorTextMoveByOffset(0.0, m_graphicState.getTextLeading());
+}
+
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
     m_currentTransformationMatrix(),
     m_fillColorSpace(),
@@ -1328,6 +1546,14 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_renderingIntent(),
     m_flatness(1.0),
     m_smoothness(0.01),
+    m_textCharacterSpacing(0.0),
+    m_textWordSpacing(0.0),
+    m_textHorizontalScaling(100.0),
+    m_textLeading(0.0),
+    m_textFontSize(0.0),
+    m_textRenderingMode(TextRenderingMode::Fill),
+    m_textRise(0.0),
+    m_textKnockout(true),
     m_stateFlags(StateUnchanged)
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
@@ -1354,6 +1580,17 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setRenderingIntent(other.getRenderingIntent());
     setFlatness(other.getFlatness());
     setSmoothness(other.getSmoothness());
+    setTextCharacterSpacing(other.getTextCharacterSpacing());
+    setTextWordSpacing(other.getTextWordSpacing());
+    setTextHorizontalScaling(other.getTextHorizontalScaling());
+    setTextLeading(other.getTextLeading());
+    setTextFont(other.getTextFont());
+    setTextFontSize(other.getTextFontSize());
+    setTextRenderingMode(other.getTextRenderingMode());
+    setTextRise(other.getTextRise());
+    setTextKnockout(other.getTextKnockout());
+    setTextMatrix(other.getTextMatrix());
+    setTextLineMatrix(other.getTextLineMatrix());
     return *this;
 }
 
@@ -1429,7 +1666,7 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setLineJoinStyle(Qt:
     }
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setMitterLimit(const PDFReal& mitterLimit)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setMitterLimit(PDFReal mitterLimit)
 {
     if (m_mitterLimit != mitterLimit)
     {
@@ -1471,6 +1708,105 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setSmoothness(PDFRea
     {
         m_smoothness = smoothness;
         m_stateFlags |= StateSmoothness;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextLeading(PDFReal textLeading)
+{
+    if (m_textLeading != textLeading)
+    {
+        m_textLeading = textLeading;
+        m_stateFlags |= StateTextLeading;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextFontSize(PDFReal textFontSize)
+{
+    if (m_textFontSize != textFontSize)
+    {
+        m_textFontSize = textFontSize;
+        m_stateFlags |= StateTextFontSize;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextKnockout(bool textKnockout)
+{
+    if (m_textKnockout != textKnockout)
+    {
+        m_textKnockout = textKnockout;
+        m_stateFlags |= StateTextKnockout;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextLineMatrix(const QMatrix& textLineMatrix)
+{
+    if (m_textLineMatrix != textLineMatrix)
+    {
+        m_textLineMatrix = textLineMatrix;
+        m_stateFlags |= StateTextLineMatrix;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextMatrix(const QMatrix& textMatrix)
+{
+    if (m_textMatrix != textMatrix)
+    {
+        m_textMatrix = textMatrix;
+        m_stateFlags |= StateTextMatrix;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextRise(PDFReal textRise)
+{
+    if (m_textRise != textRise)
+    {
+        m_textRise = textRise;
+        m_stateFlags |= StateTextRise;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextRenderingMode(TextRenderingMode textRenderingMode)
+{
+    if (m_textRenderingMode != textRenderingMode)
+    {
+        m_textRenderingMode = textRenderingMode;
+        m_stateFlags |= StateTextRenderingMode;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextFont(const PDFFontPointer& textFont)
+{
+    if (m_textFont != textFont)
+    {
+        m_textFont = textFont;
+        m_stateFlags |= StateTextFont;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextHorizontalScaling(PDFReal textHorizontalScaling)
+{
+    if (m_textHorizontalScaling != textHorizontalScaling)
+    {
+        m_textHorizontalScaling = textHorizontalScaling;
+        m_stateFlags |= StateTextHorizontalScaling;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextWordSpacing(PDFReal textWordSpacing)
+{
+    if (m_textWordSpacing != textWordSpacing)
+    {
+        m_textWordSpacing = textWordSpacing;
+        m_stateFlags |= StateTextWordSpacing;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextCharacterSpacing(PDFReal textCharacterSpacing)
+{
+    if (m_textCharacterSpacing != textCharacterSpacing)
+    {
+        m_textCharacterSpacing = textCharacterSpacing;
+        m_stateFlags |= StateTextCharacterSpacing;
     }
 }
 

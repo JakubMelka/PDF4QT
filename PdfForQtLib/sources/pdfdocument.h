@@ -98,6 +98,11 @@ public:
     /// \param defaultValue Default value
     PDFReal readNumber(const PDFObject& object, PDFReal defaultValue) const;
 
+    /// Reads a boolean from the object, if it is possible.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    /// \param defaultValue Default value
+    bool readBoolean(const PDFObject& object, bool defaultValue) const;
+
     /// Reads a text string from the object, if it is possible.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
     /// \param defaultValue Default value
@@ -205,6 +210,12 @@ public:
     /// if \p object is invalid.
     /// \param object Object containing array of numbers
     std::vector<PDFInteger> readIntegerArray(const PDFObject& object) const;
+
+    /// Reads boolean from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    /// \param defaultValue Default value
+    bool readBooleanFromDictionary(const PDFDictionary* dictionary, const char* key, bool defaultValue) const;
 
 private:
     const PDFDocument* m_document;
