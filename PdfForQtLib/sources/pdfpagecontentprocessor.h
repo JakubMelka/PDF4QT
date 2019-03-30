@@ -22,8 +22,10 @@
 #include "pdfparser.h"
 #include "pdfcolorspaces.h"
 #include "pdffont.h"
+#include "pdfutils.h"
 
 #include <QMatrix>
+#include <QRawFont>
 #include <QPainterPath>
 #include <QSharedPointer>
 
@@ -348,6 +350,28 @@ protected:
         StateFlags m_stateFlags;
     };
 
+    /// Item of the text sequence (either single character, or advance)
+    struct TextSequenceItem
+    {
+        inline explicit TextSequenceItem() = default;
+        inline explicit TextSequenceItem(QChar character) : character(character), advance(0) { }
+        inline explicit TextSequenceItem(PDFInteger advance) : character(), advance(advance) { }
+
+        inline bool isCharacter() const { return !character.isNull(); }
+        inline bool isAdvance() const { return advance != 0; }
+        inline bool isNull() const { return !isCharacter() && !isAdvance(); }
+
+        QChar character;
+        PDFInteger advance = 0;
+    };
+
+    struct TextSequence
+    {
+        static TextSequence fromString(const QString& string);
+
+        std::vector<TextSequenceItem> items;
+    };
+
     enum class ProcessOrder
     {
         BeforeOperation,
@@ -398,9 +422,15 @@ private:
     void processCommand(const QByteArray& command);
 
     /// Wrapper for PDF Name
-    struct PDFName
+    struct PDFOperandName
     {
         QByteArray name;
+    };
+
+    /// Wrapper for PDF String
+    struct PDFOperandString
+    {
+        QByteArray string;
     };
 
     template<typename T>
@@ -413,7 +443,10 @@ private:
     PDFInteger readOperand<PDFInteger>(size_t index) const;
 
     template<>
-    PDFName readOperand<PDFName>(size_t index) const;
+    PDFOperandName readOperand<PDFOperandName>(size_t index) const;
+
+    template<>
+    PDFOperandString readOperand<PDFOperandString>(size_t index) const;
 
     template<size_t index, typename T>
     inline T readOperand() const { return readOperand<T>(index); }
@@ -484,9 +517,9 @@ private:
     void operatorSetLineJoin(PDFInteger lineJoin);          ///< j, sets the line join
     void operatorSetMitterLimit(PDFReal mitterLimit);       ///< M, sets the mitter limit
     void operatorSetLineDashPattern();                      ///< d, sets the line dash pattern
-    void operatorSetRenderingIntent(PDFName intent);        ///< ri, sets the rendering intent
+    void operatorSetRenderingIntent(PDFOperandName intent);        ///< ri, sets the rendering intent
     void operatorSetFlatness(PDFReal flatness);             ///< i, sets the flattness (number in range from 0 to 100)
-    void operatorSetGraphicState(PDFName dictionaryName);   ///< gs, sets the whole graphic state (stored in resource dictionary)
+    void operatorSetGraphicState(PDFOperandName dictionaryName);   ///< gs, sets the whole graphic state (stored in resource dictionary)
 
     // Special graphic state:       q, Q, cm
     void operatorSaveGraphicState();                   ///< q, saves the graphic state
@@ -518,8 +551,8 @@ private:
     void operatorClipEvenOdd(); ///< W*, modify current clipping path by intersecting it with current path using "Even-odd rule"
 
     // Color:                      CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
-    void operatorColorSetStrokingColorSpace(PDFName name);                           ///< CS, set current color space for stroking operations
-    void operatorColorSetFillingColorSpace(PDFName name);                            ///< cs, set current color space for filling operations
+    void operatorColorSetStrokingColorSpace(PDFOperandName name);                           ///< CS, set current color space for stroking operations
+    void operatorColorSetFillingColorSpace(PDFOperandName name);                            ///< cs, set current color space for filling operations
     void operatorColorSetStrokingColor();                                                   ///< SC, set current stroking color
     void operatorColorSetStrokingColorN();                                                  ///< SCN, same as SC, but also supports Pattern, Separation, DeviceN and ICCBased color spaces
     void operatorColorSetFillingColor();                                                    ///< sc, set current filling color
@@ -540,7 +573,7 @@ private:
     void operatorTextSetWordSpacing(PDFReal wordSpacing);                       ///< Tw, set text word spacing
     void operatorTextSetHorizontalScale(PDFReal horizontalScaling);             ///< Tz, set text horizontal scaling (in percents, 100% = normal scaling)
     void operatorTextSetLeading(PDFReal leading);                               ///< TL, set text leading
-    void operatorTextSetFontAndFontSize(PDFName fontName, PDFReal fontSize);    ///< Tf, set text font (name from dictionary) and its size
+    void operatorTextSetFontAndFontSize(PDFOperandName fontName, PDFReal fontSize);    ///< Tf, set text font (name from dictionary) and its size
     void operatorTextSetRenderMode(PDFInteger mode);                            ///< Tr, set text render mode
     void operatorTextSetRise(PDFReal rise);                                     ///< Ts, set text rise
 
@@ -550,9 +583,25 @@ private:
     void operatorTextSetMatrix(PDFReal a, PDFReal b, PDFReal c, PDFReal d, PDFReal e, PDFReal f);   ///< Tm, set text matrix
     void operatorTextMoveByLeading();                                                               ///< T*, moves text by leading, equivalent to 0 leading Td
 
+    // Text showing:               Tj, TJ, ', "
+    void operatorTextShowTextString(PDFOperandString text);                                     ///< Tj, show text string
+    void operatorTextShowTextIndividualSpacing();                                               ///< TJ, show text, allow individual text spacing
+    void operatorTextNextLineShowText(PDFOperandString text);                                   ///< ', move to the next line and show text ("string '" is equivalent to "T* string Tj")
+    void operatorTextSetSpacingAndShowText(PDFReal t_w, PDFReal t_c, PDFOperandString text);    ///< ", move to the next line, set spacing and show text (equivalent to sequence "w1 Tw w2 Tc string '")
+
+    // Draws the text using the text sequence
+    void drawText(const TextSequence& textSequence);
+
+    /// Returns realized font
+    const QRawFont& getRealizedFont() { return m_realizedFont.get(this, &PDFPageContentProcessor::getRealizedFontImpl); }
+
+    /// Returns realized font (or empty font, if font can't be realized)
+    QRawFont getRealizedFontImpl() const;
+
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFDictionary* m_colorSpaceDictionary;
+    const PDFDictionary* m_fontDictionary;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;
@@ -576,6 +625,9 @@ private:
 
     /// Nesting level of the begin/end of text object
     int m_textBeginEndState;
+
+    /// Actually realized physical font
+    PDFCachedItem<QRawFont> m_realizedFont;
 };
 
 }   // namespace pdf

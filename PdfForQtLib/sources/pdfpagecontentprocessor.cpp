@@ -153,20 +153,29 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFD
     m_page(page),
     m_document(document),
     m_colorSpaceDictionary(nullptr),
+    m_fontDictionary(nullptr),
     m_textBeginEndState(0)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
 
-    const PDFObject& resources = m_document->getObject(m_page->getResources());
-    if (resources.isDictionary() && resources.getDictionary()->hasKey(COLOR_SPACE_DICTIONARY))
+    auto getDictionary = [this](const char* resourceName) -> const pdf::PDFDictionary*
     {
-        const PDFObject& colorSpace = m_document->getObject(resources.getDictionary()->get(COLOR_SPACE_DICTIONARY));
-        if (colorSpace.isDictionary())
+        const PDFObject& resources = m_document->getObject(m_page->getResources());
+        if (resources.isDictionary() && resources.getDictionary()->hasKey(resourceName))
         {
-            m_colorSpaceDictionary = colorSpace.getDictionary();
+            const PDFObject& resourceDictionary = m_document->getObject(resources.getDictionary()->get(resourceName));
+            if (resourceDictionary.isDictionary())
+            {
+                return resourceDictionary.getDictionary();
+            }
         }
-    }
+
+        return nullptr;
+    };
+
+    m_colorSpaceDictionary = getDictionary(COLOR_SPACE_DICTIONARY);
+    m_fontDictionary = getDictionary("Font");
 }
 
 PDFPageContentProcessor::~PDFPageContentProcessor()
@@ -260,17 +269,21 @@ void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::Fill
     Q_UNUSED(fillRule);
 }
 
-void PDFPageContentProcessor::performUpdateGraphicsState(const PDFPageContentProcessor::PDFPageContentProcessorState& state)
+void PDFPageContentProcessor::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
 {
-    Q_UNUSED(state);
+    if (state.getStateFlags().testFlag(PDFPageContentProcessorState::StateTextFont) ||
+        state.getStateFlags().testFlag(PDFPageContentProcessorState::StateTextFontSize))
+    {
+        m_realizedFont.dirty();
+    }
 }
 
-void PDFPageContentProcessor::performSaveGraphicState(PDFPageContentProcessor::ProcessOrder order)
+void PDFPageContentProcessor::performSaveGraphicState(ProcessOrder order)
 {
     Q_UNUSED(order);
 }
 
-void PDFPageContentProcessor::performRestoreGraphicState(PDFPageContentProcessor::ProcessOrder order)
+void PDFPageContentProcessor::performRestoreGraphicState(ProcessOrder order)
 {
     Q_UNUSED(order);
 }
@@ -689,6 +702,34 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
             break;
         }
 
+        case Operator::TextShowTextString:
+        {
+            // Tj, show text string
+            invokeOperator(&PDFPageContentProcessor::operatorTextShowTextString);
+            break;
+        }
+
+        case Operator::TextShowTextIndividualSpacing:
+        {
+            // TJ, show text, allow individual text spacing
+            invokeOperator(&PDFPageContentProcessor::operatorTextShowTextIndividualSpacing);
+            break;
+        }
+
+        case Operator::TextNextLineShowText:
+        {
+            // ', move to the next line and show text ("string '" is equivalent to "T* string Tj")
+            invokeOperator(&PDFPageContentProcessor::operatorTextNextLineShowText);
+            break;
+        }
+
+        case Operator::TextSetSpacingAndShowText:
+        {
+            // ", move to the next line, set spacing and show text (equivalent to sequence "w1 Tw w2 Tc string '")
+            invokeOperator(&PDFPageContentProcessor::operatorTextSetSpacingAndShowText);
+            break;
+        }
+
         case Operator::Invalid:
         {
             m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Unknown operator '%1'.").arg(QString::fromLatin1(command))));
@@ -902,7 +943,7 @@ void PDFPageContentProcessor::operatorSetLineDashPattern()
     updateGraphicState();
 }
 
-void PDFPageContentProcessor::operatorSetRenderingIntent(PDFName intent)
+void PDFPageContentProcessor::operatorSetRenderingIntent(PDFOperandName intent)
 {
     m_graphicState.setRenderingIntent(intent.name);
     updateGraphicState();
@@ -915,7 +956,7 @@ void PDFPageContentProcessor::operatorSetFlatness(PDFReal flatness)
     updateGraphicState();
 }
 
-void PDFPageContentProcessor::operatorSetGraphicState(PDFName dictionaryName)
+void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryName)
 {
     const PDFObject& resources = m_page->getResources();
     if (resources.isDictionary())
@@ -1101,7 +1142,7 @@ PDFInteger PDFPageContentProcessor::readOperand<PDFInteger>(size_t index) const
 }
 
 template<>
-PDFPageContentProcessor::PDFName PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFName>(size_t index) const
+PDFPageContentProcessor::PDFOperandName PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFOperandName>(size_t index) const
 {
     if (index < m_operands.size())
     {
@@ -1110,7 +1151,7 @@ PDFPageContentProcessor::PDFName PDFPageContentProcessor::readOperand<PDFPageCon
         switch (token.type)
         {
             case PDFLexicalAnalyzer::TokenType::Name:
-                return PDFName{ token.data.toByteArray() };
+                return PDFOperandName{ token.data.toByteArray() };
 
             default:
                 throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (name) on index %1. Operand is of type '%2'.").arg(index + 1).arg(PDFLexicalAnalyzer::getStringFromOperandType(token.type)));
@@ -1121,7 +1162,32 @@ PDFPageContentProcessor::PDFName PDFPageContentProcessor::readOperand<PDFPageCon
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (name) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
     }
 
-    return PDFName();
+    return PDFOperandName();
+}
+
+
+template<>
+PDFPageContentProcessor::PDFOperandString PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFOperandString>(size_t index) const
+{
+    if (index < m_operands.size())
+    {
+        const PDFLexicalAnalyzer::Token& token = m_operands[index];
+
+        switch (token.type)
+        {
+            case PDFLexicalAnalyzer::TokenType::String:
+                return PDFOperandString{ token.data.toByteArray() };
+
+            default:
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (string) on index %1. Operand is of type '%2'.").arg(index + 1).arg(PDFLexicalAnalyzer::getStringFromOperandType(token.type)));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (string) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
+    }
+
+    return PDFOperandString();
 }
 
 void PDFPageContentProcessor::operatorMoveCurrentPoint(PDFReal x, PDFReal y)
@@ -1275,7 +1341,7 @@ void PDFPageContentProcessor::operatorClipEvenOdd()
     }
 }
 
-void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentProcessor::PDFName name)
+void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentProcessor::PDFOperandName name)
 {
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
     if (colorSpace)
@@ -1291,7 +1357,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
     }
 }
 
-void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFName name)
+void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName name)
 {
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
     if (colorSpace)
@@ -1458,13 +1524,27 @@ void PDFPageContentProcessor::operatorTextSetLeading(PDFReal leading)
     updateGraphicState();
 }
 
-void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFPageContentProcessor::PDFName fontName, PDFReal fontSize)
+void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName fontName, PDFReal fontSize)
 {
-    Q_UNUSED(fontName);
-    Q_UNUSED(fontSize);
+    if (m_fontDictionary)
+    {
+        if (m_fontDictionary->hasKey(fontName.name))
+        {
+            PDFFontPointer font = PDFFont::createFont(m_fontDictionary->get(fontName.name), m_document);
 
-    // TODO: Implement this operator
-    throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Set font not implemented."));
+            m_graphicState.setTextFont(qMove(font));
+            m_graphicState.setTextFontSize(fontSize);
+            updateGraphicState();
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Font '%1' not found in font dictionary.").arg(QString::fromLatin1(fontName.name)));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font dictionary."));
+    }
 }
 
 void PDFPageContentProcessor::operatorTextSetRenderMode(PDFInteger mode)
@@ -1531,6 +1611,105 @@ void PDFPageContentProcessor::operatorTextSetMatrix(PDFReal a, PDFReal b, PDFRea
 void PDFPageContentProcessor::operatorTextMoveByLeading()
 {
     operatorTextMoveByOffset(0.0, m_graphicState.getTextLeading());
+}
+
+void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
+{
+    if (m_graphicState.getTextFont())
+    {
+        QString textDecoded = m_graphicState.getTextFont()->getTextUsingEncoding(text.string);
+        drawText(TextSequence::fromString(textDecoded));
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
+    }
+}
+
+void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
+{
+    // Operand stack must be of this form [ ... text, number, text, number, number, text ... ]. We check it.
+
+    if (m_operands.size() < 2)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid parameters of text operator with individual character spacing."));
+    }
+
+    // Now, we have at least 2 arguments. Check we have an array
+    if (m_operands[0].type != PDFLexicalAnalyzer::TokenType::ArrayStart ||
+        m_operands[m_operands.size() - 1].type != PDFLexicalAnalyzer::TokenType::ArrayEnd)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid line dash pattern."));
+    }
+
+    if (m_graphicState.getTextFont())
+    {
+        TextSequence textSequence;
+
+        // We use simple heuristic to ensure reallocation doesn't occur too often
+        textSequence.items.reserve(m_operands.size() * 4);
+
+        for (size_t i = 1, lastIndex = m_operands.size() - 1; i < lastIndex; ++i)
+        {
+            switch (m_operands[i].type)
+            {
+                case PDFLexicalAnalyzer::TokenType::Integer:
+                {
+                    textSequence.items.push_back(TextSequenceItem(m_operands[i].data.value<PDFInteger>()));
+                    break;
+                }
+
+                case PDFLexicalAnalyzer::TokenType::String:
+                {
+                    QString string = m_graphicState.getTextFont()->getTextUsingEncoding(m_operands[i].data.toByteArray());
+                    std::transform(string.cbegin(), string.cend(), std::back_inserter(textSequence.items), [](const QChar character) { return TextSequenceItem(character); });
+                    break;
+                }
+
+                default:
+                {
+                    // Error - we have operand of different type
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid operand of text show operator."));
+                }
+            }
+        }
+
+        drawText(textSequence);
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
+    }
+}
+
+void PDFPageContentProcessor::operatorTextNextLineShowText(PDFOperandString text)
+{
+    operatorTextMoveByLeading();
+    operatorTextShowTextString(qMove(text));
+}
+
+void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDFReal t_c, PDFOperandString text)
+{
+    m_graphicState.setTextWordSpacing(t_w);
+    m_graphicState.setTextCharacterSpacing(t_c);
+    updateGraphicState();
+
+    operatorTextNextLineShowText(qMove(text));
+}
+
+void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
+{
+
+}
+
+QRawFont PDFPageContentProcessor::getRealizedFontImpl() const
+{
+    if (m_graphicState.getTextFont())
+    {
+        return m_graphicState.getTextFont()->getRealizedFont(m_graphicState.getTextFontSize());
+    }
+
+    return QRawFont();
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
@@ -1808,6 +1987,14 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setTextCharacterSpac
         m_textCharacterSpacing = textCharacterSpacing;
         m_stateFlags |= StateTextCharacterSpacing;
     }
+}
+
+PDFPageContentProcessor::TextSequence PDFPageContentProcessor::TextSequence::fromString(const QString& string)
+{
+    TextSequence result;
+    result.items.reserve(string.size());
+    std::transform(string.cbegin(), string.cend(), std::back_inserter(result.items), [](const QChar character) { return TextSequenceItem(character); });
+    return result;
 }
 
 }   // namespace pdf

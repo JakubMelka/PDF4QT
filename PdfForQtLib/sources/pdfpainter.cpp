@@ -102,6 +102,8 @@ void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& 
     {
         m_currentBrush.dirty();
     }
+
+    PDFPageContentProcessor::performUpdateGraphicsState(state);
 }
 
 void PDFPainter::performSaveGraphicState(ProcessOrder order)

@@ -46,7 +46,11 @@ public:
         PDFDoc,         ///< Appendix D, Section D.1/D.2, PDFDocEncoding
         MacExpert,      ///< Appendix D, Section D.3, MacExpertEncoding
         Symbol,         ///< Appendix D, Section D.4, Symbol Set and Encoding
-        ZapfDingbats    ///< Appendix D, Section D.5, Zapf Dingbats Encoding
+        ZapfDingbats,   ///< Appendix D, Section D.5, Zapf Dingbats Encoding
+
+        // Following encodings are used for internal use only and are not a part of PDF reference
+        Custom,
+        Invalid
     };
 
     /// Converts byte array to the unicode string using specified encoding
@@ -73,11 +77,11 @@ public:
     /// \param stream Stream, from which date/time is read
     static QDateTime convertToDateTime(const QByteArray& stream);
 
-private:
     /// Returns conversion table for particular encoding
     /// \param encoding Encoding
     static const encoding::EncodingTable* getTableForEncoding(Encoding encoding);
 
+private:
     /// Returns true, if byte array has UTF-16BE unicode marking bytes at the
     /// stream start. If they are present, then byte stream is probably encoded
     /// as unicode.
