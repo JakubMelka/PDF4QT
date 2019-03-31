@@ -355,14 +355,14 @@ protected:
     {
         inline explicit TextSequenceItem() = default;
         inline explicit TextSequenceItem(QChar character) : character(character), advance(0) { }
-        inline explicit TextSequenceItem(PDFInteger advance) : character(), advance(advance) { }
+        inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
 
         inline bool isCharacter() const { return !character.isNull(); }
-        inline bool isAdvance() const { return advance != 0; }
+        inline bool isAdvance() const { return advance != 0.0; }
         inline bool isNull() const { return !isCharacter() && !isAdvance(); }
 
         QChar character;
-        PDFInteger advance = 0;
+        PDFReal advance = 0;
     };
 
     struct TextSequence

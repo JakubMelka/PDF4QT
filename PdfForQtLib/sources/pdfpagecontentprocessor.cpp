@@ -1659,6 +1659,12 @@ void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
                     break;
                 }
 
+                case PDFLexicalAnalyzer::TokenType::Real:
+                {
+                    textSequence.items.push_back(TextSequenceItem(m_operands[i].data.value<PDFReal>()));
+                    break;
+                }
+
                 case PDFLexicalAnalyzer::TokenType::String:
                 {
                     QString string = m_graphicState.getTextFont()->getTextUsingEncoding(m_operands[i].data.toByteArray());
@@ -1699,7 +1705,127 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
 
 void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 {
+    if (textSequence.items.empty())
+    {
+        // Do not display empty text
+        return;
+    }
 
+    const QRawFont& font = getRealizedFont();
+    if (font.isValid())
+    {
+        std::vector<QChar> chars;
+        chars.reserve(textSequence.items.size());
+        for (const TextSequenceItem& item : textSequence.items)
+        {
+            if (item.isCharacter())
+            {
+                chars.push_back(item.character);
+            }
+        }
+
+        int numGlyphs = static_cast<int>(chars.size());
+        std::vector<uint32_t> glyphIndices;
+        glyphIndices.resize(chars.size(), 0);
+        if (font.glyphIndexesForChars(chars.data(), static_cast<int>(chars.size()), glyphIndices.data(), &numGlyphs))
+        {
+            if (chars.size() != static_cast<size_t>(numGlyphs))
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
+            }
+
+            std::vector<QPointF> advances;
+            advances.resize(numGlyphs, QPointF());
+            if (font.advancesForGlyphIndexes(glyphIndices.data(), advances.data(), numGlyphs, QRawFont::SeparateAdvances | QRawFont::UseDesignMetrics))
+            {
+                const PDFReal fontSize = m_graphicState.getTextFontSize();
+                const PDFReal horizontalScaling = m_graphicState.getTextHorizontalScaling() * 0.01; // Horizontal scaling is in percents
+                const PDFReal characterSpacing = m_graphicState.getTextCharacterSpacing();
+                const PDFReal wordSpacing = m_graphicState.getTextWordSpacing();
+                const PDFReal textRise = m_graphicState.getTextRise();
+                const TextRenderingMode textRenderingMode = m_graphicState.getTextRenderingMode();
+                const bool fill = isTextRenderingModeFilled(textRenderingMode);
+                const bool stroke = isTextRenderingModeStroked(textRenderingMode);
+                const bool clipped = isTextRenderingModeClipped(textRenderingMode);
+                // TODO: Add Text Clipping
+
+                // Detect horizontal writing system
+                const bool isHorizontalWritingSystem = std::any_of(advances.cbegin(), advances.cend(), [](const QPointF& point) { return !qFuzzyIsNull(point.x()); });
+
+                // Calculate text rendering matrix
+                QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
+                QMatrix textMatrix = m_graphicState.getTextMatrix();
+                QMatrix fontMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0);
+
+                size_t characterIndex = 0;
+                for (const TextSequenceItem& item : textSequence.items)
+                {
+                    PDFReal displacementX = 0.0;
+                    PDFReal displacementY = 0.0;
+
+                    if (item.isCharacter())
+                    {
+                        QChar character = item.character;
+                        QPointF advance = advances[characterIndex];
+
+                        // First, compute the advance
+                        const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing : characterSpacing;
+                        if (isHorizontalWritingSystem)
+                        {
+                            advance.rx() += additionalAdvance;
+                        }
+                        else
+                        {
+                            advance.ry() += additionalAdvance;
+                        }
+                        advance.rx() *= horizontalScaling;
+
+                        // Then get the glyph path and paint it
+                        QPainterPath glyphPath = fontMatrix.map(font.pathForGlyph(glyphIndices[characterIndex]));
+                        if (!glyphPath.isEmpty())
+                        {
+                            QMatrix textRenderingMatrix = textMatrix * adjustMatrix;
+                            QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
+                            performPathPainting(transformedGlyph, stroke, fill, transformedGlyph.fillRule());
+                        }
+
+                        displacementX = advance.x();
+                        displacementY = advance.y();
+
+                        ++characterIndex;
+                    }
+                    else if (item.isAdvance())
+                    {
+                        if (horizontalScaling)
+                        {
+                            displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
+                        }
+                        else
+                        {
+                            displacementY = -item.advance * 0.001 * fontSize;
+                        }
+                    }
+
+                    textMatrix.translate(displacementX, displacementY);
+                }
+
+                m_graphicState.setTextMatrix(textMatrix);
+                updateGraphicState();
+            }
+            else
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
+            }
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
+    }
 }
 
 QRawFont PDFPageContentProcessor::getRealizedFontImpl() const
