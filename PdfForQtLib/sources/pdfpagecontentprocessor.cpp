@@ -1564,12 +1564,11 @@ void PDFPageContentProcessor::operatorTextMoveByOffset(PDFReal t_x, PDFReal t_y)
 {
     const QMatrix& textLineMatrix = m_graphicState.getTextLineMatrix();
 
-    QMatrix translationMatrix;
-    translationMatrix.translate(t_x, t_y);
+    QMatrix transformedMatrix = textLineMatrix;
+    transformedMatrix.translate(t_x, t_y);
 
-    QMatrix resultMatrix = textLineMatrix * translationMatrix;
-    m_graphicState.setTextMatrix(resultMatrix);
-    m_graphicState.setTextLineMatrix(resultMatrix);
+    m_graphicState.setTextMatrix(transformedMatrix);
+    m_graphicState.setTextLineMatrix(transformedMatrix);
     updateGraphicState();
 }
 
@@ -1705,6 +1704,7 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
 
 void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 {
+    // TODO: Kdyz nejsme v text rezimu, tak nekreslime text
     if (textSequence.items.empty())
     {
         // Do not display empty text
@@ -1748,6 +1748,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                 const bool stroke = isTextRenderingModeStroked(textRenderingMode);
                 const bool clipped = isTextRenderingModeClipped(textRenderingMode);
                 // TODO: Add Text Clipping
+                // TODO: Pouzit pravdepodobne sirky z widths array?
 
                 // Detect horizontal writing system
                 const bool isHorizontalWritingSystem = std::any_of(advances.cbegin(), advances.cend(), [](const QPointF& point) { return !qFuzzyIsNull(point.x()); });

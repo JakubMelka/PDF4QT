@@ -273,6 +273,17 @@ QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
     return QByteArray();
 }
 
+QByteArray PDFDocumentDataLoaderDecorator::readString(const PDFObject& object)
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isString())
+    {
+        return dereferencedObject.getString();
+    }
+
+    return QByteArray();
+}
+
 PDFInteger PDFDocumentDataLoaderDecorator::readInteger(const PDFObject& object, PDFInteger defaultValue) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
@@ -474,6 +485,16 @@ QByteArray PDFDocumentDataLoaderDecorator::readNameFromDictionary(const PDFDicti
     if (dictionary->hasKey(key))
     {
         return readName(dictionary->get(key));
+    }
+
+    return QByteArray();
+}
+
+QByteArray PDFDocumentDataLoaderDecorator::readStringFromDictionary(const PDFDictionary* dictionary, const char* key)
+{
+    if (dictionary->hasKey(key))
+    {
+        return readString(dictionary->get(key));
     }
 
     return QByteArray();

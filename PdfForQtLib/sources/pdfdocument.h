@@ -92,6 +92,11 @@ public:
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
     QByteArray readName(const PDFObject& object);
 
+    /// Reads a string from the object, if it is possible. If object is not a string,
+    /// then empty byte array is returned.
+    /// \param object Object, can be an indirect reference to object (it is dereferenced)
+    QByteArray readString(const PDFObject& object);
+
     /// Reads an integer from the object, if it is possible.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
     /// \param defaultValue Default value
@@ -226,6 +231,11 @@ public:
     /// \param dictionary Dictionary containing desired data
     /// \param key Entry key
     QByteArray readNameFromDictionary(const PDFDictionary* dictionary, const char* key);
+
+    /// Reads a string from dictionary. If dictionary entry doesn't exist, or error occurs, empty byte array is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    QByteArray readStringFromDictionary(const PDFDictionary* dictionary, const char* key);
 
 private:
     const PDFDocument* m_document;

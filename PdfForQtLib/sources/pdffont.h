@@ -129,6 +129,42 @@ static constexpr PDFEncoding::Encoding getEncodingForStandardFont(StandardFontTy
     }
 }
 
+struct FontDescriptor
+{
+    bool isEmbedded() const { return !fontFile.isEmpty() || !fontFile2.isEmpty() || !fontFile3.isEmpty(); }
+
+    QByteArray fontName;
+    QByteArray fontFamily;
+    QFont::Stretch fontStretch = QFont::AnyStretch;
+    PDFReal fontWeight = 400.0;
+    PDFInteger flags;
+    QRectF boundingBox;
+    PDFReal italicAngle = 0.0;
+    PDFReal ascent = 0.0;
+    PDFReal descent = 0.0;
+    PDFReal leading = 0.0;
+    PDFReal capHeight = 0.0;
+    PDFReal xHeight = 0.0;
+    PDFReal stemV = 0.0;
+    PDFReal stemH = 0.0;
+    PDFReal avgWidth = 0.0;
+    PDFReal maxWidth = 0.0;
+    PDFReal missingWidth = 0.0;
+
+    /// Byte array with Type 1 font program (embedded font)
+    QByteArray fontFile;
+
+    /// Byte array with TrueType font program (embedded font)
+    QByteArray fontFile2;
+
+    /// Byte array with font program, whose format is defined by the Subtype array
+    /// in the font dictionary.
+    QByteArray fontFile3;
+
+    /// Character set
+    QByteArray charset;
+};
+
 class PDFFont;
 
 using PDFFontPointer = QSharedPointer<PDFFont>;
@@ -137,7 +173,7 @@ using PDFFontPointer = QSharedPointer<PDFFont>;
 class PDFFont
 {
 public:
-    explicit PDFFont();
+    explicit PDFFont(FontDescriptor fontDescriptor);
     virtual ~PDFFont() = default;
 
     /// Returns the font type
@@ -152,7 +188,16 @@ public:
     /// \param byteArray Byte array with encoded string
     virtual QString getTextUsingEncoding(const QByteArray& byteArray) const = 0;
 
+    /// Returns font descriptor
+    const FontDescriptor* getFontDescriptor() const { return &m_fontDescriptor; }
+
+    /// Creates font from the object. If font can't be created, exception is thrown.
+    /// \param object Font dictionary
+    /// \param document Document
     static PDFFontPointer createFont(const PDFObject& object, const PDFDocument* document);
+
+protected:
+    FontDescriptor m_fontDescriptor;
 };
 
 /// Simple font, see PDF reference 1.7, chapter 5.5. Simple fonts have encoding table,
@@ -160,7 +205,8 @@ public:
 class PDFSimpleFont : public PDFFont
 {
 public:
-    explicit PDFSimpleFont(QByteArray name,
+    explicit PDFSimpleFont(FontDescriptor fontDescriptor,
+                           QByteArray name,
                            QByteArray baseFont,
                            PDFInteger firstChar,
                            PDFInteger lastChar,
@@ -185,7 +231,8 @@ protected:
 class PDFType1Font : public PDFSimpleFont
 {
 public:
-    explicit PDFType1Font(QByteArray name,
+    explicit PDFType1Font(FontDescriptor fontDescriptor,
+                          QByteArray name,
                           QByteArray baseFont,
                           PDFInteger firstChar,
                           PDFInteger lastChar,

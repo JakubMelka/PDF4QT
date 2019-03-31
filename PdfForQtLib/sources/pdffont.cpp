@@ -23,7 +23,8 @@
 namespace pdf
 {
 
-PDFFont::PDFFont()
+PDFFont::PDFFont(FontDescriptor fontDescriptor) :
+    m_fontDescriptor(qMove(fontDescriptor))
 {
 
 }
@@ -78,7 +79,57 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     const StandardFontType standardFont = fontLoader.readEnumByName(fontDictionary->get("BaseFont"), standardFonts.cbegin(), standardFonts.cend(), StandardFontType::Invalid);
 
     // Read Font Descriptor
-    // TODO: Read font descriptor
+    FontDescriptor fontDescriptor;
+    const PDFObject& fontDescriptorObject = document->getObject(fontDictionary->get("FontDescriptor"));
+    if (fontDescriptorObject.isDictionary())
+    {
+        const PDFDictionary* fontDescriptorDictionary = fontDescriptorObject.getDictionary();
+        fontDescriptor.fontName = fontLoader.readNameFromDictionary(fontDescriptorDictionary, "FontName");
+        fontDescriptor.fontFamily = fontLoader.readStringFromDictionary(fontDescriptorDictionary, "FontFamily");
+
+        constexpr const std::array<std::pair<const char*, QFont::Stretch>, 9> stretches = {
+            std::pair<const char*, QFont::Stretch>{ "UltraCondensed", QFont::UltraCondensed },
+            std::pair<const char*, QFont::Stretch>{ "ExtraCondensed", QFont::ExtraCondensed },
+            std::pair<const char*, QFont::Stretch>{ "Condensed", QFont::Condensed },
+            std::pair<const char*, QFont::Stretch>{ "SemiCondensed", QFont::SemiCondensed },
+            std::pair<const char*, QFont::Stretch>{ "Normal", QFont::Unstretched },
+            std::pair<const char*, QFont::Stretch>{ "SemiExpanded", QFont::SemiExpanded },
+            std::pair<const char*, QFont::Stretch>{ "Expanded", QFont::Expanded },
+            std::pair<const char*, QFont::Stretch>{ "ExtraExpanded", QFont::ExtraExpanded },
+            std::pair<const char*, QFont::Stretch>{ "UltraExpanded", QFont::UltraExpanded }
+        };
+        fontDescriptor.fontStretch = fontLoader.readEnumByName(fontDescriptorDictionary->get("FontStretch"), stretches.cbegin(), stretches.cend(), QFont::Unstretched);
+        fontDescriptor.fontWeight = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "FontWeight", 500);
+        fontDescriptor.italicAngle = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "ItalicAngle", 0.0);
+        fontDescriptor.ascent = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "Ascent", 0.0);
+        fontDescriptor.descent = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "Descent", 0.0);
+        fontDescriptor.leading = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "Leading", 0.0);
+        fontDescriptor.capHeight = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "CapHeight", 0.0);
+        fontDescriptor.xHeight = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "XHeight", 0.0);
+        fontDescriptor.stemV = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "StemV", 0.0);
+        fontDescriptor.stemH = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "StemH", 0.0);
+        fontDescriptor.avgWidth = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "AvgWidth", 0.0);
+        fontDescriptor.maxWidth = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "MaxWidth", 0.0);
+        fontDescriptor.missingWidth = fontLoader.readNumberFromDictionary(fontDescriptorDictionary, "MissingWidth", 0.0);
+        fontDescriptor.flags = fontLoader.readIntegerFromDictionary(fontDescriptorDictionary, "Flags", 0);
+        fontDescriptor.boundingBox = fontLoader.readRectangle(fontDescriptorDictionary->get("FontBBox"), QRectF());
+        fontDescriptor.charset = fontLoader.readStringFromDictionary(fontDescriptorDictionary, "Charset");
+
+        auto loadStream = [fontDescriptorDictionary, document](QByteArray& byteArray, const char* name)
+        {
+            if (fontDescriptorDictionary->hasKey(name))
+            {
+                const PDFObject& streamObject = document->getObject(fontDescriptorDictionary->get(name));
+                if (streamObject.isStream())
+                {
+                    byteArray = document->getDecodedStream(streamObject.getStream());
+                }
+            }
+        };
+        loadStream(fontDescriptor.fontFile, "FontFile");
+        loadStream(fontDescriptor.fontFile2, "FontFile2");
+        loadStream(fontDescriptor.fontFile3, "FontFile3");
+    }
 
     // Read Font Encoding
     // The font encoding for the simple font is determined by this algorithm:
@@ -235,10 +286,10 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     switch (fontType)
     {
         case FontType::Type1:
-            return PDFFontPointer(new PDFType1Font(qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, standardFont));
+            return PDFFontPointer(new PDFType1Font(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, standardFont));
 
         case FontType::TrueType:
-            return PDFFontPointer(new PDFTrueTypeFont(qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable));
+            return PDFFontPointer(new PDFTrueTypeFont(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable));
 
         default:
         {
@@ -255,13 +306,15 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     return PDFFontPointer();
 }
 
-PDFSimpleFont::PDFSimpleFont(QByteArray name,
+PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
+                             QByteArray name,
                              QByteArray baseFont,
                              PDFInteger firstChar,
                              PDFInteger lastChar,
                              std::vector<PDFInteger> widths,
                              PDFEncoding::Encoding encodingType,
                              encoding::EncodingTable encoding) :
+    PDFFont(qMove(fontDescriptor)),
     m_name(qMove(name)),
     m_baseFont(qMove(baseFont)),
     m_firstChar(firstChar),
@@ -276,10 +329,40 @@ PDFSimpleFont::PDFSimpleFont(QByteArray name,
 QRawFont PDFSimpleFont::getRealizedFont(PDFReal fontSize) const
 {
     // TODO: Fix font creation to use also embedded fonts, font descriptor, etc.
-    QFont font(m_baseFont);
-    font.setHintingPreference(QFont::PreferNoHinting);
-    font.setPixelSize(fontSize);
-    return QRawFont::fromFont(font, QFontDatabase::Any);
+    QRawFont rawFont;
+
+    if (m_fontDescriptor.isEmbedded())
+    {
+        // Type 1 font
+        if (!m_fontDescriptor.fontFile.isEmpty())
+        {
+            rawFont.loadFromData(m_fontDescriptor.fontFile, fontSize, QFont::PreferNoHinting);
+        }
+        else if (!m_fontDescriptor.fontFile2.isEmpty())
+        {
+            rawFont.loadFromData(m_fontDescriptor.fontFile2, fontSize, QFont::PreferNoHinting);
+        }
+
+        if (!rawFont.isValid())
+        {
+            throw PDFParserException(PDFTranslationContext::tr("Can't load embedded font."));
+        }
+    }
+    else
+    {
+        // TODO: Zkontrolovat, zda se zde opravdu prebiraji spravne fonty
+        const int weight = qBound<int>(0, m_fontDescriptor.fontWeight / 10.0, 99);
+        const int stretch = qBound<int>(1, m_fontDescriptor.fontStretch, 4000);
+
+        QFont font(m_baseFont);
+        font.setHintingPreference(QFont::PreferNoHinting);
+        font.setStretch(stretch);
+        font.setWeight(weight);
+        font.setPixelSize(fontSize);
+        rawFont = QRawFont::fromFont(font, QFontDatabase::Any);
+    }
+
+    return rawFont;
 }
 
 QString PDFSimpleFont::getTextUsingEncoding(const QByteArray& byteArray) const
@@ -295,7 +378,8 @@ QString PDFSimpleFont::getTextUsingEncoding(const QByteArray& byteArray) const
     return string;
 }
 
-PDFType1Font::PDFType1Font(QByteArray name,
+PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
+                           QByteArray name,
                            QByteArray baseFont,
                            PDFInteger firstChar,
                            PDFInteger lastChar,
@@ -303,7 +387,7 @@ PDFType1Font::PDFType1Font(QByteArray name,
                            PDFEncoding::Encoding encodingType,
                            encoding::EncodingTable encoding,
                            StandardFontType standardFontType) :
-    PDFSimpleFont(qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encodingType, encoding),
+    PDFSimpleFont(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encodingType, encoding),
     m_standardFontType(standardFontType)
 {
 
