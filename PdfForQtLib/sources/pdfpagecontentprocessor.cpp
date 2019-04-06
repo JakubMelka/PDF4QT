@@ -1530,11 +1530,21 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
     {
         if (m_fontDictionary->hasKey(fontName.name))
         {
-            PDFFontPointer font = PDFFont::createFont(m_fontDictionary->get(fontName.name), m_document);
+            try
+            {
+                PDFFontPointer font = PDFFont::createFont(m_fontDictionary->get(fontName.name), m_document);
 
-            m_graphicState.setTextFont(qMove(font));
-            m_graphicState.setTextFontSize(fontSize);
-            updateGraphicState();
+                m_graphicState.setTextFont(qMove(font));
+                m_graphicState.setTextFontSize(fontSize);
+                updateGraphicState();
+            }
+            catch (PDFParserException)
+            {
+                m_graphicState.setTextFont(nullptr);
+                m_graphicState.setTextFontSize(fontSize);
+                updateGraphicState();
+                throw;
+            }
         }
         else
         {
