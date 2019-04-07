@@ -41,6 +41,27 @@ enum class TextRenderingMode
     Clip = 7
 };
 
+/// Item of the text sequence (either single character, or advance)
+struct TextSequenceItem
+{
+    inline explicit TextSequenceItem() = default;
+    inline explicit TextSequenceItem(const QPainterPath* glyph, QChar character, PDFReal advance) : glyph(glyph), character(character), advance(advance) { }
+    inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
+
+    inline bool isCharacter() const { return !character.isNull(); }
+    inline bool isAdvance() const { return advance != 0.0; }
+    inline bool isNull() const { return !isCharacter() && !isAdvance(); }
+
+    const QPainterPath* glyph = nullptr;
+    QChar character;
+    PDFReal advance = 0;
+};
+
+struct TextSequence
+{
+    std::vector<TextSequenceItem> items;
+};
+
 constexpr bool isTextRenderingModeFilled(TextRenderingMode mode)
 {
     switch (mode)
@@ -169,6 +190,38 @@ class PDFFont;
 
 using PDFFontPointer = QSharedPointer<PDFFont>;
 
+class PDFRealizedFont;
+class PDFRealizedFontImpl;
+
+using PDFRealizedFontPointer = QSharedPointer<PDFRealizedFont>;
+
+/// Font, which has fixed pixel size. It is programmed as PIMPL, because we need
+/// to remove FreeType types from the interface (so we do not include FreeType in the interface).
+class PDFRealizedFont
+{
+public:
+    ~PDFRealizedFont();
+
+    /// Fills the text sequence by interpreting byte array according font data and
+    /// produces glyphs for the font.
+    /// \param byteArray Array of bytes to be interpreted
+    /// \param textSequence Text sequence to be filled
+    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence);
+
+    /// Return true, if we have horizontal writing system
+    bool isHorizontalWritingSystem() const;
+
+    /// Creates new realized font from the standard font. If font can't be created,
+    /// then exception is thrown.
+    static PDFRealizedFontPointer createRealizedFont(const PDFFont* font, PDFReal pixelSize);
+
+private:
+    /// Constructs new realized font
+    explicit PDFRealizedFont(PDFRealizedFontImpl* impl) : m_impl(impl) { }
+
+    PDFRealizedFontImpl* m_impl;
+};
+
 /// Base  class representing font in the PDF file
 class PDFFont
 {
@@ -182,7 +235,7 @@ public:
     /// Realizes the font (physical materialization of the font using pixel size,
     /// if font can't be realized, then empty QRawFont is returned).
     /// \param fontSize Size of the font
-    virtual QRawFont getRealizedFont(PDFReal fontSize) const = 0;
+    virtual PDFRealizedFontPointer getRealizedFont(PDFReal fontSize) const = 0;
 
     /// Returns text using the font encoding
     /// \param byteArray Byte array with encoded string
@@ -215,7 +268,7 @@ public:
                            encoding::EncodingTable encoding);
     virtual ~PDFSimpleFont() override = default;
 
-    virtual QRawFont getRealizedFont(PDFReal fontSize) const override;
+    virtual PDFRealizedFontPointer getRealizedFont(PDFReal fontSize) const override;
     virtual QString getTextUsingEncoding(const QByteArray& byteArray) const override;
 
 protected:

@@ -1626,8 +1626,19 @@ void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
 {
     if (m_graphicState.getTextFont())
     {
-        QString textDecoded = m_graphicState.getTextFont()->getTextUsingEncoding(text.string);
-        drawText(TextSequence::fromString(textDecoded));
+        // Get the realized font
+        const PDFRealizedFontPointer& realizedFont = getRealizedFont();
+        if (!realizedFont)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
+        }
+
+        TextSequence textSequence;
+
+        // We use simple heuristic to ensure reallocation doesn't occur too often
+        textSequence.items.reserve(m_operands.size());
+        realizedFont->fillTextSequence(text.string, textSequence);
+        drawText(textSequence);
     }
     else
     {
@@ -1658,6 +1669,13 @@ void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
         // We use simple heuristic to ensure reallocation doesn't occur too often
         textSequence.items.reserve(m_operands.size() * 4);
 
+        // Get the realized font
+        const PDFRealizedFontPointer& realizedFont = getRealizedFont();
+        if (!realizedFont)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
+        }
+
         for (size_t i = 1, lastIndex = m_operands.size() - 1; i < lastIndex; ++i)
         {
             switch (m_operands[i].type)
@@ -1676,8 +1694,7 @@ void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
 
                 case PDFLexicalAnalyzer::TokenType::String:
                 {
-                    QString string = m_graphicState.getTextFont()->getTextUsingEncoding(m_operands[i].data.toByteArray());
-                    std::transform(string.cbegin(), string.cend(), std::back_inserter(textSequence.items), [](const QChar character) { return TextSequenceItem(character); });
+                    realizedFont->fillTextSequence(m_operands[i].data.toByteArray(), textSequence);
                     break;
                 }
 
@@ -1721,10 +1738,89 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         return;
     }
 
-    const QRawFont& font = getRealizedFont();
-    if (font.isValid())
+    const PDFRealizedFontPointer& font = getRealizedFont();
+    if (font)
     {
-        std::vector<QChar> chars;
+        const PDFReal fontSize = m_graphicState.getTextFontSize();
+        const PDFReal horizontalScaling = m_graphicState.getTextHorizontalScaling() * 0.01; // Horizontal scaling is in percents
+        const PDFReal characterSpacing = m_graphicState.getTextCharacterSpacing();
+        const PDFReal wordSpacing = m_graphicState.getTextWordSpacing();
+        const PDFReal textRise = m_graphicState.getTextRise();
+        const TextRenderingMode textRenderingMode = m_graphicState.getTextRenderingMode();
+        const bool fill = isTextRenderingModeFilled(textRenderingMode);
+        const bool stroke = isTextRenderingModeStroked(textRenderingMode);
+        const bool clipped = isTextRenderingModeClipped(textRenderingMode);
+        // TODO: Add Text Clipping
+        // TODO: Pouzit pravdepodobne sirky z widths array?
+
+        // Detect horizontal writing system
+        const bool isHorizontalWritingSystem = font->isHorizontalWritingSystem();
+
+        // Calculate text rendering matrix
+        QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
+        QMatrix textMatrix = m_graphicState.getTextMatrix();
+        QMatrix fontMatrix(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+
+        size_t characterIndex = 0;
+        for (const TextSequenceItem& item : textSequence.items)
+        {
+            PDFReal displacementX = 0.0;
+            PDFReal displacementY = 0.0;
+
+            if (item.isCharacter())
+            {
+                QChar character = item.character;
+                QPointF advance = isHorizontalWritingSystem ? QPointF(item.advance, 0) : QPointF(0, item.advance);
+
+                // First, compute the advance
+                const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing : characterSpacing;
+                if (isHorizontalWritingSystem)
+                {
+                    advance.rx() += additionalAdvance;
+                }
+                else
+                {
+                    advance.ry() += additionalAdvance;
+                }
+                advance.rx() *= horizontalScaling;
+
+                // Then get the glyph path and paint it
+                if (item.glyph)
+                {
+                    QPainterPath glyphPath = fontMatrix.map(*item.glyph);
+                    if (!glyphPath.isEmpty())
+                    {
+                        QMatrix textRenderingMatrix = textMatrix * adjustMatrix;
+                        QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
+                        performPathPainting(transformedGlyph, stroke, fill, transformedGlyph.fillRule());
+                    }
+                }
+
+                displacementX = advance.x();
+                displacementY = advance.y();
+
+                ++characterIndex;
+            }
+            else if (item.isAdvance())
+            {
+                if (horizontalScaling)
+                {
+                    displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
+                }
+                else
+                {
+                    displacementY = -item.advance * 0.001 * fontSize;
+                }
+            }
+
+            textMatrix.translate(displacementX, displacementY);
+        }
+
+        m_graphicState.setTextMatrix(textMatrix);
+        updateGraphicState();
+
+
+        /*std::vector<QChar> chars;
         chars.reserve(textSequence.items.size());
         for (const TextSequenceItem& item : textSequence.items)
         {
@@ -1748,80 +1844,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
             advances.resize(numGlyphs, QPointF());
             if (font.advancesForGlyphIndexes(glyphIndices.data(), advances.data(), numGlyphs, QRawFont::SeparateAdvances | QRawFont::UseDesignMetrics))
             {
-                const PDFReal fontSize = m_graphicState.getTextFontSize();
-                const PDFReal horizontalScaling = m_graphicState.getTextHorizontalScaling() * 0.01; // Horizontal scaling is in percents
-                const PDFReal characterSpacing = m_graphicState.getTextCharacterSpacing();
-                const PDFReal wordSpacing = m_graphicState.getTextWordSpacing();
-                const PDFReal textRise = m_graphicState.getTextRise();
-                const TextRenderingMode textRenderingMode = m_graphicState.getTextRenderingMode();
-                const bool fill = isTextRenderingModeFilled(textRenderingMode);
-                const bool stroke = isTextRenderingModeStroked(textRenderingMode);
-                const bool clipped = isTextRenderingModeClipped(textRenderingMode);
-                // TODO: Add Text Clipping
-                // TODO: Pouzit pravdepodobne sirky z widths array?
 
-                // Detect horizontal writing system
-                const bool isHorizontalWritingSystem = std::any_of(advances.cbegin(), advances.cend(), [](const QPointF& point) { return !qFuzzyIsNull(point.x()); });
-
-                // Calculate text rendering matrix
-                QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
-                QMatrix textMatrix = m_graphicState.getTextMatrix();
-                QMatrix fontMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0);
-
-                size_t characterIndex = 0;
-                for (const TextSequenceItem& item : textSequence.items)
-                {
-                    PDFReal displacementX = 0.0;
-                    PDFReal displacementY = 0.0;
-
-                    if (item.isCharacter())
-                    {
-                        QChar character = item.character;
-                        QPointF advance = advances[characterIndex];
-
-                        // First, compute the advance
-                        const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing : characterSpacing;
-                        if (isHorizontalWritingSystem)
-                        {
-                            advance.rx() += additionalAdvance;
-                        }
-                        else
-                        {
-                            advance.ry() += additionalAdvance;
-                        }
-                        advance.rx() *= horizontalScaling;
-
-                        // Then get the glyph path and paint it
-                        QPainterPath glyphPath = fontMatrix.map(font.pathForGlyph(glyphIndices[characterIndex]));
-                        if (!glyphPath.isEmpty())
-                        {
-                            QMatrix textRenderingMatrix = textMatrix * adjustMatrix;
-                            QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-                            performPathPainting(transformedGlyph, stroke, fill, transformedGlyph.fillRule());
-                        }
-
-                        displacementX = advance.x();
-                        displacementY = advance.y();
-
-                        ++characterIndex;
-                    }
-                    else if (item.isAdvance())
-                    {
-                        if (horizontalScaling)
-                        {
-                            displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
-                        }
-                        else
-                        {
-                            displacementY = -item.advance * 0.001 * fontSize;
-                        }
-                    }
-
-                    textMatrix.translate(displacementX, displacementY);
-                }
-
-                m_graphicState.setTextMatrix(textMatrix);
-                updateGraphicState();
             }
             else
             {
@@ -1831,7 +1854,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         else
         {
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
-        }
+        }*/
     }
     else
     {
@@ -1839,14 +1862,14 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
     }
 }
 
-QRawFont PDFPageContentProcessor::getRealizedFontImpl() const
+PDFRealizedFontPointer PDFPageContentProcessor::getRealizedFontImpl() const
 {
     if (m_graphicState.getTextFont())
     {
         return m_graphicState.getTextFont()->getRealizedFont(m_graphicState.getTextFontSize());
     }
 
-    return QRawFont();
+    return PDFRealizedFontPointer();
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
@@ -2124,14 +2147,6 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setTextCharacterSpac
         m_textCharacterSpacing = textCharacterSpacing;
         m_stateFlags |= StateTextCharacterSpacing;
     }
-}
-
-PDFPageContentProcessor::TextSequence PDFPageContentProcessor::TextSequence::fromString(const QString& string)
-{
-    TextSequence result;
-    result.items.reserve(string.size());
-    std::transform(string.cbegin(), string.cend(), std::back_inserter(result.items), [](const QChar character) { return TextSequenceItem(character); });
-    return result;
 }
 
 }   // namespace pdf

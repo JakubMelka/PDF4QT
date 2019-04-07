@@ -20,6 +20,14 @@
 #include "pdfparser.h"
 #include "pdfnametounicode.h"
 
+#include <ft2build.h>
+#include <freetype/freetype.h>
+#include <freetype/ftglyph.h>
+#include <freetype/fterrors.h>
+#include <freetype/ftoutln.h>
+
+#include <QMutex>
+
 namespace pdf
 {
 
@@ -29,8 +37,271 @@ PDFFont::PDFFont(FontDescriptor fontDescriptor) :
 
 }
 
+/// Implementation of the PDFRealizedFont class using PIMPL pattern
+class PDFRealizedFontImpl
+{
+public:
+    explicit PDFRealizedFontImpl();
+    ~PDFRealizedFontImpl();
+
+    /// Fills the text sequence by interpreting byte array according font data and
+    /// produces glyphs for the font.
+    /// \param byteArray Array of bytes to be interpreted
+    /// \param textSequence Text sequence to be filled
+    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence);
+
+private:
+    friend class PDFRealizedFont;
+
+    static constexpr const PDFReal FORMAT_26_6_MULTIPLIER = 1 / 64.0;
+
+    struct Glyph
+    {
+        QPainterPath glyph;
+        PDFReal advance;
+    };
+
+    static int outlineMoveTo(const FT_Vector* to, void* user);
+    static int outlineLineTo(const FT_Vector* to, void* user);
+    static int outlineConicTo(const FT_Vector* control, const FT_Vector* to, void* user);
+    static int outlineCubicTo(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to, void* user);
+
+    /// Get glyph for unicode character. Throws exception, if glyph can't be found.
+    const Glyph& getGlyphForUnicode(QChar character);
+
+    /// Function checks, if error occured, and if yes, then exception is thrown
+    static void checkFreeTypeError(FT_Error error);
+
+    /// Mutex for accessing the glyph data
+    QMutex m_mutex;
+
+    /// Glyph cache, must be protected by the mutex above
+    std::map<QChar, Glyph> m_glyphCache;
+
+    /// For embedded fonts, this byte array contains embedded font data
+    QByteArray m_embeddedFontData;
+
+    /// Instance of FreeType library assigned to this font
+    FT_Library m_library;
+
+    /// Face of the font
+    FT_Face m_face;
+
+    /// Pixel size of the font
+    PDFReal m_pixelSize;
+
+    /// Parent font
+    const PDFFont* m_parentFont;
+
+    /// True, if font is embedded
+    bool m_isEmbedded;
+
+    /// True, if font has vertical writing system
+    bool m_isVertical;
+};
+
+PDFRealizedFontImpl::PDFRealizedFontImpl() :
+    m_library(nullptr),
+    m_face(nullptr),
+    m_pixelSize(0.0),
+    m_parentFont(nullptr),
+    m_isEmbedded(false),
+    m_isVertical(false)
+{
+
+}
+
+PDFRealizedFontImpl::~PDFRealizedFontImpl()
+{
+    if (m_face)
+    {
+        FT_Done_Face(m_face);
+        m_face = nullptr;
+    }
+
+    if (m_library)
+    {
+        FT_Done_FreeType(m_library);
+        m_library = nullptr;
+    }
+}
+
+void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence)
+{
+    switch (m_parentFont->getFontType())
+    {
+        case FontType::Type1:
+        case FontType::TrueType:
+        {
+            // We can use encoding
+            QString text = m_parentFont->getTextUsingEncoding(byteArray);
+
+            textSequence.items.reserve(textSequence.items.size() + text.size());
+            for (const QChar& character : text)
+            {
+                const Glyph& glyph = getGlyphForUnicode(character);
+                textSequence.items.emplace_back(&glyph.glyph, character, glyph.advance);
+            }
+            break;
+        }
+
+        default:
+        {
+            // Unhandled font type
+            Q_ASSERT(false);
+            break;
+        }
+    }
+}
+
+int PDFRealizedFontImpl::outlineMoveTo(const FT_Vector* to, void* user)
+{
+    Glyph* glyph = reinterpret_cast<Glyph*>(user);
+    glyph->glyph.moveTo(to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    return 0;
+}
+
+int PDFRealizedFontImpl::outlineLineTo(const FT_Vector* to, void* user)
+{
+    Glyph* glyph = reinterpret_cast<Glyph*>(user);
+    glyph->glyph.lineTo(to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    return 0;
+}
+
+int PDFRealizedFontImpl::outlineConicTo(const FT_Vector* control, const FT_Vector* to, void* user)
+{
+    Glyph* glyph = reinterpret_cast<Glyph*>(user);
+    glyph->glyph.cubicTo(control->x * FORMAT_26_6_MULTIPLIER, control->y * FORMAT_26_6_MULTIPLIER, control->x * FORMAT_26_6_MULTIPLIER, control->y * FORMAT_26_6_MULTIPLIER, to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    return 0;
+}
+
+int PDFRealizedFontImpl::outlineCubicTo(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to, void* user)
+{
+    Glyph* glyph = reinterpret_cast<Glyph*>(user);
+    glyph->glyph.cubicTo(control1->x * FORMAT_26_6_MULTIPLIER, control1->y * FORMAT_26_6_MULTIPLIER, control2->x * FORMAT_26_6_MULTIPLIER, control2->y * FORMAT_26_6_MULTIPLIER, to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    return 0;
+}
+
+const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyphForUnicode(QChar character)
+{
+    QMutexLocker lock(&m_mutex);
+
+    // First look into cache
+    auto it = m_glyphCache.find(character);
+    if (it != m_glyphCache.cend())
+    {
+        return it->second;
+    }
+
+    FT_UInt glyphIndex = FT_Get_Char_Index(m_face, character.unicode());
+    if (glyphIndex)
+    {
+        Glyph glyph;
+
+        FT_Outline_Funcs interface;
+        interface.delta = 0;
+        interface.shift = 0;
+        interface.move_to = PDFRealizedFontImpl::outlineMoveTo;
+        interface.line_to = PDFRealizedFontImpl::outlineLineTo;
+        interface.conic_to = PDFRealizedFontImpl::outlineConicTo;
+        interface.cubic_to = PDFRealizedFontImpl::outlineCubicTo;
+
+        checkFreeTypeError(FT_Load_Glyph(m_face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING));
+        checkFreeTypeError(FT_Outline_Decompose(&m_face->glyph->outline, &interface, &glyph));
+        glyph.glyph.closeSubpath();
+        glyph.advance = !m_isVertical ? m_face->glyph->advance.x : m_face->glyph->advance.y;
+        glyph.advance *= FORMAT_26_6_MULTIPLIER;
+
+        m_glyphCache[character] = qMove(glyph);
+        return m_glyphCache[character];
+    }
+    else
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Glyph for unicode character '%1' not found.").arg(character));
+    }
+
+    static Glyph dummy;
+    return dummy;
+}
+
+void PDFRealizedFontImpl::checkFreeTypeError(FT_Error error)
+{
+    if (error)
+    {
+        QString message;
+        if (const char* errorString = FT_Error_String(error))
+        {
+            message = QString::fromLatin1(errorString);
+        }
+
+        throw PDFParserException(PDFTranslationContext::tr("FreeType error code %1: message").arg(error).arg(message));
+    }
+}
+
+PDFRealizedFont::~PDFRealizedFont()
+{
+    delete m_impl;
+}
+
+void PDFRealizedFont::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence)
+{
+    m_impl->fillTextSequence(byteArray, textSequence);
+}
+
+bool PDFRealizedFont::isHorizontalWritingSystem() const
+{
+    return !m_impl->m_isVertical;
+}
+
+PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(const PDFFont* font, PDFReal pixelSize)
+{
+    PDFRealizedFontPointer result;
+    std::unique_ptr<PDFRealizedFontImpl> implPtr(new PDFRealizedFontImpl());
+
+    PDFRealizedFontImpl* impl = implPtr.get();
+    impl->m_parentFont = font;
+
+    const FontDescriptor* descriptor = font->getFontDescriptor();
+    if (descriptor->isEmbedded())
+    {
+
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
+
+        if (!descriptor->fontFile.isEmpty())
+        {
+            impl->m_embeddedFontData = descriptor->fontFile;
+        }
+        else if (!descriptor->fontFile2.isEmpty())
+        {
+            impl->m_embeddedFontData = descriptor->fontFile2;
+        }
+        else if (!descriptor->fontFile3.isEmpty())
+        {
+            impl->m_embeddedFontData = descriptor->fontFile3;
+        }
+
+        // At this time, embedded font data should not be empty!
+        Q_ASSERT(!impl->m_embeddedFontData.isEmpty());
+
+        PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_embeddedFontData.constData()), impl->m_embeddedFontData.size(), 0, &impl->m_face));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize)));
+        impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
+        impl->m_isEmbedded = true;
+        result.reset(new PDFRealizedFont(implPtr.release()));
+    }
+    else
+    {
+        // TODO: Support non-embedded fonts
+        throw PDFParserException(PDFTranslationContext::tr("Only embedded fonts are supported."));
+    }
+
+    return result;
+}
+
 PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* document)
 {
+    // TODO: Create font cache for realized fonts
     const PDFObject& dereferencedFontDictionary = document->getObject(object);
     if (!dereferencedFontDictionary.isDictionary())
     {
@@ -326,9 +597,13 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
 
 }
 
-QRawFont PDFSimpleFont::getRealizedFont(PDFReal fontSize) const
+PDFRealizedFontPointer PDFSimpleFont::getRealizedFont(PDFReal fontSize) const
 {
     // TODO: Fix font creation to use also embedded fonts, font descriptor, etc.
+    // TODO: Remove QRawFont
+
+    return PDFRealizedFont::createRealizedFont(this, fontSize);
+    /*
     QRawFont rawFont;
 
     if (m_fontDescriptor.isEmbedded())
@@ -362,7 +637,7 @@ QRawFont PDFSimpleFont::getRealizedFont(PDFReal fontSize) const
         rawFont = QRawFont::fromFont(font, QFontDatabase::Any);
     }
 
-    return rawFont;
+    return rawFont;*/
 }
 
 QString PDFSimpleFont::getTextUsingEncoding(const QByteArray& byteArray) const

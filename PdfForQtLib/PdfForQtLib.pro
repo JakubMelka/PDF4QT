@@ -91,6 +91,20 @@ unix {
 }
 
 
+# Link to freetype library
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../FreeType/ -lfreetype
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../FreeType/ -lfreetype
+else:unix: LIBS += -L$$PWD/FreeType/ -lfreetype
+
+INCLUDEPATH += $$PWD/../FreeType/include
+DEPENDPATH += $$PWD/../FreeType/include
+
+freetype_lib.files = $$PWD/../FreeType/freetype.dll
+freetype_lib.path = $$OUT_PWD
+
+INSTALLS += freetype_lib
+
 CONFIG += force_debug_info
 
 

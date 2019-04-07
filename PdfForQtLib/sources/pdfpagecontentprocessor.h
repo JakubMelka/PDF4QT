@@ -350,28 +350,6 @@ protected:
         StateFlags m_stateFlags;
     };
 
-    /// Item of the text sequence (either single character, or advance)
-    struct TextSequenceItem
-    {
-        inline explicit TextSequenceItem() = default;
-        inline explicit TextSequenceItem(QChar character) : character(character), advance(0) { }
-        inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
-
-        inline bool isCharacter() const { return !character.isNull(); }
-        inline bool isAdvance() const { return advance != 0.0; }
-        inline bool isNull() const { return !isCharacter() && !isAdvance(); }
-
-        QChar character;
-        PDFReal advance = 0;
-    };
-
-    struct TextSequence
-    {
-        static TextSequence fromString(const QString& string);
-
-        std::vector<TextSequenceItem> items;
-    };
-
     enum class ProcessOrder
     {
         BeforeOperation,
@@ -593,10 +571,10 @@ private:
     void drawText(const TextSequence& textSequence);
 
     /// Returns realized font
-    const QRawFont& getRealizedFont() { return m_realizedFont.get(this, &PDFPageContentProcessor::getRealizedFontImpl); }
+    const PDFRealizedFontPointer& getRealizedFont() { return m_realizedFont.get(this, &PDFPageContentProcessor::getRealizedFontImpl); }
 
     /// Returns realized font (or empty font, if font can't be realized)
-    QRawFont getRealizedFontImpl() const;
+    PDFRealizedFontPointer getRealizedFontImpl() const;
 
     const PDFPage* m_page;
     const PDFDocument* m_document;
@@ -627,7 +605,7 @@ private:
     int m_textBeginEndState;
 
     /// Actually realized physical font
-    PDFCachedItem<QRawFont> m_realizedFont;
+    PDFCachedItem<PDFRealizedFontPointer> m_realizedFont;
 };
 
 }   // namespace pdf
