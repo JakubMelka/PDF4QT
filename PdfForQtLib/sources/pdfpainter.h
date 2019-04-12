@@ -34,7 +34,18 @@ class PDFPainter : public PDFPageContentProcessor
 {
 public:
     /// Constructs new PDFPainter object, with default parameters.
-    explicit PDFPainter(QPainter* painter, PDFRenderer::Features features, QMatrix pagePointToDevicePointMatrix, const PDFPage* page, const PDFDocument* document);
+    /// \param painter Painter, on which page content is drawn
+    /// \param features Features of the painter
+    /// \param pagePointToDevicePointMatrix Matrix, which translates page points to device points
+    /// \param page Page, which will be drawn
+    /// \param document Document owning the page
+    /// \param fontCache Font cache
+    explicit PDFPainter(QPainter* painter,
+                        PDFRenderer::Features features,
+                        QMatrix pagePointToDevicePointMatrix,
+                        const PDFPage* page,
+                        const PDFDocument* document,
+                        const PDFFontCache* fontCache);
     virtual ~PDFPainter() override;
 
 protected:

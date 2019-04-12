@@ -56,7 +56,7 @@ private:
 class PDFPageContentProcessor
 {
 public:
-    explicit PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document);
+    explicit PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache);
     virtual ~PDFPageContentProcessor();
 
     enum class Operator
@@ -578,6 +578,7 @@ private:
 
     const PDFPage* m_page;
     const PDFDocument* m_document;
+    const PDFFontCache* m_fontCache;
     const PDFDictionary* m_colorSpaceDictionary;
     const PDFDictionary* m_fontDictionary;
 

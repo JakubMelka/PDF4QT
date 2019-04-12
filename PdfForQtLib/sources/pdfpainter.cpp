@@ -23,8 +23,8 @@ namespace pdf
 {
 
 
-PDFPainter::PDFPainter(QPainter* painter, PDFRenderer::Features features, QMatrix pagePointToDevicePointMatrix, const PDFPage* page, const PDFDocument* document) :
-    PDFPageContentProcessor(page, document),
+PDFPainter::PDFPainter(QPainter* painter, PDFRenderer::Features features, QMatrix pagePointToDevicePointMatrix, const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache) :
+    PDFPageContentProcessor(page, document, fontCache),
     m_painter(painter),
     m_features(features),
     m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)

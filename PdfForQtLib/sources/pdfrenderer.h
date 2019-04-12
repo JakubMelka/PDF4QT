@@ -24,6 +24,7 @@ class QPainter;
 
 namespace pdf
 {
+class PDFFontCache;
 
 enum RenderErrorType
 {
@@ -49,7 +50,7 @@ struct PDFRenderError
 class PDFRenderer
 {
 public:
-    explicit PDFRenderer(const PDFDocument* document);
+    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache);
 
     enum Feature
     {
@@ -75,6 +76,7 @@ public:
 
 private:
     const PDFDocument* m_document;
+    const PDFFontCache* m_fontCache;
     Features m_features;
 };
 

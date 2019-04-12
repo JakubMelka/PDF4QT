@@ -91,7 +91,7 @@ private:
     PDFReal m_pixelSize;
 
     /// Parent font
-    const PDFFont* m_parentFont;
+    PDFFontPointer m_parentFont;
 
     /// True, if font is embedded
     bool m_isEmbedded;
@@ -253,7 +253,7 @@ bool PDFRealizedFont::isHorizontalWritingSystem() const
     return !m_impl->m_isVertical;
 }
 
-PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(const PDFFont* font, PDFReal pixelSize)
+PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize)
 {
     PDFRealizedFontPointer result;
     std::unique_ptr<PDFRealizedFontImpl> implPtr(new PDFRealizedFontImpl());
@@ -597,12 +597,12 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
 
 }
 
-PDFRealizedFontPointer PDFSimpleFont::getRealizedFont(PDFReal fontSize) const
+PDFRealizedFontPointer PDFSimpleFont::getRealizedFont(PDFFontPointer font, PDFReal fontSize) const
 {
     // TODO: Fix font creation to use also embedded fonts, font descriptor, etc.
     // TODO: Remove QRawFont
 
-    return PDFRealizedFont::createRealizedFont(this, fontSize);
+    return PDFRealizedFont::createRealizedFont(font, fontSize);
     /*
     QRawFont rawFont;
 
@@ -676,6 +676,71 @@ FontType PDFType1Font::getFontType() const
 FontType PDFTrueTypeFont::getFontType() const
 {
     return FontType::TrueType;
+}
+
+void PDFFontCache::setDocument(const PDFDocument* document)
+{
+    QMutexLocker lock(&m_mutex);
+    if (m_document != document)
+    {
+        m_document = document;
+        m_fontCache.clear();
+        m_realizedFontCache.clear();
+    }
+}
+
+PDFFontPointer PDFFontCache::getFont(const PDFObject& fontObject) const
+{
+    if (fontObject.isReference())
+    {
+        // Font is object reference. Look in the cache, if we have it, then return it.
+
+        QMutexLocker lock(&m_mutex);
+        PDFObjectReference reference = fontObject.getReference();
+
+        auto it = m_fontCache.find(reference);
+        if (it == m_fontCache.cend())
+        {
+            // We must create the font
+            PDFFontPointer font = PDFFont::createFont(fontObject, m_document);
+
+            if (m_fontCache.size() >= m_fontCacheLimit)
+            {
+                // We have exceeded the cache limit. Clear the cache.
+                m_fontCache.clear();
+            }
+
+            it = m_fontCache.insert(std::make_pair(reference, qMove(font))).first;
+        }
+        return it->second;
+    }
+    else
+    {
+        // Object is not a reference. Create font directly and return it.
+        return PDFFont::createFont(fontObject, m_document);
+    }
+}
+
+PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font, PDFReal size) const
+{
+    Q_ASSERT(font);
+
+    QMutexLocker lock(&m_mutex);
+    auto it = m_realizedFontCache.find(std::make_pair(font, size));
+    if (it == m_realizedFontCache.cend())
+    {
+        // We must create the realized font
+        PDFRealizedFontPointer realizedFont = font->getRealizedFont(font, size);
+
+        if (m_realizedFontCache.size() >= m_realizedFontCacheLimit)
+        {
+            m_realizedFontCache.clear();
+        }
+
+        it = m_realizedFontCache.insert(std::make_pair(std::make_pair(font, size), qMove(realizedFont))).first;
+    }
+
+    return it->second;
 }
 
 }   // namespace pdf

@@ -149,9 +149,10 @@ static constexpr const std::pair<const char*, PDFPageContentProcessor::Operator>
     { "EX", PDFPageContentProcessor::Operator::CompatibilityEnd }
 };
 
-PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document) :
+PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache) :
     m_page(page),
     m_document(document),
+    m_fontCache(fontCache),
     m_colorSpaceDictionary(nullptr),
     m_fontDictionary(nullptr),
     m_textBeginEndState(0)
@@ -1532,7 +1533,7 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
         {
             try
             {
-                PDFFontPointer font = PDFFont::createFont(m_fontDictionary->get(fontName.name), m_document);
+                PDFFontPointer font = m_fontCache->getFont(m_fontDictionary->get(fontName.name));
 
                 m_graphicState.setTextFont(qMove(font));
                 m_graphicState.setTextFontSize(fontSize);
@@ -1759,7 +1760,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         // Calculate text rendering matrix
         QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
         QMatrix textMatrix = m_graphicState.getTextMatrix();
-        QMatrix fontMatrix(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
 
         size_t characterIndex = 0;
         for (const TextSequenceItem& item : textSequence.items)
@@ -1787,7 +1787,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                 // Then get the glyph path and paint it
                 if (item.glyph)
                 {
-                    QPainterPath glyphPath = fontMatrix.map(*item.glyph);
+                    const QPainterPath& glyphPath = *item.glyph;
                     if (!glyphPath.isEmpty())
                     {
                         QMatrix textRenderingMatrix = textMatrix * adjustMatrix;
@@ -1866,7 +1866,7 @@ PDFRealizedFontPointer PDFPageContentProcessor::getRealizedFontImpl() const
 {
     if (m_graphicState.getTextFont())
     {
-        return m_graphicState.getTextFont()->getRealizedFont(m_graphicState.getTextFontSize());
+        return m_fontCache->getRealizedFont(m_graphicState.getTextFont(), m_graphicState.getTextFontSize());
     }
 
     return PDFRealizedFontPointer();

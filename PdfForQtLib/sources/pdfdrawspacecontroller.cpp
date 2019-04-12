@@ -30,7 +30,13 @@ PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     m_document(nullptr),
     m_pageLayoutMode(PageLayout::OneColumn),
     m_verticalSpacingMM(5.0),
-    m_horizontalSpacingMM(1.0)
+    m_horizontalSpacingMM(1.0),
+    m_fontCache(FONT_CACHE_LIMIT, REALIZED_FONT_CACHE_LIMIT)
+{
+
+}
+
+PDFDrawSpaceController::~PDFDrawSpaceController()
 {
 
 }
@@ -40,6 +46,7 @@ void PDFDrawSpaceController::setDocument(const PDFDocument* document)
     if (document != m_document)
     {
         m_document = document;
+        m_fontCache.setDocument(document);
         recalculate();
     }
 }
@@ -343,6 +350,11 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
 }
 
+PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
+{
+
+}
+
 void PDFDrawWidgetProxy::setDocument(const PDFDocument* document)
 {
     m_controller->setDocument(document);
@@ -533,7 +545,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            PDFRenderer renderer(m_controller->getDocument());
+            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache());
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
 
             if (!errors.empty())

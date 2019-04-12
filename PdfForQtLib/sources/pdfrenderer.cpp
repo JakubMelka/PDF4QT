@@ -22,8 +22,9 @@
 namespace pdf
 {
 
-PDFRenderer::PDFRenderer(const PDFDocument* document) :
+PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache) :
     m_document(document),
+    m_fontCache(fontCache),
     m_features(Antialiasing | TextAntialiasing)
 {
     Q_ASSERT(document);
@@ -54,7 +55,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
     matrix.translate(rectangle.left(), rectangle.bottom());
     matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache);
     return processor.processContents();
 }
 
@@ -72,7 +73,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matr
     const PDFPage* page = catalog->getPage(pageIndex);
     Q_ASSERT(page);
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache);
     return processor.processContents();
 }
 

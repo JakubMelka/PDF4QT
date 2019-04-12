@@ -21,6 +21,7 @@
 #include "pdfglobal.h"
 #include "pdfdocument.h"
 #include "pdfrenderer.h"
+#include "pdffont.h"
 
 #include <QRectF>
 #include <QObject>
@@ -43,6 +44,7 @@ class PDFDrawSpaceController : public QObject
 
 public:
     explicit PDFDrawSpaceController(QObject* parent);
+    virtual ~PDFDrawSpaceController() override;
 
     /// Sets the document and recalculates the draw space. Document can be nullptr,
     /// in that case, draw space is cleared.
@@ -88,6 +90,9 @@ public:
     /// Returns the document
     const PDFDocument* getDocument() const { return m_document; }
 
+    /// Returns the font cache
+    const PDFFontCache* getFontCache() const { return &m_fontCache; }
+
 signals:
     void drawSpaceChanged();
 
@@ -109,6 +114,9 @@ private:
 
     using BlockItems = std::vector<LayoutBlock>;
 
+    static constexpr size_t FONT_CACHE_LIMIT = 32;
+    static constexpr size_t REALIZED_FONT_CACHE_LIMIT = 128;
+
     const PDFDocument* m_document;
 
     PageLayout m_pageLayoutMode;
@@ -116,6 +124,9 @@ private:
     BlockItems m_blockItems;
     PDFReal m_verticalSpacingMM;
     PDFReal m_horizontalSpacingMM;
+
+    /// Font cache
+    PDFFontCache m_fontCache;
 };
 
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
@@ -126,6 +137,7 @@ class PDFFORQTLIBSHARED_EXPORT PDFDrawWidgetProxy : public QObject
 
 public:
     explicit PDFDrawWidgetProxy(QObject* parent);
+    virtual ~PDFDrawWidgetProxy() override;
 
     /// Sets the document and updates the draw space. Document can be nullptr,
     /// in that case, draw space is cleared.

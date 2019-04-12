@@ -213,7 +213,7 @@ public:
 
     /// Creates new realized font from the standard font. If font can't be created,
     /// then exception is thrown.
-    static PDFRealizedFontPointer createRealizedFont(const PDFFont* font, PDFReal pixelSize);
+    static PDFRealizedFontPointer createRealizedFont(PDFFontPointer font, PDFReal pixelSize);
 
 private:
     /// Constructs new realized font
@@ -235,7 +235,7 @@ public:
     /// Realizes the font (physical materialization of the font using pixel size,
     /// if font can't be realized, then empty QRawFont is returned).
     /// \param fontSize Size of the font
-    virtual PDFRealizedFontPointer getRealizedFont(PDFReal fontSize) const = 0;
+    virtual PDFRealizedFontPointer getRealizedFont(PDFFontPointer font, PDFReal fontSize) const = 0;
 
     /// Returns text using the font encoding
     /// \param byteArray Byte array with encoded string
@@ -268,7 +268,7 @@ public:
                            encoding::EncodingTable encoding);
     virtual ~PDFSimpleFont() override = default;
 
-    virtual PDFRealizedFontPointer getRealizedFont(PDFReal fontSize) const override;
+    virtual PDFRealizedFontPointer getRealizedFont(PDFFontPointer font, PDFReal fontSize) const override;
     virtual QString getTextUsingEncoding(const QByteArray& byteArray) const override;
 
 protected:
@@ -310,6 +310,43 @@ public:
     using PDFSimpleFont::PDFSimpleFont;
 
     virtual FontType getFontType() const override;
+};
+
+/// Font cache which caches both fonts, and realized fonts. Cache has individual limit
+/// for fonts, and realized fonts.
+class PDFFontCache
+{
+public:
+    inline explicit PDFFontCache(size_t fontCacheLimit, size_t realizedFontCacheLimit) :
+        m_fontCacheLimit(fontCacheLimit),
+        m_realizedFontCacheLimit(realizedFontCacheLimit),
+        m_document(nullptr)
+    {
+
+    }
+
+    /// Sets the document to the cache. Whole cache is cleared.
+    /// \param document Document to be setted
+    void setDocument(const PDFDocument* document);
+
+    /// Retrieves font from the cache. If font can't be accessed or created,
+    /// then exception is thrown.
+    /// \param fontObject Font object
+    PDFFontPointer getFont(const PDFObject& fontObject) const;
+
+    /// Retrieves realized font from the cache. If realized font can't be accessed or created,
+    /// then exception is thrown.
+    /// \param font Font, which should be realized
+    /// \param size Size of the font (in pixels)
+    PDFRealizedFontPointer getRealizedFont(const PDFFontPointer& font, PDFReal size) const;
+
+private:
+    const size_t m_fontCacheLimit;
+    const size_t m_realizedFontCacheLimit;
+    mutable QMutex m_mutex;
+    const PDFDocument* m_document;
+    mutable std::map<PDFObjectReference, PDFFontPointer> m_fontCache;
+    mutable std::map<std::pair<PDFFontPointer, PDFReal>, PDFRealizedFontPointer> m_realizedFontCache;
 };
 
 }   // namespace pdf
