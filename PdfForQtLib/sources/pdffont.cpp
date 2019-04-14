@@ -28,8 +28,175 @@
 
 #include <QMutex>
 
+#ifdef Q_OS_WIN
+#include "Windows.h"
+
+#pragma comment(lib, "Gdi32")
+#pragma comment(lib, "User32")
+#endif
+
 namespace pdf
 {
+
+/// Storage class for system fonts
+class PDFSystemFontInfoStorage
+{
+public:
+
+    /// Returns instance of storage
+    static const PDFSystemFontInfoStorage* getInstance();
+
+    /// Loads font from descriptor
+    /// \param descriptor Descriptor describing the font
+    QByteArray loadFont(const FontDescriptor* descriptor) const;
+
+private:
+    explicit PDFSystemFontInfoStorage();
+
+#ifdef Q_OS_WIN
+    /// Callback for enumerating fonts
+    static int CALLBACK enumerateFontProc(const LOGFONT* font, const TEXTMETRIC* textMetrics, DWORD fontType, LPARAM lParam);
+
+    /// Retrieves font data for desired font
+    static QByteArray getFontData(const LOGFONT* font, HDC hdc);
+
+    struct FontInfo
+    {
+        QString faceName;
+        LOGFONT logFont;
+        TEXTMETRIC textMetric;
+    };
+
+    struct CallbackInfo
+    {
+        PDFSystemFontInfoStorage* storage = nullptr;
+        HDC hdc = nullptr;
+    };
+
+    std::vector<FontInfo> m_fontInfos;
+#endif
+};
+
+const PDFSystemFontInfoStorage* PDFSystemFontInfoStorage::getInstance()
+{
+    static PDFSystemFontInfoStorage instance;
+    return &instance;
+}
+
+QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor) const
+{
+    QByteArray result;
+
+#ifdef Q_OS_WIN
+    HDC hdc = GetDC(NULL);
+
+    // Exact match for font, if font can't be exact matched, then match font family
+    // and try to set weight
+    QString fontFamily = QString::fromLatin1(descriptor->fontFamily);
+    for (const FontInfo& fontInfo : m_fontInfos)
+    {
+        if (fontInfo.faceName.contains(fontFamily) &&
+            fontInfo.logFont.lfWeight == descriptor->fontWeight &&
+            fontInfo.logFont.lfItalic == (descriptor->italicAngle != 0.0 ? TRUE : FALSE))
+        {
+            result = getFontData(&fontInfo.logFont, hdc);
+
+            if (!result.isEmpty())
+            {
+                break;
+            }
+        }
+    }
+
+    // Match for font family
+    if (result.isEmpty())
+    {
+        for (const FontInfo& fontInfo : m_fontInfos)
+        {
+            if (fontInfo.faceName.contains(fontFamily))
+            {
+                LOGFONT logFont = fontInfo.logFont;
+                logFont.lfWeight = descriptor->fontWeight;
+                logFont.lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
+                result = getFontData(&logFont, hdc);
+
+                if (!result.isEmpty())
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    ReleaseDC(NULL, hdc);
+#endif
+
+    return result;
+}
+
+PDFSystemFontInfoStorage::PDFSystemFontInfoStorage()
+{
+#ifdef Q_OS_WIN
+    LOGFONT logfont;
+    std::memset(&logfont, 0, sizeof(logfont));
+    logfont.lfCharSet = DEFAULT_CHARSET;
+    logfont.lfFaceName[0] = 0;
+    logfont.lfPitchAndFamily = 0;
+
+    HDC hdc = GetDC(NULL);
+
+    CallbackInfo callbackInfo{ this, hdc};
+    EnumFontFamiliesEx(hdc, &logfont, &PDFSystemFontInfoStorage::enumerateFontProc, reinterpret_cast<LPARAM>(&callbackInfo), 0);
+
+    ReleaseDC(NULL, hdc);
+#endif
+}
+
+#ifdef Q_OS_WIN
+int PDFSystemFontInfoStorage::enumerateFontProc(const LOGFONT* font, const TEXTMETRIC* textMetrics, DWORD fontType, LPARAM lParam)
+{
+    if ((fontType & TRUETYPE_FONTTYPE) && (font->lfCharSet == ANSI_CHARSET))
+    {
+        CallbackInfo* callbackInfo = reinterpret_cast<CallbackInfo*>(lParam);
+
+        FontInfo fontInfo;
+        fontInfo.logFont = *font;
+        fontInfo.textMetric = *textMetrics;
+        fontInfo.faceName = QString::fromWCharArray(font->lfFaceName);
+        callbackInfo->storage->m_fontInfos.push_back(qMove(fontInfo));
+
+        // For debug purposes only!
+#if 0
+        QByteArray byteArray = getFontData(font, callbackInfo->hdc);
+        qDebug() << "Font: " << QString::fromWCharArray(font->lfFaceName) << ", italic = " << font->lfItalic << ", weight = " << font->lfWeight << ", data size = " << byteArray.size();
+#endif
+    }
+
+    return TRUE;
+}
+
+QByteArray PDFSystemFontInfoStorage::getFontData(const LOGFONT* font, HDC hdc)
+{
+    QByteArray byteArray;
+
+    if (HFONT fontHandle = ::CreateFontIndirect(font))
+    {
+        HGDIOBJ oldFont = ::SelectObject(hdc, fontHandle);
+
+        DWORD size = ::GetFontData(hdc, 0, 0, nullptr, 0);
+        if (size != GDI_ERROR)
+        {
+            byteArray.resize(static_cast<int>(size));
+            ::GetFontData(hdc, 0, 0, byteArray.data(), byteArray.size());
+        }
+
+        ::SelectObject(hdc, oldFont);
+        ::DeleteObject(fontHandle);
+    }
+
+    return byteArray;
+}
+#endif
 
 PDFFont::PDFFont(FontDescriptor fontDescriptor) :
     m_fontDescriptor(qMove(fontDescriptor))
@@ -80,6 +247,9 @@ private:
 
     /// For embedded fonts, this byte array contains embedded font data
     QByteArray m_embeddedFontData;
+
+    /// For system fonts, this byte array contains system font data
+    QByteArray m_systemFontData;
 
     /// Instance of FreeType library assigned to this font
     FT_Library m_library;
@@ -198,16 +368,16 @@ const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyphForUnicode(QChar 
     {
         Glyph glyph;
 
-        FT_Outline_Funcs interface;
-        interface.delta = 0;
-        interface.shift = 0;
-        interface.move_to = PDFRealizedFontImpl::outlineMoveTo;
-        interface.line_to = PDFRealizedFontImpl::outlineLineTo;
-        interface.conic_to = PDFRealizedFontImpl::outlineConicTo;
-        interface.cubic_to = PDFRealizedFontImpl::outlineCubicTo;
+        FT_Outline_Funcs glyphOutlineInterface;
+        glyphOutlineInterface.delta = 0;
+        glyphOutlineInterface.shift = 0;
+        glyphOutlineInterface.move_to = PDFRealizedFontImpl::outlineMoveTo;
+        glyphOutlineInterface.line_to = PDFRealizedFontImpl::outlineLineTo;
+        glyphOutlineInterface.conic_to = PDFRealizedFontImpl::outlineConicTo;
+        glyphOutlineInterface.cubic_to = PDFRealizedFontImpl::outlineCubicTo;
 
         checkFreeTypeError(FT_Load_Glyph(m_face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING));
-        checkFreeTypeError(FT_Outline_Decompose(&m_face->glyph->outline, &interface, &glyph));
+        checkFreeTypeError(FT_Outline_Decompose(&m_face->glyph->outline, &glyphOutlineInterface, &glyph));
         glyph.glyph.closeSubpath();
         glyph.advance = !m_isVertical ? m_face->glyph->advance.x : m_face->glyph->advance.y;
         glyph.advance *= FORMAT_26_6_MULTIPLIER;
@@ -292,8 +462,22 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
     }
     else
     {
-        // TODO: Support non-embedded fonts
-        throw PDFParserException(PDFTranslationContext::tr("Only embedded fonts are supported."));
+        const PDFSystemFontInfoStorage* fontStorage = PDFSystemFontInfoStorage::getInstance();
+        impl->m_systemFontData = fontStorage->loadFont(descriptor);
+
+        if (impl->m_systemFontData.isEmpty())
+        {
+            // TODO: Upravit vyjimky do separatniho souboru
+            throw PDFParserException(PDFTranslationContext::tr("Can't load system font '%1'.").arg(QString::fromLatin1(descriptor->fontName)));
+        }
+
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_systemFontData.constData()), impl->m_systemFontData.size(), 0, &impl->m_face));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize)));
+        impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
+        impl->m_isEmbedded = false;
+        result.reset(new PDFRealizedFont(implPtr.release()));
     }
 
     return result;
