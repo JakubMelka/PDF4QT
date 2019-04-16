@@ -1818,43 +1818,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
         m_graphicState.setTextMatrix(textMatrix);
         updateGraphicState();
-
-
-        /*std::vector<QChar> chars;
-        chars.reserve(textSequence.items.size());
-        for (const TextSequenceItem& item : textSequence.items)
-        {
-            if (item.isCharacter())
-            {
-                chars.push_back(item.character);
-            }
-        }
-
-        int numGlyphs = static_cast<int>(chars.size());
-        std::vector<uint32_t> glyphIndices;
-        glyphIndices.resize(chars.size(), 0);
-        if (font.glyphIndexesForChars(chars.data(), static_cast<int>(chars.size()), glyphIndices.data(), &numGlyphs))
-        {
-            if (chars.size() != static_cast<size_t>(numGlyphs))
-            {
-                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
-            }
-
-            std::vector<QPointF> advances;
-            advances.resize(numGlyphs, QPointF());
-            if (font.advancesForGlyphIndexes(glyphIndices.data(), advances.data(), numGlyphs, QRawFont::SeparateAdvances | QRawFont::UseDesignMetrics))
-            {
-
-            }
-            else
-            {
-                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
-            }
-        }
-        else
-        {
-            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Cant convert unicode to glyph indices, text can't be printed."));
-        }*/
     }
     else
     {

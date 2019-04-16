@@ -27,6 +27,7 @@
 #include <freetype/ftoutln.h>
 
 #include <QMutex>
+#include <QPainterPath>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -405,7 +406,7 @@ void PDFRealizedFontImpl::checkFreeTypeError(FT_Error error)
             message = QString::fromLatin1(errorString);
         }
 
-        throw PDFParserException(PDFTranslationContext::tr("FreeType error code %1: message").arg(error).arg(message));
+        throw PDFParserException(PDFTranslationContext::tr("FreeType error code %1: %2").arg(error).arg(message));
     }
 }
 
@@ -435,21 +436,10 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
     const FontDescriptor* descriptor = font->getFontDescriptor();
     if (descriptor->isEmbedded())
     {
-
         PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
-
-        if (!descriptor->fontFile.isEmpty())
-        {
-            impl->m_embeddedFontData = descriptor->fontFile;
-        }
-        else if (!descriptor->fontFile2.isEmpty())
-        {
-            impl->m_embeddedFontData = descriptor->fontFile2;
-        }
-        else if (!descriptor->fontFile3.isEmpty())
-        {
-            impl->m_embeddedFontData = descriptor->fontFile3;
-        }
+        const QByteArray* embeddedFontData = descriptor->getEmbeddedFontData();
+        Q_ASSERT(embeddedFontData);
+        impl->m_embeddedFontData = *embeddedFontData;
 
         // At this time, embedded font data should not be empty!
         Q_ASSERT(!impl->m_embeddedFontData.isEmpty());
@@ -689,7 +679,8 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                     throw PDFParserException(PDFTranslationContext::tr("Invalid encoding entry of the font."));
                 }
             }
-            else
+
+            if (encoding == PDFEncoding::Encoding::Invalid)
             {
                 // We get encoding for the standard font. If we have invalid standard font,
                 // then we get standard encoding. So we shouldn't test it.
@@ -702,6 +693,73 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             }
 
             simpleFontEncodingTable = *PDFEncoding::getTableForEncoding(encoding);
+
+            if (fontDescriptor.isEmbedded())
+            {
+                // Return encoding from the embedded font
+                const QByteArray* embeddedFontData = fontDescriptor.getEmbeddedFontData();
+                Q_ASSERT(embeddedFontData);
+
+                FT_Library library;
+                if (!FT_Init_FreeType(&library))
+                {
+                    FT_Face face;
+                    if (!FT_New_Memory_Face(library, reinterpret_cast<const FT_Byte*>(embeddedFontData->constData()), embeddedFontData->size(), 0, &face))
+                    {
+                        if (FT_Has_PS_Glyph_Names(face))
+                        {
+                            for (FT_Int i = 0; i < face->num_charmaps; ++i)
+                            {
+                                FT_CharMap charMap = face->charmaps[i];
+                                switch (charMap->encoding)
+                                {
+                                    case FT_ENCODING_ADOBE_STANDARD:
+                                    case FT_ENCODING_ADOBE_LATIN_1:
+                                    case FT_ENCODING_ADOBE_CUSTOM:
+                                    case FT_ENCODING_ADOBE_EXPERT:
+                                    {
+                                        // Try to load data from the encoding
+                                        if (!FT_Set_Charmap(face, charMap))
+                                        {
+                                            for (size_t i = 0; i < simpleFontEncodingTable.size(); ++i)
+                                            {
+                                                FT_UInt glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(i));
+                                                if (glyphIndex > 0)
+                                                {
+                                                    char buffer[128] = { };
+                                                    if (!FT_Get_Glyph_Name(face, glyphIndex, buffer, static_cast<FT_ULong>(std::size(buffer))))
+                                                    {
+                                                        QByteArray byteArrayBuffer(buffer);
+                                                        QChar character = PDFNameToUnicode::getUnicodeForName(byteArrayBuffer);
+                                                        if (character.isNull())
+                                                        {
+                                                            character = PDFNameToUnicode::getUnicodeForNameZapfDingbats(byteArrayBuffer);
+                                                        }
+                                                        if (!character.isNull())
+                                                        {
+                                                            encoding = PDFEncoding::Encoding::Custom;
+                                                            simpleFontEncodingTable[i] = character;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        break;
+                                    }
+
+                                    default:
+                                        break;
+                                }
+                            }
+                        }
+
+                        FT_Done_Face(face);
+                    }
+
+                    FT_Done_FreeType(library);
+                }
+            }
 
             // Fill in differences
             if (hasDifferences)
@@ -784,45 +842,7 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
 
 PDFRealizedFontPointer PDFSimpleFont::getRealizedFont(PDFFontPointer font, PDFReal fontSize) const
 {
-    // TODO: Fix font creation to use also embedded fonts, font descriptor, etc.
-    // TODO: Remove QRawFont
-
     return PDFRealizedFont::createRealizedFont(font, fontSize);
-    /*
-    QRawFont rawFont;
-
-    if (m_fontDescriptor.isEmbedded())
-    {
-        // Type 1 font
-        if (!m_fontDescriptor.fontFile.isEmpty())
-        {
-            rawFont.loadFromData(m_fontDescriptor.fontFile, fontSize, QFont::PreferNoHinting);
-        }
-        else if (!m_fontDescriptor.fontFile2.isEmpty())
-        {
-            rawFont.loadFromData(m_fontDescriptor.fontFile2, fontSize, QFont::PreferNoHinting);
-        }
-
-        if (!rawFont.isValid())
-        {
-            throw PDFParserException(PDFTranslationContext::tr("Can't load embedded font."));
-        }
-    }
-    else
-    {
-        // TODO: Zkontrolovat, zda se zde opravdu prebiraji spravne fonty
-        const int weight = qBound<int>(0, m_fontDescriptor.fontWeight / 10.0, 99);
-        const int stretch = qBound<int>(1, m_fontDescriptor.fontStretch, 4000);
-
-        QFont font(m_baseFont);
-        font.setHintingPreference(QFont::PreferNoHinting);
-        font.setStretch(stretch);
-        font.setWeight(weight);
-        font.setPixelSize(fontSize);
-        rawFont = QRawFont::fromFont(font, QFontDatabase::Any);
-    }
-
-    return rawFont;*/
 }
 
 QString PDFSimpleFont::getTextUsingEncoding(const QByteArray& byteArray) const
@@ -926,6 +946,24 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
     }
 
     return it->second;
+}
+
+const QByteArray* FontDescriptor::getEmbeddedFontData() const
+{
+    if (!fontFile.isEmpty())
+    {
+        return &fontFile;
+    }
+    else if (!fontFile2.isEmpty())
+    {
+        return &fontFile2;
+    }
+    else if (!fontFile3.isEmpty())
+    {
+        return &fontFile3;
+    }
+
+    return nullptr;
 }
 
 }   // namespace pdf

@@ -22,8 +22,10 @@
 #include "pdfencoding.h"
 #include "pdfobject.h"
 
-#include <QRawFont>
+#include <QFont>
 #include <QSharedPointer>
+
+class QPainterPath;
 
 namespace pdf
 {
@@ -154,6 +156,9 @@ struct FontDescriptor
 {
     bool isEmbedded() const { return !fontFile.isEmpty() || !fontFile2.isEmpty() || !fontFile3.isEmpty(); }
 
+    /// Returns embedded font data, or nullptr, if font is not embedded
+    const QByteArray* getEmbeddedFontData() const;
+
     QByteArray fontName;
     QByteArray fontFamily;
     QFont::Stretch fontStretch = QFont::AnyStretch;
@@ -233,7 +238,7 @@ public:
     virtual FontType getFontType() const = 0;
 
     /// Realizes the font (physical materialization of the font using pixel size,
-    /// if font can't be realized, then empty QRawFont is returned).
+    /// if font can't be realized, then exception is thrown).
     /// \param fontSize Size of the font
     virtual PDFRealizedFontPointer getRealizedFont(PDFFontPointer font, PDFReal fontSize) const = 0;
 

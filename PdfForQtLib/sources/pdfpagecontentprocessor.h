@@ -25,7 +25,6 @@
 #include "pdfutils.h"
 
 #include <QMatrix>
-#include <QRawFont>
 #include <QPainterPath>
 #include <QSharedPointer>
 
