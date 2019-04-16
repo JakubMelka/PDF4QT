@@ -340,6 +340,7 @@ int PDFRealizedFontImpl::outlineLineTo(const FT_Vector* to, void* user)
 
 int PDFRealizedFontImpl::outlineConicTo(const FT_Vector* control, const FT_Vector* to, void* user)
 {
+    // TODO: Vypocet je pravdepodobne spatne
     Glyph* glyph = reinterpret_cast<Glyph*>(user);
     glyph->glyph.cubicTo(control->x * FORMAT_26_6_MULTIPLIER, control->y * FORMAT_26_6_MULTIPLIER, control->x * FORMAT_26_6_MULTIPLIER, control->y * FORMAT_26_6_MULTIPLIER, to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
     return 0;

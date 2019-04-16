@@ -1620,7 +1620,7 @@ void PDFPageContentProcessor::operatorTextSetMatrix(PDFReal a, PDFReal b, PDFRea
 
 void PDFPageContentProcessor::operatorTextMoveByLeading()
 {
-    operatorTextMoveByOffset(0.0, m_graphicState.getTextLeading());
+    operatorTextMoveByOffset(0.0, -m_graphicState.getTextLeading());
 }
 
 void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
