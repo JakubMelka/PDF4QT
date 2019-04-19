@@ -31,6 +31,8 @@ namespace pdf
 {
 class PDFDocument;
 
+using GlyphIndices = std::array<unsigned int, 256>;
+
 enum class TextRenderingMode
 {
     Fill = 0,
@@ -270,11 +272,15 @@ public:
                            PDFInteger lastChar,
                            std::vector<PDFInteger> widths,
                            PDFEncoding::Encoding encodingType,
-                           encoding::EncodingTable encoding);
+                           encoding::EncodingTable encoding,
+                           GlyphIndices glyphIndices);
     virtual ~PDFSimpleFont() override = default;
 
     virtual PDFRealizedFontPointer getRealizedFont(PDFFontPointer font, PDFReal fontSize) const override;
     virtual QString getTextUsingEncoding(const QByteArray& byteArray) const override;
+
+    const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
+    const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
 
 protected:
     QByteArray m_name;
@@ -284,6 +290,7 @@ protected:
     std::vector<PDFInteger> m_widths;
     PDFEncoding::Encoding m_encodingType;
     encoding::EncodingTable m_encoding;
+    GlyphIndices m_glyphIndices;
 };
 
 class PDFType1Font : public PDFSimpleFont
@@ -297,7 +304,8 @@ public:
                           std::vector<PDFInteger> widths,
                           PDFEncoding::Encoding encodingType,
                           encoding::EncodingTable encoding,
-                          StandardFontType standardFontType);
+                          StandardFontType standardFontType,
+                          GlyphIndices glyphIndices);
     virtual ~PDFType1Font() override = default;
 
     virtual FontType getFontType() const override;
