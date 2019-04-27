@@ -57,6 +57,8 @@ private slots:
 
     void on_actionRendering_Errors_triggered();
 
+    void on_actionGenerateCMAPrepository_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();

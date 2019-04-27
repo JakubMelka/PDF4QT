@@ -29,6 +29,7 @@
 
 #include <QMutex>
 #include <QPainterPath>
+#include <QDataStream>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -314,7 +315,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
             textSequence.items.reserve(textSequence.items.size() + byteArray.size());
             for (int i = 0, count = byteArray.size(); i < count; ++i)
             {
-                unsigned int glyphIndex = (*glyphIndices)[static_cast<uint8_t>(byteArray[i])];
+                GID glyphIndex = (*glyphIndices)[static_cast<uint8_t>(byteArray[i])];
 
                 if (!glyphIndex)
                 {
@@ -333,6 +334,33 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 const Glyph& glyph = getGlyph(glyphIndex);
                 textSequence.items.emplace_back(&glyph.glyph, (*encoding)[static_cast<uint8_t>(byteArray[i])], glyph.advance);
             }
+            break;
+        }
+
+        case FontType::Type0:
+        {
+            Q_ASSERT(dynamic_cast<PDFType0Font*>(m_parentFont.get()));
+            const PDFType0Font* font = static_cast<PDFType0Font*>(m_parentFont.get());
+
+            const PDFFontCMap* cmap = font->getCMap();
+            const PDFCIDtoGIDMapper* CIDtoGIDmapper = font->getCIDtoGIDMapper();
+
+            std::vector<CID> cids = cmap->interpret(byteArray);
+            textSequence.items.reserve(textSequence.items.size() + cids.size());
+            for (CID cid : cids)
+            {
+                GID glyphIndex = CIDtoGIDmapper->map(cid);
+
+                if (!glyphIndex)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Glyph for composite font character not found."));
+                }
+
+                // TODO: Dodelat mapovani na unicode
+                const Glyph& glyph = getGlyph(glyphIndex);
+                textSequence.items.emplace_back(&glyph.glyph, QChar(), glyph.advance);
+            }
+
             break;
         }
 
@@ -373,7 +401,7 @@ int PDFRealizedFontImpl::outlineCubicTo(const FT_Vector* control1, const FT_Vect
     return 0;
 }
 
-const PDFRealizedFontImpl::Glyph&PDFRealizedFontImpl::getGlyph(unsigned int glyphIndex)
+const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyph(unsigned int glyphIndex)
 {
     QMutexLocker lock(&m_mutex);
 
@@ -488,58 +516,10 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
     return result;
 }
 
-PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* document)
+FontDescriptor PDFFont::readFontDescriptor(const PDFObject& fontDescriptorObject, const PDFDocument* document)
 {
-    const PDFObject& dereferencedFontDictionary = document->getObject(object);
-    if (!dereferencedFontDictionary.isDictionary())
-    {
-        throw PDFParserException(PDFTranslationContext::tr("Font object must be a dictionary."));
-    }
-
-    const PDFDictionary* fontDictionary = dereferencedFontDictionary.getDictionary();
-    PDFDocumentDataLoaderDecorator fontLoader(document);
-
-    // TODO: Fonts - implement all types of the font
-    // First, determine the font subtype
-    constexpr const std::array<std::pair<const char*, FontType>, 2> fontTypes = {
-        std::pair<const char*, FontType>{ "Type1", FontType::Type1 },
-        std::pair<const char*, FontType>{ "TrueType", FontType::TrueType }
-    };
-
-    const FontType fontType = fontLoader.readEnumByName(fontDictionary->get("Subtype"), fontTypes.cbegin(), fontTypes.cend(), FontType::Invalid);
-    if (fontType == FontType::Invalid)
-    {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid font type."));
-    }
-
-    QByteArray name = fontLoader.readNameFromDictionary(fontDictionary, "Name");
-    QByteArray baseFont = fontLoader.readNameFromDictionary(fontDictionary, "BaseFont");
-    const PDFInteger firstChar = fontLoader.readIntegerFromDictionary(fontDictionary, "FirstChar", 0);
-    const PDFInteger lastChar = fontLoader.readIntegerFromDictionary(fontDictionary, "LastChar", 255);
-    std::vector<PDFInteger> widths = fontLoader.readIntegerArrayFromDictionary(fontDictionary, "Widths");
-
-    // Read standard font
-    constexpr const std::array<std::pair<const char*, StandardFontType>, 14> standardFonts = {
-        std::pair<const char*, StandardFontType>{ "Times-Roman", StandardFontType::TimesRoman },
-        std::pair<const char*, StandardFontType>{ "Times-Bold", StandardFontType::TimesRomanBold },
-        std::pair<const char*, StandardFontType>{ "Times-Italic", StandardFontType::TimesRomanItalics },
-        std::pair<const char*, StandardFontType>{ "Times-BoldItalic", StandardFontType::TimesRomanBoldItalics },
-        std::pair<const char*, StandardFontType>{ "Helvetica", StandardFontType::Helvetica },
-        std::pair<const char*, StandardFontType>{ "Helvetica-Bold", StandardFontType::HelveticaBold },
-        std::pair<const char*, StandardFontType>{ "Helvetica-Oblique", StandardFontType::HelveticaOblique },
-        std::pair<const char*, StandardFontType>{ "Helvetica-BoldOblique", StandardFontType::HelveticaBoldOblique },
-        std::pair<const char*, StandardFontType>{ "Courier", StandardFontType::Courier },
-        std::pair<const char*, StandardFontType>{ "Courier-Bold", StandardFontType::CourierBold },
-        std::pair<const char*, StandardFontType>{ "Courier-Oblique", StandardFontType::CourierOblique },
-        std::pair<const char*, StandardFontType>{ "Courier-BoldOblique", StandardFontType::CourierBoldOblique },
-        std::pair<const char*, StandardFontType>{ "Symbol", StandardFontType::Symbol },
-        std::pair<const char*, StandardFontType>{ "ZapfDingbats", StandardFontType::ZapfDingbats }
-    };
-    const StandardFontType standardFont = fontLoader.readEnumByName(fontDictionary->get("BaseFont"), standardFonts.cbegin(), standardFonts.cend(), StandardFontType::Invalid);
-
-    // Read Font Descriptor
     FontDescriptor fontDescriptor;
-    const PDFObject& fontDescriptorObject = document->getObject(fontDictionary->get("FontDescriptor"));
+    PDFDocumentDataLoaderDecorator fontLoader(document);
     if (fontDescriptorObject.isDictionary())
     {
         const PDFDictionary* fontDescriptorDictionary = fontDescriptorObject.getDictionary();
@@ -589,6 +569,63 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
         loadStream(fontDescriptor.fontFile2, "FontFile2");
         loadStream(fontDescriptor.fontFile3, "FontFile3");
     }
+
+    return fontDescriptor;
+}
+
+PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* document)
+{
+    const PDFObject& dereferencedFontDictionary = document->getObject(object);
+    if (!dereferencedFontDictionary.isDictionary())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Font object must be a dictionary."));
+    }
+
+    const PDFDictionary* fontDictionary = dereferencedFontDictionary.getDictionary();
+    PDFDocumentDataLoaderDecorator fontLoader(document);
+
+    // TODO: Fonts - implement all types of the font
+    // First, determine the font subtype
+    constexpr const std::array<std::pair<const char*, FontType>, 3> fontTypes = {
+        std::pair<const char*, FontType>{ "Type0", FontType::Type0 },
+        std::pair<const char*, FontType>{ "Type1", FontType::Type1 },
+        std::pair<const char*, FontType>{ "TrueType", FontType::TrueType }
+    };
+
+    const FontType fontType = fontLoader.readEnumByName(fontDictionary->get("Subtype"), fontTypes.cbegin(), fontTypes.cend(), FontType::Invalid);
+    if (fontType == FontType::Invalid)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Invalid font type."));
+    }
+
+    QByteArray name = fontLoader.readNameFromDictionary(fontDictionary, "Name");
+    QByteArray baseFont = fontLoader.readNameFromDictionary(fontDictionary, "BaseFont");
+    const PDFInteger firstChar = fontLoader.readIntegerFromDictionary(fontDictionary, "FirstChar", 0);
+    const PDFInteger lastChar = fontLoader.readIntegerFromDictionary(fontDictionary, "LastChar", 255);
+    std::vector<PDFInteger> widths = fontLoader.readIntegerArrayFromDictionary(fontDictionary, "Widths");
+
+    // Read standard font
+    constexpr const std::array<std::pair<const char*, StandardFontType>, 14> standardFonts = {
+        std::pair<const char*, StandardFontType>{ "Times-Roman", StandardFontType::TimesRoman },
+        std::pair<const char*, StandardFontType>{ "Times-Bold", StandardFontType::TimesRomanBold },
+        std::pair<const char*, StandardFontType>{ "Times-Italic", StandardFontType::TimesRomanItalics },
+        std::pair<const char*, StandardFontType>{ "Times-BoldItalic", StandardFontType::TimesRomanBoldItalics },
+        std::pair<const char*, StandardFontType>{ "Helvetica", StandardFontType::Helvetica },
+        std::pair<const char*, StandardFontType>{ "Helvetica-Bold", StandardFontType::HelveticaBold },
+        std::pair<const char*, StandardFontType>{ "Helvetica-Oblique", StandardFontType::HelveticaOblique },
+        std::pair<const char*, StandardFontType>{ "Helvetica-BoldOblique", StandardFontType::HelveticaBoldOblique },
+        std::pair<const char*, StandardFontType>{ "Courier", StandardFontType::Courier },
+        std::pair<const char*, StandardFontType>{ "Courier-Bold", StandardFontType::CourierBold },
+        std::pair<const char*, StandardFontType>{ "Courier-Oblique", StandardFontType::CourierOblique },
+        std::pair<const char*, StandardFontType>{ "Courier-BoldOblique", StandardFontType::CourierBoldOblique },
+        std::pair<const char*, StandardFontType>{ "Symbol", StandardFontType::Symbol },
+        std::pair<const char*, StandardFontType>{ "ZapfDingbats", StandardFontType::ZapfDingbats }
+    };
+    const StandardFontType standardFont = fontLoader.readEnumByName(fontDictionary->get("BaseFont"), standardFonts.cbegin(), standardFonts.cend(), StandardFontType::Invalid);
+
+    // Read Font Descriptor
+    const PDFObject& fontDescriptorObject = document->getObject(fontDictionary->get("FontDescriptor"));
+    FontDescriptor fontDescriptor = readFontDescriptor(fontDescriptorObject, document);
 
     // Read Font Encoding
     // The font encoding for the simple font is determined by this algorithm:
@@ -846,6 +883,66 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             break;
         }
 
+        case FontType::Type0:
+        {
+            // This is composite font (CID keyed font)
+
+            // Load CMAP
+            PDFFontCMap cmap;
+            const PDFObject& cmapObject = document->getObject(fontDictionary->get("Encoding"));
+            if (cmapObject.isName())
+            {
+                cmap = PDFFontCMap::createFromName(cmapObject.getString());
+            }
+            else if (cmapObject.isStream())
+            {
+                const PDFStream* stream = cmapObject.getStream();
+                QByteArray decodedStream = document->getDecodedStream(stream);
+                cmap = PDFFontCMap::createFromData(decodedStream);
+            }
+
+            if (!cmap.isValid())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid CMAP in CID-keyed font."));
+            }
+
+            const PDFObject& descendantFonts = document->getObject(fontDictionary->get("DescendantFonts"));
+            if (!descendantFonts.isArray())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid descendant font in CID-keyed font."));
+            }
+
+            const PDFArray* descendantFontsArray = descendantFonts.getArray();
+            if (descendantFontsArray->getCount() != 1)
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.").arg(descendantFontsArray->getCount()));
+            }
+
+            const PDFObject& descendantFont = document->getObject(descendantFontsArray->getItem(0));
+            if (!descendantFont.isDictionary())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid descendant font in CID-keyed font."));
+            }
+
+            const PDFDictionary* descendantFontDictionary = descendantFont.getDictionary();
+
+            const PDFObject& fontDescriptorObjectForCompositeFont = document->getObject(descendantFontDictionary->get("FontDescriptor"));
+            fontDescriptor = readFontDescriptor(fontDescriptorObjectForCompositeFont, document);
+
+            QByteArray cidToGidMapping;
+            const PDFObject& cidToGidMappingObject = document->getObject(descendantFontDictionary->get("CIDtoGIDMap"));
+            if (cidToGidMappingObject.isStream())
+            {
+                const PDFStream* cidToGidMappingStream = cidToGidMappingObject.getStream();
+                cidToGidMapping = document->getDecodedStream(cidToGidMappingStream);
+            }
+            PDFCIDtoGIDMapper cidToGidMapper(qMove(cidToGidMapping));
+
+            baseFont = fontLoader.readNameFromDictionary(descendantFontDictionary, "BaseFont");
+
+            return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(cidToGidMapper)));
+        }
+
         default:
         {
             Q_ASSERT(false);
@@ -894,24 +991,6 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
     m_glyphIndices(glyphIndices)
 {
 
-}
-
-PDFRealizedFontPointer PDFSimpleFont::getRealizedFont(PDFFontPointer font, PDFReal fontSize) const
-{
-    return PDFRealizedFont::createRealizedFont(font, fontSize);
-}
-
-QString PDFSimpleFont::getTextUsingEncoding(const QByteArray& byteArray) const
-{
-    QString string;
-    string.resize(byteArray.size(), QChar());
-
-    for (int i = 0, count = byteArray.size(); i < count; ++i)
-    {
-        string[i] = m_encoding[static_cast<uint8_t>(byteArray[i])];
-    }
-
-    return string;
 }
 
 PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
@@ -992,7 +1071,7 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
     if (it == m_realizedFontCache.cend())
     {
         // We must create the realized font
-        PDFRealizedFontPointer realizedFont = font->getRealizedFont(font, size);
+        PDFRealizedFontPointer realizedFont = PDFRealizedFont::createRealizedFont(font, size);
 
         if (m_realizedFontCache.size() >= m_realizedFontCacheLimit)
         {
@@ -1021,6 +1100,327 @@ const QByteArray* FontDescriptor::getEmbeddedFontData() const
     }
 
     return nullptr;
+}
+
+PDFFontCMap PDFFontCMap::createFromName(const QByteArray& name)
+{
+    QFile file(QString(":/cmaps/%1").arg(QString::fromLatin1(name)));
+    if (file.exists())
+    {
+        QByteArray data;
+        if (file.open(QFile::ReadOnly))
+        {
+            data = file.readAll();
+            file.close();
+        }
+
+        return createFromData(data);
+    }
+
+    throw PDFParserException(PDFTranslationContext::tr("Can't load CID font mapping named '%1'.").arg(QString::fromLatin1(name)));
+    return PDFFontCMap();
+}
+
+PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
+{
+    Entries entries;
+    entries.reserve(1024); // Arbitrary number, we have enough memory, better than perform reallocation each time
+
+    std::vector<PDFFontCMap> additionalMappings;
+    PDFLexicalAnalyzer parser(data.constBegin(), data.constEnd());
+
+    bool vertical = false;
+    PDFLexicalAnalyzer::Token previousToken;
+    while (!parser.isAtEnd())
+    {
+        PDFLexicalAnalyzer::Token token = parser.fetch();
+
+        if (token.type == PDFLexicalAnalyzer::TokenType::Name && token.data.toByteArray() == "WMode")
+        {
+            PDFLexicalAnalyzer::Token valueToken = parser.fetch();
+            vertical = valueToken.type == PDFLexicalAnalyzer::TokenType::Integer && valueToken.data.value<PDFInteger>() == 1;
+            continue;
+        }
+
+        auto fetchCode = [] (const PDFLexicalAnalyzer::Token& currentToken) -> std::pair<unsigned int, unsigned int>
+        {
+            if (currentToken.type == PDFLexicalAnalyzer::TokenType::String)
+            {
+                QByteArray byteArray = currentToken.data.toByteArray();
+
+                unsigned int codeValue = 0;
+                for (int i = 0; i < byteArray.size(); ++i)
+                {
+                    codeValue = (codeValue << 8) + static_cast<unsigned char>(byteArray[i]);
+                }
+
+                return std::make_pair(codeValue, byteArray.size());
+            }
+
+            throw PDFParserException(PDFTranslationContext::tr("Can't fetch code from CMap definition."));
+            return std::pair<unsigned int, unsigned int>();
+        };
+
+        auto fetchCID = [&parser] (const PDFLexicalAnalyzer::Token& currentToken) -> CID
+        {
+            if (currentToken.type == PDFLexicalAnalyzer::TokenType::Integer)
+            {
+                return currentToken.data.value<PDFInteger>();
+            }
+
+            throw PDFParserException(PDFTranslationContext::tr("Can't fetch CID from CMap definition."));
+            return 0;
+        };
+
+        if (token.type == PDFLexicalAnalyzer::TokenType::Command)
+        {
+            QByteArray command = token.data.toByteArray();
+            if (command == "usecmap")
+            {
+                if (previousToken.type == PDFLexicalAnalyzer::TokenType::Name)
+                {
+                    additionalMappings.emplace_back(createFromName(previousToken.data.toByteArray()));
+                }
+                else
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Can't use cmap inside cmap file."));
+                }
+            }
+            else if (command == "begincidrange")
+            {
+                while (true)
+                {
+                    PDFLexicalAnalyzer::Token token1 = parser.fetch();
+
+                    if (token1.type == PDFLexicalAnalyzer::TokenType::Command &&
+                        token1.data.toByteArray() == "endcidrange")
+                    {
+                        break;
+                    }
+
+                    PDFLexicalAnalyzer::Token token2 = parser.fetch();
+                    PDFLexicalAnalyzer::Token token3 = parser.fetch();
+
+                    std::pair<unsigned int, unsigned int> from = fetchCode(token1);
+                    std::pair<unsigned int, unsigned int> to = fetchCode(token2);
+                    CID cid = fetchCID(token3);
+
+                    entries.emplace_back(from.first, to.first, qMax(from.second, to.second), cid);
+                }
+            }
+            else if (command == "begincidchar")
+            {
+                while (true)
+                {
+                    PDFLexicalAnalyzer::Token token1 = parser.fetch();
+
+                    if (token1.type == PDFLexicalAnalyzer::TokenType::Command &&
+                        token1.data.toByteArray() == "endcidchar")
+                    {
+                        break;
+                    }
+
+                    PDFLexicalAnalyzer::Token token2 = parser.fetch();
+
+                    std::pair<unsigned int, unsigned int> code = fetchCode(token1);
+                    CID cid = fetchCID(token2);
+
+                    entries.emplace_back(code.first, code.first, code.second, cid);
+                }
+            }
+        }
+
+        previousToken = token;
+    }
+
+    std::sort(entries.begin(), entries.end());
+    entries = optimize(entries);
+
+    if (!additionalMappings.empty())
+    {
+        for (const PDFFontCMap& map : additionalMappings)
+        {
+            entries.insert(entries.cend(), map.m_entries.cbegin(), map.m_entries.cend());
+        }
+    }
+
+    return PDFFontCMap(qMove(entries), vertical);
+}
+
+QByteArray PDFFontCMap::serialize() const
+{
+    QByteArray result;
+
+    {
+        QDataStream stream(&result, QIODevice::WriteOnly);
+        stream << m_maxKeyLength;
+        stream << m_vertical;
+        stream << m_entries.size();
+        for (const Entry& entry : m_entries)
+        {
+            stream << entry.from;
+            stream << entry.to;
+            stream << entry.byteCount;
+            stream << entry.cid;
+        }
+    }
+
+    return qCompress(result, 9);
+}
+
+PDFFontCMap PDFFontCMap::deserialize(const QByteArray& byteArray)
+{
+    PDFFontCMap result;
+    QByteArray decompressed = qUncompress(byteArray);
+    QDataStream stream(&decompressed, QIODevice::ReadOnly);
+    stream >> result.m_maxKeyLength;
+    stream >> result.m_vertical;
+
+    Entries::size_type size = 0;
+    stream >> size;
+    result.m_entries.reserve(size);
+    for (Entries::size_type i = 0; i < size; ++i)
+    {
+        Entry entry;
+        stream >> entry.from;
+        stream >> entry.to;
+        stream >> entry.byteCount;
+        stream >> entry.cid;
+        result.m_entries.push_back(entry);
+    }
+
+    return result;
+}
+
+std::vector<CID> PDFFontCMap::interpret(const QByteArray& byteArray) const
+{
+    std::vector<CID> result;
+    result.reserve(byteArray.size() / m_maxKeyLength);
+
+    unsigned int value = 0;
+    int scannedBytes = 0;
+
+    for (int i = 0, size = byteArray.size(); i < size; ++i)
+    {
+        value = (value << 8) + static_cast<unsigned char>(byteArray[i]);
+        ++scannedBytes;
+
+        // Find suitable mapping
+        auto it = std::find_if(m_entries.cbegin(), m_entries.cend(), [value, scannedBytes](const Entry& entry) { return entry.from <= value && entry.to >= value && entry.byteCount == scannedBytes; });
+        if (it != m_entries.cend())
+        {
+            const Entry& entry = *it;
+            const CID cid = value - entry.from + entry.cid;
+            result.push_back(cid);
+
+            value = 0;
+            scannedBytes = 0;
+        }
+        else if (scannedBytes == m_maxKeyLength)
+        {
+            // This means error occured - fill empty CID
+            result.push_back(0);
+            value = 0;
+            scannedBytes = 0;
+        }
+    }
+
+    return result;
+}
+
+PDFFontCMap::PDFFontCMap(Entries&& entries, bool vertical) :
+    m_entries(qMove(entries)),
+    m_maxKeyLength(0),
+    m_vertical(vertical)
+{
+    m_maxKeyLength = std::accumulate(m_entries.cbegin(), m_entries.cend(), 0, [](unsigned int a, const Entry& b) { return qMax(a, b.byteCount); });
+}
+
+PDFFontCMap::Entries PDFFontCMap::optimize(const PDFFontCMap::Entries& entries)
+{
+    Entries result;
+    result.reserve(entries.size());
+
+    if (!entries.empty())
+    {
+        Entry current = entries.front();
+        for (size_t i = 1, count = entries.size(); i < count; ++i)
+        {
+            Entry toMerge = entries[i];
+
+            if (current.canMerge(toMerge))
+            {
+                current = current.merge(toMerge);
+            }
+            else
+            {
+                result.emplace_back(current);
+                current = toMerge;
+            }
+        }
+        result.emplace_back(current);
+    }
+
+    result.shrink_to_fit();
+    return result;
+}
+
+PDFFontCMapRepository* PDFFontCMapRepository::getInstance()
+{
+    static PDFFontCMapRepository repository;
+    return &repository;
+}
+
+void PDFFontCMapRepository::saveToFile(const QString& fileName) const
+{
+    QFile file(fileName);
+    if (file.open(QFile::WriteOnly | QFile::Truncate))
+    {
+        size_t size = m_cmaps.size();
+
+        {
+            QDataStream stream(&file);
+            stream << size;
+            for (const auto& item : m_cmaps)
+            {
+                stream << item.first;
+                stream << item.second;
+            }
+        }
+
+        file.close();
+    }
+}
+
+bool PDFFontCMapRepository::loadFromFile(const QString& fileName)
+{
+    QFile file(fileName);
+    if (file.open(QFile::ReadOnly))
+    {
+        {
+            QDataStream stream(&file);
+            size_t size = 0;
+            stream >> size;
+            for (size_t i = 0; i < size; ++i)
+            {
+                QByteArray key;
+                QByteArray value;
+                stream >> key;
+                stream >> value;
+                m_cmaps[qMove(key)] = qMove(value);
+            }
+        }
+
+        file.close();
+        return true;
+    }
+
+    return false;
+}
+
+PDFFontCMapRepository::PDFFontCMapRepository()
+{
+
 }
 
 }   // namespace pdf

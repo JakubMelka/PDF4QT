@@ -110,5 +110,13 @@ CONFIG += force_debug_info
 
 QMAKE_CXXFLAGS += /std:c++latest /utf-8
 
+QMAKE_RESOURCE_FLAGS += -threshold 0 -compress 9
+message($$QMAKE_RESOURCE_FLAGS)
+
 FORMS += \
     sources/pdfrenderingerrorswidget.ui
+
+RESOURCES += \
+    cmaps.qrc
+
+

@@ -31,7 +31,10 @@ namespace pdf
 {
 class PDFDocument;
 
-using GlyphIndices = std::array<unsigned int, 256>;
+using CID = unsigned int;
+using GID = unsigned int;
+
+using GlyphIndices = std::array<GID, 256>;
 
 enum class TextRenderingMode
 {
@@ -52,7 +55,7 @@ struct TextSequenceItem
     inline explicit TextSequenceItem(const QPainterPath* glyph, QChar character, PDFReal advance) : glyph(glyph), character(character), advance(advance) { }
     inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
 
-    inline bool isCharacter() const { return !character.isNull(); }
+    inline bool isCharacter() const { return glyph; }
     inline bool isAdvance() const { return advance != 0.0; }
     inline bool isNull() const { return !isCharacter() && !isAdvance(); }
 
@@ -114,6 +117,7 @@ constexpr bool isTextRenderingModeClipped(TextRenderingMode mode)
 enum class FontType
 {
     Invalid,
+    Type0,
     Type1,
     TrueType
 };
@@ -239,15 +243,6 @@ public:
     /// Returns the font type
     virtual FontType getFontType() const = 0;
 
-    /// Realizes the font (physical materialization of the font using pixel size,
-    /// if font can't be realized, then exception is thrown).
-    /// \param fontSize Size of the font
-    virtual PDFRealizedFontPointer getRealizedFont(PDFFontPointer font, PDFReal fontSize) const = 0;
-
-    /// Returns text using the font encoding
-    /// \param byteArray Byte array with encoded string
-    virtual QString getTextUsingEncoding(const QByteArray& byteArray) const = 0;
-
     /// Returns font descriptor
     const FontDescriptor* getFontDescriptor() const { return &m_fontDescriptor; }
 
@@ -258,6 +253,12 @@ public:
 
 protected:
     FontDescriptor m_fontDescriptor;
+
+private:
+    /// Tries to read font descriptor from the object
+    /// \param fontDescriptorObject Font descriptor dictionary
+    /// \param document Document
+    static FontDescriptor readFontDescriptor(const PDFObject& fontDescriptorObject, const PDFDocument* document);
 };
 
 /// Simple font, see PDF reference 1.7, chapter 5.5. Simple fonts have encoding table,
@@ -275,9 +276,6 @@ public:
                            encoding::EncodingTable encoding,
                            GlyphIndices glyphIndices);
     virtual ~PDFSimpleFont() override = default;
-
-    virtual PDFRealizedFontPointer getRealizedFont(PDFFontPointer font, PDFReal fontSize) const override;
-    virtual QString getTextUsingEncoding(const QByteArray& byteArray) const override;
 
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
@@ -360,6 +358,153 @@ private:
     const PDFDocument* m_document;
     mutable std::map<PDFObjectReference, PDFFontPointer> m_fontCache;
     mutable std::map<std::pair<PDFFontPointer, PDFReal>, PDFRealizedFontPointer> m_realizedFontCache;
+};
+
+/// Performs mapping from CID to GID (even identity mapping, if byte array is empty)
+class PDFCIDtoGIDMapper
+{
+public:
+    explicit inline PDFCIDtoGIDMapper(QByteArray&& mapping) : m_mapping(qMove(mapping)) { }
+
+    /// Maps CID to GID (glyph identifier)
+    GID map(CID cid) const
+    {
+        if (m_mapping.isEmpty())
+        {
+            // This means identity mapping
+            return cid;
+        }
+        else if ((2 * cid + 1) < CID(m_mapping.size()))
+        {
+            return (GID(m_mapping[2 * cid]) << 8) + GID(m_mapping[2 * cid + 1]);
+        }
+
+        // This should occur only in case of bad (damaged) PDF file - because in this case,
+        // encoding is missing. Return invalid glyph index.
+        return 0;
+    }
+
+private:
+    QByteArray m_mapping;
+};
+
+/// Represents a font CMAP (mapping of CIDs)
+class PDFFORQTLIBSHARED_EXPORT PDFFontCMap
+{
+public:
+    constexpr explicit PDFFontCMap() = default;
+
+    /// Returns true, if mapping is valid
+    bool isValid() const { return !m_entries.empty(); }
+
+    /// Creates mapping from name (name must be one of predefined names)
+    static PDFFontCMap createFromName(const QByteArray& name);
+
+    /// Creates mapping from data (data must be a byte array containing the CMap)
+    static PDFFontCMap createFromData(const QByteArray& data);
+
+    /// Serializes the CMap to the byte array
+    QByteArray serialize() const;
+
+    /// Deserializes the CMap from the byte array
+    static PDFFontCMap deserialize(const QByteArray& byteArray);
+
+    /// Converts byte array to array of CIDs
+    std::vector<CID> interpret(const QByteArray& byteArray) const;
+
+private:
+
+    struct Entry
+    {
+        constexpr explicit inline Entry() = default;
+        constexpr explicit inline Entry(unsigned int from, unsigned int to, unsigned int byteCount, CID cid) : from(from), to(to), byteCount(byteCount), cid(cid) { }
+
+        unsigned int from = 0;
+        unsigned int to = 0;
+        unsigned int byteCount = 0;
+        CID cid = 0;
+
+        // Can merge from other CID entry?
+        bool canMerge(const Entry& other) const
+        {
+            const bool sameBytes = byteCount == other.byteCount;
+            const bool compatibleRange = (to + 1) == other.from;
+            const bool compatibleCID = (cid + to + 1) - from == other.cid;
+            return sameBytes && compatibleRange && compatibleCID;
+        }
+
+        inline constexpr Entry merge(const Entry& other) const
+        {
+            return Entry(from, other.to, byteCount, cid);
+        }
+
+        inline constexpr bool operator<(const Entry& other) const
+        {
+            return std::tie(byteCount, from) < std::tie(other.byteCount, other.from);
+        }
+    };
+
+    using Entries = std::vector<Entry>;
+
+    explicit PDFFontCMap(Entries&& entries, bool vertical);
+
+    /// Optimizes the entries - merges entries, which can be merged. This function
+    /// requires, that entries are sorted.
+    static Entries optimize(const Entries& entries);
+
+    Entries m_entries;
+    unsigned int m_maxKeyLength = 0;
+    bool m_vertical = false;
+};
+
+/// Composite font (CID-keyed font)
+class PDFType0Font : public PDFFont
+{
+public:
+    explicit inline PDFType0Font(FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFCIDtoGIDMapper mapper) :
+        PDFFont(qMove(fontDescriptor)),
+        m_cmap(qMove(cmap)),
+        m_mapper(qMove(mapper))
+    {
+
+    }
+
+    virtual ~PDFType0Font() = default;
+
+    virtual FontType getFontType() const override { return FontType::Type0; }
+
+    const PDFFontCMap* getCMap() const { return &m_cmap; }
+    const PDFCIDtoGIDMapper* getCIDtoGIDMapper() const { return &m_mapper; }
+
+private:
+    PDFFontCMap m_cmap;
+    PDFCIDtoGIDMapper m_mapper;
+};
+
+/// Repository with predefined CMaps
+class PDFFORQTLIBSHARED_EXPORT PDFFontCMapRepository
+{
+public:
+    /// Returns instance of CMAP repository
+    static PDFFontCMapRepository* getInstance();
+
+    /// Adds CMAP to the repository
+    void add(const QByteArray& key, QByteArray value) { m_cmaps[key] = qMove(value); }
+
+    /// Clears the repository
+    void clear() { m_cmaps.clear(); }
+
+    /// Saves the repository content to the file
+    void saveToFile(const QString& fileName) const;
+
+    /// Loads the repository content from the file
+    bool loadFromFile(const QString& fileName);
+
+private:
+    explicit PDFFontCMapRepository();
+
+    /// Storage for predefined cmaps
+    std::map<QByteArray, QByteArray> m_cmaps;
 };
 
 }   // namespace pdf

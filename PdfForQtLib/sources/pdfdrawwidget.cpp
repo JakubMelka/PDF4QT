@@ -60,6 +60,7 @@ PDFWidget::~PDFWidget()
 void PDFWidget::setDocument(const PDFDocument* document)
 {
     m_proxy->setDocument(document);
+    m_pageRenderingErrors.clear();
 }
 
 int PDFWidget::getPageRenderingErrorCount() const

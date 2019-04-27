@@ -59,10 +59,17 @@
     </property>
     <addaction name="actionRendering_Errors"/>
    </widget>
+   <widget class="QMenu" name="menuDeveloper">
+    <property name="title">
+     <string>Developer</string>
+    </property>
+    <addaction name="actionGenerateCMAPrepository"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
    <addaction name="menuGoTo"/>
    <addaction name="menuTools"/>
+   <addaction name="menuDeveloper"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -152,6 +159,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
+   </property>
+  </action>
+  <action name="actionGenerateCMAPrepository">
+   <property name="text">
+    <string>Generate CMAP repository</string>
    </property>
   </action>
  </widget>
