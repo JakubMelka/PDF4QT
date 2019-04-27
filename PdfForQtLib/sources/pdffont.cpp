@@ -63,9 +63,13 @@ private:
     /// Retrieves font data for desired font
     static QByteArray getFontData(const LOGFONT* font, HDC hdc);
 
+    /// Create a postscript name for comparation purposes
+    static QString getFontPostscriptName(QString fontName);
+
     struct FontInfo
     {
         QString faceName;
+        QString faceNameAdjusted;
         LOGFONT logFont;
         TEXTMETRIC textMetric;
     };
@@ -93,39 +97,85 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor) 
 #ifdef Q_OS_WIN
     HDC hdc = GetDC(NULL);
 
-    // Exact match for font, if font can't be exact matched, then match font family
-    // and try to set weight
-    QString fontFamily = QString::fromLatin1(descriptor->fontFamily);
-    for (const FontInfo& fontInfo : m_fontInfos)
-    {
-        if (fontInfo.faceName.contains(fontFamily) &&
-            fontInfo.logFont.lfWeight == descriptor->fontWeight &&
-            fontInfo.logFont.lfItalic == (descriptor->italicAngle != 0.0 ? TRUE : FALSE))
-        {
-            result = getFontData(&fontInfo.logFont, hdc);
+    const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
 
-            if (!result.isEmpty())
-            {
-                break;
-            }
-        }
-    }
-
-    // Match for font family
-    if (result.isEmpty())
+    // Exact match font face name
+    QString fontName = getFontPostscriptName(descriptor->fontName);
+    if (!fontName.isEmpty())
     {
         for (const FontInfo& fontInfo : m_fontInfos)
         {
-            if (fontInfo.faceName.contains(fontFamily))
+            if (fontInfo.faceNameAdjusted == fontName &&
+                fontInfo.logFont.lfWeight == descriptor->fontWeight &&
+                fontInfo.logFont.lfItalic == lfItalic)
             {
-                LOGFONT logFont = fontInfo.logFont;
-                logFont.lfWeight = descriptor->fontWeight;
-                logFont.lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
-                result = getFontData(&logFont, hdc);
+                result = getFontData(&fontInfo.logFont, hdc);
 
                 if (!result.isEmpty())
                 {
                     break;
+                }
+            }
+        }
+
+        // Match for font family
+        if (result.isEmpty())
+        {
+            for (const FontInfo& fontInfo : m_fontInfos)
+            {
+                if (fontInfo.faceNameAdjusted == fontName)
+                {
+                    LOGFONT logFont = fontInfo.logFont;
+                    logFont.lfWeight = descriptor->fontWeight;
+                    logFont.lfItalic = lfItalic;
+                    result = getFontData(&logFont, hdc);
+
+                    if (!result.isEmpty())
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Exact match for font, if font can't be exact matched, then match font family
+    // and try to set weight
+    QString fontFamily = QString::fromLatin1(descriptor->fontFamily);
+
+    if (!fontFamily.isEmpty())
+    {
+        for (const FontInfo& fontInfo : m_fontInfos)
+        {
+            if (fontInfo.faceName.contains(fontFamily) &&
+                fontInfo.logFont.lfWeight == descriptor->fontWeight &&
+                fontInfo.logFont.lfItalic == lfItalic)
+            {
+                result = getFontData(&fontInfo.logFont, hdc);
+
+                if (!result.isEmpty())
+                {
+                    break;
+                }
+            }
+        }
+
+        // Match for font family
+        if (result.isEmpty())
+        {
+            for (const FontInfo& fontInfo : m_fontInfos)
+            {
+                if (fontInfo.faceName.contains(fontFamily))
+                {
+                    LOGFONT logFont = fontInfo.logFont;
+                    logFont.lfWeight = descriptor->fontWeight;
+                    logFont.lfItalic = lfItalic;
+                    result = getFontData(&logFont, hdc);
+
+                    if (!result.isEmpty())
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -166,6 +216,7 @@ int PDFSystemFontInfoStorage::enumerateFontProc(const LOGFONT* font, const TEXTM
         fontInfo.logFont = *font;
         fontInfo.textMetric = *textMetrics;
         fontInfo.faceName = QString::fromWCharArray(font->lfFaceName);
+        fontInfo.faceNameAdjusted = getFontPostscriptName(fontInfo.faceName);
         callbackInfo->storage->m_fontInfos.push_back(qMove(fontInfo));
 
         // For debug purposes only!
@@ -199,6 +250,17 @@ QByteArray PDFSystemFontInfoStorage::getFontData(const LOGFONT* font, HDC hdc)
 
     return byteArray;
 }
+
+QString PDFSystemFontInfoStorage::getFontPostscriptName(QString fontName)
+{
+    for (const char* string : { "PS", "MT", "Regular", "Bold", "Italic", "Oblique" })
+    {
+        fontName.remove(QLatin1String(string), Qt::CaseInsensitive);
+    }
+
+    return fontName.remove(QChar(' ')).remove(QChar('-')).trimmed();
+}
+
 #endif
 
 PDFFont::PDFFont(FontDescriptor fontDescriptor) :

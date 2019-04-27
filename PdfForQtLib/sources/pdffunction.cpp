@@ -1661,8 +1661,12 @@ PDFPostScriptFunction::~PDFPostScriptFunction()
 
 PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteArray& byteArray)
 {
+    // Lexical analyzer can't handle when '{' or '}' is near next token (for example '{0' etc.)
+    QByteArray adjustedArray = byteArray;
+    adjustedArray.replace('{', " { ").replace('}', " } ");
+
     Program result;
-    PDFLexicalAnalyzer parser(byteArray.constBegin(), byteArray.constEnd());
+    PDFLexicalAnalyzer parser(adjustedArray.constBegin(), adjustedArray.constEnd());
 
     std::stack<InstructionPointer> blockCallStack;
     while (true)
