@@ -85,7 +85,7 @@ void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& 
     // If current transformation matrix has changed, then update it
     if (flags.testFlag(PDFPageContentProcessorState::StateCurrentTransformationMatrix))
     {
-        m_painter->setWorldMatrix(m_pagePointToDevicePointMatrix * state.getCurrentTransformationMatrix(), false);
+        m_painter->setWorldMatrix(state.getCurrentTransformationMatrix() * m_pagePointToDevicePointMatrix, false);
     }
 
     if (flags.testFlag(PDFPageContentProcessorState::StateStrokeColor) ||

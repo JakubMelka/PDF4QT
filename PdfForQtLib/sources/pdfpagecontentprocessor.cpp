@@ -1082,7 +1082,7 @@ void PDFPageContentProcessor::operatorAdjustCurrentTransformationMatrix(PDFReal 
     // to avoid errors later (for some operations, we assume matrix is invertible).
 
     QMatrix matrix(a, b, c, d, e, f);
-    QMatrix transformMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix;
+    QMatrix transformMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
 
     if (!transformMatrix.isInvertible())
     {
@@ -1574,9 +1574,7 @@ void PDFPageContentProcessor::operatorTextSetRise(PDFReal rise)
 void PDFPageContentProcessor::operatorTextMoveByOffset(PDFReal t_x, PDFReal t_y)
 {
     const QMatrix& textLineMatrix = m_graphicState.getTextLineMatrix();
-
-    QMatrix transformedMatrix = textLineMatrix;
-    transformedMatrix.translate(t_x, t_y);
+    QMatrix transformedMatrix = QMatrix(1, 0, 0, 1, t_x, t_y) * textLineMatrix;
 
     m_graphicState.setTextMatrix(transformedMatrix);
     m_graphicState.setTextLineMatrix(transformedMatrix);
@@ -1790,7 +1788,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     const QPainterPath& glyphPath = *item.glyph;
                     if (!glyphPath.isEmpty())
                     {
-                        QMatrix textRenderingMatrix = textMatrix * adjustMatrix;
+                        QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
                         QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
                         performPathPainting(transformedGlyph, stroke, fill, transformedGlyph.fillRule());
                     }
