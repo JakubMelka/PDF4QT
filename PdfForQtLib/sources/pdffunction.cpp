@@ -1246,6 +1246,14 @@ void PDFPostScriptFunctionExecutor::execute()
                 break;
             }
 
+            case PDFPostScriptFunction::Code::Execute:
+            {
+                const PDFPostScriptFunctionStack::InstructionPointer callIp = m_stack.popInstructionPointer();
+                callStack.push(instruction.next);
+                ip = callIp;
+                continue;
+            }
+
             case PDFPostScriptFunction::Code::If:
             {
                 const PDFPostScriptFunctionStack::InstructionPointer callIp = m_stack.popInstructionPointer();
@@ -1480,7 +1488,7 @@ PDFReal PDFPostScriptFunctionStack::popNumber()
     }
     else
     {
-        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Instruction pointer expected (PostScript engine)."));
+        throw PDFPostScriptFunction::PDFPostScriptFunctionException(PDFTranslationContext::tr("Number expected (PostScript engine)."));
     }
 }
 
@@ -1741,9 +1749,86 @@ PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteAr
         throw PDFParserException(PDFTranslationContext::tr("Empty program (PostScript function)."));
     }
 
-    // Mark we are at the end of the program
-    result.back().next = INVALID_INSTRUCTION_POINTER;
+    // We must insert execute instructions, where blocks without if/ifelse occurs.
+    // We can have following program "{ 2 3 add }" which must return 5. How to find blocks,
+    // after which instructions must be executed? Next instruction must be if, or next instruction
+    // must be a call and next-next instruction must be ifelse
 
+    auto isBlockUsed = [&result](InstructionPointer ip)
+    {
+        // We should call this function only on Call opcode
+        Q_ASSERT(result[ip].code == Code::Call);
+
+        const InstructionPointer next = result[ip].next;
+        if (next < result.size())
+        {
+            switch (result[next].code)
+            {
+                case Code::If:
+                case Code::IfElse:
+                {
+                    // Block is used in 'If' statement
+                    return true;
+                }
+
+                case Code::Call:
+                {
+                    // We must detect, if we use 'If-Else' statement
+                    const InstructionPointer nextnext = result[next].next;
+
+                    if (nextnext < result.size())
+                    {
+                        return result[nextnext].code == Code::IfElse;
+                    }
+                    return false;
+                }
+
+                default:
+                    return false;
+            }
+        }
+
+        return false;
+    };
+
+    // Insert execute instructions, where there are call blocks, which are not used in if/ifelse statements
+    for (size_t i = 0; i < result.size(); ++i)
+    {
+        if (result[i].code == Code::Call && !isBlockUsed(i))
+        {
+            InstructionPointer insertPosition = result[i].next;
+
+            // We must update the instructions pointers for inserting the instruction
+            for (CodeObject& codeObject : result)
+            {
+                if (codeObject.next > insertPosition && codeObject.next != INVALID_INSTRUCTION_POINTER)
+                {
+                    ++codeObject.next;
+                }
+                if (codeObject.operand.type == OperandType::InstructionPointer &&
+                    codeObject.operand.instructionPointer > insertPosition &&
+                    codeObject.operand.instructionPointer != INVALID_INSTRUCTION_POINTER)
+                {
+                    ++codeObject.operand.instructionPointer;
+                }
+            }
+
+            // We must insert an execute statement, block is not used in if/ifelse statement
+            result.insert(std::next(result.begin(), insertPosition), CodeObject(Code::Execute, insertPosition + 1));
+        }
+    }
+
+    // Mark we are at the end of the program
+    for (CodeObject& codeObject : result)
+    {
+        if (codeObject.next == result.size())
+        {
+            codeObject.next = INVALID_INSTRUCTION_POINTER;
+        }
+    }
+    Q_ASSERT(result.back().next == INVALID_INSTRUCTION_POINTER);
+
+    result.shrink_to_fit();
     return result;
 }
 
@@ -1781,7 +1866,7 @@ PDFFunction::FunctionResult PDFPostScriptFunction::apply(const_iterator x_1, con
         auto itEnd = std::make_reverse_iterator(y_1);
         for (; it != itEnd; ++it)
         {
-            const PDFReal y = stack.popReal();
+            const PDFReal y = stack.popNumber();
             const PDFReal yClamped = clampOutput(--i, y);
             *it = yClamped;
         }

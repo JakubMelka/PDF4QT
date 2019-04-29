@@ -85,38 +85,30 @@ HEADERS += \
     sources/pdfnametounicode.h \
     sources/pdffont.h
 
-unix {
-    target.path = /usr/lib
-    INSTALLS += target
-}
-
-
-# Link to freetype library
-
-win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../FreeType/ -lfreetype
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../FreeType/ -lfreetype
-else:unix: LIBS += -L$$PWD/FreeType/ -lfreetype
-
-INCLUDEPATH += $$PWD/../FreeType/include
-DEPENDPATH += $$PWD/../FreeType/include
-
-freetype_lib.files = $$PWD/../FreeType/freetype.dll
-freetype_lib.path = $$OUT_PWD
-
-INSTALLS += freetype_lib
-
-CONFIG += force_debug_info
-
-
-QMAKE_CXXFLAGS += /std:c++latest /utf-8
-
-QMAKE_RESOURCE_FLAGS += -threshold 0 -compress 9
-message($$QMAKE_RESOURCE_FLAGS)
-
 FORMS += \
     sources/pdfrenderingerrorswidget.ui
 
-RESOURCES += \
-    cmaps.qrc
+# Link to freetype library
+LIBS += -L$$PWD/../FreeType/ -lfreetype
+INCLUDEPATH += $$PWD/../FreeType/include
+DEPENDPATH += $$PWD/../FreeType/include
 
+# Add freetype to installations
+freetype_lib.files = $$PWD/../FreeType/freetype.dll
+freetype_lib.path = $$DESTDIR
+INSTALLS += freetype_lib
+
+# ensure debug info even for RELEASE build
+CONFIG += force_debug_info
+
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+# resource manifest
+CMAP_RESOURCE_INPUT = $$PWD/cmaps.qrc
+cmap_resource_builder.commands = $$[QT_HOST_BINS]/rcc -binary ${QMAKE_FILE_IN} -o ${QMAKE_FILE_OUT} -threshold 0 -compress 9
+cmap_resource_builder.depend_command = $$[QT_HOST_BINS]/rcc -list $$QMAKE_RESOURCE_FLAGS ${QMAKE_FILE_IN}
+cmap_resource_builder.input = CMAP_RESOURCE_INPUT
+cmap_resource_builder.output = $$DESTDIR/${QMAKE_FILE_IN_BASE}.qrb
+cmap_resource_builder.CONFIG += no_link target_predeps
+QMAKE_EXTRA_COMPILERS += cmap_resource_builder
 

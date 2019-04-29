@@ -403,7 +403,8 @@ public:
         // blocks (call and return function).
         Call,
         Return,
-        Push
+        Push,
+        Execute
     };
 
     /// Gets the code from the byte array. If byte array contains invalid data,

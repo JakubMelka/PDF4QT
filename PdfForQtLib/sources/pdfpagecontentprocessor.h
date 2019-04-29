@@ -575,6 +575,12 @@ private:
     /// Returns realized font (or empty font, if font can't be realized)
     PDFRealizedFontPointer getRealizedFontImpl() const;
 
+    /// Checks, if stroking color is valid
+    void checkStrokingColor();
+
+    /// Checks, if filling color is valid
+    void checkFillingColor();
+
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;

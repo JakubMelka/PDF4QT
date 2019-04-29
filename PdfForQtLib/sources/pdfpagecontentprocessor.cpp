@@ -1351,6 +1351,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
         m_graphicState.setStrokeColorSpace(colorSpace);
         m_graphicState.setStrokeColor(colorSpace->getDefaultColor());
         updateGraphicState();
+        checkStrokingColor();
     }
     else
     {
@@ -1367,6 +1368,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
         m_graphicState.setFillColorSpace(colorSpace);
         m_graphicState.setFillColor(colorSpace->getDefaultColor());
         updateGraphicState();
+        checkFillingColor();
     }
     else
     {
@@ -1389,6 +1391,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColor()
         }
         m_graphicState.setStrokeColor(colorSpace->getColor(color));
         updateGraphicState();
+        checkStrokingColor();
     }
     else
     {
@@ -1419,6 +1422,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColor()
         }
         m_graphicState.setFillColor(colorSpace->getColor(color));
         updateGraphicState();
+        checkFillingColor();
     }
     else
     {
@@ -1439,6 +1443,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)
     m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
     m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), gray));
     updateGraphicState();
+    checkStrokingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceGrayFilling(PDFReal gray)
@@ -1446,6 +1451,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceGrayFilling(PDFReal gray)
     m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
     m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), gray));
     updateGraphicState();
+    checkFillingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceRGBStroking(PDFReal r, PDFReal g, PDFReal b)
@@ -1453,6 +1459,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceRGBStroking(PDFReal r, PDFRe
     m_graphicState.setStrokeColorSpace(m_deviceRGBColorSpace);
     m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), r, g, b));
     updateGraphicState();
+    checkStrokingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceRGBFilling(PDFReal r, PDFReal g, PDFReal b)
@@ -1460,6 +1467,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceRGBFilling(PDFReal r, PDFRea
     m_graphicState.setFillColorSpace(m_deviceRGBColorSpace);
     m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), r, g, b));
     updateGraphicState();
+    checkFillingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking(PDFReal c, PDFReal m, PDFReal y, PDFReal k)
@@ -1467,6 +1475,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking(PDFReal c, PDFR
     m_graphicState.setStrokeColorSpace(m_deviceCMYKColorSpace);
     m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), c, m, y, k));
     updateGraphicState();
+    checkStrokingColor();
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFReal m, PDFReal y, PDFReal k)
@@ -1474,6 +1483,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFRe
     m_graphicState.setFillColorSpace(m_deviceCMYKColorSpace);
     m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), c, m, y, k));
     updateGraphicState();
+    checkFillingColor();
 }
 
 void PDFPageContentProcessor::operatorTextBegin()
@@ -1831,6 +1841,22 @@ PDFRealizedFontPointer PDFPageContentProcessor::getRealizedFontImpl() const
     }
 
     return PDFRealizedFontPointer();
+}
+
+void PDFPageContentProcessor::checkStrokingColor()
+{
+    if (!m_graphicState.getStrokeColor().isValid())
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid stroking color."));
+    }
+}
+
+void PDFPageContentProcessor::checkFillingColor()
+{
+    if (!m_graphicState.getFillColor().isValid())
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid filling color."));
+    }
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
