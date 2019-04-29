@@ -597,6 +597,10 @@ private:
 
     /// Actually realized physical font
     PDFCachedItem<PDFRealizedFontPointer> m_realizedFont;
+
+    /// Actual clipping path obtained from text. Clipping path
+    /// is in device space coordinates.
+    QPainterPath m_textClippingPath;
 };
 
 }   // namespace pdf

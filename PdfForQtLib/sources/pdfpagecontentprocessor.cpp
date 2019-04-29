@@ -1507,6 +1507,13 @@ void PDFPageContentProcessor::operatorTextEnd()
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Text object ended more than once."));
     }
+
+    if (!m_textClippingPath.isEmpty())
+    {
+        QPainterPath clippingPath = m_graphicState.getCurrentTransformationMatrix().inverted().map(m_textClippingPath);
+        performClipping(clippingPath, clippingPath.fillRule());
+        m_textClippingPath = QPainterPath();
+    }
 }
 
 void PDFPageContentProcessor::operatorTextSetCharacterSpacing(PDFReal charSpacing)
@@ -1760,7 +1767,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         const bool fill = isTextRenderingModeFilled(textRenderingMode);
         const bool stroke = isTextRenderingModeStroked(textRenderingMode);
         const bool clipped = isTextRenderingModeClipped(textRenderingMode);
-        // TODO: Add Text Clipping
         // TODO: Pouzit pravdepodobne sirky z widths array?
 
         // Detect horizontal writing system
@@ -1801,6 +1807,13 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                         QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
                         QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
                         performPathPainting(transformedGlyph, stroke, fill, transformedGlyph.fillRule());
+
+                        if (clipped)
+                        {
+                            // Clipping is enabled, we must transform to the device coordinates
+                            QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
+                            m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(glyphPath));
+                        }
                     }
                 }
 

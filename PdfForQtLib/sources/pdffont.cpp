@@ -52,7 +52,7 @@ public:
 
     /// Loads font from descriptor
     /// \param descriptor Descriptor describing the font
-    QByteArray loadFont(const FontDescriptor* descriptor) const;
+    QByteArray loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType) const;
 
 private:
     explicit PDFSystemFontInfoStorage();
@@ -91,7 +91,7 @@ const PDFSystemFontInfoStorage* PDFSystemFontInfoStorage::getInstance()
     return &instance;
 }
 
-QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor) const
+QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType) const
 {
     QByteArray result;
 
@@ -101,7 +101,50 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor) 
     const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
 
     // Exact match font face name
-    QString fontName = getFontPostscriptName(descriptor->fontName);
+    QString fontName;
+    switch (standardFontType)
+    {
+        case StandardFontType::TimesRoman:
+        case StandardFontType::TimesRomanBold:
+        case StandardFontType::TimesRomanItalics:
+        case StandardFontType::TimesRomanBoldItalics:
+        {
+            fontName = "TimesNewRoman";
+            break;
+        }
+
+        case StandardFontType::Helvetica:
+        case StandardFontType::HelveticaBold:
+        case StandardFontType::HelveticaOblique:
+        case StandardFontType::HelveticaBoldOblique:
+        {
+            fontName = "Arial";
+            break;
+        }
+
+        case StandardFontType::Courier:
+        case StandardFontType::CourierBold:
+        case StandardFontType::CourierOblique:
+        case StandardFontType::CourierBoldOblique:
+        {
+            fontName = "Courier";
+            break;
+        }
+
+        case StandardFontType::Symbol:
+        case StandardFontType::ZapfDingbats:
+        {
+            fontName = "Symbol";
+            break;
+        }
+
+        default:
+        {
+            fontName = getFontPostscriptName(descriptor->fontName);
+            break;
+        }
+    }
+
     if (!fontName.isEmpty())
     {
         for (const FontInfo& fontInfo : m_fontInfos)
@@ -558,8 +601,16 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
     }
     else
     {
+        StandardFontType standardFontType = StandardFontType::Invalid;
+        if (font->getFontType() == FontType::Type1)
+        {
+            Q_ASSERT(dynamic_cast<const PDFType1Font*>(font.get()));
+            const PDFType1Font* type1Font = static_cast<const PDFType1Font*>(font.get());
+            standardFontType = type1Font->getStandardFontType();
+        }
+
         const PDFSystemFontInfoStorage* fontStorage = PDFSystemFontInfoStorage::getInstance();
-        impl->m_systemFontData = fontStorage->loadFont(descriptor);
+        impl->m_systemFontData = fontStorage->loadFont(descriptor, standardFontType);
 
         if (impl->m_systemFontData.isEmpty())
         {
