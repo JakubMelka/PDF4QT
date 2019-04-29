@@ -19,6 +19,7 @@
 #include "pdfdocument.h"
 #include "pdfparser.h"
 #include "pdfnametounicode.h"
+#include "pdfexception.h"
 
 #include <ft2build.h>
 #include <freetype/freetype.h>
@@ -562,7 +563,6 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
 
         if (impl->m_systemFontData.isEmpty())
         {
-            // TODO: Upravit vyjimky do separatniho souboru
             throw PDFParserException(PDFTranslationContext::tr("Can't load system font '%1'.").arg(QString::fromLatin1(descriptor->fontName)));
         }
 

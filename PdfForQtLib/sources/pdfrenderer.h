@@ -19,32 +19,13 @@
 #define PDFRENDERER_H
 
 #include "pdfpage.h"
+#include "pdfexception.h"
 
 class QPainter;
 
 namespace pdf
 {
 class PDFFontCache;
-
-enum RenderErrorType
-{
-    Error,
-    NotImplemented
-};
-
-struct PDFRenderError
-{
-    explicit PDFRenderError() = default;
-    explicit PDFRenderError(RenderErrorType type, QString message) :
-        type(type),
-        message(std::move(message))
-    {
-
-    }
-
-    RenderErrorType type = RenderErrorType::Error;
-    QString message;
-};
 
 /// Renders the PDF page on the painter, or onto an image.
 class PDFRenderer

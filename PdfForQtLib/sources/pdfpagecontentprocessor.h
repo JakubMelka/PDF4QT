@@ -19,8 +19,8 @@
 #define PDFPAGECONTENTPROCESSOR_H
 
 #include "pdfrenderer.h"
-#include "pdfparser.h"
 #include "pdfcolorspaces.h"
+#include "pdfparser.h"
 #include "pdffont.h"
 #include "pdfutils.h"
 
@@ -35,21 +35,6 @@
 namespace pdf
 {
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
-
-class PDFRendererException : public std::exception
-{
-public:
-    explicit PDFRendererException(RenderErrorType type, QString message) :
-        m_error(type, std::move(message))
-    {
-
-    }
-
-    const PDFRenderError& getError() const { return m_error; }
-
-private:
-    PDFRenderError m_error;
-};
 
 /// Process the contents of the page.
 class PDFPageContentProcessor

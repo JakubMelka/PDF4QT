@@ -25,6 +25,7 @@
 #include "pdfstreamfilters.h"
 #include "pdffunction.h"
 #include "pdfdocument.h"
+#include "pdfexception.h"
 
 #include <regex>
 

@@ -17,8 +17,8 @@
 
 
 #include "pdfdocument.h"
-#include "pdfparser.h"
 #include "pdfencoding.h"
+#include "pdfexception.h"
 #include "pdfstreamfilters.h"
 #include "pdfconstants.h"
 

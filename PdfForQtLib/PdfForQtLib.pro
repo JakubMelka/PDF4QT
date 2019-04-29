@@ -83,7 +83,8 @@ HEADERS += \
     sources/pdfrenderingerrorswidget.h \
     sources/pdffunction.h \
     sources/pdfnametounicode.h \
-    sources/pdffont.h
+    sources/pdffont.h \
+    sources/pdfexception.h
 
 FORMS += \
     sources/pdfrenderingerrorswidget.ui

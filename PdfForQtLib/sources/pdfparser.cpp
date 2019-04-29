@@ -18,6 +18,7 @@
 
 #include "pdfparser.h"
 #include "pdfconstants.h"
+#include "pdfexception.h"
 
 #include <QFile>
 #include <QThread>

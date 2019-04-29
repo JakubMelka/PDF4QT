@@ -17,7 +17,7 @@
 
 #include "pdfpage.h"
 #include "pdfdocument.h"
-#include "pdfparser.h"
+#include "pdfexception.h"
 
 namespace pdf
 {

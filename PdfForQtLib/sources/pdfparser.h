@@ -76,22 +76,6 @@ constexpr const char* PDF_REFERENCE_COMMAND = "R";
 constexpr const char* PDF_STREAM_START_COMMAND = "stream";
 constexpr const char* PDF_STREAM_END_COMMAND = "endstream";
 
-class PDFParserException : public std::exception
-{
-public:
-    PDFParserException(const QString& message) :
-        m_message(message)
-    {
-
-    }
-
-    /// Returns error message
-    const QString& getMessage() const { return m_message; }
-
-private:
-    QString m_message;
-};
-
 class PDFFORQTLIBSHARED_EXPORT PDFLexicalAnalyzer
 {
     Q_GADGET

@@ -17,9 +17,10 @@
 
 
 #include "pdfdocumentreader.h"
-#include "pdfparser.h"
 #include "pdfconstants.h"
 #include "pdfxreftable.h"
+#include "pdfexception.h"
+#include "pdfparser.h"
 
 #include <QFile>
 

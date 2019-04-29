@@ -16,8 +16,8 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfcatalog.h"
-#include "pdfparser.h"
 #include "pdfdocument.h"
+#include "pdfexception.h"
 #include "pdfnumbertreeloader.h"
 
 namespace pdf

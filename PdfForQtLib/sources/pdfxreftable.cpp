@@ -17,6 +17,7 @@
 
 #include "pdfxreftable.h"
 #include "pdfconstants.h"
+#include "pdfexception.h"
 #include "pdfparser.h"
 
 #include <stack>

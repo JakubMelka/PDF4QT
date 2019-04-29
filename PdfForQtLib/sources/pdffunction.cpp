@@ -19,6 +19,7 @@
 #include "pdfflatarray.h"
 #include "pdfparser.h"
 #include "pdfdocument.h"
+#include "pdfexception.h"
 
 #include <stack>
 #include <iterator>

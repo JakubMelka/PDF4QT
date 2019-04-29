@@ -17,6 +17,7 @@
 
 #include "pdfstreamfilters.h"
 #include "pdfdocument.h"
+#include "pdfexception.h"
 #include "pdfparser.h"
 
 #include <QtEndian>
