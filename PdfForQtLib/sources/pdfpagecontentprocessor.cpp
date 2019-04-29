@@ -1769,7 +1769,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
         QMatrix textMatrix = m_graphicState.getTextMatrix();
 
-        size_t characterIndex = 0;
         for (const TextSequenceItem& item : textSequence.items)
         {
             PDFReal displacementX = 0.0;
@@ -1781,7 +1780,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                 QPointF advance = isHorizontalWritingSystem ? QPointF(item.advance, 0) : QPointF(0, item.advance);
 
                 // First, compute the advance
-                const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing : characterSpacing;
+                const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing + characterSpacing : characterSpacing;
                 if (isHorizontalWritingSystem)
                 {
                     advance.rx() += additionalAdvance;
@@ -1806,8 +1805,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
                 displacementX = advance.x();
                 displacementY = advance.y();
-
-                ++characterIndex;
             }
             else if (item.isAdvance())
             {
