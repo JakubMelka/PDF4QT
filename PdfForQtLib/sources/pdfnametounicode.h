@@ -38,6 +38,9 @@ public:
     /// Returns unicode character for name (for ZapfDingbats). If name is not found, then null character is returned.
     static QChar getUnicodeForNameZapfDingbats(const QByteArray& name);
 
+    /// Tries to resolve unicode name
+    static QChar getUnicodeUsingResolvedName(const QByteArray& name);
+
 private:
     struct Comparator
     {

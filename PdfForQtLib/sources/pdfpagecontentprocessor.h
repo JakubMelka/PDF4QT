@@ -37,7 +37,7 @@ namespace pdf
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
 
 /// Process the contents of the page.
-class PDFPageContentProcessor
+class PDFPageContentProcessor : public PDFRenderErrorReporter
 {
 public:
     explicit PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache);
@@ -154,6 +154,8 @@ public:
 
     /// Process the contents of the page
     QList<PDFRenderError> processContents();
+
+    virtual void reportRenderError(RenderErrorType type, QString message) override;
 
 protected:
 

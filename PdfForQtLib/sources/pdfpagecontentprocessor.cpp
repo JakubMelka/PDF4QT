@@ -257,6 +257,11 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     return m_errorList;
 }
 
+void PDFPageContentProcessor::reportRenderError(RenderErrorType type, QString message)
+{
+    m_errorList.append(PDFRenderError(type, qMove(message)));
+}
+
 void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule)
 {
     Q_UNUSED(path);
@@ -1654,7 +1659,7 @@ void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
 
         // We use simple heuristic to ensure reallocation doesn't occur too often
         textSequence.items.reserve(m_operands.size());
-        realizedFont->fillTextSequence(text.string, textSequence);
+        realizedFont->fillTextSequence(text.string, textSequence, this);
         drawText(textSequence);
     }
     else
@@ -1711,7 +1716,7 @@ void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
 
                 case PDFLexicalAnalyzer::TokenType::String:
                 {
-                    realizedFont->fillTextSequence(m_operands[i].data.toByteArray(), textSequence);
+                    realizedFont->fillTextSequence(m_operands[i].data.toByteArray(), textSequence, this);
                     break;
                 }
 

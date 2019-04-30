@@ -324,12 +324,16 @@ public:
     /// produces glyphs for the font.
     /// \param byteArray Array of bytes to be interpreted
     /// \param textSequence Text sequence to be filled
-    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence);
+    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter);
+
+    static constexpr const PDFReal PIXEL_SIZE_MULTIPLIER = 100.0;
 
 private:
     friend class PDFRealizedFont;
 
+    static constexpr const PDFReal FONT_WIDTH_MULTIPLIER = 1.0 / 1000.0;
     static constexpr const PDFReal FORMAT_26_6_MULTIPLIER = 1 / 64.0;
+    static constexpr const PDFReal FONT_MULTIPLIER = FORMAT_26_6_MULTIPLIER / PIXEL_SIZE_MULTIPLIER;
 
     struct Glyph
     {
@@ -405,7 +409,7 @@ PDFRealizedFontImpl::~PDFRealizedFontImpl()
     }
 }
 
-void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence)
+void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter)
 {
     switch (m_parentFont->getFontType())
     {
@@ -432,13 +436,21 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                     }
                 }
 
-                if (!glyphIndex)
-                {
-                    throw PDFParserException(PDFTranslationContext::tr("Glyph for simple font character code '%1' not found.").arg(static_cast<uint8_t>(byteArray[i])));
-                }
+                const PDFReal glyphWidth = font->getGlyphWidth(static_cast<uint8_t>(byteArray[i]));
 
-                const Glyph& glyph = getGlyph(glyphIndex);
-                textSequence.items.emplace_back(&glyph.glyph, (*encoding)[static_cast<uint8_t>(byteArray[i])], glyph.advance);
+                if (glyphIndex)
+                {
+                    const Glyph& glyph = getGlyph(glyphIndex);
+                    textSequence.items.emplace_back(&glyph.glyph, (*encoding)[static_cast<uint8_t>(byteArray[i])], glyph.advance);
+                }
+                else
+                {
+                    reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for simple font character code '%1' not found.").arg(static_cast<uint8_t>(byteArray[i])));
+                    if (glyphWidth > 0)
+                    {
+                        textSequence.items.emplace_back(nullptr, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER);
+                    }
+                }
             }
             break;
         }
@@ -482,28 +494,28 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
 int PDFRealizedFontImpl::outlineMoveTo(const FT_Vector* to, void* user)
 {
     Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.moveTo(to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    glyph->glyph.moveTo(to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 int PDFRealizedFontImpl::outlineLineTo(const FT_Vector* to, void* user)
 {
     Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.lineTo(to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    glyph->glyph.lineTo(to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 int PDFRealizedFontImpl::outlineConicTo(const FT_Vector* control, const FT_Vector* to, void* user)
 {
     Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.quadTo(control->x * FORMAT_26_6_MULTIPLIER, control->y * FORMAT_26_6_MULTIPLIER, to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    glyph->glyph.quadTo(control->x * FONT_MULTIPLIER, control->y * FONT_MULTIPLIER, to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 int PDFRealizedFontImpl::outlineCubicTo(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to, void* user)
 {
     Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.cubicTo(control1->x * FORMAT_26_6_MULTIPLIER, control1->y * FORMAT_26_6_MULTIPLIER, control2->x * FORMAT_26_6_MULTIPLIER, control2->y * FORMAT_26_6_MULTIPLIER, to->x * FORMAT_26_6_MULTIPLIER, to->y * FORMAT_26_6_MULTIPLIER);
+    glyph->glyph.cubicTo(control1->x * FONT_MULTIPLIER, control1->y * FONT_MULTIPLIER, control2->x * FONT_MULTIPLIER, control2->y * FONT_MULTIPLIER, to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
@@ -534,7 +546,7 @@ const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyph(unsigned int gly
         checkFreeTypeError(FT_Outline_Decompose(&m_face->glyph->outline, &glyphOutlineInterface, &glyph));
         glyph.glyph.closeSubpath();
         glyph.advance = !m_isVertical ? m_face->glyph->advance.x : m_face->glyph->advance.y;
-        glyph.advance *= FORMAT_26_6_MULTIPLIER;
+        glyph.advance *= FONT_MULTIPLIER;
 
         m_glyphCache[glyphIndex] = qMove(glyph);
         return m_glyphCache[glyphIndex];
@@ -563,9 +575,9 @@ PDFRealizedFont::~PDFRealizedFont()
     delete m_impl;
 }
 
-void PDFRealizedFont::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence)
+void PDFRealizedFont::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter)
 {
-    m_impl->fillTextSequence(byteArray, textSequence);
+    m_impl->fillTextSequence(byteArray, textSequence, reporter);
 }
 
 bool PDFRealizedFont::isHorizontalWritingSystem() const
@@ -580,6 +592,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
 
     PDFRealizedFontImpl* impl = implPtr.get();
     impl->m_parentFont = font;
+    impl->m_pixelSize = pixelSize;
 
     const FontDescriptor* descriptor = font->getFontDescriptor();
     if (descriptor->isEmbedded())
@@ -594,7 +607,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
 
         PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_embeddedFontData.constData()), impl->m_embeddedFontData.size(), 0, &impl->m_face));
         FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
-        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize)));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
         impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
         impl->m_isEmbedded = true;
         result.reset(new PDFRealizedFont(implPtr.release()));
@@ -620,7 +633,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
         PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
         PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_systemFontData.constData()), impl->m_systemFontData.size(), 0, &impl->m_face));
         FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
-        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize)));
+        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
         impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
         impl->m_isEmbedded = false;
         result.reset(new PDFRealizedFont(implPtr.release()));
@@ -815,13 +828,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                         throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
                                     }
 
-                                    QChar character = PDFNameToUnicode::getUnicodeForName(item.getString());
-
-                                    // Try ZapfDingbats, if this fails
-                                    if (character.isNull())
-                                    {
-                                        character = PDFNameToUnicode::getUnicodeForNameZapfDingbats(item.getString());
-                                    }
+                                    QChar character = PDFNameToUnicode::getUnicodeUsingResolvedName(item.getString());
                                     differences[currentOffset] = character;
 
                                     ++currentOffset;
@@ -1104,6 +1111,23 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
     m_glyphIndices(glyphIndices)
 {
 
+}
+
+PDFInteger PDFSimpleFont::getGlyphWidth(size_t index) const
+{
+    const size_t min = m_firstChar;
+    const size_t max = m_lastChar;
+
+    if (index >= min && index <= max)
+    {
+        const size_t adjustedIndex = index - min;
+        if (adjustedIndex < m_widths.size())
+        {
+            return m_widths[adjustedIndex];
+        }
+    }
+
+    return 0;
 }
 
 PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,

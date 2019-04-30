@@ -42,6 +42,7 @@ private:
 enum RenderErrorType
 {
     Error,
+    Warning,
     NotImplemented
 };
 
@@ -72,6 +73,19 @@ public:
 
 private:
     PDFRenderError m_error;
+};
+
+/// Abstract class for reporting render errors
+class PDFRenderErrorReporter
+{
+public:
+    explicit PDFRenderErrorReporter() = default;
+    virtual ~PDFRenderErrorReporter() = default;
+
+    /// Reports render errors
+    /// \param type Error type
+    /// \param message Error message
+    virtual void reportRenderError(RenderErrorType type, QString message) = 0;
 };
 
 }   // namespace pdf

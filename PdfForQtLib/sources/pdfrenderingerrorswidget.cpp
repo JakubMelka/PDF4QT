@@ -56,6 +56,12 @@ PDFRenderingErrorsWidget::PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* p
                     break;
                 }
 
+                case RenderErrorType::Warning:
+                {
+                    typeString = tr("Warning");
+                    break;
+                }
+
                 case RenderErrorType::NotImplemented:
                 {
                     typeString = tr("Not implemented");

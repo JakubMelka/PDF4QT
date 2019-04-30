@@ -4540,4 +4540,27 @@ QChar PDFNameToUnicode::getUnicodeForNameZapfDingbats(const QByteArray& name)
     }
 }
 
+QChar PDFNameToUnicode::getUnicodeUsingResolvedName(const QByteArray& name)
+{
+    QChar character = getUnicodeForName(name);
+
+    // Try ZapfDingbats, if this fails
+    if (character.isNull())
+    {
+        character = getUnicodeForNameZapfDingbats(name);
+    }
+
+    if (character.isNull() && name.startsWith("uni"))
+    {
+        QByteArray hexValue = QByteArray::fromHex(name.mid(3, -1));
+        if (hexValue.size() == 2)
+        {
+            unsigned short value = (static_cast<unsigned char>(hexValue[0]) << 8) + static_cast<unsigned char>(hexValue[1]);
+            character = QChar(value);
+        }
+    }
+
+    return character;
+}
+
 }   // namespace pdf

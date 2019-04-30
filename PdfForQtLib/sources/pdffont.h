@@ -30,6 +30,7 @@ class QPainterPath;
 namespace pdf
 {
 class PDFDocument;
+class PDFRenderErrorReporter;
 
 using CID = unsigned int;
 using GID = unsigned int;
@@ -217,7 +218,8 @@ public:
     /// produces glyphs for the font.
     /// \param byteArray Array of bytes to be interpreted
     /// \param textSequence Text sequence to be filled
-    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence);
+    /// \param reporter Error reporter
+    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter);
 
     /// Return true, if we have horizontal writing system
     bool isHorizontalWritingSystem() const;
@@ -279,6 +281,9 @@ public:
 
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
+
+    /// Returns the glyph width (or zero, if glyph width is invalid)
+    PDFInteger getGlyphWidth(size_t index) const;
 
 protected:
     QByteArray m_name;
