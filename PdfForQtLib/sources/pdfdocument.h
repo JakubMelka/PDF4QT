@@ -191,11 +191,11 @@ public:
 
     /// Tries to read array of real values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, empty record is returned.
-    std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary *dictionary, const char *key);
+    std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
 
     /// Tries to read array of integer values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, empty record is returned.
-    std::vector<PDFInteger> readIntegerArrayFromDictionary(const PDFDictionary *dictionary, const char *key);
+    std::vector<PDFInteger> readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
 
     /// Reads number from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
     /// \param dictionary Dictionary containing desired data

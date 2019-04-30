@@ -436,7 +436,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                     }
                 }
 
-                const PDFReal glyphWidth = font->getGlyphWidth(static_cast<uint8_t>(byteArray[i]));
+                const PDFReal glyphWidth = font->getGlyphAdvance(static_cast<uint8_t>(byteArray[i]));
 
                 if (glyphIndex)
                 {
@@ -467,16 +467,23 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
             textSequence.items.reserve(textSequence.items.size() + cids.size());
             for (CID cid : cids)
             {
-                GID glyphIndex = CIDtoGIDmapper->map(cid);
+                const GID glyphIndex = CIDtoGIDmapper->map(cid);
+                const PDFReal glyphWidth = font->getGlyphAdvance(cid);
 
-                if (!glyphIndex)
+                if (glyphIndex)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Glyph for composite font character not found."));
+                    // TODO: Dodelat mapovani na unicode
+                    const Glyph& glyph = getGlyph(glyphIndex);
+                    textSequence.items.emplace_back(&glyph.glyph, QChar(), glyph.advance);
                 }
-
-                // TODO: Dodelat mapovani na unicode
-                const Glyph& glyph = getGlyph(glyphIndex);
-                textSequence.items.emplace_back(&glyph.glyph, QChar(), glyph.advance);
+                else
+                {
+                    reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for composite font character with cid '%1' not found.").arg(cid));
+                    if (glyphWidth > 0)
+                    {
+                        textSequence.items.emplace_back(nullptr, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER);
+                    }
+                }
             }
 
             break;
@@ -1060,7 +1067,51 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
 
             baseFont = fontLoader.readNameFromDictionary(descendantFontDictionary, "BaseFont");
 
-            return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(cidToGidMapper)));
+            // Read default advance
+            PDFReal dw = fontLoader.readNumberFromDictionary(descendantFontDictionary, "DW", 1000.0);
+            std::array<PDFReal, 2> dw2 = { };
+            fontLoader.readNumberArrayFromDictionary(descendantFontDictionary, "DW2", dw2.begin(), dw2.end());
+            PDFReal defaultWidth = descendantFontDictionary->hasKey("DW") ? dw : dw2.back();
+
+            // Read horizontal advances
+            std::unordered_map<CID, PDFReal> advances;
+            if (descendantFontDictionary->hasKey("W"))
+            {
+                 const PDFObject& wArrayObject = document->getObject(descendantFontDictionary->get("W"));
+                 if (wArrayObject.isArray())
+                 {
+                     const PDFArray* wArray = wArrayObject.getArray();
+                     const size_t size = wArray->getCount();
+
+                     for (size_t i = 0; i < size;)
+                     {
+                         CID startCID = fontLoader.readInteger(wArray->getItem(i++), 0);
+                         const PDFObject& arrayOrCID = document->getObject(wArray->getItem(i++));
+
+                         if (arrayOrCID.isInt())
+                         {
+                             CID endCID = arrayOrCID.getInteger();
+                             PDFReal width = fontLoader.readInteger(wArray->getItem(i++), 0);
+                             for (CID currentCID = startCID; currentCID <= endCID; ++currentCID)
+                             {
+                                 advances[currentCID] = width;
+                             }
+                         }
+                         else if (arrayOrCID.isArray())
+                         {
+                             const PDFArray* widthArray = arrayOrCID.getArray();
+                             const size_t widthArraySize = widthArray->getCount();
+                             for (size_t widthArrayIndex = 0; widthArrayIndex < widthArraySize; ++widthArrayIndex)
+                             {
+                                 PDFReal width = fontLoader.readNumber(widthArray->getItem(widthArrayIndex), 0);
+                                 advances[startCID + static_cast<CID>(widthArrayIndex)] = width;
+                             }
+                         }
+                     }
+                 }
+            }
+
+            return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(cidToGidMapper), defaultWidth, qMove(advances)));
         }
 
         default:
@@ -1113,7 +1164,7 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
 
 }
 
-PDFInteger PDFSimpleFont::getGlyphWidth(size_t index) const
+PDFInteger PDFSimpleFont::getGlyphAdvance(size_t index) const
 {
     const size_t min = m_firstChar;
     const size_t max = m_lastChar;
@@ -1558,6 +1609,17 @@ bool PDFFontCMapRepository::loadFromFile(const QString& fileName)
 PDFFontCMapRepository::PDFFontCMapRepository()
 {
 
+}
+
+PDFReal PDFType0Font::getGlyphAdvance(CID cid) const
+{
+    auto it = m_advances.find(cid);
+    if (it != m_advances.cend())
+    {
+        return it->second;
+    }
+
+    return m_defaultAdvance;
 }
 
 }   // namespace pdf

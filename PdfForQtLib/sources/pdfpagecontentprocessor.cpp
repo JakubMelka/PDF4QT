@@ -1772,7 +1772,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         const bool fill = isTextRenderingModeFilled(textRenderingMode);
         const bool stroke = isTextRenderingModeStroked(textRenderingMode);
         const bool clipped = isTextRenderingModeClipped(textRenderingMode);
-        // TODO: Pouzit pravdepodobne sirky z widths array?
 
         // Detect horizontal writing system
         const bool isHorizontalWritingSystem = font->isHorizontalWritingSystem();

@@ -25,6 +25,8 @@
 #include <QFont>
 #include <QSharedPointer>
 
+#include <unordered_map>
+
 class QPainterPath;
 
 namespace pdf
@@ -282,8 +284,8 @@ public:
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
 
-    /// Returns the glyph width (or zero, if glyph width is invalid)
-    PDFInteger getGlyphWidth(size_t index) const;
+    /// Returns the glyph advance (or zero, if glyph advance is invalid)
+    PDFInteger getGlyphAdvance(size_t index) const;
 
 protected:
     QByteArray m_name;
@@ -466,10 +468,12 @@ private:
 class PDFType0Font : public PDFFont
 {
 public:
-    explicit inline PDFType0Font(FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFCIDtoGIDMapper mapper) :
+    explicit inline PDFType0Font(FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFCIDtoGIDMapper mapper, PDFReal defaultAdvance, std::unordered_map<CID, PDFReal> advances) :
         PDFFont(qMove(fontDescriptor)),
         m_cmap(qMove(cmap)),
-        m_mapper(qMove(mapper))
+        m_mapper(qMove(mapper)),
+        m_defaultAdvance(defaultAdvance),
+        m_advances(qMove(advances))
     {
 
     }
@@ -481,9 +485,16 @@ public:
     const PDFFontCMap* getCMap() const { return &m_cmap; }
     const PDFCIDtoGIDMapper* getCIDtoGIDMapper() const { return &m_mapper; }
 
+    /// Returns the glyph advance, if it can be obtained, or zero, if it cannot
+    /// be obtained or error occurs.
+    /// \param cid CID of the glyph
+    PDFReal getGlyphAdvance(CID cid) const;
+
 private:
     PDFFontCMap m_cmap;
     PDFCIDtoGIDMapper m_mapper;
+    PDFReal m_defaultAdvance;
+    std::unordered_map<CID, PDFReal> m_advances;
 };
 
 /// Repository with predefined CMaps
