@@ -1753,7 +1753,6 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
 
 void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 {
-    // TODO: Kdyz nejsme v text rezimu, tak nekreslime text
     if (textSequence.items.empty())
     {
         // Do not display empty text

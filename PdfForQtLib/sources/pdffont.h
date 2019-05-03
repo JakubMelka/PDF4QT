@@ -419,6 +419,9 @@ public:
     /// Converts byte array to array of CIDs
     std::vector<CID> interpret(const QByteArray& byteArray) const;
 
+    /// Converts CID to QChar, use only on ToUnicode CMaps
+    QChar getToUnicode(CID cid) const;
+
 private:
 
     struct Entry
@@ -468,9 +471,10 @@ private:
 class PDFType0Font : public PDFFont
 {
 public:
-    explicit inline PDFType0Font(FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFCIDtoGIDMapper mapper, PDFReal defaultAdvance, std::unordered_map<CID, PDFReal> advances) :
+    explicit inline PDFType0Font(FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFFontCMap toUnicode, PDFCIDtoGIDMapper mapper, PDFReal defaultAdvance, std::unordered_map<CID, PDFReal> advances) :
         PDFFont(qMove(fontDescriptor)),
         m_cmap(qMove(cmap)),
+        m_toUnicode(qMove(toUnicode)),
         m_mapper(qMove(mapper)),
         m_defaultAdvance(defaultAdvance),
         m_advances(qMove(advances))
@@ -483,6 +487,7 @@ public:
     virtual FontType getFontType() const override { return FontType::Type0; }
 
     const PDFFontCMap* getCMap() const { return &m_cmap; }
+    const PDFFontCMap* getToUnicode() const { return &m_toUnicode; }
     const PDFCIDtoGIDMapper* getCIDtoGIDMapper() const { return &m_mapper; }
 
     /// Returns the glyph advance, if it can be obtained, or zero, if it cannot
@@ -492,6 +497,7 @@ public:
 
 private:
     PDFFontCMap m_cmap;
+    PDFFontCMap m_toUnicode;
     PDFCIDtoGIDMapper m_mapper;
     PDFReal m_defaultAdvance;
     std::unordered_map<CID, PDFReal> m_advances;

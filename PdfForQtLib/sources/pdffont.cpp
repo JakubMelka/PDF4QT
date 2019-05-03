@@ -461,6 +461,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
             const PDFType0Font* font = static_cast<PDFType0Font*>(m_parentFont.get());
 
             const PDFFontCMap* cmap = font->getCMap();
+            const PDFFontCMap* toUnicode = font->getToUnicode();
             const PDFCIDtoGIDMapper* CIDtoGIDmapper = font->getCIDtoGIDMapper();
 
             std::vector<CID> cids = cmap->interpret(byteArray);
@@ -472,9 +473,9 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
 
                 if (glyphIndex)
                 {
-                    // TODO: Dodelat mapovani na unicode
+                    QChar character = toUnicode->getToUnicode(cid);
                     const Glyph& glyph = getGlyph(glyphIndex);
-                    textSequence.items.emplace_back(&glyph.glyph, QChar(), glyph.advance);
+                    textSequence.items.emplace_back(&glyph.glyph, character, glyph.advance);
                 }
                 else
                 {
@@ -717,7 +718,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     const PDFDictionary* fontDictionary = dereferencedFontDictionary.getDictionary();
     PDFDocumentDataLoaderDecorator fontLoader(document);
 
-    // TODO: Fonts - implement all types of the font
+    // TODO: Fonts - Implement Type 3 font
     // First, determine the font subtype
     constexpr const std::array<std::pair<const char*, FontType>, 3> fontTypes = {
         std::pair<const char*, FontType>{ "Type0", FontType::Type0 },
@@ -1111,7 +1112,20 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                  }
             }
 
-            return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(cidToGidMapper), defaultWidth, qMove(advances)));
+            PDFFontCMap toUnicodeCMap;
+            const PDFObject& toUnicode = document->getObject(fontDictionary->get("ToUnicode"));
+            if (toUnicode.isName())
+            {
+                toUnicodeCMap = PDFFontCMap::createFromName(toUnicode.getString());
+            }
+            else if (toUnicode.isStream())
+            {
+                const PDFStream* stream = toUnicode.getStream();
+                QByteArray decodedStream = document->getDecodedStream(stream);
+                toUnicodeCMap = PDFFontCMap::createFromData(decodedStream);
+            }
+
+            return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(toUnicodeCMap), qMove(cidToGidMapper), defaultWidth, qMove(advances)));
         }
 
         default:
@@ -1135,9 +1149,6 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             break;
         }
     }
-
-    // Read To Unicode
-    // TODO: Read To Unicode
 
     return PDFFontPointer();
 }
@@ -1360,6 +1371,25 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
             return 0;
         };
 
+        auto fetchUnicode = [&parser](const PDFLexicalAnalyzer::Token& currentToken) -> CID
+        {
+            if (currentToken.type == PDFLexicalAnalyzer::TokenType::String)
+            {
+                QByteArray byteArray = currentToken.data.toByteArray();
+
+                if (byteArray.size() == 2)
+                {
+                    CID unicodeValue = 0;
+                    for (int i = 0; i < byteArray.size(); ++i)
+                    {
+                        unicodeValue = (unicodeValue << 8) + static_cast<unsigned char>(byteArray[i]);
+                    }
+                }
+            }
+
+            return 0;
+        };
+
         if (token.type == PDFLexicalAnalyzer::TokenType::Command)
         {
             QByteArray command = token.data.toByteArray();
@@ -1373,6 +1403,25 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
                 {
                     throw PDFParserException(PDFTranslationContext::tr("Can't use cmap inside cmap file."));
                 }
+            }
+            else if (command == "beginbfrange")
+            {
+                PDFLexicalAnalyzer::Token token1 = parser.fetch();
+
+                if (token1.type == PDFLexicalAnalyzer::TokenType::Command &&
+                    token1.data.toByteArray() == "endbfrange")
+                {
+                    break;
+                }
+
+                PDFLexicalAnalyzer::Token token2 = parser.fetch();
+                PDFLexicalAnalyzer::Token token3 = parser.fetch();
+
+                std::pair<unsigned int, unsigned int> from = fetchCode(token1);
+                std::pair<unsigned int, unsigned int> to = fetchCode(token2);
+                CID cid = fetchUnicode(token3);
+
+                entries.emplace_back(from.first, to.first, qMax(from.second, to.second), cid);
             }
             else if (command == "begincidrange")
             {
@@ -1412,6 +1461,26 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
 
                     std::pair<unsigned int, unsigned int> code = fetchCode(token1);
                     CID cid = fetchCID(token2);
+
+                    entries.emplace_back(code.first, code.first, code.second, cid);
+                }
+            }
+            else if (command == "beginbfchar")
+            {
+                while (true)
+                {
+                    PDFLexicalAnalyzer::Token token1 = parser.fetch();
+
+                    if (token1.type == PDFLexicalAnalyzer::TokenType::Command &&
+                        token1.data.toByteArray() == "endbfchar")
+                    {
+                        break;
+                    }
+
+                    PDFLexicalAnalyzer::Token token2 = parser.fetch();
+
+                    std::pair<unsigned int, unsigned int> code = fetchCode(token1);
+                    CID cid = fetchUnicode(token2);
 
                     entries.emplace_back(code.first, code.first, code.second, cid);
                 }
@@ -1514,6 +1583,22 @@ std::vector<CID> PDFFontCMap::interpret(const QByteArray& byteArray) const
     }
 
     return result;
+}
+
+QChar PDFFontCMap::getToUnicode(CID cid) const
+{
+    if (isValid())
+    {
+        auto it = std::find_if(m_entries.cbegin(), m_entries.cend(), [cid](const Entry& entry) { return entry.from <= cid && entry.to >= cid; });
+        if (it != m_entries.cend())
+        {
+            const Entry& entry = *it;
+            const CID unicodeCID = cid - entry.from + entry.cid;
+            return QChar(unicodeCID);
+        }
+    }
+
+    return QChar();
 }
 
 PDFFontCMap::PDFFontCMap(Entries&& entries, bool vertical) :
