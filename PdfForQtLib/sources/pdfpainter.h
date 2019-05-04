@@ -49,7 +49,7 @@ public:
     virtual ~PDFPainter() override;
 
 protected:
-    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule) override;
+    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;

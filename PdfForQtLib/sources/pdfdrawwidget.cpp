@@ -193,6 +193,7 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
 {
     Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
 
+    PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     if (keyboardModifiers.testFlag(Qt::ControlModifier))
     {
         // Zoom in/Zoom out
@@ -200,7 +201,7 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
         const PDFReal zoom = m_widget->getDrawWidgetProxy()->getZoom();
         const PDFReal zoomStep = std::pow(PDFDrawWidgetProxy::ZOOM_STEP, static_cast<PDFReal>(angleDeltaY) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep));
         const PDFReal newZoom = zoom * zoomStep;
-        m_widget->getDrawWidgetProxy()->zoom(newZoom);
+        proxy->zoom(newZoom);
     }
     else
     {
@@ -211,8 +212,27 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
         {
             const QPoint angleDelta = event->angleDelta();
             const bool shiftModifier = keyboardModifiers.testFlag(Qt::ShiftModifier);
-            const int stepVertical = shiftModifier ? m_widget->getVerticalScrollbar()->pageStep() : m_widget->getVerticalScrollbar()->singleStep();
-            const int stepHorizontal = shiftModifier ? m_widget->getHorizontalScrollbar()->pageStep() : m_widget->getHorizontalScrollbar()->singleStep();
+            int stepVertical = 0;
+            int stepHorizontal = shiftModifier ? m_widget->getHorizontalScrollbar()->pageStep() : m_widget->getHorizontalScrollbar()->singleStep();
+
+            if (proxy->isBlockMode())
+            {
+                // In block mode, we must calculate pixel offsets differently - scrollbars corresponds to indices of blocks,
+                // not to the pixels.
+                QRect boundingBox = proxy->getPagesIntersectingRectBoundingBox(this->rect());
+
+                if (boundingBox.isEmpty())
+                {
+                    // This occurs, when we have not opened a document
+                    boundingBox = this->rect();
+                }
+
+                stepVertical = shiftModifier ? boundingBox.height() : boundingBox.height() / 10;
+            }
+            else
+            {
+                stepVertical = shiftModifier ? m_widget->getVerticalScrollbar()->pageStep() : m_widget->getVerticalScrollbar()->singleStep();
+            }
 
             const int scrollVertical = stepVertical * static_cast<PDFReal>(angleDelta.y()) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep);
             const int scrollHorizontal = stepHorizontal * static_cast<PDFReal>(angleDelta.x()) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep);
@@ -220,7 +240,16 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
             scrollByPixels = QPoint(scrollHorizontal, scrollVertical);
         }
 
-        m_widget->getDrawWidgetProxy()->scrollByPixels(scrollByPixels);
+        QPoint offset = proxy->scrollByPixels(scrollByPixels);
+
+        if (offset.y() == 0 && scrollByPixels.y() != 0 && proxy->isBlockMode())
+        {
+            // We must move to another block (we are in block mode)
+            bool up = scrollByPixels.y() > 0;
+
+            m_widget->getVerticalScrollbar()->setValue(m_widget->getVerticalScrollbar()->value() + (up ? -1 : 1));
+            proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+        }
     }
 
     event->accept();

@@ -347,8 +347,9 @@ protected:
     /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)
     /// \param stroke Stroke the path
     /// \param fill Fill the path using given rule
+    /// \param text Is text being drawn?
     /// \param fillRule Fill rule used in the fill mode
-    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule);
+    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule);
 
     /// This function has to be implemented in the client drawing implementation, it should
     /// clip along the path (intersect with current clipping path).

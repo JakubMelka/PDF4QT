@@ -408,7 +408,7 @@ void PDFDrawWidgetProxy::update()
         }
         else
         {
-            m_currentBlock = qBound<PDFInteger>(0, m_currentBlock, m_controller->getBlockCount());
+            m_currentBlock = qBound<PDFInteger>(0, m_currentBlock, m_controller->getBlockCount() - 1);
         }
     }
     else
@@ -579,6 +579,26 @@ std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect)
     return pages;
 }
 
+QRect PDFDrawWidgetProxy::getPagesIntersectingRectBoundingBox(QRect rect) const
+{
+    QRect resultRect;
+
+    // Iterate trough pages, place them and test, if they intersects with rectangle
+    for (const LayoutItem& item : m_layout.items)
+    {
+        // The offsets m_horizontalOffset and m_verticalOffset are offsets to the
+        // topleft point of the block. But block maybe doesn't start at (0, 0),
+        // so we must also use translation from the block beginning.
+        QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+        if (placedRect.intersects(rect))
+        {
+            resultRect = resultRect.united(placedRect);
+        }
+    }
+
+    return resultRect;
+}
+
 void PDFDrawWidgetProxy::performOperation(Operation operation)
 {
     switch (operation)
@@ -645,10 +665,15 @@ void PDFDrawWidgetProxy::performOperation(Operation operation)
     }
 }
 
-void PDFDrawWidgetProxy::scrollByPixels(QPoint offset)
+QPoint PDFDrawWidgetProxy::scrollByPixels(QPoint offset)
 {
+    PDFInteger oldHorizontalOffset = m_horizontalOffset;
+    PDFInteger oldVerticalOffset = m_verticalOffset;
+
     setHorizontalOffset(m_horizontalOffset + offset.x());
     setVerticalOffset(m_verticalOffset + offset.y());
+
+    return QPoint(m_horizontalOffset - oldHorizontalOffset, m_verticalOffset - oldVerticalOffset);
 }
 
 void PDFDrawWidgetProxy::zoom(PDFReal zoom)

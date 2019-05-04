@@ -30,9 +30,8 @@ PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCa
     Q_ASSERT(document);
 }
 
-// TODO: Dodelat features, napr. antialiasing
 // TODO: Dodelat rotovani stranek
-// TODO: Dodelat obrazky
+// TODO: Dodelat obrazky - SMOOTH
 
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const
 {

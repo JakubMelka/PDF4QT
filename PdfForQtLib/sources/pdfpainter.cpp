@@ -40,13 +40,17 @@ PDFPainter::~PDFPainter()
     m_painter->restore();
 }
 
-void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule)
+void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
     if ((!stroke && !fill) || path.isEmpty())
     {
         // No operation requested - either path is empty, or neither stroking or filling
         return;
     }
+
+    // Set antialiasing
+    const bool antialiasing = (text && m_features.testFlag(PDFRenderer::TextAntialiasing)) || (!text && m_features.testFlag(PDFRenderer::Antialiasing));
+    m_painter->setRenderHint(QPainter::Antialiasing, antialiasing);
 
     if (stroke)
     {

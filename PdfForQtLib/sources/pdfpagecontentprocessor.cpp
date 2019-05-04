@@ -262,11 +262,12 @@ void PDFPageContentProcessor::reportRenderError(RenderErrorType type, QString me
     m_errorList.append(PDFRenderError(type, qMove(message)));
 }
 
-void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, Qt::FillRule fillRule)
+void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
     Q_UNUSED(path);
     Q_UNUSED(stroke);
     Q_UNUSED(fill);
+    Q_UNUSED(text);
     Q_UNUSED(fillRule);
 }
 
@@ -1246,7 +1247,7 @@ void PDFPageContentProcessor::operatorPathStroke()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, false, Qt::WindingFill);
+        performPathPainting(m_currentPath, true, false, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1258,7 +1259,7 @@ void PDFPageContentProcessor::operatorPathCloseStroke()
     {
         m_currentPath.closeSubpath();
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, false, Qt::WindingFill);
+        performPathPainting(m_currentPath, true, false, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1268,7 +1269,7 @@ void PDFPageContentProcessor::operatorPathFillWinding()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, false, true, Qt::WindingFill);
+        performPathPainting(m_currentPath, false, true, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1278,7 +1279,7 @@ void PDFPageContentProcessor::operatorPathFillEvenOdd()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::OddEvenFill);
-        performPathPainting(m_currentPath, false, true, Qt::OddEvenFill);
+        performPathPainting(m_currentPath, false, true, false, Qt::OddEvenFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1288,7 +1289,7 @@ void PDFPageContentProcessor::operatorPathFillStrokeWinding()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, true, Qt::WindingFill);
+        performPathPainting(m_currentPath, true, true, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1298,7 +1299,7 @@ void PDFPageContentProcessor::operatorPathFillStrokeEvenOdd()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::OddEvenFill);
-        performPathPainting(m_currentPath, true, true, Qt::OddEvenFill);
+        performPathPainting(m_currentPath, true, true, false, Qt::OddEvenFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1309,7 +1310,7 @@ void PDFPageContentProcessor::operatorPathCloseFillStrokeWinding()
     {
         m_currentPath.closeSubpath();
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, true, Qt::WindingFill);
+        performPathPainting(m_currentPath, true, true, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1320,7 +1321,7 @@ void PDFPageContentProcessor::operatorPathCloseFillStrokeEvenOdd()
     {
         m_currentPath.closeSubpath();
         m_currentPath.setFillRule(Qt::OddEvenFill);
-        performPathPainting(m_currentPath, true, true, Qt::OddEvenFill);
+        performPathPainting(m_currentPath, true, true, false, Qt::OddEvenFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1809,7 +1810,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     {
                         QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
                         QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-                        performPathPainting(transformedGlyph, stroke, fill, transformedGlyph.fillRule());
+                        performPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
 
                         if (clipped)
                         {

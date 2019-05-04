@@ -170,9 +170,9 @@ public:
     void performOperation(Operation operation);
 
     /// Scrolls by pixels, if it is possible. If it is not possible to scroll,
-    /// then nothing happens.
+    /// then nothing happens. Returns pixel offset, by which view camera was moved.
     /// \param offset Offset in pixels
-    void scrollByPixels(QPoint offset);
+    QPoint scrollByPixels(QPoint offset);
 
     /// Sets the zoom. Tries to preserve current offsets (so the current visible
     /// area will be visible after the zoom).
@@ -193,6 +193,14 @@ public:
     /// Returns pages, which are intersecting rectangle (even partially)
     /// \param rect Rectangle to test
     std::vector<PDFInteger> getPagesIntersectingRect(QRect rect) const;
+
+    /// Returns bounding box of pages, which are intersecting rectangle (even partially)
+    /// \param rect Rectangle to test
+    QRect getPagesIntersectingRectBoundingBox(QRect rect) const;
+
+    /// Returns true, if we are in the block mode (multiple blocks with separate pages),
+    /// or continuous mode (single block with continuous list of separated pages).
+    bool isBlockMode() const;
 
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
@@ -236,10 +244,6 @@ private:
 
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
-
-    /// Returns true, if we are in the block mode (multiple blocks with separate pages),
-    /// or continuous mode (single block with continuous list of separated pages).
-    bool isBlockMode() const;
 
     void onHorizontalScrollbarValueChanged(int value);
     void onVerticalScrollbarValueChanged(int value);
