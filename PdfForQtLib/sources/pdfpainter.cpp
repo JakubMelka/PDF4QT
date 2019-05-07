@@ -82,6 +82,25 @@ void PDFPainter::performClipping(const QPainterPath& path, Qt::FillRule fillRule
     m_painter->setClipPath(path, Qt::IntersectClip);
 }
 
+void PDFPainter::performImagePainting(const QImage& image)
+{
+    m_painter->save();
+
+    // TODO: Draw smooth images
+    QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+    QMatrix worldMatrix = imageTransform * m_painter->worldMatrix();
+
+    // Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
+    // to the opposite (so the image is then unchanged)
+    worldMatrix.translate(0, image.height());
+    worldMatrix.scale(1, -1);
+
+    m_painter->setWorldMatrix(worldMatrix);
+    m_painter->drawImage(0, 0, image);
+
+    m_painter->restore();
+}
+
 void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
 {
     const PDFPageContentProcessorState::StateFlags flags = state.getStateFlags();

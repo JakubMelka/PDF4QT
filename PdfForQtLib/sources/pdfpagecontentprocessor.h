@@ -356,6 +356,11 @@ protected:
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule);
 
     /// This function has to be implemented in the client drawing implementation, it should
+    /// draw the image.
+    /// \param image Image to be painted
+    virtual void performImagePainting(const QImage& image);
+
+    /// This function has to be implemented in the client drawing implementation, it should
     /// update the device according to the graphic state change. The flags are set when
     /// the value differs from the previous graphic state.
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state);
@@ -554,6 +559,9 @@ private:
     void operatorTextNextLineShowText(PDFOperandString text);                                   ///< ', move to the next line and show text ("string '" is equivalent to "T* string Tj")
     void operatorTextSetSpacingAndShowText(PDFReal t_w, PDFReal t_c, PDFOperandString text);    ///< ", move to the next line, set spacing and show text (equivalent to sequence "w1 Tw w2 Tc string '")
 
+    // XObject:                    Do
+    void operatorPaintXObject(PDFOperandName name); ///< Do, paint the X Object (image, form, ...)
+
     // Draws the text using the text sequence
     void drawText(const TextSequence& textSequence);
 
@@ -574,6 +582,7 @@ private:
     const PDFFontCache* m_fontCache;
     const PDFDictionary* m_colorSpaceDictionary;
     const PDFDictionary* m_fontDictionary;
+    const PDFDictionary* m_xobjectDictionary;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;

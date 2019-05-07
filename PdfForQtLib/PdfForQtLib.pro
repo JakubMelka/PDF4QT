@@ -55,7 +55,8 @@ SOURCES += \
     sources/pdfrenderingerrorswidget.cpp \
     sources/pdffunction.cpp \
     sources/pdfnametounicode.cpp \
-    sources/pdffont.cpp
+    sources/pdffont.cpp \
+    sources/pdfimage.cpp
 
 HEADERS += \
     sources/pdfobject.h \
@@ -84,7 +85,8 @@ HEADERS += \
     sources/pdffunction.h \
     sources/pdfnametounicode.h \
     sources/pdffont.h \
-    sources/pdfexception.h
+    sources/pdfexception.h \
+    sources/pdfimage.h
 
 FORMS += \
     sources/pdfrenderingerrorswidget.ui
@@ -98,6 +100,21 @@ DEPENDPATH += $$PWD/../FreeType/include
 freetype_lib.files = $$PWD/../FreeType/freetype.dll
 freetype_lib.path = $$DESTDIR
 INSTALLS += freetype_lib
+
+# Link to OpenJPEG library
+LIBS += -L$$PWD/../OpenJPEG/lib/ -lopenjp2
+INCLUDEPATH += $$PWD/../OpenJPEG/include/openjpeg-2.3
+DEPENDPATH += $$PWD/../OpenJPEG/include/openjpeg-2.3
+
+# Add OpenJPEG to installations
+openjpeg_lib.files = $$PWD/../OpenJPEG/openjp2.dll
+openjpeg_lib.path = $$DESTDIR
+INSTALLS += openjpeg_lib
+
+# Link to Independent JPEG Groups libjpeg
+LIBS += -L$$PWD/../libjpeg/bin/ -ljpeg
+INCLUDEPATH += $$PWD/../libjpeg/include
+DEPENDPATH += $$PWD/../libjpeg/include
 
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info

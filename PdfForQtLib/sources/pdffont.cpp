@@ -430,7 +430,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 if (!glyphIndex)
                 {
                     // Try to obtain glyph index from unicode
-                    if (m_face->charmap->encoding == FT_ENCODING_UNICODE)
+                    if (m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE)
                     {
                         glyphIndex = FT_Get_Char_Index(m_face, (*encoding)[static_cast<uint8_t>(byteArray[i])].unicode());
                     }

@@ -51,6 +51,7 @@ public:
 protected:
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
+    virtual void performImagePainting(const QImage& image);
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;
     virtual void performRestoreGraphicState(ProcessOrder order) override;

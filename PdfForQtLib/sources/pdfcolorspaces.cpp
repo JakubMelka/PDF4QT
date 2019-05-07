@@ -85,6 +85,54 @@ size_t PDFDeviceCMYKColorSpace::getColorComponentCount() const
     return 4;
 }
 
+QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
+{
+    if (imageData.isValid())
+    {
+        QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGB888);
+        image.fill(QColor(Qt::white));
+
+        // TODO: Implement images with bits different than 8
+        Q_ASSERT(imageData.getBitsPerComponent() == 8);
+        unsigned int componentCount = imageData.getComponents();
+
+        if (componentCount != getColorComponentCount())
+        {
+            throw PDFParserException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+        }
+
+        PDFColor color;
+        color.resize(componentCount);
+
+        for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+        {
+            const unsigned char* rowData = imageData.getRow(i);
+            unsigned char* outputLine = image.scanLine(i);
+
+            for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+            {
+                const unsigned char* currentData = rowData + (j * componentCount);
+                for (unsigned int k = 0; k < componentCount; ++k)
+                {
+                    constexpr const double COEFFICIENT = 1.0 / 255.0;
+                    color[k] = currentData[k] * COEFFICIENT;
+                }
+
+                QColor transformedColor = getColor(color);
+                QRgb rgb = transformedColor.rgb();
+
+                *outputLine++ = qRed(rgb);
+                *outputLine++ = qGreen(rgb);
+                *outputLine++ = qBlue(rgb);
+            }
+        }
+
+        return image;
+    }
+
+    return QImage();
+}
+
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                              const PDFDocument* document,
                                                              const PDFObject& colorSpace)
@@ -706,6 +754,14 @@ PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const P
     }
 
     return PDFColorSpacePointer(new PDFSeparationColorSpace(qMove(colorName), qMove(alternateColorSpace), qMove(tintTransform)));
+}
+
+const unsigned char* PDFImageData::getRow(unsigned int rowIndex) const
+{
+    const unsigned char* data = reinterpret_cast<const unsigned char*>(m_data.constData());
+
+    Q_ASSERT(rowIndex < m_height);
+    return data + (rowIndex * m_stride);
 }
 
 }   // namespace pdf

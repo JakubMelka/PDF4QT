@@ -1,4 +1,4 @@
-//    Copyright (C) 2019 Jakub Melka
+﻿//    Copyright (C) 2019 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -22,6 +22,7 @@
 #include "pdffunction.h"
 
 #include <QColor>
+#include <QImage>
 #include <QSharedPointer>
 
 namespace pdf
@@ -70,6 +71,57 @@ static constexpr const char* ICCBASED_ALTERNATE = "Alternate";
 static constexpr const char* ICCBASED_N = "N";
 static constexpr const char* ICCBASED_RANGE = "Range";
 
+/// Image raw data - containing data for image. Image data are row-ordered, and by components.
+/// So the row can be for 3-components RGB like 'RGBRGBRGB...RGB', where size of row in bytes is 3 * width of image.
+class PDFImageData
+{
+public:
+    explicit PDFImageData() :
+        m_components(0),
+        m_bitsPerComponent(0),
+        m_width(0),
+        m_height(0),
+        m_stride(0)
+    {
+
+    }
+
+    explicit inline PDFImageData(unsigned int components,
+                                 unsigned int bitsPerComponent,
+                                 unsigned int width,
+                                 unsigned int height,
+                                 unsigned int stride,
+                                 QByteArray data) :
+        m_components(components),
+        m_bitsPerComponent(bitsPerComponent),
+        m_width(width),
+        m_height(height),
+        m_stride(stride),
+        m_data(qMove(data))
+    {
+
+    }
+
+    unsigned int getComponents() const { return m_components; }
+    unsigned int getBitsPerComponent() const { return m_bitsPerComponent; }
+    unsigned int getWidth() const { return m_width; }
+    unsigned int getHeight() const { return m_height; }
+    unsigned int getStride() const { return m_stride; }
+
+    bool isValid() const { return m_width && m_height && m_components && m_bitsPerComponent; }
+
+    const unsigned char* getRow(unsigned int rowIndex) const;
+
+private:
+    unsigned int m_components;
+    unsigned int m_bitsPerComponent;
+    unsigned int m_width;
+    unsigned int m_height;
+    unsigned int m_stride;
+
+    QByteArray m_data;
+};
+
 using PDFColor3 = std::array<PDFColorComponent, 3>;
 
 /// Matrix for color component multiplication (for example, conversion between some color spaces)
@@ -117,6 +169,7 @@ public:
     virtual QColor getDefaultColor() const = 0;
     virtual QColor getColor(const PDFColor& color) const = 0;
     virtual size_t getColorComponentCount() const = 0;
+    virtual QImage getImage(const PDFImageData& imageData) const;
 
     /// Parses the desired color space. If desired color space is not found, then exception is thrown.
     /// If everything is OK, then shared pointer to the new color space is returned.

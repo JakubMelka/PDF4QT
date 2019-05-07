@@ -18,6 +18,7 @@
 #include "pdfpagecontentprocessor.h"
 #include "pdfdocument.h"
 #include "pdfexception.h"
+#include "pdfimage.h"
 
 namespace pdf
 {
@@ -156,6 +157,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFD
     m_fontCache(fontCache),
     m_colorSpaceDictionary(nullptr),
     m_fontDictionary(nullptr),
+    m_xobjectDictionary(nullptr),
     m_textBeginEndState(0)
 {
     Q_ASSERT(page);
@@ -178,6 +180,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFD
 
     m_colorSpaceDictionary = getDictionary(COLOR_SPACE_DICTIONARY);
     m_fontDictionary = getDictionary("Font");
+    m_xobjectDictionary = getDictionary("XObject");
 }
 
 PDFPageContentProcessor::~PDFPageContentProcessor()
@@ -275,6 +278,11 @@ void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::Fill
 {
     Q_UNUSED(path);
     Q_UNUSED(fillRule);
+}
+
+void PDFPageContentProcessor::performImagePainting(const QImage& image)
+{
+    Q_UNUSED(image);
 }
 
 void PDFPageContentProcessor::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
@@ -735,6 +743,13 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
         {
             // ", move to the next line, set spacing and show text (equivalent to sequence "w1 Tw w2 Tc string '")
             invokeOperator(&PDFPageContentProcessor::operatorTextSetSpacingAndShowText);
+            break;
+        }
+
+        case Operator::PaintXObject:
+        {
+            // Do, paint the X Object (image, form, ...)
+            invokeOperator(&PDFPageContentProcessor::operatorPaintXObject);
             break;
         }
 
@@ -1750,6 +1765,64 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
     updateGraphicState();
 
     operatorTextNextLineShowText(qMove(text));
+}
+
+void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFOperandName name)
+{
+    if (m_xobjectDictionary)
+    {
+        const PDFObject& object = m_document->getObject(m_xobjectDictionary->get(name.name));
+        if (object.isStream())
+        {
+            const PDFStream* stream = object.getStream();
+            const PDFDictionary* streamDictionary = stream->getDictionary();
+
+            PDFDocumentDataLoaderDecorator loader(m_document);
+            QByteArray subtype = loader.readNameFromDictionary(streamDictionary, "Subtype");
+            if (subtype == "Image")
+            {
+                PDFColorSpacePointer colorSpace;
+
+                if (streamDictionary->hasKey("ColorSpace"))
+                {
+                    const PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
+                    if (colorSpaceObject.isName() || colorSpaceObject.isArray())
+                    {
+                        colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+                    }
+                    else if (!colorSpaceObject.isNull())
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color space of the image."));
+                    }
+                }
+
+                PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace));
+                QImage image = pdfImage.getImage();
+
+                if (!image.isNull())
+                {
+                    performImagePainting(image);
+                }
+                else
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+                }
+            }
+            else
+            {
+                // TODO: Handle another XObjects
+                throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Unknown XObject type '%1'.").arg(QString::fromLatin1(subtype)));
+            }
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid format of XObject. Dictionary expected."));
+        }
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("XObject resource dictionary not found."));
+    }
 }
 
 void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
