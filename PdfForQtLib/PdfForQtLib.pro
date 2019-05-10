@@ -40,6 +40,7 @@ SOURCES += \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \
+    sources/pdfutils.cpp \
     sources/pdfxreftable.cpp \
     sources/pdfvisitor.cpp \
     sources/pdfencoding.cpp \

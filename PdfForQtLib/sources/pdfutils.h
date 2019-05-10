@@ -19,6 +19,11 @@
 #ifndef PDFUTILS_H
 #define PDFUTILS_H
 
+#include "pdfglobal.h"
+
+#include <QByteArray>
+#include <QDataStream>
+
 namespace pdf
 {
 
@@ -62,6 +67,36 @@ public:
 private:
     bool m_dirty;
     T m_object;
+};
+
+/// Bit-reader, which can read n-bit unsigned integers from the stream.
+/// Number of bits can be set in the constructor and is constant.
+class PDFBitReader
+{
+public:
+    using Value = uint64_t;
+
+    explicit PDFBitReader(QDataStream* stream, Value bitsPerComponent);
+
+    /// Returns maximal value of n-bit unsigned integer.
+    Value max() const { return m_maximalValue; }
+
+    /// Reads single n-bit value from the stream. If stream hasn't enough data,
+    /// then exception is thrown.
+    Value read();
+
+    /// Seeks the desired position in the data stream. If position can't be seeked,
+    /// then exception is thrown.
+    void seek(qint64 position);
+
+private:
+    QDataStream* m_stream;
+
+    const Value m_bitsPerComponent;
+    const Value m_maximalValue;
+
+    Value m_buffer;
+    Value m_bitsInBuffer;
 };
 
 }   // namespace pdf

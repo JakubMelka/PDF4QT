@@ -28,6 +28,7 @@ namespace pdf
 {
 class PDFStream;
 class PDFDocument;
+class PDFRenderErrorReporter;
 
 class PDFImage
 {
@@ -37,7 +38,8 @@ public:
     /// \param document Document
     /// \param stream Stream with image
     /// \param colorSpace Color space of the image
-    static PDFImage createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace);
+    /// \param errorReporter Error reporter for reporting errors (or warnings)
+    static PDFImage createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, PDFRenderErrorReporter* errorReporter);
 
     /// Returns image transformed from image data and color space
     QImage getImage() const;

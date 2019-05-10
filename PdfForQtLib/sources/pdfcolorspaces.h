@@ -107,6 +107,14 @@ public:
     unsigned int getWidth() const { return m_width; }
     unsigned int getHeight() const { return m_height; }
     unsigned int getStride() const { return m_stride; }
+    const QByteArray& getData() const { return m_data; }
+
+    /// Returns number of color channels
+    unsigned int getColorChannels() const { return m_components; }
+
+    // TODO: Implement alpha channel functionality
+    /// Returns number of alpha transparency channels (0 or 1)
+    unsigned int getAlphaChannels() const { return 0; }
 
     bool isValid() const { return m_width && m_height && m_components && m_bitsPerComponent; }
 
@@ -432,6 +440,7 @@ public:
     virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
+    virtual QImage getImage(const PDFImageData& imageData) const override;
 
     /// Creates indexed color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary

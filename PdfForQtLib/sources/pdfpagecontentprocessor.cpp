@@ -1796,7 +1796,7 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                     }
                 }
 
-                PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace));
+                PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), this);
                 QImage image = pdfImage.getImage();
 
                 if (!image.isNull())

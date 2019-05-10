@@ -30,6 +30,7 @@ struct PDFJPEG2000ImageData
 {
     const QByteArray* byteArray = nullptr;
     OPJ_SIZE_T position = 0;
+    std::vector<PDFRenderError> errors;
 
     static OPJ_SIZE_T read(void* p_buffer, OPJ_SIZE_T p_nb_bytes, void* p_user_data);
     static OPJ_BOOL seek(OPJ_OFF_T p_nb_bytes, void* p_user_data);
@@ -42,7 +43,7 @@ struct PDFJPEGDCTSource
     const QByteArray* buffer = nullptr;
 };
 
-PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace)
+PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, PDFRenderErrorReporter* errorReporter)
 {
     PDFImage image;
     image.m_colorSpace = colorSpace;
@@ -106,11 +107,6 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
 
     if (imageFilterName == "DCTDecode" || imageFilterName == "DCT")
     {
-        // TODO: Check, if mutex is needed
-        // Used library is not thread safe. We must use a mutex!
-        static QMutex mutex;
-        QMutexLocker lock(&mutex);
-
         int colorTransform = loader.readIntegerFromDictionary(dictionary, "ColorTransform", -1);
 
         jpeg_decompress_struct codec;
@@ -233,17 +229,22 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         imageData.byteArray = &content;
         imageData.position = 0;
 
-        opj_stream_t* stream = opj_stream_default_create(OPJ_TRUE);
-        opj_stream_set_user_data(stream, &imageData, nullptr);
-        opj_stream_set_user_data_length(stream, sizeof(PDFJPEG2000ImageData));
-        opj_stream_set_read_function(stream, &PDFJPEG2000ImageData::read);
-        opj_stream_set_seek_function(stream, &PDFJPEG2000ImageData::seek);
-        opj_stream_set_skip_function(stream, &PDFJPEG2000ImageData::skip);
+        auto warningCallback = [](const char* message, void* userData)
+        {
+            PDFJPEG2000ImageData* data = reinterpret_cast<PDFJPEG2000ImageData*>(userData);
+            data->errors.push_back(PDFRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JPEG 2000 Warning: %1").arg(QString::fromLatin1(message))));
+        };
+
+        auto errorCallback = [](const char* message, void* userData)
+        {
+            PDFJPEG2000ImageData* data = reinterpret_cast<PDFJPEG2000ImageData*>(userData);
+            data->errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("JPEG 2000 Error: %1").arg(QString::fromLatin1(message))));
+        };
 
         opj_dparameters_t decompressParameters;
         opj_set_default_decoder_parameters(&decompressParameters);
 
-        CODEC_FORMAT formats[] = { OPJ_CODEC_J2K, OPJ_CODEC_JPT, OPJ_CODEC_JP2, OPJ_CODEC_JPP, OPJ_CODEC_JPX };
+        constexpr CODEC_FORMAT formats[] = { OPJ_CODEC_J2K, OPJ_CODEC_JP2, OPJ_CODEC_JPT, OPJ_CODEC_JPP, OPJ_CODEC_JPX };
         for (CODEC_FORMAT format : formats)
         {
             opj_codec_t* codec = opj_create_decompress(format);
@@ -254,30 +255,157 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                 continue;
             }
 
+            opj_set_warning_handler(codec, warningCallback, &imageData);
+            opj_set_error_handler(codec, errorCallback, &imageData);
+
+            opj_stream_t* stream = opj_stream_create(content.size(), OPJ_TRUE);
+            opj_stream_set_user_data(stream, &imageData, nullptr);
+            opj_stream_set_user_data_length(stream, content.size());
+            opj_stream_set_read_function(stream, &PDFJPEG2000ImageData::read);
+            opj_stream_set_seek_function(stream, &PDFJPEG2000ImageData::seek);
+            opj_stream_set_skip_function(stream, &PDFJPEG2000ImageData::skip);
+
+            // Reset the stream position, clear the data
+            imageData.position = 0;
+            imageData.errors.clear();
+
+            opj_image_t* jpegImage = nullptr;
+
             // Setup the decoder
-            opj_setup_decoder(codec, &decompressParameters);
-
-            // Try to read the header
-            opj_image_t* image = nullptr;
-            if (opj_read_header(stream, codec, &image))
+            if (opj_setup_decoder(codec, &decompressParameters))
             {
-                if (opj_set_decode_area(codec, image, decompressParameters.DA_x0, decompressParameters.DA_y0, decompressParameters.DA_x1, decompressParameters.DA_y1))
-                {
-                    if (opj_decode(codec, stream, image))
-                    {
-                        if (opj_end_decompress(codec, stream))
-                        {
+                // Try to read the header
 
+                if (opj_read_header(stream, codec, &jpegImage))
+                {
+                    if (opj_set_decode_area(codec, jpegImage, decompressParameters.DA_x0, decompressParameters.DA_y0, decompressParameters.DA_x1, decompressParameters.DA_y1))
+                    {
+                        if (opj_decode(codec, stream, jpegImage))
+                        {
+                            if (opj_end_decompress(codec, stream))
+                            {
+
+                            }
                         }
                     }
+
+
                 }
             }
 
+            opj_stream_destroy(stream);
             opj_destroy_codec(codec);
+
+            stream = nullptr;
+            codec = nullptr;
+
+            // If we have a valid image, then adjust it
+            if (jpegImage)
+            {
+                // First we must check, if all components are valid (i.e has same width/height/precision)
+
+                bool valid = true;
+                const OPJ_UINT32 componentCount = jpegImage->numcomps;
+                for (OPJ_UINT32 i = 1; i < componentCount; ++i)
+                {
+                    if (jpegImage->comps[0].w != jpegImage->comps[i].w ||
+                        jpegImage->comps[0].h != jpegImage->comps[i].h ||
+                        jpegImage->comps[0].prec != jpegImage->comps[i].prec ||
+                        jpegImage->comps[0].sgnd != jpegImage->comps[i].sgnd)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                // TODO: Include alpha channel functionality - mask in image
+
+                if (valid)
+                {
+                    const OPJ_UINT32 w = jpegImage->comps[0].w;
+                    const OPJ_UINT32 h = jpegImage->comps[0].h;
+                    const OPJ_UINT32 prec = jpegImage->comps[0].prec;
+                    const OPJ_UINT32 sgnd = jpegImage->comps[0].sgnd;
+
+                    const bool isIndexed = dynamic_cast<const PDFIndexedColorSpace*>(image.m_colorSpace.data());
+                    int signumCorrection = (sgnd) ? (1 << (prec - 1)) : 0;
+                    int shiftLeft = (jpegImage->comps[0].prec < 8) ? 8 - jpegImage->comps[0].prec : 0;
+                    int shiftRight = (jpegImage->comps[0].prec > 8) ? jpegImage->comps[0].prec - 8 : 0;
+
+                    auto transformValue = [signumCorrection, isIndexed, shiftLeft, shiftRight](int value) -> unsigned char
+                    {
+                        value += signumCorrection;
+
+                        if (!isIndexed)
+                        {
+                            // Indexed color space should have at most 255 indices, do not modify indices in this case
+
+                            if (shiftLeft > 0)
+                            {
+                                value = value << shiftLeft;
+                            }
+                            else if (shiftRight > 0)
+                            {
+                                // We clamp value to the lower part (so, we use similar algorithm as in 'floor' function).
+                                //
+                                value = value >> shiftRight;
+                            }
+                        }
+
+                        value = qBound(0, value, 255);
+                        return static_cast<unsigned char>(value);
+                    };
+
+                    // Variables for image data. We convert all components to the 8-bit format
+                    unsigned int components = jpegImage->numcomps;
+                    unsigned int bitsPerComponent = 8;
+                    unsigned int width = w;
+                    unsigned int height = h;
+                    unsigned int stride = w * components;
+
+                    QByteArray imageDataBuffer(components * width * height, 0);
+                    for (unsigned int row = 0; row < h; ++row)
+                    {
+                        for (unsigned int col = 0; col < w; ++col)
+                        {
+                            for (unsigned int componentIndex = 0; componentIndex < components; ++ componentIndex)
+                            {
+                                int index = stride * row + col * components + componentIndex;
+                                Q_ASSERT(index < imageDataBuffer.size());
+
+                                imageDataBuffer[index] = transformValue(jpegImage->comps[componentIndex].data[w * row + h]);
+                            }
+                        }
+                    }
+
+                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, qMove(imageDataBuffer));
+                }
+                else
+                {
+                    // Easiest way is to
+                    imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Incompatible color components for JPEG 2000 image.")));
+                }
+
+                opj_image_destroy(jpegImage);
+            }
         }
 
-        opj_stream_destroy(stream);
-        stream = nullptr;
+        // Report errors, if we have any
+        if (!imageData.errors.empty())
+        {
+            for (const PDFRenderError& error : imageData.errors)
+            {
+                QString message = error.message.simplified().trimmed();
+                if (error.type == RenderErrorType::Error)
+                {
+                    throw PDFRendererException(error.type, message);
+                }
+                else
+                {
+                    errorReporter->reportRenderError(error.type, message);
+                }
+            }
+        }
     }
 
     return image;
@@ -314,6 +442,11 @@ OPJ_SIZE_T PDFJPEG2000ImageData::read(void* p_buffer, OPJ_SIZE_T p_nb_bytes, voi
     {
         std::memcpy(p_buffer, data->byteArray->constData() + data->position, length);
         data->position += length;
+    }
+
+    if (length == 0)
+    {
+        return (OPJ_SIZE_T) - 1;
     }
 
     return length;

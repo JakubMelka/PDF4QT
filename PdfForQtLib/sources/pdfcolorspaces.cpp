@@ -19,6 +19,7 @@
 #include "pdfobject.h"
 #include "pdfdocument.h"
 #include "pdfexception.h"
+#include "pdfutils.h"
 
 namespace pdf
 {
@@ -635,6 +636,55 @@ QColor PDFIndexedColorSpace::getColor(const PDFColor& color) const
 size_t PDFIndexedColorSpace::getColorComponentCount() const
 {
     return 1;
+}
+
+QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData) const
+{
+    if (imageData.isValid())
+    {
+        QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGB888);
+        image.fill(QColor(Qt::white));
+
+        unsigned int componentCount = imageData.getComponents();
+        QDataStream stream(imageData.getData(), QIODevice::ReadOnly);
+        PDFBitReader reader(stream, imageData.getBitsPerComponent());
+
+        /*
+        if (componentCount != getColorComponentCount())
+        {
+            throw PDFParserException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+        }*/
+
+        PDFColor color;
+        color.resize(componentCount);
+
+        for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+        {
+            reader.seek(i * imageData.getStride());
+            unsigned char* outputLine = image.scanLine(i);
+
+            for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+            {
+                const unsigned char* currentData = rowData + (j * componentCount);
+                for (unsigned int k = 0; k < componentCount; ++k)
+                {
+                    constexpr const double COEFFICIENT = 1.0 / 255.0;
+                    color[k] = currentData[k] * COEFFICIENT;
+                }
+
+                QColor transformedColor = getColor(color);
+                QRgb rgb = transformedColor.rgb();
+
+                *outputLine++ = qRed(rgb);
+                *outputLine++ = qGreen(rgb);
+                *outputLine++ = qBlue(rgb);
+            }
+        }
+
+        return image;
+    }
+
+    return QImage();
 }
 
 PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary,
