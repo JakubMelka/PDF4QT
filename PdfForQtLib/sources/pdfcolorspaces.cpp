@@ -646,17 +646,18 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData) const
         image.fill(QColor(Qt::white));
 
         unsigned int componentCount = imageData.getComponents();
-        QDataStream stream(imageData.getData(), QIODevice::ReadOnly);
-        PDFBitReader reader(stream, imageData.getBitsPerComponent());
+        QDataStream stream(const_cast<QByteArray*>(&imageData.getData()), QIODevice::ReadOnly);
+        PDFBitReader reader(&stream, imageData.getBitsPerComponent());
 
-        /*
         if (componentCount != getColorComponentCount())
         {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
-        }*/
+            throw PDFParserException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+        }
+
+        Q_ASSERT(componentCount == 1);
 
         PDFColor color;
-        color.resize(componentCount);
+        color.resize(1);
 
         for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
         {
@@ -665,12 +666,8 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData) const
 
             for (unsigned int j = 0; j < imageData.getWidth(); ++j)
             {
-                const unsigned char* currentData = rowData + (j * componentCount);
-                for (unsigned int k = 0; k < componentCount; ++k)
-                {
-                    constexpr const double COEFFICIENT = 1.0 / 255.0;
-                    color[k] = currentData[k] * COEFFICIENT;
-                }
+                PDFBitReader::Value index = reader.read();
+                color[0] = index;
 
                 QColor transformedColor = getColor(color);
                 QRgb rgb = transformedColor.rgb();

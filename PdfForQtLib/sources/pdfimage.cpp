@@ -244,6 +244,15 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         opj_dparameters_t decompressParameters;
         opj_set_default_decoder_parameters(&decompressParameters);
 
+        const bool isIndexed = dynamic_cast<const PDFIndexedColorSpace*>(image.m_colorSpace.data());
+        if (isIndexed)
+        {
+            // What is this flag for? When we have indexed color space, we do not want to resolve index to color
+            // using the color map in the image. Instead of that, we just get indices and resolve them using
+            // our color space.
+            decompressParameters.flags |= OPJ_DPARAMETERS_IGNORE_PCLR_CMAP_CDEF_FLAG;
+        }
+
         constexpr CODEC_FORMAT formats[] = { OPJ_CODEC_J2K, OPJ_CODEC_JP2, OPJ_CODEC_JPT, OPJ_CODEC_JPP, OPJ_CODEC_JPX };
         for (CODEC_FORMAT format : formats)
         {
@@ -327,7 +336,6 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                     const OPJ_UINT32 prec = jpegImage->comps[0].prec;
                     const OPJ_UINT32 sgnd = jpegImage->comps[0].sgnd;
 
-                    const bool isIndexed = dynamic_cast<const PDFIndexedColorSpace*>(image.m_colorSpace.data());
                     int signumCorrection = (sgnd) ? (1 << (prec - 1)) : 0;
                     int shiftLeft = (jpegImage->comps[0].prec < 8) ? 8 - jpegImage->comps[0].prec : 0;
                     int shiftRight = (jpegImage->comps[0].prec > 8) ? jpegImage->comps[0].prec - 8 : 0;
@@ -373,7 +381,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                                 int index = stride * row + col * components + componentIndex;
                                 Q_ASSERT(index < imageDataBuffer.size());
 
-                                imageDataBuffer[index] = transformValue(jpegImage->comps[componentIndex].data[w * row + h]);
+                                imageDataBuffer[index] = transformValue(jpegImage->comps[componentIndex].data[w * row + col]);
                             }
                         }
                     }
