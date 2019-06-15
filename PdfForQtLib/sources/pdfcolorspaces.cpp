@@ -103,13 +103,20 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                     throw PDFParserException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
                 }
 
+                const std::vector<PDFReal>& decode = imageData.getDecode();
+                if (!decode.empty() && decode.size() != componentCount * 2)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                }
+
                 QDataStream stream(const_cast<QByteArray*>(&imageData.getData()), QIODevice::ReadOnly);
                 PDFBitReader reader(&stream, imageData.getBitsPerComponent());
 
                 PDFColor color;
                 color.resize(componentCount);
 
-                const double coefficient = 1.0 / reader.max();
+                const double max = reader.max();
+                const double coefficient = 1.0 / max;
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
                     reader.seek(i * imageData.getStride());
@@ -119,8 +126,17 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                     {
                         for (unsigned int k = 0; k < componentCount; ++k)
                         {
-                            PDFBitReader::Value value = reader.read();
-                            color[k] = value * coefficient;
+                            PDFReal value = reader.read();
+
+                            // Interpolate value, if it is not empty
+                            if (!decode.empty())
+                            {
+                                color[k] = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                            }
+                            else
+                            {
+                                color[k] = value * coefficient;
+                            }
                         }
 
                         QColor transformedColor = getColor(color);
@@ -147,10 +163,16 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                 }
 
                 Q_ASSERT(componentCount > 0);
-                std::vector<PDFInteger> colorKeyMask = imageData.getColorKeyMask();
+                const std::vector<PDFInteger>& colorKeyMask = imageData.getColorKeyMask();
                 if (colorKeyMask.size() / 2 != componentCount)
                 {
                     throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components in color key mask. Expected %1, provided %2.").arg(2 * componentCount).arg(colorKeyMask.size()));
+                }
+
+                const std::vector<PDFReal>& decode = imageData.getDecode();
+                if (!decode.empty() && decode.size() != componentCount * 2)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
                 QDataStream stream(const_cast<QByteArray*>(&imageData.getData()), QIODevice::ReadOnly);
@@ -159,7 +181,8 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                 PDFColor color;
                 color.resize(componentCount);
 
-                const double coefficient = 1.0 / reader.max();
+                const double max = reader.max();
+                const double coefficient = 1.0 / max;
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
                     reader.seek(i * imageData.getStride());
@@ -173,11 +196,20 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                         for (unsigned int k = 0; k < componentCount; ++k)
                         {
                             PDFBitReader::Value value = reader.read();
-                            color[k] = value * coefficient;
+
+                            // Interpolate value, if it is not empty
+                            if (!decode.empty())
+                            {
+                                color[k] = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                            }
+                            else
+                            {
+                                color[k] = value * coefficient;
+                            }
 
                             Q_ASSERT(2 * k + 1 < colorKeyMask.size());
-                            if (static_cast<decltype(colorKeyMask)::value_type>(value) >= colorKeyMask[2 * k] &&
-                                static_cast<decltype(colorKeyMask)::value_type>(value) <= colorKeyMask[2 * k + 1])
+                            if (static_cast<std::decay<decltype(colorKeyMask)>::type::value_type>(value) >= colorKeyMask[2 * k] &&
+                                static_cast<std::decay<decltype(colorKeyMask)>::type::value_type>(value) <= colorKeyMask[2 * k + 1])
                             {
                                 ++maskedColors;
                             }

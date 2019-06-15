@@ -99,6 +99,17 @@ private:
     Value m_bitsInBuffer;
 };
 
+/// Performs linear mapping of value x in interval [x_min, x_max] to the interval [y_min, y_max].
+/// \param x Value to be linearly remapped from interval [x_min, x_max] to the interval [y_min, y_max].
+/// \param x_min Start of the input interval
+/// \param x_max End of the input interval
+/// \param y_min Start of the output interval
+/// \param y_max End of the output interval
+static inline constexpr PDFReal interpolate(PDFReal x, PDFReal x_min, PDFReal x_max, PDFReal y_min, PDFReal y_max)
+{
+    return y_min + (x - x_min) * (y_max - y_min) / (x_max - x_min);
+}
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H

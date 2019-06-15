@@ -80,8 +80,9 @@ public:
     enum class MaskingType
     {
         None,
-        ColorKeyMasking,
-        ImageMasking
+        ColorKeyMasking,    ///< Masking by color key
+        Image,              ///< Masking by image with alpha mask
+        ImageMask,          ///< Masking by 1-bit image (see "ImageMask" entry in image's dictionary), current color from the graphic state is used to paint an image
     };
 
     explicit PDFImageData() :
@@ -102,7 +103,8 @@ public:
                                  unsigned int stride,
                                  MaskingType maskingType,
                                  QByteArray data,
-                                 std::vector<PDFInteger>&& colorKeyMask) :
+                                 std::vector<PDFInteger>&& colorKeyMask,
+                                 std::vector<PDFReal>&& decode) :
         m_components(components),
         m_bitsPerComponent(bitsPerComponent),
         m_width(width),
@@ -110,7 +112,8 @@ public:
         m_stride(stride),
         m_maskingType(maskingType),
         m_data(qMove(data)),
-        m_colorKeyMask(qMove(colorKeyMask))
+        m_colorKeyMask(qMove(colorKeyMask)),
+        m_decode(qMove(decode))
     {
 
     }
@@ -122,7 +125,8 @@ public:
     unsigned int getStride() const { return m_stride; }
     MaskingType getMaskingType() const { return m_maskingType; }
     const QByteArray& getData() const { return m_data; }
-    std::vector<PDFInteger> getColorKeyMask() const { return m_colorKeyMask; }
+    const std::vector<PDFInteger>& getColorKeyMask() const { return m_colorKeyMask; }
+    const std::vector<PDFReal>& getDecode() const { return m_decode; }
 
     /// Returns number of color channels
     unsigned int getColorChannels() const { return m_components; }
@@ -149,6 +153,11 @@ private:
     /// If it is not empty, then it should contain 2 x number of color components,
     /// consisting of [ min_0, max_0, min_1, max_1, ... , min_n, max_n ].
     std::vector<PDFInteger> m_colorKeyMask;
+
+    /// Decode array. If it is empty, then no decoding is performed. If it is nonempty,
+    /// then contains n pairs of numbers, where n is number of color components. If ImageMask
+    /// in the image dictionary is true, then decode array should be [0 1] or [1 0].
+    std::vector<PDFReal> m_decode;
 };
 
 using PDFColor3 = std::array<PDFColorComponent, 3>;

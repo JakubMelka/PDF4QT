@@ -110,17 +110,6 @@ protected:
     /// \param value Value to be clamped
     inline PDFReal clampOutput(size_t index, PDFReal value) const { return qBound<PDFReal>(m_range[2 * index], value, m_range[2 * index + 1]); }
 
-    /// Performs linear mapping of value x in interval [x_min, x_max] to the interval [y_min, y_max].
-    /// \param x Value to be linearly remapped from interval [x_min, x_max] to the interval [y_min, y_max].
-    /// \param x_min Start of the input interval
-    /// \param x_max End of the input interval
-    /// \param y_min Start of the output interval
-    /// \param y_max End of the output interval
-    static inline constexpr PDFReal interpolate(PDFReal x, PDFReal x_min, PDFReal x_max, PDFReal y_min, PDFReal y_max)
-    {
-        return y_min + (x - x_min) * (y_max - y_min) / (x_max - x_min);
-    }
-
     /// Performs linear interpolation between c0 and c1 using x (in range [0.0, 1.0]). If x is not of this range,
     /// then the function succeeds, and returns value outside of interval [c0, c1].
     /// \param x Value to be interpolated

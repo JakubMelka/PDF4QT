@@ -20,6 +20,7 @@
 #include "pdfparser.h"
 #include "pdfdocument.h"
 #include "pdfexception.h"
+#include "pdfutils.h"
 
 #include <stack>
 #include <iterator>

@@ -19,6 +19,7 @@
 #include "pdfdocument.h"
 #include "pdfconstants.h"
 #include "pdfexception.h"
+#include "pdfutils.h"
 
 #include <openjpeg.h>
 #include <jpeglib.h>
@@ -57,12 +58,10 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         throw PDFParserException(PDFTranslationContext::tr("Image has not data."));
     }
 
-    // TODO: Implement ImageMask
-    // TODO: Implement Decode
     // TODO: Implement SMask
     // TODO: Implement SMaskInData
 
-    for (const char* notImplementedKey : { "ImageMask", "Decode", "SMask", "SMaskInData" })
+    for (const char* notImplementedKey : { "SMask", "SMaskInData" })
     {
         if (dictionary->hasKey(notImplementedKey))
         {
@@ -72,6 +71,8 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
 
     PDFImageData::MaskingType maskingType = PDFImageData::MaskingType::None;
     std::vector<PDFInteger> mask;
+    std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(dictionary, "Decode");
+    bool imageMask = loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
 
     // Fill Mask
     if (dictionary->hasKey("Mask"))
@@ -85,9 +86,14 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         else if (object.isStream())
         {
             // TODO: Implement Mask Image
-            maskingType = PDFImageData::MaskingType::ImageMasking;
+            maskingType = PDFImageData::MaskingType::Image;
             throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mask image is not implemented."));
         }
+    }
+
+    if (imageMask)
+    {
+        maskingType = PDFImageData::MaskingType::ImageMask;
     }
 
     // Retrieve filters
@@ -245,7 +251,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             }
 
             jpeg_finish_decompress(&codec);
-            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, maskingType, qMove(buffer), qMove(mask));
+            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, maskingType, qMove(buffer), qMove(mask), qMove(decode));
         }
 
         jpeg_destroy_decompress(&codec);
@@ -411,7 +417,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                         }
                     }
 
-                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask));
+                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode));
                     valid = image.m_imageData.isValid();
                 }
                 else
@@ -477,7 +483,32 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         const unsigned int stride = (components * bitsPerComponent * width + 7) / 8;
 
         QByteArray imageDataBuffer = document->getDecodedStream(stream);
-        image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask));
+        image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode));
+    }
+    else if (imageMask)
+    {
+        // We intentionally have 8 bits in the following code, because if ImageMask is set to true, then "BitsPerComponent"
+        // should have always value of 1.
+        const unsigned int bitsPerComponent = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8));
+
+        if (bitsPerComponent != 1)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid number bits of image mask (should be 1 bit instead of %1 bits).").arg(bitsPerComponent));
+        }
+
+        const unsigned int width = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "Width", 0));
+        const unsigned int height = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "Height", 0));
+
+        if (width == 0 || height == 0)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid size of image (%1x%2)").arg(width).arg(height));
+        }
+
+        // Calculate stride
+        const unsigned int stride = (width + 7) / 8;
+
+        QByteArray imageDataBuffer = document->getDecodedStream(stream);
+        image.m_imageData = PDFImageData(1, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode));
     }
 
     return image;
@@ -488,6 +519,39 @@ QImage PDFImage::getImage() const
     if (m_colorSpace)
     {
         return m_colorSpace->getImage(m_imageData);
+    }
+    else if (m_imageData.getMaskingType() == PDFImageData::MaskingType::ImageMask)
+    {
+        if (m_imageData.getBitsPerComponent() != 1)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid number bits of image mask (should be 1 bit instead of %1 bits).").arg(m_imageData.getBitsPerComponent()));
+        }
+
+        if (m_imageData.getWidth() == 0 || m_imageData.getHeight() == 0)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid size of image (%1x%2)").arg(m_imageData.getWidth()).arg(m_imageData.getHeight()));
+        }
+
+        QImage image(m_imageData.getWidth(), m_imageData.getHeight(), QImage::Format_Alpha8);
+        image.fill(QColor(Qt::transparent));
+
+        const bool flip01 = !m_imageData.getDecode().empty() && qFuzzyCompare(m_imageData.getDecode().front(), 1.0);
+        QDataStream stream(const_cast<QByteArray*>(&m_imageData.getData()), QIODevice::ReadOnly);
+        PDFBitReader reader(&stream, m_imageData.getBitsPerComponent());
+
+        for (unsigned int i = 0, rowCount = m_imageData.getHeight(); i < rowCount; ++i)
+        {
+            reader.seek(i * m_imageData.getStride());
+            unsigned char* outputLine = image.scanLine(i);
+
+            for (unsigned int j = 0; j < m_imageData.getWidth(); ++j)
+            {
+                const bool transparent = flip01 != static_cast<bool>(reader.read());
+                *outputLine++ = transparent ? 0x00 : 0xFF;
+            }
+        }
+
+        return image;
     }
 
     return QImage();
