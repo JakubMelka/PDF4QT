@@ -76,12 +76,21 @@ static constexpr const char* ICCBASED_RANGE = "Range";
 class PDFImageData
 {
 public:
+
+    enum class MaskingType
+    {
+        None,
+        ColorKeyMasking,
+        ImageMasking
+    };
+
     explicit PDFImageData() :
         m_components(0),
         m_bitsPerComponent(0),
         m_width(0),
         m_height(0),
-        m_stride(0)
+        m_stride(0),
+        m_maskingType(MaskingType::None)
     {
 
     }
@@ -91,13 +100,17 @@ public:
                                  unsigned int width,
                                  unsigned int height,
                                  unsigned int stride,
-                                 QByteArray data) :
+                                 MaskingType maskingType,
+                                 QByteArray data,
+                                 std::vector<PDFInteger>&& colorKeyMask) :
         m_components(components),
         m_bitsPerComponent(bitsPerComponent),
         m_width(width),
         m_height(height),
         m_stride(stride),
-        m_data(qMove(data))
+        m_maskingType(maskingType),
+        m_data(qMove(data)),
+        m_colorKeyMask(qMove(colorKeyMask))
     {
 
     }
@@ -107,7 +120,9 @@ public:
     unsigned int getWidth() const { return m_width; }
     unsigned int getHeight() const { return m_height; }
     unsigned int getStride() const { return m_stride; }
+    MaskingType getMaskingType() const { return m_maskingType; }
     const QByteArray& getData() const { return m_data; }
+    std::vector<PDFInteger> getColorKeyMask() const { return m_colorKeyMask; }
 
     /// Returns number of color channels
     unsigned int getColorChannels() const { return m_components; }
@@ -126,8 +141,14 @@ private:
     unsigned int m_width;
     unsigned int m_height;
     unsigned int m_stride;
+    MaskingType m_maskingType;
 
     QByteArray m_data;
+
+    /// Mask entry of the image. If it is empty, no color key masking is induced.
+    /// If it is not empty, then it should contain 2 x number of color components,
+    /// consisting of [ min_0, max_0, min_1, max_1, ... , min_n, max_n ].
+    std::vector<PDFInteger> m_colorKeyMask;
 };
 
 using PDFColor3 = std::array<PDFColorComponent, 3>;

@@ -36,6 +36,8 @@ namespace pdf
 {
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
 
+// TODO: Implement optional content groups
+
 /// Process the contents of the page.
 class PDFPageContentProcessor : public PDFRenderErrorReporter
 {

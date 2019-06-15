@@ -344,6 +344,13 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFDocument* 
 
         PDFDocumentDataLoaderDecorator loader(document);
         early = loader.readInteger(dictionary->get("EarlyChange"), 1);
+
+        PDFInteger predictor = loader.readInteger(dictionary->get("Predictor"), 1);
+        if (predictor != 1)
+        {
+            // TODO: Implement Predictor algorithm
+            return QByteArray();
+        }
     }
 
     PDFLzwStreamDecoder decoder(data, early);
@@ -352,8 +359,20 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFDocument* 
 
 QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const
 {
-    Q_UNUSED(document);
-    Q_UNUSED(parameters);
+    const PDFObject& dereferencedParameters = document->getObject(parameters);
+    if (dereferencedParameters.isDictionary())
+    {
+        const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
+
+        PDFDocumentDataLoaderDecorator loader(document);
+        PDFInteger predictor = loader.readInteger(dictionary->get("Predictor"), 1);
+
+        if (predictor != 1)
+        {
+            // TODO: Implement Predictor algorithm
+            return QByteArray();
+        }
+    }
 
     uint32_t size = data.size();
 

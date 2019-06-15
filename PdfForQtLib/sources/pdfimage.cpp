@@ -48,12 +48,6 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
     PDFImage image;
     image.m_colorSpace = colorSpace;
 
-    // TODO: Implement ImageMask
-    // TODO: Implement Mask
-    // TODO: Implement Decode
-    // TODO: Implement SMask
-    // TODO: Implement SMaskInData
-
     const PDFDictionary* dictionary = stream->getDictionary();
     QByteArray content = document->getDecodedStream(stream);
     PDFDocumentDataLoaderDecorator loader(document);
@@ -61,6 +55,39 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
     if (content.isEmpty())
     {
         throw PDFParserException(PDFTranslationContext::tr("Image has not data."));
+    }
+
+    // TODO: Implement ImageMask
+    // TODO: Implement Decode
+    // TODO: Implement SMask
+    // TODO: Implement SMaskInData
+
+    for (const char* notImplementedKey : { "ImageMask", "Decode", "SMask", "SMaskInData" })
+    {
+        if (dictionary->hasKey(notImplementedKey))
+        {
+            throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image property '%2'.").arg(QString::fromLatin1(notImplementedKey)));
+        }
+    }
+
+    PDFImageData::MaskingType maskingType = PDFImageData::MaskingType::None;
+    std::vector<PDFInteger> mask;
+
+    // Fill Mask
+    if (dictionary->hasKey("Mask"))
+    {
+        const PDFObject& object = document->getObject(dictionary->get("Mask"));
+        if (object.isArray())
+        {
+            maskingType = PDFImageData::MaskingType::ColorKeyMasking;
+            mask = loader.readIntegerArray(object);
+        }
+        else if (object.isStream())
+        {
+            // TODO: Implement Mask Image
+            maskingType = PDFImageData::MaskingType::ImageMasking;
+            throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mask image is not implemented."));
+        }
     }
 
     // Retrieve filters
@@ -218,7 +245,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             }
 
             jpeg_finish_decompress(&codec);
-            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, qMove(buffer));
+            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, maskingType, qMove(buffer), qMove(mask));
         }
 
         jpeg_destroy_decompress(&codec);
@@ -297,8 +324,6 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                             }
                         }
                     }
-
-
                 }
             }
 
@@ -386,15 +411,22 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                         }
                     }
 
-                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, qMove(imageDataBuffer));
+                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask));
+                    valid = image.m_imageData.isValid();
                 }
                 else
                 {
-                    // Easiest way is to
+                    // Easiest way is to just add errors to the error list
                     imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Incompatible color components for JPEG 2000 image.")));
                 }
 
                 opj_image_destroy(jpegImage);
+
+                if (valid)
+                {
+                    // Image was successfully decoded
+                    break;
+                }
             }
         }
 
@@ -414,6 +446,38 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                 }
             }
         }
+    }
+    else if (imageFilterName == "CCITTFaxDecode")
+    {
+        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'CCITFaxDecode'."));
+    }
+    else if (imageFilterName == "JBIG2Decode")
+    {
+        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'JBIG2Decode'."));
+    }
+    else if (colorSpace)
+    {
+        // We treat data as binary maybe compressed stream (for example by Flate/LZW method), but data can also be not compressed.
+        const unsigned int components = static_cast<unsigned int>(colorSpace->getColorComponentCount());
+        const unsigned int bitsPerComponent = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8));
+        const unsigned int width = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "Width", 0));
+        const unsigned int height = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "Height", 0));
+
+        if (bitsPerComponent < 1 || bitsPerComponent > 32)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid number of bits per component (%1).").arg(bitsPerComponent));
+        }
+
+        if (width == 0 || height == 0)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid size of image (%1x%2)").arg(width).arg(height));
+        }
+
+        // Calculate stride
+        const unsigned int stride = (components * bitsPerComponent * width + 7) / 8;
+
+        QByteArray imageDataBuffer = document->getDecodedStream(stream);
+        image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask));
     }
 
     return image;
