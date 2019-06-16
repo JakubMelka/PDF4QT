@@ -387,11 +387,40 @@ protected:
     void addError(const QString& error) { m_errorList.append(PDFRenderError(RenderErrorType::Error, error)); }
 
 private:
+    /// Initializes the resources dictionaries
+    void initDictionaries(const PDFObject& resourcesObject);
+
     /// Process the content stream
     void processContentStream(const PDFStream* stream);
 
+    /// Process the content
+    void processContent(const QByteArray& content);
+
     /// Processes single command
     void processCommand(const QByteArray& command);
+
+    /// Processes form (XObject of type form)
+    /// \param Matrix Transformation matrix from form coordinate system to page coordinate system
+    /// \param boundingBox Bounding box, to which is drawed content clipped
+    /// \param resources Resources, assigned to the form
+    /// \param content Content stream of the form
+    void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content);
+
+    struct PDFPageContentProcessorStateGuard
+    {
+    public:
+        explicit PDFPageContentProcessorStateGuard(PDFPageContentProcessor* processor);
+        ~PDFPageContentProcessorStateGuard();
+
+    private:
+        PDFPageContentProcessor* m_processor;
+
+        // Stored resources
+        const PDFDictionary* m_colorSpaceDictionary;
+        const PDFDictionary* m_fontDictionary;
+        const PDFDictionary* m_xobjectDictionary;
+        const PDFDictionary* m_extendedGraphicStateDictionary;
+    };
 
     /// Wrapper for PDF Name
     struct PDFOperandName
@@ -585,6 +614,7 @@ private:
     const PDFDictionary* m_colorSpaceDictionary;
     const PDFDictionary* m_fontDictionary;
     const PDFDictionary* m_xobjectDictionary;
+    const PDFDictionary* m_extendedGraphicStateDictionary;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;

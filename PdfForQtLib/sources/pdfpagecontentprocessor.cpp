@@ -151,21 +151,11 @@ static constexpr const std::pair<const char*, PDFPageContentProcessor::Operator>
     { "EX", PDFPageContentProcessor::Operator::CompatibilityEnd }
 };
 
-PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache) :
-    m_page(page),
-    m_document(document),
-    m_fontCache(fontCache),
-    m_colorSpaceDictionary(nullptr),
-    m_fontDictionary(nullptr),
-    m_xobjectDictionary(nullptr),
-    m_textBeginEndState(0)
+void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
 {
-    Q_ASSERT(page);
-    Q_ASSERT(document);
-
-    auto getDictionary = [this](const char* resourceName) -> const pdf::PDFDictionary*
+    auto getDictionary = [this, &resourcesObject](const char* resourceName) -> const pdf::PDFDictionary*
     {
-        const PDFObject& resources = m_document->getObject(m_page->getResources());
+        const PDFObject& resources = m_document->getObject(resourcesObject);
         if (resources.isDictionary() && resources.getDictionary()->hasKey(resourceName))
         {
             const PDFObject& resourceDictionary = m_document->getObject(resources.getDictionary()->get(resourceName));
@@ -181,6 +171,23 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFD
     m_colorSpaceDictionary = getDictionary(COLOR_SPACE_DICTIONARY);
     m_fontDictionary = getDictionary("Font");
     m_xobjectDictionary = getDictionary("XObject");
+    m_extendedGraphicStateDictionary = getDictionary(PDF_RESOURCE_EXTGSTATE);
+}
+
+PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache) :
+    m_page(page),
+    m_document(document),
+    m_fontCache(fontCache),
+    m_colorSpaceDictionary(nullptr),
+    m_fontDictionary(nullptr),
+    m_xobjectDictionary(nullptr),
+    m_extendedGraphicStateDictionary(nullptr),
+    m_textBeginEndState(0)
+{
+    Q_ASSERT(page);
+    Q_ASSERT(document);
+
+    initDictionaries(m_page->getResources());
 }
 
 PDFPageContentProcessor::~PDFPageContentProcessor()
@@ -304,10 +311,8 @@ void PDFPageContentProcessor::performRestoreGraphicState(ProcessOrder order)
     Q_UNUSED(order);
 }
 
-void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
+void PDFPageContentProcessor::processContent(const QByteArray& content)
 {
-    QByteArray content = m_document->getDecodedStream(stream);
-
     PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());
 
     while (!parser.isAtEnd())
@@ -350,6 +355,38 @@ void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
             m_errorList.append(exception.getError());
         }
     }
+}
+
+void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
+{
+    QByteArray content = m_document->getDecodedStream(stream);
+
+    processContent(content);
+}
+
+void PDFPageContentProcessor::processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content)
+{
+    PDFPageContentProcessorStateGuard guard(this);
+
+    QMatrix formMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
+    m_graphicState.setCurrentTransformationMatrix(formMatrix);
+    updateGraphicState();
+
+    // If the clipping box is valid, then use clipping. Clipping box is in the form coordinate system
+    if (boundingBox.isValid())
+    {
+        QPainterPath path;
+        path.addRect(boundingBox);
+        performClipping(path, path.fillRule());
+    }
+
+    // Initialize the resources, if we have them
+    if (!resources.isNull())
+    {
+        initDictionaries(resources);
+    }
+
+    processContent(content);
 }
 
 void PDFPageContentProcessor::processCommand(const QByteArray& command)
@@ -981,82 +1018,64 @@ void PDFPageContentProcessor::operatorSetFlatness(PDFReal flatness)
 
 void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryName)
 {
-    const PDFObject& resources = m_page->getResources();
-    if (resources.isDictionary())
+    if (m_extendedGraphicStateDictionary)
     {
-        const PDFDictionary* resourcesDictionary = resources.getDictionary();
-        if (resourcesDictionary->hasKey(PDF_RESOURCE_EXTGSTATE))
+        if (m_extendedGraphicStateDictionary->hasKey(dictionaryName.name))
         {
-            const PDFObject& graphicStatesObject = m_document->getObject(resourcesDictionary->get(PDF_RESOURCE_EXTGSTATE));
-            if (graphicStatesObject.isDictionary())
+            const PDFObject& graphicStateObject = m_document->getObject(m_extendedGraphicStateDictionary->get(dictionaryName.name));
+            if (graphicStateObject.isDictionary())
             {
-                const PDFDictionary* graphicStatesDictionary = graphicStatesObject.getDictionary();
-                if (graphicStatesDictionary->hasKey(dictionaryName.name))
+                const PDFDictionary* graphicStateDictionary = graphicStateObject.getDictionary();
+
+                PDFDocumentDataLoaderDecorator loader(m_document);
+                const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
+                const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
+                const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
+                const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "MT", m_graphicState.getMitterLimit());
+
+                const PDFObject& lineDashPatternObject = m_document->getObject(graphicStateDictionary->get("D"));
+                if (lineDashPatternObject.isArray())
                 {
-                    const PDFObject& graphicStateObject = m_document->getObject(graphicStatesDictionary->get(dictionaryName.name));
-                    if (graphicStateObject.isDictionary())
+                    const PDFArray* lineDashPatternDefinitionArray = lineDashPatternObject.getArray();
+                    if (lineDashPatternDefinitionArray->getCount() == 2)
                     {
-                        const PDFDictionary* graphicStateDictionary = graphicStateObject.getDictionary();
-
-                        PDFDocumentDataLoaderDecorator loader(m_document);
-                        const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
-                        const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
-                        const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
-                        const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "MT", m_graphicState.getMitterLimit());
-
-                        const PDFObject& lineDashPatternObject = m_document->getObject(graphicStateDictionary->get("D"));
-                        if (lineDashPatternObject.isArray())
-                        {
-                            const PDFArray* lineDashPatternDefinitionArray = lineDashPatternObject.getArray();
-                            if (lineDashPatternDefinitionArray->getCount() == 2)
-                            {
-                                PDFLineDashPattern pattern(loader.readNumberArray(lineDashPatternDefinitionArray->getItem(0)), loader.readNumber(lineDashPatternDefinitionArray->getItem(1), 0.0));
-                                m_graphicState.setLineDashPattern(pattern);
-                            }
-                        }
-
-                        const PDFObject& renderingIntentObject = m_document->getObject(graphicStateDictionary->get("RI"));
-                        if (renderingIntentObject.isName())
-                        {
-                            m_graphicState.setRenderingIntent(renderingIntentObject.getString());
-                        }
-
-                        const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
-                        const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
-                        const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
-
-                        m_graphicState.setLineWidth(lineWidth);
-                        m_graphicState.setLineCapStyle(penCapStyle);
-                        m_graphicState.setLineJoinStyle(penJoinStyle);
-                        m_graphicState.setMitterLimit(mitterLimit);
-                        m_graphicState.setFlatness(flatness);
-                        m_graphicState.setSmoothness(smoothness);
-                        m_graphicState.setTextKnockout(textKnockout);
-                        updateGraphicState();
-                    }
-                    else
-                    {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state '%1' found, but invalid in resource dictionary.").arg(QString::fromLatin1(dictionaryName.name)));
+                        PDFLineDashPattern pattern(loader.readNumberArray(lineDashPatternDefinitionArray->getItem(0)), loader.readNumber(lineDashPatternDefinitionArray->getItem(1), 0.0));
+                        m_graphicState.setLineDashPattern(pattern);
                     }
                 }
-                else
+
+                const PDFObject& renderingIntentObject = m_document->getObject(graphicStateDictionary->get("RI"));
+                if (renderingIntentObject.isName())
                 {
-                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state '%1' not found in resource dictionary.").arg(QString::fromLatin1(dictionaryName.name)));
+                    m_graphicState.setRenderingIntent(renderingIntentObject.getString());
                 }
+
+                const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
+                const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
+                const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
+
+                m_graphicState.setLineWidth(lineWidth);
+                m_graphicState.setLineCapStyle(penCapStyle);
+                m_graphicState.setLineJoinStyle(penJoinStyle);
+                m_graphicState.setMitterLimit(mitterLimit);
+                m_graphicState.setFlatness(flatness);
+                m_graphicState.setSmoothness(smoothness);
+                m_graphicState.setTextKnockout(textKnockout);
+                updateGraphicState();
             }
             else
             {
-                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page resource dictionary."));
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state '%1' found, but invalid in resource dictionary.").arg(QString::fromLatin1(dictionaryName.name)));
             }
         }
         else
         {
-            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page resource dictionary."));
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Graphic state '%1' not found in resource dictionary.").arg(QString::fromLatin1(dictionaryName.name)));
         }
     }
     else
     {
-        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page resource dictionary."));
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid graphic state resource dictionary."));
     }
 }
 
@@ -1808,10 +1827,42 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                     throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
                 }
             }
+			else if (subtype == "Form")
+			{
+                PDFInteger formType = loader.readIntegerFromDictionary(streamDictionary, "FormType", 1);
+                if (formType != 1)
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Form of type %1 not supported.").arg(formType));
+                }
+
+                // Read the bounding rectangle, if it is present
+                QRectF boundingBox = loader.readRectangle(streamDictionary->get("BBox"), QRectF());
+
+                // Read the transformation matrix, if it is present
+                QMatrix transformationMatrix;
+
+                if (streamDictionary->hasKey("Matrix"))
+                {
+                    std::vector<PDFReal> matrixNumbers = loader.readNumberArrayFromDictionary(streamDictionary, "Matrix");
+                    if (matrixNumbers.size() != 6)
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid number of matrix elements. Expected 6, actual %1.").arg(matrixNumbers.size()));
+                    }
+
+                    transformationMatrix = QMatrix(matrixNumbers[0], matrixNumbers[1], matrixNumbers[2], matrixNumbers[3], matrixNumbers[4], matrixNumbers[5]);
+                }
+
+                // Read the dictionary content
+                QByteArray content = m_document->getDecodedStream(stream);
+
+                // Read resources
+                PDFObject resources = m_document->getObject(streamDictionary->get("Resources"));
+
+                processForm(transformationMatrix, boundingBox, resources, content);
+			}
             else
             {
-                // TODO: Handle another XObjects
-                throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Unknown XObject type '%1'.").arg(QString::fromLatin1(subtype)));
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Unknown XObject type '%1'.").arg(QString::fromLatin1(subtype)));
             }
         }
         else
@@ -2222,6 +2273,27 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setTextCharacterSpac
         m_textCharacterSpacing = textCharacterSpacing;
         m_stateFlags |= StateTextCharacterSpacing;
     }
+}
+
+PDFPageContentProcessor::PDFPageContentProcessorStateGuard::PDFPageContentProcessorStateGuard(PDFPageContentProcessor* processor) :
+    m_processor(processor),
+    m_colorSpaceDictionary(processor->m_colorSpaceDictionary),
+    m_fontDictionary(processor->m_fontDictionary),
+    m_xobjectDictionary(processor->m_xobjectDictionary),
+    m_extendedGraphicStateDictionary(processor->m_extendedGraphicStateDictionary)
+{
+    m_processor->operatorSaveGraphicState();
+}
+
+PDFPageContentProcessor::PDFPageContentProcessorStateGuard::~PDFPageContentProcessorStateGuard()
+{
+    // Restore dictionaries
+    m_processor->m_colorSpaceDictionary = m_colorSpaceDictionary;
+    m_processor->m_fontDictionary = m_fontDictionary;
+    m_processor->m_xobjectDictionary = m_xobjectDictionary;
+    m_processor->m_extendedGraphicStateDictionary = m_extendedGraphicStateDictionary;
+
+    m_processor->operatorRestoreGraphicState();
 }
 
 }   // namespace pdf
