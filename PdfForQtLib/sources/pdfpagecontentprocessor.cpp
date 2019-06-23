@@ -182,7 +182,8 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFD
     m_fontDictionary(nullptr),
     m_xobjectDictionary(nullptr),
     m_extendedGraphicStateDictionary(nullptr),
-    m_textBeginEndState(0)
+    m_textBeginEndState(0),
+    m_compatibilityBeginEndState(0)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
@@ -787,6 +788,18 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
         {
             // Do, paint the X Object (image, form, ...)
             invokeOperator(&PDFPageContentProcessor::operatorPaintXObject);
+            break;
+        }
+
+        case Operator::CompatibilityBegin:
+        {
+            operatorCompatibilityBegin();
+            break;
+        }
+
+        case Operator::CompatibilityEnd:
+        {
+            operatorCompatibilityEnd();
             break;
         }
 
@@ -1873,6 +1886,19 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
     else
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("XObject resource dictionary not found."));
+    }
+}
+
+void PDFPageContentProcessor::operatorCompatibilityBegin()
+{
+    ++m_compatibilityBeginEndState;
+}
+
+void PDFPageContentProcessor::operatorCompatibilityEnd()
+{
+    if (--m_compatibilityBeginEndState < 0)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Compatibility operator begin/end mismatch."));
     }
 }
 

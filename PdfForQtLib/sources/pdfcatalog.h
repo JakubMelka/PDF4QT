@@ -1,4 +1,4 @@
-//    Copyright (C) 2018 Jakub Melka
+//    Copyright (C) 2018-2019 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -20,6 +20,7 @@
 
 #include "pdfobject.h"
 #include "pdfpage.h"
+#include "pdfoptionalcontent.h"
 
 #include <QtCore>
 
@@ -202,6 +203,9 @@ public:
     /// Returns the page
     const PDFPage* getPage(size_t index) const { return &m_pages.at(index); }
 
+    /// Return optional content properties
+    const PDFOptionalContentProperties* getOptionalContentProperties() const { return &m_optionalContentProperties; }
+
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.
     static PDFCatalog parse(const PDFObject& catalog, const PDFDocument* document);
@@ -210,6 +214,7 @@ private:
     PDFViewerPreferences m_viewerPreferences;
     std::vector<PDFPage> m_pages;
     std::vector<PDFPageLabel> m_pageLabels;
+    PDFOptionalContentProperties m_optionalContentProperties;
 };
 
 }   // namespace pdf

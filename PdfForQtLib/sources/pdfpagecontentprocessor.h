@@ -593,6 +593,10 @@ private:
     // XObject:                    Do
     void operatorPaintXObject(PDFOperandName name); ///< Do, paint the X Object (image, form, ...)
 
+    // Compatibility:              BX, EX
+    void operatorCompatibilityBegin();   ///< BX, Compatibility mode begin (unrecognized operators are ignored)
+    void operatorCompatibilityEnd();     ///< EX, Compatibility mode end
+
     // Draws the text using the text sequence
     void drawText(const TextSequence& textSequence);
 
@@ -638,6 +642,9 @@ private:
 
     /// Nesting level of the begin/end of text object
     int m_textBeginEndState;
+
+    /// Compatibility level (if positive, then unrecognized operators are ignored)
+    int m_compatibilityBeginEndState;
 
     /// Actually realized physical font
     PDFCachedItem<PDFRealizedFontPointer> m_realizedFont;

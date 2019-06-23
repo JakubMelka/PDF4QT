@@ -190,11 +190,11 @@ public:
     }
 
     /// Tries to read array of real values from dictionary. If entry dictionary doesn't exist,
-    /// or error occurs, empty record is returned.
+    /// or error occurs, empty array is returned.
     std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
 
     /// Tries to read array of integer values from dictionary. If entry dictionary doesn't exist,
-    /// or error occurs, empty record is returned.
+    /// or error occurs, empty array is returned.
     std::vector<PDFInteger> readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
 
     /// Reads number from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
@@ -209,6 +209,16 @@ public:
     /// \param defaultValue Default value
     PDFInteger readIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue) const;
 
+    /// Reads a text string from the dictionary, if it is possible.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    /// \param defaultValue Default value
+    QString readTextStringFromDictionary(const PDFDictionary* dictionary, const char* key, const QString& defaultValue) const;
+
+    /// Tries to read array of references from dictionary. If entry dictionary doesn't exist,
+    /// or error occurs, empty array is returned.
+    std::vector<PDFObjectReference> readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
+
     /// Reads number array from dictionary. Reads all values. If some value is not
     /// real number (or integer number), empty array is returned. Empty array is also returned,
     /// if \p object is invalid.
@@ -220,6 +230,22 @@ public:
     /// if \p object is invalid.
     /// \param object Object containing array of numbers
     std::vector<PDFInteger> readIntegerArray(const PDFObject& object) const;
+
+    /// Reads reference array from dictionary. Reads all values. If error occurs,
+    /// then empty array is returned.
+    /// \param object Object containing array of references
+    std::vector<PDFObjectReference> readReferenceArray(const PDFObject& object) const;
+
+    /// Reads name array. Reads all values. If error occurs,
+    /// then empty array is returned.
+    /// \param object Object containing array of references
+    std::vector<QByteArray> readNameArray(const PDFObject& object) const;
+
+    /// Reads name array from dictionary. Reads all values. If error occurs,
+    /// then empty array is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    std::vector<QByteArray> readNameArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
     /// Reads boolean from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
     /// \param dictionary Dictionary containing desired data

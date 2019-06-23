@@ -411,6 +411,26 @@ PDFInteger PDFDocumentDataLoaderDecorator::readIntegerFromDictionary(const PDFDi
     return defaultValue;
 }
 
+QString PDFDocumentDataLoaderDecorator::readTextStringFromDictionary(const PDFDictionary* dictionary, const char* key, const QString& defaultValue) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readTextString(dictionary->get(key), defaultValue);
+    }
+
+    return defaultValue;
+}
+
+std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
+{
+    if (dictionary->hasKey(key))
+    {
+        return readReferenceArray(dictionary->get(key));
+    }
+
+    return std::vector<PDFObjectReference>();
+}
+
 std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFObject& object) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
@@ -468,6 +488,80 @@ std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const P
     }
 
     return std::vector<PDFInteger>();
+}
+
+std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArray(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        std::vector<PDFObjectReference> result;
+        const size_t count = array->getCount();
+        result.reserve(count);
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFObject& referenceObject = array->getItem(i);
+            if (referenceObject.isReference())
+            {
+                result.push_back(referenceObject.getReference());
+            }
+            else
+            {
+                result.clear();
+                break;
+            }
+        }
+
+        // We assume, that RVO (return value optimization) will not work for this function
+        // (multiple return points).
+        return std::move(result);
+    }
+
+    return std::vector<PDFObjectReference>();
+}
+
+std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readNameArray(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        std::vector<QByteArray> result;
+        const size_t count = array->getCount();
+        result.reserve(count);
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFObject& nameObject = array->getItem(i);
+            if (nameObject.isName())
+            {
+                result.push_back(nameObject.getString());
+            }
+            else
+            {
+                result.clear();
+                break;
+            }
+        }
+
+        // We assume, that RVO (return value optimization) will not work for this function
+        // (multiple return points).
+        return std::move(result);
+    }
+
+    return std::vector<QByteArray>();
+}
+
+std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readNameArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readNameArray(dictionary->get(key));
+    }
+
+    return std::vector<QByteArray>();
 }
 
 bool PDFDocumentDataLoaderDecorator::readBooleanFromDictionary(const PDFDictionary* dictionary, const char* key, bool defaultValue) const

@@ -56,6 +56,12 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     catalogObject.m_viewerPreferences = PDFViewerPreferences::parse(catalog, document);
     catalogObject.m_pages = PDFPage::parse(document, catalogDictionary->get("Pages"));
     catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(document, catalogDictionary->get("PageLabels"));
+
+    if (catalogDictionary->hasKey("OCProperties"))
+    {
+        catalogObject.m_optionalContentProperties = PDFOptionalContentProperties::create(document, catalogDictionary->get("OCProperties"));
+    }
+
     return catalogObject;
 }
 

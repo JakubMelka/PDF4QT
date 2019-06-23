@@ -37,6 +37,7 @@ DESTDIR = $$OUT_PWD/..
 
 SOURCES += \
     sources/pdfobject.cpp \
+    sources/pdfoptionalcontent.cpp \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \
@@ -61,6 +62,7 @@ SOURCES += \
 
 HEADERS += \
     sources/pdfobject.h \
+    sources/pdfoptionalcontent.h \
     sources/pdfparser.h \
     sources/pdfglobal.h \
     sources/pdfconstants.h \
