@@ -23,11 +23,13 @@
 #include <QByteArray>
 
 #include <memory>
+#include <functional>
 
 namespace pdf
 {
-class PDFDocument;
 class PDFStreamFilter;
+
+using PDFObjectFetcher = std::function<const PDFObject&(const PDFObject&)>;
 
 /// Storage for stream filters. Can retrieve stream filters by name. Using singleton
 /// design pattern. Use static methods to retrieve filters.
@@ -38,6 +40,16 @@ public:
     /// then nullptr is returned. This function is thread safe.
     /// \param filterName Name of the filter to be retrieved.
     static const PDFStreamFilter* getFilter(const QByteArray& filterName);
+
+    /// Returns decoded data from the stream
+    /// \param stream Stream containing the data
+    /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
+    static QByteArray getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher);
+
+    /// Returns decoded data from the stream, without object fetching
+    /// \param stream Stream containing the data
+    /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
+    static QByteArray getDecodedStream(const PDFStream* stream);
 
 private:
     explicit PDFStreamFilterStorage();
@@ -58,7 +70,19 @@ public:
     explicit PDFStreamFilter() = default;
     virtual ~PDFStreamFilter() = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const = 0;
+    /// Apply with object fetcher
+    /// \param data Stream data to be decoded
+    /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
+    /// \param parameters Stream parameters
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const = 0;
+
+    /// Apply without object fetcher - it assumes no references exists in the streams dictionary
+    /// \param data Stream data to be decoded
+    /// \param parameters Stream parameters
+    inline QByteArray apply(const QByteArray& data, const PDFObject& parameters) const
+    {
+        return apply(data, [](const PDFObject& object) -> const PDFObject& { return object; }, parameters);
+    }
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
@@ -67,7 +91,7 @@ public:
     explicit PDFAsciiHexDecodeFilter() = default;
     virtual ~PDFAsciiHexDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
@@ -76,7 +100,7 @@ public:
     explicit PDFAscii85DecodeFilter() = default;
     virtual ~PDFAscii85DecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
@@ -85,7 +109,7 @@ public:
     explicit PDFLzwDecodeFilter() = default;
     virtual ~PDFLzwDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
@@ -94,7 +118,7 @@ public:
     explicit PDFFlateDecodeFilter() = default;
     virtual ~PDFFlateDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
@@ -103,7 +127,7 @@ public:
     explicit PDFRunLengthDecodeFilter() = default;
     virtual ~PDFRunLengthDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
 };
 
 }   // namespace pdf

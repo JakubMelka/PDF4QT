@@ -317,6 +317,9 @@ public:
     /// \param stream Stream to be decoded
     QByteArray getDecodedStream(const PDFStream* stream) const;
 
+    /// Returns the trailer dictionary
+    const PDFDictionary* getTrailerDictionary() const;
+
 private:
     friend class PDFDocumentReader;
 

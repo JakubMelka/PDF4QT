@@ -19,6 +19,7 @@
 #include "pdfconstants.h"
 #include "pdfexception.h"
 #include "pdfparser.h"
+#include "pdfstreamfilters.h"
 
 #include <stack>
 
@@ -27,7 +28,7 @@ namespace pdf
 
 void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& byteArray, PDFInteger startTableOffset)
 {
-    PDFParser parser(byteArray, context, PDFParser::None);
+    PDFParser parser(byteArray, context, PDFParser::AllowStreams);
 
     m_entries.clear();
 
@@ -96,6 +97,11 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                         throw PDFParserException(tr("Bad format of reference table entry."));
                     }
 
+                    if (static_cast<size_t>(objectNumber) >= m_entries.size())
+                    {
+                        throw PDFParserException(tr("Bad format of reference table entry."));
+                    }
+
                     Entry entry;
                     if (occupied)
                     {
@@ -137,13 +143,188 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                 workSet.push(previousOffset.getInteger());
             }
 
-            if (dictionary->hasKey(PDF_XREF_TRAILER_XREFSTM))
+            const PDFObject& xrefstmObject = dictionary->get(PDF_XREF_TRAILER_XREFSTM);
+            if (xrefstmObject.isInt())
             {
-                throw PDFParserException(tr("Hybrid reference tables not supported."));
+                workSet.push(xrefstmObject.getInteger());
             }
         }
         else
         {
+            // Try to read cross-reference stream
+            PDFObject crossReferenceStreamObjectNumber = parser.getObject();
+            PDFObject crossReferenceStreamGeneration = parser.getObject();
+
+            if (!crossReferenceStreamObjectNumber.isInt() || !crossReferenceStreamGeneration.isInt())
+            {
+                throw PDFParserException(tr("Invalid format of reference table."));
+            }
+
+            if (!parser.fetchCommand(PDF_OBJECT_START_MARK))
+            {
+                throw PDFParserException(tr("Invalid format of reference table."));
+            }
+
+            PDFObject crossReferenceObject = parser.getObject();
+
+            if (!parser.fetchCommand(PDF_OBJECT_END_MARK))
+            {
+                throw PDFParserException(tr("Invalid format of reference table."));
+            }
+
+            if (crossReferenceObject.isStream())
+            {
+                const PDFStream* crossReferenceStream = crossReferenceObject.getStream();
+                const PDFDictionary* crossReferenceStreamDictionary = crossReferenceStream->getDictionary();
+                const PDFObject typeObject = crossReferenceStreamDictionary->get("Type");
+                if (typeObject.isName() && typeObject.getString() == "XRef")
+                {
+                    PDFObject sizeObject = crossReferenceStreamDictionary->get("Size");
+                    if (!sizeObject.isInt() || sizeObject.getInteger() < 0)
+                    {
+                        throw PDFParserException(tr("Invalid format of cross-reference stream."));
+                    }
+
+                    const PDFInteger desiredSize = sizeObject.getInteger();
+                    if (static_cast<PDFInteger>(m_entries.size()) < desiredSize)
+                    {
+                        m_entries.resize(desiredSize);
+                    }
+
+                    PDFObject prevObject = crossReferenceStreamDictionary->get("Prev");
+                    if (prevObject.isInt())
+                    {
+                        workSet.push(prevObject.getInteger());
+                    }
+
+                    // Do not overwrite trailer dictionary, if it was already loaded.
+                    if (m_trailerDictionary.isNull())
+                    {
+                        m_trailerDictionary = crossReferenceObject;
+                    }
+
+                    auto readIntegerArray = [crossReferenceStreamDictionary](const char* key, auto defaultValues) -> std::vector<PDFInteger>
+                    {
+                        std::vector<PDFInteger> result;
+
+                        const PDFObject& object = crossReferenceStreamDictionary->get(key);
+                        if (object.isArray())
+                        {
+                            const PDFArray* array = object.getArray();
+                            result.reserve(array->getCount());
+
+                            for (size_t i = 0, count = array->getCount(); i < count; ++i)
+                            {
+                                const PDFObject& itemObject = array->getItem(i);
+                                if (itemObject.isInt())
+                                {
+                                    result.push_back(itemObject.getInteger());
+                                }
+                                else
+                                {
+                                    throw PDFParserException(tr("Invalid format of cross-reference stream."));
+                                }
+                            }
+                        }
+                        else
+                        {
+                            result = defaultValues;
+                        }
+
+                        return result;
+                    };
+
+                    std::vector<PDFInteger> indexArray = readIntegerArray("Index", std::initializer_list<PDFInteger>{ PDFInteger(0), PDFInteger(desiredSize) });
+                    std::vector<PDFInteger> wArray = readIntegerArray("W", std::vector<PDFInteger>());
+
+                    if (wArray.size() != 3 || indexArray.empty() || (indexArray.size() % 2 != 0))
+                    {
+                        throw PDFParserException(tr("Invalid format of cross-reference stream."));
+                    }
+
+                    const int columnTypeBytes = wArray[0];
+                    const int columnObjectNumberOrByteOffsetBytes = wArray[1];
+                    const int columnGenerationNumberOrObjectIndexBytes = wArray[2];
+                    const size_t blockCount = indexArray.size() / 2;
+
+                    QByteArray data = PDFStreamFilterStorage::getDecodedStream(crossReferenceStream);
+                    QDataStream dataStream(&data, QIODevice::ReadOnly);
+                    dataStream.setByteOrder(QDataStream::BigEndian);
+
+                    auto readNumber = [&dataStream](int bytes, PDFInteger defaultValue) -> PDFInteger
+                    {
+                        if (bytes)
+                        {
+                            uint64_t value = 0;
+
+                            while (bytes--)
+                            {
+                                uint8_t byte = 0;
+                                dataStream >> byte;
+                                value = (value << 8) + byte;
+
+                                // Check, if stream is OK (we doesn't read past the end of the stream,
+                                // data aren't corrupted etc.)
+                                if (dataStream.status() != QDataStream::Ok)
+                                {
+                                    throw PDFParserException(tr("Invalid format of cross-reference stream - not enough data in the stream."));
+                                }
+                            }
+
+                            return static_cast<PDFInteger>(value);
+                        }
+                        return defaultValue;
+                    };
+
+                    for (size_t i = 0; i < blockCount; ++i)
+                    {
+                        PDFInteger firstObjectNumber = indexArray[2 * i];
+                        PDFInteger count = indexArray[2 * i + 1];
+
+                        const PDFInteger lastObjectIndex = firstObjectNumber + count - 1;
+                        const PDFInteger desiredSize = lastObjectIndex + 1;
+
+                        if (static_cast<PDFInteger>(m_entries.size()) < desiredSize)
+                        {
+                            m_entries.resize(desiredSize);
+                        }
+
+                        for (PDFInteger objectNumber = firstObjectNumber; objectNumber <= lastObjectIndex; ++ objectNumber)
+                        {
+                            int itemType = readNumber(columnTypeBytes, 1);
+                            int itemObjectNumberOfObjectStreamOrByteOffset = readNumber(columnObjectNumberOrByteOffsetBytes, 0);
+                            int itemGenerationNumberOrObjectIndex = readNumber(columnGenerationNumberOrObjectIndexBytes, 0);
+
+                            switch (itemType)
+                            {
+                                case 0:
+                                    // Free object
+                                    break;
+                                case 1:
+                                {
+                                    Entry entry;
+                                    entry.reference = PDFObjectReference(objectNumber, itemGenerationNumberOrObjectIndex);
+                                    entry.offset = itemObjectNumberOfObjectStreamOrByteOffset;
+                                    entry.type = EntryType::Occupied;
+
+                                    if (m_entries[objectNumber].type == EntryType::Free)
+                                    {
+                                        m_entries[objectNumber] = std::move(entry);
+                                    }
+                                    break;
+                                }
+                                case 2:
+                                default:
+                                    // According to the specification, treat this object as null object
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                continue;
+            }
+
             throw PDFParserException(tr("Invalid format of reference table."));
         }
     }

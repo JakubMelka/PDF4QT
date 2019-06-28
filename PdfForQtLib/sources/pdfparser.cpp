@@ -796,7 +796,7 @@ PDFObject PDFParser::getObject()
                     error(tr("Stream length is not specified."));
                 }
 
-                PDFObject lengthObject = m_context->getObject(dictionary->get(PDF_STREAM_DICT_LENGTH));
+                PDFObject lengthObject = m_context ? m_context->getObject(dictionary->get(PDF_STREAM_DICT_LENGTH)) : dictionary->get(PDF_STREAM_DICT_LENGTH);
                 if (!lengthObject.isInt())
                 {
                     error(tr("Bad value of stream length. It should be an integer number."));
@@ -817,7 +817,7 @@ PDFObject PDFParser::getObject()
                 // from the external file.
                 if (dictionary->hasKey(PDF_STREAM_DICT_FILE_SPECIFICATION))
                 {
-                    PDFObject fileName = m_context->getObject(dictionary->get(PDF_STREAM_DICT_FILE_SPECIFICATION));
+                    PDFObject fileName = m_context ? m_context->getObject(dictionary->get(PDF_STREAM_DICT_FILE_SPECIFICATION)) : dictionary->get(PDF_STREAM_DICT_FILE_SPECIFICATION);
 
                     if (!fileName.isString())
                     {

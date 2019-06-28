@@ -42,104 +42,33 @@ static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown"
 
 QByteArray PDFDocument::getDecodedStream(const PDFStream* stream) const
 {
-    const PDFDictionary* dictionary = stream->getDictionary();
+    return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(&PDFDocument::getObject, this, std::placeholders::_1));
+}
 
-    // Retrieve filters
-    PDFObject filters;
-    if (dictionary->hasKey(PDF_STREAM_DICT_FILTER))
-    {
-        filters = getObject(dictionary->get(PDF_STREAM_DICT_FILTER));
-    }
-    else if (dictionary->hasKey(PDF_STREAM_DICT_FILE_FILTER))
-    {
-        filters = getObject(dictionary->get(PDF_STREAM_DICT_FILE_FILTER));
-    }
+const PDFDictionary* PDFDocument::getTrailerDictionary() const
+{
+    const PDFObject& trailerDictionary = m_pdfObjectStorage.getTrailerDictionary();
 
-    // Retrieve filter parameters
-    PDFObject filterParameters;
-    if (dictionary->hasKey(PDF_STREAM_DICT_DECODE_PARMS))
+    // Trailer object should be dictionary/stream here. It is verified in the document reader.
+    Q_ASSERT(trailerDictionary.isDictionary() || trailerDictionary.isStream());
+
+    if (trailerDictionary.isDictionary())
     {
-        filterParameters = getObject(dictionary->get(PDF_STREAM_DICT_DECODE_PARMS));
+        return trailerDictionary.getDictionary();
     }
-    else if (dictionary->hasKey(PDF_STREAM_DICT_FDECODE_PARMS))
+    else if (trailerDictionary.isStream())
     {
-        filterParameters = getObject(dictionary->get(PDF_STREAM_DICT_FDECODE_PARMS));
+        return trailerDictionary.getStream()->getDictionary();
     }
 
-    std::vector<const PDFStreamFilter*> filterObjects;
-    std::vector<PDFObject> filterParameterObjects;
-
-    if (filters.isName())
-    {
-        filterObjects.push_back(PDFStreamFilterStorage::getFilter(filters.getString()));
-    }
-    else if (filters.isArray())
-    {
-        const PDFArray* filterArray = filters.getArray();
-        const size_t filterCount = filterArray->getCount();
-        for (size_t i = 0; i < filterCount; ++i)
-        {
-            const PDFObject& object = getObject(filterArray->getItem(i));
-            if (object.isName())
-            {
-                filterObjects.push_back(PDFStreamFilterStorage::getFilter(object.getString()));
-            }
-            else
-            {
-                return QByteArray();
-            }
-        }
-    }
-    else if (!filters.isNull())
-    {
-        return QByteArray();
-    }
-
-    if (filterParameters.isArray())
-    {
-        const PDFArray* filterParameterArray = filterParameters.getArray();
-        const size_t filterParameterCount = filterParameterArray->getCount();
-        for (size_t i = 0; i < filterParameterCount; ++i)
-        {
-            const PDFObject& object = getObject(filterParameterArray->getItem(i));
-            filterParameterObjects.push_back(object);
-        }
-    }
-    else
-    {
-        filterParameterObjects.push_back(filterParameters);
-    }
-
-    filterParameterObjects.resize(filterObjects.size());
-    std::reverse(filterObjects.begin(), filterObjects.end());
-    std::reverse(filterParameterObjects.begin(), filterParameterObjects.end());
-
-    QByteArray result = *stream->getContent();
-
-    for (size_t i = 0, count = filterObjects.size(); i < count; ++i)
-    {
-        const PDFStreamFilter* streamFilter = filterObjects[i];
-        const PDFObject& streamFilterParameters = filterParameterObjects[i];
-
-        if (streamFilter)
-        {
-            result = streamFilter->apply(result, this, streamFilterParameters);
-        }
-    }
-
-    return result;
+    return nullptr;
 }
 
 void PDFDocument::init()
 {
     initInfo();
 
-    const PDFObject& trailerDictionary = m_pdfObjectStorage.getTrailerDictionary();
-
-    // Trailer object should be dictionary here. It is verified in the document reader.
-    Q_ASSERT(trailerDictionary.isDictionary());
-
-    const PDFDictionary* dictionary = trailerDictionary.getDictionary();
+    const PDFDictionary* dictionary = getTrailerDictionary();
     Q_ASSERT(dictionary);
 
     m_catalog = PDFCatalog::parse(getObject(dictionary->get("Root")), this);
@@ -147,12 +76,8 @@ void PDFDocument::init()
 
 void PDFDocument::initInfo()
 {
-    const PDFObject& trailerDictionary = m_pdfObjectStorage.getTrailerDictionary();
-
     // Trailer object should be dictionary here. It is verified in the document reader.
-    Q_ASSERT(trailerDictionary.isDictionary());
-
-    const PDFDictionary* dictionary = trailerDictionary.getDictionary();
+    const PDFDictionary* dictionary = getTrailerDictionary();
     Q_ASSERT(dictionary);
 
     if (dictionary->hasKey(PDF_DOCUMENT_INFO_ENTRY))

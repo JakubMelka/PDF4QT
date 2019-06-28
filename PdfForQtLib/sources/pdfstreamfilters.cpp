@@ -16,8 +16,8 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfstreamfilters.h"
-#include "pdfdocument.h"
 #include "pdfexception.h"
+#include "pdfconstants.h"
 #include "pdfparser.h"
 
 #include <QtEndian>
@@ -25,9 +25,9 @@
 namespace pdf
 {
 
-QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const
+QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
 {
-    Q_UNUSED(document);
+    Q_UNUSED(objectFetcher);
     Q_UNUSED(parameters);
 
     const int indexOfEnd = data.indexOf('>');
@@ -50,9 +50,9 @@ QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data, const PDFDocum
     return QByteArray::fromHex(QByteArray::fromRawData(data.constData(), size));
 }
 
-QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const
+QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
 {
-    Q_UNUSED(document);
+    Q_UNUSED(objectFetcher);
     Q_UNUSED(parameters);
 
     const unsigned char* dataBegin = reinterpret_cast<const unsigned char*>(data.constData());
@@ -333,19 +333,28 @@ uint32_t PDFLzwStreamDecoder::getCode()
     return code;
 }
 
-QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const
+QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
 {
     uint32_t early = 1;
 
-    const PDFObject& dereferencedParameters = document->getObject(parameters);
+    const PDFObject& dereferencedParameters = objectFetcher(parameters);
     if (dereferencedParameters.isDictionary())
     {
         const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
 
-        PDFDocumentDataLoaderDecorator loader(document);
-        early = loader.readInteger(dictionary->get("EarlyChange"), 1);
+        PDFInteger predictor = 1;
+        const PDFObject& predictorObject = objectFetcher(dictionary->get("Predictor"));
+        if (predictorObject.isInt())
+        {
+            predictor = predictorObject.getInteger();
+        }
 
-        PDFInteger predictor = loader.readInteger(dictionary->get("Predictor"), 1);
+        const PDFObject& earlyChangeObject = objectFetcher(dictionary->get("EarlyChange"));
+        if (earlyChangeObject.isInt())
+        {
+            early = earlyChangeObject.getInteger();
+        }
+
         if (predictor != 1)
         {
             // TODO: Implement Predictor algorithm
@@ -357,15 +366,19 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFDocument* 
     return decoder.decompress();
 }
 
-QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const
+QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
 {
-    const PDFObject& dereferencedParameters = document->getObject(parameters);
+    const PDFObject& dereferencedParameters = objectFetcher(parameters);
     if (dereferencedParameters.isDictionary())
     {
         const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
 
-        PDFDocumentDataLoaderDecorator loader(document);
-        PDFInteger predictor = loader.readInteger(dictionary->get("Predictor"), 1);
+        PDFInteger predictor = 1;
+        const PDFObject& predictorObject = objectFetcher(dictionary->get("Predictor"));
+        if (predictorObject.isInt())
+        {
+            predictor = predictorObject.getInteger();
+        }
 
         if (predictor != 1)
         {
@@ -385,9 +398,9 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFDocument
     return qUncompress(dataToUncompress);
 }
 
-QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data, const PDFDocument* document, const PDFObject& parameters) const
+QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
 {
-    Q_UNUSED(document);
+    Q_UNUSED(objectFetcher);
     Q_UNUSED(parameters);
 
     QByteArray result;
@@ -437,6 +450,101 @@ const PDFStreamFilter* PDFStreamFilterStorage::getFilter(const QByteArray& filte
     }
 
     return nullptr;
+}
+
+QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher)
+{
+    const PDFDictionary* dictionary = stream->getDictionary();
+
+    // Retrieve filters
+    PDFObject filters;
+    if (dictionary->hasKey(PDF_STREAM_DICT_FILTER))
+    {
+        filters = objectFetcher(dictionary->get(PDF_STREAM_DICT_FILTER));
+    }
+    else if (dictionary->hasKey(PDF_STREAM_DICT_FILE_FILTER))
+    {
+        filters = objectFetcher(dictionary->get(PDF_STREAM_DICT_FILE_FILTER));
+    }
+
+    // Retrieve filter parameters
+    PDFObject filterParameters;
+    if (dictionary->hasKey(PDF_STREAM_DICT_DECODE_PARMS))
+    {
+        filterParameters = objectFetcher(dictionary->get(PDF_STREAM_DICT_DECODE_PARMS));
+    }
+    else if (dictionary->hasKey(PDF_STREAM_DICT_FDECODE_PARMS))
+    {
+        filterParameters = objectFetcher(dictionary->get(PDF_STREAM_DICT_FDECODE_PARMS));
+    }
+
+    std::vector<const PDFStreamFilter*> filterObjects;
+    std::vector<PDFObject> filterParameterObjects;
+
+    if (filters.isName())
+    {
+        filterObjects.push_back(PDFStreamFilterStorage::getFilter(filters.getString()));
+    }
+    else if (filters.isArray())
+    {
+        const PDFArray* filterArray = filters.getArray();
+        const size_t filterCount = filterArray->getCount();
+        for (size_t i = 0; i < filterCount; ++i)
+        {
+            const PDFObject& object = objectFetcher(filterArray->getItem(i));
+            if (object.isName())
+            {
+                filterObjects.push_back(PDFStreamFilterStorage::getFilter(object.getString()));
+            }
+            else
+            {
+                return QByteArray();
+            }
+        }
+    }
+    else if (!filters.isNull())
+    {
+        return QByteArray();
+    }
+
+    if (filterParameters.isArray())
+    {
+        const PDFArray* filterParameterArray = filterParameters.getArray();
+        const size_t filterParameterCount = filterParameterArray->getCount();
+        for (size_t i = 0; i < filterParameterCount; ++i)
+        {
+            const PDFObject& object = objectFetcher(filterParameterArray->getItem(i));
+            filterParameterObjects.push_back(object);
+        }
+    }
+    else
+    {
+        filterParameterObjects.push_back(filterParameters);
+    }
+
+    filterParameterObjects.resize(filterObjects.size());
+    std::reverse(filterObjects.begin(), filterObjects.end());
+    std::reverse(filterParameterObjects.begin(), filterParameterObjects.end());
+
+    QByteArray result = *stream->getContent();
+
+    for (size_t i = 0, count = filterObjects.size(); i < count; ++i)
+    {
+        const PDFStreamFilter* streamFilter = filterObjects[i];
+        const PDFObject& streamFilterParameters = filterParameterObjects[i];
+
+        if (streamFilter)
+        {
+            result = streamFilter->apply(result, objectFetcher, streamFilterParameters);
+        }
+    }
+
+    return result;
+}
+
+QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream)
+{
+    return getDecodedStream(stream, [](const PDFObject& object) -> const PDFObject& { return object; });
 }
 
 PDFStreamFilterStorage::PDFStreamFilterStorage()
