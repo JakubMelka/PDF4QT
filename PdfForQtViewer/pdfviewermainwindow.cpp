@@ -25,6 +25,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfrenderingerrorswidget.h"
 #include "pdffont.h"
+#include "pdfitemmodels.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -33,6 +34,10 @@
 #include <QApplication>
 #include <QDesktopWidget>
 #include <QStandardPaths>
+#include <QDockWidget>
+#include <QTreeView>
+#include <QLayout>
+#include <QHeaderView>
 
 namespace pdfviewer
 {
@@ -40,7 +45,10 @@ namespace pdfviewer
 PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::PDFViewerMainWindow),
-    m_pdfWidget(nullptr)
+    m_pdfWidget(nullptr),
+    m_optionalContentDockWidget(nullptr),
+    m_optionalContentTreeView(nullptr),
+    m_optionalContentTreeModel(nullptr)
 {
     ui->setupUi(this);
 
@@ -76,6 +84,19 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_pdfWidget = new pdf::PDFWidget(this);
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
+
+    m_optionalContentDockWidget = new QDockWidget(tr("Optional Content"), this);
+    m_optionalContentDockWidget->setObjectName("OptionalContentDockWidget");
+    m_optionalContentDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_optionalContentTreeView = new QTreeView(m_optionalContentDockWidget);
+    m_optionalContentTreeView->header()->hide();
+    m_optionalContentTreeModel = new pdf::PDFOptionalContentTreeItemModel(m_optionalContentTreeView);
+    m_optionalContentTreeView->setModel(m_optionalContentTreeModel);
+    m_optionalContentDockWidget->setWidget(m_optionalContentTreeView);
+    addDockWidget(Qt::LeftDockWidgetArea, m_optionalContentDockWidget);
+
+    ui->menuView->addSeparator();
+    ui->menuView->addAction(m_optionalContentDockWidget->toggleViewAction());
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::updatePageLayoutActions);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
@@ -234,6 +255,18 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
 void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
 {
     m_pdfWidget->setDocument(document);
+    m_optionalContentTreeModel->setDocument(document);
+    m_optionalContentTreeView->expandAll();
+
+    if (m_optionalContentTreeModel->isEmpty())
+    {
+        m_optionalContentDockWidget->hide();
+    }
+    else
+    {
+        m_optionalContentDockWidget->show();
+    }
+
     updateTitle();
 }
 

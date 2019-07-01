@@ -34,6 +34,15 @@ PDFOptionalContentProperties PDFOptionalContentProperties::create(const PDFDocum
         PDFDocumentDataLoaderDecorator loader(document);
         properties.m_allOptionalContentGroups = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
 
+        for (const PDFObjectReference& reference : properties.m_allOptionalContentGroups)
+        {
+            const PDFObject& object = document->getStorage().getObject(reference);
+            if (!object.isNull())
+            {
+                properties.m_optionalContentGroups[reference] = PDFOptionalContentGroup::create(document, object);
+            }
+        }
+
         if (dictionary->hasKey("D"))
         {
             properties.m_defaultConfiguration = PDFOptionalContentConfiguration::create(document, dictionary->get("D"));
@@ -173,6 +182,93 @@ PDFOptionalContentConfiguration::UsageApplication PDFOptionalContentConfiguratio
         result.event = loader.readNameFromDictionary(dictionary, "Event");
         result.optionalContengGroups = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
         result.categories = loader.readNameArrayFromDictionary(dictionary, "Category");
+    }
+
+    return result;
+}
+
+PDFOptionalContentGroup::PDFOptionalContentGroup() :
+    m_usageZoomMin(0),
+    m_usageZoomMax(std::numeric_limits<PDFReal>::infinity()),
+    m_usagePrintState(OCState::Unknown),
+    m_usageViewState(OCState::Unknown),
+    m_usageExportState(OCState::Unknown)
+{
+
+}
+
+PDFOptionalContentGroup PDFOptionalContentGroup::create(const PDFDocument* document, const PDFObject& object)
+{
+    PDFOptionalContentGroup result;
+
+    const PDFObject& dereferencedObject = document->getObject(object);
+    if (!dereferencedObject.isDictionary())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content group."));
+    }
+
+    PDFDocumentDataLoaderDecorator loader(document);
+
+    const PDFDictionary* dictionary = dereferencedObject.getDictionary();
+    result.m_name = loader.readTextStringFromDictionary(dictionary, "Name", QString());
+
+    if (dictionary->hasKey("Intent"))
+    {
+        const PDFObject& nameOrNames = document->getObject(dictionary->get("Intent"));
+
+        if (nameOrNames.isName())
+        {
+            result.m_intents = { loader.readName(nameOrNames) };
+        }
+        else if (nameOrNames.isArray())
+        {
+            result.m_intents = loader.readNameArray(nameOrNames);
+        }
+        else if (!nameOrNames.isNull())
+        {
+            throw PDFParserException(PDFTranslationContext::tr("Invalid optional content group."));
+        }
+    }
+
+    const PDFObject& usageDictionaryObject = dictionary->get("Usage");
+    if (usageDictionaryObject.isDictionary())
+    {
+        const PDFDictionary* usageDictionary = usageDictionaryObject.getDictionary();
+
+        result.m_creatorInfo = document->getObject(usageDictionary->get("CreatorInfo"));
+        result.m_language = document->getObject(usageDictionary->get("Language"));
+
+        const PDFObject& zoomDictionary = document->getObject(usageDictionary->get("Zoom"));
+        if (zoomDictionary.isDictionary())
+        {
+            result.m_usageZoomMin = loader.readNumberFromDictionary(usageDictionary, "min", result.m_usageZoomMin);
+            result.m_usageZoomMax = loader.readNumberFromDictionary(usageDictionary, "max", result.m_usageZoomMax);
+        }
+
+        auto readState = [document, usageDictionary, &loader](const char* dictionaryKey, const char* key) -> OCState
+        {
+            const PDFObject& stateDictionaryObject = document->getObject(usageDictionary->get(dictionaryKey));
+            if (stateDictionaryObject.isDictionary())
+            {
+                const PDFDictionary* stateDictionary = stateDictionaryObject.getDictionary();
+                QByteArray stateName = loader.readNameFromDictionary(stateDictionary, key);
+
+                if (stateName == "ON")
+                {
+                    return OCState::ON;
+                }
+                if (stateName == "OFF")
+                {
+                    return OCState::OFF;
+                }
+            }
+
+            return OCState::Unknown;
+        };
+
+        result.m_usageViewState = readState("View", "ViewState");
+        result.m_usagePrintState = readState("Print", "PrintState");
+        result.m_usageExportState = readState("Export", "ExportState");
     }
 
     return result;

@@ -21,6 +21,7 @@
 #include "pdfcatalog.h"
 #include "pdfrenderer.h"
 
+#include <QTreeView>
 #include <QMainWindow>
 #include <QSharedPointer>
 
@@ -33,6 +34,7 @@ namespace pdf
 {
 class PDFWidget;
 class PDFDocument;
+class PDFOptionalContentTreeItemModel;
 }
 
 namespace pdfviewer
@@ -82,6 +84,9 @@ private:
     QSharedPointer<pdf::PDFDocument> m_pdfDocument;
     QString m_directory;
     QString m_currentFile;
+    QDockWidget* m_optionalContentDockWidget;
+    QTreeView* m_optionalContentTreeView;
+    pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
 };
 
 }   // namespace pdfviewer

@@ -26,6 +26,42 @@ namespace pdf
 
 class PDFDocument;
 
+/// State of the optional content group, or result of expression
+enum class OCState
+{
+    ON,
+    OFF,
+    Unknown
+};
+
+constexpr OCState operator &(OCState left, OCState right)
+{
+    if (left == OCState::Unknown)
+    {
+        return right;
+    }
+    if (right == OCState::Unknown)
+    {
+        return left;
+    }
+
+    return (left == OCState::ON && right == OCState::ON) ? OCState::ON : OCState::OFF;
+}
+
+constexpr OCState operator |(OCState left, OCState right)
+{
+    if (left == OCState::Unknown)
+    {
+        return right;
+    }
+    if (right == OCState::Unknown)
+    {
+        return left;
+    }
+
+    return (left == OCState::ON || right == OCState::ON) ? OCState::ON : OCState::OFF;
+}
+
 /// Configuration of optional content configuration.
 class PDFOptionalContentConfiguration
 {
@@ -57,6 +93,18 @@ public:
     /// \param object Object containing documents optional content configuration
     static PDFOptionalContentConfiguration create(const PDFDocument* document, const PDFObject& object);
 
+    const QString& getName() const { return m_name; }
+    const QString& getCreator() const { return m_creator; }
+    BaseState getBaseState() const { return m_baseState; }
+    const std::vector<PDFObjectReference>& getOnArray() const { return m_OnArray; }
+    const std::vector<PDFObjectReference>& getOffArray() const { return m_OffArray; }
+    const std::vector<QByteArray>& getIntents() const { return m_intents; }
+    const std::vector<UsageApplication>& getUsageApplications() const { return m_usageApplications; }
+    const PDFObject& getOrder() const { return m_order; }
+    ListMode getListMode() const { return m_listMode; }
+    const std::vector<std::vector<PDFObjectReference>>& getRadioButtonGroups() const { return m_radioButtonGroups; }
+    const std::vector<PDFObjectReference>& getLocked() const { return m_locked; }
+
 private:
     /// Creates usage application
     /// \param document Document
@@ -76,6 +124,43 @@ private:
     std::vector<PDFObjectReference> m_locked;
 };
 
+/// Class reprezenting optional content group - it contains properties of the group,
+/// such as name, usage etc.
+class PDFOptionalContentGroup
+{
+public:
+    explicit PDFOptionalContentGroup();
+
+    /// Creates optional content group from the object. Object must be valid optional
+    /// content group, if it is invalid, then exception is thrown.
+    /// \param document Document
+    /// \param object Object containing optional content group
+    static PDFOptionalContentGroup create(const PDFDocument* document, const PDFObject& object);
+
+    PDFObjectReference getReference() const { return m_reference; }
+    const QString& getName() const { return m_name; }
+    const std::vector<QByteArray>& getIntents() const { return m_intents; }
+    PDFObject getCreatorInfo() const { return m_creatorInfo; }
+    PDFObject getLanguage() const { return m_language; }
+    PDFReal getUsageZoomMin() const { return m_usageZoomMin; }
+    PDFReal getUsageZoomMax() const { return m_usageZoomMax; }
+    OCState getUsagePrintState() const { return m_usagePrintState; }
+    OCState getUsageViewState() const { return m_usageViewState; }
+    OCState getUsageExportState() const { return m_usageExportState; }
+
+private:
+    PDFObjectReference m_reference;
+    QString m_name;
+    std::vector<QByteArray> m_intents;
+    PDFObject m_creatorInfo;
+    PDFObject m_language;
+    PDFReal m_usageZoomMin;
+    PDFReal m_usageZoomMax;
+    OCState m_usagePrintState;
+    OCState m_usageViewState;
+    OCState m_usageExportState;
+};
+
 /// Object containing properties of the optional content of the PDF document. It contains
 /// for example all documents optional content groups.
 class PDFOptionalContentProperties
@@ -84,7 +169,7 @@ public:
     explicit PDFOptionalContentProperties() = default;
 
     /// Returns, if object is valid - at least one optional content group exists
-    bool isValid() const { return !m_allOptionalContentGroups.empty(); }
+    bool isValid() const { return !m_allOptionalContentGroups.empty() && m_allOptionalContentGroups.size() == m_optionalContentGroups.size(); }
 
     /// Creates new optional content properties from the object. If object is not valid,
     /// then exception is thrown.
@@ -92,10 +177,15 @@ public:
     /// \param object Object containing documents optional content properties
     static PDFOptionalContentProperties create(const PDFDocument* document, const PDFObject& object);
 
+    const std::vector<PDFObjectReference>& getAllOptionalContentGroups() const { return m_allOptionalContentGroups; }
+    const PDFOptionalContentConfiguration& getDefaultConfiguration() const { return m_defaultConfiguration; }
+    const PDFOptionalContentGroup& getOptionalContentGroup(PDFObjectReference reference) const { return m_optionalContentGroups.at(reference); }
+
 private:
     std::vector<PDFObjectReference> m_allOptionalContentGroups;
     PDFOptionalContentConfiguration m_defaultConfiguration;
     std::vector<PDFOptionalContentConfiguration> m_configurations;
+    std::map<PDFObjectReference, PDFOptionalContentGroup> m_optionalContentGroups;
 };
 
 }   // namespace pdf

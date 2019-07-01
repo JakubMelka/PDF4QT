@@ -36,6 +36,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 DESTDIR = $$OUT_PWD/..
 
 SOURCES += \
+    sources/pdfitemmodels.cpp \
     sources/pdfobject.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfparser.cpp \
@@ -61,6 +62,7 @@ SOURCES += \
     sources/pdfimage.cpp
 
 HEADERS += \
+    sources/pdfitemmodels.h \
     sources/pdfobject.h \
     sources/pdfoptionalcontent.h \
     sources/pdfparser.h \
