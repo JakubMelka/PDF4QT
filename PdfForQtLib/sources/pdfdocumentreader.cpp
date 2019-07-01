@@ -21,6 +21,7 @@
 #include "pdfxreftable.h"
 #include "pdfexception.h"
 #include "pdfparser.h"
+#include "pdfstreamfilters.h"
 
 #include <QFile>
 
@@ -239,6 +240,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
         std::vector<PDFXRefTable::Entry> occupiedEntries = xrefTable.getOccupiedEntries();
 
+        // First, process regular objects
         auto processEntry = [this, &getObject, &objectFetcher, &objects](const PDFXRefTable::Entry& entry)
         {
             Q_ASSERT(entry.type == PDFXRefTable::EntryType::Occupied);
@@ -248,7 +250,10 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                 try
                 {
                     PDFParsingContext context(objectFetcher);
-                    objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, getObject(&context, entry.offset, entry.reference));
+                    PDFObject object = getObject(&context, entry.offset, entry.reference);
+
+                    QMutexLocker lock(&m_mutex);
+                    objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, object);
                 }
                 catch (PDFParserException exception)
                 {
@@ -261,6 +266,108 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
         // Now, we are ready to scan all objects
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
+
+        // Then process object streams
+        std::vector<PDFXRefTable::Entry> objectStreamEntries = xrefTable.getObjectStreamEntries();
+        std::set<PDFObjectReference> objectStreams;
+        for (const PDFXRefTable::Entry& entry : objectStreamEntries)
+        {
+            Q_ASSERT(entry.type == PDFXRefTable::EntryType::InObjectStream);
+            objectStreams.insert(entry.objectStream);
+        }
+
+        auto processObjectStream = [this, &getObject, &objectFetcher, &objects, &objectStreamEntries] (const PDFObjectReference& objectStreamReference)
+        {
+            if (!m_successfull)
+            {
+                return;
+            }
+
+            try
+            {
+                PDFParsingContext context(objectFetcher);
+                if (objectStreamReference.objectNumber >= static_cast<PDFInteger>(objects.size()))
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Object stream %1 not found.").arg(objectStreamReference.objectNumber));
+                }
+
+                const PDFObject& object = objects[objectStreamReference.objectNumber].object;
+                if (!object.isStream())
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                }
+
+                const PDFStream* objectStream = object.getStream();
+                const PDFDictionary* objectStreamDictionary = objectStream->getDictionary();
+
+                const PDFObject& objectStreamType = objectStreamDictionary->get("Type");
+                if (!objectStreamType.isName() || objectStreamType.getString() != "ObjStm")
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                }
+
+                const PDFObject& nObject = objectStreamDictionary->get("N");
+                const PDFObject& firstObject = objectStreamDictionary->get("First");
+                if (!nObject.isInt() || !firstObject.isInt())
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                }
+
+                // Number of objects in object stream dictionary
+                const PDFInteger n = nObject.getInteger();
+                const PDFInteger first = firstObject.getInteger();
+
+                QByteArray objectStreamData = PDFStreamFilterStorage::getDecodedStream(objectStream);
+
+                PDFParsingContext::PDFParsingContextGuard guard(&context, objectStreamReference);
+                PDFParser parser(objectStreamData, &context, PDFParser::AllowStreams);
+
+                std::vector<std::pair<PDFInteger, PDFInteger>> objectNumberAndOffset;
+                objectNumberAndOffset.reserve(n);
+                for (PDFInteger i = 0; i < n; ++i)
+                {
+                    PDFObject currentObjectNumber = parser.getObject();
+                    PDFObject currentOffset = parser.getObject();
+
+                    if (!currentObjectNumber.isInt() || !currentOffset.isInt())
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                    }
+
+                    const PDFInteger objectNumber = currentObjectNumber.getInteger();
+                    const PDFInteger offset = currentOffset.getInteger() + first;
+                    objectNumberAndOffset.emplace_back(objectNumber, offset);
+                }
+
+                for (size_t i = 0; i < objectNumberAndOffset.size(); ++i)
+                {
+                    const PDFInteger objectNumber = objectNumberAndOffset[i].first;
+                    const PDFInteger offset = objectNumberAndOffset[i].second;
+                    parser.seek(offset);
+
+                    PDFObject object = parser.getObject();
+                    auto predicate = [objectNumber, objectStreamReference](const PDFXRefTable::Entry& entry) -> bool { return entry.reference.objectNumber == objectNumber && entry.objectStream == objectStreamReference; };
+                    if (std::find_if(objectStreamEntries.cbegin(), objectStreamEntries.cend(), predicate) != objectStreamEntries.cend())
+                    {
+                        QMutexLocker lock(&m_mutex);
+                        objects[objectNumber].object = qMove(object);
+                    }
+                    else
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                    }
+                }
+            }
+            catch (PDFParserException exception)
+            {
+                QMutexLocker lock(&m_mutex);
+                m_successfull = false;
+                m_errorMessage = exception.getMessage();
+            }
+        };
+
+        // Now, we are ready to scan all object streams
+        std::for_each(std::execution::parallel_policy(), objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
 
         PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()));
         return PDFDocument(std::move(storage));

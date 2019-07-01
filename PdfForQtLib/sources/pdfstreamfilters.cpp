@@ -354,16 +354,11 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFObjectFetc
         {
             early = earlyChangeObject.getInteger();
         }
-
-        if (predictor != 1)
-        {
-            // TODO: Implement Predictor algorithm
-            return QByteArray();
-        }
     }
 
+    PDFStreamPredictor predictor = PDFStreamPredictor::createPredictor(objectFetcher, parameters);
     PDFLzwStreamDecoder decoder(data, early);
-    return decoder.decompress();
+    return predictor.apply(decoder.decompress());
 }
 
 QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
@@ -379,12 +374,6 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFObjectFe
         {
             predictor = predictorObject.getInteger();
         }
-
-        if (predictor != 1)
-        {
-            // TODO: Implement Predictor algorithm
-            return QByteArray();
-        }
     }
 
     uint32_t size = data.size();
@@ -395,7 +384,8 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFObjectFe
     qToBigEndian(size, dataToUncompress.data());
     std::copy(data.cbegin(), data.cend(), std::next(dataToUncompress.begin(), sizeof(decltype(size))));
 
-    return qUncompress(dataToUncompress);
+    PDFStreamPredictor predictor = PDFStreamPredictor::createPredictor(objectFetcher, parameters);
+    return predictor.apply(qUncompress(dataToUncompress));
 }
 
 QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
@@ -569,6 +559,184 @@ const PDFStreamFilterStorage* PDFStreamFilterStorage::getInstance()
 {
     static PDFStreamFilterStorage instance;
     return &instance;
+}
+
+PDFStreamPredictor PDFStreamPredictor::createPredictor(const PDFObjectFetcher& objectFetcher, const PDFObject& parameters)
+{
+    const PDFObject& dereferencedParameters = objectFetcher(parameters);
+    if (dereferencedParameters.isDictionary())
+    {
+        const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
+
+        auto getInteger = [dictionary, &objectFetcher](const char* key, int min, int max, int defaultValue) -> int
+        {
+            const PDFObject& object = objectFetcher(dictionary->get(key));
+
+            if (object.isInt())
+            {
+                PDFInteger value = object.getInteger();
+                if (value < min || value > max)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Property '%1' should be in range from %2 to %3.").arg(QString::fromLatin1(key)).arg(min).arg(max));
+                }
+
+                return value;
+            }
+            else if (object.isNull())
+            {
+                return defaultValue;
+            }
+
+            throw PDFParserException(PDFTranslationContext::tr("Invalid property '%1' of the stream predictor parameters.").arg(QString::fromLatin1(key)));
+            return 0;
+        };
+
+        int predictor = getInteger("Predictor", 1, 15, 1);
+        int components = getInteger("Colors", 1, PDF_MAX_COLOR_COMPONENTS, 1);
+        int bitsPerComponent = getInteger("BitsPerComponent", 1, 16, 8);
+        int columns = getInteger("Columns", 1, std::numeric_limits<int>::max(), 1);
+
+        return PDFStreamPredictor(static_cast<Predictor>(predictor), components, bitsPerComponent, columns);
+    }
+
+    return PDFStreamPredictor();
+}
+
+QByteArray PDFStreamPredictor::apply(const QByteArray& data) const
+{
+    switch (m_predictor)
+    {
+        case NoPredictor:
+            return data;
+
+        case TIFF:
+            return applyTIFFPredictor(data);
+
+        default:
+        {
+            if (m_predictor >= 10)
+            {
+                return applyPNGPredictor(data);
+            }
+            break;
+        }
+    }
+
+    throw PDFParserException(PDFTranslationContext::tr("Invalid predictor algorithm."));
+    return QByteArray();
+}
+
+QByteArray PDFStreamPredictor::applyPNGPredictor(const QByteArray& data) const
+{
+    QByteArray outputData;
+    outputData.reserve(data.size());
+
+    auto it = data.cbegin();
+    auto itEnd = data.cend();
+
+    int pixelBytes = (m_components * m_bitsPerComponent + 7) / 8;
+
+    auto readByte = [&it, &itEnd]() -> uint8_t
+    {
+        if (it != itEnd)
+        {
+            return static_cast<uint8_t>(*it++);
+        }
+
+        // According to the PDF specification, incomplete line is completed. For this
+        // reason, we behave as we have zero data in the buffer.
+        return 0;
+    };
+
+    // Idea: to avoid using if for many cases, we use larger buffer filled with zeros
+    const int totalBytes = m_stride + pixelBytes;
+    std::vector<uint8_t> line(totalBytes, 0);
+    std::vector<uint8_t> lineOld(totalBytes, 0);
+
+    Predictor currentPredictor = m_predictor;
+    while (it != itEnd)
+    {
+        // First, read the predictor data for current line
+        currentPredictor = static_cast<Predictor>(readByte() + 10);
+
+        for (int i = 0; i < m_stride; ++i)
+        {
+            uint8_t currentByte = readByte();
+
+            int lineIndex = i + pixelBytes;
+            switch (currentPredictor)
+            {
+                case PNG_Sub:
+                {
+                    line[lineIndex] = line[i] + currentByte;
+                    break;
+                }
+
+                case PNG_Up:
+                {
+                    line[lineIndex] = lineOld[lineIndex] + currentByte;
+                    break;
+                }
+
+                case PNG_Average:
+                {
+                    line[lineIndex] = (lineOld[lineIndex] + line[i]) / 2 + currentByte;
+                    break;
+                }
+
+                case PNG_Paeth:
+                {
+                    // a = left,
+                    // b = upper,
+                    // c = upper left
+                    const int a = line[i];
+                    const int b = lineOld[lineIndex];
+                    const int c = lineOld[i];
+                    const int p = a + b - c;
+                    const int pa = std::abs(p - a);
+                    const int pb = std::abs(p - b);
+                    const int pc = std::abs(p - c);
+                    if (pa <= pb && pa <= pc)
+                    {
+                        line[lineIndex] = a + currentByte;
+                    }
+                    else if (pb <= pc)
+                    {
+                        line[lineIndex] = b + currentByte;
+                    }
+                    else
+                    {
+                        line[lineIndex] = c + currentByte;
+                    }
+                    break;
+                }
+
+                case PNG_None:
+                default:
+                {
+                    line[lineIndex] = currentByte;
+                    break;
+                }
+            }
+
+            // Fill the output buffer
+            outputData.push_back(static_cast<const char>(line[lineIndex]));
+        }
+
+        // Swap the buffers
+        std::swap(line, lineOld);
+    }
+
+    return outputData;
+}
+
+QByteArray PDFStreamPredictor::applyTIFFPredictor(const QByteArray& data) const
+{
+    Q_UNUSED(data);
+
+    // TODO: Implement TIFF algorithm filter
+    throw PDFParserException(PDFTranslationContext::tr("Invalid predictor algorithm."));
+    return QByteArray();
 }
 
 }   // namespace pdf

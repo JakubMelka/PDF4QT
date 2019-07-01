@@ -64,6 +64,56 @@ private:
     std::map<QByteArray, QByteArray> m_abbreviations;
 };
 
+class PDFStreamPredictor
+{
+public:
+    /// Create predictor from stream parameters. If error occurs, exception is thrown.
+    /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
+    /// \param parameters Parameters of the predictor (must be an dictionary)
+    static PDFStreamPredictor createPredictor(const PDFObjectFetcher& objectFetcher, const PDFObject& parameters);
+
+    /// Applies the predictor to the data.
+    /// \param data Data to be decoded using predictor
+    QByteArray apply(const QByteArray& data) const;
+
+private:
+
+    enum Predictor
+    {
+        NoPredictor = 1,
+        TIFF = 2,
+        PNG_None = 10,      ///< No prediction
+        PNG_Sub = 11,       ///< Prediction based on previous byte
+        PNG_Up  = 12,       ///< Prediction based on byte above
+        PNG_Average = 13,   ///< Prediction based on average of previous nad current byte
+        PNG_Paeth = 14,     ///< Nonlinear function
+    };
+
+    inline explicit PDFStreamPredictor() = default;
+
+    inline explicit PDFStreamPredictor(Predictor predictor, int components, int bitsPerComponent, int columns) :
+        m_predictor(predictor),
+        m_components(components),
+        m_bitsPerComponent(bitsPerComponent),
+        m_columns(columns),
+        m_stride(0)
+    {
+        m_stride = (m_columns * m_components * m_bitsPerComponent + 7) / 8;
+    }
+
+    /// Applies PNG predictor
+    QByteArray applyPNGPredictor(const QByteArray& data) const;
+
+    /// Applies TIFF predictor
+    QByteArray applyTIFFPredictor(const QByteArray& data) const;
+
+    Predictor m_predictor = NoPredictor;
+    int m_components = 0;
+    int m_bitsPerComponent = 0;
+    int m_columns = 0;
+    int m_stride = 0;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFStreamFilter
 {
 public:

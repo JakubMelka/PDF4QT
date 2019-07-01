@@ -1,4 +1,4 @@
-//    Copyright (C) 2018 Jakub Melka
+//    Copyright (C) 2018-2019 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -54,6 +54,9 @@ static constexpr const char* PDF_XREF_OCCUPIED = "n";
 
 static constexpr const char* PDF_OBJECT_START_MARK = "obj";
 static constexpr const char* PDF_OBJECT_END_MARK = "endobj";
+
+// Colors
+static constexpr const int PDF_MAX_COLOR_COMPONENTS = 32;
 
 }   // namespace pdf
 

@@ -894,7 +894,7 @@ PDFObject PDFParser::getObject(PDFObjectReference reference)
 
 void PDFParser::error(const QString& message) const
 {
-    throw new PDFParserException(message);
+    throw PDFParserException(message);
 }
 
 void PDFParser::seek(PDFInteger offset)

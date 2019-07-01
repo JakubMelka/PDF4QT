@@ -49,14 +49,17 @@ public:
 
     enum class EntryType
     {
-        Free,       ///< Entry represents a free item (no object)
-        Occupied    ///< Entry represents a occupied item (object)
+        Free,           ///< Entry represents a free item (no object)
+        Occupied,       ///< Entry represents a occupied item (object)
+        InObjectStream  ///< Entry in object stream
     };
 
     struct Entry
     {
         PDFObjectReference reference;
+        PDFObjectReference objectStream;
         PDFInteger offset = -1;
+        PDFInteger indexInObjectStream = -1;
         EntryType type = EntryType::Free;
     };
 
@@ -69,6 +72,9 @@ public:
 
     /// Filters only occupied entries and returns them
     std::vector<Entry> getOccupiedEntries() const;
+
+    /// Filters only object stream entries and returns them
+    std::vector<Entry> getObjectStreamEntries() const;
 
     /// Returns size of the reference table
     std::size_t getSize() const { return m_entries.size(); }

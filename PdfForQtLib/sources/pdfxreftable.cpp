@@ -44,7 +44,8 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
         // Check, if we have cyclical references between tables
         if (processedOffsets.count(currentOffset))
         {
-            throw PDFParserException(tr("Cyclic reference found in reference table."));
+            // If cyclical reference occurs, do not report error, just ignore it.
+            continue;
         }
         else
         {
@@ -300,6 +301,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                                 case 0:
                                     // Free object
                                     break;
+
                                 case 1:
                                 {
                                     Entry entry;
@@ -313,7 +315,23 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                                     }
                                     break;
                                 }
+
                                 case 2:
+                                {
+                                    Entry entry;
+                                    entry.reference = PDFObjectReference(objectNumber, 0);
+                                    entry.objectStream = PDFObjectReference(itemObjectNumberOfObjectStreamOrByteOffset, 0);
+                                    entry.indexInObjectStream = itemGenerationNumberOrObjectIndex;
+                                    entry.type = EntryType::InObjectStream;
+
+                                    if (m_entries[objectNumber].type == EntryType::Free)
+                                    {
+                                        m_entries[objectNumber] = std::move(entry);
+                                    }
+
+                                    break;
+                                }
+
                                 default:
                                     // According to the specification, treat this object as null object
                                     break;
@@ -337,6 +355,17 @@ std::vector<PDFXRefTable::Entry> PDFXRefTable::getOccupiedEntries() const
     // Suppose majority of items are occupied
     result.reserve(m_entries.size());
     std::copy_if(m_entries.cbegin(), m_entries.cend(), std::back_inserter(result), [](const Entry& entry) { return entry.type == EntryType::Occupied; });
+
+    return result;
+}
+
+std::vector<PDFXRefTable::Entry> PDFXRefTable::getObjectStreamEntries() const
+{
+    std::vector<PDFXRefTable::Entry> result;
+
+    // Suppose majority of items are occupied
+    result.reserve(m_entries.size());
+    std::copy_if(m_entries.cbegin(), m_entries.cend(), std::back_inserter(result), [](const Entry& entry) { return entry.type == EntryType::InObjectStream; });
 
     return result;
 }
