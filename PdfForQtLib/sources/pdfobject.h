@@ -167,8 +167,7 @@ private:
 };
 
 /// Represents raw string in the PDF file. No conversions are performed, this is
-/// reason, that we do not use QString, but QByteArray instead. QString is
-/// encoded int UTF-8.
+/// reason, that we do not use QString, but QByteArray instead.
 class PDFString : public PDFObjectContent
 {
 public:

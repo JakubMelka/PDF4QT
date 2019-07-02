@@ -25,6 +25,8 @@ namespace pdf
 {
 
 class PDFDocument;
+class PDFOptionalContentProperties;
+class PDFOptionalContentConfiguration;
 
 /// State of the optional content group, or result of expression
 enum class OCState
@@ -32,6 +34,15 @@ enum class OCState
     ON,
     OFF,
     Unknown
+};
+
+/// Type of optional content usage
+enum class OCUsage
+{
+    View,
+    Print,
+    Export,
+    Invalid
 };
 
 constexpr OCState operator &(OCState left, OCState right)
@@ -61,6 +72,42 @@ constexpr OCState operator |(OCState left, OCState right)
 
     return (left == OCState::ON || right == OCState::ON) ? OCState::ON : OCState::OFF;
 }
+
+/// Activeness of the optional content
+class PDFFORQTLIBSHARED_EXPORT PDFOptionalContentActivity : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit PDFOptionalContentActivity(const PDFDocument* document, OCUsage usage, QObject* parent);
+
+    /// Gets the optional content groups state. If optional content group doesn't exist,
+    /// then it returns Unknown state.
+    /// \param ocg Optional conteng group
+    OCState getState(PDFObjectReference ocg) const;
+
+    /// Sets the state of optional content group. If optional content group doesn't exist,
+    /// then nothing happens. If optional content group is contained in radio button group, then
+    /// all other optional content groups in the group are switched off, if we are
+    /// switching this one to ON state. If we are switching it off, then nothing happens (as all
+    /// optional content groups in radio button group can be switched off).
+    /// \param ocg Optional content group
+    /// \param state New state of the optional content group
+    /// \note If something changed, then signalp \p optionalContentGroupStateChanged is emitted.
+    void setState(PDFObjectReference ocg, OCState state);
+
+    /// Applies configuration to the current state of optional content groups
+    void applyConfiguration(const PDFOptionalContentConfiguration& configuration);
+
+signals:
+    void optionalContentGroupStateChanged(PDFObjectReference ocg, OCState state);
+
+private:
+    const PDFDocument* m_document;
+    const PDFOptionalContentProperties* m_properties;
+    OCUsage m_usage;
+    std::map<PDFObjectReference, OCState> m_states;
+};
 
 /// Configuration of optional content configuration.
 class PDFOptionalContentConfiguration
@@ -92,6 +139,10 @@ public:
     /// \param document Document
     /// \param object Object containing documents optional content configuration
     static PDFOptionalContentConfiguration create(const PDFDocument* document, const PDFObject& object);
+
+    /// Converts usage name to the enum. If value can't be converted, then Invalid usage is returned.
+    /// \param name Name of the usage
+    static OCUsage getUsageFromName(const QByteArray& name);
 
     const QString& getName() const { return m_name; }
     const QString& getCreator() const { return m_creator; }
@@ -147,6 +198,7 @@ public:
     OCState getUsagePrintState() const { return m_usagePrintState; }
     OCState getUsageViewState() const { return m_usageViewState; }
     OCState getUsageExportState() const { return m_usageExportState; }
+    OCState getUsageState(OCUsage usage) const;
 
 private:
     PDFObjectReference m_reference;
@@ -180,6 +232,9 @@ public:
     const std::vector<PDFObjectReference>& getAllOptionalContentGroups() const { return m_allOptionalContentGroups; }
     const PDFOptionalContentConfiguration& getDefaultConfiguration() const { return m_defaultConfiguration; }
     const PDFOptionalContentGroup& getOptionalContentGroup(PDFObjectReference reference) const { return m_optionalContentGroups.at(reference); }
+
+    /// Returns true, if optional content group exists
+    bool hasOptionalContentGroup(PDFObjectReference reference) const { return m_optionalContentGroups.count(reference); }
 
 private:
     std::vector<PDFObjectReference> m_allOptionalContentGroups;

@@ -170,6 +170,24 @@ PDFOptionalContentConfiguration PDFOptionalContentConfiguration::create(const PD
     return configuration;
 }
 
+OCUsage PDFOptionalContentConfiguration::getUsageFromName(const QByteArray& name)
+{
+    if (name == "View")
+    {
+        return OCUsage::View;
+    }
+    else if (name == "Print")
+    {
+        return OCUsage::Print;
+    }
+    else if (name == "Export")
+    {
+        return OCUsage::Export;
+    }
+
+    return OCUsage::Invalid;
+}
+
 PDFOptionalContentConfiguration::UsageApplication PDFOptionalContentConfiguration::createUsageApplication(const PDFDocument* document, const PDFObject& object)
 {
     UsageApplication result;
@@ -272,6 +290,139 @@ PDFOptionalContentGroup PDFOptionalContentGroup::create(const PDFDocument* docum
     }
 
     return result;
+}
+
+OCState PDFOptionalContentGroup::getUsageState(OCUsage usage) const
+{
+    switch (usage)
+    {
+        case OCUsage::View:
+            return getUsageViewState();
+
+        case OCUsage::Print:
+            return getUsagePrintState();
+
+        case OCUsage::Export:
+            return getUsageExportState();
+
+        case OCUsage::Invalid:
+            break;
+
+        default:
+            break;
+    }
+
+    return OCState::Unknown;
+}
+
+PDFOptionalContentActivity::PDFOptionalContentActivity(const PDFDocument* document, OCUsage usage, QObject* parent) :
+    QObject(parent),
+    m_document(document),
+    m_properties(document->getCatalog()->getOptionalContentProperties()),
+    m_usage(usage)
+{
+    if (m_properties->isValid())
+    {
+        for (const PDFObjectReference& reference : m_properties->getAllOptionalContentGroups())
+        {
+            m_states[reference] = OCState::Unknown;
+        }
+
+        applyConfiguration(m_properties->getDefaultConfiguration());
+    }
+}
+
+OCState PDFOptionalContentActivity::getState(PDFObjectReference ocg) const
+{
+    auto it = m_states.find(ocg);
+    if (it != m_states.cend())
+    {
+        return it->second;
+    }
+
+    return OCState::Unknown;
+}
+
+void PDFOptionalContentActivity::setState(PDFObjectReference ocg, OCState state)
+{
+    auto it = m_states.find(ocg);
+    if (it != m_states.cend() && it->second != state)
+    {
+        // We are changing the state. If new state is ON, then we must check radio button groups.
+        if (state == OCState::ON)
+        {
+            for (const std::vector<PDFObjectReference>& radioButtonGroup : m_properties->getDefaultConfiguration().getRadioButtonGroups())
+            {
+                if (std::find(radioButtonGroup.cbegin(), radioButtonGroup.cend(), ocg) != radioButtonGroup.cend())
+                {
+                    // We must set all states of this radio button group to OFF
+                    for (const PDFObjectReference& ocgRadioButtonGroup : radioButtonGroup)
+                    {
+                        setState(ocgRadioButtonGroup, OCState::OFF);
+                    }
+                }
+            }
+        }
+
+        it->second = state;
+        emit optionalContentGroupStateChanged(ocg, state);
+    }
+}
+
+void PDFOptionalContentActivity::applyConfiguration(const PDFOptionalContentConfiguration& configuration)
+{
+    // Step 1: Apply base state to all states
+    if (configuration.getBaseState() != PDFOptionalContentConfiguration::BaseState::Unchanged)
+    {
+        const OCState newState = (configuration.getBaseState() == PDFOptionalContentConfiguration::BaseState::ON) ? OCState::ON : OCState::OFF;
+        for (auto& item : m_states)
+        {
+            item.second = newState;
+        }
+    }
+
+    auto setOCGState = [this](PDFObjectReference ocg, OCState state)
+    {
+        auto it = m_states.find(ocg);
+        if (it != m_states.cend())
+        {
+            it->second = state;
+        }
+    };
+
+    // Step 2: Process 'ON' entry
+    for (PDFObjectReference ocg : configuration.getOnArray())
+    {
+        setOCGState(ocg, OCState::ON);
+    }
+
+    // Step 3: Process 'OFF' entry
+    for (PDFObjectReference ocg : configuration.getOffArray())
+    {
+        setOCGState(ocg, OCState::OFF);
+    }
+
+    // Step 4: Apply usage
+    for (const PDFOptionalContentConfiguration::UsageApplication& usageApplication : configuration.getUsageApplications())
+    {
+        // We will use usage from the events name. We ignore category, as it should duplicate the events name.
+        const OCUsage usage = PDFOptionalContentConfiguration::getUsageFromName(usageApplication.event);
+
+        if (usage == m_usage)
+        {
+            for (PDFObjectReference ocg : usageApplication.optionalContengGroups)
+            {
+                if (!m_properties->hasOptionalContentGroup(ocg))
+                {
+                    continue;
+                }
+
+                const PDFOptionalContentGroup& optionalContentGroup = m_properties->getOptionalContentGroup(ocg);
+                const OCState newState = optionalContentGroup.getUsageState(usage);
+                setOCGState(ocg, newState);
+            }
+        }
+    }
 }
 
 }   // namespace pdf

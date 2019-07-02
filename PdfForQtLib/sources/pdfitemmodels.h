@@ -26,6 +26,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFOptionalContentActivity;
 
 /// Represents tree item in the GUI tree
 class PDFTreeItem
@@ -107,15 +108,22 @@ class PDFFORQTLIBSHARED_EXPORT PDFOptionalContentTreeItemModel : public PDFTreeI
 {
 public:
     inline explicit PDFOptionalContentTreeItemModel(QObject* parent) :
-        PDFTreeItemModel(parent)
+        PDFTreeItemModel(parent),
+        m_activity(nullptr)
     {
 
     }
+
+    void setActivity(PDFOptionalContentActivity* activity);
 
     virtual int columnCount(const QModelIndex& parent) const override;
     virtual QVariant data(const QModelIndex& index, int role) const override;
     virtual void update() override;
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
+    virtual bool setData(const QModelIndex& index, const QVariant& value, int role) override;
+
+private:
+    PDFOptionalContentActivity* m_activity;
 };
 
 }   // namespace pdf

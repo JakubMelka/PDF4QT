@@ -111,6 +111,11 @@ Qt::ItemFlags PDFTreeItemModel::flags(const QModelIndex& index) const
 }
 
 
+void PDFOptionalContentTreeItemModel::setActivity(PDFOptionalContentActivity* activity)
+{
+    m_activity = activity;
+}
+
 int PDFOptionalContentTreeItemModel::columnCount(const QModelIndex& parent) const
 {
     Q_UNUSED(parent);
@@ -131,7 +136,33 @@ QVariant PDFOptionalContentTreeItemModel::data(const QModelIndex& index, int rol
             return item->getText();
 
         case Qt::CheckStateRole:
-            return Qt::Checked;
+        {
+            if (item->getReference() != PDFObjectReference())
+            {
+                if (m_activity)
+                {
+                    switch (m_activity->getState(item->getReference()))
+                    {
+                        case OCState::ON:
+                            return Qt::Checked;
+                        case OCState::OFF:
+                            return Qt::Unchecked;
+                        case OCState::Unknown:
+                            return Qt::PartiallyChecked;
+
+                        default:
+                        {
+                            Q_ASSERT(false);
+                            break;
+                        }
+                    }
+                }
+
+                return Qt::PartiallyChecked;
+            }
+
+            break;
+        }
 
         default:
             break;
@@ -270,6 +301,27 @@ QString PDFOptionalContentTreeItem::getText() const
     }
 
     return QString();
+}
+
+bool PDFOptionalContentTreeItemModel::setData(const QModelIndex& index, const QVariant& value, int role)
+{
+    if (!index.isValid())
+    {
+        return false;
+    }
+
+    if (m_activity && role == Qt::CheckStateRole)
+    {
+        const PDFOptionalContentTreeItem* item = static_cast<const PDFOptionalContentTreeItem*>(index.internalPointer());
+        if (item->getReference() != PDFObjectReference() && !item->isLocked())
+        {
+            Qt::CheckState newState = static_cast<Qt::CheckState>(value.toInt());
+            m_activity->setState(item->getReference(), (newState == Qt::Checked) ? OCState::ON : OCState::OFF);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 }   // namespace pdf

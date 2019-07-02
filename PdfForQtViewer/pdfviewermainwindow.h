@@ -87,6 +87,7 @@ private:
     QDockWidget* m_optionalContentDockWidget;
     QTreeView* m_optionalContentTreeView;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
+    pdf::PDFOptionalContentActivity* m_optionalContentActivity;
 };
 
 }   // namespace pdfviewer

@@ -48,7 +48,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_pdfWidget(nullptr),
     m_optionalContentDockWidget(nullptr),
     m_optionalContentTreeView(nullptr),
-    m_optionalContentTreeModel(nullptr)
+    m_optionalContentTreeModel(nullptr),
+    m_optionalContentActivity(nullptr)
 {
     ui->setupUi(this);
 
@@ -94,6 +95,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_optionalContentTreeView->setModel(m_optionalContentTreeModel);
     m_optionalContentDockWidget->setWidget(m_optionalContentTreeView);
     addDockWidget(Qt::LeftDockWidgetArea, m_optionalContentDockWidget);
+    m_optionalContentDockWidget->hide();
 
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_optionalContentDockWidget->toggleViewAction());
@@ -254,8 +256,22 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
 
 void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
 {
+    if (m_optionalContentActivity)
+    {
+        // We use deleteLater, because we want to avoid consistency problem with model
+        // (we set document to the model before activity).
+        m_optionalContentActivity->deleteLater();
+        m_optionalContentActivity = nullptr;
+    }
+
+    if (document)
+    {
+        m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
+    }
+
     m_pdfWidget->setDocument(document);
     m_optionalContentTreeModel->setDocument(document);
+    m_optionalContentTreeModel->setActivity(m_optionalContentActivity);
     m_optionalContentTreeView->expandAll();
 
     if (m_optionalContentTreeModel->isEmpty())
