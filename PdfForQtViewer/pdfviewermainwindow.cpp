@@ -269,7 +269,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
         m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
     }
 
-    m_pdfWidget->setDocument(document);
+    m_pdfWidget->setDocument(document, m_optionalContentActivity);
     m_optionalContentTreeModel->setDocument(document);
     m_optionalContentTreeModel->setActivity(m_optionalContentActivity);
     m_optionalContentTreeView->expandAll();

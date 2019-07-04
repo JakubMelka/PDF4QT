@@ -22,9 +22,14 @@
 namespace pdf
 {
 
-
-PDFPainter::PDFPainter(QPainter* painter, PDFRenderer::Features features, QMatrix pagePointToDevicePointMatrix, const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache) :
-    PDFPageContentProcessor(page, document, fontCache),
+PDFPainter::PDFPainter(QPainter* painter,
+                       PDFRenderer::Features features,
+                       QMatrix pagePointToDevicePointMatrix,
+                       const PDFPage* page,
+                       const PDFDocument* document,
+                       const PDFFontCache* fontCache,
+                       const PDFOptionalContentActivity* optionalContentActivity) :
+    PDFPageContentProcessor(page, document, fontCache, optionalContentActivity),
     m_painter(painter),
     m_features(features),
     m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)
@@ -42,6 +47,12 @@ PDFPainter::~PDFPainter()
 
 void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
+    if (isContentSuppressed())
+    {
+        // Content is suppressed, do not paint anything
+        return;
+    }
+
     if ((!stroke && !fill) || path.isEmpty())
     {
         // No operation requested - either path is empty, or neither stroking or filling
@@ -84,6 +95,12 @@ void PDFPainter::performClipping(const QPainterPath& path, Qt::FillRule fillRule
 
 void PDFPainter::performImagePainting(const QImage& image)
 {
+    if (isContentSuppressed())
+    {
+        // Content is suppressed, do not paint anything
+        return;
+    }
+
     m_painter->save();
 
     // TODO: Draw smooth images

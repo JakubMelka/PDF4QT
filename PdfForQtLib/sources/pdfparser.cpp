@@ -641,8 +641,8 @@ PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Feature
     m_lexicalAnalyzer(data.constData(), data.constData() + data.size()),
     m_features(features)
 {
-    m_lookAhead1 = m_lexicalAnalyzer.fetch();
-    m_lookAhead2 = m_lexicalAnalyzer.fetch();
+    m_lookAhead1 = fetch();
+    m_lookAhead2 = fetch();
 }
 
 PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* context, Features features) :
@@ -650,8 +650,18 @@ PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* cont
     m_lexicalAnalyzer(begin, end),
     m_features(features)
 {
-    m_lookAhead1 = m_lexicalAnalyzer.fetch();
-    m_lookAhead2 = m_lexicalAnalyzer.fetch();
+    m_lookAhead1 = fetch();
+    m_lookAhead2 = fetch();
+}
+
+PDFParser::PDFParser(std::function<PDFLexicalAnalyzer::Token ()> tokenFetcher) :
+    m_tokenFetcher(qMove(tokenFetcher)),
+    m_context(nullptr),
+    m_lexicalAnalyzer(nullptr, nullptr),
+    m_features(None)
+{
+    m_lookAhead1 = fetch();
+    m_lookAhead2 = fetch();
 }
 
 PDFObject PDFParser::getObject()
@@ -837,8 +847,8 @@ PDFObject PDFParser::getObject()
                 }
 
                 // Refill lookahead tokens
-                m_lookAhead1 = m_lexicalAnalyzer.fetch();
-                m_lookAhead2 = m_lexicalAnalyzer.fetch();
+                m_lookAhead1 = fetch();
+                m_lookAhead2 = fetch();
 
                 if (m_lookAhead1.type == PDFLexicalAnalyzer::TokenType::Command &&
                     m_lookAhead1.data.toByteArray() == PDF_STREAM_END_COMMAND)
@@ -902,8 +912,8 @@ void PDFParser::seek(PDFInteger offset)
     m_lexicalAnalyzer.seek(offset);
 
     // We must read lookahead symbols, because we invalidated them
-    m_lookAhead1 = m_lexicalAnalyzer.fetch();
-    m_lookAhead2 = m_lexicalAnalyzer.fetch();
+    m_lookAhead1 = fetch();
+    m_lookAhead2 = fetch();
 }
 
 bool PDFParser::fetchCommand(const char* command)
@@ -921,7 +931,12 @@ bool PDFParser::fetchCommand(const char* command)
 void PDFParser::shift()
 {
     m_lookAhead1 = std::move(m_lookAhead2);
-    m_lookAhead2 = m_lexicalAnalyzer.fetch();
+    m_lookAhead2 = fetch();
+}
+
+PDFLexicalAnalyzer::Token PDFParser::fetch()
+{
+    return m_tokenFetcher ? m_tokenFetcher() : m_lexicalAnalyzer.fetch();
 }
 
 }   // namespace pdf

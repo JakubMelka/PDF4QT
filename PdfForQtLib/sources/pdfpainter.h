@@ -40,12 +40,14 @@ public:
     /// \param page Page, which will be drawn
     /// \param document Document owning the page
     /// \param fontCache Font cache
+    /// \param optionalContentActivity Activity of optional content
     explicit PDFPainter(QPainter* painter,
                         PDFRenderer::Features features,
                         QMatrix pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         const PDFDocument* document,
-                        const PDFFontCache* fontCache);
+                        const PDFFontCache* fontCache,
+                        const PDFOptionalContentActivity* optionalContentActivity);
     virtual ~PDFPainter() override;
 
 protected:

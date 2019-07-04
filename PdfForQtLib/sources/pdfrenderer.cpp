@@ -22,9 +22,10 @@
 namespace pdf
 {
 
-PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache) :
+PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity) :
     m_document(document),
     m_fontCache(fontCache),
+    m_optionalContentActivity(optionalContentActivity),
     m_features(Antialiasing | TextAntialiasing)
 {
     Q_ASSERT(document);
@@ -32,6 +33,7 @@ PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCa
 
 // TODO: Dodelat rotovani stranek
 // TODO: Dodelat obrazky - SMOOTH
+// TODO: Clipovani na stranku
 
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const
 {
@@ -54,7 +56,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
     matrix.translate(rectangle.left(), rectangle.bottom());
     matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity);
     return processor.processContents();
 }
 
@@ -72,7 +74,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matr
     const PDFPage* page = catalog->getPage(pageIndex);
     Q_ASSERT(page);
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity);
     return processor.processContents();
 }
 

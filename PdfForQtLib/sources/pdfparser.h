@@ -276,13 +276,14 @@ public:
     enum Feature
     {
         None            = 0x0000,
-        AllowStreams    = 0x0001,
+        AllowStreams    = 0x0001
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
 
     explicit PDFParser(const QByteArray& data, PDFParsingContext* context, Features features);
     explicit PDFParser(const char* begin, const char* end, PDFParsingContext* context, Features features);
+    explicit PDFParser(std::function<PDFLexicalAnalyzer::Token(void)> tokenFetcher);
 
     /// Fetches single object from the stream. Does not check
     /// cyclical references. If object cannot be fetched, then
@@ -311,6 +312,11 @@ public:
 
 private:
     void shift();
+
+    PDFLexicalAnalyzer::Token fetch();
+
+    /// Functor for fetching tokens
+    std::function<PDFLexicalAnalyzer::Token(void)> m_tokenFetcher;
 
     /// Parsing context (multiple parsers can share it)
     PDFParsingContext* m_context;

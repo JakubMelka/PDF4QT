@@ -42,9 +42,11 @@ public:
     using PageRenderingErrors = std::map<PDFInteger, QList<PDFRenderError>>;
 
     /// Sets the document to be viewed in this widget. Document can be nullptr,
-    /// in that case, widget contents are cleared.
+    /// in that case, widget contents are cleared. Optional content activity can be nullptr,
+    /// if this occurs, no content is suppressed.
     /// \param document Document
-    void setDocument(const PDFDocument* document);
+    /// \param optionalContentActivity Optional content activity
+    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
 
     PDFDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }

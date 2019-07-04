@@ -34,15 +34,18 @@
 
 namespace pdf
 {
-static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
+class PDFOptionalContentActivity;
 
-// TODO: Implement optional content groups
+static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
 
 /// Process the contents of the page.
 class PDFPageContentProcessor : public PDFRenderErrorReporter
 {
 public:
-    explicit PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache);
+    explicit PDFPageContentProcessor(const PDFPage* page,
+                                     const PDFDocument* document,
+                                     const PDFFontCache* fontCache,
+                                     const PDFOptionalContentActivity* optionalContentActivity);
     virtual ~PDFPageContentProcessor();
 
     enum class Operator
@@ -379,12 +382,29 @@ protected:
     /// \param order If this function is called before the operation, or after the operation.
     virtual void performRestoreGraphicState(ProcessOrder order);
 
+    /// Implement to react on marked content point. Properties object can be null, in case
+    /// that no properties are provided.
+    /// \param tag Tag of the marked content point
+    /// \param properties Properties of the marked content point.
+    virtual void performMarkedContentPoint(const QByteArray& tag, const PDFObject& properties);
+
+    /// Implement to react on marked content begin.
+    /// \param tag Tag of the marked content point
+    /// \param properties Properties of the marked content point.
+    virtual void performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties);
+
+    /// Implement to react on marked content end
+    virtual void performMarkedContentEnd();
+
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
 
     /// Adds error to the error list
     /// \param error Error message
     void addError(const QString& error) { m_errorList.append(PDFRenderError(RenderErrorType::Error, error)); }
+
+    /// Returns true, if graphic content is suppressed
+    bool isContentSuppressed() const;
 
 private:
     /// Initializes the resources dictionaries
@@ -406,6 +426,28 @@ private:
     /// \param content Content stream of the form
     void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content);
 
+    enum class MarkedContentKind
+    {
+        OptionalContent,
+        Other
+    };
+
+    struct MarkedContentState
+    {
+        inline explicit MarkedContentState() = default;
+        inline explicit MarkedContentState(const QByteArray& tag, MarkedContentKind kind, bool contentSuppressed) :
+            tag(tag),
+            kind(kind),
+            contentSuppressed(contentSuppressed)
+        {
+
+        }
+
+        QByteArray tag;
+        MarkedContentKind kind = MarkedContentKind::Other;
+        bool contentSuppressed = false;
+    };
+
     struct PDFPageContentProcessorStateGuard
     {
     public:
@@ -420,6 +462,7 @@ private:
         const PDFDictionary* m_fontDictionary;
         const PDFDictionary* m_xobjectDictionary;
         const PDFDictionary* m_extendedGraphicStateDictionary;
+        const PDFDictionary* m_propertiesDictionary;
     };
 
     /// Wrapper for PDF Name
@@ -593,6 +636,13 @@ private:
     // XObject:                    Do
     void operatorPaintXObject(PDFOperandName name); ///< Do, paint the X Object (image, form, ...)
 
+    // Marked content:             MP, DP, BMC, BDC, EMC
+    void operatorMarkedContentPoint(PDFOperandName name);                                       ///< MP, marked content point
+    void operatorMarkedContentPointWithProperties(PDFOperandName name, PDFObject properties);   ///< DP, marked content point with properties
+    void operatorMarkedContentBegin(PDFOperandName name);                                       ///< BMC, begin of sequence of marked content
+    void operatorMarkedContentBeginWithProperties(PDFOperandName name, PDFObject properties);   ///< BDC, begin of sequence of marked content with properties
+    void operatorMarkedContentEnd();                                                            ///< EMC, end of marked content sequence
+
     // Compatibility:              BX, EX
     void operatorCompatibilityBegin();   ///< BX, Compatibility mode begin (unrecognized operators are ignored)
     void operatorCompatibilityEnd();     ///< EX, Compatibility mode end
@@ -612,13 +662,22 @@ private:
     /// Checks, if filling color is valid
     void checkFillingColor();
 
+    /// Read object from operand stack
+    PDFObject readObjectFromOperandStack(size_t startPosition) const;
+
+    /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
+    /// or true, if it is suppressed.
+    bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
+
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFDictionary* m_colorSpaceDictionary;
     const PDFDictionary* m_fontDictionary;
     const PDFDictionary* m_xobjectDictionary;
     const PDFDictionary* m_extendedGraphicStateDictionary;
+    const PDFDictionary* m_propertiesDictionary;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;
@@ -630,6 +689,9 @@ private:
 
     /// Stack with saved graphic states
     std::stack<PDFPageContentProcessorState> m_stack;
+
+    /// Stack with marked content
+    std::vector<MarkedContentState> m_markedContentStack;
 
     /// Current graphic state
     PDFPageContentProcessorState m_graphicState;

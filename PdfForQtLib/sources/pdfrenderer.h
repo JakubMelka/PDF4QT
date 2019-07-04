@@ -26,12 +26,13 @@ class QPainter;
 namespace pdf
 {
 class PDFFontCache;
+class PDFOptionalContentActivity;
 
 /// Renders the PDF page on the painter, or onto an image.
 class PDFRenderer
 {
 public:
-    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache);
+    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity);
 
     enum Feature
     {
@@ -58,6 +59,7 @@ public:
 private:
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFOptionalContentActivity* m_optionalContentActivity;
     Features m_features;
 };
 

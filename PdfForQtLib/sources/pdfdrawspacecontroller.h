@@ -47,9 +47,11 @@ public:
     virtual ~PDFDrawSpaceController() override;
 
     /// Sets the document and recalculates the draw space. Document can be nullptr,
-    /// in that case, draw space is cleared.
+    /// in that case, draw space is cleared. Optional content activity can be nullptr,
+    /// in that case, no content is suppressed.
     /// \param document Document
-    void setDocument(const PDFDocument* document);
+    /// \param optionalContentActivity Optional content activity
+    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
 
     /// Sets the page layout. Page layout can be one of the PDF's page layouts.
     /// \param pageLayout Page layout
@@ -93,8 +95,12 @@ public:
     /// Returns the font cache
     const PDFFontCache* getFontCache() const { return &m_fontCache; }
 
+    /// Returns optional content activity
+    const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
+
 signals:
     void drawSpaceChanged();
+    void repaintNeeded();
 
 private:
     /// Recalculates the draw space. Preserves setted page rotation.
@@ -118,6 +124,7 @@ private:
     static constexpr size_t REALIZED_FONT_CACHE_LIMIT = 128;
 
     const PDFDocument* m_document;
+    const PDFOptionalContentActivity* m_optionalContentActivity;
 
     PageLayout m_pageLayoutMode;
     LayoutItems m_layoutItems;
@@ -140,9 +147,11 @@ public:
     virtual ~PDFDrawWidgetProxy() override;
 
     /// Sets the document and updates the draw space. Document can be nullptr,
-    /// in that case, draw space is cleared.
+    /// in that case, draw space is cleared. Optional content activity can be nullptr,
+    /// in that case, no content is suppressed.
     /// \param document Document
-    void setDocument(const PDFDocument* document);
+    /// \param optionalContentActivity Optional content activity
+    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
 
     void init(PDFWidget* widget);
 
@@ -208,6 +217,7 @@ signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
     void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+    void repaintNeeded();
 
 private:
     struct LayoutItem

@@ -172,16 +172,22 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     m_fontDictionary = getDictionary("Font");
     m_xobjectDictionary = getDictionary("XObject");
     m_extendedGraphicStateDictionary = getDictionary(PDF_RESOURCE_EXTGSTATE);
+    m_propertiesDictionary = getDictionary("Properties");
 }
 
-PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page, const PDFDocument* document, const PDFFontCache* fontCache) :
+PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
+                                                 const PDFDocument* document,
+                                                 const PDFFontCache* fontCache,
+                                                 const PDFOptionalContentActivity* optionalContentActivity) :
     m_page(page),
     m_document(document),
     m_fontCache(fontCache),
+    m_optionalContentActivity(optionalContentActivity),
     m_colorSpaceDictionary(nullptr),
     m_fontDictionary(nullptr),
     m_xobjectDictionary(nullptr),
     m_extendedGraphicStateDictionary(nullptr),
+    m_propertiesDictionary(nullptr),
     m_textBeginEndState(0),
     m_compatibilityBeginEndState(0)
 {
@@ -310,6 +316,28 @@ void PDFPageContentProcessor::performSaveGraphicState(ProcessOrder order)
 void PDFPageContentProcessor::performRestoreGraphicState(ProcessOrder order)
 {
     Q_UNUSED(order);
+}
+
+void PDFPageContentProcessor::performMarkedContentPoint(const QByteArray& tag, const PDFObject& properties)
+{
+    Q_UNUSED(tag);
+    Q_UNUSED(properties);
+}
+
+void PDFPageContentProcessor::performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties)
+{
+    Q_UNUSED(tag);
+    Q_UNUSED(properties);
+}
+
+void PDFPageContentProcessor::performMarkedContentEnd()
+{
+
+}
+
+bool PDFPageContentProcessor::isContentSuppressed() const
+{
+    return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
 }
 
 void PDFPageContentProcessor::processContent(const QByteArray& content)
@@ -788,6 +816,41 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
         {
             // Do, paint the X Object (image, form, ...)
             invokeOperator(&PDFPageContentProcessor::operatorPaintXObject);
+            break;
+        }
+
+        case Operator::MarkedContentPoint:
+        {
+            // MP, marked content point
+            invokeOperator(&PDFPageContentProcessor::operatorMarkedContentPoint);
+            break;
+        }
+
+        case Operator::MarkedContentPointWithProperties:
+        {
+            // DP, marked content point with properties
+            operatorMarkedContentPointWithProperties(readOperand<PDFOperandName>(0), readObjectFromOperandStack(1));
+            break;
+        }
+
+        case Operator::MarkedContentBegin:
+        {
+            // BMC, begin of sequence of marked content
+            invokeOperator(&PDFPageContentProcessor::operatorMarkedContentBegin);
+            break;
+        }
+
+        case Operator::MarkedContentBeginWithProperties:
+        {
+            // BDC, begin of sequence of marked content with properties
+            operatorMarkedContentBeginWithProperties(readOperand<PDFOperandName>(0), readObjectFromOperandStack(1));
+            break;
+        }
+
+        case Operator::MarkedContentEnd:
+        {
+            // EMC, end of marked content sequence
+            operatorMarkedContentEnd();
             break;
         }
 
@@ -1889,6 +1952,59 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
     }
 }
 
+void PDFPageContentProcessor::operatorMarkedContentPoint(PDFOperandName name)
+{
+    performMarkedContentPoint(name.name, PDFObject());
+}
+
+void PDFPageContentProcessor::operatorMarkedContentPointWithProperties(PDFOperandName name, PDFObject properties)
+{
+    performMarkedContentPoint(name.name, properties);
+}
+
+void PDFPageContentProcessor::operatorMarkedContentBegin(PDFOperandName name)
+{
+    operatorMarkedContentBeginWithProperties(qMove(name), PDFObject());
+}
+
+void PDFPageContentProcessor::operatorMarkedContentBeginWithProperties(PDFOperandName name, PDFObject properties)
+{
+    // TODO: Handle optional content of images/forms
+
+    // Handle the optional content
+    if (name.name == "OC")
+    {
+        PDFObjectReference ocg;
+        if (m_propertiesDictionary && properties.isName())
+        {
+            const PDFObject& ocgObject = m_propertiesDictionary->get(properties.getString());
+            if (ocgObject.isReference())
+            {
+                ocg = ocgObject.getReference();
+            }
+        }
+
+        m_markedContentStack.emplace_back(name.name, MarkedContentKind::OptionalContent, isContentSuppressedByOC(ocg));
+    }
+    else
+    {
+        m_markedContentStack.emplace_back(name.name, MarkedContentKind::Other, false);
+    }
+
+    performMarkedContentBegin(name.name, properties);
+}
+
+void PDFPageContentProcessor::operatorMarkedContentEnd()
+{
+    if (m_markedContentStack.empty())
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Mismatched begin/end of marked content."));
+    }
+
+    m_markedContentStack.pop_back();
+    performMarkedContentEnd();
+}
+
 void PDFPageContentProcessor::operatorCompatibilityBegin()
 {
     ++m_compatibilityBeginEndState;
@@ -2022,6 +2138,53 @@ void PDFPageContentProcessor::checkFillingColor()
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid filling color."));
     }
+}
+
+PDFObject PDFPageContentProcessor::readObjectFromOperandStack(size_t startPosition) const
+{
+    auto tokenFetcher = [this, &startPosition]()
+    {
+        if (startPosition < m_operands.size())
+        {
+            return m_operands[startPosition++];
+        }
+        return PDFLexicalAnalyzer::Token();
+    };
+
+    PDFParser parser(tokenFetcher);
+    return parser.getObject();
+}
+
+bool PDFPageContentProcessor::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
+{
+    if (!m_optionalContentActivity)
+    {
+        // Optional content activity control is suppressed, treat all content as not suppressed
+        return false;
+    }
+
+    if (m_optionalContentActivity->getProperties()->hasOptionalContentGroup(ocgOrOcmd))
+    {
+        // Simplest case - we have single optional content group
+        return m_optionalContentActivity->getState(ocgOrOcmd) == OCState::OFF;
+    }
+
+    PDFOptionalContentMembershipObject ocmd;
+    try
+    {
+        ocmd = PDFOptionalContentMembershipObject::create(m_document, PDFObject::createReference(ocgOrOcmd));
+    }
+    catch (PDFParserException e)
+    {
+        m_errorList.push_back(PDFRenderError(RenderErrorType::Error, e.getMessage()));
+    }
+
+    if (ocmd.isValid())
+    {
+        return ocmd.evaluate(m_optionalContentActivity) == OCState::OFF;
+    }
+
+    return false;
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
@@ -2306,7 +2469,8 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::PDFPageContentProces
     m_colorSpaceDictionary(processor->m_colorSpaceDictionary),
     m_fontDictionary(processor->m_fontDictionary),
     m_xobjectDictionary(processor->m_xobjectDictionary),
-    m_extendedGraphicStateDictionary(processor->m_extendedGraphicStateDictionary)
+    m_extendedGraphicStateDictionary(processor->m_extendedGraphicStateDictionary),
+    m_propertiesDictionary(processor->m_propertiesDictionary)
 {
     m_processor->operatorSaveGraphicState();
 }
@@ -2318,6 +2482,7 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::~PDFPageContentProce
     m_processor->m_fontDictionary = m_fontDictionary;
     m_processor->m_xobjectDictionary = m_xobjectDictionary;
     m_processor->m_extendedGraphicStateDictionary = m_extendedGraphicStateDictionary;
+    m_processor->m_propertiesDictionary = m_propertiesDictionary;
 
     m_processor->operatorRestoreGraphicState();
 }

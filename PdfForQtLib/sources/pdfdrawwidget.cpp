@@ -50,6 +50,7 @@ PDFWidget::PDFWidget(QWidget* parent) :
     m_proxy = new PDFDrawWidgetProxy(this);
     m_proxy->init(this);
     connect(m_proxy, &PDFDrawWidgetProxy::renderingError, this, &PDFWidget::onRenderingError);
+    connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget, QOverload<>::of(&PDFDrawWidget::update));
 }
 
 PDFWidget::~PDFWidget()
@@ -57,9 +58,9 @@ PDFWidget::~PDFWidget()
 
 }
 
-void PDFWidget::setDocument(const PDFDocument* document)
+void PDFWidget::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
 {
-    m_proxy->setDocument(document);
+    m_proxy->setDocument(document, optionalContentActivity);
     m_pageRenderingErrors.clear();
 }
 

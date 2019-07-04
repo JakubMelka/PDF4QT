@@ -425,4 +425,218 @@ void PDFOptionalContentActivity::applyConfiguration(const PDFOptionalContentConf
     }
 }
 
+PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(const PDFDocument* document, const PDFObject& object)
+{
+    PDFOptionalContentMembershipObject result;
+    const PDFObject& dereferencedObject = document->getObject(object);
+    if (dereferencedObject.isDictionary())
+    {
+        const PDFDictionary* dictionary = dereferencedObject.getDictionary();
+        if (dictionary->hasKey("VE"))
+        {
+            // Parse visibility expression
+
+            std::set<PDFObjectReference> usedReferences;
+            std::function<std::unique_ptr<Node>(const PDFObject&)> parseNode = [document, &parseNode, &usedReferences](const PDFObject& nodeObject) -> std::unique_ptr<Node>
+            {
+                const PDFObject& dereferencedNodeObject = document->getObject(nodeObject);
+                if (dereferencedNodeObject.isArray())
+                {
+                    // It is probably array. We must check, if we doesn't have cyclic reference.
+                    if (nodeObject.isReference())
+                    {
+                        if (usedReferences.count(nodeObject.getReference()))
+                        {
+                            throw PDFParserException(PDFTranslationContext::tr("Cyclic reference error in optional content visibility expression."));
+                        }
+                        else
+                        {
+                            usedReferences.insert(nodeObject.getReference());
+                        }
+                    }
+
+                    // Check the array
+                    const PDFArray* array = dereferencedNodeObject.getArray();
+                    if (array->getCount() < 2)
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
+                    }
+
+                    // Read the operator
+                    const PDFObject& dereferencedNameObject = document->getObject(array->getItem(0));
+                    QByteArray operatorName;
+                    if (dereferencedNameObject.isName())
+                    {
+                        operatorName = dereferencedNameObject.getString();
+                    }
+
+                    Operator operatorType = Operator::And;
+                    if (operatorName == "And")
+                    {
+                        operatorType = Operator::And;
+                    } else if (operatorName == "Or")
+                    {
+                        operatorType = Operator::Or;
+                    }
+                    else if (operatorName == "Not")
+                    {
+                        operatorType = Operator::Not;
+                    }
+                    else
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
+                    }
+
+                    // Read the operands
+                    std::vector<std::unique_ptr<Node>> operands;
+                    operands.reserve(array->getCount());
+                    for (size_t i = 1, count = array->getCount(); i < count; ++i)
+                    {
+                        operands.push_back(parseNode(array->getItem(i)));
+                    }
+
+                    return std::unique_ptr<Node>(new OperatorNode(operatorType, qMove(operands)));
+                }
+                else if (nodeObject.isReference())
+                {
+                    // Treat is as an optional content group
+                    return std::unique_ptr<Node>(new OptionalContentGroupNode(nodeObject.getReference()));
+                }
+                else
+                {
+                    // Something strange occured - either we should have an array, or we should have a reference to the OCG
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
+                    return std::unique_ptr<Node>(nullptr);
+                }
+            };
+
+            result.m_expression = parseNode(dictionary->get("VE"));
+        }
+        else
+        {
+            // First, scan all optional content groups
+            PDFDocumentDataLoaderDecorator loader(document);
+            std::vector<PDFObjectReference> ocgs = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
+
+            if (!ocgs.empty())
+            {
+                auto createOperatorOnOcgs = [&ocgs](Operator operator_)
+                {
+                    std::vector<std::unique_ptr<Node>> operands;
+                    operands.reserve(ocgs.size());
+                    for (PDFObjectReference reference : ocgs)
+                    {
+                        operands.push_back(std::unique_ptr<Node>(new OptionalContentGroupNode(reference)));
+                    }
+                    return std::unique_ptr<Node>(new OperatorNode(operator_, qMove(operands)));
+                };
+
+                // Parse 'P' mode
+                QByteArray type = loader.readNameFromDictionary(dictionary, "P");
+                if (type == "AllOn")
+                {
+                    // All of entries in OCGS are turned on
+                    result.m_expression = createOperatorOnOcgs(Operator::And);
+                }
+                else if (type == "AnyOn")
+                {
+                    // Any of entries in OCGS is turned on
+                    result.m_expression = createOperatorOnOcgs(Operator::Or);
+                }
+                else if (type == "AnyOff")
+                {
+                    // Any of entries are turned off. It is negation of 'AllOn'.
+                    std::vector<std::unique_ptr<Node>> subexpression;
+                    subexpression.push_back(createOperatorOnOcgs(Operator::And));
+                    result.m_expression = std::unique_ptr<Node>(new OperatorNode(Operator::Not, qMove(subexpression)));
+                }
+                else if (type == "AllOff")
+                {
+                    // All of entries are turned off. It is negation of 'AnyOn'
+                    std::vector<std::unique_ptr<Node>> subexpression;
+                    subexpression.push_back(createOperatorOnOcgs(Operator::Or));
+                    result.m_expression = std::unique_ptr<Node>(new OperatorNode(Operator::Not, qMove(subexpression)));
+                }
+                else
+                {
+					// Default value is AnyOn according to the PDF reference
+					result.m_expression = createOperatorOnOcgs(Operator::Or);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+OCState PDFOptionalContentMembershipObject::evaluate(const PDFOptionalContentActivity* activity) const
+{
+    return m_expression ? m_expression->evaluate(activity) : OCState::Unknown;
+}
+
+OCState PDFOptionalContentMembershipObject::OptionalContentGroupNode::evaluate(const PDFOptionalContentActivity* activity) const
+{
+    return activity->getState(m_optionalContentGroup);
+}
+
+OCState PDFOptionalContentMembershipObject::OperatorNode::evaluate(const PDFOptionalContentActivity* activity) const
+{
+    OCState result = OCState::Unknown;
+
+    switch (m_operator)
+    {
+        case Operator::And:
+        {
+            for (const auto& child : m_children)
+            {
+                result = result & child->evaluate(activity);
+            }
+            break;
+        }
+
+        case Operator::Or:
+        {
+            for (const auto& child : m_children)
+            {
+                result = result | child->evaluate(activity);
+            }
+            break;
+        }
+
+        case Operator::Not:
+        {
+            // We must handle case, when we have zero or more expressions (Not operator requires exactly one).
+            // If this case occurs, then we return Unknown state.
+            if (m_children.size() == 1)
+            {
+                OCState childState = m_children.front()->evaluate(activity);
+
+                switch (childState)
+                {
+                    case OCState::ON:
+                        result = OCState::OFF;
+                        break;
+
+                    case OCState::OFF:
+                        result = OCState::ON;
+                        break;
+
+                    default:
+                        Q_ASSERT(result == OCState::Unknown);
+                        break;
+                }
+            }
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    return result;
+}
+
 }   // namespace pdf

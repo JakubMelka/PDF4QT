@@ -28,6 +28,7 @@ namespace pdf
 PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     QObject(parent),
     m_document(nullptr),
+    m_optionalContentActivity(nullptr),
     m_pageLayoutMode(PageLayout::OneColumn),
     m_verticalSpacingMM(5.0),
     m_horizontalSpacingMM(1.0),
@@ -41,12 +42,14 @@ PDFDrawSpaceController::~PDFDrawSpaceController()
 
 }
 
-void PDFDrawSpaceController::setDocument(const PDFDocument* document)
+void PDFDrawSpaceController::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
 {
     if (document != m_document)
     {
         m_document = document;
         m_fontCache.setDocument(document);
+        m_optionalContentActivity = optionalContentActivity;
+        connect(m_optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawSpaceController::repaintNeeded);
         recalculate();
     }
 }
@@ -348,6 +351,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
+    connect(m_controller, &PDFDrawSpaceController::repaintNeeded, this, &PDFDrawWidgetProxy::repaintNeeded);
 }
 
 PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
@@ -355,9 +359,9 @@ PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 
 }
 
-void PDFDrawWidgetProxy::setDocument(const PDFDocument* document)
+void PDFDrawWidgetProxy::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
 {
-    m_controller->setDocument(document);
+    m_controller->setDocument(document, optionalContentActivity);
 }
 
 void PDFDrawWidgetProxy::init(PDFWidget* widget)
@@ -545,7 +549,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache());
+            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity());
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
 
             if (!errors.empty())

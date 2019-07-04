@@ -25,6 +25,7 @@ namespace pdf
 {
 
 class PDFDocument;
+class PDFOptionalContentActivity;
 class PDFOptionalContentProperties;
 class PDFOptionalContentConfiguration;
 
@@ -73,6 +74,86 @@ constexpr OCState operator |(OCState left, OCState right)
     return (left == OCState::ON || right == OCState::ON) ? OCState::ON : OCState::OFF;
 }
 
+/// Object describing optional content membership dictionary
+class PDFOptionalContentMembershipObject
+{
+public:
+    explicit PDFOptionalContentMembershipObject() = default;
+
+    constexpr inline PDFOptionalContentMembershipObject(const PDFOptionalContentMembershipObject&) = delete;
+    constexpr inline PDFOptionalContentMembershipObject(PDFOptionalContentMembershipObject&&) = default;
+    constexpr inline PDFOptionalContentMembershipObject& operator=(const PDFOptionalContentMembershipObject&) = delete;
+    constexpr inline PDFOptionalContentMembershipObject& operator=(PDFOptionalContentMembershipObject&&) = default;
+
+    /// Creates optional content membership dictionary. If creation fails, then
+    /// exception is thrown.
+    /// \param document Document owning the membership dictionary
+    /// \param object Object to be parsed
+    static PDFOptionalContentMembershipObject create(const PDFDocument* document, const PDFObject& object);
+
+    /// Returns true, if this object is valid
+    bool isValid() const { return static_cast<bool>(m_expression); }
+
+    /// Evaluate objects. If error occurs, then Uknown state is returned.
+    /// \param activity Activity
+    OCState evaluate(const PDFOptionalContentActivity* activity) const;
+
+private:
+
+    enum class Operator
+    {
+        And,
+        Or,
+        Not
+    };
+
+    /// Node in the expression tree
+    class Node
+    {
+    public:
+        inline explicit Node() = default;
+        virtual ~Node() = default;
+
+        virtual OCState evaluate(const PDFOptionalContentActivity* activity) const = 0;
+    };
+
+    /// Node reprsenting optional content group
+    class OptionalContentGroupNode : public Node
+    {
+    public:
+        inline explicit OptionalContentGroupNode(PDFObjectReference optionalContentGroup) :
+            m_optionalContentGroup(optionalContentGroup)
+        {
+
+        }
+
+        virtual OCState evaluate(const PDFOptionalContentActivity* activity) const override;
+
+    private:
+        PDFObjectReference m_optionalContentGroup;
+    };
+
+    /// Node representing operator
+    class OperatorNode : public Node
+    {
+    public:
+        inline explicit OperatorNode(Operator operator_, std::vector<std::unique_ptr<Node>>&& nodes) :
+            m_operator(operator_),
+            m_children(qMove(nodes))
+        {
+
+        }
+
+        virtual OCState evaluate(const PDFOptionalContentActivity* activity) const override;
+
+    private:
+        Operator m_operator;
+        std::vector<std::unique_ptr<Node>> m_children;
+    };
+
+    std::unique_ptr<Node> m_expression;
+};
+
 /// Activeness of the optional content
 class PDFFORQTLIBSHARED_EXPORT PDFOptionalContentActivity : public QObject
 {
@@ -93,11 +174,14 @@ public:
     /// optional content groups in radio button group can be switched off).
     /// \param ocg Optional content group
     /// \param state New state of the optional content group
-    /// \note If something changed, then signalp \p optionalContentGroupStateChanged is emitted.
+    /// \note If something changed, then signal \p optionalContentGroupStateChanged is emitted.
     void setState(PDFObjectReference ocg, OCState state);
 
     /// Applies configuration to the current state of optional content groups
     void applyConfiguration(const PDFOptionalContentConfiguration& configuration);
+
+    /// Returns the properties of optional content
+    const PDFOptionalContentProperties* getProperties() const { return m_properties; }
 
 signals:
     void optionalContentGroupStateChanged(PDFObjectReference ocg, OCState state);
