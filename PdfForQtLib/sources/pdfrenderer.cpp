@@ -32,7 +32,6 @@ PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCa
 }
 
 // TODO: Dodelat rotovani stranek
-// TODO: Dodelat obrazky - SMOOTH
 // TODO: Clipovani na stranku
 
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const

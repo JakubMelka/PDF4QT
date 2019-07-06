@@ -348,7 +348,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_widget(nullptr),
     m_horizontalScrollbar(nullptr),
     m_verticalScrollbar(nullptr),
-    m_features(PDFRenderer::Antialiasing | PDFRenderer::TextAntialiasing)
+    m_features(PDFRenderer::getDefaultFeatures())
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);

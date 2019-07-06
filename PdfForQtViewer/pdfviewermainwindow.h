@@ -49,7 +49,7 @@ class PDFViewerSettings : public QObject
 public:
     inline explicit PDFViewerSettings(QObject* parent) :
         QObject(parent),
-        m_features(pdf::PDFRenderer::Antialiasing | pdf::PDFRenderer::TextAntialiasing)
+        m_features(pdf::PDFRenderer::getDefaultFeatures())
     {
 
     }

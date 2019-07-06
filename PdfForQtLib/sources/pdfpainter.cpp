@@ -101,17 +101,46 @@ void PDFPainter::performImagePainting(const QImage& image)
 
     m_painter->save();
 
-    // TODO: Draw smooth images
-    QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+    QImage adjustedImage = image;
+
+    if (m_features.testFlag(PDFRenderer::SmoothImages))
+    {
+        // Test, if we can use smooth images. We can use them under following conditions:
+        //  1) Transformed rectangle is not skewed or deformed (so vectors (0, 1) and (1, 0) are orthogonal)
+        //  2) Image enlargement is not too big (so we doesn't run out of memory)
+
+        QMatrix matrix = m_painter->worldMatrix();
+        QLineF mappedWidthVector = matrix.map(QLineF(0, 0, 1, 0));
+        QLineF mappedHeightVector = matrix.map(QLineF(0, 0, 0, 1));
+        qreal angle = mappedWidthVector.angleTo(mappedHeightVector);
+        if (qFuzzyCompare(angle, 90.0))
+        {
+            // Image is not skewed, so we test enlargement factor
+            const int newWidth = mappedWidthVector.length();
+            const int newHeight = mappedHeightVector.length();
+
+            const int newPixels = newWidth * newHeight;
+            const int oldPixels = image.width() * image.height();
+
+            if (newPixels < oldPixels * 8)
+            {
+                QSize size = adjustedImage.size();
+                QSize adjustedImageSize = size.scaled(newWidth, newHeight, Qt::KeepAspectRatio);
+                adjustedImage = adjustedImage.scaled(adjustedImageSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            }
+        }
+    }
+
+    QMatrix imageTransform(1.0 / adjustedImage.width(), 0, 0, 1.0 / adjustedImage.height(), 0, 0);
     QMatrix worldMatrix = imageTransform * m_painter->worldMatrix();
 
     // Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
     // to the opposite (so the image is then unchanged)
-    worldMatrix.translate(0, image.height());
+    worldMatrix.translate(0, adjustedImage.height());
     worldMatrix.scale(1, -1);
 
     m_painter->setWorldMatrix(worldMatrix);
-    m_painter->drawImage(0, 0, image);
+    m_painter->drawImage(0, 0, adjustedImage);
 
     m_painter->restore();
 }
