@@ -25,6 +25,8 @@
 #include <QMainWindow>
 #include <QSharedPointer>
 
+class QSettings;
+
 namespace Ui
 {
 class PDFViewerMainWindow;
@@ -39,6 +41,35 @@ class PDFOptionalContentTreeItemModel;
 
 namespace pdfviewer
 {
+
+class PDFViewerSettings : public QObject
+{
+    Q_OBJECT
+
+public:
+    inline explicit PDFViewerSettings(QObject* parent) :
+        QObject(parent),
+        m_features(pdf::PDFRenderer::Antialiasing | pdf::PDFRenderer::TextAntialiasing)
+    {
+
+    }
+
+    void readSettings(QSettings& settings);
+    void writeSettings(QSettings& settings);
+
+    QString getDirectory() const;
+    void setDirectory(const QString& directory);
+
+    pdf::PDFRenderer::Features getFeatures() const;
+    void setFeatures(const pdf::PDFRenderer::Features& features);
+
+signals:
+    void settingsChanged();
+
+private:
+    pdf::PDFRenderer::Features m_features;
+    QString m_directory;
+};
 
 class PDFViewerMainWindow : public QMainWindow
 {
@@ -58,7 +89,6 @@ private slots:
     void on_actionFirstPageOnRightSide_triggered();
 
     void on_actionRendering_Errors_triggered();
-
     void on_actionGenerateCMAPrepository_triggered();
 
 private:
@@ -72,6 +102,10 @@ private:
 
     void updateTitle();
     void updatePageLayoutActions();
+    void updateRenderingOptionActions();
+
+    void onViewerSettingsChanged();
+    void onRenderingOptionTriggered(bool checked);
 
     void openDocument(const QString& fileName);
     void setDocument(const pdf::PDFDocument* document);
@@ -79,10 +113,12 @@ private:
 
     void setPageLayout(pdf::PageLayout pageLayout);
 
+    std::vector<QAction*> getRenderingOptionActions() const;
+
     Ui::PDFViewerMainWindow* ui;
+    PDFViewerSettings* m_settings;
     pdf::PDFWidget* m_pdfWidget;
     QSharedPointer<pdf::PDFDocument> m_pdfDocument;
-    QString m_directory;
     QString m_currentFile;
     QDockWidget* m_optionalContentDockWidget;
     QTreeView* m_optionalContentTreeView;

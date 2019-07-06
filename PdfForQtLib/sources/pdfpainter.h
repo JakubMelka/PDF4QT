@@ -57,6 +57,7 @@ protected:
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;
     virtual void performRestoreGraphicState(ProcessOrder order) override;
+    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
 
 private:
     /// Returns current pen

@@ -51,7 +51,17 @@
      <addaction name="separator"/>
      <addaction name="actionFirstPageOnRightSide"/>
     </widget>
+    <widget class="QMenu" name="menuRendering_Options">
+     <property name="title">
+      <string>Rendering Options</string>
+     </property>
+     <addaction name="actionRenderOptionAntialiasing"/>
+     <addaction name="actionRenderOptionTextAntialiasing"/>
+     <addaction name="actionRenderOptionSmoothPictures"/>
+     <addaction name="actionRenderOptionIgnoreOptionalContentSettings"/>
+    </widget>
     <addaction name="menuPage_Layout"/>
+    <addaction name="menuRendering_Options"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -164,6 +174,38 @@
   <action name="actionGenerateCMAPrepository">
    <property name="text">
     <string>Generate CMAP repository</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionAntialiasing">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Antialiasing</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionTextAntialiasing">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Text Antialiasing</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionSmoothPictures">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Smooth Pictures</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionIgnoreOptionalContentSettings">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Ignore Optional Content Settings</string>
    </property>
   </action>
  </widget>

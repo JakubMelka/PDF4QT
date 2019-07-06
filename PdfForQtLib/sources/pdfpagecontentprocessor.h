@@ -406,6 +406,10 @@ protected:
     /// Returns true, if graphic content is suppressed
     bool isContentSuppressed() const;
 
+    /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
+    /// or true, if it is suppressed.
+    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
+
 private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
@@ -664,10 +668,6 @@ private:
 
     /// Read object from operand stack
     PDFObject readObjectFromOperandStack(size_t startPosition) const;
-
-    /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
-    /// or true, if it is suppressed.
-    bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
 
     const PDFPage* m_page;
     const PDFDocument* m_document;

@@ -32,16 +32,18 @@ class PDFOptionalContentActivity;
 class PDFRenderer
 {
 public:
-    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity);
 
     enum Feature
     {
-        Antialiasing        = 0x0001,   ///< Antialiasing for lines, shapes, etc.
-        TextAntialiasing    = 0x0002,   ///< Antialiasing for drawing text
-        SmoothImages        = 0x0004    ///< Adjust images to the device space using smooth transformation (slower, but better performance quality)
+        Antialiasing            = 0x0001,   ///< Antialiasing for lines, shapes, etc.
+        TextAntialiasing        = 0x0002,   ///< Antialiasing for drawing text
+        SmoothImages            = 0x0004,   ///< Adjust images to the device space using smooth transformation (slower, but better image quality)
+        IgnoreOptionalContent   = 0x0008,   ///< Ignore optional content (so all is drawn ignoring settings of optional content)
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
+
+    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity, Features features);
 
     /// Paints desired page onto the painter. Page is painted in the rectangle using best-fit method.
     /// If the page doesn't exist, then error is returned. No exception is thrown. Rendering errors
@@ -55,6 +57,9 @@ public:
     /// to the device coordinates. If the page doesn't exist, then error is returned. No exception is thrown.
     /// Rendering errors are reported and returned in the error list. If no error occured, empty list is returned.
     QList<PDFRenderError> render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const;
+
+    /// Returns default renderer features
+    static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing; }
 
 private:
     const PDFDocument* m_document;

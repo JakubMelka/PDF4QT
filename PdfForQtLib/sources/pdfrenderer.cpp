@@ -22,11 +22,11 @@
 namespace pdf
 {
 
-PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity) :
+PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity, Features features) :
     m_document(document),
     m_fontCache(fontCache),
     m_optionalContentActivity(optionalContentActivity),
-    m_features(Antialiasing | TextAntialiasing)
+    m_features(features)
 {
     Q_ASSERT(document);
 }

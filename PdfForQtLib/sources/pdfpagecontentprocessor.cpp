@@ -1866,6 +1866,23 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
 {
     if (m_xobjectDictionary)
     {
+        // According to the specification, XObjects are skipped entirely, as no operator was invoked.
+        if (m_xobjectDictionary->hasKey("OC"))
+        {
+            const PDFObject& object = m_xobjectDictionary->get("OC");
+            if (object.isReference())
+            {
+                if (isContentSuppressedByOC(object.getReference()))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Reference to optional content expected."));
+            }
+        }
+
         const PDFObject& object = m_document->getObject(m_xobjectDictionary->get(name.name));
         if (object.isStream())
         {
@@ -1969,8 +1986,6 @@ void PDFPageContentProcessor::operatorMarkedContentBegin(PDFOperandName name)
 
 void PDFPageContentProcessor::operatorMarkedContentBeginWithProperties(PDFOperandName name, PDFObject properties)
 {
-    // TODO: Handle optional content of images/forms
-
     // Handle the optional content
     if (name.name == "OC")
     {

@@ -347,7 +347,8 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_controller(nullptr),
     m_widget(nullptr),
     m_horizontalScrollbar(nullptr),
-    m_verticalScrollbar(nullptr)
+    m_verticalScrollbar(nullptr),
+    m_features(PDFRenderer::Antialiasing | PDFRenderer::TextAntialiasing)
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
@@ -549,7 +550,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity());
+            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features);
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
 
             if (!errors.empty())
@@ -807,6 +808,20 @@ void PDFDrawWidgetProxy::updateVerticalScrollbarFromOffset()
     {
         PDFBoolGuard guard(m_updateDisabled);
         m_verticalScrollbar->setValue(-m_verticalOffset);
+    }
+}
+
+PDFRenderer::Features PDFDrawWidgetProxy::getFeatures() const
+{
+    return m_features;
+}
+
+void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
+{
+    if (m_features != features)
+    {
+        m_features = features;
+        emit repaintNeeded();
     }
 }
 

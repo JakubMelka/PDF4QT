@@ -213,6 +213,9 @@ public:
 
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
+    PDFRenderer::Features getFeatures() const;
+    void setFeatures(PDFRenderer::Features features);
+
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
@@ -326,6 +329,9 @@ private:
 
     /// Current page layout
     Layout m_layout;
+
+    /// Renderer features
+    PDFRenderer::Features m_features;
 };
 
 }   // namespace pdf

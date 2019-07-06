@@ -81,8 +81,6 @@ void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool
         m_painter->setBrush(Qt::NoBrush);
     }
 
-    m_painter->setRenderHint(QPainter::Antialiasing, m_features.testFlag(PDFRenderer::Antialiasing));
-
     Q_ASSERT(path.fillRule() == fillRule);
     m_painter->drawPath(path);
 }
@@ -160,6 +158,16 @@ void PDFPainter::performRestoreGraphicState(ProcessOrder order)
     {
         m_painter->restore();
     }
+}
+
+bool PDFPainter::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
+{
+    if (m_features.testFlag(PDFRenderer::IgnoreOptionalContent))
+    {
+        return false;
+    }
+
+    return PDFPageContentProcessor::isContentSuppressedByOC(ocgOrOcmd);
 }
 
 QPen PDFPainter::getCurrentPenImpl() const

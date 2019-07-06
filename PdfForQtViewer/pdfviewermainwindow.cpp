@@ -45,6 +45,7 @@ namespace pdfviewer
 PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::PDFViewerMainWindow),
+    m_settings(new PDFViewerSettings(this)),
     m_pdfWidget(nullptr),
     m_optionalContentDockWidget(nullptr),
     m_optionalContentTreeView(nullptr),
@@ -97,11 +98,22 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     addDockWidget(Qt::LeftDockWidgetArea, m_optionalContentDockWidget);
     m_optionalContentDockWidget->hide();
 
+    ui->actionRenderOptionAntialiasing->setData(pdf::PDFRenderer::Antialiasing);
+    ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
+    ui->actionRenderOptionSmoothPictures->setData(pdf::PDFRenderer::SmoothImages);
+    ui->actionRenderOptionIgnoreOptionalContentSettings->setData(pdf::PDFRenderer::IgnoreOptionalContent);
+
+    for (QAction* action : getRenderingOptionActions())
+    {
+        connect(action, &QAction::triggered, this, &PDFViewerMainWindow::onRenderingOptionTriggered);
+    }
+
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_optionalContentDockWidget->toggleViewAction());
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::updatePageLayoutActions);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
+    connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFViewerMainWindow::onViewerSettingsChanged);
 
     readSettings();
     updatePageLayoutActions();
@@ -114,7 +126,7 @@ PDFViewerMainWindow::~PDFViewerMainWindow()
 
 void PDFViewerMainWindow::onActionOpenTriggered()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_directory, tr("PDF document (*.pdf)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings->getDirectory(), tr("PDF document (*.pdf)"));
     if (!fileName.isEmpty())
     {
         openDocument(fileName);
@@ -141,7 +153,7 @@ void PDFViewerMainWindow::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex
 
 void PDFViewerMainWindow::readSettings()
 {
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
     QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
     if (geometry.isEmpty())
@@ -162,15 +174,16 @@ void PDFViewerMainWindow::readSettings()
         restoreState(state);
     }
 
-    m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+    m_settings->readSettings(settings);
 }
 
 void PDFViewerMainWindow::writeSettings()
 {
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
     settings.setValue("geometry", saveGeometry());
     settings.setValue("windowState", saveState());
-    settings.setValue("defaultDirectory", m_directory);
+
+    m_settings->writeSettings(settings);
 }
 
 void PDFViewerMainWindow::updateTitle()
@@ -225,6 +238,31 @@ void PDFViewerMainWindow::updatePageLayoutActions()
     }
 }
 
+void PDFViewerMainWindow::updateRenderingOptionActions()
+{
+    const pdf::PDFRenderer::Features features = m_settings->getFeatures();
+    for (QAction* action : getRenderingOptionActions())
+    {
+        action->setChecked(features.testFlag(static_cast<pdf::PDFRenderer::Feature>(action->data().toInt())));
+    }
+}
+
+void PDFViewerMainWindow::onViewerSettingsChanged()
+{
+    m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
+    updateRenderingOptionActions();
+}
+
+void PDFViewerMainWindow::onRenderingOptionTriggered(bool checked)
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    Q_ASSERT(action);
+
+    pdf::PDFRenderer::Features features = m_settings->getFeatures();
+    features.setFlag(static_cast<pdf::PDFRenderer::Feature>(action->data().toInt()), checked);
+    m_settings->setFeatures(features);
+}
+
 void PDFViewerMainWindow::openDocument(const QString& fileName)
 {
     // First close old document
@@ -240,7 +278,7 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
     {
         // Mark current directory as this
         QFileInfo fileInfo(fileName);
-        m_directory = fileInfo.dir().absolutePath();
+        m_settings->setDirectory(fileInfo.dir().absolutePath());
         m_currentFile = fileInfo.fileName();
 
         m_pdfDocument.reset(new pdf::PDFDocument(std::move(document)));
@@ -295,6 +333,11 @@ void PDFViewerMainWindow::closeDocument()
 void PDFViewerMainWindow::setPageLayout(pdf::PageLayout pageLayout)
 {
     m_pdfWidget->getDrawWidgetProxy()->setPageLayout(pageLayout);
+}
+
+std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
+{
+    return { ui->actionRenderOptionAntialiasing, ui->actionRenderOptionTextAntialiasing, ui->actionRenderOptionSmoothPictures, ui->actionRenderOptionIgnoreOptionalContentSettings };
 }
 
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
@@ -390,6 +433,52 @@ void PDFViewerMainWindow::on_actionGenerateCMAPrepository_triggered()
     if (!repositoryFileName.isEmpty())
     {
         instance->saveToFile(repositoryFileName);
+    }
+}
+
+void PDFViewerSettings::readSettings(QSettings& settings)
+{
+    settings.beginGroup("ViewerSettings");
+    m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+    m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeatures", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
+    settings.endGroup();
+
+    emit settingsChanged();
+}
+
+void PDFViewerSettings::writeSettings(QSettings& settings)
+{
+    settings.beginGroup("ViewerSettings");
+    settings.setValue("defaultDirectory", m_directory);
+    settings.setValue("rendererFeatures", static_cast<int>(m_features));
+    settings.endGroup();
+}
+
+QString PDFViewerSettings::getDirectory() const
+{
+    return m_directory;
+}
+
+void PDFViewerSettings::setDirectory(const QString& directory)
+{
+    if (m_directory != directory)
+    {
+        m_directory = directory;
+        emit settingsChanged();
+    }
+}
+
+pdf::PDFRenderer::Features PDFViewerSettings::getFeatures() const
+{
+    return m_features;
+}
+
+void PDFViewerSettings::setFeatures(const pdf::PDFRenderer::Features& features)
+{
+    if (m_features != features)
+    {
+        m_features = features;
+        emit settingsChanged();
     }
 }
 
