@@ -313,18 +313,49 @@ PDFFont::PDFFont(FontDescriptor fontDescriptor) :
 
 }
 
-/// Implementation of the PDFRealizedFont class using PIMPL pattern
-class PDFRealizedFontImpl
+class IRealizedFontImpl
 {
 public:
-    explicit PDFRealizedFontImpl();
-    ~PDFRealizedFontImpl();
+    explicit IRealizedFontImpl() = default;
+    virtual ~IRealizedFontImpl() = default;
 
     /// Fills the text sequence by interpreting byte array according font data and
     /// produces glyphs for the font.
     /// \param byteArray Array of bytes to be interpreted
     /// \param textSequence Text sequence to be filled
-    void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter);
+    virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) = 0;
+
+    /// Returns true, if font has horizontal writing system
+    virtual bool isHorizontalWritingSystem() const = 0;
+};
+
+/// Implementation of the PDFRealizedFont class using PIMPL pattern for Type 3 fonts
+class PDFRealizedType3FontImpl : public IRealizedFontImpl
+{
+public:
+    explicit PDFRealizedType3FontImpl(PDFFontPointer parentFont, PDFReal pixelSize) : m_parentFont(parentFont), m_pixelSize(pixelSize) { }
+    virtual ~PDFRealizedType3FontImpl() override = default;
+
+    virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) override;
+    virtual bool isHorizontalWritingSystem() const override;
+
+private:
+    /// Pixel size of the font
+    PDFReal m_pixelSize = 0.0;
+
+    /// Parent font
+    PDFFontPointer m_parentFont;
+};
+
+/// Implementation of the PDFRealizedFont class using PIMPL pattern
+class PDFRealizedFontImpl : public IRealizedFontImpl
+{
+public:
+    explicit PDFRealizedFontImpl();
+    virtual ~PDFRealizedFontImpl();
+
+    virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) override;
+    virtual bool isHorizontalWritingSystem() const override { return !m_isVertical; }
 
     static constexpr const PDFReal PIXEL_SIZE_MULTIPLIER = 100.0;
 
@@ -590,61 +621,69 @@ void PDFRealizedFont::fillTextSequence(const QByteArray& byteArray, TextSequence
 
 bool PDFRealizedFont::isHorizontalWritingSystem() const
 {
-    return !m_impl->m_isVertical;
+    return m_impl->isHorizontalWritingSystem();
 }
 
 PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize)
 {
     PDFRealizedFontPointer result;
-    std::unique_ptr<PDFRealizedFontImpl> implPtr(new PDFRealizedFontImpl());
 
-    PDFRealizedFontImpl* impl = implPtr.get();
-    impl->m_parentFont = font;
-    impl->m_pixelSize = pixelSize;
-
-    const FontDescriptor* descriptor = font->getFontDescriptor();
-    if (descriptor->isEmbedded())
+    if (font->getFontType() == FontType::Type3)
     {
-        PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
-        const QByteArray* embeddedFontData = descriptor->getEmbeddedFontData();
-        Q_ASSERT(embeddedFontData);
-        impl->m_embeddedFontData = *embeddedFontData;
-
-        // At this time, embedded font data should not be empty!
-        Q_ASSERT(!impl->m_embeddedFontData.isEmpty());
-
-        PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_embeddedFontData.constData()), impl->m_embeddedFontData.size(), 0, &impl->m_face));
-        FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
-        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
-        impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
-        impl->m_isEmbedded = true;
-        result.reset(new PDFRealizedFont(implPtr.release()));
+        result.reset(new PDFRealizedFont(new PDFRealizedType3FontImpl(font, pixelSize)));
     }
     else
     {
-        StandardFontType standardFontType = StandardFontType::Invalid;
-        if (font->getFontType() == FontType::Type1)
+        std::unique_ptr<PDFRealizedFontImpl> implPtr(new PDFRealizedFontImpl());
+
+        PDFRealizedFontImpl* impl = implPtr.get();
+        impl->m_parentFont = font;
+        impl->m_pixelSize = pixelSize;
+
+        const FontDescriptor* descriptor = font->getFontDescriptor();
+        if (descriptor->isEmbedded())
         {
-            Q_ASSERT(dynamic_cast<const PDFType1Font*>(font.get()));
-            const PDFType1Font* type1Font = static_cast<const PDFType1Font*>(font.get());
-            standardFontType = type1Font->getStandardFontType();
+            PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
+            const QByteArray* embeddedFontData = descriptor->getEmbeddedFontData();
+            Q_ASSERT(embeddedFontData);
+            impl->m_embeddedFontData = *embeddedFontData;
+
+            // At this time, embedded font data should not be empty!
+            Q_ASSERT(!impl->m_embeddedFontData.isEmpty());
+
+            PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_embeddedFontData.constData()), impl->m_embeddedFontData.size(), 0, &impl->m_face));
+            FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
+            PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
+            impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
+            impl->m_isEmbedded = true;
+            result.reset(new PDFRealizedFont(implPtr.release()));
         }
-
-        const PDFSystemFontInfoStorage* fontStorage = PDFSystemFontInfoStorage::getInstance();
-        impl->m_systemFontData = fontStorage->loadFont(descriptor, standardFontType);
-
-        if (impl->m_systemFontData.isEmpty())
+        else
         {
-            throw PDFParserException(PDFTranslationContext::tr("Can't load system font '%1'.").arg(QString::fromLatin1(descriptor->fontName)));
-        }
+            StandardFontType standardFontType = StandardFontType::Invalid;
+            if (font->getFontType() == FontType::Type1)
+            {
+                Q_ASSERT(dynamic_cast<const PDFType1Font*>(font.get()));
+                const PDFType1Font* type1Font = static_cast<const PDFType1Font*>(font.get());
+                standardFontType = type1Font->getStandardFontType();
+            }
 
-        PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
-        PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_systemFontData.constData()), impl->m_systemFontData.size(), 0, &impl->m_face));
-        FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
-        PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
-        impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
-        impl->m_isEmbedded = false;
-        result.reset(new PDFRealizedFont(implPtr.release()));
+            const PDFSystemFontInfoStorage* fontStorage = PDFSystemFontInfoStorage::getInstance();
+            impl->m_systemFontData = fontStorage->loadFont(descriptor, standardFontType);
+
+            if (impl->m_systemFontData.isEmpty())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Can't load system font '%1'.").arg(QString::fromLatin1(descriptor->fontName)));
+            }
+
+            PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
+            PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_systemFontData.constData()), impl->m_systemFontData.size(), 0, &impl->m_face));
+            FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
+            PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
+            impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
+            impl->m_isEmbedded = false;
+            result.reset(new PDFRealizedFont(implPtr.release()));
+        }
     }
 
     return result;
@@ -718,12 +757,12 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     const PDFDictionary* fontDictionary = dereferencedFontDictionary.getDictionary();
     PDFDocumentDataLoaderDecorator fontLoader(document);
 
-    // TODO: Fonts - Implement Type 3 font
     // First, determine the font subtype
-    constexpr const std::array<std::pair<const char*, FontType>, 3> fontTypes = {
+    constexpr const std::array<std::pair<const char*, FontType>, 4> fontTypes = {
         std::pair<const char*, FontType>{ "Type0", FontType::Type0 },
         std::pair<const char*, FontType>{ "Type1", FontType::Type1 },
-        std::pair<const char*, FontType>{ "TrueType", FontType::TrueType }
+        std::pair<const char*, FontType>{ "TrueType", FontType::TrueType },
+        std::pair<const char*, FontType>{ "Type3", FontType::Type3}
     };
 
     const FontType fontType = fontLoader.readEnumByName(fontDictionary->get("Subtype"), fontTypes.cbegin(), fontTypes.cend(), FontType::Invalid);
@@ -1126,6 +1165,83 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             }
 
             return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(toUnicodeCMap), qMove(cidToGidMapper), defaultWidth, qMove(advances)));
+        }
+
+        case FontType::Type3:
+        {
+            // Read the font matrix
+            std::vector<PDFReal> fontMatrixValues = fontLoader.readNumberArrayFromDictionary(fontDictionary, "FontMatrix");
+
+            if (fontMatrixValues.size() != 6)
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font matrix."));
+            }
+            QMatrix fontMatrix(fontMatrixValues[0], fontMatrixValues[1], fontMatrixValues[2], fontMatrixValues[3], fontMatrixValues[4], fontMatrixValues[5]);
+
+            PDFObject charProcs = document->getObject(fontDictionary->get("CharProcs"));
+            if (!charProcs.isDictionary())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font character content streams."));
+            }
+            const PDFDictionary* charProcsDictionary = charProcs.getDictionary();
+
+            PDFInteger firstChar = fontLoader.readIntegerFromDictionary(fontDictionary, "FirstChar", -1);
+            PDFInteger lastChar = fontLoader.readIntegerFromDictionary(fontDictionary, "LastChar", -1);
+
+            if (firstChar < 0 || lastChar > 255 || firstChar > lastChar)
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font character range (from %1 to %2).").arg(firstChar).arg(lastChar));
+            }
+
+            const PDFObject& encoding = document->getObject(fontDictionary->get("Encoding"));
+            if (!encoding.isDictionary())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
+            }
+
+            const PDFDictionary* encodingDictionary = encoding.getDictionary();
+            const PDFObject& differences = document->getObject(encodingDictionary->get("Differences"));
+            if (!differences.isArray())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
+            }
+
+            std::map<int, QByteArray> characterContentStreams;
+
+            const PDFArray* differencesArray = differences.getArray();
+            size_t currentOffset = 0;
+            for (size_t i = 0, count = differencesArray->getCount(); i < count; ++i)
+            {
+                const PDFObject& item = document->getObject(differencesArray->getItem(i));
+                if (item.isInt())
+                {
+                    currentOffset = static_cast<size_t>(item.getInteger());
+                }
+                else if (item.isName())
+                {
+                    if (currentOffset > 255)
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of type 3 font."));
+                    }
+
+                    QByteArray characterName = item.getString();
+                    const PDFObject& characterContentStreamObject = document->getObject(charProcsDictionary->get(characterName));
+                    if (characterContentStreamObject.isStream())
+                    {
+                        QByteArray contentStream = document->getDecodedStream(characterContentStreamObject.getStream());
+                        characterContentStreams[currentOffset] = qMove(contentStream);
+                    }
+
+                    ++currentOffset;
+                }
+                else
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of type 3 font."));
+                }
+            }
+
+            std::vector<PDFReal> widths = fontLoader.readNumberArrayFromDictionary(fontDictionary, "Widths");
+            return PDFFontPointer(new PDFType3Font(qMove(fontDescriptor), firstChar, lastChar, fontMatrix, qMove(characterContentStreams), qMove(widths), document->getObject(fontDictionary->get("Resources"))));
         }
 
         default:
@@ -1705,6 +1821,88 @@ PDFReal PDFType0Font::getGlyphAdvance(CID cid) const
     }
 
     return m_defaultAdvance;
+}
+
+PDFType3Font::PDFType3Font(FontDescriptor fontDescriptor,
+                           int firstCharacterIndex,
+                           int lastCharacterIndex,
+                           QMatrix fontMatrix,
+                           std::map<int, QByteArray>&& characterContentStreams,
+                           std::vector<double>&& widths,
+                           const PDFObject& resources) :
+    PDFFont(qMove(fontDescriptor)),
+    m_firstCharacterIndex(firstCharacterIndex),
+    m_lastCharacterIndex(lastCharacterIndex),
+    m_fontMatrix(fontMatrix),
+    m_characterContentStreams(qMove(characterContentStreams)),
+    m_widths(qMove(widths)),
+    m_resources(resources)
+{
+
+}
+
+FontType PDFType3Font::getFontType() const
+{
+    return FontType::Type3;
+}
+
+double PDFType3Font::getWidth(int characterIndex) const
+{
+    if (characterIndex >= m_firstCharacterIndex && characterIndex <= m_lastCharacterIndex)
+    {
+        size_t index = characterIndex - m_firstCharacterIndex;
+        if (index < m_widths.size())
+        {
+            return m_widths[index];
+        }
+    }
+
+    return 0.0;
+}
+
+const QByteArray* PDFType3Font::getContentStream(int characterIndex) const
+{
+    auto it = m_characterContentStreams.find(characterIndex);
+    if (it != m_characterContentStreams.cend())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+void PDFRealizedType3FontImpl::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter)
+{
+    Q_ASSERT(dynamic_cast<const PDFType3Font*>(m_parentFont.get()));
+    const PDFType3Font* parentFont = static_cast<const PDFType3Font*>(m_parentFont.get());
+
+    textSequence.items.reserve(byteArray.size());
+    for (int i = 0, characterCount = byteArray.size(); i < characterCount; ++i)
+    {
+        int index = static_cast<uint8_t>(byteArray[i]);
+        const QByteArray* contentStream = parentFont->getContentStream(index);
+        const double width = parentFont->getWidth(index);
+
+        if (contentStream)
+        {
+            textSequence.items.emplace_back(contentStream, width);
+        }
+        else
+        {
+            // Report error, and add advance, if we have it
+            reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Content stream for type 3 font character code '%1' not found.").arg(index));
+
+            if (width > 0.0)
+            {
+                textSequence.items.emplace_back(width);
+            }
+        }
+    }
+}
+
+bool PDFRealizedType3FontImpl::isHorizontalWritingSystem() const
+{
+    return true;
 }
 
 }   // namespace pdf

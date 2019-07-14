@@ -609,6 +609,20 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
             break;
         }
 
+        case Operator::Type3FontSetOffset:
+        {
+            // d0, set width information, see PDF 1.7 Reference, Table 5.10
+            invokeOperator(&PDFPageContentProcessor::operatorType3FontSetOffset);
+            break;
+        }
+
+        case Operator::Type3FontSetOffsetAndBB:
+        {
+            // d1, set offset and glyph bounding box
+            invokeOperator(&PDFPageContentProcessor::operatorType3FontSetOffsetAndBB);
+            break;
+        }
+
         case Operator::ColorSetStrokingColorSpace:
         {
             // CS, set current color space for stroking operations
@@ -1459,6 +1473,16 @@ void PDFPageContentProcessor::operatorClipEvenOdd()
     }
 }
 
+void PDFPageContentProcessor::operatorType3FontSetOffset(PDFReal wx, PDFReal wy)
+{
+    performSetCharWidth(wx, wy);
+}
+
+void PDFPageContentProcessor::operatorType3FontSetOffsetAndBB(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury)
+{
+    performSetCacheDevice(wx, wy, llx, lly, urx, ury);
+}
+
 void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentProcessor::PDFOperandName name)
 {
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
@@ -2044,6 +2068,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
     const PDFRealizedFontPointer& font = getRealizedFont();
     if (font)
     {
+        const bool isType3Font = m_graphicState.getTextFont()->getFontType() == FontType::Type3;
         const PDFReal fontSize = m_graphicState.getTextFontSize();
         const PDFReal horizontalScaling = m_graphicState.getTextHorizontalScaling() * 0.01; // Horizontal scaling is in percents
         const PDFReal characterSpacing = m_graphicState.getTextCharacterSpacing();
@@ -2061,63 +2086,112 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
         QMatrix textMatrix = m_graphicState.getTextMatrix();
 
-        for (const TextSequenceItem& item : textSequence.items)
+        if (!isType3Font)
         {
-            PDFReal displacementX = 0.0;
-            PDFReal displacementY = 0.0;
-
-            if (item.isCharacter())
+            for (const TextSequenceItem& item : textSequence.items)
             {
-                QChar character = item.character;
-                QPointF advance = isHorizontalWritingSystem ? QPointF(item.advance, 0) : QPointF(0, item.advance);
+                PDFReal displacementX = 0.0;
+                PDFReal displacementY = 0.0;
 
-                // First, compute the advance
-                const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing + characterSpacing : characterSpacing;
-                if (isHorizontalWritingSystem)
+                if (item.isCharacter())
                 {
-                    advance.rx() += additionalAdvance;
-                }
-                else
-                {
-                    advance.ry() += additionalAdvance;
-                }
-                advance.rx() *= horizontalScaling;
+                    QChar character = item.character;
+                    QPointF advance = isHorizontalWritingSystem ? QPointF(item.advance, 0) : QPointF(0, item.advance);
 
-                // Then get the glyph path and paint it
-                if (item.glyph)
-                {
-                    const QPainterPath& glyphPath = *item.glyph;
-                    if (!glyphPath.isEmpty())
+                    // First, compute the advance
+                    const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing + characterSpacing : characterSpacing;
+                    if (isHorizontalWritingSystem)
                     {
-                        QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
-                        QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-                        performPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
+                        advance.rx() += additionalAdvance;
+                    }
+                    else
+                    {
+                        advance.ry() += additionalAdvance;
+                    }
+                    advance.rx() *= horizontalScaling;
 
-                        if (clipped)
+                    // Then get the glyph path and paint it
+                    if (item.glyph)
+                    {
+                        const QPainterPath& glyphPath = *item.glyph;
+                        if (!glyphPath.isEmpty())
                         {
-                            // Clipping is enabled, we must transform to the device coordinates
-                            QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
-                            m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(glyphPath));
+                            QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
+                            QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
+                            performPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
+
+                            if (clipped)
+                            {
+                                // Clipping is enabled, we must transform to the device coordinates
+                                QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
+                                m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(glyphPath));
+                            }
                         }
+                    }
+
+                    displacementX = advance.x();
+                    displacementY = advance.y();
+                }
+                else if (item.isAdvance())
+                {
+                    if (horizontalScaling)
+                    {
+                        displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
+                    }
+                    else
+                    {
+                        displacementY = -item.advance * 0.001 * fontSize;
                     }
                 }
 
-                displacementX = advance.x();
-                displacementY = advance.y();
+                textMatrix.translate(displacementX, displacementY);
             }
-            else if (item.isAdvance())
+        }
+        else
+        {
+            // Type 3 Font
+
+            PDFPageContentProcessorStateGuard guard(this);
+
+            Q_ASSERT(dynamic_cast<const PDFType3Font*>(m_graphicState.getTextFont().get()));
+            const PDFType3Font* parentFont = static_cast<const PDFType3Font*>(m_graphicState.getTextFont().get());
+
+            QMatrix fontMatrix = parentFont->getFontMatrix();
+            PDFObject resources = parentFont->getResources();
+            if (!resources.isNull())
             {
-                if (horizontalScaling)
-                {
-                    displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
-                }
-                else
-                {
-                    displacementY = -item.advance * 0.001 * fontSize;
-                }
+                initDictionaries(resources);
             }
 
-            textMatrix.translate(displacementX, displacementY);
+            QMatrix fontAdjustedMatrix = fontMatrix * adjustMatrix;
+
+            for (const TextSequenceItem& item : textSequence.items)
+            {
+                // First, compute horizontal advance
+
+                qreal displacementX = 0.0;
+                if (item.advance != 0.0)
+                {
+                    qreal ry = 0.0;
+                    fontAdjustedMatrix.map(item.advance, 0.0, &displacementX, &ry);
+                }
+
+                if (item.characterContentStream)
+                {
+                    PDFPageContentProcessorStateGuard guard(this);
+
+                    // We must clear operands, because we are processing a new content stream
+                    m_operands.clear();
+
+                    QMatrix worldMatrix = fontAdjustedMatrix * textMatrix * m_graphicState.getCurrentTransformationMatrix();
+                    m_graphicState.setCurrentTransformationMatrix(worldMatrix);
+                    updateGraphicState();
+
+                    processContent(*item.characterContentStream);
+                }
+
+                textMatrix.translate(displacementX, 0.0);
+            }
         }
 
         m_graphicState.setTextMatrix(textMatrix);

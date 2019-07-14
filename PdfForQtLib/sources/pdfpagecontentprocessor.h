@@ -396,6 +396,12 @@ protected:
     /// Implement to react on marked content end
     virtual void performMarkedContentEnd();
 
+    /// Implement to react on set char width request
+    virtual void performSetCharWidth(PDFReal wx, PDFReal wy) { }
+
+    /// Implement to react on set cache device request
+    virtual void performSetCacheDevice(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury) { }
+
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
 
@@ -597,6 +603,10 @@ private:
     // Clipping paths:             W, W*
     void operatorClipWinding(); ///< W, modify current clipping path by intersecting it with current path using "Non zero winding number rule"
     void operatorClipEvenOdd(); ///< W*, modify current clipping path by intersecting it with current path using "Even-odd rule"
+
+    // Type 3 font:                d0, d1
+    void operatorType3FontSetOffset(PDFReal wx, PDFReal wy);        ///< d0, set width information, see PDF 1.7 Reference, Table 5.10
+    void operatorType3FontSetOffsetAndBB(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury);   ///< d1, set offset and glyph bounding box
 
     // Color:                      CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
     void operatorColorSetStrokingColorSpace(PDFOperandName name);                           ///< CS, set current color space for stroking operations

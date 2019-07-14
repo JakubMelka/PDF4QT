@@ -23,6 +23,7 @@
 #include "pdfobject.h"
 
 #include <QFont>
+#include <QMatrix>
 #include <QSharedPointer>
 
 #include <unordered_map>
@@ -57,12 +58,15 @@ struct TextSequenceItem
     inline explicit TextSequenceItem() = default;
     inline explicit TextSequenceItem(const QPainterPath* glyph, QChar character, PDFReal advance) : glyph(glyph), character(character), advance(advance) { }
     inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
+    inline explicit TextSequenceItem(const QByteArray* characterContentStream, double advance) : characterContentStream(characterContentStream), advance(advance) { }
 
+    inline bool isContentStream() const { return characterContentStream; }
     inline bool isCharacter() const { return glyph; }
     inline bool isAdvance() const { return advance != 0.0; }
     inline bool isNull() const { return !isCharacter() && !isAdvance(); }
 
     const QPainterPath* glyph = nullptr;
+    const QByteArray* characterContentStream = nullptr;
     QChar character;
     PDFReal advance = 0;
 };
@@ -122,7 +126,8 @@ enum class FontType
     Invalid,
     Type0,
     Type1,
-    TrueType
+    TrueType,
+    Type3
 };
 
 /// Standard Type1 fonts
@@ -205,7 +210,7 @@ class PDFFont;
 using PDFFontPointer = QSharedPointer<PDFFont>;
 
 class PDFRealizedFont;
-class PDFRealizedFontImpl;
+class IRealizedFontImpl;
 
 using PDFRealizedFontPointer = QSharedPointer<PDFRealizedFont>;
 
@@ -232,9 +237,9 @@ public:
 
 private:
     /// Constructs new realized font
-    explicit PDFRealizedFont(PDFRealizedFontImpl* impl) : m_impl(impl) { }
+    explicit PDFRealizedFont(IRealizedFontImpl* impl) : m_impl(impl) { }
 
-    PDFRealizedFontImpl* m_impl;
+    IRealizedFontImpl* m_impl;
 };
 
 /// Base  class representing font in the PDF file
@@ -328,6 +333,38 @@ public:
     using PDFSimpleFont::PDFSimpleFont;
 
     virtual FontType getFontType() const override;
+};
+
+class PDFType3Font : public PDFFont
+{
+public:
+    explicit PDFType3Font(FontDescriptor fontDescriptor,
+                          int firstCharacterIndex,
+                          int lastCharacterIndex,
+                          QMatrix fontMatrix,
+                          std::map<int, QByteArray>&& characterContentStreams,
+                          std::vector<double>&& widths,
+                          const PDFObject& resources);
+
+    virtual FontType getFontType() const override;
+
+    /// Returns width of the character. If character doesn't exist, then zero is returned.
+    double getWidth(int characterIndex) const;
+
+    /// Return content stream for the character. If character doesn't exist, then nullptr
+    /// is returned.
+    const QByteArray* getContentStream(int characterIndex) const;
+
+    const QMatrix& getFontMatrix() const { return m_fontMatrix; }
+    const PDFObject& getResources() const { return m_resources; }
+
+private:
+    int m_firstCharacterIndex;
+    int m_lastCharacterIndex;
+    QMatrix m_fontMatrix;
+    std::map<int, QByteArray> m_characterContentStreams;
+    std::vector<double> m_widths;
+    PDFObject m_resources;
 };
 
 /// Font cache which caches both fonts, and realized fonts. Cache has individual limit
