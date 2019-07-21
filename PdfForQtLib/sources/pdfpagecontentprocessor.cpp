@@ -335,6 +335,22 @@ void PDFPageContentProcessor::performMarkedContentEnd()
 
 }
 
+void PDFPageContentProcessor::performSetCharWidth(PDFReal wx, PDFReal wy)
+{
+    Q_UNUSED(wx);
+    Q_UNUSED(wy);
+}
+
+void PDFPageContentProcessor::performSetCacheDevice(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury)
+{
+    Q_UNUSED(wx);
+    Q_UNUSED(wy);
+    Q_UNUSED(llx);
+    Q_UNUSED(lly);
+    Q_UNUSED(urx);
+    Q_UNUSED(ury);
+}
+
 bool PDFPageContentProcessor::isContentSuppressed() const
 {
     return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
@@ -353,8 +369,122 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
             {
                 case PDFLexicalAnalyzer::TokenType::Command:
                 {
-                    // Process the command, then clear the operand stack
-                    processCommand(token.data.toByteArray());
+                    QByteArray command = token.data.toByteArray();
+
+                    if (command == "BI")
+                    {
+                        // Strategy: We will try to find position of BI/ID/EI in the stream. If we can determine
+                        // length of the stream explicitly, then we use explicit length. We also create a PDFObject
+                        // from the inline image dictionary/image content stream and then process it like XObject.
+                        PDFInteger operatorBIPosition = parser.pos();
+                        PDFInteger operatorIDPosition = parser.findSubstring("ID", operatorBIPosition);
+                        PDFInteger operatorEIPosition = parser.findSubstring("EI", operatorIDPosition);
+
+                        // According the PDF 1.7 specification, single white space characters is after ID, then the byte
+                        // immediately after it is interpreted as first byte of image data.
+                        PDFInteger startDataPosition = operatorIDPosition + 3;
+
+                        if (operatorIDPosition == -1 || operatorEIPosition == -1)
+                        {
+                            throw PDFParserException(PDFTranslationContext::tr("Invalid inline image dictionary, ID operator is missing."));
+                        }
+
+                        Q_ASSERT(operatorBIPosition < content.size());
+                        Q_ASSERT(operatorIDPosition < content.size());
+                        Q_ASSERT(operatorBIPosition <= operatorIDPosition);
+
+                        PDFLexicalAnalyzer inlineImageLexicalAnalyzer(content.constBegin() + operatorBIPosition, content.constBegin() + operatorIDPosition);
+                        PDFParser inlineImageParser([&inlineImageLexicalAnalyzer]{ return inlineImageLexicalAnalyzer.fetch(); });
+
+                        constexpr std::pair<const char*, const char*> replacements[] =
+                        {
+                            { "BPC", "BitsPerComponent" },
+                            { "CS", "ColorSpace" },
+                            { "D", "Decode" },
+                            { "DP", "DecodeParms" },
+                            { "F", "Filter" },
+                            { "H", "Height" },
+                            { "IM", "ImageMask" },
+                            { "I", "Interpolate" },
+                            { "W", "Width" }
+                        };
+
+                        std::shared_ptr<PDFDictionary> dictionarySharedPointer = std::make_shared<PDFDictionary>();
+                        PDFDictionary* dictionary = dictionarySharedPointer.get();
+
+                        while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
+                        {
+                            PDFObject nameObject = inlineImageParser.getObject();
+                            PDFObject valueObject = inlineImageParser.getObject();
+
+                            if (!nameObject.isName())
+                            {
+                                throw PDFParserException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
+                            }
+
+                            // Replace the name, if neccessary
+                            QByteArray name = nameObject.getString();
+                            for (auto [string, replacement] : replacements)
+                            {
+                                if (name == string)
+                                {
+                                    name = replacement;
+                                    break;
+                                }
+                            }
+
+                            dictionary->addEntry(qMove(name), qMove(valueObject));
+                        }
+
+                        PDFDocumentDataLoaderDecorator loader(m_document);
+                        PDFInteger dataLength = 0;
+
+                        if (dictionary->hasKey("Length"))
+                        {
+                            dataLength = loader.readIntegerFromDictionary(dictionary, "Length", 0);
+                        }
+                        else if (dictionary->hasKey("Filter"))
+                        {
+                            // We will use EI operator position to determine stream length
+                            dataLength = operatorEIPosition - startDataPosition;
+                        }
+                        else
+                        {
+                            // We will calculate stream size from the with/height and bit per component
+                            const PDFInteger width = loader.readIntegerFromDictionary(dictionary, "Width", 0);
+                            const PDFInteger height = loader.readIntegerFromDictionary(dictionary, "Height", 0);
+                            const PDFInteger bpc = loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
+
+                            if (width <= 0 || height <= 0 || bpc <= 0)
+                            {
+                                throw PDFParserException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
+                            }
+
+                            const PDFInteger stride = (width * bpc + 7) / 8;
+                            dataLength = stride * height;
+                        }
+
+                        // We will once more find the "EI" operator, due to recomputed dataLength.
+                        operatorEIPosition = parser.findSubstring("EI", startDataPosition + dataLength);
+                        if (operatorEIPosition == -1)
+                        {
+                            throw PDFParserException(PDFTranslationContext::tr("Invalid inline image stream."));
+                        }
+
+                        // We must seek after EI operator. Then we will paint the image. Because painting of image can throw exception,
+                        // then we will paint the image AFTER we seek the position.
+                        parser.seek(operatorEIPosition + 2);
+
+                        QByteArray buffer = content.mid(startDataPosition, dataLength);
+                        PDFStream imageStream(std::move(*dictionary), std::move(buffer));
+                        paintXObjectImage(&imageStream);
+                    }
+                    else
+                    {
+                        // Process the command, then clear the operand stack
+                        processCommand(command);
+                    }
+
                     m_operands.clear();
                     break;
                 }
@@ -1886,6 +2016,37 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
     operatorTextNextLineShowText(qMove(text));
 }
 
+void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
+{
+    PDFColorSpacePointer colorSpace;
+
+    const PDFDictionary* streamDictionary = stream->getDictionary();
+    if (streamDictionary->hasKey("ColorSpace"))
+    {
+        const PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
+        if (colorSpaceObject.isName() || colorSpaceObject.isArray())
+        {
+            colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+        }
+        else if (!colorSpaceObject.isNull())
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color space of the image."));
+        }
+    }
+
+    PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), this);
+    QImage image = pdfImage.getImage();
+
+    if (!image.isNull())
+    {
+        performImagePainting(image);
+    }
+    else
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+    }
+}
+
 void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFOperandName name)
 {
     if (m_xobjectDictionary)
@@ -1917,35 +2078,10 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
             QByteArray subtype = loader.readNameFromDictionary(streamDictionary, "Subtype");
             if (subtype == "Image")
             {
-                PDFColorSpacePointer colorSpace;
-
-                if (streamDictionary->hasKey("ColorSpace"))
-                {
-                    const PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
-                    if (colorSpaceObject.isName() || colorSpaceObject.isArray())
-                    {
-                        colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
-                    }
-                    else if (!colorSpaceObject.isNull())
-                    {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color space of the image."));
-                    }
-                }
-
-                PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), this);
-                QImage image = pdfImage.getImage();
-
-                if (!image.isNull())
-                {
-                    performImagePainting(image);
-                }
-                else
-                {
-                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
-                }
+                paintXObjectImage(stream);
             }
-			else if (subtype == "Form")
-			{
+            else if (subtype == "Form")
+            {
                 PDFInteger formType = loader.readIntegerFromDictionary(streamDictionary, "FormType", 1);
                 if (formType != 1)
                 {
@@ -1976,7 +2112,7 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                 PDFObject resources = m_document->getObject(streamDictionary->get("Resources"));
 
                 processForm(transformationMatrix, boundingBox, resources, content);
-			}
+            }
             else
             {
                 throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Unknown XObject type '%1'.").arg(QString::fromLatin1(subtype)));

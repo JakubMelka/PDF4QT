@@ -534,6 +534,29 @@ QByteArray PDFLexicalAnalyzer::fetchByteArray(PDFInteger length)
     return result;
 }
 
+PDFInteger PDFLexicalAnalyzer::findSubstring(const char* str, PDFInteger position) const
+{
+    const PDFInteger length = std::distance(m_begin, m_end);
+    if (position < 0 || position >= length)
+    {
+        return -1;
+    }
+
+    const PDFInteger substringLength = qstrlen(str);
+    const PDFInteger startPos = position;
+    const PDFInteger endPos = length - substringLength;
+    for (PDFInteger i = startPos; i < endPos; ++i)
+    {
+        Q_ASSERT(std::distance(m_begin + i + substringLength - 1, m_end) >= 0);
+        if (memcmp(m_begin + i, str, substringLength) == 0)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 QString PDFLexicalAnalyzer::getStringFromOperandType(TokenType type)
 {
     QMetaEnum metaEnum = QMetaEnum::fromType<TokenType>();

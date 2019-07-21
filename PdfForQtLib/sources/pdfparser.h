@@ -142,6 +142,15 @@ public:
     /// Returns, if whole stream was scanned
     inline bool isAtEnd() const { return m_current == m_end; }
 
+    /// Returns current position in the stream
+    inline PDFInteger pos() const { return std::distance(m_begin, m_current); }
+
+    /// Finds substring in the content stream, search is started from position.
+    /// If position is invalid, or substring is not found, -1 is returned.
+    /// \param str String to be found
+    /// \param position Position, from which the search is started
+    PDFInteger findSubstring(const char* str, PDFInteger position) const;
+
     /// Returns true, if character is a whitespace character according to the PDF 1.7 specification
     /// \param character Character to be tested
     static constexpr bool isWhitespace(char character);

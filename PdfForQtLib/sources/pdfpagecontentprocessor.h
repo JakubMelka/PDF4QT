@@ -397,10 +397,10 @@ protected:
     virtual void performMarkedContentEnd();
 
     /// Implement to react on set char width request
-    virtual void performSetCharWidth(PDFReal wx, PDFReal wy) { }
+    virtual void performSetCharWidth(PDFReal wx, PDFReal wy);
 
     /// Implement to react on set cache device request
-    virtual void performSetCacheDevice(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury) { }
+    virtual void performSetCacheDevice(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury);
 
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
@@ -678,6 +678,9 @@ private:
 
     /// Read object from operand stack
     PDFObject readObjectFromOperandStack(size_t startPosition) const;
+
+    /// Implementation of painting of XObject image
+    void paintXObjectImage(const PDFStream* stream);
 
     const PDFPage* m_page;
     const PDFDocument* m_document;
