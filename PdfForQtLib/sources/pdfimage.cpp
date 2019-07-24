@@ -516,11 +516,12 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
 
 QImage PDFImage::getImage() const
 {
-    if (m_colorSpace)
+    const bool isImageMask = m_imageData.getMaskingType() == PDFImageData::MaskingType::ImageMask;
+    if (m_colorSpace && !isImageMask)
     {
         return m_colorSpace->getImage(m_imageData);
     }
-    else if (m_imageData.getMaskingType() == PDFImageData::MaskingType::ImageMask)
+    else if (isImageMask)
     {
         if (m_imageData.getBitsPerComponent() != 1)
         {
@@ -533,7 +534,6 @@ QImage PDFImage::getImage() const
         }
 
         QImage image(m_imageData.getWidth(), m_imageData.getHeight(), QImage::Format_Alpha8);
-        image.fill(QColor(Qt::transparent));
 
         const bool flip01 = !m_imageData.getDecode().empty() && qFuzzyCompare(m_imageData.getDecode().front(), 1.0);
         QDataStream stream(const_cast<QByteArray*>(&m_imageData.getData()), QIODevice::ReadOnly);

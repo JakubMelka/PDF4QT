@@ -2037,6 +2037,15 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
     PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), this);
     QImage image = pdfImage.getImage();
 
+    if (image.format() == QImage::Format_Alpha8)
+    {
+        QSize size = image.size();
+        QImage unmaskedImage(size, QImage::Format_ARGB32_Premultiplied);
+        unmaskedImage.fill(m_graphicState.getFillColor());
+        unmaskedImage.setAlphaChannel(image);
+        image = qMove(unmaskedImage);
+    }
+
     if (!image.isNull())
     {
         performImagePainting(image);
@@ -2287,19 +2296,25 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         {
             // Type 3 Font
 
-            PDFPageContentProcessorStateGuard guard(this);
-
             Q_ASSERT(dynamic_cast<const PDFType3Font*>(m_graphicState.getTextFont().get()));
             const PDFType3Font* parentFont = static_cast<const PDFType3Font*>(m_graphicState.getTextFont().get());
 
             QMatrix fontMatrix = parentFont->getFontMatrix();
+            if (!fontMatrix.isInvertible())
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Type 3 font matrix is not invertible."));
+            }
+
+            PDFPageContentProcessorStateGuard guard(this);
+
+            QMatrix invertedFontMatrix = fontMatrix.inverted();
             PDFObject resources = parentFont->getResources();
             if (!resources.isNull())
             {
                 initDictionaries(resources);
             }
 
-            QMatrix fontAdjustedMatrix = fontMatrix * adjustMatrix;
+            QMatrix fontAdjustedMatrix = invertedFontMatrix * adjustMatrix;
 
             for (const TextSequenceItem& item : textSequence.items)
             {

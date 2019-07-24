@@ -50,10 +50,48 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
     Q_ASSERT(page);
 
     QRectF mediaBox = page->getMediaBox();
+    const PageRotation rotation = page->getPageRotation();
+    mediaBox = page->getRotatedBox(mediaBox, rotation);
 
     QMatrix matrix;
-    matrix.translate(rectangle.left(), rectangle.bottom());
-    matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+    switch (rotation)
+    {
+        case PageRotation::None:
+        {
+            matrix.translate(rectangle.left(), rectangle.bottom());
+            matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+            break;
+        }
+
+        case PageRotation::Rotate90:
+        {
+            matrix.translate(rectangle.left(), rectangle.top());
+            matrix.rotate(90);
+            matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+            break;
+        }
+
+        case PageRotation::Rotate270:
+        {
+            matrix.translate(rectangle.right(), rectangle.top());
+            matrix.rotate(-90);
+            matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+            break;
+        }
+
+        case PageRotation::Rotate180:
+        {
+            matrix.translate(rectangle.left(), rectangle.top());
+            matrix.scale(rectangle.width() / mediaBox.width(), rectangle.height() / mediaBox.height());
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
 
     PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity);
     return processor.processContents();
