@@ -11,7 +11,7 @@ by Jakub Melka.
 
 1. ACKNOWLEDGEMENTS
 
-This software is based in part on the work ofthe Independent JPEG Group.
+This software is based in part on the work of the Independent JPEG Group.
 
 Portions of this software are copyright © 2019 The FreeType
 Project (www.freetype.org). All rights reserved.
@@ -30,3 +30,4 @@ of third party libraries.
     b) FreeType, see https://www.freetype.org/index.html, FTL license used
     c) OpenJPEG, implementing Jpeg2000, see https://www.openjpeg.org/, 2-clause MIT license
     d) Qt, https://www.qt.io/, LGPL license used
+    e) OpenSSL, https://www.openssl.org/, Apache 2.0 license

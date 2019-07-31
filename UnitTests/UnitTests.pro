@@ -36,3 +36,6 @@ QMAKE_CXXFLAGS += /std:c++latest
 
 SOURCES += \ 
     tst_lexicalanalyzertest.cpp
+
+target.path = $$DESTDIR/install
+INSTALLS += target

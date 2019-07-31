@@ -96,30 +96,42 @@ HEADERS += \
 FORMS += \
     sources/pdfrenderingerrorswidget.ui
 
+PDFFORQT_DEPENDENCIES_PATH = K:\Programming\PDF\PDF_For_Qt\PDfForQt-Dependencies
+
 # Link to freetype library
-LIBS += -L$$PWD/../FreeType/ -lfreetype
-INCLUDEPATH += $$PWD/../FreeType/include
-DEPENDPATH += $$PWD/../FreeType/include
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/FreeType/ -lfreetype
+INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/FreeType/include
+DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/FreeType/include
 
 # Add freetype to installations
-freetype_lib.files = $$PWD/../FreeType/freetype.dll
-freetype_lib.path = $$DESTDIR
+freetype_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/FreeType/freetype.dll
+freetype_lib.path = $$DESTDIR/install
 INSTALLS += freetype_lib
 
 # Link to OpenJPEG library
-LIBS += -L$$PWD/../OpenJPEG/lib/ -lopenjp2
-INCLUDEPATH += $$PWD/../OpenJPEG/include/openjpeg-2.3
-DEPENDPATH += $$PWD/../OpenJPEG/include/openjpeg-2.3
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/lib/ -lopenjp2
+INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
+DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
 
 # Add OpenJPEG to installations
-openjpeg_lib.files = $$PWD/../OpenJPEG/openjp2.dll
-openjpeg_lib.path = $$DESTDIR
+openjpeg_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/bin/openjp2.dll
+openjpeg_lib.path = $$DESTDIR/install
 INSTALLS += openjpeg_lib
 
 # Link to Independent JPEG Groups libjpeg
-LIBS += -L$$PWD/../libjpeg/bin/ -ljpeg
-INCLUDEPATH += $$PWD/../libjpeg/include
-DEPENDPATH += $$PWD/../libjpeg/include
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/libjpeg/bin/ -ljpeg
+INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/libjpeg/include
+DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/libjpeg/include
+
+# Link OpenSSL
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/ -llibcrypto -llibssl
+INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/include
+DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/include
+
+# Add OpenSSL to installations
+openssl_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/libcrypto-3.dll $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/libssl-3.dll
+openssl_lib.path = $$DESTDIR/install
+INSTALLS += openssl_lib
 
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info
@@ -135,3 +147,22 @@ cmap_resource_builder.output = $$DESTDIR/${QMAKE_FILE_IN_BASE}.qrb
 cmap_resource_builder.CONFIG += no_link target_predeps
 QMAKE_EXTRA_COMPILERS += cmap_resource_builder
 
+cmaps_files.files = $$DESTDIR/cmaps.qrb
+cmaps_files.path = $$DESTDIR/install
+
+INSTALLS += cmaps_files
+
+pdfforqt_library.files = $$DESTDIR/PdfForQtLib.dll
+pdfforqt_library.path = $$DESTDIR/install
+
+INSTALLS += pdfforqt_library
+
+CONFIG(debug, debug|release) {
+SUFFIX = d
+}
+
+qt_libraries.files =    $$[QT_INSTALL_BINS]/Qt?Widgets$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?Gui$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?Core$${SUFFIX}.dll
+qt_libraries.path = $$DESTDIR/install
+INSTALLS += qt_libraries
