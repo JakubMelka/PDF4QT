@@ -267,6 +267,33 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         // Now, we are ready to scan all objects
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
 
+        // ------------------------------------------------------------------------------------------
+        //    SECURITY - handle encrypted documents
+        // ------------------------------------------------------------------------------------------
+        const PDFObject& trailerDictionaryObject = xrefTable.getTrailerDictionary();
+        if (!trailerDictionaryObject.isDictionary())
+        {
+            throw PDFParserException(tr("Invalid trailer dictionary."));
+        }
+        const PDFDictionary* trailerDictionary = trailerDictionaryObject.getDictionary();
+
+        PDFObject encryptObject = trailerDictionary->get("Encrypt");
+        if (encryptObject.isReference())
+        {
+            PDFObjectReference encryptObjectReference = encryptObject.getReference();
+            if (encryptObjectReference.objectNumber < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
+            {
+                encryptObject = objects[encryptObjectReference.objectNumber].object;
+            }
+        }
+
+        // Read the security handler
+        PDFSecurityHandlerPointer securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject);
+
+        // ------------------------------------------------------------------------------------------
+        //    SECURITY - security handler created
+        // ------------------------------------------------------------------------------------------
+
         // Then process object streams
         std::vector<PDFXRefTable::Entry> objectStreamEntries = xrefTable.getObjectStreamEntries();
         std::set<PDFObjectReference> objectStreams;
@@ -369,7 +396,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         // Now, we are ready to scan all object streams
         std::for_each(std::execution::parallel_policy(), objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
 
-        PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()));
+        PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), std::move(securityHandler));
         return PDFDocument(std::move(storage));
     }
     catch (PDFParserException parserException)

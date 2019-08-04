@@ -22,6 +22,7 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 #include "pdfcatalog.h"
+#include "pdfsecurityhandler.h"
 
 #include <QtCore>
 #include <QDateTime>
@@ -54,9 +55,10 @@ public:
 
     using PDFObjects = std::vector<Entry>;
 
-    explicit PDFObjectStorage(PDFObjects&& objects, PDFObject&& trailerDictionary) :
+    explicit PDFObjectStorage(PDFObjects&& objects, PDFObject&& trailerDictionary, PDFSecurityHandlerPointer&& securityHandler) :
         m_objects(std::move(objects)),
-        m_trailerDictionary(std::move(trailerDictionary))
+        m_trailerDictionary(std::move(trailerDictionary)),
+        m_securityHandler(std::move(securityHandler))
     {
 
     }
@@ -71,9 +73,13 @@ public:
     /// Returns trailer dictionary
     const PDFObject& getTrailerDictionary() const { return m_trailerDictionary; }
 
+    /// Returns security handler associated with these objects
+    const PDFSecurityHandler* getSecurityHandler() const { return m_securityHandler.data(); }
+
 private:
     PDFObjects m_objects;
     PDFObject m_trailerDictionary;
+    PDFSecurityHandlerPointer m_securityHandler;
 };
 
 /// Loads data from the object contained in the PDF document, such as integers,

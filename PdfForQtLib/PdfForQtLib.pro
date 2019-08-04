@@ -42,6 +42,7 @@ SOURCES += \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \
+    sources/pdfsecurityhandler.cpp \
     sources/pdfutils.cpp \
     sources/pdfxreftable.cpp \
     sources/pdfvisitor.cpp \
@@ -70,6 +71,7 @@ HEADERS += \
     sources/pdfconstants.h \
     sources/pdfdocument.h \
     sources/pdfdocumentreader.h \
+    sources/pdfsecurityhandler.h \
     sources/pdfxreftable.h \
     sources/pdfflatmap.h \
     sources/pdfvisitor.h \
