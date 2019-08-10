@@ -38,6 +38,7 @@
 #include <QTreeView>
 #include <QLayout>
 #include <QHeaderView>
+#include <QInputDialog>
 
 namespace pdfviewer
 {
@@ -268,9 +269,15 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
     // First close old document
     closeDocument();
 
+    // Password callback
+    auto getPasswordCallback = [this](bool* ok) -> QString
+    {
+        return QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to acces document content"), QLineEdit::Password, QString(), ok);
+    };
+
     // Try to open a new document
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    pdf::PDFDocumentReader reader;
+    pdf::PDFDocumentReader reader(qMove(getPasswordCallback));
     pdf::PDFDocument document = reader.readFromFile(fileName);
     QApplication::restoreOverrideCursor();
 

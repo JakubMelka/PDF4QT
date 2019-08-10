@@ -25,6 +25,7 @@
 #include <QSharedPointer>
 
 #include <map>
+#include <functional>
 
 namespace pdf
 {
@@ -73,14 +74,24 @@ public:
     explicit PDFSecurityHandler() = default;
     virtual ~PDFSecurityHandler() = default;
 
+    enum class AuthorizationResult
+    {
+        UserAuthorized,
+        OwnerAuthorized,
+        Failed,
+        Cancelled
+    };
+
     virtual EncryptionMode getMode() const = 0;
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) = 0;
 
     /// Creates a security handler from the object. If object is null, then
     /// "None" security handler is created. If error occurs, then exception is thrown.
     /// \param encryptionDictionaryObject Encryption dictionary object
-    static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject);
+    /// \param id First part of the id of the document
+    static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
-private:
+protected:
     /// Version of the encryption, shall be a number from 1 to 5, according the
     /// PDF specification. Other values are invalid.
     int m_V = 0;
@@ -107,6 +118,7 @@ class PDFNoneSecurityHandler : public PDFSecurityHandler
 {
 public:
     virtual EncryptionMode getMode() const { return EncryptionMode::None; }
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&) override { return AuthorizationResult::OwnerAuthorized; }
 };
 
 /// Specifies the security using standard security handler (see PDF specification
@@ -115,9 +127,67 @@ class PDFStandardSecurityHandler : public PDFSecurityHandler
 {
 public:
     virtual EncryptionMode getMode() const { return EncryptionMode::Standard; }
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) override;
+
+    struct AuthorizationData
+    {
+
+    };
 
 private:
+    friend static PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
+    /// Creates file encryption key from passed password, based on the revision
+    /// \param password Password to be used to create file encryption key
+    /// \note Password must be in PDFDocEncoding for revision 4 or earlier,
+    ///       otherwise it must be encoded in UTF-8.
+    QByteArray createFileEncryptionKey(const QByteArray& password) const;
+
+    /// Creates entry value U based on the file encryption key. This function
+    /// is valid only for revisions 2, 3 and 4.
+    /// \param fileEncryptionKey File encryption key
+    QByteArray createEntryValueU_r234(const QByteArray& fileEncryptionKey) const;
+
+    /// Creates user password from the owner password. User password must be then
+    /// authenticated.
+    QByteArray createUserPasswordFromOwnerPassword(const QByteArray& password) const;
+
+    /// Creates 32-byte padded password from the passed password. If password is empty,
+    /// then padding password is returned.
+    std::array<uint8_t, 32>  createPaddedPassword32(const QByteArray& password) const;
+
+    /// Revision number of standard security number
+    int m_R = 0;
+
+    /// 32 byte string if revision number is 4 or less, or 48 byte string,
+    /// if revision number is 6, based on both owner and user passwords,
+    /// used for authenticate owner, and create a file encryption key.
+    QByteArray m_O;
+
+    /// 32 byte string if revision number is 4 or less, or 48 byte string,
+    /// if revision number is 6, based on both owner and user passwords,
+    /// used for authenticate owner, and create a file encryption key.
+    QByteArray m_U;
+
+    /// For revision number 6 only. 32 bytes string based on both owner
+    /// and user password, that shall be used to compute file encryption key.
+    QByteArray m_OE;
+
+    /// For revision number 6 only. 32 bytes string based on both owner
+    /// and user password, that shall be used to compute file encryption key.
+    QByteArray m_UE;
+
+    /// What operations shall be permitted, when document is opened with user access.
+    uint32_t m_permissions = 0;
+
+    /// For revision number 6 only. 16 byte encrypted version of permissions.
+    QByteArray m_Perms;
+
+    /// Optional, meaningfull only if revision number is 4 or 5.
+    bool m_encryptMetadata = true;
+
+    /// First part of the id of the document
+    QByteArray m_ID;
 };
 
 }   // namespace pdf

@@ -33,8 +33,9 @@
 namespace pdf
 {
 
-PDFDocumentReader::PDFDocumentReader() :
-    m_successfull(true)
+PDFDocumentReader::PDFDocumentReader(const std::function<QString(bool*)>& getPasswordCallback) :
+    m_successfull(true),
+    m_getPasswordCallback(getPasswordCallback)
 {
 
 }
@@ -277,18 +278,42 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         }
         const PDFDictionary* trailerDictionary = trailerDictionaryObject.getDictionary();
 
+        // Read the document ID
+        QByteArray id;
+        const PDFObject& idArrayObject = trailerDictionary->get("ID");
+        if (idArrayObject.isArray())
+        {
+            const PDFArray* idArray = idArrayObject.getArray();
+            if (idArray->getCount() > 0)
+            {
+                const PDFObject& idArrayItem = idArray->getItem(0);
+                if (idArrayItem.isString())
+                {
+                    id = idArrayItem.getString();
+                }
+            }
+        }
+
         PDFObject encryptObject = trailerDictionary->get("Encrypt");
         if (encryptObject.isReference())
         {
             PDFObjectReference encryptObjectReference = encryptObject.getReference();
-            if (encryptObjectReference.objectNumber < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
+            if (static_cast<size_t>(encryptObjectReference.objectNumber) < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
             {
                 encryptObject = objects[encryptObjectReference.objectNumber].object;
             }
         }
 
         // Read the security handler
-        PDFSecurityHandlerPointer securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject);
+        PDFSecurityHandlerPointer securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject, id);
+        PDFSecurityHandler::AuthorizationResult authorizationResult = securityHandler->authenticate(m_getPasswordCallback);
+
+        if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Failed ||
+            authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
+        {
+            // TODO: If user cancels it, do not display error message.
+            throw PDFParserException(PDFTranslationContext::tr("Authorization failed. Bad password provided."));
+        }
 
         // ------------------------------------------------------------------------------------------
         //    SECURITY - security handler created

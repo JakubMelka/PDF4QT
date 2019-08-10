@@ -36,7 +36,7 @@ class PDFFORQTLIBSHARED_EXPORT PDFDocumentReader
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 
 public:
-    explicit PDFDocumentReader();
+    explicit PDFDocumentReader(const std::function<QString(bool*)>& getPasswordCallback);
 
     constexpr inline PDFDocumentReader(const PDFDocumentReader&) = delete;
     constexpr inline PDFDocumentReader(PDFDocumentReader&&) = delete;
@@ -91,6 +91,9 @@ private:
 
     /// Version of the scanned file
     PDFVersion m_version;
+
+    /// Callback to obtain password from the user
+    std::function<QString(bool*)> m_getPasswordCallback;
 };
 
 }   // namespace pdf
