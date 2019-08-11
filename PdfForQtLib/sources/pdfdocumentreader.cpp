@@ -272,11 +272,21 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         //    SECURITY - handle encrypted documents
         // ------------------------------------------------------------------------------------------
         const PDFObject& trailerDictionaryObject = xrefTable.getTrailerDictionary();
-        if (!trailerDictionaryObject.isDictionary())
+
+        const PDFDictionary* trailerDictionary = nullptr;
+        if (trailerDictionaryObject.isDictionary())
+        {
+            trailerDictionary = trailerDictionaryObject.getDictionary();
+        }
+        else if (trailerDictionaryObject.isStream())
+        {
+            const PDFStream* stream = trailerDictionaryObject.getStream();
+            trailerDictionary = stream->getDictionary();
+        }
+        else
         {
             throw PDFParserException(tr("Invalid trailer dictionary."));
         }
-        const PDFDictionary* trailerDictionary = trailerDictionaryObject.getDictionary();
 
         // Read the document ID
         QByteArray id;

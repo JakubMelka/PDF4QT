@@ -131,11 +131,21 @@ public:
 
     struct AuthorizationData
     {
+        bool isAuthorized() const { return authorizationResult == AuthorizationResult::UserAuthorized || authorizationResult == AuthorizationResult::OwnerAuthorized; }
 
+        AuthorizationResult authorizationResult = AuthorizationResult::Failed;
+        QByteArray fileEncryptionKey;
     };
 
 private:
     friend static PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
+
+    struct UserOwnerData_r6
+    {
+        QByteArray hash;
+        QByteArray validationSalt;
+        QByteArray keySalt;
+    };
 
     /// Creates file encryption key from passed password, based on the revision
     /// \param password Password to be used to create file encryption key
@@ -155,6 +165,16 @@ private:
     /// Creates 32-byte padded password from the passed password. If password is empty,
     /// then padding password is returned.
     std::array<uint8_t, 32>  createPaddedPassword32(const QByteArray& password) const;
+
+    /// Creates hash using algorithm 2.B for revision 6. Input is input of the hash,
+    /// and if \p useUserKey is used, user key is considered in the hash.
+    /// \param input Input of the hash
+    /// \param inputPassword Input password
+    /// \param useUserKey Use user key in the hash computation
+    QByteArray createHash_r6(const QByteArray& input, const QByteArray& inputPassword, bool useUserKey) const;
+
+    /// Parses parts of the user/owner data (U/O values of the encryption dictionary)
+    UserOwnerData_r6 parseParts(const QByteArray& data) const;
 
     /// Revision number of standard security number
     int m_R = 0;
@@ -188,6 +208,9 @@ private:
 
     /// First part of the id of the document
     QByteArray m_ID;
+
+    /// Authorization data
+    AuthorizationData m_authorizationData;
 };
 
 }   // namespace pdf

@@ -20,6 +20,8 @@
 
 #include <openssl/rc4.h>
 #include <openssl/md5.h>
+#include <openssl/aes.h>
+#include <openssl/sha.h>
 
 #include <array>
 
@@ -283,6 +285,9 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
     QByteArray password;
     bool passwordObtained = true;
 
+    // Clear the authorization data
+    m_authorizationData = AuthorizationData();
+
     while (passwordObtained)
     {
         switch (m_R)
@@ -300,6 +305,8 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                     if (U == m_U)
                     {
                         // We have authorized owner access
+                        m_authorizationData.authorizationResult = AuthorizationResult::OwnerAuthorized;
+                        m_authorizationData.fileEncryptionKey = fileEncryptionKey;
                         return AuthorizationResult::OwnerAuthorized;
                     }
                 }
@@ -311,6 +318,8 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 if (U == m_U)
                 {
                     // We have authorized owner access
+                    m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+                    m_authorizationData.fileEncryptionKey = fileEncryptionKey;
                     return AuthorizationResult::UserAuthorized;
                 }
 
@@ -319,14 +328,67 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
 
             case 6:
             {
-                // TODO: Implement revision 6 encryption
-                return AuthorizationResult::Failed;
+                UserOwnerData_r6 userData = parseParts(m_U);
+                UserOwnerData_r6 ownerData = parseParts(m_O);
+
+                // Try to authorize owner password
+                {
+                    QByteArray inputData = password + ownerData.validationSalt + m_U;
+                    QByteArray hash = createHash_r6(inputData, password, true);
+
+                    if (hash == ownerData.hash)
+                    {
+                        // We have authorized owner access. Now we must calculate the owner encryption key
+
+                        QByteArray fileEncryptionKeyInputData = password + ownerData.keySalt + m_U;
+                        QByteArray fileEncryptionDecryptionKey = createHash_r6(fileEncryptionKeyInputData, password, true);
+
+                        Q_ASSERT(fileEncryptionDecryptionKey.size() == 32);
+                        AES_KEY key = { };
+                        AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(fileEncryptionDecryptionKey.data()), fileEncryptionDecryptionKey.size() * 8, &key);
+                        unsigned char aesInitializationVector[AES_BLOCK_SIZE] = { };
+                        m_authorizationData.fileEncryptionKey.resize(m_OE.size());
+                        AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(m_OE.data()), reinterpret_cast<unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_OE.size(), &key, aesInitializationVector, AES_DECRYPT);
+
+                        m_authorizationData.authorizationResult = AuthorizationResult::OwnerAuthorized;
+                    }
+                }
+
+                // Try to authorize user password
+                if (!m_authorizationData.isAuthorized())
+                {
+                    QByteArray inputData = password + userData.validationSalt;
+                    QByteArray hash = createHash_r6(inputData, password, false);
+
+                    if (hash == userData.hash)
+                    {
+                        QByteArray fileEncryptionKeyInputData = password + userData.keySalt;
+                        QByteArray fileEncryptionDecryptionKey = createHash_r6(fileEncryptionKeyInputData, password, false);
+
+                        Q_ASSERT(fileEncryptionDecryptionKey.size() == 32);
+                        AES_KEY key = { };
+                        AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(fileEncryptionDecryptionKey.data()), fileEncryptionDecryptionKey.size() * 8, &key);
+                        unsigned char aesInitializationVector[AES_BLOCK_SIZE] = { };
+                        m_authorizationData.fileEncryptionKey.resize(m_OE.size());
+                        AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(m_OE.data()), reinterpret_cast<unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_OE.size(), &key, aesInitializationVector, AES_DECRYPT);
+
+                        // We have authorized owner access
+                        m_authorizationData.authorizationResult =  AuthorizationResult::UserAuthorized;
+                    }
+                }
+
+                // Stop, if we authorized the document usage
+                if (m_authorizationData.isAuthorized())
+                {
+                    return m_authorizationData.authorizationResult;
+                }
+
+                break;
             }
 
             default:
                 return AuthorizationResult::Failed;
         }
-
 
         // TODO: Handle passwords better - in some revisions, must be in PDFDocEncoding!
         password = getPasswordCallback(&passwordObtained).toUtf8();
@@ -388,7 +450,8 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
 
         case 6:
         {
-            // TODO: Implement revision 6 key
+            // This function must not be called with revision 6
+            Q_ASSERT(false);
             break;
         }
 
@@ -555,6 +618,151 @@ std::array<uint8_t, 32> PDFStandardSecurityHandler::createPaddedPassword32(const
         Q_ASSERT(itPadding != PDFPasswordPadding.cend());
         *it++ = *itPadding++;
     }
+
+    return result;
+}
+
+QByteArray PDFStandardSecurityHandler::createHash_r6(const QByteArray& input, const QByteArray& inputPassword, bool useUserKey) const
+{
+    QByteArray result;
+
+    // First compute sha-256 digest of the input
+    std::array<uint8_t, SHA256_DIGEST_LENGTH> inputDigest = { };
+    SHA256(reinterpret_cast<const unsigned char*>(input.data()), input.size(), inputDigest.data());
+    std::vector<uint8_t> K(inputDigest.cbegin(), inputDigest.cend());
+
+    // Fill the user key, if we use it
+    std::vector<uint8_t> userKey;
+    if (useUserKey)
+    {
+        userKey.resize(m_U.size());
+        std::copy_n(m_U.constData(), m_U.size(), userKey.begin());
+    }
+    const size_t userKeySize = userKey.size();
+
+    // Fill the input password
+    std::vector<uint8_t> password(inputPassword.constData(), inputPassword.constData() + inputPassword.size());
+    const size_t passwordSize = password.size();
+
+    std::vector<uint8_t> K1;
+    std::vector<uint8_t> E;
+
+    int round = 0;
+    while (round < 64 || round < E.back() + 32)
+    {
+        const size_t blockCount = 64;
+        const size_t KSize = K.size();
+        const size_t sequenceSize = passwordSize + KSize + userKeySize;
+        const size_t totalSize = blockCount * sequenceSize;
+
+        // Resize the arrays
+        K1.resize(totalSize);
+        E.resize(totalSize);
+
+        // a) fill the input array K1 with data
+        auto it = K1.begin();
+        for (size_t i = 0; i < blockCount; ++i)
+        {
+            std::copy_n(password.cbegin(), passwordSize, it);
+            std::advance(it, passwordSize);
+
+            std::copy_n(K.cbegin(), KSize, it);
+            std::advance(it, KSize);
+
+            std::copy_n(userKey.cbegin(), userKeySize, it);
+            std::advance(it, userKeySize);
+        }
+        Q_ASSERT(it == K1.cend());
+        Q_ASSERT(K.size() >= 32);
+
+        // b) encrypt K1 with AES-128 in CBC mode, first 16 bytes of K is key,
+        //    second 16 bytes in K is initialization vector for AES algorithm.
+        AES_KEY key = { };
+        AES_set_encrypt_key(K.data(), 128, &key);
+        AES_cbc_encrypt(K1.data(), E.data(), K1.size(), &key, K.data() + 16, AES_ENCRYPT);
+
+        // c) we take first 16 bytes from E as unsigned 128 bit big-endian integer and compute
+        //    remainder modulo 3. Then we decide which SHA function we will use.
+
+        // We can't directly modulo 128 bit unsigned number, because we do not have 128 bit arithmetic (yet).
+        // We will use following trick from https://math.stackexchange.com/questions/2727954/bit-representation-and-divisibility-by-3
+        //
+        //      2^n mod 3 = 2 for n = 1, 3, 5, 7, 9, ...
+        //      2^n mod 3 = 1 for n = 0, 2, 4, 6, 8, ...
+        //
+        // Also, it doesn't matter the endianity of the numbers, becase for example, when we change endianity of 16 bit
+        // numbers, then bits 0-7 became 8-15, so even/odd bits become also even/odd.
+
+        int remainderAccumulator = 0;
+        for (size_t i = 0; i < 16; ++i)
+        {
+            uint8_t byte = E[i];
+
+            int currentRemainder = 1;
+            for (uint8_t i = 0; i < 8; ++i)
+            {
+                if ((byte >> i) & 1)
+                {
+                    remainderAccumulator += currentRemainder;
+                }
+
+                // We alternate the remainder 1, 2, 1, 2, 1, 2, ...
+                currentRemainder = 3 - currentRemainder;
+            }
+        }
+        remainderAccumulator = remainderAccumulator % 3;
+
+        // d) according to the remainder, decide, which function we will use
+        switch (remainderAccumulator)
+        {
+            case 0:
+            {
+                K.resize(SHA256_DIGEST_LENGTH);
+                SHA256(E.data(), E.size(), K.data());
+                break;
+            }
+
+            case 1:
+            {
+                K.resize(SHA384_DIGEST_LENGTH);
+                SHA384(E.data(), E.size(), K.data());
+                break;
+            }
+
+            case 2:
+            {
+                K.resize(SHA512_DIGEST_LENGTH);
+                SHA512(E.data(), E.size(), K.data());
+                break;
+            }
+
+            default:
+            {
+                // Invalid value, can't occur
+                Q_ASSERT(false);
+                break;
+            }
+        }
+
+        ++round;
+    }
+
+    Q_ASSERT(K.size() >= 32);
+
+    // Clamp result to 32 bytes
+    result.resize(32);
+    std::copy_n(K.data(), 32, reinterpret_cast<unsigned char*>(result.data()));
+    return result;
+}
+
+PDFStandardSecurityHandler::UserOwnerData_r6 PDFStandardSecurityHandler::parseParts(const QByteArray& data) const
+{
+    UserOwnerData_r6 result;
+    Q_ASSERT(data.size() == 48);
+
+    result.hash = data.left(32);
+    result.validationSalt = data.mid(32, 8);
+    result.keySalt = data.mid(40, 8);
 
     return result;
 }
