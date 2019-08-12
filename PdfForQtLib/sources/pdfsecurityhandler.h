@@ -176,6 +176,19 @@ private:
     /// Parses parts of the user/owner data (U/O values of the encryption dictionary)
     UserOwnerData_r6 parseParts(const QByteArray& data) const;
 
+    /// Adjusts the password according to the PDF specification
+    QByteArray adjustPassword(const QString& password);
+
+    /// Returns true, if character with unicode code is non-ascii space character
+    /// according the RFC 3454, section C.1.2
+    /// \param unicode Unicode code to be tested
+    static bool isUnicodeNonAsciiSpaceCharacter(ushort unicode);
+
+    /// Returns true, if character with unicode code is mapped to nothing,
+    /// according the RFC 3454, section B.1
+    /// \param unicode Unicode code to be tested
+    static bool isUnicodeMappedToNothing(ushort unicode);
+
     /// Revision number of standard security number
     int m_R = 0;
 

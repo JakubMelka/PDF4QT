@@ -43,6 +43,13 @@ public:
     constexpr inline PDFDocumentReader& operator=(const PDFDocumentReader&) = delete;
     constexpr inline PDFDocumentReader& operator=(PDFDocumentReader&&) = delete;
 
+    enum class Result
+    {
+        OK,         ///< Document was successfully loaded
+        Failed,     ///< Error occured during document reading
+        Cancelled   ///< User cancelled document reading
+    };
+
     /// Reads a PDF document from the specified file. If file doesn't exist,
     /// cannot be opened or contain invalid pdf, empty PDF file is returned.
     /// No exception is thrown.
@@ -58,8 +65,8 @@ public:
     /// PDF is read, then empty PDF document is returned. No exception is thrown.
     PDFDocument readFromBuffer(const QByteArray& buffer);
 
-    /// Returns true, if document was successfully read from device
-    bool isSuccessfull() const { return m_successfull; }
+    /// Returns result code for reading document from the device
+    Result getReadingResult() const { return m_result; }
 
     /// Returns error message, if document reading was unsuccessfull
     const QString& getErrorMessage() const { return m_errorMessage; }
@@ -83,8 +90,8 @@ private:
     /// (providing thread safety)
     QMutex m_mutex;
 
-    /// This bool flag is set, if pdf document was successfully read from the device
-    std::atomic<bool> m_successfull;
+    /// Result of document reading from the device
+    std::atomic<Result> m_result;
 
     /// In case if error occurs, it is stored here
     QString m_errorMessage;

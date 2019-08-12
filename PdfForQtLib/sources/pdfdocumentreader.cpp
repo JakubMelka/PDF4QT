@@ -34,7 +34,7 @@ namespace pdf
 {
 
 PDFDocumentReader::PDFDocumentReader(const std::function<QString(bool*)>& getPasswordCallback) :
-    m_successfull(true),
+    m_result(Result::OK),
     m_getPasswordCallback(getPasswordCallback)
 {
 
@@ -56,13 +56,13 @@ PDFDocument PDFDocumentReader::readFromFile(const QString& fileName)
         }
         else
         {
-            m_successfull = false;
+            m_result = Result::Failed;
             m_errorMessage = tr("File '%1' cannot be opened for reading. %1").arg(file.errorString());
         }
     }
     else
     {
-        m_successfull = false;
+        m_result = Result::Failed;
         m_errorMessage = tr("File '%1' doesn't exist.").arg(fileName);
     }
 
@@ -82,7 +82,7 @@ PDFDocument PDFDocumentReader::readFromDevice(QIODevice* device)
         }
         else
         {
-            m_successfull = false;
+            m_result = Result::Failed;
             m_errorMessage = tr("Device is not opened for reading.");
         }
     }
@@ -94,7 +94,7 @@ PDFDocument PDFDocumentReader::readFromDevice(QIODevice* device)
     }
     else
     {
-        m_successfull = false;
+        m_result = Result::Failed;
         m_errorMessage = tr("Can't open device for reading.");
     }
 
@@ -246,7 +246,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         {
             Q_ASSERT(entry.type == PDFXRefTable::EntryType::Occupied);
 
-            if (m_successfull)
+            if (m_result == Result::OK)
             {
                 try
                 {
@@ -259,7 +259,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                 catch (PDFParserException exception)
                 {
                     QMutexLocker lock(&m_mutex);
-                    m_successfull = false;
+                    m_result = Result::Failed;
                     m_errorMessage = exception.getMessage();
                 }
             }
@@ -318,10 +318,15 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         PDFSecurityHandlerPointer securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject, id);
         PDFSecurityHandler::AuthorizationResult authorizationResult = securityHandler->authenticate(m_getPasswordCallback);
 
-        if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Failed ||
-            authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
+        if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
         {
-            // TODO: If user cancels it, do not display error message.
+            // User cancelled the document reading
+            m_result = Result::Cancelled;
+            return PDFDocument();
+        }
+
+        if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Failed)
+        {
             throw PDFParserException(PDFTranslationContext::tr("Authorization failed. Bad password provided."));
         }
 
@@ -340,7 +345,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
         auto processObjectStream = [this, &getObject, &objectFetcher, &objects, &objectStreamEntries] (const PDFObjectReference& objectStreamReference)
         {
-            if (!m_successfull)
+            if (m_result != Result::OK)
             {
                 return;
             }
@@ -423,7 +428,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             catch (PDFParserException exception)
             {
                 QMutexLocker lock(&m_mutex);
-                m_successfull = false;
+                m_result = Result::Failed;
                 m_errorMessage = exception.getMessage();
             }
         };
@@ -436,7 +441,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
     }
     catch (PDFParserException parserException)
     {
-        m_successfull = false;
+        m_result = Result::Failed;
         m_errorMessage = parserException.getMessage();
     }
 
@@ -445,7 +450,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
 void PDFDocumentReader::reset()
 {
-    m_successfull = true;
+    m_result = Result::OK;
     m_errorMessage = QString();
     m_version = PDFVersion();
 }

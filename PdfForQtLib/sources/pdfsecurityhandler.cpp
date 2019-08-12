@@ -17,6 +17,7 @@
 
 #include "pdfsecurityhandler.h"
 #include "pdfexception.h"
+#include "pdfencoding.h"
 
 #include <openssl/rc4.h>
 #include <openssl/md5.h>
@@ -369,8 +370,8 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                         AES_KEY key = { };
                         AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(fileEncryptionDecryptionKey.data()), fileEncryptionDecryptionKey.size() * 8, &key);
                         unsigned char aesInitializationVector[AES_BLOCK_SIZE] = { };
-                        m_authorizationData.fileEncryptionKey.resize(m_OE.size());
-                        AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(m_OE.data()), reinterpret_cast<unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_OE.size(), &key, aesInitializationVector, AES_DECRYPT);
+                        m_authorizationData.fileEncryptionKey.resize(m_UE.size());
+                        AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(m_UE.data()), reinterpret_cast<unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_UE.size(), &key, aesInitializationVector, AES_DECRYPT);
 
                         // We have authorized owner access
                         m_authorizationData.authorizationResult =  AuthorizationResult::UserAuthorized;
@@ -380,6 +381,36 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 // Stop, if we authorized the document usage
                 if (m_authorizationData.isAuthorized())
                 {
+                    // According the PDF specification, we must also check, if flags are not manipulated.
+                    Q_ASSERT(m_Perms.size() == AES_BLOCK_SIZE);
+                    AES_KEY key = { };
+                    AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_authorizationData.fileEncryptionKey.size() * 8, &key);
+                    QByteArray decodedPerms(m_Perms.size(), char(0));
+                    AES_ecb_encrypt(reinterpret_cast<const unsigned char*>(m_Perms.data()), reinterpret_cast<unsigned char*>(decodedPerms.data()), &key, AES_DECRYPT);
+
+                    // 1) Checks, if bytes 9, 10, 11 are 'a', 'd', 'b'
+                    if (decodedPerms[9] != 'a' || decodedPerms[10] != 'd' || decodedPerms[11] != 'b')
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Permissions entry in the Encryption dictionary is invalid."));
+                    }
+
+                    // 2) Verify, that bytes 0-3 are valid permissions entry
+                    const uint32_t permissions = qFromLittleEndian(*reinterpret_cast<const uint32_t*>(decodedPerms.data()));
+                    if (permissions != m_permissions)
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
+                    }
+
+                    // 3) Verify, that byte 8 is 'T' or 'F' and is equal to EncryptMetadata entry
+                    if (decodedPerms[8] != 'T' && decodedPerms[8] != 'F')
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
+                    }
+                    if ((decodedPerms[8] == 'T') != m_encryptMetadata)
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
+                    }
+
                     return m_authorizationData.authorizationResult;
                 }
 
@@ -390,8 +421,7 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 return AuthorizationResult::Failed;
         }
 
-        // TODO: Handle passwords better - in some revisions, must be in PDFDocEncoding!
-        password = getPasswordCallback(&passwordObtained).toUtf8();
+        password = adjustPassword(getPasswordCallback(&passwordObtained));
     }
 
     return AuthorizationResult::Cancelled;
@@ -765,6 +795,116 @@ PDFStandardSecurityHandler::UserOwnerData_r6 PDFStandardSecurityHandler::parsePa
     result.keySalt = data.mid(40, 8);
 
     return result;
+}
+
+QByteArray PDFStandardSecurityHandler::adjustPassword(const QString& password)
+{
+    QByteArray result;
+
+    switch (m_R)
+    {
+        case 2:
+        case 3:
+        case 4:
+        {
+            // According to the PDF specification, convert string to PDFDocEncoding encoding
+            result = PDFEncoding::convertToEncoding(password, PDFEncoding::Encoding::PDFDoc);
+            break;
+        }
+
+        case 6:
+        {
+            // According to the PDF specification, use SASLprep profile for stringprep RFC 4013, please see these websites:
+            //      - RFC 4013: https://tools.ietf.org/html/rfc4013 (SASLprep profile for stringprep algorithm)
+            //      - RFC 3454: https://tools.ietf.org/html/rfc3454 (stringprep algorithm - preparation of internationalized strings)
+            //
+            // Note: we don't do checks according the RFC 4013, just use the mapping and normalize string in KC
+
+            QString preparedPassword;
+            preparedPassword.reserve(password.size());
+
+            // RFC 4013 Section 2.1, use mapping
+
+            for (const QChar character : password)
+            {
+                if (isUnicodeMappedToNothing(character.unicode()))
+                {
+                    // Mapped to nothing
+                    continue;
+                }
+
+                if (isUnicodeNonAsciiSpaceCharacter(character.unicode()))
+                {
+                    // Map to space character
+                    preparedPassword += QChar(QChar::Space);
+                }
+                else
+                {
+                    preparedPassword += character;
+                }
+            }
+
+            // RFC 4013, Section 2.2, normalization to KC
+            preparedPassword = preparedPassword.normalized(QString::NormalizationForm_KC);
+
+            // We don't do other checks. We will transform password to the UTF-8 encoding
+            // and according the PDF specification, we take only first 127 characters.
+            result = preparedPassword.toUtf8().left(127);
+        }
+
+        default:
+            break;
+    }
+
+    return result;
+}
+
+bool PDFStandardSecurityHandler::isUnicodeNonAsciiSpaceCharacter(ushort unicode)
+{
+    switch (unicode)
+    {
+        case 0x00A0:
+        case 0x1680:
+        case 0x2000:
+        case 0x2001:
+        case 0x2002:
+        case 0x2003:
+        case 0x2004:
+        case 0x2005:
+        case 0x2006:
+        case 0x2007:
+        case 0x2008:
+        case 0x2009:
+        case 0x200A:
+        case 0x200B:
+        case 0x202F:
+        case 0x205F:
+        case 0x3000:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+bool PDFStandardSecurityHandler::isUnicodeMappedToNothing(ushort unicode)
+{
+    switch (unicode)
+    {
+        case 0x00AD:
+        case 0x034F:
+        case 0x1806:
+        case 0x180B:
+        case 0x180C:
+        case 0x180D:
+        case 0x200B:
+        case 0x200C:
+        case 0x200D:
+            return true;
+
+        default:
+            return false;
+    }
 }
 
 }   // namespace pdf

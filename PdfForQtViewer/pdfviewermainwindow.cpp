@@ -281,21 +281,30 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
     pdf::PDFDocument document = reader.readFromFile(fileName);
     QApplication::restoreOverrideCursor();
 
-    if (reader.isSuccessfull())
+    switch (reader.getReadingResult())
     {
-        // Mark current directory as this
-        QFileInfo fileInfo(fileName);
-        m_settings->setDirectory(fileInfo.dir().absolutePath());
-        m_currentFile = fileInfo.fileName();
+        case pdf::PDFDocumentReader::Result::OK:
+        {
+            // Mark current directory as this
+            QFileInfo fileInfo(fileName);
+            m_settings->setDirectory(fileInfo.dir().absolutePath());
+            m_currentFile = fileInfo.fileName();
 
-        m_pdfDocument.reset(new pdf::PDFDocument(std::move(document)));
-        setDocument(m_pdfDocument.data());
+            m_pdfDocument.reset(new pdf::PDFDocument(std::move(document)));
+            setDocument(m_pdfDocument.data());
 
-        statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(fileName), 4000);
-    }
-    else
-    {
-        QMessageBox::critical(this, tr("PDF Viewer"), tr("Document read error: %1").arg(reader.getErrorMessage()));
+            statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(fileName), 4000);
+            break;
+        }
+
+        case pdf::PDFDocumentReader::Result::Failed:
+        {
+            QMessageBox::critical(this, tr("PDF Viewer"), tr("Document read error: %1").arg(reader.getErrorMessage()));
+            break;
+        }
+
+        case pdf::PDFDocumentReader::Result::Cancelled:
+            break; // Do nothing, user cancelled the document reading
     }
 }
 

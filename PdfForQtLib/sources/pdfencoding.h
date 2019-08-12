@@ -59,6 +59,14 @@ public:
     /// \returns Converted unicode string
     static QString convert(const QByteArray& stream, Encoding encoding);
 
+    /// Converts unicode string to the byte array using the specified encoding.
+    /// It performs reverse functionality than function \p convert. If the character
+    /// in the encoding is not found, then it is converted to character code 0.
+    /// \param string String to be converted
+    /// \param encoding Encoding used in the conversion
+    /// \sa convert
+    static QByteArray convertToEncoding(const QString& string, Encoding encoding);
+
     /// Convert text string to the unicode string, using either PDFDocEncoding,
     /// or UTF-16BE encoding. Please see PDF Reference 1.7, Chapter 3.8.1. If
     /// UTF-16BE encoding is used, then leading bytes should be 0xFE and 0xFF

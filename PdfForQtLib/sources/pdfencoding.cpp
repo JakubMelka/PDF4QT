@@ -1871,6 +1871,33 @@ QString PDFEncoding::convert(const QByteArray& stream, PDFEncoding::Encoding enc
     return result;
 }
 
+QByteArray PDFEncoding::convertToEncoding(const QString& string, PDFEncoding::Encoding encoding)
+{
+    QByteArray result;
+
+    const encoding::EncodingTable* table = getTableForEncoding(encoding);
+    Q_ASSERT(table);
+
+    result.reserve(string.size());
+    for (QChar character : string)
+    {
+        ushort unicode = character.unicode();
+        unsigned char converted = 0;
+
+        for (int i = 0; i < table->size(); ++i)
+        {
+            if (unicode == (*table)[static_cast<unsigned char>(i)])
+            {
+                converted = i;
+            }
+        }
+
+        result.push_back(converted);
+    }
+
+    return result;
+}
+
 QString PDFEncoding::convertTextString(const QByteArray& stream)
 {
     if (hasUnicodeLeadMarkings(stream))
