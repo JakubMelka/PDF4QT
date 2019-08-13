@@ -63,6 +63,7 @@ struct CryptFilter
 {
     CryptFilterType type = CryptFilterType::None;
     AuthEvent authEvent = AuthEvent::DocOpen;
+    int keyLength = 0; ///< Key length in bytes
 };
 
 class PDFSecurityHandler;
@@ -82,8 +83,43 @@ public:
         Cancelled
     };
 
+    enum class EncryptionScope
+    {
+        String,
+        Stream,
+        EmbeddedFile
+    };
+
+    /// Retrieve encryption mode (none/standard encryption/custom)
     virtual EncryptionMode getMode() const = 0;
+
+    /// Performs authentication of the document content access. First, algorithm should check,
+    /// if empty password allows document access (so, for example, only owner password is provided).
+    /// If this fails, function \p getPasswordCallback is called to retrieve user entered password.
+    /// This callback function also has pointer to bool parameter, which sets to false, if user wants
+    /// to cancel the authentication (and \p Cancelled authentication result is returned) or true,
+    /// to try provided password.
+    /// \param getPasswordCallback Callback to get user password
+    /// \returns Result of authentication
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) = 0;
+
+    /// Decrypts the PDF object. This function works properly only (and only if)
+    /// \p authenticate function returns user/owner authorization code.
+    /// \param object Object to be decrypted
+    /// \param reference Reference of indirect object (some algorithms require to generate key also from reference)
+    /// \returns Decrypted object
+    PDFObject decryptObject(const PDFObject& object, PDFObjectReference reference) const;
+
+    /// Decrypts the PDF object data. This function works properly only (and only if)
+    /// \p authenticate function returns user/owner authorization code.
+    /// \param data Data to be decrypted
+    /// \param reference Reference of indirect object (some algorithms require to generate key also from reference)
+    /// \param encryptionScope Scope of the encryption (if it is string/stream/...)
+    /// \returns Decrypted object data
+    virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const = 0;
+
+    /// Returns true, if metadata are encrypted
+    virtual bool isMetadataEncrypted() const = 0;
 
     /// Creates a security handler from the object. If object is null, then
     /// "None" security handler is created. If error occurs, then exception is thrown.
@@ -96,12 +132,14 @@ protected:
     /// PDF specification. Other values are invalid.
     int m_V = 0;
 
-    /// Length of the key to encrypt/decrypt the document in bits. Only valid
-    /// for V = 2 or V = 3, otherwise it is invalid.
+    /// Length of the key to encrypt/decrypt the document in bits.
     int m_keyLength = 40;
 
     /// Map containing crypt filters.
     std::map<QByteArray, CryptFilter> m_cryptFilters;
+
+    /// Default filter
+    CryptFilter m_filterDefault;
 
     /// Crypt filter for decrypting strings
     CryptFilter m_filterStrings;
@@ -119,6 +157,8 @@ class PDFNoneSecurityHandler : public PDFSecurityHandler
 public:
     virtual EncryptionMode getMode() const { return EncryptionMode::None; }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&) override { return AuthorizationResult::OwnerAuthorized; }
+    virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
+    virtual bool isMetadataEncrypted() const override { return true; }
 };
 
 /// Specifies the security using standard security handler (see PDF specification
@@ -128,6 +168,8 @@ class PDFStandardSecurityHandler : public PDFSecurityHandler
 public:
     virtual EncryptionMode getMode() const { return EncryptionMode::Standard; }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) override;
+    virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
+    virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
 
     struct AuthorizationData
     {
@@ -178,6 +220,13 @@ private:
 
     /// Adjusts the password according to the PDF specification
     QByteArray adjustPassword(const QString& password);
+
+    /// Decrypts data using specified filter. This function can be called only, if authorization was successfull.
+    /// \param data Data to be decrypted
+    /// \param filter Filter to be used for decryption
+    /// \param reference Object reference for key generation
+    /// \returns Decrypted data
+    QByteArray decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
 
     /// Returns true, if character with unicode code is non-ascii space character
     /// according the RFC 3454, section C.1.2

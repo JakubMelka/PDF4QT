@@ -268,6 +268,12 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         // Now, we are ready to scan all objects
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
 
+        if (m_result != Result::OK)
+        {
+            // Do not proceed further, if document loading failed
+            return PDFDocument();
+        }
+
         // ------------------------------------------------------------------------------------------
         //    SECURITY - handle encrypted documents
         // ------------------------------------------------------------------------------------------
@@ -304,9 +310,11 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             }
         }
 
+        PDFObjectReference encryptObjectReference;
         PDFObject encryptObject = trailerDictionary->get("Encrypt");
         if (encryptObject.isReference())
         {
+            encryptObjectReference = encryptObject.getReference();
             PDFObjectReference encryptObjectReference = encryptObject.getReference();
             if (static_cast<size_t>(encryptObjectReference.objectNumber) < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
             {
@@ -328,6 +336,33 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Failed)
         {
             throw PDFParserException(PDFTranslationContext::tr("Authorization failed. Bad password provided."));
+        }
+
+        // Now, decrypt the document, if we are authorized. We must also check, if we have to decrypt the object.
+        // According to the PDF specification, following items are ommited from encryption:
+        //      1) Values for ID entry in the trailer dictionary
+        //      2) Any strings in Encrypt dictionary
+        //      3) String/streams in object streams (entire object streams are encrypted)
+        //      4) Hexadecimal strings in Content key in signature dictionary
+        //
+        // Trailer dictionary is not decrypted, because PDF specification provides no algorithm to decrypt it,
+        // because it needs object number and generation for generating the decrypt key. So 1) is handled
+        // automatically. 2) is handled in the code below. 3) is handled also automatically, because we do not
+        // decipher object streams here. 4) must be handled in the security handler.
+        if (securityHandler->getMode() != EncryptionMode::None)
+        {
+            auto decryptEntry = [encryptObjectReference, &securityHandler, &objects](const PDFXRefTable::Entry& entry)
+            {
+                if (encryptObjectReference.objectNumber != 0 && encryptObjectReference == entry.reference)
+                {
+                    // 2) - Encrypt dictionary
+                    return;
+                }
+
+                objects[entry.reference.objectNumber].object = securityHandler->decryptObject(objects[entry.reference.objectNumber].object, entry.reference);
+            };
+
+            std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
         }
 
         // ------------------------------------------------------------------------------------------

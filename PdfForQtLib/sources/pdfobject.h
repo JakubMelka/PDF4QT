@@ -197,6 +197,7 @@ class PDFArray : public PDFObjectContent
 {
 public:
     inline constexpr PDFArray() = default;
+    inline PDFArray(std::vector<PDFObject>&& objects) : m_objects(qMove(objects)) { }
     virtual ~PDFArray() override = default;
 
     virtual bool equals(const PDFObjectContent* other) const override;
@@ -227,11 +228,11 @@ private:
 /// map, because dictionaries are usually small.
 class PDFDictionary : public PDFObjectContent
 {
-private:
+public:
     using DictionaryEntry = std::pair<QByteArray, PDFObject>;
 
-public:
     inline constexpr PDFDictionary() = default;
+    inline PDFDictionary(std::vector<DictionaryEntry>&& dictionary) : m_dictionary(qMove(dictionary)) { }
     virtual ~PDFDictionary() override = default;
 
     virtual bool equals(const PDFObjectContent* other) const override;

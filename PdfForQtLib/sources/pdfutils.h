@@ -24,6 +24,8 @@
 #include <QByteArray>
 #include <QDataStream>
 
+#include <vector>
+
 namespace pdf
 {
 
@@ -108,6 +110,24 @@ private:
 static inline constexpr PDFReal interpolate(PDFReal x, PDFReal x_min, PDFReal x_max, PDFReal y_min, PDFReal y_max)
 {
     return y_min + (x - x_min) * (y_max - y_min) / (x_max - x_min);
+}
+
+inline
+std::vector<uint8_t> convertByteArrayToVector(const QByteArray& data)
+{
+    return std::vector<uint8_t>(reinterpret_cast<const uint8_t*>(data.constData()), reinterpret_cast<const uint8_t*>(data.constData()) + data.size());
+}
+
+inline
+const unsigned char* convertByteArrayToUcharPtr(const QByteArray& data)
+{
+    return reinterpret_cast<const unsigned char*>(data.constData());
+}
+
+inline
+unsigned char* convertByteArrayToUcharPtr(QByteArray& data)
+{
+    return reinterpret_cast<unsigned char*>(data.data());
 }
 
 }   // namespace pdf
