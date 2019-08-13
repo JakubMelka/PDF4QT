@@ -162,9 +162,20 @@ void PDFDecryptObjectVisitor::visitStream(const PDFStream* stream)
     PDFObject dictionaryObject = m_objectStack.back();
     m_objectStack.pop_back();
 
-    // TODO: Handle Crypt filter
+    // We must also handle situation, that stream has specified Crypt filter.
+    // In this case, we must delegate decryption to the stream filters.
     PDFDictionary decryptedDictionary(*dictionaryObject.getDictionary());
-    QByteArray decryptedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+    QByteArray decryptedData;
+    if (!decryptedDictionary.hasKey("Crypt"))
+    {
+        decryptedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+    }
+    else
+    {
+        decryptedData = *stream->getContent();
+        decryptedDictionary.addEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME, PDFObject::createReference(m_reference));
+    }
+
     m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(decryptedDictionary), qMove(decryptedData))));
 }
 
@@ -287,7 +298,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     // Add "Identity" filter to the filters
     CryptFilter identityFilter;
     identityFilter.type = CryptFilterType::Identity;
-    handler.m_cryptFilters["Identity"] = identityFilter;
+    handler.m_cryptFilters[IDENTITY_FILTER_NAME] = identityFilter;
 
     if (V == 4 || V == 5)
     {
@@ -365,8 +376,8 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
             return it->second;
         };
 
-        handler.m_filterStreams = resolveFilter(getName(dictionary, "StmF", false, "Identity"));
-        handler.m_filterStrings = resolveFilter(getName(dictionary, "StrF", false, "Identity"));
+        handler.m_filterStreams = resolveFilter(getName(dictionary, "StmF", false, IDENTITY_FILTER_NAME));
+        handler.m_filterStrings = resolveFilter(getName(dictionary, "StrF", false, IDENTITY_FILTER_NAME));
 
         if (dictionary->hasKey("EFF"))
         {
@@ -381,7 +392,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     }
 
     int R = getInt(dictionary, "R", true);
-    if (R < 2 || R > 6 || R == 5)
+    if (R < 2 || R > 6)
     {
         throw PDFParserException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(R));
     }
@@ -413,12 +424,12 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
         return result;
     };
 
-    handler.m_O = readByteArray("O", (R != 6) ? 32 : 48);
-    handler.m_U = readByteArray("U", (R != 6) ? 32 : 48);
+    handler.m_O = readByteArray("O", (R != 6 && R != 5) ? 32 : 48);
+    handler.m_U = readByteArray("U", (R != 6 && R != 5) ? 32 : 48);
 
     handler.m_permissions = static_cast<uint32_t>(static_cast<int>(getInt(dictionary, "P", true)));
 
-    if (R == 6)
+    if (R == 6 || R == 5)
     {
         handler.m_OE = readByteArray("OE", 32);
         handler.m_UE = readByteArray("UE", 32);
@@ -482,29 +493,42 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 break;
             }
 
+            case 5:
             case 6:
             {
                 UserOwnerData_r6 userData = parseParts(m_U);
                 UserOwnerData_r6 ownerData = parseParts(m_O);
 
+                auto createHash_r5 = [](const QByteArray& inputData)
+                {
+                    QByteArray result(SHA256_DIGEST_LENGTH, char(0));
+                    SHA256(convertByteArrayToUcharPtr(inputData), inputData.size(), convertByteArrayToUcharPtr(result));
+                    return result;
+                };
+
+                auto createHash_r56 = [this, &createHash_r5](const QByteArray& input, const QByteArray& inputPassword, bool useUserKey)
+                {
+                    return (m_R == 5) ? createHash_r5(input) : createHash_r6(input, inputPassword, useUserKey);
+                };
+
                 // Try to authorize owner password
                 {
                     QByteArray inputData = password + ownerData.validationSalt + m_U;
-                    QByteArray hash = createHash_r6(inputData, password, true);
+                    QByteArray hash = createHash_r56(inputData, password, true);
 
                     if (hash == ownerData.hash)
                     {
                         // We have authorized owner access. Now we must calculate the owner encryption key
 
                         QByteArray fileEncryptionKeyInputData = password + ownerData.keySalt + m_U;
-                        QByteArray fileEncryptionDecryptionKey = createHash_r6(fileEncryptionKeyInputData, password, true);
+                        QByteArray fileEncryptionDecryptionKey = createHash_r56(fileEncryptionKeyInputData, password, true);
 
                         Q_ASSERT(fileEncryptionDecryptionKey.size() == 32);
                         AES_KEY key = { };
-                        AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(fileEncryptionDecryptionKey.data()), fileEncryptionDecryptionKey.size() * 8, &key);
+                        AES_set_decrypt_key(convertByteArrayToUcharPtr(fileEncryptionDecryptionKey), fileEncryptionDecryptionKey.size() * 8, &key);
                         unsigned char aesInitializationVector[AES_BLOCK_SIZE] = { };
                         m_authorizationData.fileEncryptionKey.resize(m_OE.size());
-                        AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(m_OE.data()), reinterpret_cast<unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_OE.size(), &key, aesInitializationVector, AES_DECRYPT);
+                        AES_cbc_encrypt(convertByteArrayToUcharPtr(m_OE), convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), m_OE.size(), &key, aesInitializationVector, AES_DECRYPT);
 
                         m_authorizationData.authorizationResult = AuthorizationResult::OwnerAuthorized;
                     }
@@ -514,19 +538,19 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 if (!m_authorizationData.isAuthorized())
                 {
                     QByteArray inputData = password + userData.validationSalt;
-                    QByteArray hash = createHash_r6(inputData, password, false);
+                    QByteArray hash = createHash_r56(inputData, password, false);
 
                     if (hash == userData.hash)
                     {
                         QByteArray fileEncryptionKeyInputData = password + userData.keySalt;
-                        QByteArray fileEncryptionDecryptionKey = createHash_r6(fileEncryptionKeyInputData, password, false);
+                        QByteArray fileEncryptionDecryptionKey = createHash_r56(fileEncryptionKeyInputData, password, false);
 
                         Q_ASSERT(fileEncryptionDecryptionKey.size() == 32);
                         AES_KEY key = { };
-                        AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(fileEncryptionDecryptionKey.data()), fileEncryptionDecryptionKey.size() * 8, &key);
+                        AES_set_decrypt_key(convertByteArrayToUcharPtr(fileEncryptionDecryptionKey), fileEncryptionDecryptionKey.size() * 8, &key);
                         unsigned char aesInitializationVector[AES_BLOCK_SIZE] = { };
                         m_authorizationData.fileEncryptionKey.resize(m_UE.size());
-                        AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(m_UE.data()), reinterpret_cast<unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_UE.size(), &key, aesInitializationVector, AES_DECRYPT);
+                        AES_cbc_encrypt(convertByteArrayToUcharPtr(m_UE), convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), m_UE.size(), &key, aesInitializationVector, AES_DECRYPT);
 
                         // We have authorized owner access
                         m_authorizationData.authorizationResult =  AuthorizationResult::UserAuthorized;
@@ -539,9 +563,9 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                     // According the PDF specification, we must also check, if flags are not manipulated.
                     Q_ASSERT(m_Perms.size() == AES_BLOCK_SIZE);
                     AES_KEY key = { };
-                    AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(m_authorizationData.fileEncryptionKey.data()), m_authorizationData.fileEncryptionKey.size() * 8, &key);
+                    AES_set_decrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), m_authorizationData.fileEncryptionKey.size() * 8, &key);
                     QByteArray decodedPerms(m_Perms.size(), char(0));
-                    AES_ecb_encrypt(reinterpret_cast<const unsigned char*>(m_Perms.data()), reinterpret_cast<unsigned char*>(decodedPerms.data()), &key, AES_DECRYPT);
+                    AES_ecb_encrypt(convertByteArrayToUcharPtr(m_Perms), convertByteArrayToUcharPtr(decodedPerms), &key, AES_DECRYPT);
 
                     // 1) Checks, if bytes 9, 10, 11 are 'a', 'd', 'b'
                     if (decodedPerms[9] != 'a' || decodedPerms[10] != 'd' || decodedPerms[11] != 'b')
@@ -682,7 +706,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
         {
             Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
             AES_KEY key = { };
-            AES_set_decrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey.data()), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
+            AES_set_decrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
 
             AES_data aes_data = prepareAES_data(data);
             if (!aes_data.paddedData.isEmpty())
@@ -745,6 +769,17 @@ QByteArray PDFStandardSecurityHandler::decrypt(const QByteArray& data, PDFObject
     return decryptUsingFilter(data, filter, reference);
 }
 
+QByteArray PDFStandardSecurityHandler::decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
+{
+    auto it = m_cryptFilters.find(filterName);
+    if (it == m_cryptFilters.cend())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
+    }
+
+    return decryptUsingFilter(data, it->second, reference);
+}
+
 QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray& password) const
 {
     QByteArray result;
@@ -796,9 +831,10 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
             break;
         }
 
+        case 5:
         case 6:
         {
-            // This function must not be called with revision 6
+            // This function must not be called with revision 5/6
             Q_ASSERT(false);
             break;
         }
@@ -821,10 +857,10 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
         case 2:
         {
             RC4_KEY key = { };
-            RC4_set_key(&key, fileEncryptionKey.size(), reinterpret_cast<const unsigned char*>(fileEncryptionKey.data()));
+            RC4_set_key(&key, fileEncryptionKey.size(), convertByteArrayToUcharPtr(fileEncryptionKey));
 
             result.resize(static_cast<int>(PDFPasswordPadding.size()));
-            RC4(&key, PDFPasswordPadding.size(), PDFPasswordPadding.data(), reinterpret_cast<unsigned char*>(result.data()));
+            RC4(&key, PDFPasswordPadding.size(), PDFPasswordPadding.data(), convertByteArrayToUcharPtr(result));
             break;
         }
 
@@ -840,10 +876,10 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
             MD5_Final(hash.data(), &context);
 
             RC4_KEY key = { };
-            RC4_set_key(&key, fileEncryptionKey.size(), reinterpret_cast<const unsigned char*>(fileEncryptionKey.data()));
+            RC4_set_key(&key, fileEncryptionKey.size(), convertByteArrayToUcharPtr(fileEncryptionKey));
 
             std::array<uint8_t, MD5_DIGEST_LENGTH> encryptedHash;
-            RC4(&key, hash.size(), hash.data(), reinterpret_cast<unsigned char*>(encryptedHash.data()));
+            RC4(&key, hash.size(), hash.data(), encryptedHash.data());
 
             QByteArray transformedKey = fileEncryptionKey;
             for (int i = 1; i <= 19; ++i)
@@ -853,8 +889,8 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
                     transformedKey[j] = static_cast<uint8_t>(fileEncryptionKey[j]) ^ static_cast<uint8_t>(i);
                 }
 
-                RC4_set_key(&key, transformedKey.size(), reinterpret_cast<const unsigned char*>(transformedKey.data()));
-                RC4(&key, encryptedHash.size(), encryptedHash.data(), reinterpret_cast<unsigned char*>(encryptedHash.data()));
+                RC4_set_key(&key, transformedKey.size(), convertByteArrayToUcharPtr(transformedKey));
+                RC4(&key, encryptedHash.size(), encryptedHash.data(), encryptedHash.data());
             }
 
             // We do a hack here. In the PDF's specification, it is written, that arbitrary 16 bytes
@@ -909,9 +945,9 @@ QByteArray PDFStandardSecurityHandler::createUserPasswordFromOwnerPassword(const
         case 2:
         {
             RC4_KEY key = { };
-            RC4_set_key(&key, keyByteLength, reinterpret_cast<const unsigned char*>(hash.data()));
+            RC4_set_key(&key, keyByteLength, hash.data());
             result.resize(m_O.size());
-            RC4(&key, m_O.size(), reinterpret_cast<const unsigned char*>(m_O.data()), reinterpret_cast<unsigned char*>(result.data()));
+            RC4(&key, m_O.size(), convertByteArrayToUcharPtr(m_O), convertByteArrayToUcharPtr(result));
             break;
         }
 
@@ -931,8 +967,8 @@ QByteArray PDFStandardSecurityHandler::createUserPasswordFromOwnerPassword(const
                 }
 
                 RC4_KEY key = { };
-                RC4_set_key(&key, transformedKey.size(), reinterpret_cast<const unsigned char*>(transformedKey.data()));
-                RC4(&key, buffer.size(), reinterpret_cast<const unsigned char*>(buffer.data()), reinterpret_cast<unsigned char*>(buffer.data()));
+                RC4_set_key(&key, transformedKey.size(), convertByteArrayToUcharPtr(transformedKey));
+                RC4(&key, buffer.size(), convertByteArrayToUcharPtr(buffer), convertByteArrayToUcharPtr(buffer));
             }
 
             result = buffer;
@@ -976,7 +1012,7 @@ QByteArray PDFStandardSecurityHandler::createHash_r6(const QByteArray& input, co
 
     // First compute sha-256 digest of the input
     std::array<uint8_t, SHA256_DIGEST_LENGTH> inputDigest = { };
-    SHA256(reinterpret_cast<const unsigned char*>(input.data()), input.size(), inputDigest.data());
+    SHA256(convertByteArrayToUcharPtr(input), input.size(), inputDigest.data());
     std::vector<uint8_t> K(inputDigest.cbegin(), inputDigest.cend());
 
     // Fill the user key, if we use it
@@ -1099,7 +1135,7 @@ QByteArray PDFStandardSecurityHandler::createHash_r6(const QByteArray& input, co
 
     // Clamp result to 32 bytes
     result.resize(32);
-    std::copy_n(K.data(), 32, reinterpret_cast<unsigned char*>(result.data()));
+    std::copy_n(K.data(), 32, result.data());
     return result;
 }
 
@@ -1130,6 +1166,7 @@ QByteArray PDFStandardSecurityHandler::adjustPassword(const QString& password)
             break;
         }
 
+        case 5:
         case 6:
         {
             // According to the PDF specification, use SASLprep profile for stringprep RFC 4013, please see these websites:

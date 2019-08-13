@@ -248,7 +248,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                     const int columnGenerationNumberOrObjectIndexBytes = wArray[2];
                     const size_t blockCount = indexArray.size() / 2;
 
-                    QByteArray data = PDFStreamFilterStorage::getDecodedStream(crossReferenceStream);
+                    QByteArray data = PDFStreamFilterStorage::getDecodedStream(crossReferenceStream, nullptr);
                     QDataStream dataStream(&data, QIODevice::ReadOnly);
                     dataStream.setByteOrder(QDataStream::BigEndian);
 

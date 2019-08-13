@@ -42,7 +42,7 @@ static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown"
 
 QByteArray PDFDocument::getDecodedStream(const PDFStream* stream) const
 {
-    return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(&PDFDocument::getObject, this, std::placeholders::_1));
+    return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(&PDFDocument::getObject, this, std::placeholders::_1), m_pdfObjectStorage.getSecurityHandler());
 }
 
 const PDFDictionary* PDFDocument::getTrailerDictionary() const

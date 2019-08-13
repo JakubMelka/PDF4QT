@@ -28,6 +28,7 @@
 namespace pdf
 {
 class PDFStreamFilter;
+class PDFSecurityHandler;
 
 using PDFObjectFetcher = std::function<const PDFObject&(const PDFObject&)>;
 
@@ -44,12 +45,14 @@ public:
     /// Returns decoded data from the stream
     /// \param stream Stream containing the data
     /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
-    static QByteArray getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher);
+    /// \param securityHandler Security handler for Crypt filters
+    static QByteArray getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler);
 
     /// Returns decoded data from the stream, without object fetching
     /// \param stream Stream containing the data
     /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
-    static QByteArray getDecodedStream(const PDFStream* stream);
+    /// \param securityHandler Security handler for Crypt filters
+    static QByteArray getDecodedStream(const PDFStream* stream, const PDFSecurityHandler* securityHandler);
 
 private:
     explicit PDFStreamFilterStorage();
@@ -124,14 +127,14 @@ public:
     /// \param data Stream data to be decoded
     /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
     /// \param parameters Stream parameters
-    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const = 0;
+    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters, const PDFSecurityHandler* securityHandler) const = 0;
 
     /// Apply without object fetcher - it assumes no references exists in the streams dictionary
     /// \param data Stream data to be decoded
     /// \param parameters Stream parameters
-    inline QByteArray apply(const QByteArray& data, const PDFObject& parameters) const
+    inline QByteArray apply(const QByteArray& data, const PDFObject& parameters, const PDFSecurityHandler* securityHandler) const
     {
-        return apply(data, [](const PDFObject& object) -> const PDFObject& { return object; }, parameters);
+        return apply(data, [](const PDFObject& object) -> const PDFObject& { return object; }, parameters, securityHandler);
     }
 };
 
@@ -141,7 +144,10 @@ public:
     explicit PDFAsciiHexDecodeFilter() = default;
     virtual ~PDFAsciiHexDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data,
+                             const PDFObjectFetcher& objectFetcher,
+                             const PDFObject& parameters,
+                             const PDFSecurityHandler* securityHandler) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
@@ -150,7 +156,10 @@ public:
     explicit PDFAscii85DecodeFilter() = default;
     virtual ~PDFAscii85DecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data,
+                             const PDFObjectFetcher& objectFetcher,
+                             const PDFObject& parameters,
+                             const PDFSecurityHandler* securityHandler) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
@@ -159,7 +168,10 @@ public:
     explicit PDFLzwDecodeFilter() = default;
     virtual ~PDFLzwDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data,
+                             const PDFObjectFetcher& objectFetcher,
+                             const PDFObject& parameters,
+                             const PDFSecurityHandler* securityHandler) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
@@ -168,7 +180,10 @@ public:
     explicit PDFFlateDecodeFilter() = default;
     virtual ~PDFFlateDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data,
+                             const PDFObjectFetcher& objectFetcher,
+                             const PDFObject& parameters,
+                             const PDFSecurityHandler* securityHandler) const override;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
@@ -177,7 +192,22 @@ public:
     explicit PDFRunLengthDecodeFilter() = default;
     virtual ~PDFRunLengthDecodeFilter() override = default;
 
-    virtual QByteArray apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const override;
+    virtual QByteArray apply(const QByteArray& data,
+                             const PDFObjectFetcher& objectFetcher,
+                             const PDFObject& parameters,
+                             const PDFSecurityHandler* securityHandler) const override;
+};
+
+class PDFFORQTLIBSHARED_EXPORT PDFCryptFilter : public PDFStreamFilter
+{
+public:
+    explicit PDFCryptFilter() = default;
+    virtual ~PDFCryptFilter() override = default;
+
+    virtual QByteArray apply(const QByteArray& data,
+                             const PDFObjectFetcher& objectFetcher,
+                             const PDFObject& parameters,
+                             const PDFSecurityHandler* securityHandler) const override;
 };
 
 }   // namespace pdf

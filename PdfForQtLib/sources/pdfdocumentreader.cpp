@@ -378,7 +378,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             objectStreams.insert(entry.objectStream);
         }
 
-        auto processObjectStream = [this, &getObject, &objectFetcher, &objects, &objectStreamEntries] (const PDFObjectReference& objectStreamReference)
+        auto processObjectStream = [this, &getObject, &objectFetcher, &objects, &objectStreamEntries, &securityHandler] (const PDFObjectReference& objectStreamReference)
         {
             if (m_result != Result::OK)
             {
@@ -419,7 +419,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                 const PDFInteger n = nObject.getInteger();
                 const PDFInteger first = firstObject.getInteger();
 
-                QByteArray objectStreamData = PDFStreamFilterStorage::getDecodedStream(objectStream);
+                QByteArray objectStreamData = PDFStreamFilterStorage::getDecodedStream(objectStream, securityHandler.data());
 
                 PDFParsingContext::PDFParsingContextGuard guard(&context, objectStreamReference);
                 PDFParser parser(objectStreamData, &context, PDFParser::AllowStreams);

@@ -75,6 +75,21 @@ public:
     explicit PDFSecurityHandler() = default;
     virtual ~PDFSecurityHandler() = default;
 
+    static constexpr const char* IDENTITY_FILTER_NAME = "Identity";
+    static constexpr const char* OBJECT_REFERENCE_DICTIONARY_NAME = "PdfForQt_ObjectReference";
+
+    enum class Permission : uint32_t
+    {
+        PrintLowResolution       = (1 <<  2),
+        Modify                   = (1 <<  3),
+        CopyContent              = (1 <<  4),
+        ModifyInteractiveItems   = (1 <<  5),
+        ModifyFormFields         = (1 <<  8),
+        Accessibility            = (1 <<  9),
+        Assemble                 = (1 << 10),
+        PrintHighResolution      = (1 << 11)
+    };
+
     enum class AuthorizationResult
     {
         UserAuthorized,
@@ -118,6 +133,16 @@ public:
     /// \returns Decrypted object data
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const = 0;
 
+    /// Decrypts data using specified filter. Throws exception, if filter is not found.
+    /// \param data Data to be decrypted
+    /// \param filterName Filter name to be used to decrypt the data
+    /// \param reference Reference object
+    virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const = 0;
+
+    /// Returns true, if given permission is allowed in the current authorization context.
+    /// If owner is authorized, then this function allways returns true.
+    virtual bool isAllowed(Permission permission) const = 0;
+
     /// Returns true, if metadata are encrypted
     virtual bool isMetadataEncrypted() const = 0;
 
@@ -158,7 +183,9 @@ public:
     virtual EncryptionMode getMode() const { return EncryptionMode::None; }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&) override { return AuthorizationResult::OwnerAuthorized; }
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
+    virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
     virtual bool isMetadataEncrypted() const override { return true; }
+    virtual bool isAllowed(Permission) const { return true; }
 };
 
 /// Specifies the security using standard security handler (see PDF specification
@@ -169,7 +196,9 @@ public:
     virtual EncryptionMode getMode() const { return EncryptionMode::Standard; }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) override;
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
+    virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
+    virtual bool isAllowed(Permission permission) const { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
 
     struct AuthorizationData
     {

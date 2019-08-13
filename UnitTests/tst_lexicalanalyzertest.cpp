@@ -309,7 +309,7 @@ void LexicalAnalyzerTest::test_lzw_filter()
     // This example is from PDF 1.7 Reference
     QByteArray byteArray = QByteArray::fromHex("800B6050220C0C8501");
     pdf::PDFLzwDecodeFilter filter;
-    QByteArray decoded = filter.apply(byteArray, nullptr, pdf::PDFObject());
+    QByteArray decoded = filter.apply(byteArray, nullptr, pdf::PDFObject(), nullptr);
     QByteArray valid = "-----A---B";
 
     QCOMPARE(decoded, valid);

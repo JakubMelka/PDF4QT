@@ -19,16 +19,21 @@
 #include "pdfexception.h"
 #include "pdfconstants.h"
 #include "pdfparser.h"
+#include "pdfsecurityhandler.h"
 
 #include <QtEndian>
 
 namespace pdf
 {
 
-QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
+QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data,
+                                          const PDFObjectFetcher& objectFetcher,
+                                          const PDFObject& parameters,
+                                          const PDFSecurityHandler* securityHandler) const
 {
     Q_UNUSED(objectFetcher);
     Q_UNUSED(parameters);
+    Q_UNUSED(securityHandler);
 
     const int indexOfEnd = data.indexOf('>');
     const int size = (indexOfEnd == -1) ? data.size() : indexOfEnd;
@@ -50,10 +55,14 @@ QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data, const PDFObjec
     return QByteArray::fromHex(QByteArray::fromRawData(data.constData(), size));
 }
 
-QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
+QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
+                                         const PDFObjectFetcher& objectFetcher,
+                                         const PDFObject& parameters,
+                                         const PDFSecurityHandler* securityHandler) const
 {
     Q_UNUSED(objectFetcher);
     Q_UNUSED(parameters);
+    Q_UNUSED(securityHandler);
 
     const unsigned char* dataBegin = reinterpret_cast<const unsigned char*>(data.constData());
     const unsigned char* dataEnd = reinterpret_cast<const unsigned char*>(data.constData() + data.size());
@@ -333,8 +342,13 @@ uint32_t PDFLzwStreamDecoder::getCode()
     return code;
 }
 
-QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
+QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data,
+                                     const PDFObjectFetcher& objectFetcher,
+                                     const PDFObject& parameters,
+                                     const PDFSecurityHandler* securityHandler) const
 {
+    Q_UNUSED(securityHandler);
+
     uint32_t early = 1;
 
     const PDFObject& dereferencedParameters = objectFetcher(parameters);
@@ -361,8 +375,13 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data, const PDFObjectFetc
     return predictor.apply(decoder.decompress());
 }
 
-QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
+QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data,
+                                       const PDFObjectFetcher& objectFetcher,
+                                       const PDFObject& parameters,
+                                       const PDFSecurityHandler* securityHandler) const
 {
+    Q_UNUSED(securityHandler);
+
     const PDFObject& dereferencedParameters = objectFetcher(parameters);
     if (dereferencedParameters.isDictionary())
     {
@@ -388,10 +407,14 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data, const PDFObjectFe
     return predictor.apply(qUncompress(dataToUncompress));
 }
 
-QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data, const PDFObjectFetcher& objectFetcher, const PDFObject& parameters) const
+QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data,
+                                           const PDFObjectFetcher& objectFetcher,
+                                           const PDFObject& parameters,
+                                           const PDFSecurityHandler* securityHandler) const
 {
     Q_UNUSED(objectFetcher);
     Q_UNUSED(parameters);
+    Q_UNUSED(securityHandler);
 
     QByteArray result;
     result.reserve(data.size() * 2);
@@ -442,7 +465,7 @@ const PDFStreamFilter* PDFStreamFilterStorage::getFilter(const QByteArray& filte
     return nullptr;
 }
 
-QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher)
+QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler)
 {
     const PDFDictionary* dictionary = stream->getDictionary();
 
@@ -525,16 +548,16 @@ QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, con
 
         if (streamFilter)
         {
-            result = streamFilter->apply(result, objectFetcher, streamFilterParameters);
+            result = streamFilter->apply(result, objectFetcher, streamFilterParameters, securityHandler);
         }
     }
 
     return result;
 }
 
-QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream)
+QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFSecurityHandler* securityHandler)
 {
-    return getDecodedStream(stream, [](const PDFObject& object) -> const PDFObject& { return object; });
+    return getDecodedStream(stream, [](const PDFObject& object) -> const PDFObject& { return object; }, securityHandler);
 }
 
 PDFStreamFilterStorage::PDFStreamFilterStorage()
@@ -545,6 +568,7 @@ PDFStreamFilterStorage::PDFStreamFilterStorage()
     m_filters["LZWDecode"] = std::make_unique<PDFLzwDecodeFilter>();
     m_filters["FlateDecode"] = std::make_unique<PDFFlateDecodeFilter>();
     m_filters["RunLengthDecode"] = std::make_unique<PDFRunLengthDecodeFilter>();
+    m_filters["Crypt"] = std::make_unique<PDFCryptFilter>();
 
     m_abbreviations["AHx"] = "ASCIIHexDecode";
     m_abbreviations["A85"] = "ASCII85Decode";
@@ -737,6 +761,38 @@ QByteArray PDFStreamPredictor::applyTIFFPredictor(const QByteArray& data) const
     // TODO: Implement TIFF algorithm filter
     throw PDFParserException(PDFTranslationContext::tr("Invalid predictor algorithm."));
     return QByteArray();
+}
+
+QByteArray PDFCryptFilter::apply(const QByteArray& data,
+                                 const PDFObjectFetcher& objectFetcher,
+                                 const PDFObject& parameters,
+                                 const PDFSecurityHandler* securityHandler) const
+{
+    if (!securityHandler)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Security handler required, but not provided."));
+    }
+
+    PDFObjectReference objectReference;
+    QByteArray cryptFilterName = PDFSecurityHandler::IDENTITY_FILTER_NAME;
+    const PDFObject& dereferencedParameters = objectFetcher(parameters);
+    if (dereferencedParameters.isDictionary())
+    {
+        const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
+        const PDFObject& cryptFilterNameObject = objectFetcher(dictionary->get("Name"));
+        if (cryptFilterNameObject.isName())
+        {
+            cryptFilterName = cryptFilterNameObject.getString();
+        }
+
+        const PDFObject& objectReferenceObject = dictionary->get(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
+        if (objectReferenceObject.isReference())
+        {
+            objectReference = objectReferenceObject.getReference();
+        }
+    }
+
+    return securityHandler->decryptByFilter(data, cryptFilterName, objectReference);
 }
 
 }   // namespace pdf
