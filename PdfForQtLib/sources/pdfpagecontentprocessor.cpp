@@ -1803,7 +1803,7 @@ void PDFPageContentProcessor::operatorTextSetHorizontalScale(PDFReal horizontalS
     // We disable horizontal scaling to less than 1%
     horizontalScaling = qMax(horizontalScaling, 1.0);
 
-    m_graphicState.setTextHorizontalScaling(horizontalScaling / 100.0);
+    m_graphicState.setTextHorizontalScaling(horizontalScaling);
     updateGraphicState();
 }
 
