@@ -135,6 +135,16 @@ openssl_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/libcrypto-3.dll $$PDFFO
 openssl_lib.path = $$DESTDIR/install
 INSTALLS += openssl_lib
 
+# Link zlib
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/zlib/bin/ -lzlib
+INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
+DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
+
+# Add zlib to installations
+zlib.files = $$PDFFORQT_DEPENDENCIES_PATH/zlib/bin/zlib.dll
+zlib.path = $$DESTDIR/install
+INSTALLS += zlib
+
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info
 

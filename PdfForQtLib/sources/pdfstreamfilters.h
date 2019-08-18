@@ -184,6 +184,9 @@ public:
                              const PDFObjectFetcher& objectFetcher,
                              const PDFObject& parameters,
                              const PDFSecurityHandler* securityHandler) const override;
+
+private:
+    static QByteArray uncompress(const QByteArray& data);
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter

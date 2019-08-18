@@ -20,6 +20,9 @@
 #include "pdfconstants.h"
 #include "pdfparser.h"
 #include "pdfsecurityhandler.h"
+#include "pdfutils.h"
+
+#include <zlib.h>
 
 #include <QtEndian>
 
@@ -395,16 +398,55 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data,
         }
     }
 
-    uint32_t size = data.size();
-
-    QByteArray dataToUncompress;
-    dataToUncompress.resize(sizeof(decltype(size)) + data.size());
-
-    qToBigEndian(size, dataToUncompress.data());
-    std::copy(data.cbegin(), data.cend(), std::next(dataToUncompress.begin(), sizeof(decltype(size))));
-
     PDFStreamPredictor predictor = PDFStreamPredictor::createPredictor(objectFetcher, parameters);
-    return predictor.apply(qUncompress(dataToUncompress));
+    return predictor.apply(uncompress(data));
+}
+
+QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
+{
+    QByteArray result;
+
+    z_stream stream = { };
+    stream.next_in = const_cast<Bytef*>(convertByteArrayToUcharPtr(data));
+    stream.avail_in = data.size();
+
+    std::array<Bytef, 1024> outputBuffer = { };
+
+    int error = inflateInit(&stream);
+    if (error != Z_OK)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Failed to initialize flate decompression stream."));
+    }
+
+    do
+    {
+        stream.next_out = outputBuffer.data();
+        stream.avail_out = static_cast<uInt>(outputBuffer.size());
+
+        error = inflate(&stream, Z_NO_FLUSH);
+
+        int bytesWritten = int(outputBuffer.size()) - stream.avail_out;
+        result.append(reinterpret_cast<const char*>(outputBuffer.data()), bytesWritten);
+    } while (error == Z_OK);
+
+    QString errorMessage;
+    if (stream.msg)
+    {
+        errorMessage = QString::fromLatin1(stream.msg);
+    }
+
+    inflateEnd(&stream);
+
+    switch (error)
+    {
+        case Z_STREAM_END:
+            break; // No error, normal behaviour
+
+        default:
+            throw PDFParserException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+    }
+
+    return result;
 }
 
 QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data,

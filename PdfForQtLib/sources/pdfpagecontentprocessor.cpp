@@ -518,9 +518,17 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
 void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
 {
-    QByteArray content = m_document->getDecodedStream(stream);
+    try
+    {
+        QByteArray content = m_document->getDecodedStream(stream);
 
-    processContent(content);
+        processContent(content);
+    }
+    catch (PDFParserException exception)
+    {
+        m_operands.clear();
+        m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
+    }
 }
 
 void PDFPageContentProcessor::processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content)

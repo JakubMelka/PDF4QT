@@ -660,7 +660,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
             std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
             uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
             uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
-            inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) && 0xFF), uint8_t((objectNumber >> 16) && 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) && 0xFF), });
+            inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF) });
             std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
             MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
 
@@ -682,7 +682,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
             std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
             uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
             uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
-            inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) && 0xFF), uint8_t((objectNumber >> 16) && 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) && 0xFF), 0x73, 0x41, 0x6C, 0x54 });
+            inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF), 0x73, 0x41, 0x6C, 0x54 });
             std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
             MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
 
