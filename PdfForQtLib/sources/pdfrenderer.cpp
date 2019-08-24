@@ -31,7 +31,6 @@ PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCa
     Q_ASSERT(document);
 }
 
-// TODO: Dodelat rotovani stranek
 // TODO: Clipovani na stranku
 
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const

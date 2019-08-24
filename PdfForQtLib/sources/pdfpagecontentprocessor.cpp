@@ -2066,6 +2066,9 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 
 void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFOperandName name)
 {
+    // We want to have empty operands, when we are invoking forms
+    m_operands.clear();
+
     if (m_xobjectDictionary)
     {
         // According to the specification, XObjects are skipped entirely, as no operator was invoked.
