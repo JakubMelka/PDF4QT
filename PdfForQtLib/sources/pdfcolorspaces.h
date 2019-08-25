@@ -30,6 +30,7 @@ namespace pdf
 class PDFArray;
 class PDFObject;
 class PDFStream;
+class PDFPattern;
 class PDFDocument;
 class PDFDictionary;
 class PDFAbstractColorSpace;
@@ -60,6 +61,7 @@ static constexpr const char* COLOR_SPACE_NAME_LAB = "Lab";
 static constexpr const char* COLOR_SPACE_NAME_ICCBASED = "ICCBased";
 static constexpr const char* COLOR_SPACE_NAME_INDEXED = "Indexed";
 static constexpr const char* COLOR_SPACE_NAME_SEPARATION = "Separation";
+static constexpr const char* COLOR_SPACE_NAME_PATTERN = "Pattern";
 
 static constexpr const char* CAL_WHITE_POINT = "WhitePoint";
 static constexpr const char* CAL_BLACK_POINT = "BlackPoint";
@@ -209,6 +211,10 @@ public:
     virtual size_t getColorComponentCount() const = 0;
     virtual QImage getImage(const PDFImageData& imageData) const;
 
+    /// Checks, if number of color components is OK, and if yes, converts them to the QColor value.
+    /// If they are not OK, exception is thrown.
+    QColor getCheckedColor(const PDFColor& color) const;
+
     /// Parses the desired color space. If desired color space is not found, then exception is thrown.
     /// If everything is OK, then shared pointer to the new color space is returned.
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page
@@ -226,6 +232,9 @@ public:
     static PDFColorSpacePointer createDeviceColorSpaceByName(const PDFDictionary* colorSpaceDictionary,
                                                              const PDFDocument* document,
                                                              const QByteArray& name);
+
+    /// Converts a vector of real numbers to the PDFColor
+    static PDFColor convertToColor(const std::vector<PDFReal>& components);
 
 protected:
     /// Clips the color component to range [0, 1]
@@ -511,8 +520,23 @@ private:
     PDFFunctionPtr m_tintTransform;
 };
 
+class PDFPatternColorSpace : public PDFAbstractColorSpace
+{
+public:
+    explicit PDFPatternColorSpace(std::shared_ptr<PDFPattern>&& pattern) : m_pattern(qMove(pattern)) { }
+    virtual ~PDFPatternColorSpace() override = default;
+
+    virtual QColor getDefaultColor() const override;
+    virtual QColor getColor(const PDFColor& color) const override;
+    virtual size_t getColorComponentCount() const override;
+
+    const PDFPattern* getPattern() const { return m_pattern.get(); }
+
+private:
+     std::shared_ptr<PDFPattern> m_pattern;
+};
+
 // TODO: Implement DeviceN color space
-// TODO: Implement Pattern color space
 
 }   // namespace pdf
 

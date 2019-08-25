@@ -29,7 +29,7 @@ PDFPainter::PDFPainter(QPainter* painter,
                        const PDFDocument* document,
                        const PDFFontCache* fontCache,
                        const PDFOptionalContentActivity* optionalContentActivity) :
-    PDFPageContentProcessor(page, document, fontCache, optionalContentActivity),
+    PDFPageContentProcessor(page, document, fontCache, optionalContentActivity, pagePointToDevicePointMatrix),
     m_painter(painter),
     m_features(features),
     m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)
@@ -47,6 +47,7 @@ PDFPainter::~PDFPainter()
 
 void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
+    // TODO: Implement Pattern features (shading/tiling)
     if (isContentSuppressed())
     {
         // Content is suppressed, do not paint anything

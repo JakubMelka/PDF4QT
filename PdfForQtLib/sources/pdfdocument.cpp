@@ -296,6 +296,22 @@ QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, co
     return defaultValue;
 }
 
+QMatrix PDFDocumentDataLoaderDecorator::readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue)
+{
+    if (dictionary->hasKey(key))
+    {
+        std::vector<PDFReal> matrixNumbers = readNumberArrayFromDictionary(dictionary, key);
+        if (matrixNumbers.size() != 6)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid number of matrix elements. Expected 6, actual %1.").arg(matrixNumbers.size()));
+        }
+
+        return QMatrix(matrixNumbers[0], matrixNumbers[1], matrixNumbers[2], matrixNumbers[3], matrixNumbers[4], matrixNumbers[5]);
+    }
+
+    return defaultValue;
+}
+
 std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
 {
     if (dictionary->hasKey(key))

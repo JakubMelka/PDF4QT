@@ -101,6 +101,33 @@ private:
     Value m_bitsInBuffer;
 };
 
+/// Simple class guard, for properly saving/restoring new/old value. In the constructor,
+/// new value is stored in the pointer (old one is being saved), and in the destructor,
+/// old value is restored. This object assumes, that value is not a null pointer.
+template<typename Value>
+class PDFTemporaryValueChange
+{
+public:
+    /// Constructor
+    /// \param value Value pointer (must not be a null pointer)
+    /// \param newValue New value to be set to the pointer
+    explicit inline PDFTemporaryValueChange(Value* valuePointer, Value newValue) :
+        m_oldValue(qMove(*valuePointer)),
+        m_value(valuePointer)
+    {
+        *valuePointer = qMove(newValue);
+    }
+
+    inline ~PDFTemporaryValueChange()
+    {
+        *m_value = qMove(m_oldValue);
+    }
+
+private:
+    Value m_oldValue;
+    Value* m_value;
+};
+
 /// Performs linear mapping of value x in interval [x_min, x_max] to the interval [y_min, y_max].
 /// \param x Value to be linearly remapped from interval [x_min, x_max] to the interval [y_min, y_max].
 /// \param x_min Start of the input interval

@@ -19,6 +19,7 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfimage.h"
+#include "pdfpattern.h"
 
 namespace pdf
 {
@@ -173,12 +174,14 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     m_xobjectDictionary = getDictionary("XObject");
     m_extendedGraphicStateDictionary = getDictionary(PDF_RESOURCE_EXTGSTATE);
     m_propertiesDictionary = getDictionary("Properties");
+    m_shadingDictionary = getDictionary("Shading");
 }
 
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
                                                  const PDFDocument* document,
                                                  const PDFFontCache* fontCache,
-                                                 const PDFOptionalContentActivity* optionalContentActivity) :
+                                                 const PDFOptionalContentActivity* optionalContentActivity,
+                                                 QMatrix patternBaseMatrix) :
     m_page(page),
     m_document(document),
     m_fontCache(fontCache),
@@ -188,11 +191,17 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_xobjectDictionary(nullptr),
     m_extendedGraphicStateDictionary(nullptr),
     m_propertiesDictionary(nullptr),
+    m_shadingDictionary(nullptr),
     m_textBeginEndState(0),
-    m_compatibilityBeginEndState(0)
+    m_compatibilityBeginEndState(0),
+    m_patternBaseMatrix(patternBaseMatrix)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
+
+    QPainterPath pageRectPath;
+    pageRectPath.addRect(m_page->getRotatedMediaBox());
+    m_pageBoundingRectDeviceSpace = patternBaseMatrix.map(pageRectPath).boundingRect();
 
     initDictionaries(m_page->getResources());
 }
@@ -538,6 +547,8 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix, const QRectF& b
     QMatrix formMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
     m_graphicState.setCurrentTransformationMatrix(formMatrix);
     updateGraphicState();
+
+    PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, formMatrix);
 
     // If the clipping box is valid, then use clipping. Clipping box is in the form coordinate system
     if (boundingBox.isValid())
@@ -968,6 +979,13 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
         {
             // Do, paint the X Object (image, form, ...)
             invokeOperator(&PDFPageContentProcessor::operatorPaintXObject);
+            break;
+        }
+
+        case Operator::ShadingPaintShape:
+        {
+            // sh, paint shape
+            invokeOperator(&PDFPageContentProcessor::operatorShadingPaintShape);
             break;
         }
 
@@ -2024,6 +2042,34 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
     operatorTextNextLineShowText(qMove(text));
 }
 
+void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor::PDFOperandName name)
+{
+    QMatrix matrix = getGraphicState()->getCurrentTransformationMatrix();
+    PDFPageContentProcessorStateGuard guard(this);
+    PDFTemporaryValueChange guard2(&m_patternBaseMatrix, matrix);
+
+    if (!m_shadingDictionary)
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading '%1' not found.").arg(QString::fromLatin1(name.name)));
+    }
+
+    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_shadingDictionary->get(name.name), QMatrix(), PDFObject(), true);
+
+    // We will do a trick: we will set current fill color space, and then paint
+    // bounding rectangle in the color pattern.
+    m_graphicState.setFillColorSpace(PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern))));
+    updateGraphicState();
+
+    Q_ASSERT(matrix.isInvertible());
+    QMatrix inverted = matrix.inverted();
+
+    QPainterPath deviceBoundingRectPath;
+    deviceBoundingRectPath.addRect(m_pageBoundingRectDeviceSpace);
+    QPainterPath boundingRectPath = inverted.map(deviceBoundingRectPath);
+
+    performPathPainting(boundingRectPath, false, true, false, boundingRectPath.fillRule());
+}
+
 void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 {
     PDFColorSpacePointer colorSpace;
@@ -2112,18 +2158,7 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                 QRectF boundingBox = loader.readRectangle(streamDictionary->get("BBox"), QRectF());
 
                 // Read the transformation matrix, if it is present
-                QMatrix transformationMatrix;
-
-                if (streamDictionary->hasKey("Matrix"))
-                {
-                    std::vector<PDFReal> matrixNumbers = loader.readNumberArrayFromDictionary(streamDictionary, "Matrix");
-                    if (matrixNumbers.size() != 6)
-                    {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid number of matrix elements. Expected 6, actual %1.").arg(matrixNumbers.size()));
-                    }
-
-                    transformationMatrix = QMatrix(matrixNumbers[0], matrixNumbers[1], matrixNumbers[2], matrixNumbers[3], matrixNumbers[4], matrixNumbers[5]);
-                }
+                QMatrix transformationMatrix = loader.readMatrixFromDictionary(streamDictionary, "Matrix", QMatrix());
 
                 // Read the dictionary content
                 QByteArray content = m_document->getDecodedStream(stream);
@@ -2721,7 +2756,8 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::PDFPageContentProces
     m_fontDictionary(processor->m_fontDictionary),
     m_xobjectDictionary(processor->m_xobjectDictionary),
     m_extendedGraphicStateDictionary(processor->m_extendedGraphicStateDictionary),
-    m_propertiesDictionary(processor->m_propertiesDictionary)
+    m_propertiesDictionary(processor->m_propertiesDictionary),
+    m_shadingDictionary(processor->m_shadingDictionary)
 {
     m_processor->operatorSaveGraphicState();
 }
@@ -2734,6 +2770,7 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::~PDFPageContentProce
     m_processor->m_xobjectDictionary = m_xobjectDictionary;
     m_processor->m_extendedGraphicStateDictionary = m_extendedGraphicStateDictionary;
     m_processor->m_propertiesDictionary = m_propertiesDictionary;
+    m_processor->m_shadingDictionary = m_shadingDictionary;
 
     m_processor->operatorRestoreGraphicState();
 }

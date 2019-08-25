@@ -45,7 +45,8 @@ public:
     explicit PDFPageContentProcessor(const PDFPage* page,
                                      const PDFDocument* document,
                                      const PDFFontCache* fontCache,
-                                     const PDFOptionalContentActivity* optionalContentActivity);
+                                     const PDFOptionalContentActivity* optionalContentActivity,
+                                     QMatrix patternBaseMatrix);
     virtual ~PDFPageContentProcessor();
 
     enum class Operator
@@ -473,6 +474,7 @@ private:
         const PDFDictionary* m_xobjectDictionary;
         const PDFDictionary* m_extendedGraphicStateDictionary;
         const PDFDictionary* m_propertiesDictionary;
+        const PDFDictionary* m_shadingDictionary;
     };
 
     /// Wrapper for PDF Name
@@ -647,6 +649,9 @@ private:
     void operatorTextNextLineShowText(PDFOperandString text);                                   ///< ', move to the next line and show text ("string '" is equivalent to "T* string Tj")
     void operatorTextSetSpacingAndShowText(PDFReal t_w, PDFReal t_c, PDFOperandString text);    ///< ", move to the next line, set spacing and show text (equivalent to sequence "w1 Tw w2 Tc string '")
 
+    // Shading pattern:            sh
+    void operatorShadingPaintShape(PDFOperandName name);                  ///< sh, paint shape
+
     // XObject:                    Do
     void operatorPaintXObject(PDFOperandName name); ///< Do, paint the X Object (image, form, ...)
 
@@ -691,6 +696,7 @@ private:
     const PDFDictionary* m_xobjectDictionary;
     const PDFDictionary* m_extendedGraphicStateDictionary;
     const PDFDictionary* m_propertiesDictionary;
+    const PDFDictionary* m_shadingDictionary;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;
@@ -727,6 +733,14 @@ private:
     /// Actual clipping path obtained from text. Clipping path
     /// is in device space coordinates.
     QPainterPath m_textClippingPath;
+
+    /// Base matrix to be used when drawing patterns. Concatenate this matrix
+    /// with pattern matrix to get transformation from pattern space to device space.
+    QMatrix m_patternBaseMatrix;
+
+    /// Bounding rectangle of pages media box in device space coordinates. If drawing rotation
+    /// is zero, then it corresponds to the scaled media box of the page.
+    QRectF m_pageBoundingRectDeviceSpace;
 };
 
 }   // namespace pdf

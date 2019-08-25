@@ -25,6 +25,7 @@
 #include "pdfsecurityhandler.h"
 
 #include <QtCore>
+#include <QMatrix>
 #include <QDateTime>
 
 namespace pdf
@@ -194,6 +195,10 @@ public:
             readNumberArray(dictionary->get(key), first, last);
         }
     }
+
+    /// Tries to read matrix from the dictionary. If matrix entry is not present, default value is returned.
+    /// If it is present and invalid, exception is thrown.
+    QMatrix readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue);
 
     /// Tries to read array of real values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, empty array is returned.

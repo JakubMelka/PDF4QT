@@ -48,12 +48,10 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
     const PDFPage* page = catalog->getPage(pageIndex);
     Q_ASSERT(page);
 
-    QRectF mediaBox = page->getMediaBox();
-    const PageRotation rotation = page->getPageRotation();
-    mediaBox = page->getRotatedBox(mediaBox, rotation);
+    QRectF mediaBox = page->getRotatedMediaBox();
 
     QMatrix matrix;
-    switch (rotation)
+    switch (page->getPageRotation())
     {
         case PageRotation::None:
         {

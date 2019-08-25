@@ -20,6 +20,7 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
+#include "pdfpattern.h"
 
 namespace pdf
 {
@@ -238,6 +239,16 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
     return QImage();
 }
 
+QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color) const
+{
+    if (getColorComponentCount() != color.size())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(getColorComponentCount(), color.size()));
+    }
+
+    return getColor(color);
+}
+
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                              const PDFDocument* document,
                                                              const PDFObject& colorSpace)
@@ -250,6 +261,18 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByName(const P
                                                                          const QByteArray& name)
 {
     return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, name, COLOR_SPACE_MAX_LEVEL_OF_RECURSION);
+}
+
+PDFColor PDFAbstractColorSpace::convertToColor(const std::vector<PDFReal>& components)
+{
+    PDFColor result;
+
+    for (PDFReal component : components)
+    {
+        result.push_back(component);
+    }
+
+    return result;
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
@@ -292,6 +315,12 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     if (colorSpaceSettings.isStream())
                     {
                         stream = colorSpaceSettings.getStream();
+                    }
+
+                    if (name == COLOR_SPACE_NAME_PATTERN)
+                    {
+                        PDFPatternPtr pattern = PDFPattern::createPattern(colorSpaceDictionary, document, array->getItem(1));
+                        return PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern)));
                     }
                 }
 
@@ -913,6 +942,21 @@ const unsigned char* PDFImageData::getRow(unsigned int rowIndex) const
 
     Q_ASSERT(rowIndex < m_height);
     return data + (rowIndex * m_stride);
+}
+
+QColor PDFPatternColorSpace::getDefaultColor() const
+{
+    throw PDFParserException(PDFTranslationContext::tr("Pattern doesn't have default color."));
+}
+
+QColor PDFPatternColorSpace::getColor(const PDFColor& color) const
+{
+    throw PDFParserException(PDFTranslationContext::tr("Pattern doesn't have defined uniform color."));
+}
+
+size_t PDFPatternColorSpace::getColorComponentCount() const
+{
+    return 0;
 }
 
 }   // namespace pdf
