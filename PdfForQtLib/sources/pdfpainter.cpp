@@ -16,6 +16,7 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfpainter.h"
+#include "pdfpattern.h"
 
 #include <QPainter>
 
@@ -31,8 +32,7 @@ PDFPainter::PDFPainter(QPainter* painter,
                        const PDFOptionalContentActivity* optionalContentActivity) :
     PDFPageContentProcessor(page, document, fontCache, optionalContentActivity, pagePointToDevicePointMatrix),
     m_painter(painter),
-    m_features(features),
-    m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)
+    m_features(features)
 {
     Q_ASSERT(painter);
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
@@ -57,6 +57,24 @@ void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool
     if ((!stroke && !fill) || path.isEmpty())
     {
         // No operation requested - either path is empty, or neither stroking or filling
+        return;
+    }
+
+    // TODO: Temporary
+    if (const PDFPatternColorSpace* ps = dynamic_cast<const PDFPatternColorSpace*>(getGraphicState()->getFillColorSpace()))
+    {
+        m_painter->save();
+        const PDFAxialShading* pattern = (PDFAxialShading*)ps->getPattern();
+        m_painter->setClipPath(path, Qt::IntersectClip);
+
+        PDFMeshQualitySettings settings;
+        settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+        settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+        settings.initDefaultResolution();
+
+        PDFMesh mesh = pattern->createMesh(settings);
+        mesh.paint(m_painter);
+        m_painter->restore();
         return;
     }
 
@@ -153,7 +171,7 @@ void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& 
     // If current transformation matrix has changed, then update it
     if (flags.testFlag(PDFPageContentProcessorState::StateCurrentTransformationMatrix))
     {
-        m_painter->setWorldMatrix(state.getCurrentTransformationMatrix() * m_pagePointToDevicePointMatrix, false);
+        m_painter->setWorldMatrix(getCurrentWorldMatrix(), false);
     }
 
     if (flags.testFlag(PDFPageContentProcessorState::StateStrokeColor) ||

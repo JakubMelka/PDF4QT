@@ -74,7 +74,6 @@ private:
 
     QPainter* m_painter;
     PDFRenderer::Features m_features;
-    QMatrix m_pagePointToDevicePointMatrix;
     PDFCachedItem<QPen> m_currentPen;
     PDFCachedItem<QBrush> m_currentBrush;
 };

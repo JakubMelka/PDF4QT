@@ -181,7 +181,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
                                                  const PDFDocument* document,
                                                  const PDFFontCache* fontCache,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
-                                                 QMatrix patternBaseMatrix) :
+                                                 QMatrix pagePointToDevicePointMatrix) :
     m_page(page),
     m_document(document),
     m_fontCache(fontCache),
@@ -194,14 +194,15 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_shadingDictionary(nullptr),
     m_textBeginEndState(0),
     m_compatibilityBeginEndState(0),
-    m_patternBaseMatrix(patternBaseMatrix)
+    m_patternBaseMatrix(pagePointToDevicePointMatrix),
+    m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
 
     QPainterPath pageRectPath;
     pageRectPath.addRect(m_page->getRotatedMediaBox());
-    m_pageBoundingRectDeviceSpace = patternBaseMatrix.map(pageRectPath).boundingRect();
+    m_pageBoundingRectDeviceSpace = pagePointToDevicePointMatrix.map(pageRectPath).boundingRect();
 
     initDictionaries(m_page->getResources());
 }
@@ -548,7 +549,8 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix, const QRectF& b
     m_graphicState.setCurrentTransformationMatrix(formMatrix);
     updateGraphicState();
 
-    PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, formMatrix);
+    QMatrix patternMatrix = formMatrix * m_pagePointToDevicePointMatrix;
+    PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, patternMatrix);
 
     // If the clipping box is valid, then use clipping. Clipping box is in the form coordinate system
     if (boundingBox.isValid())
@@ -2044,7 +2046,7 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
 
 void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor::PDFOperandName name)
 {
-    QMatrix matrix = getGraphicState()->getCurrentTransformationMatrix();
+    QMatrix matrix = getCurrentWorldMatrix();
     PDFPageContentProcessorStateGuard guard(this);
     PDFTemporaryValueChange guard2(&m_patternBaseMatrix, matrix);
 

@@ -275,6 +275,40 @@ PDFColor PDFAbstractColorSpace::convertToColor(const std::vector<PDFReal>& compo
     return result;
 }
 
+bool PDFAbstractColorSpace::isColorEqual(const PDFColor& color1, const PDFColor& color2, PDFReal tolerance)
+{
+    const size_t size = color1.size();
+    if (size != color2.size())
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        if (std::fabs(color1[i] - color2[i]) > tolerance)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+PDFColor PDFAbstractColorSpace::mixColors(const PDFColor& color1, const PDFColor& color2, PDFReal ratio)
+{
+    const size_t size = color1.size();
+    Q_ASSERT(size == color2.size());
+
+    PDFColor result;
+    result.resize(size);
+    for (size_t i = 0; i < size; ++i)
+    {
+        result[i] = color1[i] * ratio + color2[i] * (1.0 - ratio);
+    }
+
+    return result;
+}
+
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
                                                                  const PDFDocument* document,
                                                                  const PDFObject& colorSpace,

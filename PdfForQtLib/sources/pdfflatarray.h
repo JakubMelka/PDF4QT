@@ -158,6 +158,25 @@ public:
     /// Erases the last element from the array
     inline void pop_back() { resize(size() - 1); }
 
+    bool operator==(const PDFFlatArray& other) const
+    {
+        const size_t size = this->size();
+        if (size != other.size())
+        {
+            return false;
+        }
+
+        for (size_t i = 0; i < size; ++i)
+        {
+            if ((*this)[i] != other[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 private:
     size_t getFlatBlockSize() const { return m_flatBlockItemCount; }
 

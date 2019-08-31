@@ -42,10 +42,16 @@ using PDFReal = double;
 
 constexpr PDFInteger PDF_INTEGER_MIN = std::numeric_limits<int64_t>::min() / 100;
 constexpr PDFInteger PDF_INTEGER_MAX = std::numeric_limits<int64_t>::max() / 100;
+constexpr PDFReal PDF_EPSILON = 0.000001;
 
 static constexpr bool isValidInteger(PDFInteger integer)
 {
     return integer >= PDF_INTEGER_MIN && integer <= PDF_INTEGER_MAX;
+}
+
+static inline bool isZero(PDFReal value)
+{
+    return std::fabs(value) < PDF_EPSILON;
 }
 
 /// This structure represents a reference to the object - consisting of the

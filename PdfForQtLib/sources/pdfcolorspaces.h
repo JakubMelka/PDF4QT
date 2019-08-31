@@ -236,6 +236,20 @@ public:
     /// Converts a vector of real numbers to the PDFColor
     static PDFColor convertToColor(const std::vector<PDFReal>& components);
 
+    /// Returns true, if two colors are equal (considering the tolerance). So, if one
+    /// of the color components differs more than \p tolerance from the another, then
+    /// false is returned. If colors have different number of components, false is returned.
+    /// \param color1 First color
+    /// \param color2 Second color
+    /// \param tolerance Color tolerance
+    static bool isColorEqual(const PDFColor& color1, const PDFColor& color2, PDFReal tolerance);
+
+    /// Mix colors according the given ratio.
+    /// \param color1 First color
+    /// \param color2 Second color
+    /// \param ratio Mixing ratio
+    static PDFColor mixColors(const PDFColor& color1, const PDFColor& color2, PDFReal ratio);
+
 protected:
     /// Clips the color component to range [0, 1]
     static constexpr PDFColorComponent clip01(PDFColorComponent component) { return qBound<PDFColorComponent>(0.0, component, 1.0); }

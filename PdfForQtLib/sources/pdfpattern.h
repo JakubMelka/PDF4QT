@@ -51,6 +51,87 @@ enum class ShadingType
     TensorProductPatchMesh = 7
 };
 
+struct PDFMeshQualitySettings
+{
+    /// Initializes default resolution
+    void initDefaultResolution();
+
+    /// Matrix, which transforms user space points (user space is target space of the shading)
+    /// to the device space of the paint device.
+    QMatrix userSpaceToDeviceSpaceMatrix;
+
+    /// Rectangle in device space coordinate system, onto which is area meshed.
+    QRectF deviceSpaceMeshingArea;
+
+    /// Preferred mesh resolution in device space pixels. Mesh will be created in this
+    /// resolution, if it is smooth enough (no jumps in colors occurs).
+    PDFReal preferredMeshResolution = 1.0;
+
+    /// Minimal mesh resolution in device space pixels. If jumps in colors occurs (jump
+    /// is two colors, that differ more than \p color tolerance), then mesh is meshed to
+    /// minimal mesh resolution.
+    PDFReal minimalMeshResolution = 1.0;
+
+    /// Color tolerance - 1% by default
+    PDFReal tolerance = 0.01;
+};
+
+/// Mesh consisting of triangles
+class PDFMesh
+{
+public:
+    explicit PDFMesh() = default;
+
+    struct Triangle
+    {
+        uint32_t v1 = 0;
+        uint32_t v2 = 0;
+        uint32_t v3 = 0;
+
+        QRgb color;
+    };
+
+    /// Adds vertex. Returns index of added vertex.
+    /// \param vertex Vertex to be added
+    /// \returns Index of the added vertex
+    inline uint32_t addVertex(const QPointF& vertex) { const size_t index = m_vertices.size(); m_vertices.emplace_back(vertex); return static_cast<uint32_t>(index); }
+
+    /// Adds triangle. Returns index of added triangle.
+    /// \param triangle Triangle to be added
+    /// \returns Index of the added vertex
+    inline uint32_t addTriangle(const Triangle& triangle) { const size_t index = m_triangles.size(); m_triangles.emplace_back(triangle); return static_cast<uint32_t>(index); }
+
+    /// Adds quad. Vertices are in clockwise order (so, we have edges v1-v2, v2-v3, v3-v4, v4-v1).
+    /// \param v1 First vertex (for example, topleft)
+    /// \param v2 Second vertex (for example, topright)
+    /// \param v3 Third vertex (for example, bottomright)
+    /// \param v4 Fourth vertex (for example, bottomleft)
+    /// \param color Color of the quad.
+    inline void addQuad(uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, QRgb color) { addTriangle({v1, v2, v3, color}); addTriangle({ v1, v3, v4, color}); }
+
+    /// Paints the mesh on the painter
+    /// \param painter Painter, onto which is mesh drawn
+    void paint(QPainter* painter) const;
+
+    /// Transforms the mesh according to the matrix transform
+    /// \param matrix Matrix transform to be performed
+    void transform(const QMatrix& matrix);
+
+    /// Reserves memory for meshing - both number of vertices and triangles.
+    /// Use this function, if number of vertices and triangles is known.
+    /// \param vertexCount Vertex count
+    /// \param triangleCount Triangle count
+    void reserve(size_t vertexCount, size_t triangleCount) { m_vertices.reserve(vertexCount); m_triangles.reserve(triangleCount); }
+
+    const QPainterPath& getBoundingPath() const { return m_boundingPath; }
+    void setBoundingPath(const QPainterPath& path) { m_boundingPath = path; }
+
+private:
+    std::vector<QPointF> m_vertices;
+    std::vector<Triangle> m_triangles;
+    QPainterPath m_boundingPath;
+};
+
 /// Represents tiling/shading pattern
 class PDFPattern
 {
@@ -88,7 +169,7 @@ public:
                                               const PDFObject& patternGraphicState,
                                               bool ignoreBackgroundColor);
 
-private:
+protected:
     QRectF m_boundingBox;
     QMatrix m_matrix;
 };
@@ -101,6 +182,10 @@ public:
 
     virtual PatternType getType() const override;
     virtual ShadingType getShadingType() const = 0;
+
+    /// Creates a colored mesh using settings
+    /// \param settings Meshing settings
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const = 0;
 
     /// Returns patterns graphic state. This state must be applied before
     /// the shading pattern is painted to the target device.
@@ -116,7 +201,7 @@ public:
     /// Returns true, if shading pattern should be anti-aliased
     bool isAntialiasing() const { return m_antiAlias; }
 
-private:
+protected:
     friend class PDFPattern;
 
     PDFObject m_patternGraphicState;
@@ -130,7 +215,7 @@ class PDFSingleDimensionShading : public PDFShadingPattern
 public:
     explicit PDFSingleDimensionShading() = default;
 
-private:
+protected:
     friend class PDFPattern;
 
     std::vector<PDFFunctionPtr> m_functions;
@@ -148,6 +233,7 @@ public:
     explicit PDFAxialShading() = default;
 
     virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
 
 private:
     friend class PDFPattern;

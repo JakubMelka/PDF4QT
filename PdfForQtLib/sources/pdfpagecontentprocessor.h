@@ -46,7 +46,7 @@ public:
                                      const PDFDocument* document,
                                      const PDFFontCache* fontCache,
                                      const PDFOptionalContentActivity* optionalContentActivity,
-                                     QMatrix patternBaseMatrix);
+                                     QMatrix pagePointToDevicePointMatrix);
     virtual ~PDFPageContentProcessor();
 
     enum class Operator
@@ -413,6 +413,18 @@ protected:
     /// Returns true, if graphic content is suppressed
     bool isContentSuppressed() const;
 
+    /// Returns page point to device point matrix
+    const QMatrix& getPagePointToDevicePointMatrix() const { return m_pagePointToDevicePointMatrix; }
+
+    /// Returns base matrix for patterns
+    const QMatrix& getPatternBaseMatrix() const { return m_patternBaseMatrix; }
+
+    /// Returns current world matrix (translating actual point to the device point)
+    QMatrix getCurrentWorldMatrix() const { return getGraphicState()->getCurrentTransformationMatrix() * m_pagePointToDevicePointMatrix; }
+
+    /// Returns page bounding rectangle in device space
+    const QRectF& getPageBoundingRectDeviceSpace() const { return m_pageBoundingRectDeviceSpace; }
+
     /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
     /// or true, if it is suppressed.
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
@@ -737,6 +749,9 @@ private:
     /// Base matrix to be used when drawing patterns. Concatenate this matrix
     /// with pattern matrix to get transformation from pattern space to device space.
     QMatrix m_patternBaseMatrix;
+
+    /// Matrix mapping page points to the device points
+    QMatrix m_pagePointToDevicePointMatrix;
 
     /// Bounding rectangle of pages media box in device space coordinates. If drawing rotation
     /// is zero, then it corresponds to the scaled media box of the page.
