@@ -370,20 +370,16 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
     }
 
     // Create background color triangles
+    // TODO: Create background color for axial shading
 
     // Transform mesh to the device space coordinates
     mesh.transform(p1p2LCS);
-
-    // Transform mesh from the device space coordinates to user space coordinates
-    Q_ASSERT(settings.userSpaceToDeviceSpaceMatrix.isInvertible());
-    QMatrix deviceSpaceToUserSpaceMatrix = settings.userSpaceToDeviceSpaceMatrix.inverted();
-    mesh.transform(deviceSpaceToUserSpaceMatrix);
 
     // Create bounding path
     if (m_boundingBox.isValid())
     {
         QPainterPath boundingPath;
-        boundingPath.addRect(m_boundingBox);
+        boundingPath.addPolygon(settings.userSpaceToDeviceSpaceMatrix.map(m_boundingBox));
         mesh.setBoundingPath(boundingPath);
     }
 

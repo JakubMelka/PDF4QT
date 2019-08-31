@@ -29,6 +29,7 @@
 namespace pdf
 {
 class PDFPattern;
+class PDFShadingPattern;
 
 using PDFPatternPtr = std::shared_ptr<PDFPattern>;
 
@@ -140,6 +141,7 @@ public:
     virtual ~PDFPattern() = default;
 
     virtual PatternType getType() const = 0;
+    virtual const PDFShadingPattern* getShadingPattern() const = 0;
 
     /// Returns bounding box in the shadings target coordinate system (not in
     /// pattern coordinate system).
@@ -182,8 +184,11 @@ public:
 
     virtual PatternType getType() const override;
     virtual ShadingType getShadingType() const = 0;
+    virtual const PDFShadingPattern* getShadingPattern() const override { return this; }
 
-    /// Creates a colored mesh using settings
+    /// Creates a colored mesh using settings. Mesh is generated in device space
+    /// coordinate system. You must transform the mesh, if you want to
+    /// use it in another coordiante system.
     /// \param settings Meshing settings
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const = 0;
 

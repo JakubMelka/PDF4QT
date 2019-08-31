@@ -47,36 +47,7 @@ PDFPainter::~PDFPainter()
 
 void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
-    // TODO: Implement Pattern features (shading/tiling)
-    if (isContentSuppressed())
-    {
-        // Content is suppressed, do not paint anything
-        return;
-    }
-
-    if ((!stroke && !fill) || path.isEmpty())
-    {
-        // No operation requested - either path is empty, or neither stroking or filling
-        return;
-    }
-
-    // TODO: Temporary
-    if (const PDFPatternColorSpace* ps = dynamic_cast<const PDFPatternColorSpace*>(getGraphicState()->getFillColorSpace()))
-    {
-        m_painter->save();
-        const PDFAxialShading* pattern = (PDFAxialShading*)ps->getPattern();
-        m_painter->setClipPath(path, Qt::IntersectClip);
-
-        PDFMeshQualitySettings settings;
-        settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-        settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-        settings.initDefaultResolution();
-
-        PDFMesh mesh = pattern->createMesh(settings);
-        mesh.paint(m_painter);
-        m_painter->restore();
-        return;
-    }
+    Q_ASSERT(stroke || fill);
 
     // Set antialiasing
     const bool antialiasing = (text && m_features.testFlag(PDFRenderer::TextAntialiasing)) || (!text && m_features.testFlag(PDFRenderer::Antialiasing));
@@ -161,6 +132,14 @@ void PDFPainter::performImagePainting(const QImage& image)
     m_painter->setWorldMatrix(worldMatrix);
     m_painter->drawImage(0, 0, adjustedImage);
 
+    m_painter->restore();
+}
+
+void PDFPainter::performMeshPainting(const PDFMesh& mesh)
+{
+    m_painter->save();
+    m_painter->setWorldMatrix(QMatrix());
+    mesh.paint(m_painter);
     m_painter->restore();
 }
 

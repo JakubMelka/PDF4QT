@@ -34,6 +34,7 @@
 
 namespace pdf
 {
+class PDFMesh;
 class PDFOptionalContentActivity;
 
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
@@ -367,6 +368,12 @@ protected:
     virtual void performImagePainting(const QImage& image);
 
     /// This function has to be implemented in the client drawing implementation, it should
+    /// draw the mesh. Mesh is in device space coordinates (so world transformation matrix
+    /// is identity matrix).
+    /// \param mesh Mesh to be drawn
+    virtual void performMeshPainting(const PDFMesh& mesh);
+
+    /// This function has to be implemented in the client drawing implementation, it should
     /// update the device according to the graphic state change. The flags are set when
     /// the value differs from the previous graphic state.
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state);
@@ -448,6 +455,14 @@ private:
     /// \param resources Resources, assigned to the form
     /// \param content Content stream of the form
     void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content);
+
+    /// Performs path painting
+    /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)
+    /// \param stroke Stroke the path
+    /// \param fill Fill the path using given rule
+    /// \param text Is text being drawn?
+    /// \param fillRule Fill rule used in the fill mode
+    void processPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule);
 
     enum class MarkedContentKind
     {

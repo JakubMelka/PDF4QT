@@ -21,6 +21,8 @@
 #include "pdfimage.h"
 #include "pdfpattern.h"
 
+#include <QPainterPathStroker>
+
 namespace pdf
 {
 
@@ -309,6 +311,11 @@ void PDFPageContentProcessor::performImagePainting(const QImage& image)
     Q_UNUSED(image);
 }
 
+void PDFPageContentProcessor::performMeshPainting(const PDFMesh& mesh)
+{
+    Q_UNUSED(mesh);
+}
+
 void PDFPageContentProcessor::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
 {
     if (state.getStateFlags().testFlag(PDFPageContentProcessorState::StateTextFont) ||
@@ -567,6 +574,104 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix, const QRectF& b
     }
 
     processContent(content);
+}
+
+void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
+{
+    if (isContentSuppressed())
+    {
+        // Content is suppressed, do not paint anything
+        return;
+    }
+
+    if ((!stroke && !fill) || path.isEmpty())
+    {
+        // No operation requested - either path is empty, or neither stroking or filling
+        return;
+    }
+
+    if (fill)
+    {
+        const PDFPattern* pattern = getGraphicState()->getFillColorSpace()->getPattern();
+        if (pattern)
+        {
+            if (const PDFShadingPattern* shadingPatern = pattern->getShadingPattern())
+            {
+                // We must create a mesh and then draw pattern
+                PDFMeshQualitySettings settings;
+                settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+                settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                settings.initDefaultResolution();
+
+                PDFMesh mesh = shadingPatern->createMesh(settings);
+
+                // Now, merge the current path to the mesh clipping path
+                QPainterPath boundingPath = mesh.getBoundingPath();
+                boundingPath.addPath(getCurrentWorldMatrix().map(path));
+                mesh.setBoundingPath(boundingPath);
+
+                performMeshPainting(mesh);
+            }
+            else
+            {
+                // TODO: Implement tiling pattern
+                Q_ASSERT(false);
+            }
+
+            fill = false;
+        }
+    }
+
+    if (stroke)
+    {
+        const PDFPattern* pattern = getGraphicState()->getStrokeColorSpace()->getPattern();
+        if (pattern)
+        {
+            if (const PDFShadingPattern* shadingPatern = pattern->getShadingPattern())
+            {
+                // We must create a mesh and then draw pattern
+                PDFMeshQualitySettings settings;
+                settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+                settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                settings.initDefaultResolution();
+
+                PDFMesh mesh = shadingPatern->createMesh(settings);
+
+                // We must stroke the path.
+                QPainterPathStroker stroker;
+                stroker.setCapStyle(m_graphicState.getLineCapStyle());
+                stroker.setWidth(m_graphicState.getLineWidth());
+                stroker.setMiterLimit(m_graphicState.getMitterLimit());
+                stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
+
+                const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
+                if (!lineDashPattern.isSolid())
+                {
+                    stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                    stroker.setDashOffset(lineDashPattern.getDashOffset());
+                }
+                QPainterPath strokedPath = stroker.createStroke(path);
+
+                QPainterPath boundingPath = mesh.getBoundingPath();
+                boundingPath.addPath(getCurrentWorldMatrix().map(strokedPath));
+                mesh.setBoundingPath(boundingPath);
+
+                performMeshPainting(mesh);
+            }
+            else
+            {
+                // TODO: Implement tiling pattern
+                Q_ASSERT(false);
+            }
+
+            stroke = false;
+        }
+    }
+
+    if (stroke || fill)
+    {
+        performPathPainting(path, stroke, fill, text, fillRule);
+    }
 }
 
 void PDFPageContentProcessor::processCommand(const QByteArray& command)
@@ -1529,7 +1634,7 @@ void PDFPageContentProcessor::operatorPathStroke()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, false, false, Qt::WindingFill);
+        processPathPainting(m_currentPath, true, false, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1541,7 +1646,7 @@ void PDFPageContentProcessor::operatorPathCloseStroke()
     {
         m_currentPath.closeSubpath();
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, false, false, Qt::WindingFill);
+        processPathPainting(m_currentPath, true, false, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1551,7 +1656,7 @@ void PDFPageContentProcessor::operatorPathFillWinding()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, false, true, false, Qt::WindingFill);
+        processPathPainting(m_currentPath, false, true, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1561,7 +1666,7 @@ void PDFPageContentProcessor::operatorPathFillEvenOdd()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::OddEvenFill);
-        performPathPainting(m_currentPath, false, true, false, Qt::OddEvenFill);
+        processPathPainting(m_currentPath, false, true, false, Qt::OddEvenFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1571,7 +1676,7 @@ void PDFPageContentProcessor::operatorPathFillStrokeWinding()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, true, false, Qt::WindingFill);
+        processPathPainting(m_currentPath, true, true, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1581,7 +1686,7 @@ void PDFPageContentProcessor::operatorPathFillStrokeEvenOdd()
     if (!m_currentPath.isEmpty())
     {
         m_currentPath.setFillRule(Qt::OddEvenFill);
-        performPathPainting(m_currentPath, true, true, false, Qt::OddEvenFill);
+        processPathPainting(m_currentPath, true, true, false, Qt::OddEvenFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1592,7 +1697,7 @@ void PDFPageContentProcessor::operatorPathCloseFillStrokeWinding()
     {
         m_currentPath.closeSubpath();
         m_currentPath.setFillRule(Qt::WindingFill);
-        performPathPainting(m_currentPath, true, true, false, Qt::WindingFill);
+        processPathPainting(m_currentPath, true, true, false, Qt::WindingFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -1603,7 +1708,7 @@ void PDFPageContentProcessor::operatorPathCloseFillStrokeEvenOdd()
     {
         m_currentPath.closeSubpath();
         m_currentPath.setFillRule(Qt::OddEvenFill);
-        performPathPainting(m_currentPath, true, true, false, Qt::OddEvenFill);
+        processPathPainting(m_currentPath, true, true, false, Qt::OddEvenFill);
         m_currentPath = QPainterPath();
     }
 }
@@ -2069,7 +2174,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
     deviceBoundingRectPath.addRect(m_pageBoundingRectDeviceSpace);
     QPainterPath boundingRectPath = inverted.map(deviceBoundingRectPath);
 
-    performPathPainting(boundingRectPath, false, true, false, boundingRectPath.fillRule());
+    processPathPainting(boundingRectPath, false, true, false, boundingRectPath.fillRule());
 }
 
 void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
@@ -2311,7 +2416,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                         {
                             QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
                             QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-                            performPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
+                            processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
 
                             if (clipped)
                             {

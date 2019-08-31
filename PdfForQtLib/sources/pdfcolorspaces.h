@@ -210,6 +210,7 @@ public:
     virtual QColor getColor(const PDFColor& color) const = 0;
     virtual size_t getColorComponentCount() const = 0;
     virtual QImage getImage(const PDFImageData& imageData) const;
+    virtual const PDFPattern* getPattern() const { return nullptr; }
 
     /// Checks, if number of color components is OK, and if yes, converts them to the QColor value.
     /// If they are not OK, exception is thrown.
@@ -544,7 +545,7 @@ public:
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
 
-    const PDFPattern* getPattern() const { return m_pattern.get(); }
+    virtual const PDFPattern* getPattern() const override { return m_pattern.get(); }
 
 private:
      std::shared_ptr<PDFPattern> m_pattern;
