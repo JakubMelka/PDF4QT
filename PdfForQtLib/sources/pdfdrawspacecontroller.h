@@ -33,7 +33,7 @@ class QScrollBar;
 namespace pdf
 {
 class PDFWidget;
-class PDFDrawWidget;
+class IDrawWidget;
 
 /// This class controls draw space - page layout. Pages are divided into blocks
 /// each block can contain one or multiple pages. Units are in milimeters.
@@ -319,7 +319,7 @@ private:
     PDFDrawSpaceController* m_controller;
 
     /// Controlled draw widget (proxy is for this widget)
-    PDFDrawWidget* m_widget;
+    IDrawWidget* m_widget;
 
     /// Vertical scrollbar
     QScrollBar* m_verticalScrollbar;

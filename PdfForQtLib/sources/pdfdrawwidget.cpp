@@ -33,24 +33,24 @@ PDFWidget::PDFWidget(QWidget* parent) :
     m_verticalScrollBar(nullptr),
     m_proxy(nullptr)
 {
-    m_drawWidget = new PDFDrawWidget(this, this);
+    m_drawWidget = new PDFOpenGLDrawWidget(this, this);
     m_horizontalScrollBar = new QScrollBar(Qt::Horizontal, this);
     m_verticalScrollBar = new QScrollBar(Qt::Vertical, this);
 
     QGridLayout* layout = new QGridLayout(this);
     layout->setSpacing(0);
-    layout->addWidget(m_drawWidget, 0, 0);
+    layout->addWidget(m_drawWidget->getWidget(), 0, 0);
     layout->addWidget(m_horizontalScrollBar, 1, 0);
     layout->addWidget(m_verticalScrollBar, 0, 1);
     layout->setMargin(0);
 
     setLayout(layout);
-    setFocusProxy(m_drawWidget);
+    setFocusProxy(m_drawWidget->getWidget());
 
     m_proxy = new PDFDrawWidgetProxy(this);
     m_proxy->init(this);
     connect(m_proxy, &PDFDrawWidgetProxy::renderingError, this, &PDFWidget::onRenderingError);
-    connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget, QOverload<>::of(&PDFDrawWidget::update));
+    connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
 }
 
 PDFWidget::~PDFWidget()
@@ -82,45 +82,51 @@ void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderErro
     emit pageRenderingErrorsChanged(pageIndex, errors.size());
 }
 
-PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
-    QWidget(parent),
+template<typename BaseWidget>
+PDFDrawWidgetBase<BaseWidget>::PDFDrawWidgetBase(PDFWidget* widget, QWidget* parent) :
+    BaseWidget(parent),
     m_widget(widget),
     m_mouseOperation(MouseOperation::None)
 {
-    setFocusPolicy(Qt::StrongFocus);
+    this->setFocusPolicy(Qt::StrongFocus);
 }
 
-PDFDrawWidget::~PDFDrawWidget()
+template<typename BaseWidget>
+std::vector<PDFInteger> PDFDrawWidgetBase<BaseWidget>::getCurrentPages() const
 {
-
+    return this->m_widget->getDrawWidgetProxy()->getPagesIntersectingRect(this->rect());
 }
 
-std::vector<PDFInteger> PDFDrawWidget::getCurrentPages() const
-{
-    return m_widget->getDrawWidgetProxy()->getPagesIntersectingRect(this->rect());
-}
-
-QSize PDFDrawWidget::minimumSizeHint() const
+template<typename BaseWidget>
+QSize PDFDrawWidgetBase<BaseWidget>::minimumSizeHint() const
 {
     return QSize(200, 200);
 }
 
-void PDFDrawWidget::paintEvent(QPaintEvent* event)
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePosition)
 {
-    Q_UNUSED(event);
+    switch (m_mouseOperation)
+    {
+        case MouseOperation::None:
+            // No operation performed
+            break;
 
-    QPainter painter(this);
-    m_widget->getDrawWidgetProxy()->draw(&painter, this->rect());
+        case MouseOperation::Translate:
+        {
+            QPoint difference = currentMousePosition - m_lastMousePosition;
+            m_widget->getDrawWidgetProxy()->scrollByPixels(difference);
+            m_lastMousePosition = currentMousePosition;
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+    }
 }
 
-void PDFDrawWidget::resizeEvent(QResizeEvent* event)
-{
-    QWidget::resizeEvent(event);
-
-    m_widget->getDrawWidgetProxy()->update();
-}
-
-void PDFDrawWidget::keyPressEvent(QKeyEvent* event)
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
 {
     QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
 
@@ -149,7 +155,8 @@ void PDFDrawWidget::keyPressEvent(QKeyEvent* event)
     event->accept();
 }
 
-void PDFDrawWidget::mousePressEvent(QMouseEvent* event)
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
@@ -161,7 +168,8 @@ void PDFDrawWidget::mousePressEvent(QMouseEvent* event)
     event->accept();
 }
 
-void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
 {
     performMouseOperation(event->pos());
 
@@ -184,13 +192,15 @@ void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
     event->accept();
 }
 
-void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::mouseMoveEvent(QMouseEvent* event)
 {
     performMouseOperation(event->pos());
     event->accept();
 }
 
-void PDFDrawWidget::wheelEvent(QWheelEvent* event)
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
 {
     Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
 
@@ -256,25 +266,67 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
     event->accept();
 }
 
-void PDFDrawWidget::performMouseOperation(QPoint currentMousePosition)
+PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, QWidget* parent) :
+    BaseClass(widget, parent)
 {
-    switch (m_mouseOperation)
-    {
-        case MouseOperation::None:
-            // No operation performed
-            break;
-
-        case MouseOperation::Translate:
-        {
-            QPoint difference = currentMousePosition - m_lastMousePosition;
-            m_widget->getDrawWidgetProxy()->scrollByPixels(difference);
-            m_lastMousePosition = currentMousePosition;
-            break;
-        }
-
-        default:
-            Q_ASSERT(false);
-    }
+    QSurfaceFormat format = this->format();
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setSamples(16);
+    format.setColorSpace(QSurfaceFormat::sRGBColorSpace);
+    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+    setFormat(format);
 }
+
+PDFOpenGLDrawWidget::~PDFOpenGLDrawWidget()
+{
+
+}
+
+void PDFOpenGLDrawWidget::resizeGL(int w, int h)
+{
+    QOpenGLWidget::resizeGL(w, h);
+
+    getPDFWidget()->getDrawWidgetProxy()->update();
+}
+
+void PDFOpenGLDrawWidget::initializeGL()
+{
+    QOpenGLWidget::initializeGL();
+}
+
+void PDFOpenGLDrawWidget::paintGL()
+{
+    QPainter painter(this);
+    getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
+}
+
+PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
+    BaseClass(widget, parent)
+{
+
+}
+
+PDFDrawWidget::~PDFDrawWidget()
+{
+
+}
+
+void PDFDrawWidget::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
+}
+
+void PDFDrawWidget::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+
+    getPDFWidget()->getDrawWidgetProxy()->update();
+}
+
+template class PDFDrawWidgetBase<QOpenGLWidget>;
+template class PDFDrawWidgetBase<QWidget>;
 
 }   // namespace pdf

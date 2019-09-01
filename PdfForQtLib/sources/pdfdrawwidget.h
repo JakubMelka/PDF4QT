@@ -24,12 +24,24 @@
 
 #include <QWidget>
 #include <QScrollBar>
+#include <QOpenGLWidget>
 
 namespace pdf
 {
 class PDFDocument;
 class PDFDrawWidget;
 class PDFDrawWidgetProxy;
+
+class IDrawWidget
+{
+public:
+    virtual ~IDrawWidget() = default;
+
+    virtual QWidget* getWidget() = 0;
+
+    /// Returns page indices, which are currently displayed in the widget
+    virtual std::vector<PDFInteger> getCurrentPages() const = 0;
+};
 
 class PDFFORQTLIBSHARED_EXPORT PDFWidget : public QWidget
 {
@@ -48,7 +60,7 @@ public:
     /// \param optionalContentActivity Optional content activity
     void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
 
-    PDFDrawWidget* getDrawWidget() const { return m_drawWidget; }
+    IDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
     QScrollBar* getVerticalScrollbar() const { return m_verticalScrollBar; }
     PDFDrawWidgetProxy* getDrawWidgetProxy() const { return m_proxy; }
@@ -61,34 +73,34 @@ signals:
 private:
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
 
-    PDFDrawWidget* m_drawWidget;
+    IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;
     PDFDrawWidgetProxy* m_proxy;
     PageRenderingErrors m_pageRenderingErrors;
 };
 
-class PDFFORQTLIBSHARED_EXPORT PDFDrawWidget : public QWidget
+template<typename BaseWidget>
+class PDFDrawWidgetBase : public BaseWidget, public IDrawWidget
 {
-    Q_OBJECT
-
 public:
-    explicit PDFDrawWidget(PDFWidget* widget, QWidget* parent);
-    virtual ~PDFDrawWidget() override;
+    explicit PDFDrawWidgetBase(PDFWidget* widget, QWidget* parent);
+    virtual ~PDFDrawWidgetBase() override = default;
 
     /// Returns page indices, which are currently displayed in the widget
-    std::vector<PDFInteger> getCurrentPages() const;
+    virtual std::vector<PDFInteger> getCurrentPages() const override;
 
     virtual QSize minimumSizeHint() const override;
+    virtual QWidget* getWidget() override { return this; }
 
 protected:
-    virtual void paintEvent(QPaintEvent* event) override;
-    virtual void resizeEvent(QResizeEvent* event) override;
     virtual void keyPressEvent(QKeyEvent* event) override;
     virtual void mousePressEvent(QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QMouseEvent* event) override;
     virtual void mouseMoveEvent(QMouseEvent* event) override;
     virtual void wheelEvent(QWheelEvent* event) override;
+
+    PDFWidget* getPDFWidget() const { return m_widget; }
 
 private:
     enum class MouseOperation
@@ -105,6 +117,42 @@ private:
     QPoint m_lastMousePosition;
     MouseOperation m_mouseOperation;
 };
+
+class PDFOpenGLDrawWidget : public PDFDrawWidgetBase<QOpenGLWidget>
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFDrawWidgetBase<QOpenGLWidget>;
+
+public:
+    explicit PDFOpenGLDrawWidget(PDFWidget* widget, QWidget* parent);
+    virtual ~PDFOpenGLDrawWidget() override;
+
+protected:
+    virtual void resizeGL(int w, int h) override;
+    virtual void initializeGL() override;
+    virtual void paintGL() override;
+};
+
+class PDFDrawWidget : public PDFDrawWidgetBase<QWidget>
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFDrawWidgetBase<QWidget>;
+
+public:
+    explicit PDFDrawWidget(PDFWidget* widget, QWidget* parent);
+    virtual ~PDFDrawWidget() override;
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
+};
+
+extern template class PDFDrawWidgetBase<QOpenGLWidget>;
+extern template class PDFDrawWidgetBase<QWidget>;
 
 }   // namespace pdf
 

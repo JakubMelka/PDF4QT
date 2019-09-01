@@ -373,7 +373,7 @@ void PDFDrawWidgetProxy::init(PDFWidget* widget)
 
     connect(m_horizontalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged);
     connect(m_verticalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onVerticalScrollbarValueChanged);
-    connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, m_widget, QOverload<void>::of(&PDFDrawWidget::update));
+    connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, m_widget->getWidget(), QOverload<void>::of(&PDFDrawWidget::update));
 
     // We must update the draw space - widget has been set
     update();
@@ -391,9 +391,11 @@ void PDFDrawWidgetProxy::update()
     Q_ASSERT(m_horizontalScrollbar);
     Q_ASSERT(m_verticalScrollbar);
 
+    QWidget* widget = m_widget->getWidget();
+
     // First, we must calculate pixel per mm ratio to obtain DPMM (device pixel per mm),
     // we also assume, that zoom is correctly set.
-    m_pixelPerMM = static_cast<PDFReal>(m_widget->width()) / static_cast<PDFReal>(m_widget->widthMM());
+    m_pixelPerMM = static_cast<PDFReal>(widget->width()) / static_cast<PDFReal>(widget->widthMM());
 
     Q_ASSERT(m_zoom > 0.0);
     Q_ASSERT(m_pixelPerMM > 0.0);
@@ -438,7 +440,7 @@ void PDFDrawWidgetProxy::update()
     }
 
     QSize blockSize = m_layout.blockRect.size();
-    QSize widgetSize = m_widget->size();
+    QSize widgetSize = widget->size();
 
     // Horizontal scrollbar
     const int horizontalDifference = blockSize.width() - widgetSize.width();
