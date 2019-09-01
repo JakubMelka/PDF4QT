@@ -31,8 +31,6 @@ PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCa
     Q_ASSERT(document);
 }
 
-// TODO: Clipovani na stranku
-
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const
 {
     Q_UNUSED(painter);

@@ -38,6 +38,18 @@ PDFPainter::PDFPainter(QPainter* painter,
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
 
     m_painter->save();
+
+    if (features.testFlag(PDFRenderer::ClipToCropBox))
+    {
+        QRectF cropBox = page->getRotatedCropBox();
+        if (cropBox.isValid())
+        {
+            QPainterPath path;
+            path.addPolygon(pagePointToDevicePointMatrix.map(cropBox));
+
+            m_painter->setClipPath(path, Qt::IntersectClip);
+        }
+    }
 }
 
 PDFPainter::~PDFPainter()

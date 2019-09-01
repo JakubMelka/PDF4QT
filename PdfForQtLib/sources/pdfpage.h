@@ -95,6 +95,7 @@ public:
     inline QRectF getArtBoxMM() const { return getRectMM(m_artBox); }
 
     QRectF getRotatedMediaBox() const;
+    QRectF getRotatedCropBox() const;
 
     static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);
 

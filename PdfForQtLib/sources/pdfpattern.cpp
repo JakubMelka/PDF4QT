@@ -239,6 +239,12 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
             xCoords.push_back(x);
         }
     }
+
+    if (xCoords.back() + PDF_EPSILON < p2m.x())
+    {
+        xCoords.push_back(p2m.x());
+    }
+
     if (!qFuzzyCompare(xCoords.back(), xr))
     {
         xCoords.push_back(xr);
@@ -319,18 +325,21 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
             const std::pair<PDFReal, PDFColor>& currentItem = *it;
             const std::pair<PDFReal, PDFColor>& nextItem = *itNext;
 
-            if (prevItem.second == currentItem.second && currentItem.second == nextItem.second)
+            if (currentItem.first != p1m.x() && currentItem.first != p2m.x())
             {
-                // Colors are same, skip the test
-                continue;
-            }
+                if (prevItem.second == currentItem.second && currentItem.second == nextItem.second)
+                {
+                    // Colors are same, skip the test
+                    continue;
+                }
 
-            if (PDFAbstractColorSpace::isColorEqual(prevItem.second, currentItem.second, settings.tolerance) &&
-                PDFAbstractColorSpace::isColorEqual(currentItem.second, nextItem.second, settings.tolerance) &&
-                PDFAbstractColorSpace::isColorEqual(prevItem.second, nextItem.second, settings.tolerance) &&
-                (nextItem.first - prevItem.first < settings.preferredMeshResolution))
-            {
-                continue;
+                if (PDFAbstractColorSpace::isColorEqual(prevItem.second, currentItem.second, settings.tolerance) &&
+                        PDFAbstractColorSpace::isColorEqual(currentItem.second, nextItem.second, settings.tolerance) &&
+                        PDFAbstractColorSpace::isColorEqual(prevItem.second, nextItem.second, settings.tolerance) &&
+                        (nextItem.first - prevItem.first < settings.preferredMeshResolution))
+                {
+                    continue;
+                }
             }
         }
 
@@ -370,7 +379,26 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
     }
 
     // Create background color triangles
-    // TODO: Create background color for axial shading
+    if (m_backgroundColor.isValid() && (!m_extendStart || !m_extendEnd))
+    {
+        if (!m_extendStart && xl + PDF_EPSILON < p1m.x())
+        {
+            uint32_t topLeft = mesh.addVertex(QPointF(xl, yt));
+            uint32_t topRight = mesh.addVertex(QPointF(p1m.x(), yt));
+            uint32_t bottomLeft = mesh.addVertex(QPointF(xl, yb));
+            uint32_t bottomRight = mesh.addVertex(QPointF(p1m.x(), yb));
+            mesh.addQuad(topLeft, topRight, bottomRight, bottomLeft, m_backgroundColor.rgb());
+        }
+
+        if (!m_extendEnd && p2m.x() + PDF_EPSILON < xr)
+        {
+            uint32_t topRight = mesh.addVertex(QPointF(xr, yt));
+            uint32_t topLeft = mesh.addVertex(QPointF(p2m.x(), yt));
+            uint32_t bottomRight = mesh.addVertex(QPointF(xr, yb));
+            uint32_t bottomLeft = mesh.addVertex(QPointF(p2m.x(), yb));
+            mesh.addQuad(topLeft, topRight, bottomRight, bottomLeft, m_backgroundColor.rgb());
+        }
+    }
 
     // Transform mesh to the device space coordinates
     mesh.transform(p1p2LCS);

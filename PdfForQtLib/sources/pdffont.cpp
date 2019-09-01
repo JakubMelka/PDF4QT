@@ -1229,7 +1229,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                     if (characterContentStreamObject.isStream())
                     {
                         QByteArray contentStream = document->getDecodedStream(characterContentStreamObject.getStream());
-                        characterContentStreams[currentOffset] = qMove(contentStream);
+                        characterContentStreams[static_cast<int>(currentOffset)] = qMove(contentStream);
                     }
 
                     ++currentOffset;

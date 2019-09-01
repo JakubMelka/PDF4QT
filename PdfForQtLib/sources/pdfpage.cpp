@@ -121,6 +121,11 @@ QRectF PDFPage::getRotatedMediaBox() const
     return getRotatedBox(getMediaBox(), getPageRotation());
 }
 
+QRectF PDFPage::getRotatedCropBox() const
+{
+    return getRotatedBox(getCropBox(), getPageRotation());
+}
+
 QRectF PDFPage::getRotatedBox(const QRectF& rect, PageRotation rotation)
 {
     switch (rotation)

@@ -39,6 +39,7 @@ public:
         TextAntialiasing        = 0x0002,   ///< Antialiasing for drawing text
         SmoothImages            = 0x0004,   ///< Adjust images to the device space using smooth transformation (slower, but better image quality)
         IgnoreOptionalContent   = 0x0008,   ///< Ignore optional content (so all is drawn ignoring settings of optional content)
+        ClipToCropBox           = 0x0010,   ///< Clip page content to crop box (items outside crop box will not be visible)
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
@@ -59,7 +60,7 @@ public:
     QList<PDFRenderError> render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const;
 
     /// Returns default renderer features
-    static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing; }
+    static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing | ClipToCropBox; }
 
 private:
     const PDFDocument* m_document;
