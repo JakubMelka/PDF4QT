@@ -598,28 +598,12 @@ PDFFunction::FunctionResult PDFStitchingFunction::apply(const_iterator x_1,
 
     // First search for partial function, which defines our range. Use algorithm
     // similar to the std::lower_bound.
-    size_t count = m_partialFunctions.size();
-    size_t functionIndex = 0;
-    while (count > 0)
+    auto it = std::lower_bound(m_partialFunctions.cbegin(), m_partialFunctions.cend(), x, [](const auto& partialFunction, PDFReal value) { return partialFunction.bound1 < value; });
+    if (it == m_partialFunctions.cend())
     {
-        const size_t step = count / 2;
-        const size_t current = functionIndex + step;
-
-        if (m_partialFunctions[current].bound1 < x)
-        {
-            functionIndex = current + 1;
-            count = count - functionIndex;
-        }
-        else
-        {
-            count = current;
-        }
+        --it;
     }
-    if (functionIndex == m_partialFunctions.size())
-    {
-        --functionIndex;
-    }
-    const PartialFunction& function = m_partialFunctions[functionIndex];
+    const PartialFunction& function = *it;
 
     // Encode the value into the input range of the function
     const PDFReal xEncoded = interpolate(x, function.bound0, function.bound1, function.encode0, function.encode1);

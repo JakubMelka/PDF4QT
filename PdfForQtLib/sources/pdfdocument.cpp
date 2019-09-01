@@ -342,6 +342,16 @@ PDFReal PDFDocumentDataLoaderDecorator::readNumberFromDictionary(const PDFDictio
     return defaultValue;
 }
 
+PDFReal PDFDocumentDataLoaderDecorator::readNumberFromDictionary(const PDFDictionary* dictionary, const QByteArray& key, PDFReal defaultValue) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readNumber(dictionary->get(key), defaultValue);
+    }
+
+    return defaultValue;
+}
+
 PDFInteger PDFDocumentDataLoaderDecorator::readIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue) const
 {
     if (dictionary->hasKey(key))

@@ -214,6 +214,12 @@ public:
     /// \param defaultValue Default value
     PDFReal readNumberFromDictionary(const PDFDictionary* dictionary, const char* key, PDFReal defaultValue) const;
 
+    /// Reads number from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    /// \param defaultValue Default value
+    PDFReal readNumberFromDictionary(const PDFDictionary* dictionary, const QByteArray& key, PDFReal defaultValue) const;
+
     /// Reads integer from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
     /// \param dictionary Dictionary containing desired data
     /// \param key Entry key

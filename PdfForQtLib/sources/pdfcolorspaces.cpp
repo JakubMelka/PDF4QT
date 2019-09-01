@@ -243,7 +243,7 @@ QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color) const
 {
     if (getColorComponentCount() != color.size())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(getColorComponentCount(), color.size()));
+        throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(static_cast<int>(getColorComponentCount()), static_cast<int>(color.size())));
     }
 
     return getColor(color);
@@ -387,6 +387,11 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                 if (name == COLOR_SPACE_NAME_SEPARATION && count == 4)
                 {
                     return PDFSeparationColorSpace::createSeparationColorSpace(colorSpaceDictionary, document, array, recursion);
+                }
+
+                if (name == COLOR_SPACE_NAME_DEVICE_N && count >= 4)
+                {
+                    return PDFDeviceNColorSpace::createDeviceNColorSpace(colorSpaceDictionary, document, array, recursion);
                 }
 
                 // Try to just load by standard way - we can have "standard" color space stored in array
@@ -985,12 +990,192 @@ QColor PDFPatternColorSpace::getDefaultColor() const
 
 QColor PDFPatternColorSpace::getColor(const PDFColor& color) const
 {
+    Q_UNUSED(color);
     throw PDFParserException(PDFTranslationContext::tr("Pattern doesn't have defined uniform color."));
 }
 
 size_t PDFPatternColorSpace::getColorComponentCount() const
 {
     return 0;
+}
+
+PDFDeviceNColorSpace::PDFDeviceNColorSpace(PDFDeviceNColorSpace::Type type,
+                                           PDFDeviceNColorSpace::Colorants&& colorants,
+                                           PDFColorSpacePointer alternateColorSpace,
+                                           PDFColorSpacePointer processColorSpace,
+                                           PDFFunctionPtr tintTransform,
+                                           std::vector<QByteArray>&& colorantsPrintingOrder,
+                                           std::vector<QByteArray> processColorSpaceComponents) :
+    m_type(type),
+    m_colorants(qMove(colorants)),
+    m_alternateColorSpace(qMove(alternateColorSpace)),
+    m_processColorSpace(qMove(processColorSpace)),
+    m_tintTransform(qMove(tintTransform)),
+    m_colorantsPrintingOrder(qMove(colorantsPrintingOrder)),
+    m_processColorSpaceComponents(qMove(processColorSpaceComponents))
+{
+
+}
+
+QColor PDFDeviceNColorSpace::getDefaultColor() const
+{
+    PDFColor color;
+    color.resize(getColorComponentCount());
+    return getColor(color);
+}
+
+QColor PDFDeviceNColorSpace::getColor(const PDFColor& color) const
+{
+    // Input values
+    std::vector<double> inputColor(color.size(), 0.0);
+    for (size_t i = 0, count = inputColor.size(); i < count; ++i)
+    {
+        inputColor[i] = color[i];
+    }
+
+    // Output values
+    std::vector<double> outputColor;
+    outputColor.resize(m_alternateColorSpace->getColorComponentCount(), 0.0);
+    PDFFunction::FunctionResult result = m_tintTransform->apply(inputColor.data(), inputColor.data() + inputColor.size(), outputColor.data(), outputColor.data() + outputColor.size());
+
+    if (result)
+    {
+        PDFColor color;
+        std::for_each(outputColor.cbegin(), outputColor.cend(), [&color](double value) { color.push_back(static_cast<float>(value)); });
+        return m_alternateColorSpace->getColor(color);
+    }
+    else
+    {
+        // Return invalid color
+        return QColor();
+    }
+}
+
+size_t PDFDeviceNColorSpace::getColorComponentCount() const
+{
+    return m_colorants.size();
+}
+
+PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                                   const PDFDocument* document,
+                                                                   const PDFArray* array,
+                                                                   int recursion)
+{
+    Q_ASSERT(array->getCount() >= 4);
+
+    PDFDocumentDataLoaderDecorator loader(document);
+    std::vector<QByteArray> colorantNames = loader.readNameArray(array->getItem(1));
+
+    if (colorantNames.empty())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Invalid colorants for DeviceN color space."));
+    }
+
+    std::vector<ColorantInfo> colorants;
+    colorants.resize(colorantNames.size());
+    for (size_t i = 0; i < colorantNames.size(); ++i)
+    {
+        colorants[i].name = qMove(colorantNames[i]);
+    }
+
+    // Read alternate color space
+    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion);
+    if (!alternateColorSpace)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't determine alternate color space for DeviceN color space."));
+    }
+
+    PDFFunctionPtr tintTransform = PDFFunction::createFunction(document, array->getItem(3));
+    if (!tintTransform)
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Can't determine tint transform for DeviceN color space."));
+    }
+
+    Type type = Type::DeviceN;
+    std::vector<QByteArray> colorantsPrintingOrder;
+    PDFColorSpacePointer processColorSpace;
+    std::vector<QByteArray> processColorSpaceComponents;
+
+    // Now, check, if we have attributes, and if yes, then read them
+    if (array->getCount() == 5)
+    {
+        const PDFObject& object = document->getObject(array->getItem(4));
+        if (object.isDictionary())
+        {
+            const PDFDictionary* attributesDictionary = object.getDictionary();
+            QByteArray subtype = loader.readNameFromDictionary(attributesDictionary, "Subtype");
+            if (subtype == "NChannel")
+            {
+                type = Type::NChannel;
+            }
+
+            const PDFObject& colorantsObject = document->getObject(attributesDictionary->get("Colorants"));
+            if (colorantsObject.isDictionary())
+            {
+                const PDFDictionary* colorantsDictionary = colorantsObject.getDictionary();
+
+                // Separation color spaces for each colorant
+                for (ColorantInfo& colorantInfo : colorants)
+                {
+                    if (colorantsDictionary->hasKey(colorantInfo.name))
+                    {
+                        colorantInfo.separationColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorantsDictionary->get(colorantInfo.name)), recursion);
+                    }
+                }
+            }
+
+            const PDFObject& mixingHints = document->getObject(attributesDictionary->get("MixingHints"));
+            if (mixingHints.isDictionary())
+            {
+                const PDFDictionary* mixingHintsDictionary = mixingHints.getDictionary();
+
+                // Printing order
+                colorantsPrintingOrder = loader.readNameArray(mixingHintsDictionary->get("PrintingOrder"));
+
+                // Solidities
+                const PDFObject& solidityObject = document->getObject(mixingHintsDictionary->get("Solidites"));
+                if (solidityObject.isDictionary())
+                {
+                    const PDFDictionary* solidityDictionary = solidityObject.getDictionary();
+                    const PDFReal defaultSolidity = loader.readNumberFromDictionary(solidityDictionary, "Default", 0.0);
+                    for (ColorantInfo& colorantInfo : colorants)
+                    {
+                        colorantInfo.solidity = loader.readNumberFromDictionary(solidityDictionary, colorantInfo.name, defaultSolidity);
+                    }
+                }
+
+                // Dot gain
+                const PDFObject& dotGainObject = document->getObject(mixingHintsDictionary->get("DotGain"));
+                if (dotGainObject.isDictionary())
+                {
+                    const PDFDictionary* dotGainDictionary = dotGainObject.getDictionary();
+                    for (ColorantInfo& colorantInfo : colorants)
+                    {
+                        const PDFObject& dotGainFunctionObject = document->getObject(dotGainDictionary->get(colorantInfo.name));
+                        if (!dotGainFunctionObject.isNull())
+                        {
+                            colorantInfo.dotGain = PDFFunction::createFunction(document, dotGainFunctionObject);
+                        }
+                    }
+                }
+            }
+
+            // Process
+            const PDFObject& processObject = document->getObject(attributesDictionary->get("Process"));
+            if (processObject.isDictionary())
+            {
+                const PDFDictionary* processDictionary = processObject.getDictionary();
+                const PDFObject& processColorSpaceObject = document->getObject(processDictionary->get("ColorSpace"));
+                if (!processColorSpaceObject.isNull())
+                {
+                    processColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, processColorSpaceObject, recursion);
+                    processColorSpaceComponents = loader.readNameArrayFromDictionary(processDictionary, "Components");
+                }
+            }
+        }
+    }
+
+    return PDFColorSpacePointer(new PDFDeviceNColorSpace(type, qMove(colorants), qMove(alternateColorSpace), qMove(processColorSpace), qMove(tintTransform), qMove(colorantsPrintingOrder), qMove(processColorSpaceComponents)));
 }
 
 }   // namespace pdf

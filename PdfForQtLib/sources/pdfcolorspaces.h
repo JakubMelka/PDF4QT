@@ -61,6 +61,7 @@ static constexpr const char* COLOR_SPACE_NAME_LAB = "Lab";
 static constexpr const char* COLOR_SPACE_NAME_ICCBASED = "ICCBased";
 static constexpr const char* COLOR_SPACE_NAME_INDEXED = "Indexed";
 static constexpr const char* COLOR_SPACE_NAME_SEPARATION = "Separation";
+static constexpr const char* COLOR_SPACE_NAME_DEVICE_N = "DeviceN";
 static constexpr const char* COLOR_SPACE_NAME_PATTERN = "Pattern";
 
 static constexpr const char* CAL_WHITE_POINT = "WhitePoint";
@@ -535,6 +536,59 @@ private:
     PDFFunctionPtr m_tintTransform;
 };
 
+class PDFDeviceNColorSpace : public PDFAbstractColorSpace
+{
+public:
+
+    enum class Type
+    {
+        DeviceN,
+        NChannel
+    };
+
+    struct ColorantInfo
+    {
+        QByteArray name;
+        PDFColorSpacePointer separationColorSpace;
+        PDFReal solidity = 0.0;
+        PDFFunctionPtr dotGain;
+    };
+
+    using Colorants = std::vector<ColorantInfo>;
+
+    explicit PDFDeviceNColorSpace(Type type,
+                                  Colorants&& colorants,
+                                  PDFColorSpacePointer alternateColorSpace,
+                                  PDFColorSpacePointer processColorSpace,
+                                  PDFFunctionPtr tintTransform,
+                                  std::vector<QByteArray>&& colorantsPrintingOrder,
+                                  std::vector<QByteArray> processColorSpaceComponents);
+    virtual ~PDFDeviceNColorSpace() = default;
+
+    virtual QColor getDefaultColor() const override;
+    virtual QColor getColor(const PDFColor& color) const override;
+    virtual size_t getColorComponentCount() const override;
+
+    /// Returns type of DeviceN color space
+    Type getType() const { return m_type; }
+
+    /// Creates DeviceN color space from provided values.
+    /// \param colorSpaceDictionary Color space dictionary
+    /// \param document Document
+    /// \param array Array with DeviceN color space definition
+    /// \param recursion Recursion guard
+    static PDFColorSpacePointer createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFArray* array, int recursion);
+
+private:
+    Type m_type;
+    Colorants m_colorants;
+    PDFColorSpacePointer m_alternateColorSpace;
+    PDFColorSpacePointer m_processColorSpace;
+    PDFFunctionPtr m_tintTransform;
+    std::vector<QByteArray> m_colorantsPrintingOrder;
+    std::vector<QByteArray> m_processColorSpaceComponents;
+};
+
 class PDFPatternColorSpace : public PDFAbstractColorSpace
 {
 public:
@@ -550,8 +604,6 @@ public:
 private:
      std::shared_ptr<PDFPattern> m_pattern;
 };
-
-// TODO: Implement DeviceN color space
 
 }   // namespace pdf
 
