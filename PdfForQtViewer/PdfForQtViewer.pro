@@ -34,17 +34,25 @@ LIBS += -lPDFForQtLib
 
 SOURCES += \
         main.cpp \
-        pdfviewermainwindow.cpp
+        pdfviewermainwindow.cpp \
+        pdfviewersettings.cpp \
+        pdfviewersettingsdialog.cpp
 
 HEADERS += \
-        pdfviewermainwindow.h
+        pdfviewermainwindow.h \
+        pdfviewersettings.h \
+        pdfviewersettingsdialog.h
 
 FORMS += \
-        pdfviewermainwindow.ui
+        pdfviewermainwindow.ui \
+        pdfviewersettingsdialog.ui
 
 CONFIG += force_debug_info
 
 application.files = $$DESTDIR/PdfForQtViewer.exe
 application.path = $$DESTDIR/install
 INSTALLS += application
+
+RESOURCES += \
+    pdfforqtviewer.qrc
 

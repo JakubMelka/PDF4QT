@@ -142,6 +142,12 @@ private:
     bool m_oldValue;
 };
 
+enum class RendererEngine
+{
+    Software,
+    OpenGL
+};
+
 }   // namespace pdf
 
 #endif // PDFGLOBAL_H

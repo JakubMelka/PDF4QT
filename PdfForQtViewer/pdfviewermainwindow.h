@@ -21,6 +21,8 @@
 #include "pdfcatalog.h"
 #include "pdfrenderer.h"
 
+#include "pdfviewersettings.h"
+
 #include <QTreeView>
 #include <QMainWindow>
 #include <QSharedPointer>
@@ -42,35 +44,6 @@ class PDFOptionalContentTreeItemModel;
 namespace pdfviewer
 {
 
-class PDFViewerSettings : public QObject
-{
-    Q_OBJECT
-
-public:
-    inline explicit PDFViewerSettings(QObject* parent) :
-        QObject(parent),
-        m_features(pdf::PDFRenderer::getDefaultFeatures())
-    {
-
-    }
-
-    void readSettings(QSettings& settings);
-    void writeSettings(QSettings& settings);
-
-    QString getDirectory() const;
-    void setDirectory(const QString& directory);
-
-    pdf::PDFRenderer::Features getFeatures() const;
-    void setFeatures(const pdf::PDFRenderer::Features& features);
-
-signals:
-    void settingsChanged();
-
-private:
-    pdf::PDFRenderer::Features m_features;
-    QString m_directory;
-};
-
 class PDFViewerMainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -90,6 +63,8 @@ private slots:
 
     void on_actionRendering_Errors_triggered();
     void on_actionGenerateCMAPrepository_triggered();
+
+    void on_actionOptions_triggered();
 
 private:
     void onActionOpenTriggered();

@@ -68,6 +68,8 @@
      <string>Tools</string>
     </property>
     <addaction name="actionRendering_Errors"/>
+    <addaction name="separator"/>
+    <addaction name="actionOptions"/>
    </widget>
    <widget class="QMenu" name="menuDeveloper">
     <property name="title">
@@ -206,6 +208,11 @@
    </property>
    <property name="text">
     <string>Ignore Optional Content Settings</string>
+   </property>
+  </action>
+  <action name="actionOptions">
+   <property name="text">
+    <string>Options...</string>
    </property>
   </action>
  </widget>

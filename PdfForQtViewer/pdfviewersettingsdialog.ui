@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PDFViewerSettingsDialog</class>
+ <widget class="QDialog" name="PDFViewerSettingsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>720</width>
+    <height>538</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Options</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,3">
+     <item>
+      <widget class="QListWidget" name="optionsPagesWidget">
+       <property name="selectionBehavior">
+        <enum>QAbstractItemView::SelectRows</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QStackedWidget" name="stackedWidget">
+       <property name="currentIndex">
+        <number>1</number>
+       </property>
+       <widget class="QWidget" name="enginePage">
+        <layout class="QVBoxLayout" name="enginePageLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="engineSettingsGroupBox">
+           <property name="title">
+            <string>Engine Settings</string>
+           </property>
+           <layout class="QVBoxLayout" name="engineSettingsGroupBoxLayout">
+            <item>
+             <layout class="QGridLayout" name="engineSettingsGridLayout">
+              <item row="0" column="0">
+               <widget class="QLabel" name="renderingEngineLabel">
+                <property name="text">
+                 <string>Rendering engine</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QComboBox" name="renderingEngineComboBox"/>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="multisampleAntialiasingCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="multisampleAntialiasingLabel">
+                <property name="text">
+                 <string>Multisample antialiasing (MSAA)</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="multisampleAntiailasingSamplesLabel">
+                <property name="text">
+                 <string>MSAA Samples count</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QComboBox" name="multisampleAntialiasingSamplesCountComboBox"/>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="engineInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select rendering method according to your needs. &lt;span style=&quot; font-weight:600;&quot;&gt;Software rendering&lt;/span&gt; is much slower than hardware accelerated rendering using &lt;span style=&quot; font-weight:600;&quot;&gt;OpenGL rendering&lt;/span&gt;, but it works when OpenGL is not available at your platform. OpenGL rendering is selected as default and is recommended.&lt;/p&gt;&lt;p&gt;OpenGL rendering uses&lt;span style=&quot; font-weight:600;&quot;&gt; multisample antialiasing (MSAA)&lt;/span&gt;, which provides good quality antialiasing. You can turn this feature on or off, but without antialiasing, bad quality image can occur. Samples count affect how much samples per pixel are considered to determine pixel color. It can be a value 1, 2, 4, 8, and 16. Most modern GPUs support at least value 8. Lower this value, if your GPU doesn't support the desired sample count.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="engineVerticalSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="renderingPage">
+        <layout class="QVBoxLayout" name="renderingPageLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="renderingSettingsGroupBox">
+           <property name="title">
+            <string>Rendering Settings</string>
+           </property>
+           <layout class="QVBoxLayout" name="renderingSettingsGroupBoxLayout">
+            <item>
+             <layout class="QGridLayout" name="renderingSettingsGridLayout">
+              <item row="2" column="0">
+               <widget class="QLabel" name="smoothPicturesLabel">
+                <property name="text">
+                 <string>Smooth pictures</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="ignoreOptionalContentLabel">
+                <property name="text">
+                 <string>Ignore optional content</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="textAntialiasingLabel">
+                <property name="text">
+                 <string>Text antialiasing</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="antialiasingCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="antialiasingLabel">
+                <property name="text">
+                 <string>Antialiasing</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="clipToCropBoxLabel">
+                <property name="text">
+                 <string>Clip to crop box</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="textAntialiasingCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QCheckBox" name="smoothPicturesCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QCheckBox" name="ignoreOptionalContentCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QCheckBox" name="clipToCropBoxCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="renderingInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rendering settings defines, how rendering engine should handle the page content, and appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; turns on antialiasing of painted shapes, such as rectangles, vector graphics, lines, but it did not affects text (characters printed on the screen). &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;turns on antialiasing of painted characters on the screen, but not any other items. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;affects only software renderer. If you are using hardware rendering engine, such as OpenGL rendering engine, this doesn't do anything, because OpenGL engine renders the pictures using MSAA antialiasing (if turned on).&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; transforms pictures to device space coordinates using smooth image transformation, which usually leads to better image quality. When this is turned off, then default fast transformation is used, and quality of the image is lower, if the source DPI and device DPI is different.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and paints everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; clips the drawing rectangle to the crop box of the page, which is usually smaller, than whole page. The graphics outside of the crop box is not drawn (for example, it can contain marks for printer etc.).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="verticalSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>74</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="shadingPage">
+        <layout class="QVBoxLayout" name="shadingPageLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="shadingSettingsGroupBox">
+           <property name="title">
+            <string>Shading Settings</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>PDFViewerSettingsDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>PDFViewerSettingsDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

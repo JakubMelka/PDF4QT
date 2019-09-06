@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/engine.svg</file>
+        <file>resources/rendering.svg</file>
+        <file>resources/shading.svg</file>
+    </qresource>
+</RCC>

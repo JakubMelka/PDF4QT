@@ -18,6 +18,8 @@
 #include "pdfviewermainwindow.h"
 #include "ui_pdfviewermainwindow.h"
 
+#include "pdfviewersettingsdialog.h"
+
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
 #include "pdfstreamfilters.h"
@@ -452,50 +454,10 @@ void PDFViewerMainWindow::on_actionGenerateCMAPrepository_triggered()
     }
 }
 
-void PDFViewerSettings::readSettings(QSettings& settings)
+void PDFViewerMainWindow::on_actionOptions_triggered()
 {
-    settings.beginGroup("ViewerSettings");
-    m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
-    m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeatures", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
-    settings.endGroup();
-
-    emit settingsChanged();
-}
-
-void PDFViewerSettings::writeSettings(QSettings& settings)
-{
-    settings.beginGroup("ViewerSettings");
-    settings.setValue("defaultDirectory", m_directory);
-    settings.setValue("rendererFeatures", static_cast<int>(m_features));
-    settings.endGroup();
-}
-
-QString PDFViewerSettings::getDirectory() const
-{
-    return m_directory;
-}
-
-void PDFViewerSettings::setDirectory(const QString& directory)
-{
-    if (m_directory != directory)
-    {
-        m_directory = directory;
-        emit settingsChanged();
-    }
-}
-
-pdf::PDFRenderer::Features PDFViewerSettings::getFeatures() const
-{
-    return m_features;
-}
-
-void PDFViewerSettings::setFeatures(const pdf::PDFRenderer::Features& features)
-{
-    if (m_features != features)
-    {
-        m_features = features;
-        emit settingsChanged();
-    }
+    PDFViewerSettingsDialog dialog(this);
+    dialog.exec();
 }
 
 }   // namespace pdfviewer
