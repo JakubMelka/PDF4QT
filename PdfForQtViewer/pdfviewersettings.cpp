@@ -3,6 +3,12 @@
 namespace pdfviewer
 {
 
+void PDFViewerSettings::setSettings(const PDFViewerSettings::Settings& settings)
+{
+    m_settings = settings;
+    emit settingsChanged();
+}
+
 void PDFViewerSettings::readSettings(QSettings& settings)
 {
     settings.beginGroup("ViewerSettings");

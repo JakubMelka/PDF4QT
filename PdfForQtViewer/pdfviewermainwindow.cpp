@@ -456,8 +456,11 @@ void PDFViewerMainWindow::on_actionGenerateCMAPrepository_triggered()
 
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
-    PDFViewerSettingsDialog dialog(this);
-    dialog.exec();
+    PDFViewerSettingsDialog dialog(m_settings->getSettings(), this);
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        m_settings->setSettings(dialog.getSettings());
+    }
 }
 
 }   // namespace pdfviewer

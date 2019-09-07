@@ -20,7 +20,7 @@ class PDFViewerSettingsDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PDFViewerSettingsDialog(QWidget* parent);
+    explicit PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QWidget* parent);
     virtual ~PDFViewerSettingsDialog() override;
 
     enum Page : int
@@ -30,11 +30,18 @@ public:
         ShadingSettings
     };
 
+    const PDFViewerSettings::Settings& getSettings() const { return m_settings; }
+
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
 
 private:
+    void loadData();
+    void saveData();
+
     Ui::PDFViewerSettingsDialog* ui;
+    PDFViewerSettings::Settings m_settings;
+    bool m_isLoadingData;
 };
 
 }   // namespace pdfviewer

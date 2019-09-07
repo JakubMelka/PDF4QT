@@ -19,6 +19,27 @@ public:
 
     }
 
+    struct Settings
+    {
+        Settings() :
+            m_features(pdf::PDFRenderer::getDefaultFeatures()),
+            m_rendererEngine(pdf::RendererEngine::OpenGL),
+            m_multisampleAntialiasing(true),
+            m_rendererSamples(16)
+        {
+
+        }
+
+        pdf::PDFRenderer::Features m_features;
+        QString m_directory;
+        pdf::RendererEngine m_rendererEngine;
+        bool m_multisampleAntialiasing;
+        int m_rendererSamples;
+    };
+
+    const Settings& getSettings() const { return m_settings; }
+    void setSettings(const Settings& settings);
+
     void readSettings(QSettings& settings);
     void writeSettings(QSettings& settings);
 
@@ -38,22 +59,6 @@ signals:
     void settingsChanged();
 
 private:
-    struct Settings
-    {
-        Settings() :
-            m_features(pdf::PDFRenderer::getDefaultFeatures()),
-            m_rendererEngine(pdf::RendererEngine::OpenGL),
-            m_rendererSamples(16)
-        {
-
-        }
-
-        pdf::PDFRenderer::Features m_features;
-        QString m_directory;
-        pdf::RendererEngine m_rendererEngine;
-        int m_rendererSamples;
-    };
-
     Settings m_settings;
 };
 
