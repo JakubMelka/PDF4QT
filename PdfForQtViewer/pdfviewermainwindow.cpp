@@ -414,46 +414,6 @@ void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
     renderingErrorsDialog.exec();
 }
 
-void PDFViewerMainWindow::on_actionGenerateCMAPrepository_triggered()
-{
-    QStringList files = QFileDialog::getOpenFileNames(this, tr("Select CMAP mapping files"));
-
-    pdf::PDFFontCMapRepository* instance = pdf::PDFFontCMapRepository::getInstance();
-    instance->clear();
-
-    for (const QString& fileName : files)
-    {
-        QFile file(fileName);
-        if (file.open(QFile::ReadOnly))
-        {
-            pdf::PDFFontCMap map = pdf::PDFFontCMap::createFromData(file.readAll());
-            file.close();
-
-            if (map.isValid())
-            {
-                QFileInfo fileInfo(file);
-                instance->add(fileInfo.baseName().toLatin1(), map.serialize());
-            }
-            else
-            {
-                QMessageBox::critical(this, tr("Error"), tr("Invalid CMAP in file '%1'.").arg(fileName));
-                return;
-            }
-        }
-        else
-        {
-            QMessageBox::critical(this, tr("Error"), tr("File '%1' can't be opened.").arg(fileName));
-            return;
-        }
-    }
-
-    QString repositoryFileName = QFileDialog::getSaveFileName(this, tr("Save CMAP repository to file"));
-    if (!repositoryFileName.isEmpty())
-    {
-        instance->saveToFile(repositoryFileName);
-    }
-}
-
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
     PDFViewerSettingsDialog dialog(m_settings->getSettings(), this);

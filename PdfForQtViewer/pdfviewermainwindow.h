@@ -62,8 +62,6 @@ private slots:
     void on_actionFirstPageOnRightSide_triggered();
 
     void on_actionRendering_Errors_triggered();
-    void on_actionGenerateCMAPrepository_triggered();
-
     void on_actionOptions_triggered();
 
 private:
