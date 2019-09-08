@@ -127,7 +127,12 @@ public:
     const QPainterPath& getBoundingPath() const { return m_boundingPath; }
     void setBoundingPath(const QPainterPath& path) { m_boundingPath = path; }
 
+    /// Sets the vertex array to the mesh
+    /// \param vertices New vertex array
     void setVertices(std::vector<QPointF>&& vertices) { m_vertices = qMove(vertices); }
+
+    /// Sets the triangle array to the mesh
+    /// \param triangles New triangle array
     void setTriangles(std::vector<Triangle>&& triangles) { m_triangles = qMove(triangles); }
 
     /// Returns vertex at given index
@@ -138,10 +143,22 @@ public:
     /// \param triangle Triangle
     QPointF getTriangleCenter(const Triangle& triangle) const;
 
+    /// Sets the background path. In order to draw background properly, the background
+    /// color must be set to a valid color.
+    /// \param path Background path
+    void setBackgroundPath(QPainterPath path) { m_backgroundPath = qMove(path); }
+
+    /// Sets the background color (background path is then painted with this color, if it is not
+    /// empty), if color is invalid, it turns off background painting.
+    /// \param backgroundColor Background color
+    void setBackgroundColor(QColor backgroundColor) { m_backgroundColor = backgroundColor; }
+
 private:
     std::vector<QPointF> m_vertices;
     std::vector<Triangle> m_triangles;
     QPainterPath m_boundingPath;
+    QPainterPath m_backgroundPath;
+    QColor m_backgroundColor;
 };
 
 /// Represents tiling/shading pattern

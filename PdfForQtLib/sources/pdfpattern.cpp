@@ -99,6 +99,12 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 
     // Parse common data for all shadings
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, document, shadingDictionary->get("ColorSpace"));
+
+    if (colorSpace->getPattern())
+    {
+        throw PDFParserException(PDFTranslationContext::tr("Pattern color space is not valid for shading patterns."));
+    }
+
     QColor backgroundColor;
     if (!ignoreBackgroundColor)
     {
@@ -255,162 +261,100 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
     QLineF leftLineDS = domainToDeviceSpaceMatrix.map(leftLine);
 
     const size_t colorComponents = m_colorSpace->getColorComponentCount();
-    const PDFReal resolution = settings.preferredMeshResolution;
+    auto resolutions = { settings.preferredMeshResolution,
+                         interpolate(0.25, 0.0, 1.0, settings.preferredMeshResolution, settings.minimalMeshResolution),
+                         interpolate(0.50, 0.0, 1.0, settings.preferredMeshResolution, settings.minimalMeshResolution),
+                         interpolate(0.75, 0.0, 1.0, settings.preferredMeshResolution, settings.minimalMeshResolution),
+                         settings.minimalMeshResolution
+                       };
 
-    const PDFReal xSteps = qMax(std::floor(topLineDS.length() / resolution), 2.0);
-    const PDFReal ySteps = qMax(std::floor(leftLineDS.length() / resolution), 2.0);
-    const PDFReal xStep = 1.0 / xSteps;
-    const PDFReal yStep = 1.0 / ySteps;
-
-    // Prepare x/y ordinates array for given resolution
-    std::vector<PDFReal> xOrdinates;
-    std::vector<PDFReal> yOrdinates;
-    xOrdinates.reserve(xSteps + 1);
-    yOrdinates.reserve(ySteps + 1);
-
-    for (PDFReal x = 0.0; x <= 1.0; x += xStep)
+    for (PDFReal resolution : resolutions)
     {
-        xOrdinates.push_back(x);
-    }
-    if (xOrdinates.back() + PDF_EPSILON >= 1.0)
-    {
-        xOrdinates.pop_back();
-    }
-    xOrdinates.push_back(1.0);
+        const PDFReal xSteps = qMax(std::floor(topLineDS.length() / resolution), 2.0);
+        const PDFReal ySteps = qMax(std::floor(leftLineDS.length() / resolution), 2.0);
+        const PDFReal xStep = 1.0 / xSteps;
+        const PDFReal yStep = 1.0 / ySteps;
 
-    for (PDFReal y = 0.0; y <= 1.0; y += yStep)
-    {
-        yOrdinates.push_back(y);
-    }
-    if (yOrdinates.back() + PDF_EPSILON >= 1.0)
-    {
-        yOrdinates.pop_back();
-    }
-    yOrdinates.push_back(1.0);
+        // Prepare x/y ordinates array for given resolution
+        std::vector<PDFReal> xOrdinates;
+        std::vector<PDFReal> yOrdinates;
+        xOrdinates.reserve(xSteps + 1);
+        yOrdinates.reserve(ySteps + 1);
 
-    // We have determined x/y ordinates. Now we must create result array with colors,
-    // which for each x/y ordinate tells us, what color in the given position is.
-    const size_t rowCount = yOrdinates.size();
-    const size_t columnCount = xOrdinates.size();
-    const size_t nodesCount = rowCount * columnCount;
-    const size_t stride = columnCount * colorComponents;
-
-    std::vector<size_t> indices;
-    indices.resize(nodesCount, 0);
-    std::iota(indices.begin(), indices.end(), 0);
-
-    auto indexToRowColumn = [columnCount](size_t index) -> std::pair<size_t, size_t>
-    {
-        return std::make_pair(index / columnCount, index % columnCount);
-    };
-
-    auto rowColumnToIndex = [columnCount](size_t row, size_t column) -> size_t
-    {
-        return row * columnCount + column;
-    };
-
-    auto rowColumnToFirstColorComponent = [stride, colorComponents](size_t row, size_t column) -> size_t
-    {
-        return row * stride + column * colorComponents;
-    };
-
-    const bool isSingleFunction = m_functions.size() == 1;
-    std::vector<PDFReal> sourceColorBuffer;
-    sourceColorBuffer.resize(indices.size() * colorComponents, 0.0);
-
-    std::vector<QPointF> gridPoints;
-    gridPoints.resize(nodesCount);
-
-    QMutex functionErrorMutex;
-    PDFFunction::FunctionResult functionError(true);
-
-    auto setColor = [&](size_t index)
-    {
-        auto [row, column] = indexToRowColumn(index);
-        QPointF nodeDS = topLineDS.pointAt(xOrdinates[column]) + leftLineDS.pointAt(yOrdinates[row]) - topLineDS.p1();
-        QPointF node = deviceSpaceToDomainMatrix.map(nodeDS);
-        const size_t colorComponentIndex = rowColumnToFirstColorComponent(row, column);
-        Q_ASSERT(colorComponentIndex <= sourceColorBuffer.size());
-
-        gridPoints[index] = nodeDS;
-
-        PDFReal* sourceColorBegin = sourceColorBuffer.data() + colorComponentIndex;
-        PDFReal* sourceColorEnd = sourceColorBegin + colorComponents;
-
-        std::array<PDFReal, 2> uv = { node.x(), node.y() };
-
-        if (isSingleFunction)
+        for (PDFReal x = 0.0; x <= 1.0; x += xStep)
         {
-            PDFFunction::FunctionResult result = m_functions.front()->apply(uv.data(), uv.data() + uv.size(), sourceColorBegin, sourceColorEnd);
-            if (!result)
-            {
-                QMutexLocker lock(&functionErrorMutex);
-                if (!functionError)
-                {
-                    functionError = result;
-                }
-            }
+            xOrdinates.push_back(x);
         }
-        else
+        if (xOrdinates.back() + PDF_EPSILON >= 1.0)
         {
-            for (size_t i = 0, count = colorComponents; i < count; ++i)
-            {
-                PDFFunction::FunctionResult result = m_functions[i]->apply(uv.data(), uv.data() + uv.size(), sourceColorBegin + i, sourceColorBegin + i + 1);
-                if (!result)
-                {
-                    QMutexLocker lock(&functionErrorMutex);
-                    if (!functionError)
-                    {
-                        functionError = result;
-                    }
-                }
-            }
+            xOrdinates.pop_back();
         }
-    };
+        xOrdinates.push_back(1.0);
 
-    std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), setColor);
-
-    if (!functionError)
-    {
-        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh generation of shading: %1").arg(functionError.errorMessage));
-    }
-
-    std::vector<QRgb> colors;
-    colors.resize(rowCount * columnCount, QRgb());
-
-    mesh.setVertices(qMove(gridPoints));
-    std::vector<PDFMesh::Triangle> triangles;
-    triangles.resize((rowCount - 1) * (columnCount - 1) * 2);
-
-    auto generateTriangle = [&](size_t index)
-    {
-        auto [row, column] = indexToRowColumn(index);
-        if (row == 0 || column == 0)
+        for (PDFReal y = 0.0; y <= 1.0; y += yStep)
         {
-            return;
+            yOrdinates.push_back(y);
         }
-
-        Q_ASSERT(index == rowColumnToIndex(row, column));
-
-        const size_t triangleIndex1 = ((row - 1) * (columnCount - 1) + column - 1) * 2;
-        const size_t triangleIndex2 = triangleIndex1 + 1;
-        const size_t v1 = rowColumnToIndex(row - 1, column - 1);
-        const size_t v2 = rowColumnToIndex(row - 1, column);
-        const size_t v3 = index;
-        const size_t v4 = rowColumnToIndex(row, column - 1);
-        std::vector<PDFReal> colorBuffer;
-        colorBuffer.resize(colorComponents, 0.0);
-
-        auto calculateColor = [&](const PDFMesh::Triangle& triangle)
+        if (yOrdinates.back() + PDF_EPSILON >= 1.0)
         {
-            QPointF centerDS = mesh.getTriangleCenter(triangle);
-            QPointF center = deviceSpaceToDomainMatrix.map(centerDS);
+            yOrdinates.pop_back();
+        }
+        yOrdinates.push_back(1.0);
 
-            std::array<PDFReal, 2> uv = { center.x(), center.y() };
+        // We have determined x/y ordinates. Now we must create result array with colors,
+        // which for each x/y ordinate tells us, what color in the given position is.
+        const size_t rowCount = yOrdinates.size();
+        const size_t columnCount = xOrdinates.size();
+        const size_t nodesCount = rowCount * columnCount;
+        const size_t stride = columnCount * colorComponents;
+
+        std::vector<size_t> indices;
+        indices.resize(nodesCount, 0);
+        std::iota(indices.begin(), indices.end(), 0);
+
+        auto indexToRowColumn = [columnCount](size_t index) -> std::pair<size_t, size_t>
+        {
+            return std::make_pair(index / columnCount, index % columnCount);
+        };
+
+        auto rowColumnToIndex = [columnCount](size_t row, size_t column) -> size_t
+        {
+            return row * columnCount + column;
+        };
+
+        auto rowColumnToFirstColorComponent = [stride, colorComponents](size_t row, size_t column) -> size_t
+        {
+            return row * stride + column * colorComponents;
+        };
+
+        const bool isSingleFunction = m_functions.size() == 1;
+        std::vector<PDFReal> sourceColorBuffer;
+        sourceColorBuffer.resize(indices.size() * colorComponents, 0.0);
+
+        std::vector<QPointF> gridPoints;
+        gridPoints.resize(nodesCount);
+
+        QMutex functionErrorMutex;
+        PDFFunction::FunctionResult functionError(true);
+
+        auto setColor = [&](size_t index)
+        {
+            auto [row, column] = indexToRowColumn(index);
+            QPointF nodeDS = topLineDS.pointAt(xOrdinates[column]) + leftLineDS.pointAt(yOrdinates[row]) - topLineDS.p1();
+            QPointF node = deviceSpaceToDomainMatrix.map(nodeDS);
+            const size_t colorComponentIndex = rowColumnToFirstColorComponent(row, column);
+            Q_ASSERT(colorComponentIndex <= sourceColorBuffer.size());
+
+            gridPoints[index] = nodeDS;
+
+            PDFReal* sourceColorBegin = sourceColorBuffer.data() + colorComponentIndex;
+            PDFReal* sourceColorEnd = sourceColorBegin + colorComponents;
+
+            std::array<PDFReal, 2> uv = { node.x(), node.y() };
 
             if (isSingleFunction)
             {
-                PDFFunction::FunctionResult result = m_functions.front()->apply(uv.data(), uv.data() + uv.size(), colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
+                PDFFunction::FunctionResult result = m_functions.front()->apply(uv.data(), uv.data() + uv.size(), sourceColorBegin, sourceColorEnd);
                 if (!result)
                 {
                     QMutexLocker lock(&functionErrorMutex);
@@ -424,7 +368,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
             {
                 for (size_t i = 0, count = colorComponents; i < count; ++i)
                 {
-                    PDFFunction::FunctionResult result = m_functions[i]->apply(uv.data(), uv.data() + uv.size(), colorBuffer.data() + i, colorBuffer.data() + i + 1);
+                    PDFFunction::FunctionResult result = m_functions[i]->apply(uv.data(), uv.data() + uv.size(), sourceColorBegin + i, sourceColorBegin + i + 1);
                     if (!result)
                     {
                         QMutexLocker lock(&functionErrorMutex);
@@ -435,31 +379,162 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
                     }
                 }
             }
-
-            return m_colorSpace->getColor(PDFAbstractColorSpace::convertToColor(colorBuffer));
         };
 
-        PDFMesh::Triangle triangle1;
-        triangle1.v1 = static_cast<uint32_t>(v1);
-        triangle1.v2 = static_cast<uint32_t>(v2);
-        triangle1.v3 = static_cast<uint32_t>(v3);
-        triangle1.color = calculateColor(triangle1).rgb();
+        std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), setColor);
 
-        PDFMesh::Triangle triangle2;
-        triangle2.v1 = static_cast<uint32_t>(v3);
-        triangle2.v2 = static_cast<uint32_t>(v4);
-        triangle2.v3 = static_cast<uint32_t>(v1);
-        triangle2.color = calculateColor(triangle2).rgb();
+        if (!functionError)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh generation of shading: %1").arg(functionError.errorMessage));
+        }
 
-        triangles[triangleIndex1] = triangle1;
-        triangles[triangleIndex2] = triangle2;
-    };
-    std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), generateTriangle);
-    mesh.setTriangles(qMove(triangles));
+        // Check the colors, if mesh is bad, then refine it
+        std::atomic_bool isMeshOK = true;
+        auto validateMesh = [&](size_t index)
+        {
+            if (!isMeshOK.load(std::memory_order_relaxed))
+            {
+                return;
+            }
 
-    if (!functionError)
+            auto [row, column] = indexToRowColumn(index);
+            const size_t colorComponentIndex = rowColumnToFirstColorComponent(row, column);
+
+            // Check, if color left doesn't differ too much
+            if (column > 0)
+            {
+                const size_t colorOtherComponentIndex = rowColumnToFirstColorComponent(row, column - 1);
+                for (size_t i = 0; i < colorComponents; ++i)
+                {
+                    if (std::fabs(sourceColorBuffer[colorComponentIndex + i] - sourceColorBuffer[colorOtherComponentIndex + i]) > settings.tolerance)
+                    {
+                        isMeshOK.store(std::memory_order_relaxed);
+                        return;
+                    }
+                }
+            }
+
+            if (row > 0)
+            {
+                const size_t colorOtherComponentIndex = rowColumnToFirstColorComponent(row - 1, column);
+                for (size_t i = 0; i < colorComponents; ++i)
+                {
+                    if (std::fabs(sourceColorBuffer[colorComponentIndex + i] - sourceColorBuffer[colorOtherComponentIndex + i]) > settings.tolerance)
+                    {
+                        isMeshOK.store(std::memory_order_relaxed);
+                        return;
+                    }
+                }
+            }
+        };
+        std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), validateMesh);
+        if (!isMeshOK && resolution != settings.minimalMeshResolution)
+        {
+            continue;
+        }
+
+        // Now, we are ready to generate the mesh
+        std::vector<QRgb> colors;
+        colors.resize(rowCount * columnCount, QRgb());
+
+        mesh.setVertices(qMove(gridPoints));
+        std::vector<PDFMesh::Triangle> triangles;
+        triangles.resize((rowCount - 1) * (columnCount - 1) * 2);
+
+        auto generateTriangle = [&](size_t index)
+        {
+            auto [row, column] = indexToRowColumn(index);
+                    if (row == 0 || column == 0)
+            {
+                return;
+            }
+
+            Q_ASSERT(index == rowColumnToIndex(row, column));
+
+            const size_t triangleIndex1 = ((row - 1) * (columnCount - 1) + column - 1) * 2;
+            const size_t triangleIndex2 = triangleIndex1 + 1;
+            const size_t v1 = rowColumnToIndex(row - 1, column - 1);
+            const size_t v2 = rowColumnToIndex(row - 1, column);
+            const size_t v3 = index;
+            const size_t v4 = rowColumnToIndex(row, column - 1);
+            std::vector<PDFReal> colorBuffer;
+            colorBuffer.resize(colorComponents, 0.0);
+
+            auto calculateColor = [&](const PDFMesh::Triangle& triangle)
+            {
+                QPointF centerDS = mesh.getTriangleCenter(triangle);
+                QPointF center = deviceSpaceToDomainMatrix.map(centerDS);
+
+                std::array<PDFReal, 2> uv = { center.x(), center.y() };
+
+                if (isSingleFunction)
+                {
+                    PDFFunction::FunctionResult result = m_functions.front()->apply(uv.data(), uv.data() + uv.size(), colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
+                    if (!result)
+                    {
+                        QMutexLocker lock(&functionErrorMutex);
+                        if (!functionError)
+                        {
+                            functionError = result;
+                        }
+                    }
+                }
+                else
+                {
+                    for (size_t i = 0, count = colorComponents; i < count; ++i)
+                    {
+                        PDFFunction::FunctionResult result = m_functions[i]->apply(uv.data(), uv.data() + uv.size(), colorBuffer.data() + i, colorBuffer.data() + i + 1);
+                        if (!result)
+                        {
+                            QMutexLocker lock(&functionErrorMutex);
+                            if (!functionError)
+                            {
+                                functionError = result;
+                            }
+                        }
+                    }
+                }
+
+                return m_colorSpace->getColor(PDFAbstractColorSpace::convertToColor(colorBuffer));
+            };
+
+            PDFMesh::Triangle triangle1;
+            triangle1.v1 = static_cast<uint32_t>(v1);
+            triangle1.v2 = static_cast<uint32_t>(v2);
+            triangle1.v3 = static_cast<uint32_t>(v3);
+            triangle1.color = calculateColor(triangle1).rgb();
+
+            PDFMesh::Triangle triangle2;
+            triangle2.v1 = static_cast<uint32_t>(v3);
+            triangle2.v2 = static_cast<uint32_t>(v4);
+            triangle2.v3 = static_cast<uint32_t>(v1);
+            triangle2.color = calculateColor(triangle2).rgb();
+
+            triangles[triangleIndex1] = triangle1;
+            triangles[triangleIndex2] = triangle2;
+        };
+        std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), generateTriangle);
+        mesh.setTriangles(qMove(triangles));
+
+        if (!functionError)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh generation of shading: %1").arg(functionError.errorMessage));
+        }
+
+        break;
+    }
+
+    if (m_backgroundColor.isValid())
     {
-        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh generation of shading: %1").arg(functionError.errorMessage));
+        QPainterPath backgroundPath;
+        backgroundPath.addRect(settings.deviceSpaceMeshingArea);
+
+        QPainterPath paintedPath;
+        paintedPath.addPolygon(domainToDeviceSpaceMatrix.map(m_domain));
+
+        backgroundPath = backgroundPath.subtracted(paintedPath);
+        mesh.setBackgroundPath(backgroundPath);
+        mesh.setBackgroundColor(m_backgroundColor);
     }
 
     // Create bounding path
@@ -714,6 +789,12 @@ void PDFMesh::paint(QPainter* painter) const
         painter->setClipPath(m_boundingPath, Qt::IntersectClip);
     }
 
+    if (!m_backgroundPath.isEmpty() && m_backgroundColor.isValid())
+    {
+        painter->setBrush(QBrush(m_backgroundColor, Qt::SolidPattern));
+        painter->drawPath(m_backgroundPath);
+    }
+
     QColor color;
 
     // Draw all triangles
@@ -741,6 +822,7 @@ void PDFMesh::transform(const QMatrix& matrix)
     }
 
     m_boundingPath = matrix.map(m_boundingPath);
+    m_backgroundPath = matrix.map(m_backgroundPath);
 }
 
 QPointF PDFMesh::getTriangleCenter(const PDFMesh::Triangle& triangle) const
