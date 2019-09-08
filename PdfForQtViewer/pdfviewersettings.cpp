@@ -15,6 +15,7 @@ void PDFViewerSettings::readSettings(QSettings& settings)
     m_settings.m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
     m_settings.m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeatures", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
     m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::OpenGL)).toInt());
+    m_settings.m_multisampleAntialiasing = settings.value("msaa", true).toBool();
     m_settings.m_rendererSamples = settings.value("rendererSamples", 16).toInt();
     settings.endGroup();
 
@@ -27,6 +28,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("defaultDirectory", m_settings.m_directory);
     settings.setValue("rendererFeatures", static_cast<int>(m_settings.m_features));
     settings.setValue("renderingEngine", static_cast<int>(m_settings.m_rendererEngine));
+    settings.setValue("msaa", m_settings.m_multisampleAntialiasing);
     settings.setValue("rendererSamples", m_settings.m_rendererSamples);
     settings.endGroup();
 }

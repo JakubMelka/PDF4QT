@@ -55,6 +55,8 @@ public:
     int getRendererSamples() const;
     void setRendererSamples(int rendererSamples);
 
+    bool isMultisampleAntialiasingEnabled() const { return m_settings.m_multisampleAntialiasing; }
+
 signals:
     void settingsChanged();
 

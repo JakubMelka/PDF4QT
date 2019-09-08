@@ -86,7 +86,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     createGoToAction(ui->menuGoTo, tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep);
     createGoToAction(ui->menuGoTo, tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep);
 
-    m_pdfWidget = new pdf::PDFWidget(this);
+    readSettings();
+
+    m_pdfWidget = new pdf::PDFWidget(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, this);
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
 
@@ -118,7 +120,6 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
     connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFViewerMainWindow::onViewerSettingsChanged);
 
-    readSettings();
     updatePageLayoutActions();
 }
 
@@ -252,6 +253,7 @@ void PDFViewerMainWindow::updateRenderingOptionActions()
 
 void PDFViewerMainWindow::onViewerSettingsChanged()
 {
+    m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
     m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
     updateRenderingOptionActions();
 }

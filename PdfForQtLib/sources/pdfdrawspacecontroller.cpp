@@ -367,13 +367,13 @@ void PDFDrawWidgetProxy::setDocument(const PDFDocument* document, const PDFOptio
 
 void PDFDrawWidgetProxy::init(PDFWidget* widget)
 {
-    m_widget = widget->getDrawWidget();
+    m_widget = widget;
     m_horizontalScrollbar = widget->getHorizontalScrollbar();
     m_verticalScrollbar = widget->getVerticalScrollbar();
 
     connect(m_horizontalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged);
     connect(m_verticalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onVerticalScrollbarValueChanged);
-    connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, m_widget->getWidget(), QOverload<void>::of(&PDFDrawWidget::update));
+    connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFDrawWidgetProxy::repaintNeeded);
 
     // We must update the draw space - widget has been set
     update();
@@ -391,7 +391,7 @@ void PDFDrawWidgetProxy::update()
     Q_ASSERT(m_horizontalScrollbar);
     Q_ASSERT(m_verticalScrollbar);
 
-    QWidget* widget = m_widget->getWidget();
+    QWidget* widget = m_widget->getDrawWidget()->getWidget();
 
     // First, we must calculate pixel per mm ratio to obtain DPMM (device pixel per mm),
     // we also assume, that zoom is correctly set.

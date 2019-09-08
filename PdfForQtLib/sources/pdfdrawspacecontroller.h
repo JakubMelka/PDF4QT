@@ -319,7 +319,7 @@ private:
     PDFDrawSpaceController* m_controller;
 
     /// Controlled draw widget (proxy is for this widget)
-    IDrawWidget* m_widget;
+    PDFWidget* m_widget;
 
     /// Vertical scrollbar
     QScrollBar* m_verticalScrollbar;

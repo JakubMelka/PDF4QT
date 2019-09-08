@@ -48,7 +48,10 @@ class PDFFORQTLIBSHARED_EXPORT PDFWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit PDFWidget(QWidget* parent);
+    /// Constructs new PDFWidget.
+    /// \param engine Rendering engine type
+    /// \param samplesCount Samples count for rendering engine MSAA antialiasing
+    explicit PDFWidget(RendererEngine engine, int samplesCount, QWidget* parent);
     virtual ~PDFWidget() override;
 
     using PageRenderingErrors = std::map<PDFInteger, QList<PDFRenderError>>;
@@ -59,6 +62,11 @@ public:
     /// \param document Document
     /// \param optionalContentActivity Optional content activity
     void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
+
+    /// Update rendering engine according the settings
+    /// \param engine Engine type
+    /// \param samplesCount Samples count for rendering engine MSAA antialiasing
+    void updateRenderer(RendererEngine engine, int samplesCount);
 
     IDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
@@ -72,6 +80,8 @@ signals:
 
 private:
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+
+    IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
 
     IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
@@ -126,7 +136,7 @@ private:
     using BaseClass = PDFDrawWidgetBase<QOpenGLWidget>;
 
 public:
-    explicit PDFOpenGLDrawWidget(PDFWidget* widget, QWidget* parent);
+    explicit PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent);
     virtual ~PDFOpenGLDrawWidget() override;
 
 protected:

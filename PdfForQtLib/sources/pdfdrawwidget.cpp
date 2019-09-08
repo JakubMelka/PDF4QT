@@ -26,14 +26,14 @@
 namespace pdf
 {
 
-PDFWidget::PDFWidget(QWidget* parent) :
+PDFWidget::PDFWidget(RendererEngine engine, int samplesCount, QWidget* parent) :
     QWidget(parent),
     m_drawWidget(nullptr),
     m_horizontalScrollBar(nullptr),
     m_verticalScrollBar(nullptr),
     m_proxy(nullptr)
 {
-    m_drawWidget = new PDFOpenGLDrawWidget(this, this);
+    m_drawWidget = createDrawWidget(engine, samplesCount);
     m_horizontalScrollBar = new QScrollBar(Qt::Horizontal, this);
     m_verticalScrollBar = new QScrollBar(Qt::Vertical, this);
 
@@ -64,6 +64,35 @@ void PDFWidget::setDocument(const PDFDocument* document, const PDFOptionalConten
     m_pageRenderingErrors.clear();
 }
 
+void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
+{
+    PDFOpenGLDrawWidget* openglDrawWidget = qobject_cast<PDFOpenGLDrawWidget*>(m_drawWidget->getWidget());
+    PDFDrawWidget* softwareDrawWidget = qobject_cast<PDFDrawWidget*>(m_drawWidget->getWidget());
+
+    // Do we need to change renderer?
+    if ((openglDrawWidget && engine != RendererEngine::OpenGL) || (softwareDrawWidget && engine != RendererEngine::Software))
+    {
+        QGridLayout* layout = qobject_cast<QGridLayout*>(this->layout());
+        layout->removeWidget(m_drawWidget->getWidget());
+        delete m_drawWidget->getWidget();
+
+        m_drawWidget = createDrawWidget(engine, samplesCount);
+        layout->addWidget(m_drawWidget->getWidget(), 0, 0);
+        setFocusProxy(m_drawWidget->getWidget());
+        connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
+    }
+    else if (openglDrawWidget)
+    {
+        // Just check the samples count
+        QSurfaceFormat format = openglDrawWidget->format();
+        if (format.samples() != samplesCount)
+        {
+            format.setSamples(samplesCount);
+            openglDrawWidget->setFormat(format);
+        }
+    }
+}
+
 int PDFWidget::getPageRenderingErrorCount() const
 {
     int count = 0;
@@ -80,6 +109,24 @@ void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderErro
     Q_ASSERT(!errors.empty());
     m_pageRenderingErrors[pageIndex] = errors;
     emit pageRenderingErrorsChanged(pageIndex, errors.size());
+}
+
+IDrawWidget* PDFWidget::createDrawWidget(RendererEngine rendererEngine, int samplesCount)
+{
+    switch (rendererEngine)
+    {
+        case RendererEngine::Software:
+            return new PDFDrawWidget(this, this);
+
+        case RendererEngine::OpenGL:
+            return new PDFOpenGLDrawWidget(this, samplesCount, this);
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return nullptr;
 }
 
 template<typename BaseWidget>
@@ -266,12 +313,12 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
     event->accept();
 }
 
-PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, QWidget* parent) :
+PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent) :
     BaseClass(widget, parent)
 {
     QSurfaceFormat format = this->format();
     format.setProfile(QSurfaceFormat::CoreProfile);
-    format.setSamples(16);
+    format.setSamples(samplesCount);
     format.setColorSpace(QSurfaceFormat::sRGBColorSpace);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     setFormat(format);

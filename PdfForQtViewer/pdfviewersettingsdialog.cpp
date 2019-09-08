@@ -86,8 +86,17 @@ void PDFViewerSettingsDialog::loadData()
     {
         ui->multisampleAntialiasingCheckBox->setEnabled(true);
         ui->multisampleAntialiasingCheckBox->setChecked(m_settings.m_multisampleAntialiasing);
-        ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(true);
-        ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(ui->multisampleAntialiasingSamplesCountComboBox->findData(m_settings.m_rendererSamples));
+
+        if (m_settings.m_multisampleAntialiasing)
+        {
+            ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(true);
+            ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(ui->multisampleAntialiasingSamplesCountComboBox->findData(m_settings.m_rendererSamples));
+        }
+        else
+        {
+            ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(false);
+            ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
+        }
     }
     else
     {
