@@ -312,14 +312,16 @@ QMatrix PDFDocumentDataLoaderDecorator::readMatrixFromDictionary(const PDFDictio
     return defaultValue;
 }
 
-std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
+std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArrayFromDictionary(const PDFDictionary* dictionary,
+                                                                                   const char* key,
+                                                                                   std::vector<PDFReal> defaultValue)
 {
     if (dictionary->hasKey(key))
     {
-        return readNumberArray(dictionary->get(key));
+        return readNumberArray(dictionary->get(key), defaultValue);
     }
 
-    return std::vector<PDFReal>();
+    return defaultValue;
 }
 
 std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
@@ -382,7 +384,7 @@ std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArr
     return std::vector<PDFObjectReference>();
 }
 
-std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFObject& object) const
+std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFObject& object, std::vector<PDFReal> defaultValue) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
     if (dereferencedObject.isArray())
@@ -397,7 +399,7 @@ std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFOb
             const PDFReal number = readNumber(array->getItem(i), std::numeric_limits<PDFReal>::quiet_NaN());
             if (std::isnan(number))
             {
-                return std::vector<PDFReal>();
+                return defaultValue;
             }
             result.push_back(number);
         }
@@ -407,7 +409,7 @@ std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFOb
         return std::move(result);
     }
 
-    return std::vector<PDFReal>();
+    return defaultValue;
 }
 
 std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const PDFObject& object) const

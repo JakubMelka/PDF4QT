@@ -127,6 +127,17 @@ public:
     const QPainterPath& getBoundingPath() const { return m_boundingPath; }
     void setBoundingPath(const QPainterPath& path) { m_boundingPath = path; }
 
+    void setVertices(std::vector<QPointF>&& vertices) { m_vertices = qMove(vertices); }
+    void setTriangles(std::vector<Triangle>&& triangles) { m_triangles = qMove(triangles); }
+
+    /// Returns vertex at given index
+    /// \param index Index of the vertex
+    const QPointF& getVertex(size_t index) const { return m_vertices[index]; }
+
+    /// Returns triangle center. Triangles vertice indices must be valid.
+    /// \param triangle Triangle
+    QPointF getTriangleCenter(const Triangle& triangle) const;
+
 private:
     std::vector<QPointF> m_vertices;
     std::vector<Triangle> m_triangles;
@@ -188,7 +199,7 @@ public:
 
     /// Creates a colored mesh using settings. Mesh is generated in device space
     /// coordinate system. You must transform the mesh, if you want to
-    /// use it in another coordiante system.
+    /// use it in another coordinate system.
     /// \param settings Meshing settings
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const = 0;
 
@@ -230,6 +241,22 @@ protected:
     PDFReal m_domainEnd = 1.0;
     bool m_extendStart = false;
     bool m_extendEnd = false;
+};
+
+class PDFFunctionShading : public PDFShadingPattern
+{
+public:
+    explicit PDFFunctionShading() = default;
+
+    virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+
+private:
+    friend class PDFPattern;
+
+    QRectF m_domain; ///< Domain of the color function
+    QMatrix m_domainToTargetTransform; ///< Transformation mapping from domain to shading coordinate space
+    std::vector<PDFFunctionPtr> m_functions; ///< Color functions
 };
 
 class PDFAxialShading : public PDFSingleDimensionShading

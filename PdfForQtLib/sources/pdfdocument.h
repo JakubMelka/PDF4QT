@@ -201,8 +201,8 @@ public:
     QMatrix readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue);
 
     /// Tries to read array of real values from dictionary. If entry dictionary doesn't exist,
-    /// or error occurs, empty array is returned.
-    std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
+    /// or error occurs, default value is returned.
+    std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key, std::vector<PDFReal> defaultValue = std::vector<PDFReal>());
 
     /// Tries to read array of integer values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, empty array is returned.
@@ -237,10 +237,10 @@ public:
     std::vector<PDFObjectReference> readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
 
     /// Reads number array from dictionary. Reads all values. If some value is not
-    /// real number (or integer number), empty array is returned. Empty array is also returned,
+    /// real number (or integer number), default value is returned. Default value is also returned,
     /// if \p object is invalid.
     /// \param object Object containing array of numbers
-    std::vector<PDFReal> readNumberArray(const PDFObject& object) const;
+    std::vector<PDFReal> readNumberArray(const PDFObject& object, std::vector<PDFReal> defaultValue = std::vector<PDFReal>()) const;
 
     /// Reads integer array from dictionary. Reads all values. If some value is not
     /// integer number, empty array is returned. Empty array is also returned,
