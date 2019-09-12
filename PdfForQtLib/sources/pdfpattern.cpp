@@ -231,6 +231,58 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             return result;
         }
 
+        case ShadingType::Radial:
+        {
+            PDFRadialShading* radialShading = new PDFRadialShading();
+            PDFPatternPtr result(radialShading);
+
+            std::vector<PDFReal> coordinates = loader.readNumberArrayFromDictionary(shadingDictionary, "Coords");
+            if (coordinates.size() != 6)
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid radial shading pattern coordinates. Expected 6, but %1 provided.").arg(coordinates.size()));
+            }
+
+            std::vector<PDFReal> domain = loader.readNumberArrayFromDictionary(shadingDictionary, "Domain");
+            if (domain.empty())
+            {
+                domain = { 0.0, 1.0 };
+            }
+            if (domain.size() != 2)
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid radial shading pattern domain. Expected 2, but %1 provided.").arg(domain.size()));
+            }
+
+            size_t colorComponentCount = colorSpace->getColorComponentCount();
+            if (functions.size() > 1 && colorComponentCount != functions.size())
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid radial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
+            }
+
+            if (coordinates[2] < 0.0 || coordinates[5] < 0.0)
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Radial shading cannot have negative circle radius."));
+            }
+
+            // Load items for axial shading
+            radialShading->m_antiAlias = antialias;
+            radialShading->m_backgroundColor = backgroundColor;
+            radialShading->m_colorSpace = colorSpace;
+            radialShading->m_boundingBox = boundingBox;
+            radialShading->m_domainStart = domain[0];
+            radialShading->m_domainEnd = domain[1];
+            radialShading->m_startPoint = QPointF(coordinates[0], coordinates[1]);
+            radialShading->m_r0 = coordinates[2];
+            radialShading->m_endPoint = QPointF(coordinates[3], coordinates[4]);
+            radialShading->m_r1 = coordinates[5];
+            radialShading->m_extendStart = extendStart;
+            radialShading->m_extendEnd = extendEnd;
+            radialShading->m_functions = qMove(functions);
+            radialShading->m_matrix = matrix;
+            radialShading->m_patternGraphicState = patternGraphicState;
+
+            return result;
+        }
+
         default:
         {
             throw PDFParserException(PDFTranslationContext::tr("Invalid shading pattern type (%1).").arg(static_cast<PDFInteger>(shadingType)));
@@ -840,5 +892,296 @@ void PDFMeshQualitySettings::initDefaultResolution()
     minimalMeshResolution = size * 0.005;
     preferredMeshResolution = minimalMeshResolution * 4;
 }
+
+ShadingType PDFRadialShading::getShadingType() const
+{
+    return ShadingType::Radial;
+}
+
+PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) const
+{
+    PDFMesh mesh;
+
+    QPointF p1 = settings.userSpaceToDeviceSpaceMatrix.map(m_startPoint);
+    QPointF p2 = settings.userSpaceToDeviceSpaceMatrix.map(m_endPoint);
+
+    QPointF r1TestPoint = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(m_startPoint.x(), m_startPoint.y() + m_r0));
+    QPointF r2TestPoint = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(m_endPoint.x(), m_endPoint.y() + m_r1));
+
+    const PDFReal r1 = QLineF(p1, r1TestPoint).length();
+    const PDFReal r2 = QLineF(p2, r2TestPoint).length();
+
+    // Strategy: for simplification, we rotate the line clockwise so we will
+    // get the shading axis equal to the x-axis. Then we will determine the shading
+    // area and create mesh according the settings.
+    QLineF line(p1, p2);
+    const double angle = line.angleTo(QLineF(0, 0, 1, 0));
+
+    // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
+    // points on the line to the global coordinate system. So, point (0, 0) will
+    // map onto p1 and point (length(p1-p2), 0) will map onto p2.
+    QMatrix p1p2LCS;
+    p1p2LCS.translate(p1.x(), p1.y());
+    p1p2LCS.rotate(angle);
+    QMatrix p1p2GCS = p1p2LCS.inverted();
+
+    QPointF p1m = p1p2GCS.map(p1);
+    QPointF p2m = p1p2GCS.map(p2);
+
+    Q_ASSERT(isZero(p1m.y()));
+    Q_ASSERT(isZero(p2m.y()));
+    Q_ASSERT(p1m.x() <= p2m.x());
+
+    QPainterPath meshingArea;
+    meshingArea.addPolygon(p1p2GCS.map(settings.deviceSpaceMeshingArea));
+    QRectF meshingRectangle = meshingArea.boundingRect();
+
+    PDFReal xl = p1m.x();
+    PDFReal xr = p2m.x();
+
+    if (m_extendStart)
+    {
+        // Well, we must calculate the "zero" point, i.e. when starting radius become zero.
+        // It will happen, when r1 < r2, if r1 >= r2, then radius never become zero. We also
+        // bound the start by target draw area. We have line between points:
+        //
+        //  Line: (x1, r1) to (x2, r2)
+        // and we will calculate intersection with x axis. If we found intersection points, which
+        // is on the left side, then we
+
+        if (r1 > r2)
+        {
+            xl = meshingRectangle.left() - 2 * r1;
+        }
+        else
+        {
+            QLineF radiusInterpolationLine(p1m.x(), r1, p2m.x(), r2);
+            QLineF xAxisLine(p1m.x(), 0, p2m.x(), 0);
+
+            QPointF intersectionPoint;
+            if (radiusInterpolationLine.intersect(xAxisLine, &intersectionPoint) != QLineF::NoIntersection)
+            {
+                xl = qBound(meshingRectangle.left() - r1, intersectionPoint.x(), xl);
+            }
+            else
+            {
+                xl = meshingRectangle.left() - 2 * r1;
+            }
+        }
+    }
+
+    if (m_extendEnd)
+    {
+        // Similar as in previous case, find the "zero" point, i.e. when ending radius become zero.
+
+        if (r1 < r2)
+        {
+            xr = meshingRectangle.right() + 2 * r2;
+        }
+        else
+        {
+            QLineF radiusInterpolationLine(p1m.x(), r1, p2m.x(), r2);
+            QLineF xAxisLine(p1m.x(), 0, p2m.x(), 0);
+
+            QPointF intersectionPoint;
+            if (radiusInterpolationLine.intersect(xAxisLine, &intersectionPoint) != QLineF::NoIntersection)
+            {
+                xr = qBound(xr, intersectionPoint.x(), meshingRectangle.right() + r2);
+            }
+            else
+            {
+                xr = meshingRectangle.right() + 2 * r2;
+            }
+        }
+    }
+
+    // Create coordinate array filled with stops, where we will determine the color
+    std::vector<PDFReal> xCoords;
+    xCoords.reserve((xr - xl) / settings.minimalMeshResolution + 3);
+    xCoords.push_back(xl);
+    for (PDFReal x = p1m.x(); x <= p2m.x(); x += settings.minimalMeshResolution)
+    {
+        if (!qFuzzyCompare(xCoords.back(), x))
+        {
+            xCoords.push_back(x);
+        }
+    }
+
+    if (xCoords.back() + PDF_EPSILON < p2m.x())
+    {
+        xCoords.push_back(p2m.x());
+    }
+
+    if (!qFuzzyCompare(xCoords.back(), xr))
+    {
+        xCoords.push_back(xr);
+    }
+
+    const PDFReal tAtStart = m_domainStart;
+    const PDFReal tAtEnd = m_domainEnd;
+    const PDFReal tMin = qMin(tAtStart, tAtEnd);
+    const PDFReal tMax = qMax(tAtStart, tAtEnd);
+
+    const bool isSingleFunction = m_functions.size() == 1;
+    std::vector<PDFReal> colorBuffer(m_colorSpace->getColorComponentCount(), 0.0);
+    auto getColor = [this, isSingleFunction, &colorBuffer](PDFReal t) -> PDFColor
+    {
+        if (isSingleFunction)
+        {
+            PDFFunction::FunctionResult result = m_functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
+            if (!result)
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+            }
+        }
+        else
+        {
+            for (size_t i = 0, count = colorBuffer.size(); i < count; ++i)
+            {
+                PDFFunction::FunctionResult result = m_functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
+                if (!result)
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+                }
+            }
+        }
+
+        return PDFAbstractColorSpace::convertToColor(colorBuffer);
+    };
+
+    // Determine color of each coordinate
+    std::vector<std::pair<PDFReal, PDFColor>> coloredCoordinates;
+    coloredCoordinates.reserve(xCoords.size());
+
+    for (PDFReal x : xCoords)
+    {
+        // Determine current parameter t
+        const PDFReal t = interpolate(x, p1m.x(), p2m.x(), tAtStart, tAtEnd);
+        const PDFReal tBounded = qBound(tMin, t, tMax);
+        const PDFColor color = getColor(tBounded);
+        coloredCoordinates.emplace_back(x, color);
+    }
+
+    // Filter coordinates according the meshing criteria
+    std::vector<std::pair<PDFReal, PDFColor>> filteredCoordinates;
+    filteredCoordinates.reserve(coloredCoordinates.size());
+
+    for (auto it = coloredCoordinates.cbegin(); it != coloredCoordinates.cend(); ++it)
+    {
+        // We will skip this coordinate, if both of meshing criteria have been met:
+        //  1) Color difference is small (lesser than tolerance)
+        //  2) Distance from previous and next point is less than preffered meshing resolution OR colors are equal
+
+        if (it != coloredCoordinates.cbegin() && std::next(it) != coloredCoordinates.cend())
+        {
+            auto itNext = std::next(it);
+
+            const std::pair<PDFReal, PDFColor>& prevItem = filteredCoordinates.back();
+            const std::pair<PDFReal, PDFColor>& currentItem = *it;
+            const std::pair<PDFReal, PDFColor>& nextItem = *itNext;
+
+            if (currentItem.first != p1m.x() && currentItem.first != p2m.x())
+            {
+                if (prevItem.second == currentItem.second && currentItem.second == nextItem.second)
+                {
+                    // Colors are same, skip the test
+                    continue;
+                }
+
+                if (PDFAbstractColorSpace::isColorEqual(prevItem.second, currentItem.second, settings.tolerance) &&
+                        PDFAbstractColorSpace::isColorEqual(currentItem.second, nextItem.second, settings.tolerance) &&
+                        PDFAbstractColorSpace::isColorEqual(prevItem.second, nextItem.second, settings.tolerance) &&
+                        (nextItem.first - prevItem.first < settings.preferredMeshResolution))
+                {
+                    continue;
+                }
+            }
+        }
+
+        filteredCoordinates.push_back(*it);
+    }
+
+    if (!filteredCoordinates.empty())
+    {
+        constexpr const int SLICES = 120;
+
+        size_t vertexCount = filteredCoordinates.size() * SLICES * 4;
+        size_t triangleCount = filteredCoordinates.size() * SLICES * 2;
+
+        if (m_backgroundColor.isValid())
+        {
+            vertexCount += 4;
+            triangleCount += 2;
+        }
+        mesh.reserve(vertexCount, triangleCount);
+
+        // Create background color triangles
+        if (m_backgroundColor.isValid())
+        {
+            uint32_t topLeft = mesh.addVertex(meshingRectangle.topLeft());
+            uint32_t topRight = mesh.addVertex(meshingRectangle.topRight());
+            uint32_t bottomLeft = mesh.addVertex(meshingRectangle.bottomRight());
+            uint32_t bottomRight = mesh.addVertex(meshingRectangle.bottomLeft());
+            mesh.addQuad(topLeft, topRight, bottomRight, bottomLeft, m_backgroundColor.rgb());
+        }
+
+        // Create radial shading triangles
+        QLineF rLine(QPointF(p1m.x(), r1), QPointF(p2m.x(), r2));
+        const PDFReal rlength = rLine.length();
+
+        for (auto it = std::next(filteredCoordinates.cbegin()); it != filteredCoordinates.cend(); ++it)
+        {
+            const std::pair<PDFReal, PDFColor>& leftItem = *std::prev(it);
+            const std::pair<PDFReal, PDFColor>& rightItem = *it;
+
+            const PDFReal x0 = leftItem.first;
+            const PDFReal x1 = rightItem.first;
+            const PDFColor mixedColor = PDFAbstractColorSpace::mixColors(leftItem.second, rightItem.second, 0.5);
+            const PDFReal angleStep = 2 * M_PI / SLICES;
+            const PDFReal r0 = rLine.pointAt((x0 - p1m.x()) / rlength).y();
+            const PDFReal r1 = rLine.pointAt((x1 - p1m.x()) / rlength).y();
+
+            PDFReal angle0 = 0;
+            for (int i = 0; i < SLICES; ++i)
+            {
+                const PDFReal angle1 = angle0 + angleStep;
+                const PDFReal cos0 = std::cos(angle0);
+                const PDFReal sin0 = std::sin(angle0);
+                const PDFReal cos1 = std::cos(angle1);
+                const PDFReal sin1 = std::sin(angle1);
+
+                QPointF p1(x0 + cos0 * r0, sin0 * r0);
+                QPointF p2(x1 + cos0 * r1, sin0 * r1);
+                QPointF p3(x1 + cos1 * r1, sin1 * r1);
+                QPointF p4(x0 + cos1 * r0, sin1 * r0);
+
+                uint32_t v1 = mesh.addVertex(p1);
+                uint32_t v2 = mesh.addVertex(p2);
+                uint32_t v3 = mesh.addVertex(p3);
+                uint32_t v4 = mesh.addVertex(p4);
+
+                QColor color = m_colorSpace->getColor(mixedColor);
+                mesh.addQuad(v1, v2, v3, v4, color.rgb());
+
+                angle0 = angle1;
+            }
+        }
+    }
+
+    // Transform mesh to the device space coordinates
+    mesh.transform(p1p2LCS);
+
+    // Create bounding path
+    if (m_boundingBox.isValid())
+    {
+        QPainterPath boundingPath;
+        boundingPath.addPolygon(settings.userSpaceToDeviceSpaceMatrix.map(m_boundingBox));
+        mesh.setBoundingPath(boundingPath);
+    }
+
+    return mesh;
+}
+
+// TODO: Apply graphic state of the pattern
 
 }   // namespace pdf

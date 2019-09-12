@@ -288,6 +288,21 @@ private:
     friend class PDFPattern;
 };
 
+class PDFRadialShading : public PDFSingleDimensionShading
+{
+public:
+    explicit PDFRadialShading() = default;
+
+    virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+
+private:
+    friend class PDFPattern;
+
+    PDFReal m_r0 = 0.0;
+    PDFReal m_r1 = 0.0;
+};
+
 }   // namespace pdf
 
 #endif // PDFPATTERN_H
