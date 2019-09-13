@@ -204,6 +204,15 @@ protected:
     QMatrix m_matrix;
 };
 
+class PDFInvalidPattern : public PDFPattern
+{
+public:
+    explicit PDFInvalidPattern() = default;
+
+    virtual PatternType getType() const { return PatternType::Invalid; }
+    virtual const PDFShadingPattern* getShadingPattern() const { return nullptr; }
+};
+
 /// Shading pattern - smooth color distribution along the pattern's space
 class PDFShadingPattern : public PDFPattern
 {

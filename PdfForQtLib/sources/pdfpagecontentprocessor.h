@@ -502,6 +502,7 @@ private:
         const PDFDictionary* m_extendedGraphicStateDictionary;
         const PDFDictionary* m_propertiesDictionary;
         const PDFDictionary* m_shadingDictionary;
+        const PDFDictionary* m_patternDictionary;
     };
 
     /// Wrapper for PDF Name
@@ -724,6 +725,7 @@ private:
     const PDFDictionary* m_extendedGraphicStateDictionary;
     const PDFDictionary* m_propertiesDictionary;
     const PDFDictionary* m_shadingDictionary;
+    const PDFDictionary* m_patternDictionary;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;

@@ -48,11 +48,6 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
         const PDFDictionary* patternDictionary = dereferencedObject.getDictionary();
         PDFDocumentDataLoaderDecorator loader(document);
 
-        if (loader.readNameFromDictionary(patternDictionary, "Type") != "Pattern")
-        {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
-        }
-
         const PatternType patternType = static_cast<PatternType>(loader.readIntegerFromDictionary(patternDictionary, "PatternType", static_cast<PDFInteger>(PatternType::Invalid)));
         switch (patternType)
         {
@@ -89,16 +84,27 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                                                bool ignoreBackgroundColor)
 {
     const PDFObject& dereferencedShadingObject = document->getObject(shadingObject);
-    if (!dereferencedShadingObject.isDictionary())
+    if (!dereferencedShadingObject.isDictionary() && !dereferencedShadingObject.isStream())
     {
         throw PDFParserException(PDFTranslationContext::tr("Invalid shading."));
     }
 
     PDFDocumentDataLoaderDecorator loader(document);
-    const PDFDictionary* shadingDictionary = dereferencedShadingObject.getDictionary();
+    const PDFDictionary* shadingDictionary = nullptr;
+    const PDFStream* stream = nullptr;
+
+    if (dereferencedShadingObject.isDictionary())
+    {
+        shadingDictionary = dereferencedShadingObject.getDictionary();
+    }
+    else if (dereferencedShadingObject.isStream())
+    {
+        stream = dereferencedShadingObject.getStream();
+        shadingDictionary = stream->getDictionary();
+    }
 
     // Parse common data for all shadings
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, document, shadingDictionary->get("ColorSpace"));
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, document, document->getObject(shadingDictionary->get("ColorSpace")));
 
     if (colorSpace->getPattern())
     {
@@ -1183,5 +1189,6 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) con
 }
 
 // TODO: Apply graphic state of the pattern
+// TODO: Implement settings of meshing in the settings dialog
 
 }   // namespace pdf

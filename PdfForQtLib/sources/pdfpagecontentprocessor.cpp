@@ -177,6 +177,7 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     m_extendedGraphicStateDictionary = getDictionary(PDF_RESOURCE_EXTGSTATE);
     m_propertiesDictionary = getDictionary("Properties");
     m_shadingDictionary = getDictionary("Shading");
+    m_patternDictionary = getDictionary("Pattern");
 }
 
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
@@ -194,6 +195,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_extendedGraphicStateDictionary(nullptr),
     m_propertiesDictionary(nullptr),
     m_shadingDictionary(nullptr),
+    m_patternDictionary(nullptr),
     m_textBeginEndState(0),
     m_compatibilityBeginEndState(0),
     m_patternBaseMatrix(pagePointToDevicePointMatrix),
@@ -595,27 +597,47 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
         const PDFPattern* pattern = getGraphicState()->getFillColorSpace()->getPattern();
         if (pattern)
         {
-            if (const PDFShadingPattern* shadingPatern = pattern->getShadingPattern())
+            switch (pattern->getType())
             {
-                // We must create a mesh and then draw pattern
-                PDFMeshQualitySettings settings;
-                settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-                settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-                settings.initDefaultResolution();
+                case PatternType::Tiling:
+                {
+                    // TODO: Implement tiling pattern
+                    throw PDFParserException(PDFTranslationContext::tr("Tiling pattern not implemented."));
+                    break;
+                }
 
-                PDFMesh mesh = shadingPatern->createMesh(settings);
+                case PatternType::Shading:
+                {
+                    const PDFShadingPattern* shadingPatern = pattern->getShadingPattern();
 
-                // Now, merge the current path to the mesh clipping path
-                QPainterPath boundingPath = mesh.getBoundingPath();
-                boundingPath.addPath(getCurrentWorldMatrix().map(path));
-                mesh.setBoundingPath(boundingPath);
+                    // We must create a mesh and then draw pattern
+                    PDFMeshQualitySettings settings;
+                    settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+                    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                    settings.initDefaultResolution();
 
-                performMeshPainting(mesh);
-            }
-            else
-            {
-                // TODO: Implement tiling pattern
-                Q_ASSERT(false);
+                    PDFMesh mesh = shadingPatern->createMesh(settings);
+
+                    // Now, merge the current path to the mesh clipping path
+                    QPainterPath boundingPath = mesh.getBoundingPath();
+                    boundingPath.addPath(getCurrentWorldMatrix().map(path));
+                    mesh.setBoundingPath(boundingPath);
+
+                    performMeshPainting(mesh);
+                    break;
+                }
+
+                case PatternType::Invalid:
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
+                    break;
+                }
+
+                default:
+                {
+                    Q_ASSERT(false);
+                    break;
+                }
             }
 
             fill = false;
@@ -627,41 +649,61 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
         const PDFPattern* pattern = getGraphicState()->getStrokeColorSpace()->getPattern();
         if (pattern)
         {
-            if (const PDFShadingPattern* shadingPatern = pattern->getShadingPattern())
+            switch (pattern->getType())
             {
-                // We must create a mesh and then draw pattern
-                PDFMeshQualitySettings settings;
-                settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-                settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-                settings.initDefaultResolution();
-
-                PDFMesh mesh = shadingPatern->createMesh(settings);
-
-                // We must stroke the path.
-                QPainterPathStroker stroker;
-                stroker.setCapStyle(m_graphicState.getLineCapStyle());
-                stroker.setWidth(m_graphicState.getLineWidth());
-                stroker.setMiterLimit(m_graphicState.getMitterLimit());
-                stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
-
-                const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
-                if (!lineDashPattern.isSolid())
+                case PatternType::Tiling:
                 {
-                    stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
-                    stroker.setDashOffset(lineDashPattern.getDashOffset());
+                    // TODO: Implement tiling pattern
+                    throw PDFParserException(PDFTranslationContext::tr("Tiling pattern not implemented."));
+                    break;
                 }
-                QPainterPath strokedPath = stroker.createStroke(path);
 
-                QPainterPath boundingPath = mesh.getBoundingPath();
-                boundingPath.addPath(getCurrentWorldMatrix().map(strokedPath));
-                mesh.setBoundingPath(boundingPath);
+                case PatternType::Shading:
+                {
+                    const PDFShadingPattern* shadingPatern = pattern->getShadingPattern();
 
-                performMeshPainting(mesh);
-            }
-            else
-            {
-                // TODO: Implement tiling pattern
-                Q_ASSERT(false);
+                    // We must create a mesh and then draw pattern
+                    PDFMeshQualitySettings settings;
+                    settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+                    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                    settings.initDefaultResolution();
+
+                    PDFMesh mesh = shadingPatern->createMesh(settings);
+
+                    // We must stroke the path.
+                    QPainterPathStroker stroker;
+                    stroker.setCapStyle(m_graphicState.getLineCapStyle());
+                    stroker.setWidth(m_graphicState.getLineWidth());
+                    stroker.setMiterLimit(m_graphicState.getMitterLimit());
+                    stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
+
+                    const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
+                    if (!lineDashPattern.isSolid())
+                    {
+                        stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                        stroker.setDashOffset(lineDashPattern.getDashOffset());
+                    }
+                    QPainterPath strokedPath = stroker.createStroke(path);
+
+                    QPainterPath boundingPath = mesh.getBoundingPath();
+                    boundingPath.addPath(getCurrentWorldMatrix().map(strokedPath));
+                    mesh.setBoundingPath(boundingPath);
+
+                    performMeshPainting(mesh);
+                    break;
+                }
+
+                case PatternType::Invalid:
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
+                    break;
+                }
+
+                default:
+                {
+                    Q_ASSERT(false);
+                    break;
+                }
             }
 
             stroke = false;
@@ -1807,8 +1849,35 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorN()
 {
     // In our implementation, operator 'SC' can also set color using all color spaces
     // PDF reference 1.7 allows here Pattern, Separation, DeviceN and ICCBased color spaces here,
-    // but default operator can use them (with exception of Pattern color space).
-    operatorColorSetStrokingColor();
+    // but default operator can use them (with exception of Pattern color space). For pattern color space,
+    // we treat this differently.
+    const PDFAbstractColorSpace* colorSpace = m_graphicState.getStrokeColorSpace();
+    if (colorSpace->getPattern())
+    {
+        if (m_operands.size() > 0)
+        {
+            // TODO: Implement tiling pattern colors
+            PDFOperandName name = readOperand<PDFOperandName>(m_operands.size() - 1);
+            if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
+            {
+                // Create the pattern
+                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name));
+                m_graphicState.setStrokeColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern))));
+                updateGraphicState();
+                return;
+            }
+
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid pattern for Pattern color space."));
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid pattern for Pattern color space."));
+        }
+    }
+    else
+    {
+        operatorColorSetStrokingColor();
+    }
 }
 
 void PDFPageContentProcessor::operatorColorSetFillingColor()
@@ -1838,8 +1907,35 @@ void PDFPageContentProcessor::operatorColorSetFillingColorN()
 {
     // In our implementation, operator 'sc' can also set color using all color spaces
     // PDF reference 1.7 allows here Pattern, Separation, DeviceN and ICCBased color spaces here,
-    // but default operator can use them (with exception of Pattern color space).
-    operatorColorSetFillingColor();
+    // but default operator can use them (with exception of Pattern color space). For pattern color space,
+    // we treat this differently.
+    const PDFAbstractColorSpace* colorSpace = m_graphicState.getFillColorSpace();
+    if (colorSpace->getPattern())
+    {
+        if (m_operands.size() > 0)
+        {
+            // TODO: Implement tiling pattern colors
+            PDFOperandName name = readOperand<PDFOperandName>(m_operands.size() - 1);
+            if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
+            {
+                // Create the pattern
+                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name));
+                m_graphicState.setFillColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern))));
+                updateGraphicState();
+                return;
+            }
+
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid pattern for Pattern color space."));
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid pattern for Pattern color space."));
+        }
+    }
+    else
+    {
+        operatorColorSetFillingColor();
+    }
 }
 
 void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)
@@ -2864,7 +2960,8 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::PDFPageContentProces
     m_xobjectDictionary(processor->m_xobjectDictionary),
     m_extendedGraphicStateDictionary(processor->m_extendedGraphicStateDictionary),
     m_propertiesDictionary(processor->m_propertiesDictionary),
-    m_shadingDictionary(processor->m_shadingDictionary)
+    m_shadingDictionary(processor->m_shadingDictionary),
+    m_patternDictionary(processor->m_patternDictionary)
 {
     m_processor->operatorSaveGraphicState();
 }
@@ -2878,6 +2975,7 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::~PDFPageContentProce
     m_processor->m_extendedGraphicStateDictionary = m_extendedGraphicStateDictionary;
     m_processor->m_propertiesDictionary = m_propertiesDictionary;
     m_processor->m_shadingDictionary = m_shadingDictionary;
+    m_processor->m_patternDictionary = m_patternDictionary;
 
     m_processor->operatorRestoreGraphicState();
 }

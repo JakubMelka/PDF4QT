@@ -350,12 +350,11 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     {
                         stream = colorSpaceSettings.getStream();
                     }
+                }
 
-                    if (name == COLOR_SPACE_NAME_PATTERN)
-                    {
-                        PDFPatternPtr pattern = PDFPattern::createPattern(colorSpaceDictionary, document, array->getItem(1));
-                        return PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern)));
-                    }
+                if (name == COLOR_SPACE_NAME_PATTERN)
+                {
+                    return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>()));
                 }
 
                 if (dictionary)
@@ -412,6 +411,11 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     if (--recursion <= 0)
     {
         throw PDFParserException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
+    }
+
+    if (name == COLOR_SPACE_NAME_PATTERN)
+    {
+        return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>()));
     }
 
     if (name == COLOR_SPACE_NAME_DEVICE_GRAY || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_GRAY)
@@ -985,7 +989,7 @@ const unsigned char* PDFImageData::getRow(unsigned int rowIndex) const
 
 QColor PDFPatternColorSpace::getDefaultColor() const
 {
-    throw PDFParserException(PDFTranslationContext::tr("Pattern doesn't have default color."));
+    return QColor(Qt::transparent);
 }
 
 QColor PDFPatternColorSpace::getColor(const PDFColor& color) const
