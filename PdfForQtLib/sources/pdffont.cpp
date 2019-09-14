@@ -1015,6 +1015,22 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                 }
                             }
                         }
+                        else if (!FT_Select_Charmap(face, FT_ENCODING_APPLE_ROMAN))
+                        {
+                            // We have (1, 0) Mac Roman Encoding, which is slightly different, than Mac Roman Encoding defined
+                            // in PDF (for 15 characters).
+                            simpleFontEncodingTable = *PDFEncoding::getTableForEncoding(PDFEncoding::Encoding::MacOsRoman);
+                            encoding = PDFEncoding::Encoding::Custom;
+
+                            for (size_t i = 0; i < simpleFontEncodingTable.size(); ++i)
+                            {
+                                FT_UInt glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(i));
+                                if (glyphIndex > 0)
+                                {
+                                    glyphIndexArray[i] = glyphIndex;
+                                }
+                            }
+                        }
 
                         finishFont();
 

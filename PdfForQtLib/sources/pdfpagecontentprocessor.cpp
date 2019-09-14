@@ -1449,6 +1449,23 @@ void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryN
                 const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
                 const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
 
+                // TODO: Implement alpha constant
+                const PDFReal strokingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "CA", 1.0);
+                const PDFReal fillingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "ca", 1.0);
+                QByteArray blendMode = loader.readNameFromDictionary(graphicStateDictionary, "BM");
+                if (strokingAlpha != 1.0)
+                {
+                    m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for stroking not implemented!").arg(strokingAlpha)));
+                }
+                if (fillingAlpha != 1.0)
+                {
+                    m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for filling not implemented!").arg(fillingAlpha)));
+                }
+                if (!blendMode.isEmpty() && blendMode != "Normal")
+                {
+                    m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' not implemented!").arg(QString::fromLatin1(blendMode))));
+                }
+
                 m_graphicState.setLineWidth(lineWidth);
                 m_graphicState.setLineCapStyle(penCapStyle);
                 m_graphicState.setLineJoinStyle(penJoinStyle);

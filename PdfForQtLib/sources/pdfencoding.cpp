@@ -1847,6 +1847,266 @@ static const EncodingTable ZAPF_DINGBATS_ENCODING_CONVERSION_TABLE = {
     QChar(0xfffd),  // Hex No. FF (Dec 255) REPLACEMENT CHARACTER 0xFFFD - not present in character set
 };
 
+// Mac OS encoding
+static const EncodingTable MAC_OS_ENCODING_CONVERSION_TABLE = {
+    QChar(0xfffd),  // Hex No. 00 (Dec 000) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 01 (Dec 001) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 02 (Dec 002) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 03 (Dec 003) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 04 (Dec 004) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 05 (Dec 005) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 06 (Dec 006) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 07 (Dec 007) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 08 (Dec 008) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 09 (Dec 009) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 0A (Dec 010) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 0B (Dec 011) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 0C (Dec 012) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 0D (Dec 013) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 0E (Dec 014) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 0F (Dec 015) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 10 (Dec 016) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 11 (Dec 017) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 12 (Dec 018) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 13 (Dec 019) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 14 (Dec 020) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 15 (Dec 021) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 16 (Dec 022) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 17 (Dec 023) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 18 (Dec 024) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 19 (Dec 025) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 1A (Dec 026) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 1B (Dec 027) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 1C (Dec 028) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 1D (Dec 029) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 1E (Dec 030) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0xfffd),  // Hex No. 1F (Dec 031) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0x0020),  // Hex No. 20 (Dec 032) Character ' ' Whitespace
+    QChar(0x0021),  // Hex No. 21 (Dec 033) Character '!' Punctuation
+    QChar(0x0022),  // Hex No. 22 (Dec 034) Character '"' Punctuation
+    QChar(0x0023),  // Hex No. 23 (Dec 035) Character '#' Punctuation
+    QChar(0x0024),  // Hex No. 24 (Dec 036) Character '$' Symbol
+    QChar(0x0025),  // Hex No. 25 (Dec 037) Character '%' Punctuation
+    QChar(0x0026),  // Hex No. 26 (Dec 038) Character '&' Punctuation
+    QChar(0x0027),  // Hex No. 27 (Dec 039) Character ''' Punctuation
+    QChar(0x0028),  // Hex No. 28 (Dec 040) Character '(' Punctuation
+    QChar(0x0029),  // Hex No. 29 (Dec 041) Character ')' Punctuation
+    QChar(0x002a),  // Hex No. 2A (Dec 042) Character '*' Punctuation
+    QChar(0x002b),  // Hex No. 2B (Dec 043) Character '+' Symbol
+    QChar(0x002c),  // Hex No. 2C (Dec 044) Character ',' Punctuation
+    QChar(0x002d),  // Hex No. 2D (Dec 045) Character '-' Punctuation
+    QChar(0x002e),  // Hex No. 2E (Dec 046) Character '.' Punctuation
+    QChar(0x002f),  // Hex No. 2F (Dec 047) Character '/' Punctuation
+    QChar(0x0030),  // Hex No. 30 (Dec 048) Character '0' Digit
+    QChar(0x0031),  // Hex No. 31 (Dec 049) Character '1' Digit
+    QChar(0x0032),  // Hex No. 32 (Dec 050) Character '2' Digit
+    QChar(0x0033),  // Hex No. 33 (Dec 051) Character '3' Digit
+    QChar(0x0034),  // Hex No. 34 (Dec 052) Character '4' Digit
+    QChar(0x0035),  // Hex No. 35 (Dec 053) Character '5' Digit
+    QChar(0x0036),  // Hex No. 36 (Dec 054) Character '6' Digit
+    QChar(0x0037),  // Hex No. 37 (Dec 055) Character '7' Digit
+    QChar(0x0038),  // Hex No. 38 (Dec 056) Character '8' Digit
+    QChar(0x0039),  // Hex No. 39 (Dec 057) Character '9' Digit
+    QChar(0x003a),  // Hex No. 3A (Dec 058) Character ':' Punctuation
+    QChar(0x003b),  // Hex No. 3B (Dec 059) Character ';' Punctuation
+    QChar(0x003c),  // Hex No. 3C (Dec 060) Character '<' Symbol
+    QChar(0x003d),  // Hex No. 3D (Dec 061) Character '=' Symbol
+    QChar(0x003e),  // Hex No. 3E (Dec 062) Character '>' Symbol
+    QChar(0x003f),  // Hex No. 3F (Dec 063) Character '?' Punctuation
+    QChar(0x0040),  // Hex No. 40 (Dec 064) Character '@' Punctuation
+    QChar(0x0041),  // Hex No. 41 (Dec 065) Character 'A' Letter, Uppercase
+    QChar(0x0042),  // Hex No. 42 (Dec 066) Character 'B' Letter, Uppercase
+    QChar(0x0043),  // Hex No. 43 (Dec 067) Character 'C' Letter, Uppercase
+    QChar(0x0044),  // Hex No. 44 (Dec 068) Character 'D' Letter, Uppercase
+    QChar(0x0045),  // Hex No. 45 (Dec 069) Character 'E' Letter, Uppercase
+    QChar(0x0046),  // Hex No. 46 (Dec 070) Character 'F' Letter, Uppercase
+    QChar(0x0047),  // Hex No. 47 (Dec 071) Character 'G' Letter, Uppercase
+    QChar(0x0048),  // Hex No. 48 (Dec 072) Character 'H' Letter, Uppercase
+    QChar(0x0049),  // Hex No. 49 (Dec 073) Character 'I' Letter, Uppercase
+    QChar(0x004a),  // Hex No. 4A (Dec 074) Character 'J' Letter, Uppercase
+    QChar(0x004b),  // Hex No. 4B (Dec 075) Character 'K' Letter, Uppercase
+    QChar(0x004c),  // Hex No. 4C (Dec 076) Character 'L' Letter, Uppercase
+    QChar(0x004d),  // Hex No. 4D (Dec 077) Character 'M' Letter, Uppercase
+    QChar(0x004e),  // Hex No. 4E (Dec 078) Character 'N' Letter, Uppercase
+    QChar(0x004f),  // Hex No. 4F (Dec 079) Character 'O' Letter, Uppercase
+    QChar(0x0050),  // Hex No. 50 (Dec 080) Character 'P' Letter, Uppercase
+    QChar(0x0051),  // Hex No. 51 (Dec 081) Character 'Q' Letter, Uppercase
+    QChar(0x0052),  // Hex No. 52 (Dec 082) Character 'R' Letter, Uppercase
+    QChar(0x0053),  // Hex No. 53 (Dec 083) Character 'S' Letter, Uppercase
+    QChar(0x0054),  // Hex No. 54 (Dec 084) Character 'T' Letter, Uppercase
+    QChar(0x0055),  // Hex No. 55 (Dec 085) Character 'U' Letter, Uppercase
+    QChar(0x0056),  // Hex No. 56 (Dec 086) Character 'V' Letter, Uppercase
+    QChar(0x0057),  // Hex No. 57 (Dec 087) Character 'W' Letter, Uppercase
+    QChar(0x0058),  // Hex No. 58 (Dec 088) Character 'X' Letter, Uppercase
+    QChar(0x0059),  // Hex No. 59 (Dec 089) Character 'Y' Letter, Uppercase
+    QChar(0x005a),  // Hex No. 5A (Dec 090) Character 'Z' Letter, Uppercase
+    QChar(0x005b),  // Hex No. 5B (Dec 091) Character '[' Punctuation
+    QChar(0x005c),  // Hex No. 5C (Dec 092) Character '\' Punctuation
+    QChar(0x005d),  // Hex No. 5D (Dec 093) Character ']' Punctuation
+    QChar(0x005e),  // Hex No. 5E (Dec 094) Character '^' Symbol
+    QChar(0x005f),  // Hex No. 5F (Dec 095) Character '_' Punctuation
+    QChar(0x0060),  // Hex No. 60 (Dec 096) Character '`' Symbol
+    QChar(0x0061),  // Hex No. 61 (Dec 097) Character 'a' Letter, Lowercase
+    QChar(0x0062),  // Hex No. 62 (Dec 098) Character 'b' Letter, Lowercase
+    QChar(0x0063),  // Hex No. 63 (Dec 099) Character 'c' Letter, Lowercase
+    QChar(0x0064),  // Hex No. 64 (Dec 100) Character 'd' Letter, Lowercase
+    QChar(0x0065),  // Hex No. 65 (Dec 101) Character 'e' Letter, Lowercase
+    QChar(0x0066),  // Hex No. 66 (Dec 102) Character 'f' Letter, Lowercase
+    QChar(0x0067),  // Hex No. 67 (Dec 103) Character 'g' Letter, Lowercase
+    QChar(0x0068),  // Hex No. 68 (Dec 104) Character 'h' Letter, Lowercase
+    QChar(0x0069),  // Hex No. 69 (Dec 105) Character 'i' Letter, Lowercase
+    QChar(0x006a),  // Hex No. 6A (Dec 106) Character 'j' Letter, Lowercase
+    QChar(0x006b),  // Hex No. 6B (Dec 107) Character 'k' Letter, Lowercase
+    QChar(0x006c),  // Hex No. 6C (Dec 108) Character 'l' Letter, Lowercase
+    QChar(0x006d),  // Hex No. 6D (Dec 109) Character 'm' Letter, Lowercase
+    QChar(0x006e),  // Hex No. 6E (Dec 110) Character 'n' Letter, Lowercase
+    QChar(0x006f),  // Hex No. 6F (Dec 111) Character 'o' Letter, Lowercase
+    QChar(0x0070),  // Hex No. 70 (Dec 112) Character 'p' Letter, Lowercase
+    QChar(0x0071),  // Hex No. 71 (Dec 113) Character 'q' Letter, Lowercase
+    QChar(0x0072),  // Hex No. 72 (Dec 114) Character 'r' Letter, Lowercase
+    QChar(0x0073),  // Hex No. 73 (Dec 115) Character 's' Letter, Lowercase
+    QChar(0x0074),  // Hex No. 74 (Dec 116) Character 't' Letter, Lowercase
+    QChar(0x0075),  // Hex No. 75 (Dec 117) Character 'u' Letter, Lowercase
+    QChar(0x0076),  // Hex No. 76 (Dec 118) Character 'v' Letter, Lowercase
+    QChar(0x0077),  // Hex No. 77 (Dec 119) Character 'w' Letter, Lowercase
+    QChar(0x0078),  // Hex No. 78 (Dec 120) Character 'x' Letter, Lowercase
+    QChar(0x0079),  // Hex No. 79 (Dec 121) Character 'y' Letter, Lowercase
+    QChar(0x007a),  // Hex No. 7A (Dec 122) Character 'z' Letter, Lowercase
+    QChar(0x007b),  // Hex No. 7B (Dec 123) Character '{' Punctuation
+    QChar(0x007c),  // Hex No. 7C (Dec 124) Character '|' Symbol
+    QChar(0x007d),  // Hex No. 7D (Dec 125) Character '}' Punctuation
+    QChar(0x007e),  // Hex No. 7E (Dec 126) Character '~' Symbol
+    QChar(0xfffd),  // Hex No. 7F (Dec 127) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0x00c4),  // Hex No. 80 (Dec 128) Character 'Ä' Letter, Uppercase
+    QChar(0x00c5),  // Hex No. 81 (Dec 129) Character 'Å' Letter, Uppercase
+    QChar(0x00c7),  // Hex No. 82 (Dec 130) Character 'Ç' Letter, Uppercase
+    QChar(0x00c9),  // Hex No. 83 (Dec 131) Character 'É' Letter, Uppercase
+    QChar(0x00d1),  // Hex No. 84 (Dec 132) Character 'Ñ' Letter, Uppercase
+    QChar(0x00d6),  // Hex No. 85 (Dec 133) Character 'Ö' Letter, Uppercase
+    QChar(0x00dc),  // Hex No. 86 (Dec 134) Character 'Ü' Letter, Uppercase
+    QChar(0x00e1),  // Hex No. 87 (Dec 135) Character 'á' Letter, Lowercase
+    QChar(0x00e0),  // Hex No. 88 (Dec 136) Character 'à' Letter, Lowercase
+    QChar(0x00e2),  // Hex No. 89 (Dec 137) Character 'â' Letter, Lowercase
+    QChar(0x00e4),  // Hex No. 8A (Dec 138) Character 'ä' Letter, Lowercase
+    QChar(0x00e3),  // Hex No. 8B (Dec 139) Character 'ã' Letter, Lowercase
+    QChar(0x00e5),  // Hex No. 8C (Dec 140) Character 'å' Letter, Lowercase
+    QChar(0x00e7),  // Hex No. 8D (Dec 141) Character 'ç' Letter, Lowercase
+    QChar(0x00e9),  // Hex No. 8E (Dec 142) Character 'é' Letter, Lowercase
+    QChar(0x00e8),  // Hex No. 8F (Dec 143) Character 'è' Letter, Lowercase
+    QChar(0x00ea),  // Hex No. 90 (Dec 144) Character 'ê' Letter, Lowercase
+    QChar(0x00eb),  // Hex No. 91 (Dec 145) Character 'ë' Letter, Lowercase
+    QChar(0x00ed),  // Hex No. 92 (Dec 146) Character 'í' Letter, Lowercase
+    QChar(0x00ec),  // Hex No. 93 (Dec 147) Character 'ì' Letter, Lowercase
+    QChar(0x00ee),  // Hex No. 94 (Dec 148) Character 'î' Letter, Lowercase
+    QChar(0x00ef),  // Hex No. 95 (Dec 149) Character 'ï' Letter, Lowercase
+    QChar(0x00f1),  // Hex No. 96 (Dec 150) Character 'ñ' Letter, Lowercase
+    QChar(0x00f3),  // Hex No. 97 (Dec 151) Character 'ó' Letter, Lowercase
+    QChar(0x00f2),  // Hex No. 98 (Dec 152) Character 'ò' Letter, Lowercase
+    QChar(0x00f4),  // Hex No. 99 (Dec 153) Character 'ô' Letter, Lowercase
+    QChar(0x00f6),  // Hex No. 9A (Dec 154) Character 'ö' Letter, Lowercase
+    QChar(0x00f5),  // Hex No. 9B (Dec 155) Character 'õ' Letter, Lowercase
+    QChar(0x00fa),  // Hex No. 9C (Dec 156) Character 'ú' Letter, Lowercase
+    QChar(0x00f9),  // Hex No. 9D (Dec 157) Character 'ù' Letter, Lowercase
+    QChar(0x00fb),  // Hex No. 9E (Dec 158) Character 'û' Letter, Lowercase
+    QChar(0x00fc),  // Hex No. 9F (Dec 159) Character 'ü' Letter, Lowercase
+    QChar(0x2020),  // Hex No. A0 (Dec 160) Character '†' Punctuation
+    QChar(0x00b0),  // Hex No. A1 (Dec 161) Character '°' Symbol
+    QChar(0x00a2),  // Hex No. A2 (Dec 162) Character '¢' Symbol
+    QChar(0x00a3),  // Hex No. A3 (Dec 163) Character '£' Symbol
+    QChar(0x00a7),  // Hex No. A4 (Dec 164) Character '§' Punctuation
+    QChar(0x2022),  // Hex No. A5 (Dec 165) Character '•' Punctuation
+    QChar(0x00b6),  // Hex No. A6 (Dec 166) Character '¶' Punctuation
+    QChar(0x00df),  // Hex No. A7 (Dec 167) Character 'ß' Letter, Lowercase
+    QChar(0x00ae),  // Hex No. A8 (Dec 168) Character '®' Symbol
+    QChar(0x00a9),  // Hex No. A9 (Dec 169) Character '©' Symbol
+    QChar(0x2122),  // Hex No. AA (Dec 170) Character '™' Symbol
+    QChar(0x00b4),  // Hex No. AB (Dec 171) Character '´' Symbol
+    QChar(0x00a8),  // Hex No. AC (Dec 172) Character '¨' Symbol
+    QChar(0x2260),  // Hex No. AD (Dec 173) Character '≠' Symbol
+    QChar(0x00c6),  // Hex No. AE (Dec 174) Character 'Æ' Letter, Uppercase
+    QChar(0x00d8),  // Hex No. AF (Dec 175) Character 'Ø' Letter, Uppercase
+    QChar(0x221e),  // Hex No. B0 (Dec 176) Character '∞' Symbol
+    QChar(0x00b1),  // Hex No. B1 (Dec 177) Character '±' Symbol
+    QChar(0x2264),  // Hex No. B2 (Dec 178) Character '≤' Symbol
+    QChar(0x2265),  // Hex No. B3 (Dec 179) Character '≥' Symbol
+    QChar(0x00a5),  // Hex No. B4 (Dec 180) Character '¥' Symbol
+    QChar(0x00b5),  // Hex No. B5 (Dec 181) Character 'µ' Letter, Lowercase
+    QChar(0x2202),  // Hex No. B6 (Dec 182) Character '∂' Symbol
+    QChar(0x2211),  // Hex No. B7 (Dec 183) Character '∑' Symbol
+    QChar(0x220f),  // Hex No. B8 (Dec 184) Character '∏' Symbol
+    QChar(0x03c0),  // Hex No. B9 (Dec 185) Character 'π' Letter, Lowercase
+    QChar(0x222b),  // Hex No. BA (Dec 186) Character '∫' Symbol
+    QChar(0x00aa),  // Hex No. BB (Dec 187) Character 'ª' Letter
+    QChar(0x00ba),  // Hex No. BC (Dec 188) Character 'º' Letter
+    QChar(0x2126),  // Hex No. BD (Dec 189) Character 'Ω' Letter, Uppercase
+    QChar(0x00e6),  // Hex No. BE (Dec 190) Character 'æ' Letter, Lowercase
+    QChar(0x00f8),  // Hex No. BF (Dec 191) Character 'ø' Letter, Lowercase
+    QChar(0x00bf),  // Hex No. C0 (Dec 192) Character '¿' Punctuation
+    QChar(0x00a1),  // Hex No. C1 (Dec 193) Character '¡' Punctuation
+    QChar(0x00ac),  // Hex No. C2 (Dec 194) Character '¬' Symbol
+    QChar(0x221a),  // Hex No. C3 (Dec 195) Character '√' Symbol
+    QChar(0x0192),  // Hex No. C4 (Dec 196) Character 'ƒ' Letter, Lowercase
+    QChar(0x2248),  // Hex No. C5 (Dec 197) Character '≈' Symbol
+    QChar(0x2206),  // Hex No. C6 (Dec 198) Character '∆' Symbol
+    QChar(0x00ab),  // Hex No. C7 (Dec 199) Character '«' Punctuation
+    QChar(0x00bb),  // Hex No. C8 (Dec 200) Character '»' Punctuation
+    QChar(0x2026),  // Hex No. C9 (Dec 201) Character '…' Punctuation
+    QChar(0x0020),  // Hex No. CA (Dec 202) Character ' ' Whitespace
+    QChar(0x00c0),  // Hex No. CB (Dec 203) Character 'À' Letter, Uppercase
+    QChar(0x00c3),  // Hex No. CC (Dec 204) Character 'Ã' Letter, Uppercase
+    QChar(0x00d5),  // Hex No. CD (Dec 205) Character 'Õ' Letter, Uppercase
+    QChar(0x0152),  // Hex No. CE (Dec 206) Character 'Œ' Letter, Uppercase
+    QChar(0x0153),  // Hex No. CF (Dec 207) Character 'œ' Letter, Lowercase
+    QChar(0x2013),  // Hex No. D0 (Dec 208) Character '–' Punctuation
+    QChar(0x2014),  // Hex No. D1 (Dec 209) Character '—' Punctuation
+    QChar(0x201c),  // Hex No. D2 (Dec 210) Character '“' Punctuation
+    QChar(0x201d),  // Hex No. D3 (Dec 211) Character '”' Punctuation
+    QChar(0x2018),  // Hex No. D4 (Dec 212) Character '‘' Punctuation
+    QChar(0x2019),  // Hex No. D5 (Dec 213) Character '’' Punctuation
+    QChar(0x00f7),  // Hex No. D6 (Dec 214) Character '÷' Symbol
+    QChar(0x25ca),  // Hex No. D7 (Dec 215) Character '◊' Symbol
+    QChar(0x00ff),  // Hex No. D8 (Dec 216) Character 'ÿ' Letter, Lowercase
+    QChar(0x0178),  // Hex No. D9 (Dec 217) Character 'Ÿ' Letter, Uppercase
+    QChar(0x2044),  // Hex No. DA (Dec 218) Character '⁄' Symbol
+    QChar(0x20ac),  // Hex No. DB (Dec 219) Character '€' Symbol               !!! REPLACED FOR MAC OS
+    QChar(0x2039),  // Hex No. DC (Dec 220) Character '‹' Punctuation
+    QChar(0x203a),  // Hex No. DD (Dec 221) Character '›' Punctuation
+    QChar(0xfb01),  // Hex No. DE (Dec 222) Character 'ﬁ' Letter, Lowercase
+    QChar(0xfb02),  // Hex No. DF (Dec 223) Character 'ﬂ' Letter, Lowercase
+    QChar(0x2021),  // Hex No. E0 (Dec 224) Character '‡' Punctuation
+    QChar(0x00b7),  // Hex No. E1 (Dec 225) Character '·' Punctuation
+    QChar(0x201a),  // Hex No. E2 (Dec 226) Character '‚' Punctuation
+    QChar(0x201e),  // Hex No. E3 (Dec 227) Character '„' Punctuation
+    QChar(0x2030),  // Hex No. E4 (Dec 228) Character '‰' Punctuation
+    QChar(0x00c2),  // Hex No. E5 (Dec 229) Character 'Â' Letter, Uppercase
+    QChar(0x00ca),  // Hex No. E6 (Dec 230) Character 'Ê' Letter, Uppercase
+    QChar(0x00c1),  // Hex No. E7 (Dec 231) Character 'Á' Letter, Uppercase
+    QChar(0x00cb),  // Hex No. E8 (Dec 232) Character 'Ë' Letter, Uppercase
+    QChar(0x00c8),  // Hex No. E9 (Dec 233) Character 'È' Letter, Uppercase
+    QChar(0x00cd),  // Hex No. EA (Dec 234) Character 'Í' Letter, Uppercase
+    QChar(0x00ce),  // Hex No. EB (Dec 235) Character 'Î' Letter, Uppercase
+    QChar(0x00cf),  // Hex No. EC (Dec 236) Character 'Ï' Letter, Uppercase
+    QChar(0x00cc),  // Hex No. ED (Dec 237) Character 'Ì' Letter, Uppercase
+    QChar(0x00d3),  // Hex No. EE (Dec 238) Character 'Ó' Letter, Uppercase
+    QChar(0x00d4),  // Hex No. EF (Dec 239) Character 'Ô' Letter, Uppercase
+    QChar(0xf8ff),  // Hex No. F0 (Dec 240)
+    QChar(0x00d2),  // Hex No. F1 (Dec 241) Character 'Ò' Letter, Uppercase
+    QChar(0x00da),  // Hex No. F2 (Dec 242) Character 'Ú' Letter, Uppercase
+    QChar(0x00db),  // Hex No. F3 (Dec 243) Character 'Û' Letter, Uppercase
+    QChar(0x00d9),  // Hex No. F4 (Dec 244) Character 'Ù' Letter, Uppercase
+    QChar(0x0131),  // Hex No. F5 (Dec 245) Character 'ı' Letter, Lowercase
+    QChar(0x02c6),  // Hex No. F6 (Dec 246) Character 'ˆ' Letter
+    QChar(0x02dc),  // Hex No. F7 (Dec 247) Character '˜' Symbol
+    QChar(0x00af),  // Hex No. F8 (Dec 248) Character '¯' Symbol
+    QChar(0x02d8),  // Hex No. F9 (Dec 249) Character '˘' Symbol
+    QChar(0x02d9),  // Hex No. FA (Dec 250) Character '˙' Symbol
+    QChar(0x02da),  // Hex No. FB (Dec 251) Character '˚' Symbol
+    QChar(0x00b8),  // Hex No. FC (Dec 252) Character '¸' Symbol
+    QChar(0x02dd),  // Hex No. FD (Dec 253) Character '˝' Symbol
+    QChar(0x02db),  // Hex No. FE (Dec 254) Character '˛' Symbol
+    QChar(0x02c7),  // Hex No. FF (Dec 255) Character 'ˇ' Letter
+};
+
 } // namespace encoding
 
 QString PDFEncoding::convert(const QByteArray& stream, PDFEncoding::Encoding encoding)
@@ -2023,6 +2283,9 @@ const encoding::EncodingTable* PDFEncoding::getTableForEncoding(Encoding encodin
 
         case Encoding::ZapfDingbats:
             return &pdf::encoding::ZAPF_DINGBATS_ENCODING_CONVERSION_TABLE;
+
+        case Encoding::MacOsRoman:
+            return &pdf::encoding::MAC_OS_ENCODING_CONVERSION_TABLE;
     }
 
     // Unknown encoding?

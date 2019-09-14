@@ -49,6 +49,7 @@ public:
         ZapfDingbats,   ///< Appendix D, Section D.5, Zapf Dingbats Encoding
 
         // Following encodings are used for internal use only and are not a part of PDF reference
+        MacOsRoman,     ///< Encoding for Mac OS, differs from MacRoman for 15 characters
         Custom,
         Invalid
     };

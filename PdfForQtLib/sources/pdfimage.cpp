@@ -42,6 +42,7 @@ struct PDFJPEGDCTSource
 {
     jpeg_source_mgr sourceManager;
     const QByteArray* buffer = nullptr;
+    int startByte = 0;
 };
 
 PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, PDFRenderErrorReporter* errorReporter)
@@ -151,6 +152,14 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         source.buffer = &content;
         std::memset(&source.sourceManager, 0, sizeof(jpeg_source_mgr));
 
+        // Fix issue, that image doesn't start with FFD8 (start of image marker). If this
+        // occurs, try to find sequence FFD8, and if we can find it, then advance the buffer.
+        source.startByte = qMax(content.indexOf("\xFF\xD8"), 0);
+        if (source.startByte > 0)
+        {
+            errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Malformed data while reading JPEG stream. %1 bytes skipped.").arg(source.startByte));
+        }
+
         auto errorMethod = [](j_common_ptr ptr)
         {
             char buffer[JMSG_LENGTH_MAX] = { };
@@ -169,6 +178,8 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                 const QByteArray* buffer = source->buffer;
                 source->sourceManager.next_input_byte = reinterpret_cast<const JOCTET*>(buffer->constData());
                 source->sourceManager.bytes_in_buffer = buffer->size();
+                source->sourceManager.next_input_byte += source->startByte;
+                source->sourceManager.bytes_in_buffer -= source->startByte;
                 return TRUE;
             }
 
