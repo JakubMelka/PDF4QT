@@ -362,6 +362,15 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                 freeFormGouradTriangleShading->m_bitsPerFlag = bitsPerFlag;
             }
 
+            if (shadingType == ShadingType::LatticeFormGouradTriangle)
+            {
+                latticeFormGouradTriangleShading->m_verticesPerRow = loader.readIntegerFromDictionary(shadingDictionary, "VerticesPerRow", -1);
+                if (latticeFormGouradTriangleShading->m_verticesPerRow < 2)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid vertices per row (%1) for gourad triangle meshing.").arg(latticeFormGouradTriangleShading->m_verticesPerRow));
+                }
+            }
+
             return result;
         }
 
@@ -1428,6 +1437,14 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
         }
     }
 
+    if (m_backgroundColor.isValid())
+    {
+        QPainterPath path;
+        path.addRect(settings.deviceSpaceMeshingArea);
+        mesh.setBackgroundPath(path);
+        mesh.setBackgroundColor(m_backgroundColor);
+    }
+
     return mesh;
 }
 
@@ -1439,6 +1456,131 @@ ShadingType PDFLatticeFormGouradTriangleShading::getShadingType() const
 PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings) const
 {
     PDFMesh mesh;
+
+    size_t bitsPerVertex = 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
+    size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
+    bitsPerVertex += remainder;
+    size_t bytesPerVertex = bitsPerVertex / 8;
+    size_t vertexCount = m_data.size() / bytesPerVertex;
+    size_t columnCount = static_cast<size_t>(m_verticesPerRow);
+    size_t rowCount = vertexCount / columnCount;
+
+    if (rowCount < 2)
+    {
+        // No mesh produced
+        return mesh;
+    }
+
+    // We have 2 triangles for each quad. We have (columnCount - 1) quads
+    // in single line and we have (rowCount - 1) lines.
+    size_t triangleCount = (rowCount - 1) * (columnCount - 1) * 2;
+    mesh.reserve(0, triangleCount);
+
+    struct VertexData
+    {
+        uint32_t index = 0;
+        QPointF position;
+        PDFColor color;
+    };
+
+    const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
+    const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
+    const PDFReal yScaleRatio = (m_ymax - m_ymin) * vertexScaleRatio;
+    const PDFReal colorScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerComponent) - 1);
+
+    std::vector<VertexData> vertices;
+    vertices.resize(vertexCount);
+    std::vector<size_t> indices(vertexCount, 0);
+    std::iota(indices.begin(), indices.end(), static_cast<size_t>(0));
+    std::vector<QPointF> meshVertices;
+    meshVertices.resize(vertexCount);
+
+    auto readVertex = [this, &vertices, &settings, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
+    {
+        PDFBitReader reader(&m_data, 8);
+        reader.seek(index * bytesPerVertex);
+
+        VertexData data;
+        data.index = static_cast<uint32_t>(index);
+        const PDFReal x = m_xmin + (reader.read(m_bitsPerCoordinate)) * xScaleRatio;
+        const PDFReal y = m_ymin + (reader.read(m_bitsPerCoordinate)) * yScaleRatio;
+        data.position = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
+        data.color.resize(m_colorComponentCount);
+        meshVertices[index] = data.position;
+
+        for (size_t i = 0; i < m_colorComponentCount; ++i)
+        {
+            const double cMin = m_limits[2 * i + 0];
+            const double cMax = m_limits[2 * i + 1];
+            data.color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
+        }
+
+        if (!m_functions.empty())
+        {
+            Q_ASSERT(m_colorComponentCount == 1);
+            const PDFReal t = data.color[0];
+            std::vector<PDFReal> colorBuffer(m_colorSpace->getColorComponentCount(), 0.0);
+            if (m_functions.size() == 1)
+            {
+                PDFFunction::FunctionResult result = m_functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
+                if (!result)
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+                }
+            }
+            else
+            {
+                for (size_t i = 0, count = colorBuffer.size(); i < count; ++i)
+                {
+                    PDFFunction::FunctionResult result = m_functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
+                    if (!result)
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+                    }
+                }
+            }
+
+            data.color = PDFAbstractColorSpace::convertToColor(colorBuffer);
+        }
+
+        vertices[index] = qMove(data);
+    };
+
+    std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), readVertex);
+    mesh.setVertices(qMove(meshVertices));
+
+    auto getVertexIndex = [columnCount](size_t row, size_t column) -> size_t
+    {
+        return row * columnCount + column;
+    };
+
+    for (size_t row = 1; row < rowCount; ++row)
+    {
+        for (size_t column = 1; column < columnCount; ++column)
+        {
+            const size_t vTopLeft = getVertexIndex(row - 1, column - 1);
+            const size_t vTopRight = getVertexIndex(row - 1, column);
+            const size_t vBottomRight = getVertexIndex(row, column);
+            const size_t vBottomLeft = getVertexIndex(row, column - 1);
+
+            const VertexData& vertexTopLeft = vertices[vTopLeft];
+            const VertexData& vertexTopRight = vertices[vTopRight];
+            const VertexData& vertexBottomRight = vertices[vBottomRight];
+            const VertexData& vertexBottomLeft = vertices[vBottomLeft];
+
+            addSubdividedTriangles(settings, mesh, vertexTopLeft.index, vertexTopRight.index, vertexBottomRight.index, vertexTopLeft.color, vertexTopRight.color, vertexBottomRight.color);
+            addSubdividedTriangles(settings, mesh, vertexBottomRight.index, vertexBottomLeft.index, vertexTopLeft.index, vertexBottomRight.color, vertexBottomLeft.color, vertexTopLeft.color);
+        }
+    }
+
+    if (m_backgroundColor.isValid())
+    {
+        QPainterPath path;
+        path.addRect(settings.deviceSpaceMeshingArea);
+        mesh.setBackgroundPath(path);
+        mesh.setBackgroundColor(m_backgroundColor);
+    }
+
     return mesh;
 }
 

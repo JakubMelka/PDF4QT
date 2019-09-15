@@ -329,7 +329,7 @@ protected:
     PDFReal m_ymin = 0.0;
     PDFReal m_ymax = 0.0;
     std::vector<PDFReal> m_limits;
-    size_t m_colorComponentCount;
+    size_t m_colorComponentCount = 0;
 
     /// Color functions. This array can be empty. If it is empty,
     /// then colors should be determined directly from color space.
@@ -363,6 +363,8 @@ public:
 
 private:
     friend class PDFPattern;
+
+    PDFInteger m_verticesPerRow = 0;
 };
 
 }   // namespace pdf

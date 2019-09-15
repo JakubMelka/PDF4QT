@@ -127,7 +127,7 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
         case StandardFontType::CourierOblique:
         case StandardFontType::CourierBoldOblique:
         {
-            fontName = "Courier";
+            fontName = "CourierNew";
             break;
         }
 
