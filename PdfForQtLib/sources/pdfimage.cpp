@@ -547,8 +547,7 @@ QImage PDFImage::getImage() const
         QImage image(m_imageData.getWidth(), m_imageData.getHeight(), QImage::Format_Alpha8);
 
         const bool flip01 = !m_imageData.getDecode().empty() && qFuzzyCompare(m_imageData.getDecode().front(), 1.0);
-        QDataStream stream(const_cast<QByteArray*>(&m_imageData.getData()), QIODevice::ReadOnly);
-        PDFBitReader reader(&stream, m_imageData.getBitsPerComponent());
+        PDFBitReader reader(&m_imageData.getData(), m_imageData.getBitsPerComponent());
 
         for (unsigned int i = 0, rowCount = m_imageData.getHeight(); i < rowCount; ++i)
         {

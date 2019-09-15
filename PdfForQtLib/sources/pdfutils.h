@@ -78,21 +78,29 @@ class PDFBitReader
 public:
     using Value = uint64_t;
 
-    explicit PDFBitReader(QDataStream* stream, Value bitsPerComponent);
+    explicit PDFBitReader(const QByteArray* stream, Value bitsPerComponent);
 
     /// Returns maximal value of n-bit unsigned integer.
     Value max() const { return m_maximalValue; }
 
     /// Reads single n-bit value from the stream. If stream hasn't enough data,
     /// then exception is thrown.
-    Value read();
+    Value read() { return read(m_bitsPerComponent); }
+
+    /// Reads single n-bit value from the stream. If stream hasn't enough data,
+    /// then exception is thrown.
+    Value read(Value bits);
 
     /// Seeks the desired position in the data stream. If position can't be seeked,
     /// then exception is thrown.
     void seek(qint64 position);
 
+    /// Seeks data to the byte boundary (number of processed bits is divisible by 8)
+    void alignToBytes();
+
 private:
-    QDataStream* m_stream;
+    const QByteArray* m_stream;
+    int m_position;
 
     const Value m_bitsPerComponent;
     const Value m_maximalValue;
@@ -127,6 +135,12 @@ private:
     Value m_oldValue;
     Value* m_value;
 };
+
+template<typename T>
+bool contains(T value, std::initializer_list<T> list)
+{
+    return (std::find(list.begin(), list.end(), value) != list.end());
+}
 
 /// Performs linear mapping of value x in interval [x_min, x_max] to the interval [y_min, y_max].
 /// \param x Value to be linearly remapped from interval [x_min, x_max] to the interval [y_min, y_max].

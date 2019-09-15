@@ -110,8 +110,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                     throw PDFParserException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
-                QDataStream stream(const_cast<QByteArray*>(&imageData.getData()), QIODevice::ReadOnly);
-                PDFBitReader reader(&stream, imageData.getBitsPerComponent());
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
 
                 PDFColor color;
                 color.resize(componentCount);
@@ -176,8 +175,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                     throw PDFParserException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
-                QDataStream stream(const_cast<QByteArray*>(&imageData.getData()), QIODevice::ReadOnly);
-                PDFBitReader reader(&stream, imageData.getBitsPerComponent());
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
 
                 PDFColor color;
                 color.resize(componentCount);
@@ -822,8 +820,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData) const
         image.fill(QColor(Qt::white));
 
         unsigned int componentCount = imageData.getComponents();
-        QDataStream stream(const_cast<QByteArray*>(&imageData.getData()), QIODevice::ReadOnly);
-        PDFBitReader reader(&stream, imageData.getBitsPerComponent());
+        PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
 
         if (componentCount != getColorComponentCount())
         {

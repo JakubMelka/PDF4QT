@@ -289,6 +289,82 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             return result;
         }
 
+        case ShadingType::FreeFormGouradTriangle:
+        case ShadingType::LatticeFormGouradTriangle:
+        {
+            PDFFreeFormGouradTriangleShading* freeFormGouradTriangleShading = nullptr;
+            PDFLatticeFormGouradTriangleShading* latticeFormGouradTriangleShading = nullptr;
+            PDFGouradTriangleShading* gouradTriangleShading = nullptr;
+
+            if (shadingType == ShadingType::FreeFormGouradTriangle)
+            {
+                freeFormGouradTriangleShading = new PDFFreeFormGouradTriangleShading();
+                gouradTriangleShading = freeFormGouradTriangleShading;
+            }
+            else
+            {
+                Q_ASSERT(shadingType == ShadingType::LatticeFormGouradTriangle);
+                latticeFormGouradTriangleShading = new PDFLatticeFormGouradTriangleShading();
+                gouradTriangleShading = latticeFormGouradTriangleShading;
+            }
+            PDFPatternPtr result(gouradTriangleShading);
+
+            PDFInteger bitsPerCoordinate = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerCoordinate", -1);
+            if (!contains(bitsPerCoordinate, std::initializer_list<PDFInteger>{ 1, 2, 4, 8, 12, 16, 24, 32 }))
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per coordinate (%1) for gourad triangle meshing.").arg(bitsPerCoordinate));
+            }
+            PDFInteger bitsPerComponent = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerComponent", -1);
+            if (!contains(bitsPerComponent, std::initializer_list<PDFInteger>{ 1, 2, 4, 8, 12, 16 }))
+            {
+                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per component (%1) for gourad triangle meshing.").arg(bitsPerComponent));
+            }
+
+            std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(shadingDictionary, "Decode");
+            if (!functions.empty())
+            {
+                if (decode.size() != 6)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain of gourad triangle meshing. Expected size is 6, actual size is %1.").arg(decode.size()));
+                }
+            }
+            else
+            {
+                const size_t expectedSize = colorSpace->getColorComponentCount() * 2 + 4;
+                if (decode.size() != expectedSize)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain of gourad triangle meshing. Expected size is %1, actual size is %2.").arg(expectedSize).arg(decode.size()));
+                }
+            }
+
+            gouradTriangleShading->m_antiAlias = antialias;
+            gouradTriangleShading->m_backgroundColor = backgroundColor;
+            gouradTriangleShading->m_colorSpace = colorSpace;
+            gouradTriangleShading->m_patternGraphicState = patternGraphicState;
+            gouradTriangleShading->m_bitsPerCoordinate = static_cast<uint8_t>(bitsPerCoordinate);
+            gouradTriangleShading->m_bitsPerComponent = static_cast<uint8_t>(bitsPerComponent);
+            gouradTriangleShading->m_xmin = decode[0];
+            gouradTriangleShading->m_xmax = decode[1];
+            gouradTriangleShading->m_ymin = decode[2];
+            gouradTriangleShading->m_ymax = decode[3];
+            gouradTriangleShading->m_limits = std::vector<PDFReal>(std::next(decode.cbegin(), 4), decode.cend());
+            gouradTriangleShading->m_colorComponentCount = !functions.empty() ? 1 : colorSpace->getColorComponentCount();
+            gouradTriangleShading->m_functions = qMove(functions);
+            gouradTriangleShading->m_data = document->getDecodedStream(stream);
+
+            if (shadingType == ShadingType::FreeFormGouradTriangle)
+            {
+                PDFInteger bitsPerFlag = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerFlag", -1);
+                if (!contains(bitsPerFlag, std::initializer_list<PDFInteger>{ 2, 4, 8 }))
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid bits per flag (%1) for gourad triangle meshing.").arg(bitsPerFlag));
+                }
+                freeFormGouradTriangleShading->m_bitsPerFlag = bitsPerFlag;
+            }
+
+            return result;
+        }
+
         default:
         {
             throw PDFParserException(PDFTranslationContext::tr("Invalid shading pattern type (%1).").arg(static_cast<PDFInteger>(shadingType)));
@@ -1186,6 +1262,267 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) con
     }
 
     return mesh;
+}
+
+ShadingType PDFFreeFormGouradTriangleShading::getShadingType() const
+{
+    return ShadingType::FreeFormGouradTriangle;
+}
+
+PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings) const
+{
+    PDFMesh mesh;
+
+    size_t bitsPerVertex = m_bitsPerFlag + 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
+    size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
+    bitsPerVertex += remainder;
+    size_t bytesPerVertex = bitsPerVertex / 8;
+    size_t vertexCount = m_data.size() / bytesPerVertex;
+
+    if (vertexCount < 3)
+    {
+        // No mesh produced
+        return mesh;
+    }
+
+    // We have 3 vertices for start triangle, then for each new vertex, we get
+    // a new triangle, or, based on flags, no triangle (if new triangle is processed)
+    size_t triangleCount = vertexCount - 2;
+    mesh.reserve(0, triangleCount);
+
+    struct VertexData
+    {
+        uint32_t index = 0;
+        uint8_t flags = 0;
+        QPointF position;
+        PDFColor color;
+    };
+
+    const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
+    const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
+    const PDFReal yScaleRatio = (m_ymax - m_ymin) * vertexScaleRatio;
+    const PDFReal colorScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerComponent) - 1);
+
+    std::vector<VertexData> vertices;
+    vertices.resize(vertexCount);
+    std::vector<size_t> indices(vertexCount, 0);
+    std::iota(indices.begin(), indices.end(), static_cast<size_t>(0));
+    std::vector<QPointF> meshVertices;
+    meshVertices.resize(vertexCount);
+
+    auto readVertex = [this, &vertices, &settings, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
+    {
+        PDFBitReader reader(&m_data, 8);
+        reader.seek(index * bytesPerVertex);
+
+        VertexData data;
+        data.index = static_cast<uint32_t>(index);
+        data.flags = reader.read(m_bitsPerFlag);
+        const PDFReal x = m_xmin + (reader.read(m_bitsPerCoordinate)) * xScaleRatio;
+        const PDFReal y = m_ymin + (reader.read(m_bitsPerCoordinate)) * yScaleRatio;
+        data.position = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
+        data.color.resize(m_colorComponentCount);
+        meshVertices[index] = data.position;
+
+        for (size_t i = 0; i < m_colorComponentCount; ++i)
+        {
+            const double cMin = m_limits[2 * i + 0];
+            const double cMax = m_limits[2 * i + 1];
+            data.color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
+        }
+
+        if (!m_functions.empty())
+        {
+            Q_ASSERT(m_colorComponentCount == 1);
+            const PDFReal t = data.color[0];
+            std::vector<PDFReal> colorBuffer(m_colorSpace->getColorComponentCount(), 0.0);
+            if (m_functions.size() == 1)
+            {
+                PDFFunction::FunctionResult result = m_functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
+                if (!result)
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+                }
+            }
+            else
+            {
+                for (size_t i = 0, count = colorBuffer.size(); i < count; ++i)
+                {
+                    PDFFunction::FunctionResult result = m_functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
+                    if (!result)
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+                    }
+                }
+            }
+
+            data.color = PDFAbstractColorSpace::convertToColor(colorBuffer);
+        }
+
+        vertices[index] = qMove(data);
+    };
+
+    std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), readVertex);
+    mesh.setVertices(qMove(meshVertices));
+
+    vertices.front().flags = 0;
+
+    const VertexData* va = nullptr;
+    const VertexData* vb = nullptr;
+    const VertexData* vc = nullptr;
+    const VertexData* vd = nullptr;
+
+    auto addTriangle = [this, &settings, &mesh, &vertices](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        const uint32_t via = va->index;
+        const uint32_t vib = vb->index;
+        const uint32_t vic = vc->index;
+
+        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color);
+    };
+
+    for (size_t i = 0; i < vertexCount;)
+    {
+        vd = &vertices[i];
+
+        switch (vd->flags)
+        {
+            case 0:
+            {
+                if (i + 2 >= vertexCount)
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid free form gourad triangle data stream - not enough vertices."));
+                }
+                va = vd;
+                vb = &vertices[i + 1];
+                vc = &vertices[i + 2];
+                i += 3;
+                addTriangle(va, vb, vc);
+                break;
+            }
+
+            case 1:
+            {
+                // Triangle vb, vc, vd
+                va = vb;
+                vb = vc;
+                vc = vd;
+                ++i;
+                addTriangle(va, vb, vc);
+                break;
+            }
+
+            case 2:
+            {
+                // Triangle va, vc, vd
+                vb = vc;
+                vc = vd;
+                ++i;
+                addTriangle(va, vb, vc);
+                break;
+            }
+
+            default:
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid free form gourad triangle data stream - invalid vertex flag %1.").arg(vd->flags));
+                break;
+        }
+    }
+
+    return mesh;
+}
+
+ShadingType PDFLatticeFormGouradTriangleShading::getShadingType() const
+{
+    return ShadingType::LatticeFormGouradTriangle;
+}
+
+PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings) const
+{
+    PDFMesh mesh;
+    return mesh;
+}
+
+void PDFGouradTriangleShading::addSubdividedTriangles(const PDFMeshQualitySettings& settings,
+                                                      PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3,
+                                                      PDFColor c1, PDFColor c2, PDFColor c3) const
+{
+    // First, verify, if we can subdivide the triangle
+    QLineF v12(mesh.getVertex(v1), mesh.getVertex(v2));
+    QLineF v13(mesh.getVertex(v1), mesh.getVertex(v3));
+    QLineF v23(mesh.getVertex(v2), mesh.getVertex(v3));
+
+    const qreal length12 = v12.length();
+    const qreal length13 = v13.length();
+    const qreal length23 = v23.length();
+    const qreal maxLength = qMax(length12, qMax(length13, length23));
+
+    const bool isColorEqual = PDFAbstractColorSpace::isColorEqual(c1, c2, settings.tolerance) &&
+                              PDFAbstractColorSpace::isColorEqual(c1, c3, settings.tolerance) &&
+                              PDFAbstractColorSpace::isColorEqual(c2, c3, settings.tolerance);
+    const bool canSubdivide = maxLength >= settings.minimalMeshResolution * 2.0; // If we subdivide, we will have length at least settings.minimalMeshResolution
+
+
+    if (!isColorEqual && canSubdivide)
+    {
+        if (length23 == maxLength)
+        {
+            // We split line (v2, v3), create two triangles, (v1, v2, vx) and (v1, v3, vx), where
+            // vx is centerpoint of line (v2, v3). We also interpolate colors.
+            QPointF x = v23.center();
+            PDFColor cx = PDFAbstractColorSpace::mixColors(c2, c3, 0.5);
+            const uint32_t vx = mesh.addVertex(x);
+
+            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx);
+            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx);
+        }
+        else if (length13 == maxLength)
+        {
+            // We split line (v1, v3), create two triangles, (v1, v2, vx) and (v2, v3, vx), where
+            // vx is centerpoint of line (v1, v3). We also interpolate colors.
+            QPointF x = v13.center();
+            PDFColor cx = PDFAbstractColorSpace::mixColors(c1, c3, 0.5);
+            const uint32_t vx = mesh.addVertex(x);
+
+            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx);
+            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx);
+        }
+        else
+        {
+            Q_ASSERT(length12 == maxLength);
+
+            // We split line (v1, v2), create two triangles, (v1, v3, vx) and (v2, v3, vx), where
+            // vx is centerpoint of line (v1, v2). We also interpolate colors.
+            QPointF x = v12.center();
+            PDFColor cx = PDFAbstractColorSpace::mixColors(c1, c2, 0.5);
+            const uint32_t vx = mesh.addVertex(x);
+
+            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx);
+            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx);
+        }
+    }
+    else
+    {
+        const size_t colorComponents = c1.size();
+
+        // Calculate color - interpolate 3 vertex colors
+        PDFColor color;
+        color.resize(colorComponents);
+
+        constexpr const PDFReal coefficient = 1.0 / 3.0;
+        for (size_t i = 0; i < colorComponents; ++i)
+        {
+            color[i] = (c1[i] + c2[i] + c3[i]) * coefficient;
+        }
+        Q_ASSERT(colorComponents == m_colorSpace->getColorComponentCount());
+        QColor transformedColor = m_colorSpace->getColor(color);
+
+        PDFMesh::Triangle triangle;
+        triangle.v1 = v1;
+        triangle.v2 = v2;
+        triangle.v3 = v3;
+        triangle.color = transformedColor.rgb();
+        mesh.addTriangle(triangle);
+    }
 }
 
 // TODO: Apply graphic state of the pattern

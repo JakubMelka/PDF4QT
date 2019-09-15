@@ -613,7 +613,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     // We must create a mesh and then draw pattern
                     PDFMeshQualitySettings settings;
                     settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-                    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                    settings.userSpaceToDeviceSpaceMatrix = getCurrentWorldMatrix();
                     settings.initDefaultResolution();
 
                     PDFMesh mesh = shadingPatern->createMesh(settings);
@@ -665,7 +665,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     // We must create a mesh and then draw pattern
                     PDFMeshQualitySettings settings;
                     settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-                    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                    settings.userSpaceToDeviceSpaceMatrix = getCurrentWorldMatrix();
                     settings.initDefaultResolution();
 
                     PDFMesh mesh = shadingPatern->createMesh(settings);

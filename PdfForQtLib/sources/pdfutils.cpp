@@ -21,8 +21,9 @@
 namespace pdf
 {
 
-PDFBitReader::PDFBitReader(QDataStream* stream, Value bitsPerComponent) :
+PDFBitReader::PDFBitReader(const QByteArray* stream, Value bitsPerComponent) :
     m_stream(stream),
+    m_position(0),
     m_bitsPerComponent(bitsPerComponent),
     m_maximalValue((static_cast<Value>(1) << m_bitsPerComponent) - static_cast<Value>(1)),
     m_buffer(0),
@@ -33,39 +34,48 @@ PDFBitReader::PDFBitReader(QDataStream* stream, Value bitsPerComponent) :
     Q_ASSERT(bitsPerComponent < 56);
 }
 
-PDFBitReader::Value PDFBitReader::read()
+PDFBitReader::Value PDFBitReader::read(PDFBitReader::Value bits)
 {
-    while (m_bitsInBuffer < m_bitsPerComponent)
+    while (m_bitsInBuffer < bits)
     {
-        if (!m_stream->atEnd())
+        if (m_position < m_stream->size())
         {
-            uint8_t currentByte = 0;
-            (*m_stream) >> currentByte;
+            uint8_t currentByte = static_cast<uint8_t>((*m_stream)[m_position++]);
             m_buffer = (m_buffer << 8) | currentByte;
             m_bitsInBuffer += 8;
         }
         else
         {
-            throw PDFParserException(PDFTranslationContext::tr("Not enough data to read %1-bit value.").arg(m_bitsPerComponent));
+            throw PDFParserException(PDFTranslationContext::tr("Not enough data to read %1-bit value.").arg(bits));
         }
     }
 
     // Now we have enough bits to read the data
-    Value value = (m_buffer >> (m_bitsInBuffer - m_bitsPerComponent)) & m_maximalValue;
-    m_bitsInBuffer -= m_bitsPerComponent;
+    Value value = (m_buffer >> (m_bitsInBuffer - bits)) & ((static_cast<Value>(1) << bits) - static_cast<Value>(1));
+    m_bitsInBuffer -= bits;
     return value;
 }
 
 void PDFBitReader::seek(qint64 position)
 {
-    if (m_stream->device()->seek(position))
+    if (position < m_stream->size())
     {
+        m_position = position;
         m_buffer = 0;
         m_bitsInBuffer = 0;
     }
     else
     {
         throw PDFParserException(PDFTranslationContext::tr("Can't seek to position %1.").arg(position));
+    }
+}
+
+void PDFBitReader::alignToBytes()
+{
+    const Value remainder = m_bitsInBuffer % 8;
+    if (remainder > 0)
+    {
+        read(remainder);
     }
 }
 

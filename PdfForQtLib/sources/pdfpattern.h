@@ -312,6 +312,59 @@ private:
     PDFReal m_r1 = 0.0;
 };
 
+class PDFGouradTriangleShading : public PDFShadingPattern
+{
+public:
+    explicit PDFGouradTriangleShading() = default;
+
+protected:
+    friend class PDFPattern;
+
+    void addSubdividedTriangles(const PDFMeshQualitySettings& settings, PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3, PDFColor c1, PDFColor c2, PDFColor c3) const;
+
+    uint8_t m_bitsPerCoordinate = 0;
+    uint8_t m_bitsPerComponent = 0;
+    PDFReal m_xmin = 0.0;
+    PDFReal m_xmax = 0.0;
+    PDFReal m_ymin = 0.0;
+    PDFReal m_ymax = 0.0;
+    std::vector<PDFReal> m_limits;
+    size_t m_colorComponentCount;
+
+    /// Color functions. This array can be empty. If it is empty,
+    /// then colors should be determined directly from color space.
+    std::vector<PDFFunctionPtr> m_functions;
+
+    /// Data of the shading, containing triangles and colors
+    QByteArray m_data;
+};
+
+class PDFFreeFormGouradTriangleShading : public PDFGouradTriangleShading
+{
+public:
+    explicit PDFFreeFormGouradTriangleShading() = default;
+
+    virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+
+private:
+    friend class PDFPattern;
+
+    uint8_t m_bitsPerFlag = 0;
+};
+
+class PDFLatticeFormGouradTriangleShading : public PDFGouradTriangleShading
+{
+public:
+    explicit PDFLatticeFormGouradTriangleShading() = default;
+
+    virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+
+private:
+    friend class PDFPattern;
+};
+
 }   // namespace pdf
 
 #endif // PDFPATTERN_H
