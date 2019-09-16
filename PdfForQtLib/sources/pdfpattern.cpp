@@ -33,6 +33,11 @@ PatternType PDFShadingPattern::getType() const
     return PatternType::Shading;
 }
 
+QMatrix PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const
+{
+    return m_matrix * settings.userSpaceToDeviceSpaceMatrix;
+}
+
 ShadingType PDFAxialShading::getShadingType() const
 {
     return ShadingType::Axial;
@@ -340,6 +345,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             gouradTriangleShading->m_antiAlias = antialias;
             gouradTriangleShading->m_backgroundColor = backgroundColor;
             gouradTriangleShading->m_colorSpace = colorSpace;
+            gouradTriangleShading->m_matrix = matrix;
             gouradTriangleShading->m_patternGraphicState = patternGraphicState;
             gouradTriangleShading->m_bitsPerCoordinate = static_cast<uint8_t>(bitsPerCoordinate);
             gouradTriangleShading->m_bitsPerComponent = static_cast<uint8_t>(bitsPerComponent);
@@ -393,7 +399,8 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
 {
     PDFMesh mesh;
 
-    QMatrix domainToDeviceSpaceMatrix = m_domainToTargetTransform * settings.userSpaceToDeviceSpaceMatrix;
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QMatrix domainToDeviceSpaceMatrix = m_domainToTargetTransform * patternSpaceToDeviceSpaceMatrix;
     QLineF topLine(m_domain.topLeft(), m_domain.topRight());
     QLineF leftLine(m_domain.topLeft(), m_domain.bottomLeft());
 
@@ -684,7 +691,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
     if (m_boundingBox.isValid())
     {
         QPainterPath boundingPath;
-        boundingPath.addPolygon(settings.userSpaceToDeviceSpaceMatrix.map(m_boundingBox));
+        boundingPath.addPolygon(patternSpaceToDeviceSpaceMatrix.map(m_boundingBox));
         mesh.setBoundingPath(boundingPath);
     }
 
@@ -695,8 +702,9 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
 {
     PDFMesh mesh;
 
-    QPointF p1 = settings.userSpaceToDeviceSpaceMatrix.map(m_startPoint);
-    QPointF p2 = settings.userSpaceToDeviceSpaceMatrix.map(m_endPoint);
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
+    QPointF p2 = patternSpaceToDeviceSpaceMatrix.map(m_endPoint);
 
     // Strategy: for simplification, we rotate the line clockwise so we will
     // get the shading axis equal to the x-axis. Then we will determine the shading
@@ -908,7 +916,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
     if (m_boundingBox.isValid())
     {
         QPainterPath boundingPath;
-        boundingPath.addPolygon(settings.userSpaceToDeviceSpaceMatrix.map(m_boundingBox));
+        boundingPath.addPolygon(patternSpaceToDeviceSpaceMatrix.map(m_boundingBox));
         mesh.setBoundingPath(boundingPath);
     }
 
@@ -993,11 +1001,12 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) con
 {
     PDFMesh mesh;
 
-    QPointF p1 = settings.userSpaceToDeviceSpaceMatrix.map(m_startPoint);
-    QPointF p2 = settings.userSpaceToDeviceSpaceMatrix.map(m_endPoint);
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
+    QPointF p2 = patternSpaceToDeviceSpaceMatrix.map(m_endPoint);
 
-    QPointF r1TestPoint = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(m_startPoint.x(), m_startPoint.y() + m_r0));
-    QPointF r2TestPoint = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(m_endPoint.x(), m_endPoint.y() + m_r1));
+    QPointF r1TestPoint = patternSpaceToDeviceSpaceMatrix.map(QPointF(m_startPoint.x(), m_startPoint.y() + m_r0));
+    QPointF r2TestPoint = patternSpaceToDeviceSpaceMatrix.map(QPointF(m_endPoint.x(), m_endPoint.y() + m_r1));
 
     const PDFReal r1 = QLineF(p1, r1TestPoint).length();
     const PDFReal r2 = QLineF(p2, r2TestPoint).length();
@@ -1266,7 +1275,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) con
     if (m_boundingBox.isValid())
     {
         QPainterPath boundingPath;
-        boundingPath.addPolygon(settings.userSpaceToDeviceSpaceMatrix.map(m_boundingBox));
+        boundingPath.addPolygon(patternSpaceToDeviceSpaceMatrix.map(m_boundingBox));
         mesh.setBoundingPath(boundingPath);
     }
 
@@ -1282,6 +1291,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
 {
     PDFMesh mesh;
 
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     size_t bitsPerVertex = m_bitsPerFlag + 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
     bitsPerVertex += remainder;
@@ -1319,7 +1329,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     std::vector<QPointF> meshVertices;
     meshVertices.resize(vertexCount);
 
-    auto readVertex = [this, &vertices, &settings, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
+    auto readVertex = [this, &vertices, &patternSpaceToDeviceSpaceMatrix, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
     {
         PDFBitReader reader(&m_data, 8);
         reader.seek(index * bytesPerVertex);
@@ -1329,7 +1339,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
         data.flags = reader.read(m_bitsPerFlag);
         const PDFReal x = m_xmin + (reader.read(m_bitsPerCoordinate)) * xScaleRatio;
         const PDFReal y = m_ymin + (reader.read(m_bitsPerCoordinate)) * yScaleRatio;
-        data.position = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
+        data.position = patternSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
         data.color.resize(m_colorComponentCount);
         meshVertices[index] = data.position;
 
@@ -1457,6 +1467,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
 {
     PDFMesh mesh;
 
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     size_t bitsPerVertex = 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
     bitsPerVertex += remainder;
@@ -1495,7 +1506,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     std::vector<QPointF> meshVertices;
     meshVertices.resize(vertexCount);
 
-    auto readVertex = [this, &vertices, &settings, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
+    auto readVertex = [this, &vertices, &patternSpaceToDeviceSpaceMatrix, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
     {
         PDFBitReader reader(&m_data, 8);
         reader.seek(index * bytesPerVertex);
@@ -1504,7 +1515,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
         data.index = static_cast<uint32_t>(index);
         const PDFReal x = m_xmin + (reader.read(m_bitsPerCoordinate)) * xScaleRatio;
         const PDFReal y = m_ymin + (reader.read(m_bitsPerCoordinate)) * yScaleRatio;
-        data.position = settings.userSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
+        data.position = patternSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
         data.color.resize(m_colorComponentCount);
         meshVertices[index] = data.position;
 

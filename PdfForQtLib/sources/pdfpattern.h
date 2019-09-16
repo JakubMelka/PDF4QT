@@ -243,6 +243,9 @@ public:
     /// Returns true, if shading pattern should be anti-aliased
     bool isAntialiasing() const { return m_antiAlias; }
 
+    /// Returns matrix transforming pattern space to device space
+    QMatrix getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const;
+
 protected:
     friend class PDFPattern;
 
