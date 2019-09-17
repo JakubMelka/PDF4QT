@@ -370,6 +370,104 @@ private:
     PDFInteger m_verticesPerRow = 0;
 };
 
+class PDFTensorPatch
+{
+public:
+    using PointMatrix = std::array<std::array<QPointF, 4>, 4>;
+
+    explicit inline PDFTensorPatch(PointMatrix P) : m_P(P) { }
+
+    /// Calculates value at point in the patch.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    QPointF getValue(PDFReal u, PDFReal v) const;
+
+    /// Calculates value at point in the patch, possibly derivation, if derivation
+    /// variables are positive.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    /// \param derivativeOrderU Derivation order in direction u (0 means no derivation)
+    /// \param derivativeOrderV Derivation order in direction v (0 means no derivation)
+    QPointF getValue(PDFReal u, PDFReal v, int derivativeOrderU, int derivativeOrderV) const;
+
+    /// Calculates first derivate in the surface, in the direction of variable u.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    QPointF getDerivative_u(PDFReal u, PDFReal v) const { return getValue(u, v, 1, 0); }
+
+    /// Calculates second derivate in the surface, in the direction of variable u.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    QPointF getDerivative_uu(PDFReal u, PDFReal v) const { return getValue(u, v, 2, 0); }
+
+    /// Calculates first derivate in the surface, in the direction of variable v.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    QPointF getDerivative_v(PDFReal u, PDFReal v) const { return getValue(u, v, 0, 1); }
+
+    /// Calculates second derivate in the surface, in the direction of variable v.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    QPointF getDerivative_vv(PDFReal u, PDFReal v) const { return getValue(u, v, 0, 2); }
+
+    /// Calculates curvature of the given point in the surface, in the direction of u.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    PDFReal getCurvature_u(PDFReal u, PDFReal v) const;
+
+    /// Calculates curvature of the given point in the surface, in the direction of v.
+    /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
+    /// \param v Vertical coordinate of the patch, must be in range [0, 1]
+    PDFReal getCurvature_v(PDFReal u, PDFReal v) const;
+
+private:
+    /// Computes Bernstein polynomial B0, B1, B2, B3, for parameter t.
+    /// If \p derivative is zero, then it evaluates polynomial's value,
+    /// otherwise it computes value of the derivation of Bx, up to degree 3
+    /// derivation.
+    /// \param index Index of polynomial, from 0 to 3 (B0, B1, B2, B3)
+    /// \param t Parameter of polynomial function
+    /// \param derivativeOrder Derivative order (0 - value, 1 - first derivation, 2 - second derivation, 3 - third derivation)
+    static constexpr PDFReal B(int index, PDFReal t, int derivativeOrder);
+
+    /// Computes Bernstein polynomial B0 for parameter t.
+    /// If \p derivative is zero, then it evaluates polynomial's value,
+    /// otherwise it computes value of the derivation of B0, up to degree 3
+    /// derivation.
+    /// \param t Parameter of polynomial function
+    /// \param derivativeOrder Derivative order (0 - value, 1 - first derivation, 2 - second derivation, 3 - third derivation)
+    static constexpr PDFReal B0(PDFReal t, int derivative);
+
+    /// Computes Bernstein polynomial B1 for parameter t.
+    /// If \p derivative is zero, then it evaluates polynomial's value,
+    /// otherwise it computes value of the derivation of B1, up to degree 3
+    /// derivation.
+    /// \param t Parameter of polynomial function
+    /// \param derivativeOrder Derivative order (0 - value, 1 - first derivation, 2 - second derivation, 3 - third derivation)
+    static constexpr PDFReal B1(PDFReal t, int derivative);
+
+    /// Computes Bernstein polynomial B2 for parameter t.
+    /// If \p derivative is zero, then it evaluates polynomial's value,
+    /// otherwise it computes value of the derivation of B2, up to degree 3
+    /// derivation.
+    /// \param t Parameter of polynomial function
+    /// \param derivativeOrder Derivative order (0 - value, 1 - first derivation, 2 - second derivation, 3 - third derivation)
+    static constexpr PDFReal B2(PDFReal t, int derivative);
+
+    /// Computes Bernstein polynomial B3 for parameter t.
+    /// If \p derivative is zero, then it evaluates polynomial's value,
+    /// otherwise it computes value of the derivation of B3, up to degree 3
+    /// derivation.
+    /// \param t Parameter of polynomial function
+    /// \param derivativeOrder Derivative order (0 - value, 1 - first derivation, 2 - second derivation, 3 - third derivation)
+    static constexpr PDFReal B3(PDFReal t, int derivative);
+
+    static constexpr PDFReal pow2(PDFReal x) { return x * x; }
+    static constexpr PDFReal pow3(PDFReal x) { return x * x * x; }
+
+    PointMatrix m_P;
+};
+
 }   // namespace pdf
 
 #endif // PDFPATTERN_H

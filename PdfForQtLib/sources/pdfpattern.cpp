@@ -1678,6 +1678,170 @@ void PDFGouradTriangleShading::addSubdividedTriangles(const PDFMeshQualitySettin
     }
 }
 
+QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v) const
+{
+    return getValue(u, v, 0, 0);
+}
+
+QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v, int derivativeOrderU, int derivativeOrderV) const
+{
+    QPointF result;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        for (int j = 0; j < 3; ++j)
+        {
+            return m_P[i][j] * B(i, u, derivativeOrderU) * B(j, v, derivativeOrderV);
+        }
+    }
+
+    return result;
+}
+
+PDFReal PDFTensorPatch::getCurvature_u(PDFReal u, PDFReal v) const
+{
+    QPointF dSdu = getDerivative_u(u, v);
+    QPointF dSduu = getDerivative_uu(u, v);
+
+    PDFReal squaredLengthOfdSdu = QPointF::dotProduct(dSdu, dSdu);
+
+    if (qFuzzyIsNull(squaredLengthOfdSdu))
+    {
+        // We assume, that curvature, due to zero length of the tangent vector, is also zero
+        return 0.0;
+    }
+
+    // Well known formula, how to compute curvature of curve f(x):
+    //  K = ( df/dx * df/dyy - df/dxx * df/dy ) / ( (df/dx)^2 + (df/dy)^2 ) ^ (3/2)
+    PDFReal curvature = std::fabs(dSdu.x() * dSduu.y() - dSdu.y() * dSduu.x()) / std::pow(squaredLengthOfdSdu, 1.5);
+    return curvature;
+}
+
+PDFReal PDFTensorPatch::getCurvature_v(PDFReal u, PDFReal v) const
+{
+    QPointF dSdv = getDerivative_v(u, v);
+    QPointF dSdvv = getDerivative_vv(u, v);
+
+    PDFReal squaredLengthOfdSdv = QPointF::dotProduct(dSdv, dSdv);
+
+    if (qFuzzyIsNull(squaredLengthOfdSdv))
+    {
+        // We assume, that curvature, due to zero length of the tangent vector, is also zero
+        return 0.0;
+    }
+
+    // Well known formula, how to compute curvature of curve f(x):
+    //  K = ( df/dx * df/dyy - df/dxx * df/dy ) / ( (df/dx)^2 + (df/dy)^2 ) ^ (3/2)
+    PDFReal curvature = std::fabs(dSdv.x() * dSdvv.y() - dSdv.y() * dSdvv.x()) / std::pow(squaredLengthOfdSdv, 1.5);
+    return curvature;
+}
+
+constexpr PDFReal PDFTensorPatch::B(int index, PDFReal t, int derivativeOrder)
+{
+    switch (index)
+    {
+        case 0:
+            return B0(t, derivativeOrder);
+
+        case 1:
+            return B1(t, derivativeOrder);
+
+        case 2:
+            return B2(t, derivativeOrder);
+
+        case 3:
+            return B3(t, derivativeOrder);
+
+        default:
+            break;
+    }
+
+    return std::numeric_limits<PDFReal>::signaling_NaN();
+}
+
+constexpr PDFReal PDFTensorPatch::B0(PDFReal t, int derivative)
+{
+    switch (derivative)
+    {
+        case 0:
+            return pow3(1.0 - t);
+
+        case 1:
+            return -3.0 * pow2(1.0 - t);
+
+        case 2:
+            return 6.0 * (1.0 - t);
+
+        case 3:
+            return -6.0;
+
+        default:
+            break;
+    }
+
+    return std::numeric_limits<PDFReal>::signaling_NaN();
+}
+
+constexpr PDFReal PDFTensorPatch::B1(PDFReal t, int derivative)
+{
+    switch (derivative)
+    {
+        case 0:
+            return 3.0 * t * pow2(1.0 - t);
+
+        case 1:
+            return 9.0 * pow2(t) - 12.0 * t + 3.0;
+
+        case 2:
+            return 18.0 * t - 12.0;
+
+        case 3:
+            return 18.0;
+    }
+
+    return std::numeric_limits<PDFReal>::signaling_NaN();
+}
+
+constexpr PDFReal PDFTensorPatch::B2(PDFReal t, int derivative)
+{
+    switch (derivative)
+    {
+        case 0:
+            return 3.0 * pow2(t) * (1.0 - t);
+
+        case 1:
+            return -9.0 * pow2(t) + 6.0 * t;
+
+        case 2:
+            return -18.0 * t + 6.0;
+
+        case 3:
+            return -18.0;
+    }
+
+    return std::numeric_limits<PDFReal>::signaling_NaN();
+}
+
+constexpr PDFReal PDFTensorPatch::B3(PDFReal t, int derivative)
+{
+    switch (derivative)
+    {
+        case 0:
+            return pow3(t);
+
+        case 1:
+            return 3.0 * pow2(t);
+
+        case 2:
+            return 6.0 * t;
+
+        case 3:
+            return 6.0;
+    }
+
+    return std::numeric_limits<PDFReal>::signaling_NaN();
+}
+
 // TODO: Apply graphic state of the pattern
 // TODO: Implement settings of meshing in the settings dialog
 
