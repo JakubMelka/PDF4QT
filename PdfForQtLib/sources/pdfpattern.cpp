@@ -296,33 +296,50 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 
         case ShadingType::FreeFormGouradTriangle:
         case ShadingType::LatticeFormGouradTriangle:
+        case ShadingType::TensorProductPatchMesh:
         {
-            PDFFreeFormGouradTriangleShading* freeFormGouradTriangleShading = nullptr;
             PDFLatticeFormGouradTriangleShading* latticeFormGouradTriangleShading = nullptr;
-            PDFGouradTriangleShading* gouradTriangleShading = nullptr;
+            PDFType4567Shading* type4567Shading = nullptr;
 
-            if (shadingType == ShadingType::FreeFormGouradTriangle)
+            switch (shadingType)
             {
-                freeFormGouradTriangleShading = new PDFFreeFormGouradTriangleShading();
-                gouradTriangleShading = freeFormGouradTriangleShading;
+                case ShadingType::FreeFormGouradTriangle:
+                {
+                    type4567Shading = new PDFFreeFormGouradTriangleShading();
+                    break;
+                }
+
+                case ShadingType::LatticeFormGouradTriangle:
+                {
+                    latticeFormGouradTriangleShading = new PDFLatticeFormGouradTriangleShading();
+                    type4567Shading = latticeFormGouradTriangleShading;
+                    break;
+                }
+
+                case ShadingType::TensorProductPatchMesh:
+                {
+                    type4567Shading = new PDFTensorProductPatchShading;
+                    break;
+                }
+
+                default:
+                {
+                    Q_ASSERT(false);
+                    break;
+                }
             }
-            else
-            {
-                Q_ASSERT(shadingType == ShadingType::LatticeFormGouradTriangle);
-                latticeFormGouradTriangleShading = new PDFLatticeFormGouradTriangleShading();
-                gouradTriangleShading = latticeFormGouradTriangleShading;
-            }
-            PDFPatternPtr result(gouradTriangleShading);
+
+            PDFPatternPtr result(type4567Shading);
 
             PDFInteger bitsPerCoordinate = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerCoordinate", -1);
             if (!contains(bitsPerCoordinate, std::initializer_list<PDFInteger>{ 1, 2, 4, 8, 12, 16, 24, 32 }))
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per coordinate (%1) for gourad triangle meshing.").arg(bitsPerCoordinate));
+                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per coordinate (%1) for shading.").arg(bitsPerCoordinate));
             }
             PDFInteger bitsPerComponent = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerComponent", -1);
             if (!contains(bitsPerComponent, std::initializer_list<PDFInteger>{ 1, 2, 4, 8, 12, 16 }))
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per component (%1) for gourad triangle meshing.").arg(bitsPerComponent));
+                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per component (%1) for shading.").arg(bitsPerComponent));
             }
 
             std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(shadingDictionary, "Decode");
@@ -330,7 +347,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             {
                 if (decode.size() != 6)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain of gourad triangle meshing. Expected size is 6, actual size is %1.").arg(decode.size()));
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain for shading. Expected size is 6, actual size is %1.").arg(decode.size()));
                 }
             }
             else
@@ -338,43 +355,53 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                 const size_t expectedSize = colorSpace->getColorComponentCount() * 2 + 4;
                 if (decode.size() != expectedSize)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain of gourad triangle meshing. Expected size is %1, actual size is %2.").arg(expectedSize).arg(decode.size()));
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain for shading. Expected size is %1, actual size is %2.").arg(expectedSize).arg(decode.size()));
                 }
             }
 
-            gouradTriangleShading->m_antiAlias = antialias;
-            gouradTriangleShading->m_backgroundColor = backgroundColor;
-            gouradTriangleShading->m_colorSpace = colorSpace;
-            gouradTriangleShading->m_matrix = matrix;
-            gouradTriangleShading->m_patternGraphicState = patternGraphicState;
-            gouradTriangleShading->m_bitsPerCoordinate = static_cast<uint8_t>(bitsPerCoordinate);
-            gouradTriangleShading->m_bitsPerComponent = static_cast<uint8_t>(bitsPerComponent);
-            gouradTriangleShading->m_xmin = decode[0];
-            gouradTriangleShading->m_xmax = decode[1];
-            gouradTriangleShading->m_ymin = decode[2];
-            gouradTriangleShading->m_ymax = decode[3];
-            gouradTriangleShading->m_limits = std::vector<PDFReal>(std::next(decode.cbegin(), 4), decode.cend());
-            gouradTriangleShading->m_colorComponentCount = !functions.empty() ? 1 : colorSpace->getColorComponentCount();
-            gouradTriangleShading->m_functions = qMove(functions);
-            gouradTriangleShading->m_data = document->getDecodedStream(stream);
+            type4567Shading->m_antiAlias = antialias;
+            type4567Shading->m_backgroundColor = backgroundColor;
+            type4567Shading->m_colorSpace = colorSpace;
+            type4567Shading->m_matrix = matrix;
+            type4567Shading->m_patternGraphicState = patternGraphicState;
+            type4567Shading->m_bitsPerCoordinate = static_cast<uint8_t>(bitsPerCoordinate);
+            type4567Shading->m_bitsPerComponent = static_cast<uint8_t>(bitsPerComponent);
+            type4567Shading->m_xmin = decode[0];
+            type4567Shading->m_xmax = decode[1];
+            type4567Shading->m_ymin = decode[2];
+            type4567Shading->m_ymax = decode[3];
+            type4567Shading->m_limits = std::vector<PDFReal>(std::next(decode.cbegin(), 4), decode.cend());
+            type4567Shading->m_colorComponentCount = !functions.empty() ? 1 : colorSpace->getColorComponentCount();
+            type4567Shading->m_functions = qMove(functions);
+            type4567Shading->m_data = document->getDecodedStream(stream);
 
-            if (shadingType == ShadingType::FreeFormGouradTriangle)
+            switch (shadingType)
             {
-                PDFInteger bitsPerFlag = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerFlag", -1);
-                if (!contains(bitsPerFlag, std::initializer_list<PDFInteger>{ 2, 4, 8 }))
+                case ShadingType::FreeFormGouradTriangle:
+                case ShadingType::CoonsPatchMesh:
+                case ShadingType::TensorProductPatchMesh:
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid bits per flag (%1) for gourad triangle meshing.").arg(bitsPerFlag));
+                    PDFInteger bitsPerFlag = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerFlag", -1);
+                    if (!contains(bitsPerFlag, std::initializer_list<PDFInteger>{ 2, 4, 8 }))
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Invalid bits per flag (%1) for shading.").arg(bitsPerFlag));
+                    }
+                    type4567Shading->m_bitsPerFlag = bitsPerFlag;
+                    break;
                 }
-                freeFormGouradTriangleShading->m_bitsPerFlag = bitsPerFlag;
-            }
 
-            if (shadingType == ShadingType::LatticeFormGouradTriangle)
-            {
-                latticeFormGouradTriangleShading->m_verticesPerRow = loader.readIntegerFromDictionary(shadingDictionary, "VerticesPerRow", -1);
-                if (latticeFormGouradTriangleShading->m_verticesPerRow < 2)
+                case ShadingType::LatticeFormGouradTriangle:
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid vertices per row (%1) for gourad triangle meshing.").arg(latticeFormGouradTriangleShading->m_verticesPerRow));
+                    latticeFormGouradTriangleShading->m_verticesPerRow = loader.readIntegerFromDictionary(shadingDictionary, "VerticesPerRow", -1);
+                    if (latticeFormGouradTriangleShading->m_verticesPerRow < 2)
+                    {
+                        throw PDFParserException(PDFTranslationContext::tr("Invalid vertices per row (%1) for lattice-form gourad triangle meshing.").arg(latticeFormGouradTriangleShading->m_verticesPerRow));
+                    }
+                    break;
                 }
+
+                default:
+                    break;
             }
 
             return result;
@@ -1350,33 +1377,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
             data.color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
         }
 
-        if (!m_functions.empty())
-        {
-            Q_ASSERT(m_colorComponentCount == 1);
-            const PDFReal t = data.color[0];
-            std::vector<PDFReal> colorBuffer(m_colorSpace->getColorComponentCount(), 0.0);
-            if (m_functions.size() == 1)
-            {
-                PDFFunction::FunctionResult result = m_functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
-                if (!result)
-                {
-                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
-                }
-            }
-            else
-            {
-                for (size_t i = 0, count = colorBuffer.size(); i < count; ++i)
-                {
-                    PDFFunction::FunctionResult result = m_functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
-                    if (!result)
-                    {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
-                    }
-                }
-            }
-
-            data.color = PDFAbstractColorSpace::convertToColor(colorBuffer);
-        }
+        data.color = getColor(data.color);
 
         vertices[index] = qMove(data);
     };
@@ -1526,33 +1527,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
             data.color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
         }
 
-        if (!m_functions.empty())
-        {
-            Q_ASSERT(m_colorComponentCount == 1);
-            const PDFReal t = data.color[0];
-            std::vector<PDFReal> colorBuffer(m_colorSpace->getColorComponentCount(), 0.0);
-            if (m_functions.size() == 1)
-            {
-                PDFFunction::FunctionResult result = m_functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
-                if (!result)
-                {
-                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
-                }
-            }
-            else
-            {
-                for (size_t i = 0, count = colorBuffer.size(); i < count; ++i)
-                {
-                    PDFFunction::FunctionResult result = m_functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
-                    if (!result)
-                    {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
-                    }
-                }
-            }
-
-            data.color = PDFAbstractColorSpace::convertToColor(colorBuffer);
-        }
+        data.color = getColor(data.color);
 
         vertices[index] = qMove(data);
     };
@@ -1595,7 +1570,41 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     return mesh;
 }
 
-void PDFGouradTriangleShading::addSubdividedTriangles(const PDFMeshQualitySettings& settings,
+PDFColor PDFType4567Shading::getColor(PDFColor colorOrFunctionParameter) const
+{
+    if (!m_functions.empty())
+    {
+        const PDFReal t = colorOrFunctionParameter[0];
+
+        Q_ASSERT(m_colorComponentCount == 1);
+        std::vector<PDFReal> colorBuffer(m_colorSpace->getColorComponentCount(), 0.0);
+        if (m_functions.size() == 1)
+        {
+            PDFFunction::FunctionResult result = m_functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + colorBuffer.size());
+            if (!result)
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+            }
+        }
+        else
+        {
+            for (size_t i = 0, count = colorBuffer.size(); i < count; ++i)
+            {
+                PDFFunction::FunctionResult result = m_functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
+                if (!result)
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Error occured during mesh creation of shading: %1").arg(result.errorMessage));
+                }
+            }
+        }
+
+        return PDFAbstractColorSpace::convertToColor(colorBuffer);
+    }
+
+    return colorOrFunctionParameter;
+}
+
+void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& settings,
                                                       PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3,
                                                       PDFColor c1, PDFColor c2, PDFColor c3) const
 {
@@ -1685,13 +1694,13 @@ QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v) const
 
 QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v, int derivativeOrderU, int derivativeOrderV) const
 {
-    QPointF result;
+    QPointF result(0.0, 0.0);
 
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
         {
-            return m_P[i][j] * B(i, u, derivativeOrderU) * B(j, v, derivativeOrderV);
+            result += m_P[i][j] * B(i, u, derivativeOrderU) * B(j, v, derivativeOrderV);
         }
     }
 
@@ -1842,7 +1851,474 @@ constexpr PDFReal PDFTensorPatch::B3(PDFReal t, int derivative)
     return std::numeric_limits<PDFReal>::signaling_NaN();
 }
 
+ShadingType PDFTensorProductPatchShading::getShadingType() const
+{
+    return ShadingType::TensorProductPatchMesh;
+}
+
+PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings) const
+{
+    PDFMesh mesh;
+
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+
+    size_t bitsPerPatch = m_bitsPerFlag + 16 * 2 * m_bitsPerCoordinate + 4 * m_colorComponentCount * m_bitsPerComponent;
+    size_t remainder = (8 - (bitsPerPatch % 8)) % 8;
+    bitsPerPatch += remainder;
+    size_t bytesPerPatch = bitsPerPatch / 8;
+    size_t patchCount = m_data.size() / bytesPerPatch;
+
+    const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
+    const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
+    const PDFReal yScaleRatio = (m_ymax - m_ymin) * vertexScaleRatio;
+    const PDFReal colorScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerComponent) - 1);
+
+    PDFTensorPatches patches;
+    patches.reserve(patchCount);
+
+    PDFBitReader reader(&m_data, 8);
+
+    auto readFlags = [this, &reader]() -> uint8_t
+    {
+        return reader.read(m_bitsPerFlag);
+    };
+
+    auto readPoint = [this, &reader, &patternSpaceToDeviceSpaceMatrix, xScaleRatio, yScaleRatio]() -> QPointF
+    {
+        const PDFReal x = m_xmin + (reader.read(m_bitsPerCoordinate)) * xScaleRatio;
+        const PDFReal y = m_ymin + (reader.read(m_bitsPerCoordinate)) * yScaleRatio;
+        return patternSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
+    };
+
+    auto readColor = [this, &reader, colorScaleRatio]() -> PDFColor
+    {
+        PDFColor color;
+        color.resize(m_colorComponentCount);
+
+        for (size_t i = 0; i < m_colorComponentCount; ++i)
+        {
+            const double cMin = m_limits[2 * i + 0];
+            const double cMax = m_limits[2 * i + 1];
+            color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
+        }
+
+        return getColor(color);
+    };
+
+    for (size_t i = 0; i < patchCount; ++i)
+    {
+        const uint8_t flags = readFlags();
+        switch (flags)
+        {
+            case 0:
+            {
+                PDFTensorPatch::PointMatrix P = { };
+                PDFTensorPatch::Colors colors = { };
+
+                P[0][0] = readPoint();
+                P[0][1] = readPoint();
+                P[0][2] = readPoint();
+                P[0][3] = readPoint();
+                P[1][3] = readPoint();
+                P[2][3] = readPoint();
+                P[3][3] = readPoint();
+                P[3][2] = readPoint();
+                P[3][1] = readPoint();
+                P[3][0] = readPoint();
+                P[2][0] = readPoint();
+                P[1][0] = readPoint();
+                P[1][1] = readPoint();
+                P[1][2] = readPoint();
+                P[2][2] = readPoint();
+                P[2][1] = readPoint();
+
+                colors[PDFTensorPatch::C_00] = readColor();
+                colors[PDFTensorPatch::C_03] = readColor();
+                colors[PDFTensorPatch::C_33] = readColor();
+                colors[PDFTensorPatch::C_30] = readColor();
+
+                patches.emplace_back(P, colors);
+                break;
+            }
+
+            case 1:
+            {
+                if (patches.empty())
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
+                }
+
+                const PDFTensorPatch& previousPatch = patches.back();
+                const PDFTensorPatch::PointMatrix& PPrevious = previousPatch.getP();
+                const PDFTensorPatch::Colors& colorsPrevious = previousPatch.getColors();
+
+                PDFTensorPatch::PointMatrix P = { };
+                PDFTensorPatch::Colors colors = { };
+
+                P[1][3] = readPoint();
+                P[2][3] = readPoint();
+                P[3][3] = readPoint();
+                P[3][2] = readPoint();
+                P[3][1] = readPoint();
+                P[3][0] = readPoint();
+                P[2][0] = readPoint();
+                P[1][0] = readPoint();
+                P[1][1] = readPoint();
+                P[1][2] = readPoint();
+                P[2][2] = readPoint();
+                P[2][1] = readPoint();
+
+                colors[PDFTensorPatch::C_33] = readColor();
+                colors[PDFTensorPatch::C_30] = readColor();
+
+                // Copy data from previous patch according the PDF specification:
+                P[0][0] = PPrevious[0][3];
+                P[0][1] = PPrevious[1][3];
+                P[0][2] = PPrevious[2][3];
+                P[0][3] = PPrevious[3][3];
+
+                colors[PDFTensorPatch::C_00] = colorsPrevious[PDFTensorPatch::C_03];
+                colors[PDFTensorPatch::C_03] = colorsPrevious[PDFTensorPatch::C_33];
+
+                patches.emplace_back(P, colors);
+                break;
+            }
+
+            case 2:
+            {
+                if (patches.empty())
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
+                }
+
+                const PDFTensorPatch& previousPatch = patches.back();
+                const PDFTensorPatch::PointMatrix& PPrevious = previousPatch.getP();
+                const PDFTensorPatch::Colors& colorsPrevious = previousPatch.getColors();
+
+                PDFTensorPatch::PointMatrix P = { };
+                PDFTensorPatch::Colors colors = { };
+
+                P[1][3] = readPoint();
+                P[2][3] = readPoint();
+                P[3][3] = readPoint();
+                P[3][2] = readPoint();
+                P[3][1] = readPoint();
+                P[3][0] = readPoint();
+                P[2][0] = readPoint();
+                P[1][0] = readPoint();
+                P[1][1] = readPoint();
+                P[1][2] = readPoint();
+                P[2][2] = readPoint();
+                P[2][1] = readPoint();
+
+                colors[PDFTensorPatch::C_33] = readColor();
+                colors[PDFTensorPatch::C_30] = readColor();
+
+                // Copy data from previous patch according the PDF specification:
+                P[0][0] = PPrevious[3][3];
+                P[0][1] = PPrevious[3][2];
+                P[0][2] = PPrevious[3][1];
+                P[0][3] = PPrevious[3][0];
+
+                colors[PDFTensorPatch::C_00] = colorsPrevious[PDFTensorPatch::C_33];
+                colors[PDFTensorPatch::C_03] = colorsPrevious[PDFTensorPatch::C_30];
+
+                patches.emplace_back(P, colors);
+                break;
+            }
+
+            case 3:
+            {
+                if (patches.empty())
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
+                }
+
+                const PDFTensorPatch& previousPatch = patches.back();
+                const PDFTensorPatch::PointMatrix& PPrevious = previousPatch.getP();
+                const PDFTensorPatch::Colors& colorsPrevious = previousPatch.getColors();
+
+                PDFTensorPatch::PointMatrix P = { };
+                PDFTensorPatch::Colors colors = { };
+
+                P[1][3] = readPoint();
+                P[2][3] = readPoint();
+                P[3][3] = readPoint();
+                P[3][2] = readPoint();
+                P[3][1] = readPoint();
+                P[3][0] = readPoint();
+                P[2][0] = readPoint();
+                P[1][0] = readPoint();
+                P[1][1] = readPoint();
+                P[1][2] = readPoint();
+                P[2][2] = readPoint();
+                P[2][1] = readPoint();
+
+                colors[PDFTensorPatch::C_33] = readColor();
+                colors[PDFTensorPatch::C_30] = readColor();
+
+                // Copy data from previous patch according the PDF specification:
+                P[0][0] = PPrevious[3][0];
+                P[0][1] = PPrevious[2][0];
+                P[0][2] = PPrevious[1][0];
+                P[0][3] = PPrevious[0][0];
+
+                colors[PDFTensorPatch::C_00] = colorsPrevious[PDFTensorPatch::C_30];
+                colors[PDFTensorPatch::C_03] = colorsPrevious[PDFTensorPatch::C_00];
+
+                patches.emplace_back(P, colors);
+                break;
+            }
+
+            default:
+                throw PDFParserException(PDFTranslationContext::tr("Invalid data in tensor product patch shading (flags = %1).").arg(flags));
+        }
+    }
+
+    fillMesh(mesh, settings, patches);
+    return mesh;
+}
+
+void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
+                                                const PDFMeshQualitySettings& settings,
+                                                const PDFTensorPatch& patch) const
+{
+    // We implement algorithm similar to Ruppert's algorithm (see https://en.wikipedia.org/wiki/Ruppert%27s_algorithm), but
+    // we do not need a mesh for FEM calculation, so we do not care about quality of the triangles (we can have triangles with
+    // very small angles). We just need to meet these conditions:
+    //
+    //      1) Mesh is dense enough (to satisfy at least preferred mesh resolution)
+    //      2) Mesh is more dense, where it is deformed (high surface curvature)
+    //      3) Mesh will also correctly consider color interpolation
+    //
+    // We will determine maximum surface curvature of the surface (by evaluating test points - this is not reliable, but
+    // it will suffice), then start meshing. We must also handle case, when surface maximal curvature is almost zero - then it is
+    // probably a rectangle (or something like that). We cannot assume, that directions u,v are principal directions of the surface.
+    // So, we will use the sum of curvatures in two perpendicular directions - u,v and we will hope, that it will be OK and will be
+    // around mean surface curvature.
+
+    std::atomic<PDFReal> maximalCurvature(0.0);
+
+    Q_ASSERT(settings.patchTestPoints > 2);
+    const PDFReal testPointScale = 1.0 / (settings.patchTestPoints - 1.0);
+    PDFIntegerRange<PDFInteger> range(0, settings.patchTestPoints * settings.patchTestPoints);
+    auto updateCurvature = [&](PDFInteger i)
+    {
+        PDFInteger row = i / settings.patchTestPoints;
+        PDFInteger column = i % settings.patchTestPoints;
+
+        const PDFReal u = column * testPointScale;
+        const PDFReal v = row * testPointScale;
+
+        const PDFReal curvature = patch.getCurvature_u(u, v) + patch.getCurvature_v(u, v);
+
+        // Atomically update the maximum curvature
+        PDFReal previousCurvature = maximalCurvature;
+        while (previousCurvature < curvature && !maximalCurvature.compare_exchange_weak(previousCurvature, curvature)) { }
+    };
+    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), updateCurvature);
+
+    struct Triangle
+    {
+        std::array<QPointF, 3> uvCoordinates;
+        std::array<QPointF, 3> devicePoints;
+
+        QPointF getCenter() const
+        {
+            constexpr PDFReal coefficient = 1.0 / 3.0;
+            return (uvCoordinates[0] + uvCoordinates[1] + uvCoordinates[2]) * coefficient;
+        }
+
+        PDFReal getCurvature(const PDFTensorPatch& patch) const
+        {
+            QPointF uv = getCenter();
+            return patch.getCurvature_u(uv.x(), uv.y()) + patch.getCurvature_v(uv.x(), uv.y());
+        }
+
+        void fillTriangleDevicePoints(const PDFTensorPatch& patch)
+        {
+            Q_ASSERT(uvCoordinates.size() == devicePoints.size());
+            for (size_t i = 0; i < uvCoordinates.size(); ++i)
+            {
+                devicePoints[i] = patch.getValue(uvCoordinates[i].x(), uvCoordinates[i].y());
+            }
+        }
+    };
+
+    auto getColorForUV = [&](PDFReal u, PDFReal v)
+    {
+        // Perform bilinear interpolation of colors, u is column, v is row
+        const PDFTensorPatch::Colors& colors = patch.getColors();
+
+        const PDFColor& topLeft = colors[PDFTensorPatch::C_00];
+        const PDFColor& topRight = colors[PDFTensorPatch::C_30];
+        const PDFColor& bottomLeft = colors[PDFTensorPatch::C_03];
+        const PDFColor& bottomRight = colors[PDFTensorPatch::C_33];
+
+        PDFColor top = PDFAbstractColorSpace::mixColors(topLeft, topRight, u);
+        PDFColor bottom = PDFAbstractColorSpace::mixColors(bottomLeft, bottomRight, u);
+        PDFColor interpolated = PDFAbstractColorSpace::mixColors(top, bottom, v);
+
+        return interpolated;
+    };
+
+    Triangle workStartA;
+    workStartA.uvCoordinates = { QPointF(0.0, 0.0), QPointF(1.0, 0.0), QPointF(0.0, 1.0) };
+    workStartA.fillTriangleDevicePoints(patch);
+    Triangle workStartB;
+    workStartB.uvCoordinates = { QPointF(1.0, 0.0), QPointF(1.0, 1.0), QPointF(0.0, 1.0) };
+    workStartB.fillTriangleDevicePoints(patch);
+
+    std::vector<Triangle> unfinishedTriangles = { workStartA, workStartB };
+    std::vector<Triangle> finishedTriangles;
+
+    auto addTriangles = [&](std::array<QPointF, 3> uvCoordinates)
+    {
+        Triangle triangle;
+        triangle.uvCoordinates = uvCoordinates;
+        triangle.fillTriangleDevicePoints(patch);
+        unfinishedTriangles.push_back(triangle);
+    };
+
+    while (!unfinishedTriangles.empty())
+    {
+        Triangle triangle = unfinishedTriangles.back();
+        unfinishedTriangles.pop_back();
+
+        // Should we divide the triangle? These conditions should be verified:
+        //  1) Largest edge of triangle in device space exceeds preferred size of mesh
+        //  2) Curvature of the triangle is too high (and largest edge doesn't exceed minimal size of mesh)
+        //  3) Color difference is too high (and largest edge doesn't exceed minimal size of mesh)
+
+        // First, verify, if we can subdivide the triangle
+        QLineF v01(triangle.devicePoints[0], triangle.devicePoints[1]);
+        QLineF v02(triangle.devicePoints[0], triangle.devicePoints[2]);
+        QLineF v12(triangle.devicePoints[1], triangle.devicePoints[2]);
+
+        const qreal length01 = v01.length();
+        const qreal length02 = v02.length();
+        const qreal length12 = v12.length();
+        const qreal maxLength = qMax(length01, qMax(length02, length12));
+
+        const PDFReal curvature = triangle.getCurvature(patch);
+        const PDFReal curvatureRatio = curvature / maximalCurvature;
+
+        // Calculate target length
+        PDFReal targetLength = settings.preferredMeshResolution;
+        if (curvatureRatio <= settings.patchResolutionMappingRatioLow)
+        {
+            Q_ASSERT(targetLength == settings.preferredMeshResolution);
+        }
+        else if (curvatureRatio >= settings.patchResolutionMappingRatioHigh)
+        {
+            targetLength = settings.minimalMeshResolution;
+        }
+        else
+        {
+            targetLength = interpolate(curvatureRatio, settings.patchResolutionMappingRatioLow, settings.patchResolutionMappingRatioHigh, settings.preferredMeshResolution, settings.minimalMeshResolution);
+        }
+
+        const PDFColor c0 = getColorForUV(triangle.uvCoordinates[0].x(), triangle.uvCoordinates[0].y());
+        const PDFColor c1 = getColorForUV(triangle.uvCoordinates[1].x(), triangle.uvCoordinates[1].y());
+        const PDFColor c2 = getColorForUV(triangle.uvCoordinates[2].x(), triangle.uvCoordinates[2].y());
+
+        const bool isColorEqual = PDFAbstractColorSpace::isColorEqual(c0, c1, settings.tolerance) &&
+                                  PDFAbstractColorSpace::isColorEqual(c0, c2, settings.tolerance) &&
+                                  PDFAbstractColorSpace::isColorEqual(c1, c2, settings.tolerance);
+        const bool canSubdivide = maxLength >= settings.minimalMeshResolution * 2.0; // If we subdivide, we will have length at least settings.minimalMeshResolution
+        const bool shouldSubdivide = maxLength >= targetLength;
+
+        if ((!isColorEqual || shouldSubdivide) && canSubdivide)
+        {
+            QPointF v0 = triangle.uvCoordinates[0];
+            QPointF v1 = triangle.uvCoordinates[1];
+            QPointF v2 = triangle.uvCoordinates[2];
+
+            if (length12 == maxLength)
+            {
+                // We split line (v1, v2), create two triangles, (v0, v1, vx) and (v0, v2, vx), where
+                // vx is centerpoint of line (v1, v2).
+
+                QLineF v12(v1, v2);
+                QPointF vx = v12.center();
+
+                addTriangles({ v0, v1, vx });
+                addTriangles({ v0, v2, vx });
+            }
+            else if (length02 == maxLength)
+            {
+                // We split line (v0, v2), create two triangles, (v0, v1, vx) and (v1, v2, vx), where
+                // vx is centerpoint of line (v0, v2).
+
+                QLineF v02(v0, v2);
+                QPointF vx = v02.center();
+
+                addTriangles({ v0, v1, vx });
+                addTriangles({ v1, v2, vx });
+            }
+            else
+            {
+                Q_ASSERT(length01 == maxLength);
+
+                // We split line (v0, v1), create two triangles, (v0, v2, vx) and (v1, v2, vx), where
+                // vx is centerpoint of line (v0, v1).
+
+                QLineF v01(v0, v1);
+                QPointF vx = v01.center();
+
+                addTriangles({ v0, v2, vx });
+                addTriangles({ v1, v2, vx });
+            }
+        }
+        else
+        {
+            finishedTriangles.emplace_back(qMove(triangle));
+        }
+    }
+
+    Q_ASSERT(unfinishedTriangles.empty());
+
+    std::vector<QPointF> vertices;
+    std::vector<PDFMesh::Triangle> triangles;
+
+    vertices.reserve(finishedTriangles.size() * 3);
+    triangles.reserve(finishedTriangles.size());
+
+    size_t vertexIndex = 0;
+    for (const Triangle& triangle : finishedTriangles)
+    {
+        vertices.push_back(triangle.devicePoints[0]);
+        vertices.push_back(triangle.devicePoints[1]);
+        vertices.push_back(triangle.devicePoints[2]);
+
+        QPointF center = triangle.getCenter();
+        PDFColor color = getColorForUV(center.x(), center.y());
+        QRgb rgbColor = m_colorSpace->getColor(color).rgb();
+
+        PDFMesh::Triangle meshTriangle;
+        meshTriangle.v1 = static_cast<uint32_t>(vertexIndex++);
+        meshTriangle.v2 = static_cast<uint32_t>(vertexIndex++);
+        meshTriangle.v3 = static_cast<uint32_t>(vertexIndex++);
+        meshTriangle.color = rgbColor;
+        triangles.push_back(meshTriangle);
+    }
+
+    mesh.setVertices(qMove(vertices));
+    mesh.setTriangles(qMove(triangles));
+}
+
+void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
+                                                const PDFMeshQualitySettings& settings,
+                                                const PDFTensorPatches& patches) const
+{
+    for (const auto& patch : patches)
+    {
+        fillMesh(mesh, settings, patch);
+    }
+}
+
 // TODO: Apply graphic state of the pattern
 // TODO: Implement settings of meshing in the settings dialog
+// TODO: iota - replace for PDFIntegerRange
 
 }   // namespace pdf

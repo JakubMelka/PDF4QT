@@ -301,7 +301,7 @@ PDFColor PDFAbstractColorSpace::mixColors(const PDFColor& color1, const PDFColor
     result.resize(size);
     for (size_t i = 0; i < size; ++i)
     {
-        result[i] = color1[i] * ratio + color2[i] * (1.0 - ratio);
+        result[i] = color1[i] * (1.0 - ratio) + color2[i] * ratio;
     }
 
     return result;

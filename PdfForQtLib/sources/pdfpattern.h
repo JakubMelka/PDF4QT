@@ -75,6 +75,20 @@ struct PDFMeshQualitySettings
 
     /// Color tolerance - 1% by default
     PDFReal tolerance = 0.01;
+
+    /// Test points to determine maximal curvature of the tensor product patch meshes
+    PDFInteger patchTestPoints = 256;
+
+    /// Lower value of the surface curvature meshing resolution mapping. When ratio between
+    /// current curvature at the center of meshed triangle and maximal curvature is below
+    /// this value, then prefered mesh resolution is used. If ratio is higher than this value
+    /// and lower than \p patchResolutionMappingRatioHigh, then target length is linearly mapped.
+    /// If value is higher, than \p patchResolutionMappingRatioHigh, then minimal mesh resolution
+    /// is used when generating triangles on the patch.
+    PDFReal patchResolutionMappingRatioLow = 0.3;
+
+    /// Highter value of the surface curvature meshing resolution mapping. \sa patchResolutionMappingRatioLow
+    PDFReal patchResolutionMappingRatioHigh = 0.9;
 };
 
 /// Mesh consisting of triangles
@@ -315,18 +329,22 @@ private:
     PDFReal m_r1 = 0.0;
 };
 
-class PDFGouradTriangleShading : public PDFShadingPattern
+class PDFType4567Shading : public PDFShadingPattern
 {
 public:
-    explicit PDFGouradTriangleShading() = default;
+    explicit PDFType4567Shading() = default;
 
 protected:
     friend class PDFPattern;
+
+    /// Returns color for given color or function parameter
+    PDFColor getColor(PDFColor colorOrFunctionParameter) const;
 
     void addSubdividedTriangles(const PDFMeshQualitySettings& settings, PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3, PDFColor c1, PDFColor c2, PDFColor c3) const;
 
     uint8_t m_bitsPerCoordinate = 0;
     uint8_t m_bitsPerComponent = 0;
+    uint8_t m_bitsPerFlag = 0;
     PDFReal m_xmin = 0.0;
     PDFReal m_xmax = 0.0;
     PDFReal m_ymin = 0.0;
@@ -342,7 +360,7 @@ protected:
     QByteArray m_data;
 };
 
-class PDFFreeFormGouradTriangleShading : public PDFGouradTriangleShading
+class PDFFreeFormGouradTriangleShading : public PDFType4567Shading
 {
 public:
     explicit PDFFreeFormGouradTriangleShading() = default;
@@ -352,11 +370,9 @@ public:
 
 private:
     friend class PDFPattern;
-
-    uint8_t m_bitsPerFlag = 0;
 };
 
-class PDFLatticeFormGouradTriangleShading : public PDFGouradTriangleShading
+class PDFLatticeFormGouradTriangleShading : public PDFType4567Shading
 {
 public:
     explicit PDFLatticeFormGouradTriangleShading() = default;
@@ -373,9 +389,18 @@ private:
 class PDFTensorPatch
 {
 public:
-    using PointMatrix = std::array<std::array<QPointF, 4>, 4>;
+    enum ColorIndex
+    {
+        C_00 = 0,
+        C_03 = 1,
+        C_33 = 2,
+        C_30 = 3
+    };
 
-    explicit inline PDFTensorPatch(PointMatrix P) : m_P(P) { }
+    using PointMatrix = std::array<std::array<QPointF, 4>, 4>;
+    using Colors = std::array<PDFColor, 4>;
+
+    explicit inline PDFTensorPatch(PointMatrix P, Colors colors) : m_P(P), m_colors(colors) { }
 
     /// Calculates value at point in the patch.
     /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
@@ -419,6 +444,12 @@ public:
     /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
     /// \param v Vertical coordinate of the patch, must be in range [0, 1]
     PDFReal getCurvature_v(PDFReal u, PDFReal v) const;
+
+    /// Returns matrix of control points
+    const PointMatrix& getP() const { return m_P; }
+
+    /// Returns colors of corner points
+    const Colors& getColors() const { return m_colors; }
 
 private:
     /// Computes Bernstein polynomial B0, B1, B2, B3, for parameter t.
@@ -465,7 +496,35 @@ private:
     static constexpr PDFReal pow2(PDFReal x) { return x * x; }
     static constexpr PDFReal pow3(PDFReal x) { return x * x * x; }
 
-    PointMatrix m_P;
+    PointMatrix m_P = { };
+    Colors m_colors = { };
+};
+
+using PDFTensorPatches = std::vector<PDFTensorPatch>;
+
+class PDFTensorProductPatchShadingBase : public PDFType4567Shading
+{
+public:
+    explicit inline PDFTensorProductPatchShadingBase() = default;
+
+protected:
+    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch) const;
+    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches) const;
+
+private:
+    friend class PDFPattern;
+};
+
+class PDFTensorProductPatchShading : public PDFTensorProductPatchShadingBase
+{
+public:
+    explicit PDFTensorProductPatchShading() = default;
+
+    virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+
+private:
+    friend class PDFPattern;
 };
 
 }   // namespace pdf

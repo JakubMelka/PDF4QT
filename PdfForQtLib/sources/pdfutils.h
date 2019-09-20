@@ -25,6 +25,7 @@
 #include <QDataStream>
 
 #include <vector>
+#include <iterator>
 
 namespace pdf
 {
@@ -134,6 +135,64 @@ public:
 private:
     Value m_oldValue;
     Value* m_value;
+};
+
+/// Implements range for range based for cycles
+template<typename T>
+class PDFIntegerRange
+{
+public:
+    explicit inline constexpr PDFIntegerRange(T begin, T end) : m_begin(begin), m_end(end) { }
+
+    struct Iterator : public std::iterator<std::random_access_iterator_tag, T, ptrdiff_t, T*, T&>
+    {
+        inline Iterator() : value(T(0)) { }
+        inline Iterator(T value) : value(value) { }
+
+        inline bool operator==(const Iterator& other) const { return value == other.value; }
+        inline bool operator!=(const Iterator& other) const { return value != other.value; }
+
+        inline T operator*() const { return value; }
+        inline Iterator& operator+=(ptrdiff_t movement) { value += T(movement); return *this; }
+        inline Iterator& operator-=(ptrdiff_t movement) { value -= T(movement); return *this; }
+        inline Iterator operator+(ptrdiff_t movement) const { return Iterator(value + T(movement)); }
+        inline ptrdiff_t operator-(const Iterator& other) const { return ptrdiff_t(value - other.value); }
+
+        inline Iterator& operator++()
+        {
+            ++value;
+            return *this;
+        }
+
+        inline Iterator operator++(int)
+        {
+            Iterator copy(*this);
+            ++value;
+            return copy;
+        }
+
+        inline Iterator& operator--()
+        {
+            --value;
+            return *this;
+        }
+
+        inline Iterator operator--(int)
+        {
+            Iterator copy(*this);
+            --value;
+            return copy;
+        }
+
+        T value = 0;
+    };
+
+    Iterator begin() const { return Iterator(m_begin); }
+    Iterator end() const { return Iterator(m_end); }
+
+private:
+    T m_begin;
+    T m_end;
 };
 
 template<typename T>
