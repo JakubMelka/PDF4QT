@@ -508,8 +508,11 @@ public:
     explicit inline PDFTensorProductPatchShadingBase() = default;
 
 protected:
+    struct Triangle;
+
     void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch) const;
     void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches) const;
+    static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
 
 private:
     friend class PDFPattern;

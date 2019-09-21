@@ -1696,9 +1696,9 @@ QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v, int derivativeOrderU, int
 {
     QPointF result(0.0, 0.0);
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 4; ++i)
     {
-        for (int j = 0; j < 3; ++j)
+        for (int j = 0; j < 4; ++j)
         {
             result += m_P[i][j] * B(i, u, derivativeOrderU) * B(j, v, derivativeOrderV);
         }
@@ -2079,9 +2079,48 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
     return mesh;
 }
 
-void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
-                                                const PDFMeshQualitySettings& settings,
-                                                const PDFTensorPatch& patch) const
+struct PDFTensorProductPatchShadingBase::Triangle
+{
+    std::array<QPointF, 3> uvCoordinates;
+    std::array<QPointF, 3> devicePoints;
+
+    QPointF getCenter() const
+    {
+        constexpr PDFReal coefficient = 1.0 / 3.0;
+        return (uvCoordinates[0] + uvCoordinates[1] + uvCoordinates[2]) * coefficient;
+    }
+
+    PDFReal getCurvature(const PDFTensorPatch& patch) const
+    {
+        QPointF uv = getCenter();
+        return patch.getCurvature_u(uv.x(), uv.y()) + patch.getCurvature_v(uv.x(), uv.y());
+    }
+
+    void fillTriangleDevicePoints(const PDFTensorPatch& patch)
+    {
+        Q_ASSERT(uvCoordinates.size() == devicePoints.size());
+        for (size_t i = 0; i < uvCoordinates.size(); ++i)
+        {
+            devicePoints[i] = patch.getValue(uvCoordinates[i].x(), uvCoordinates[i].y());
+        }
+    }
+
+    PDFReal getArea() const
+    {
+        const PDFReal x1 = devicePoints[0].x();
+        const PDFReal y1 = devicePoints[0].y();
+        const PDFReal x2 = devicePoints[1].x();
+        const PDFReal y2 = devicePoints[1].y();
+        const PDFReal x3 = devicePoints[2].x();
+        const PDFReal y3 = devicePoints[2].y();
+
+        // Use shoelace formula to determine the triangle area, see
+        // https://en.wikipedia.org/wiki/Shoelace_formula
+        return std::fabs(0.5 * (x1 * y2 + x2 * y3 + x3 * y1 - x2 * y1 - x3 * y2 - x1 * y3));
+    }
+};
+
+void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch) const
 {
     // We implement algorithm similar to Ruppert's algorithm (see https://en.wikipedia.org/wiki/Ruppert%27s_algorithm), but
     // we do not need a mesh for FEM calculation, so we do not care about quality of the triangles (we can have triangles with
@@ -2118,33 +2157,6 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
     };
     std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), updateCurvature);
 
-    struct Triangle
-    {
-        std::array<QPointF, 3> uvCoordinates;
-        std::array<QPointF, 3> devicePoints;
-
-        QPointF getCenter() const
-        {
-            constexpr PDFReal coefficient = 1.0 / 3.0;
-            return (uvCoordinates[0] + uvCoordinates[1] + uvCoordinates[2]) * coefficient;
-        }
-
-        PDFReal getCurvature(const PDFTensorPatch& patch) const
-        {
-            QPointF uv = getCenter();
-            return patch.getCurvature_u(uv.x(), uv.y()) + patch.getCurvature_v(uv.x(), uv.y());
-        }
-
-        void fillTriangleDevicePoints(const PDFTensorPatch& patch)
-        {
-            Q_ASSERT(uvCoordinates.size() == devicePoints.size());
-            for (size_t i = 0; i < uvCoordinates.size(); ++i)
-            {
-                devicePoints[i] = patch.getValue(uvCoordinates[i].x(), uvCoordinates[i].y());
-            }
-        }
-    };
-
     auto getColorForUV = [&](PDFReal u, PDFReal v)
     {
         // Perform bilinear interpolation of colors, u is column, v is row
@@ -2172,14 +2184,6 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
     std::vector<Triangle> unfinishedTriangles = { workStartA, workStartB };
     std::vector<Triangle> finishedTriangles;
 
-    auto addTriangles = [&](std::array<QPointF, 3> uvCoordinates)
-    {
-        Triangle triangle;
-        triangle.uvCoordinates = uvCoordinates;
-        triangle.fillTriangleDevicePoints(patch);
-        unfinishedTriangles.push_back(triangle);
-    };
-
     while (!unfinishedTriangles.empty())
     {
         Triangle triangle = unfinishedTriangles.back();
@@ -2191,13 +2195,13 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
         //  3) Color difference is too high (and largest edge doesn't exceed minimal size of mesh)
 
         // First, verify, if we can subdivide the triangle
-        QLineF v01(triangle.devicePoints[0], triangle.devicePoints[1]);
-        QLineF v02(triangle.devicePoints[0], triangle.devicePoints[2]);
-        QLineF v12(triangle.devicePoints[1], triangle.devicePoints[2]);
+        QLineF deviceLine01(triangle.devicePoints[0], triangle.devicePoints[1]);
+        QLineF deviceLine02(triangle.devicePoints[0], triangle.devicePoints[2]);
+        QLineF deviceLine12(triangle.devicePoints[1], triangle.devicePoints[2]);
 
-        const qreal length01 = v01.length();
-        const qreal length02 = v02.length();
-        const qreal length12 = v12.length();
+        const qreal length01 = deviceLine01.length();
+        const qreal length02 = deviceLine02.length();
+        const qreal length12 = deviceLine12.length();
         const qreal maxLength = qMax(length01, qMax(length02, length12));
 
         const PDFReal curvature = triangle.getCurvature(patch);
@@ -2234,41 +2238,18 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
             QPointF v1 = triangle.uvCoordinates[1];
             QPointF v2 = triangle.uvCoordinates[2];
 
-            if (length12 == maxLength)
-            {
-                // We split line (v1, v2), create two triangles, (v0, v1, vx) and (v0, v2, vx), where
-                // vx is centerpoint of line (v1, v2).
+            QLineF v12uv(v1, v2);
+            QLineF v02uv(v0, v2);
+            QLineF v01uv(v0, v1);
 
-                QLineF v12(v1, v2);
-                QPointF vx = v12.center();
+            QPointF v12 = v12uv.center();
+            QPointF v02 = v02uv.center();
+            QPointF v01 = v01uv.center();
 
-                addTriangles({ v0, v1, vx });
-                addTriangles({ v0, v2, vx });
-            }
-            else if (length02 == maxLength)
-            {
-                // We split line (v0, v2), create two triangles, (v0, v1, vx) and (v1, v2, vx), where
-                // vx is centerpoint of line (v0, v2).
-
-                QLineF v02(v0, v2);
-                QPointF vx = v02.center();
-
-                addTriangles({ v0, v1, vx });
-                addTriangles({ v1, v2, vx });
-            }
-            else
-            {
-                Q_ASSERT(length01 == maxLength);
-
-                // We split line (v0, v1), create two triangles, (v0, v2, vx) and (v1, v2, vx), where
-                // vx is centerpoint of line (v0, v1).
-
-                QLineF v01(v0, v1);
-                QPointF vx = v01.center();
-
-                addTriangles({ v0, v2, vx });
-                addTriangles({ v1, v2, vx });
-            }
+            addTriangle(unfinishedTriangles, patch, { v0, v01, v02 });
+            addTriangle(unfinishedTriangles, patch, { v1, v01, v12 });
+            addTriangle(unfinishedTriangles, patch, { v2, v02, v12 });
+            addTriangle(unfinishedTriangles, patch, { v01, v02, v12 });
         }
         else
         {
@@ -2277,6 +2258,15 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
     }
 
     Q_ASSERT(unfinishedTriangles.empty());
+
+    // Sort the triangles according the standard (first is v direction, then u direction)
+    auto comparator = [](const Triangle& left, const Triangle& right)
+    {
+        QPointF leftCenter = left.getCenter();
+        QPointF rightCenter = right.getCenter();
+        return std::pair(leftCenter.y(), leftCenter.x()) < std::pair(rightCenter.y(), rightCenter.x());
+    };
+    std::sort(std::execution::parallel_policy(), finishedTriangles.begin(), finishedTriangles.end(), comparator);
 
     std::vector<QPointF> vertices;
     std::vector<PDFMesh::Triangle> triangles;
@@ -2315,6 +2305,17 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
     {
         fillMesh(mesh, settings, patch);
     }
+}
+
+void PDFTensorProductPatchShadingBase::addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates)
+{
+    Q_ASSERT(uvCoordinates[0] != uvCoordinates[1] && uvCoordinates[1] != uvCoordinates[2]);
+
+    Triangle triangle;
+    triangle.uvCoordinates = uvCoordinates;
+    triangle.fillTriangleDevicePoints(patch);
+
+    triangles.push_back(triangle);
 }
 
 // TODO: Apply graphic state of the pattern
