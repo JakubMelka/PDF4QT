@@ -1351,8 +1351,6 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
 
     std::vector<VertexData> vertices;
     vertices.resize(vertexCount);
-    std::vector<size_t> indices(vertexCount, 0);
-    std::iota(indices.begin(), indices.end(), static_cast<size_t>(0));
     std::vector<QPointF> meshVertices;
     meshVertices.resize(vertexCount);
 
@@ -1382,6 +1380,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
         vertices[index] = qMove(data);
     };
 
+    PDFIntegerRange indices(size_t(0), vertexCount);
     std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), readVertex);
     mesh.setVertices(qMove(meshVertices));
 
@@ -1502,8 +1501,6 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
 
     std::vector<VertexData> vertices;
     vertices.resize(vertexCount);
-    std::vector<size_t> indices(vertexCount, 0);
-    std::iota(indices.begin(), indices.end(), static_cast<size_t>(0));
     std::vector<QPointF> meshVertices;
     meshVertices.resize(vertexCount);
 
@@ -1532,6 +1529,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
         vertices[index] = qMove(data);
     };
 
+    PDFIntegerRange indices(size_t(0), vertexCount);
     std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), readVertex);
     mesh.setVertices(qMove(meshVertices));
 
@@ -2075,7 +2073,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
         }
     }
 
-    fillMesh(mesh, settings, patches);
+    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches);
     return mesh;
 }
 
@@ -2298,12 +2296,29 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh, const PDFMeshQual
 }
 
 void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
+                                                const QMatrix& patternSpaceToDeviceSpaceMatrix,
                                                 const PDFMeshQualitySettings& settings,
                                                 const PDFTensorPatches& patches) const
 {
     for (const auto& patch : patches)
     {
         fillMesh(mesh, settings, patch);
+    }
+
+    // Create bounding path
+    if (m_boundingBox.isValid())
+    {
+        QPainterPath boundingPath;
+        boundingPath.addPolygon(patternSpaceToDeviceSpaceMatrix.map(m_boundingBox));
+        mesh.setBoundingPath(boundingPath);
+    }
+
+    if (m_backgroundColor.isValid())
+    {
+        QPainterPath path;
+        path.addRect(settings.deviceSpaceMeshingArea);
+        mesh.setBackgroundPath(path);
+        mesh.setBackgroundColor(m_backgroundColor);
     }
 }
 
@@ -2320,6 +2335,5 @@ void PDFTensorProductPatchShadingBase::addTriangle(std::vector<Triangle>& triang
 
 // TODO: Apply graphic state of the pattern
 // TODO: Implement settings of meshing in the settings dialog
-// TODO: iota - replace for PDFIntegerRange
 
 }   // namespace pdf

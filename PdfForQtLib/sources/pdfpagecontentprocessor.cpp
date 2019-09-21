@@ -620,7 +620,14 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                     // Now, merge the current path to the mesh clipping path
                     QPainterPath boundingPath = mesh.getBoundingPath();
-                    boundingPath.addPath(getCurrentWorldMatrix().map(path));
+                    if (boundingPath.isEmpty())
+                    {
+                        boundingPath = getCurrentWorldMatrix().map(path);
+                    }
+                    else
+                    {
+                        boundingPath = boundingPath.intersected(path);
+                    }
                     mesh.setBoundingPath(boundingPath);
 
                     performMeshPainting(mesh);
@@ -686,7 +693,14 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     QPainterPath strokedPath = stroker.createStroke(path);
 
                     QPainterPath boundingPath = mesh.getBoundingPath();
-                    boundingPath.addPath(getCurrentWorldMatrix().map(strokedPath));
+                    if (boundingPath.isEmpty())
+                    {
+                        boundingPath = getCurrentWorldMatrix().map(strokedPath);
+                    }
+                    else
+                    {
+                        boundingPath = boundingPath.intersected(strokedPath);
+                    }
                     mesh.setBoundingPath(boundingPath);
 
                     performMeshPainting(mesh);
