@@ -77,7 +77,7 @@ struct PDFMeshQualitySettings
     PDFReal tolerance = 0.01;
 
     /// Test points to determine maximal curvature of the tensor product patch meshes
-    PDFInteger patchTestPoints = 256;
+    PDFInteger patchTestPoints = 64;
 
     /// Lower value of the surface curvature meshing resolution mapping. When ratio between
     /// current curvature at the center of meshed triangle and maximal curvature is below
@@ -149,6 +149,12 @@ public:
     /// \param triangles New triangle array
     void setTriangles(std::vector<Triangle>&& triangles) { m_triangles = qMove(triangles); }
 
+    /// Merges the vertices/triangles (renumbers triangle indices) to this mesh.
+    /// Algorithm assumes that vertices/triangles are numbered from zero.
+    /// \param vertices Added vertex array
+    /// \param triangles Added triangle array
+    void addMesh(std::vector<QPointF>&& vertices, std::vector<Triangle>&& triangles);
+
     /// Returns vertex at given index
     /// \param index Index of the vertex
     const QPointF& getVertex(size_t index) const { return m_vertices[index]; }
@@ -166,6 +172,9 @@ public:
     /// empty), if color is invalid, it turns off background painting.
     /// \param backgroundColor Background color
     void setBackgroundColor(QColor backgroundColor) { m_backgroundColor = backgroundColor; }
+
+    /// Returns true, if mesh is empty
+    bool isEmpty() const { return m_vertices.empty(); }
 
 private:
     std::vector<QPointF> m_vertices;
@@ -513,6 +522,18 @@ protected:
     void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch) const;
     void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches) const;
     static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
+
+private:
+    friend class PDFPattern;
+};
+
+class PDFCoonsPatchShading : public PDFTensorProductPatchShadingBase
+{
+public:
+    explicit PDFCoonsPatchShading() = default;
+
+    virtual ShadingType getShadingType() const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
 
 private:
     friend class PDFPattern;

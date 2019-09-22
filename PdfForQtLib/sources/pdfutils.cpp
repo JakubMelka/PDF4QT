@@ -79,4 +79,9 @@ void PDFBitReader::alignToBytes()
     }
 }
 
+bool PDFBitReader::isAtEnd() const
+{
+    return (m_position >= m_stream->size());
+}
+
 }   // namespace pdf

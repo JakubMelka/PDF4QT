@@ -99,6 +99,9 @@ public:
     /// Seeks data to the byte boundary (number of processed bits is divisible by 8)
     void alignToBytes();
 
+    /// Returns true, if we are at the end of the data stream (no more data can be read)
+    bool isAtEnd() const;
+
 private:
     const QByteArray* m_stream;
     int m_position;

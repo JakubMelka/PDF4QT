@@ -296,6 +296,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 
         case ShadingType::FreeFormGouradTriangle:
         case ShadingType::LatticeFormGouradTriangle:
+        case ShadingType::CoonsPatchMesh:
         case ShadingType::TensorProductPatchMesh:
         {
             PDFLatticeFormGouradTriangleShading* latticeFormGouradTriangleShading = nullptr;
@@ -313,6 +314,12 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                 {
                     latticeFormGouradTriangleShading = new PDFLatticeFormGouradTriangleShading();
                     type4567Shading = latticeFormGouradTriangleShading;
+                    break;
+                }
+
+                case ShadingType::CoonsPatchMesh:
+                {
+                    type4567Shading = new PDFCoonsPatchShading;
                     break;
                 }
 
@@ -1001,6 +1008,29 @@ void PDFMesh::transform(const QMatrix& matrix)
 
     m_boundingPath = matrix.map(m_boundingPath);
     m_backgroundPath = matrix.map(m_backgroundPath);
+}
+
+void PDFMesh::addMesh(std::vector<QPointF>&& vertices, std::vector<PDFMesh::Triangle>&& triangles)
+{
+    if (isEmpty())
+    {
+        m_vertices = qMove(vertices);
+        m_triangles = qMove(triangles);
+    }
+    else
+    {
+        size_t offset = m_vertices.size();
+        m_vertices.insert(m_vertices.cend(), vertices.cbegin(), vertices.cend());
+
+        for (Triangle& triangle : triangles)
+        {
+            triangle.v1 += static_cast<uint32_t>(offset);
+            triangle.v2 += static_cast<uint32_t>(offset);
+            triangle.v3 += static_cast<uint32_t>(offset);
+        }
+
+        m_triangles.insert(m_triangles.cend(), triangles.cbegin(), triangles.cend());
+    }
 }
 
 QPointF PDFMesh::getTriangleCenter(const PDFMesh::Triangle& triangle) const
@@ -1864,7 +1894,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
     size_t remainder = (8 - (bitsPerPatch % 8)) % 8;
     bitsPerPatch += remainder;
     size_t bytesPerPatch = bitsPerPatch / 8;
-    size_t patchCount = m_data.size() / bytesPerPatch;
+    size_t patchCountEstimate = m_data.size() / bytesPerPatch;
 
     const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
     const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
@@ -1872,7 +1902,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
     const PDFReal colorScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerComponent) - 1);
 
     PDFTensorPatches patches;
-    patches.reserve(patchCount);
+    patches.reserve(patchCountEstimate);
 
     PDFBitReader reader(&m_data, 8);
 
@@ -1903,7 +1933,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
         return getColor(color);
     };
 
-    for (size_t i = 0; i < patchCount; ++i)
+    while (!reader.isAtEnd())
     {
         const uint8_t flags = readFlags();
         switch (flags)
@@ -2291,8 +2321,7 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh, const PDFMeshQual
         triangles.push_back(meshTriangle);
     }
 
-    mesh.setVertices(qMove(vertices));
-    mesh.setTriangles(qMove(triangles));
+    mesh.addMesh(qMove(vertices), qMove(triangles));
 }
 
 void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
@@ -2333,7 +2362,211 @@ void PDFTensorProductPatchShadingBase::addTriangle(std::vector<Triangle>& triang
     triangles.push_back(triangle);
 }
 
+ShadingType PDFCoonsPatchShading::getShadingType() const
+{
+    return ShadingType::CoonsPatchMesh;
+}
+
+PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings) const
+{
+    PDFMesh mesh;
+
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+
+    size_t bitsPerPatch = m_bitsPerFlag + 16 * 2 * m_bitsPerCoordinate + 4 * m_colorComponentCount * m_bitsPerComponent;
+    size_t remainder = (8 - (bitsPerPatch % 8)) % 8;
+    bitsPerPatch += remainder;
+    size_t bytesPerPatch = bitsPerPatch / 8;
+    size_t patchCountEstimate = m_data.size() / bytesPerPatch;
+
+    const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
+    const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
+    const PDFReal yScaleRatio = (m_ymax - m_ymin) * vertexScaleRatio;
+    const PDFReal colorScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerComponent) - 1);
+
+    PDFTensorPatches patches;
+    patches.reserve(patchCountEstimate);
+
+    PDFBitReader reader(&m_data, 8);
+
+    auto readFlags = [this, &reader]() -> uint8_t
+    {
+        return reader.read(m_bitsPerFlag);
+    };
+
+    auto readPoint = [this, &reader, &patternSpaceToDeviceSpaceMatrix, xScaleRatio, yScaleRatio]() -> QPointF
+    {
+        const PDFReal x = m_xmin + (reader.read(m_bitsPerCoordinate)) * xScaleRatio;
+        const PDFReal y = m_ymin + (reader.read(m_bitsPerCoordinate)) * yScaleRatio;
+        return patternSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
+    };
+
+    auto readColor = [this, &reader, colorScaleRatio]() -> PDFColor
+    {
+        PDFColor color;
+        color.resize(m_colorComponentCount);
+
+        for (size_t i = 0; i < m_colorComponentCount; ++i)
+        {
+            const double cMin = m_limits[2 * i + 0];
+            const double cMax = m_limits[2 * i + 1];
+            color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
+        }
+
+        return getColor(color);
+    };
+
+    std::array<QPointF, 12> vertices;
+    std::array<PDFColor, 4> colors;
+
+    auto createTensorPatch = [&]
+    {
+        // Jakub Melka: please see following pictures, in PDF 1.7 specification, figures 4.22 and 4.24.
+        // We copy the control points to the tensor patch in the appropriate order.
+        //
+        //              P_13               P_23                               V_5                 V_6
+        //             /                       \                             /                       \
+        //        P_03/                         \ P_33                   V_4/                         \ V_7
+        //          |-----------------------------|                       |-----------------------------|
+        //        / |                             |\                    / | C_2                    C_3  |\
+        //       /  |                             | \                  /  |                             | \
+        //    P_02  |                             |  P_32            V_3  |                             |  V_8
+        //          |        P_12     P_22        |                       |                             |
+        //          |                             |                       |                             |
+        //          |                             |                       |                             |
+        //          |                             |                       |                             |
+        //          |        P_11     P_21        |                       |                             |
+        //          |                             |                       |                             |
+        //    P_01  |                             |  P_31           V_2   |                             |  V_9
+        //       \  |                             | /                  \  |                             | /
+        //        \ |                             |/                    \ | C_1                    C_4  |/
+        //          |-----------------------------|                       |-----------------------------|
+        //      P_00  \                         / P_30                V_1   \                         / V_10
+        //             \                       /                             \                       /
+        //             P_10                 P_20                             V_12                 V_11
+
+        PDFTensorPatch::PointMatrix P;
+        PDFTensorPatch::Colors tensorColors;
+
+        P[0][0] = vertices[0];
+        P[0][1] = vertices[1];
+        P[0][2] = vertices[2];
+        P[0][3] = vertices[3];
+        P[1][3] = vertices[4];
+        P[2][3] = vertices[5];
+        P[3][3] = vertices[6];
+        P[3][2] = vertices[7];
+        P[3][1] = vertices[8];
+        P[3][0] = vertices[9];
+        P[2][0] = vertices[10];
+        P[1][0] = vertices[11];
+
+        auto computeTensorInterior = [](QPointF p1, QPointF p2, QPointF p3, QPointF p4, QPointF p5, QPointF p6, QPointF p7, QPointF p8)
+        {
+            return (-4.0 * p1 + 6.0 * (p2 + p3) - 2.0 * (p4 + p5) + 3.0 * (p6 + p7) - p8) / 9.0;
+        };
+
+        P[1][1] = computeTensorInterior(P[0][0], P[0][1], P[1][0], P[0][3], P[3][0], P[3][1], P[1][3], P[3][3]);
+        P[1][2] = computeTensorInterior(P[0][3], P[0][2], P[1][3], P[0][0], P[3][3], P[3][2], P[1][0], P[3][0]);
+        P[2][1] = computeTensorInterior(P[3][0], P[3][1], P[2][0], P[3][3], P[3][0], P[0][1], P[2][3], P[0][3]);
+        P[2][2] = computeTensorInterior(P[3][3], P[3][2], P[2][3], P[3][0], P[0][3], P[0][2], P[2][0], P[0][0]);
+
+        tensorColors[PDFTensorPatch::C_00] = colors[0];
+        tensorColors[PDFTensorPatch::C_03] = colors[1];
+        tensorColors[PDFTensorPatch::C_33] = colors[2];
+        tensorColors[PDFTensorPatch::C_30] = colors[3];
+
+        patches.emplace_back(P, tensorColors);
+    };
+
+    auto readPatchesFlag123 = [&]
+    {
+        for (size_t i = 4; i < vertices.size(); ++i)
+        {
+            vertices[i] = readPoint();
+        }
+
+        colors[2] = readColor();
+        colors[3] = readColor();
+    };
+
+    while (!reader.isAtEnd())
+    {
+        const uint8_t flags = readFlags();
+        switch (flags)
+        {
+            case 0:
+            {
+                // New Coons patch
+                for (size_t i = 0; i < vertices.size(); ++i)
+                {
+                    vertices[i] = readPoint();
+                }
+                for (size_t i = 0; i < colors.size(); ++i)
+                {
+                    colors[i] = readColor();
+                }
+
+                createTensorPatch();
+                break;
+            }
+
+            case 1:
+            {
+                vertices[0] = vertices[3];
+                vertices[1] = vertices[4];
+                vertices[2] = vertices[5];
+                vertices[3] = vertices[6];
+
+                colors[0] = colors[1];
+                colors[1] = colors[2];
+
+                readPatchesFlag123();
+                createTensorPatch();
+                break;
+            }
+
+            case 2:
+            {
+                vertices[0] = vertices[6];
+                vertices[1] = vertices[7];
+                vertices[2] = vertices[8];
+                vertices[3] = vertices[9];
+
+                colors[0] = colors[2];
+                colors[1] = colors[3];
+
+                readPatchesFlag123();
+                createTensorPatch();
+                break;
+            }
+
+            case 3:
+            {
+                vertices[3] = vertices[0];
+                vertices[0] = vertices[9];
+                vertices[1] = vertices[10];
+                vertices[2] = vertices[11];
+
+                colors[1] = colors[0];
+                colors[0] = colors[3];
+
+                readPatchesFlag123();
+                createTensorPatch();
+                break;
+            }
+
+            default:
+                throw PDFParserException(PDFTranslationContext::tr("Invalid data in coons patch shading (flags = %1).").arg(flags));
+        }
+    }
+
+    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches);
+    return mesh;
+}
+
 // TODO: Apply graphic state of the pattern
 // TODO: Implement settings of meshing in the settings dialog
+// TODO: Zmenit PDFParserException na PDFException
 
 }   // namespace pdf
