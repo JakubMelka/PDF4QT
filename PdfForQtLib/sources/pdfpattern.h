@@ -29,6 +29,7 @@
 namespace pdf
 {
 class PDFPattern;
+class PDFTilingPattern;
 class PDFShadingPattern;
 
 using PDFPatternPtr = std::shared_ptr<PDFPattern>;
@@ -193,6 +194,7 @@ public:
 
     virtual PatternType getType() const = 0;
     virtual const PDFShadingPattern* getShadingPattern() const = 0;
+    virtual const PDFTilingPattern* getTilingPattern() const = 0;
 
     /// Returns bounding box in the shadings target coordinate system (not in
     /// pattern coordinate system).
@@ -233,7 +235,50 @@ public:
     explicit PDFInvalidPattern() = default;
 
     virtual PatternType getType() const { return PatternType::Invalid; }
-    virtual const PDFShadingPattern* getShadingPattern() const { return nullptr; }
+    virtual const PDFShadingPattern* getShadingPattern() const override { return nullptr; }
+    virtual const PDFTilingPattern* getTilingPattern() const override { return nullptr; }
+};
+
+class PDFTilingPattern : public PDFPattern
+{
+public:
+    explicit PDFTilingPattern() = default;
+
+    virtual PatternType getType() const override { return PatternType::Tiling; }
+    virtual const PDFShadingPattern* getShadingPattern() const override { return nullptr; }
+    virtual const PDFTilingPattern* getTilingPattern() const override { return this; }
+
+    enum class PaintType
+    {
+        Colored,
+        Uncolored,
+        Invalid
+    };
+
+    enum class TilingType
+    {
+        ConstantSpacing,
+        NoDistortion,
+        ConstantSpacingAndFasterTiling,
+        Invalid
+    };
+
+    PaintType getPaintingType() const { return m_paintType; }
+    TilingType getTilingType() const { return m_tilingType; }
+    PDFReal getXStep() const { return m_xStep; }
+    PDFReal getYStep() const { return m_yStep; }
+    const PDFObject& getResources() const { return m_resources; }
+    const QByteArray& getContent() const { return m_content; }
+
+private:
+    friend class PDFPattern;
+
+    PaintType m_paintType = PaintType::Colored;
+    TilingType m_tilingType = TilingType::ConstantSpacing;
+    PDFReal m_xStep = 0.0;
+    PDFReal m_yStep = 0.0;
+    PDFObject m_resources;
+    QByteArray m_content;
 };
 
 /// Shading pattern - smooth color distribution along the pattern's space
@@ -245,6 +290,7 @@ public:
     virtual PatternType getType() const override;
     virtual ShadingType getShadingType() const = 0;
     virtual const PDFShadingPattern* getShadingPattern() const override { return this; }
+    virtual const PDFTilingPattern* getTilingPattern() const override { return nullptr; }
 
     /// Creates a colored mesh using settings. Mesh is generated in device space
     /// coordinate system. You must transform the mesh, if you want to

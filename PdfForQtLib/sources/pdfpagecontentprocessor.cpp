@@ -601,14 +601,14 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
             {
                 case PatternType::Tiling:
                 {
-                    // TODO: Implement tiling pattern
-                    throw PDFParserException(PDFTranslationContext::tr("Tiling pattern not implemented."));
+                    const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
+                    processTillingPatternPainting(tilingPattern, path);
                     break;
                 }
 
                 case PatternType::Shading:
                 {
-                    const PDFShadingPattern* shadingPatern = pattern->getShadingPattern();
+                    const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
 
                     // We must create a mesh and then draw pattern
                     PDFMeshQualitySettings settings;
@@ -616,7 +616,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
                     settings.initDefaultResolution();
 
-                    PDFMesh mesh = shadingPatern->createMesh(settings);
+                    PDFMesh mesh = shadingPattern->createMesh(settings);
 
                     // Now, merge the current path to the mesh clipping path
                     QPainterPath boundingPath = mesh.getBoundingPath();
@@ -660,8 +660,23 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
             {
                 case PatternType::Tiling:
                 {
-                    // TODO: Implement tiling pattern
-                    throw PDFParserException(PDFTranslationContext::tr("Tiling pattern not implemented."));
+                    const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
+
+                    // We must stroke the path.
+                    QPainterPathStroker stroker;
+                    stroker.setCapStyle(m_graphicState.getLineCapStyle());
+                    stroker.setWidth(m_graphicState.getLineWidth());
+                    stroker.setMiterLimit(m_graphicState.getMitterLimit());
+                    stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
+
+                    const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
+                    if (!lineDashPattern.isSolid())
+                    {
+                        stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                        stroker.setDashOffset(lineDashPattern.getDashOffset());
+                    }
+                    QPainterPath strokedPath = stroker.createStroke(path);
+                    processTillingPatternPainting(tilingPattern, strokedPath);
                     break;
                 }
 
@@ -727,6 +742,59 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
     if (stroke || fill)
     {
         performPathPainting(path, stroke, fill, text, fillRule);
+    }
+}
+
+void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPattern* tilingPattern, const QPainterPath& path)
+{
+    PDFPageContentProcessorStateGuard guard(this);
+    performClipping(path, path.fillRule());
+
+    // Initialize resources
+    const PDFObject& resources = tilingPattern->getResources();
+    if (!resources.isNull())
+    {
+        initDictionaries(resources);
+    }
+
+    Q_ASSERT(m_pagePointToDevicePointMatrix.isInvertible());
+
+    // Initialize rendering matrix
+    QMatrix patternMatrix = tilingPattern->getMatrix() * getPatternBaseMatrix();
+    QMatrix matrix = patternMatrix * m_pagePointToDevicePointMatrix.inverted();
+    QMatrix pathTransformationMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix.inverted();
+    m_graphicState.setCurrentTransformationMatrix(matrix);
+    updateGraphicState();
+
+    // Tiling parameters
+    const QRectF tilingArea = pathTransformationMatrix.map(path).boundingRect();
+    const QRectF boundingBox = tilingPattern->getBoundingBox();
+    const PDFReal xStep = qAbs(tilingPattern->getXStep());
+    const PDFReal yStep = qAbs(tilingPattern->getYStep());
+    const QByteArray& content = tilingPattern->getContent();
+    QPainterPath boundingPath;
+    boundingPath.addRect(boundingBox);
+
+    // Draw the tiling
+    const PDFInteger columns = qMax<PDFInteger>(qCeil(tilingArea.width() / xStep), 1);
+    const PDFInteger rows = qMax<PDFInteger>(qCeil(tilingArea.height() / yStep), 1);
+
+    QMatrix baseTransformationMatrix = m_graphicState.getCurrentTransformationMatrix();
+    for (PDFInteger column = 0; column < columns; ++column)
+    {
+        for (PDFInteger row = 0; row < rows; ++row)
+        {
+            PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
+
+            QMatrix transformationMatrix = baseTransformationMatrix;
+            transformationMatrix.translate(tilingArea.left(), tilingArea.top());
+            transformationMatrix.translate(column * xStep, row * yStep);
+            m_graphicState.setCurrentTransformationMatrix(transformationMatrix);
+            updateGraphicState();
+
+            performClipping(boundingPath, boundingPath.fillRule());
+            processContent(content);
+        }
     }
 }
 

@@ -46,11 +46,22 @@ ShadingType PDFAxialShading::getShadingType() const
 PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFObject& object)
 {
     const PDFObject& dereferencedObject = document->getObject(object);
+    const PDFDictionary* patternDictionary = nullptr;
+    QByteArray streamData;
+
     if (dereferencedObject.isDictionary())
     {
-        PDFPatternPtr result;
+        patternDictionary = dereferencedObject.getDictionary();
+    }
+    else if (dereferencedObject.isStream())
+    {
+        const PDFStream* stream = dereferencedObject.getStream();
+        patternDictionary = stream->getDictionary();
+        streamData = document->getDecodedStream(stream);
+    }
 
-        const PDFDictionary* patternDictionary = dereferencedObject.getDictionary();
+    if (patternDictionary)
+    {
         PDFDocumentDataLoaderDecorator loader(document);
 
         const PatternType patternType = static_cast<PatternType>(loader.readIntegerFromDictionary(patternDictionary, "PatternType", static_cast<PDFInteger>(PatternType::Invalid)));
@@ -58,9 +69,43 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
         {
             case PatternType::Tiling:
             {
-                // TODO: Implement tiling pattern
-                throw PDFParserException(PDFTranslationContext::tr("Tiling pattern not implemented."));
-                break;
+                const PDFTilingPattern::PaintType paintType = static_cast<PDFTilingPattern::PaintType>(loader.readIntegerFromDictionary(patternDictionary, "PaintType", static_cast<PDFInteger>(PDFTilingPattern::PaintType::Invalid)));
+                const PDFTilingPattern::TilingType tilingType = static_cast<PDFTilingPattern::TilingType>(loader.readIntegerFromDictionary(patternDictionary, "TilingType", static_cast<PDFInteger>(PDFTilingPattern::TilingType::Invalid)));
+                const QRectF boundingBox = loader.readRectangle(patternDictionary->get("BBox"), QRectF());
+                const PDFReal xStep = loader.readNumberFromDictionary(patternDictionary, "XStep", 0.0);
+                const PDFReal yStep = loader.readNumberFromDictionary(patternDictionary, "YStep", 0.0);
+                PDFObject resources = document->getObject(patternDictionary->get("Resources"));
+                QMatrix matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QMatrix());
+
+                // Verify the data
+                if (paintType != PDFTilingPattern::PaintType::Colored && paintType != PDFTilingPattern::PaintType::Uncolored)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - wrong paint type %1.").arg(static_cast<PDFInteger>(paintType)));
+                }
+                if (tilingType != PDFTilingPattern::TilingType::ConstantSpacing && tilingType != PDFTilingPattern::TilingType::NoDistortion && tilingType != PDFTilingPattern::TilingType::ConstantSpacingAndFasterTiling)
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - wrong tiling type %1.").arg(static_cast<PDFInteger>(tilingType)));
+                }
+                if (!boundingBox.isValid())
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - bounding box is invalid.").arg(static_cast<PDFInteger>(paintType)));
+                }
+                if (isZero(xStep) || isZero(yStep))
+                {
+                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - steps are invalid.").arg(static_cast<PDFInteger>(paintType)));
+                }
+
+                PDFTilingPattern* pattern = new PDFTilingPattern();
+                pattern->m_boundingBox = boundingBox;
+                pattern->m_matrix = matrix;
+                pattern->m_paintType = paintType;
+                pattern->m_tilingType = tilingType;
+                pattern->m_xStep = xStep;
+                pattern->m_yStep = yStep;
+                pattern->m_resources = resources;
+                pattern->m_content = qMove(streamData);
+
+                return PDFPatternPtr(pattern);
             }
 
             case PatternType::Shading:
@@ -74,7 +119,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
                 throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
         }
 
-        return result;
+        return PDFPatternPtr();
     }
 
     throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));

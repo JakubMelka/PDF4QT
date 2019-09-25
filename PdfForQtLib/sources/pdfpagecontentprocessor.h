@@ -35,6 +35,7 @@
 namespace pdf
 {
 class PDFMesh;
+class PDFTilingPattern;
 class PDFOptionalContentActivity;
 
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
@@ -464,6 +465,11 @@ private:
     /// \param fillRule Fill rule used in the fill mode
     void processPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule);
 
+    /// Performs tiling pattern painting
+    /// \param tilingPattern Tiling pattern to be painted
+    /// \param path Clipping path
+    void processTillingPatternPainting(const PDFTilingPattern* tilingPattern, const QPainterPath& path);
+
     enum class MarkedContentKind
     {
         OptionalContent,
@@ -503,6 +509,23 @@ private:
         const PDFDictionary* m_propertiesDictionary;
         const PDFDictionary* m_shadingDictionary;
         const PDFDictionary* m_patternDictionary;
+    };
+
+    struct PDFPageContentProcessorGraphicStateSaveRestoreGuard
+    {
+    public:
+        inline explicit PDFPageContentProcessorGraphicStateSaveRestoreGuard(PDFPageContentProcessor* processor) :
+            m_processor(processor)
+        {
+            m_processor->operatorSaveGraphicState();
+        }
+        inline ~PDFPageContentProcessorGraphicStateSaveRestoreGuard()
+        {
+            m_processor->operatorRestoreGraphicState();
+        }
+
+    private:
+        PDFPageContentProcessor* m_processor;
     };
 
     /// Wrapper for PDF Name
