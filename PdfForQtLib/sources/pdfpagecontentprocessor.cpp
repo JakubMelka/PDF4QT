@@ -594,15 +594,15 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
     if (fill)
     {
-        const PDFPattern* pattern = getGraphicState()->getFillColorSpace()->getPattern();
-        if (pattern)
+        if (const PDFPatternColorSpace* patternColorSpace = getGraphicState()->getFillColorSpace()->asPatternColorSpace())
         {
+            const PDFPattern* pattern = patternColorSpace->getPattern();
             switch (pattern->getType())
             {
                 case PatternType::Tiling:
                 {
                     const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
-                    processTillingPatternPainting(tilingPattern, path);
+                    processTillingPatternPainting(tilingPattern, path, patternColorSpace->getUncoloredPatternColorSpace(), patternColorSpace->getUncoloredPatternColor());
                     break;
                 }
 
@@ -653,9 +653,9 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
     if (stroke)
     {
-        const PDFPattern* pattern = getGraphicState()->getStrokeColorSpace()->getPattern();
-        if (pattern)
+        if (const PDFPatternColorSpace* patternColorSpace = getGraphicState()->getFillColorSpace()->asPatternColorSpace())
         {
+            const PDFPattern* pattern = patternColorSpace->getPattern();
             switch (pattern->getType())
             {
                 case PatternType::Tiling:
@@ -676,7 +676,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         stroker.setDashOffset(lineDashPattern.getDashOffset());
                     }
                     QPainterPath strokedPath = stroker.createStroke(path);
-                    processTillingPatternPainting(tilingPattern, strokedPath);
+                    processTillingPatternPainting(tilingPattern, strokedPath, patternColorSpace->getUncoloredPatternColorSpace(), patternColorSpace->getUncoloredPatternColor());
                     break;
                 }
 
@@ -745,7 +745,10 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
     }
 }
 
-void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPattern* tilingPattern, const QPainterPath& path)
+void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPattern* tilingPattern,
+                                                            const QPainterPath& path,
+                                                            PDFColorSpacePointer uncoloredPatternColorSpace,
+                                                            PDFColor uncoloredPatternColor)
 {
     PDFPageContentProcessorStateGuard guard(this);
     performClipping(path, path.fillRule());
@@ -764,6 +767,33 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     QMatrix matrix = patternMatrix * m_pagePointToDevicePointMatrix.inverted();
     QMatrix pathTransformationMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix.inverted();
     m_graphicState.setCurrentTransformationMatrix(matrix);
+
+    // Initialize colors for uncolored color space pattern
+    if (tilingPattern->getPaintingType() == PDFTilingPattern::PaintType::Uncolored)
+    {
+        if (!uncoloredPatternColorSpace)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Uncolored tiling pattern has not underlying color space."));
+        }
+
+        m_graphicState.setStrokeColorSpace(uncoloredPatternColorSpace);
+        m_graphicState.setFillColorSpace(uncoloredPatternColorSpace);
+
+        QColor color = uncoloredPatternColorSpace->getCheckedColor(uncoloredPatternColor);
+        m_graphicState.setStrokeColor(color);
+        m_graphicState.setFillColor(color);
+    }
+    else
+    {
+        // Jakub Melka: According the specification, we set default color space and default color
+        m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
+        m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
+
+        QColor color = m_deviceGrayColorSpace->getDefaultColor();
+        m_graphicState.setStrokeColor(color);
+        m_graphicState.setFillColor(color);
+    }
+
     updateGraphicState();
 
     // Tiling parameters
@@ -1951,17 +1981,25 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorN()
     // but default operator can use them (with exception of Pattern color space). For pattern color space,
     // we treat this differently.
     const PDFAbstractColorSpace* colorSpace = m_graphicState.getStrokeColorSpace();
-    if (colorSpace->getPattern())
+    if (const PDFPatternColorSpace* patternColorSpace = colorSpace->asPatternColorSpace())
     {
-        if (m_operands.size() > 0)
+        const size_t operandCount = m_operands.size();
+        if (operandCount > 0)
         {
-            // TODO: Implement tiling pattern colors
-            PDFOperandName name = readOperand<PDFOperandName>(m_operands.size() - 1);
+            PDFColorSpacePointer uncoloredColorSpace = patternColorSpace->getUncoloredPatternColorSpace();
+            PDFColor uncoloredPatternColor;
+
+            for (size_t i = 0; i < operandCount - 1; ++i)
+            {
+                uncoloredPatternColor.push_back(readOperand<PDFReal>(i));
+            }
+
+            PDFOperandName name = readOperand<PDFOperandName>(operandCount - 1);
             if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
             {
                 // Create the pattern
                 PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name));
-                m_graphicState.setStrokeColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern))));
+                m_graphicState.setStrokeColorSpace(PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern), qMove(uncoloredColorSpace), qMove(uncoloredPatternColor))));
                 updateGraphicState();
                 return;
             }
@@ -2009,17 +2047,25 @@ void PDFPageContentProcessor::operatorColorSetFillingColorN()
     // but default operator can use them (with exception of Pattern color space). For pattern color space,
     // we treat this differently.
     const PDFAbstractColorSpace* colorSpace = m_graphicState.getFillColorSpace();
-    if (colorSpace->getPattern())
+    if (const PDFPatternColorSpace* patternColorSpace = colorSpace->asPatternColorSpace())
     {
-        if (m_operands.size() > 0)
+        const size_t operandCount = m_operands.size();
+        if (operandCount > 0)
         {
-            // TODO: Implement tiling pattern colors
-            PDFOperandName name = readOperand<PDFOperandName>(m_operands.size() - 1);
+            PDFColorSpacePointer uncoloredColorSpace = patternColorSpace->getUncoloredPatternColorSpace();
+            PDFColor uncoloredPatternColor;
+
+            for (size_t i = 0; i < operandCount - 1; ++i)
+            {
+                uncoloredPatternColor.push_back(readOperand<PDFReal>(i));
+            }
+
+            PDFOperandName name = readOperand<PDFOperandName>(operandCount - 1);
             if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
             {
                 // Create the pattern
                 PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name));
-                m_graphicState.setFillColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern))));
+                m_graphicState.setFillColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern), qMove(uncoloredColorSpace), qMove(uncoloredPatternColor))));
                 updateGraphicState();
                 return;
             }
@@ -2359,7 +2405,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
 
     // We will do a trick: we will set current fill color space, and then paint
     // bounding rectangle in the color pattern.
-    m_graphicState.setFillColorSpace(PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern))));
+    m_graphicState.setFillColorSpace(PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern), nullptr, PDFColor())));
     updateGraphicState();
 
     Q_ASSERT(matrix.isInvertible());

@@ -34,6 +34,7 @@ class PDFPattern;
 class PDFDocument;
 class PDFDictionary;
 class PDFAbstractColorSpace;
+class PDFPatternColorSpace;
 
 using PDFColorComponent = float;
 using PDFColor = PDFFlatArray<PDFColorComponent, 4>;
@@ -211,7 +212,7 @@ public:
     virtual QColor getColor(const PDFColor& color) const = 0;
     virtual size_t getColorComponentCount() const = 0;
     virtual QImage getImage(const PDFImageData& imageData) const;
-    virtual const PDFPattern* getPattern() const { return nullptr; }
+    virtual const PDFPatternColorSpace* asPatternColorSpace() const { return nullptr; }
 
     /// Checks, if number of color components is OK, and if yes, converts them to the QColor value.
     /// If they are not OK, exception is thrown.
@@ -592,17 +593,29 @@ private:
 class PDFPatternColorSpace : public PDFAbstractColorSpace
 {
 public:
-    explicit PDFPatternColorSpace(std::shared_ptr<PDFPattern>&& pattern) : m_pattern(qMove(pattern)) { }
+    explicit PDFPatternColorSpace(std::shared_ptr<PDFPattern>&& pattern, PDFColorSpacePointer&& uncoloredPatternColorSpace, PDFColor uncoloredPatternColor) :
+        m_pattern(qMove(pattern)),
+        m_uncoloredPatternColorSpace(qMove(uncoloredPatternColorSpace)),
+        m_uncoloredPatternColor(qMove(uncoloredPatternColor))
+    {
+
+    }
+
     virtual ~PDFPatternColorSpace() override = default;
 
     virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
+    virtual const PDFPatternColorSpace* asPatternColorSpace() const override { return this; }
 
-    virtual const PDFPattern* getPattern() const override { return m_pattern.get(); }
+    const PDFPattern* getPattern() const { return m_pattern.get(); }
+    PDFColorSpacePointer getUncoloredPatternColorSpace() const { return m_uncoloredPatternColorSpace; }
+    PDFColor getUncoloredPatternColor() const { return m_uncoloredPatternColor; }
 
 private:
      std::shared_ptr<PDFPattern> m_pattern;
+     PDFColorSpacePointer m_uncoloredPatternColorSpace;
+     PDFColor m_uncoloredPatternColor;
 };
 
 }   // namespace pdf

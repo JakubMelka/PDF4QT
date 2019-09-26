@@ -250,16 +250,16 @@ public:
 
     enum class PaintType
     {
-        Colored,
-        Uncolored,
-        Invalid
+        Colored = 1,
+        Uncolored = 2,
+        Invalid = 3
     };
 
     enum class TilingType
     {
-        ConstantSpacing,
-        NoDistortion,
-        ConstantSpacingAndFasterTiling,
+        ConstantSpacing = 1,
+        NoDistortion = 2,
+        ConstantSpacingAndFasterTiling = 3,
         Invalid
     };
 

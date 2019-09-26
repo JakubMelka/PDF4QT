@@ -156,7 +156,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
     // Parse common data for all shadings
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, document, document->getObject(shadingDictionary->get("ColorSpace")));
 
-    if (colorSpace->getPattern())
+    if (colorSpace->asPatternColorSpace())
     {
         throw PDFParserException(PDFTranslationContext::tr("Pattern color space is not valid for shading patterns."));
     }

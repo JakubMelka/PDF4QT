@@ -468,7 +468,12 @@ private:
     /// Performs tiling pattern painting
     /// \param tilingPattern Tiling pattern to be painted
     /// \param path Clipping path
-    void processTillingPatternPainting(const PDFTilingPattern* tilingPattern, const QPainterPath& path);
+    /// \param uncoloredPatternColorSpace Color space for uncolored color patterns
+    /// \param uncoloredPatternColor Uncolored color pattern color
+    void processTillingPatternPainting(const PDFTilingPattern* tilingPattern,
+                                       const QPainterPath& path,
+                                       PDFColorSpacePointer uncoloredPatternColorSpace,
+                                       PDFColor uncoloredPatternColor);
 
     enum class MarkedContentKind
     {

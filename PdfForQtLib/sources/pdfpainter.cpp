@@ -50,6 +50,8 @@ PDFPainter::PDFPainter(QPainter* painter,
             m_painter->setClipPath(path, Qt::IntersectClip);
         }
     }
+
+    m_painter->setRenderHint(QPainter::SmoothPixmapTransform, features.testFlag(PDFRenderer::SmoothImages));
 }
 
 PDFPainter::~PDFPainter()

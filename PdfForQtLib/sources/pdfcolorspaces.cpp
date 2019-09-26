@@ -241,7 +241,7 @@ QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color) const
 {
     if (getColorComponentCount() != color.size())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(static_cast<int>(getColorComponentCount()), static_cast<int>(color.size())));
+        throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(static_cast<int>(getColorComponentCount())).arg(static_cast<int>(color.size())));
     }
 
     return getColor(color);
@@ -352,7 +352,13 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 
                 if (name == COLOR_SPACE_NAME_PATTERN)
                 {
-                    return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>()));
+                    PDFColorSpacePointer uncoloredPatternColorSpace;
+                    if (count == 2)
+                    {
+                        uncoloredPatternColorSpace = createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion);
+                    }
+
+                    return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>(), qMove(uncoloredPatternColorSpace), PDFColor()));
                 }
 
                 if (dictionary)
@@ -413,7 +419,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
 
     if (name == COLOR_SPACE_NAME_PATTERN)
     {
-        return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>()));
+        return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>(), nullptr, PDFColor()));
     }
 
     if (name == COLOR_SPACE_NAME_DEVICE_GRAY || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_GRAY)
