@@ -82,7 +82,7 @@ PDFPageInheritableAttributes PDFPageInheritableAttributes::parse(const PDFPageIn
                 }
                 default:
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid page rotation."));
+                    throw PDFException(PDFTranslationContext::tr("Invalid page rotation."));
                 }
             }
         }
@@ -176,13 +176,13 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                         // Check reference
                         if (!kid.isReference())
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Expected valid kids in page tree."));
+                            throw PDFException(PDFTranslationContext::tr("Expected valid kids in page tree."));
                         }
 
                         // Check cycles
                         if (visitedReferences.count(kid.getReference()))
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Detected cycles in page tree."));
+                            throw PDFException(PDFTranslationContext::tr("Detected cycles in page tree."));
                         }
 
                         visitedReferences.insert(kid.getReference());
@@ -191,7 +191,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected valid kids in page tree."));
+                    throw PDFException(PDFTranslationContext::tr("Expected valid kids in page tree."));
                 }
             }
             else if (typeString == "Page")
@@ -218,17 +218,17 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
             }
             else
             {
-                throw PDFParserException(PDFTranslationContext::tr("Expected valid type item in page tree."));
+                throw PDFException(PDFTranslationContext::tr("Expected valid type item in page tree."));
             }
         }
         else
         {
-            throw PDFParserException(PDFTranslationContext::tr("Expected valid type item in page tree."));
+            throw PDFException(PDFTranslationContext::tr("Expected valid type item in page tree."));
         }
     }
     else
     {
-        throw PDFParserException(PDFTranslationContext::tr("Expected dictionary in page tree."));
+        throw PDFException(PDFTranslationContext::tr("Expected dictionary in page tree."));
     }
 }
 

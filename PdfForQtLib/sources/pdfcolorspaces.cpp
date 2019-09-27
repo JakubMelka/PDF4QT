@@ -101,13 +101,13 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                 unsigned int componentCount = imageData.getComponents();
                 if (componentCount != getColorComponentCount())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
                 }
 
                 const std::vector<PDFReal>& decode = imageData.getDecode();
                 if (!decode.empty() && decode.size() != componentCount * 2)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
                 PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
@@ -159,20 +159,20 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                 unsigned int componentCount = imageData.getComponents();
                 if (componentCount != getColorComponentCount())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
                 }
 
                 Q_ASSERT(componentCount > 0);
                 const std::vector<PDFInteger>& colorKeyMask = imageData.getColorKeyMask();
                 if (colorKeyMask.size() / 2 != componentCount)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components in color key mask. Expected %1, provided %2.").arg(2 * componentCount).arg(colorKeyMask.size()));
+                    throw PDFException(PDFTranslationContext::tr("Invalid number of color components in color key mask. Expected %1, provided %2.").arg(2 * componentCount).arg(colorKeyMask.size()));
                 }
 
                 const std::vector<PDFReal>& decode = imageData.getDecode();
                 if (!decode.empty() && decode.size() != componentCount * 2)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
                 PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
@@ -241,7 +241,7 @@ QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color) const
 {
     if (getColorComponentCount() != color.size())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(static_cast<int>(getColorComponentCount())).arg(static_cast<int>(color.size())));
+        throw PDFException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(static_cast<int>(getColorComponentCount())).arg(static_cast<int>(color.size())));
     }
 
     return getColor(color);
@@ -314,7 +314,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 {
     if (--recursion <= 0)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
+        throw PDFException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
     }
 
     if (colorSpace.isName())
@@ -403,7 +403,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
         }
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Invalid color space."));
+    throw PDFException(PDFTranslationContext::tr("Invalid color space."));
     return PDFColorSpacePointer();
 }
 
@@ -414,7 +414,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
 {
     if (--recursion <= 0)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
+        throw PDFException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
     }
 
     if (name == COLOR_SPACE_NAME_PATTERN)
@@ -460,7 +460,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
         return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(name)), recursion);
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Invalid color space."));
+    throw PDFException(PDFTranslationContext::tr("Invalid color space."));
     return PDFColorSpacePointer();
 }
 
@@ -746,7 +746,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
 
             default:
             {
-                throw PDFParserException(PDFTranslationContext::tr("Can't determine alternate color space for ICC based profile. Number of components is %1.").arg(N));
+                throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for ICC based profile. Number of components is %1.").arg(N));
                 break;
             }
         }
@@ -754,7 +754,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
 
     if (!alternateColorSpace)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine alternate color space for ICC based profile."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for ICC based profile."));
     }
 
     Ranges ranges = { 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f };
@@ -765,7 +765,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
 
     if (rangeSize > ranges.size())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Too much color components for ICC based profile."));
+        throw PDFException(PDFTranslationContext::tr("Too much color components for ICC based profile."));
     }
 
     auto itStart = ranges.begin();
@@ -830,7 +830,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData) const
 
         if (componentCount != getColorComponentCount())
         {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+            throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
         }
 
         Q_ASSERT(componentCount == 1);
@@ -875,7 +875,7 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
 
     if (!baseColorSpace)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine base color space for indexed color space."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine base color space for indexed color space."));
     }
 
     // Read maximum value
@@ -901,7 +901,7 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
     const int byteCount = colorCount * componentCount;
     if (byteCount != colors.size())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.").arg(colorCount).arg(componentCount).arg(byteCount).arg(colors.size()));
+        throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.").arg(colorCount).arg(componentCount).arg(byteCount).arg(colors.size()));
     }
 
     return PDFColorSpacePointer(new PDFIndexedColorSpace(qMove(baseColorSpace), qMove(colors), maxValue));
@@ -962,7 +962,7 @@ PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const P
     const PDFObject& colorNameObject = document->getObject(array->getItem(1));
     if (!colorNameObject.isName())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine color name for separation color space."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine color name for separation color space."));
     }
     QByteArray colorName = colorNameObject.getString();
 
@@ -970,13 +970,13 @@ PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const P
     PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion);
     if (!alternateColorSpace)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine alternate color space for separation color space."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for separation color space."));
     }
 
     PDFFunctionPtr tintTransform = PDFFunction::createFunction(document, array->getItem(3));
     if (!tintTransform)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine tint transform for separation color space."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine tint transform for separation color space."));
     }
 
     return PDFColorSpacePointer(new PDFSeparationColorSpace(qMove(colorName), qMove(alternateColorSpace), qMove(tintTransform)));
@@ -998,7 +998,7 @@ QColor PDFPatternColorSpace::getDefaultColor() const
 QColor PDFPatternColorSpace::getColor(const PDFColor& color) const
 {
     Q_UNUSED(color);
-    throw PDFParserException(PDFTranslationContext::tr("Pattern doesn't have defined uniform color."));
+    throw PDFException(PDFTranslationContext::tr("Pattern doesn't have defined uniform color."));
 }
 
 size_t PDFPatternColorSpace::getColorComponentCount() const
@@ -1075,7 +1075,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
 
     if (colorantNames.empty())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid colorants for DeviceN color space."));
+        throw PDFException(PDFTranslationContext::tr("Invalid colorants for DeviceN color space."));
     }
 
     std::vector<ColorantInfo> colorants;
@@ -1089,13 +1089,13 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
     PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion);
     if (!alternateColorSpace)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine alternate color space for DeviceN color space."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for DeviceN color space."));
     }
 
     PDFFunctionPtr tintTransform = PDFFunction::createFunction(document, array->getItem(3));
     if (!tintTransform)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't determine tint transform for DeviceN color space."));
+        throw PDFException(PDFTranslationContext::tr("Can't determine tint transform for DeviceN color space."));
     }
 
     Type type = Type::DeviceN;

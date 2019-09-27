@@ -46,7 +46,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
 {
     if (!catalog.isDictionary())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Catalog must be a dictionary."));
+        throw PDFException(PDFTranslationContext::tr("Catalog must be a dictionary."));
     }
 
     const PDFDictionary* catalogDictionary = catalog.getDictionary();
@@ -71,7 +71,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
 
     if (!catalogDictionary.isDictionary())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Catalog must be a dictionary."));
+        throw PDFException(PDFTranslationContext::tr("Catalog must be a dictionary."));
     }
 
     const PDFDictionary* dictionary = catalogDictionary.getDictionary();
@@ -94,7 +94,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                     }
                     else
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Expected boolean value."));
+                        throw PDFException(PDFTranslationContext::tr("Expected boolean value."));
                     }
                 }
             };
@@ -112,7 +112,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
             {
                 if (!nonFullscreenPageMode.isName())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected name."));
+                    throw PDFException(PDFTranslationContext::tr("Expected name."));
                 }
 
                 QByteArray enumName = nonFullscreenPageMode.getString();
@@ -134,7 +134,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
+                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
                 }
             }
 
@@ -144,7 +144,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
             {
                 if (!direction.isName())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected name."));
+                    throw PDFException(PDFTranslationContext::tr("Expected name."));
                 }
 
                 QByteArray enumName = direction.getString();
@@ -158,7 +158,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
+                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
                 }
             }
 
@@ -173,7 +173,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                     }
                     else
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Expected name."));
+                        throw PDFException(PDFTranslationContext::tr("Expected name."));
                     }
                 }
             };
@@ -188,7 +188,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
             {
                 if (!printScaling.isName())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected name."));
+                    throw PDFException(PDFTranslationContext::tr("Expected name."));
                 }
 
                 QByteArray enumName = printScaling.getString();
@@ -202,7 +202,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
+                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
                 }
             }
 
@@ -212,7 +212,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
             {
                 if (!duplex.isName())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected name."));
+                    throw PDFException(PDFTranslationContext::tr("Expected name."));
                 }
 
                 QByteArray enumName = duplex.getString();
@@ -230,7 +230,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
+                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
                 }
             }
 
@@ -240,7 +240,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
             {
                 if (!duplex.isArray())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected array of integers."));
+                    throw PDFException(PDFTranslationContext::tr("Expected array of integers."));
                 }
 
                 // According to PDF Reference 1.7, this entry is ignored in following cases:
@@ -292,7 +292,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                         }
                         else
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Expected integer."));
+                            throw PDFException(PDFTranslationContext::tr("Expected integer."));
                         }
                     }
 
@@ -314,13 +314,13 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Expected integer."));
+                    throw PDFException(PDFTranslationContext::tr("Expected integer."));
                 }
             }
         }
         else if (!viewerPreferencesObject.isNull())
         {
-            throw PDFParserException(PDFTranslationContext::tr("Viewer preferences must be a dictionary."));
+            throw PDFException(PDFTranslationContext::tr("Viewer preferences must be a dictionary."));
         }
     }
 
@@ -347,7 +347,7 @@ PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFDocument* docume
     }
     else
     {
-        throw PDFParserException(PDFTranslationContext::tr("Expected page label dictionary."));
+        throw PDFException(PDFTranslationContext::tr("Expected page label dictionary."));
     }
 
     return PDFPageLabel();

@@ -101,7 +101,7 @@ void PDFDocument::initInfo()
                     }
                     else if (!stringObject.isNull())
                     {
-                        throw PDFParserException(tr("Bad format of document info entry in trailer dictionary. String expected."));
+                        throw PDFException(tr("Bad format of document info entry in trailer dictionary. String expected."));
                     }
                 }
             };
@@ -124,12 +124,12 @@ void PDFDocument::initInfo()
 
                         if (!fillEntry.isValid())
                         {
-                            throw PDFParserException(tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
+                            throw PDFException(tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
                         }
                     }
                     else if (!stringObject.isNull())
                     {
-                        throw PDFParserException(tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
+                        throw PDFException(tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
                     }
                 }
             };
@@ -156,18 +156,18 @@ void PDFDocument::initInfo()
                     }
                     else
                     {
-                        throw PDFParserException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
+                        throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
                     }
                 }
                 else
                 {
-                    throw PDFParserException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
+                    throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
                 }
             }
         }
         else if (!info.isNull()) // Info may be invalid...
         {
-            throw PDFParserException(tr("Bad format of document info entry in trailer dictionary."));
+            throw PDFException(tr("Bad format of document info entry in trailer dictionary."));
         }
     }
 }

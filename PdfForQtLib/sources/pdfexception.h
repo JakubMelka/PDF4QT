@@ -23,10 +23,10 @@
 namespace pdf
 {
 
-class PDFParserException : public std::exception
+class PDFException : public std::exception
 {
 public:
-    PDFParserException(const QString& message) :
+    PDFException(const QString& message) :
         m_message(message)
     {
 

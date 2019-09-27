@@ -46,7 +46,7 @@ PDFBitReader::Value PDFBitReader::read(PDFBitReader::Value bits)
         }
         else
         {
-            throw PDFParserException(PDFTranslationContext::tr("Not enough data to read %1-bit value.").arg(bits));
+            throw PDFException(PDFTranslationContext::tr("Not enough data to read %1-bit value.").arg(bits));
         }
     }
 
@@ -66,7 +66,7 @@ void PDFBitReader::seek(qint64 position)
     }
     else
     {
-        throw PDFParserException(PDFTranslationContext::tr("Can't seek to position %1.").arg(position));
+        throw PDFException(PDFTranslationContext::tr("Can't seek to position %1.").arg(position));
     }
 }
 

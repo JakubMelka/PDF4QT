@@ -63,13 +63,13 @@ PDFOptionalContentProperties PDFOptionalContentProperties::create(const PDFDocum
             }
             else if (!configsObject.isNull())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid optional content properties."));
+                throw PDFException(PDFTranslationContext::tr("Invalid optional content properties."));
             }
         }
     }
     else if (!dereferencedObject.isNull())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content properties."));
+        throw PDFException(PDFTranslationContext::tr("Invalid optional content properties."));
     }
 
     return properties;
@@ -110,7 +110,7 @@ PDFOptionalContentConfiguration PDFOptionalContentConfiguration::create(const PD
             }
             else if (!nameOrNames.isNull())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid optional content configuration."));
+                throw PDFException(PDFTranslationContext::tr("Invalid optional content configuration."));
             }
         }
 
@@ -129,14 +129,14 @@ PDFOptionalContentConfiguration PDFOptionalContentConfiguration::create(const PD
             }
             else if (!asArrayObject.isNull())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid optional content configuration."));
+                throw PDFException(PDFTranslationContext::tr("Invalid optional content configuration."));
             }
         }
 
         configuration.m_order = document->getObject(dictionary->get("Order"));
         if (!configuration.m_order.isArray() && !configuration.m_order.isNull())
         {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid optional content configuration."));
+            throw PDFException(PDFTranslationContext::tr("Invalid optional content configuration."));
         }
 
         constexpr const std::array<std::pair<const char*, ListMode>, 3> listModeEnumValues = {
@@ -160,7 +160,7 @@ PDFOptionalContentConfiguration PDFOptionalContentConfiguration::create(const PD
             }
             else if (!rbGroupsObject.isNull())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid optional content configuration."));
+                throw PDFException(PDFTranslationContext::tr("Invalid optional content configuration."));
             }
         }
 
@@ -222,7 +222,7 @@ PDFOptionalContentGroup PDFOptionalContentGroup::create(const PDFDocument* docum
     const PDFObject& dereferencedObject = document->getObject(object);
     if (!dereferencedObject.isDictionary())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content group."));
+        throw PDFException(PDFTranslationContext::tr("Invalid optional content group."));
     }
 
     PDFDocumentDataLoaderDecorator loader(document);
@@ -244,7 +244,7 @@ PDFOptionalContentGroup PDFOptionalContentGroup::create(const PDFDocument* docum
         }
         else if (!nameOrNames.isNull())
         {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid optional content group."));
+            throw PDFException(PDFTranslationContext::tr("Invalid optional content group."));
         }
     }
 
@@ -447,7 +447,7 @@ PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(co
                     {
                         if (usedReferences.count(nodeObject.getReference()))
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Cyclic reference error in optional content visibility expression."));
+                            throw PDFException(PDFTranslationContext::tr("Cyclic reference error in optional content visibility expression."));
                         }
                         else
                         {
@@ -459,7 +459,7 @@ PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(co
                     const PDFArray* array = dereferencedNodeObject.getArray();
                     if (array->getCount() < 2)
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
+                        throw PDFException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
                     }
 
                     // Read the operator
@@ -484,7 +484,7 @@ PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(co
                     }
                     else
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
+                        throw PDFException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
                     }
 
                     // Read the operands
@@ -505,7 +505,7 @@ PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(co
                 else
                 {
                     // Something strange occured - either we should have an array, or we should have a reference to the OCG
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
+                    throw PDFException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
                     return std::unique_ptr<Node>(nullptr);
                 }
             };

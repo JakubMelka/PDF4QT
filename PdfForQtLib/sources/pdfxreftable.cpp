@@ -65,7 +65,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
 
                 if (!firstObject.isInt() || !countObject.isInt())
                 {
-                    throw PDFParserException(tr("Invalid format of reference table."));
+                    throw PDFException(tr("Invalid format of reference table."));
                 }
 
                 PDFInteger firstObjectNumber = firstObject.getInteger();
@@ -90,17 +90,17 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                     bool occupied = parser.fetchCommand(PDF_XREF_OCCUPIED);
                     if (!occupied && !parser.fetchCommand(PDF_XREF_FREE))
                     {
-                        throw PDFParserException(tr("Bad format of reference table entry."));
+                        throw PDFException(tr("Bad format of reference table entry."));
                     }
 
                     if (!offset.isInt() || !generation.isInt())
                     {
-                        throw PDFParserException(tr("Bad format of reference table entry."));
+                        throw PDFException(tr("Bad format of reference table entry."));
                     }
 
                     if (static_cast<size_t>(objectNumber) >= m_entries.size())
                     {
-                        throw PDFParserException(tr("Bad format of reference table entry."));
+                        throw PDFException(tr("Bad format of reference table entry."));
                     }
 
                     Entry entry;
@@ -121,7 +121,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
             PDFObject trailerDictionary = parser.getObject();
             if (!trailerDictionary.isDictionary())
             {
-                throw PDFParserException(tr("Trailer dictionary is invalid."));
+                throw PDFException(tr("Trailer dictionary is invalid."));
             }
 
             // Now, we have scanned the table. If we didn't have a trailer dictionary yet, then
@@ -138,7 +138,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
 
                 if (!previousOffset.isInt())
                 {
-                    throw PDFParserException(tr("Offset of previous reference table is invalid."));
+                    throw PDFException(tr("Offset of previous reference table is invalid."));
                 }
 
                 workSet.push(previousOffset.getInteger());
@@ -158,19 +158,19 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
 
             if (!crossReferenceStreamObjectNumber.isInt() || !crossReferenceStreamGeneration.isInt())
             {
-                throw PDFParserException(tr("Invalid format of reference table."));
+                throw PDFException(tr("Invalid format of reference table."));
             }
 
             if (!parser.fetchCommand(PDF_OBJECT_START_MARK))
             {
-                throw PDFParserException(tr("Invalid format of reference table."));
+                throw PDFException(tr("Invalid format of reference table."));
             }
 
             PDFObject crossReferenceObject = parser.getObject();
 
             if (!parser.fetchCommand(PDF_OBJECT_END_MARK))
             {
-                throw PDFParserException(tr("Invalid format of reference table."));
+                throw PDFException(tr("Invalid format of reference table."));
             }
 
             if (crossReferenceObject.isStream())
@@ -183,7 +183,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                     PDFObject sizeObject = crossReferenceStreamDictionary->get("Size");
                     if (!sizeObject.isInt() || sizeObject.getInteger() < 0)
                     {
-                        throw PDFParserException(tr("Invalid format of cross-reference stream."));
+                        throw PDFException(tr("Invalid format of cross-reference stream."));
                     }
 
                     const PDFInteger desiredSize = sizeObject.getInteger();
@@ -223,7 +223,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                                 }
                                 else
                                 {
-                                    throw PDFParserException(tr("Invalid format of cross-reference stream."));
+                                    throw PDFException(tr("Invalid format of cross-reference stream."));
                                 }
                             }
                         }
@@ -240,7 +240,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
 
                     if (wArray.size() != 3 || indexArray.empty() || (indexArray.size() % 2 != 0))
                     {
-                        throw PDFParserException(tr("Invalid format of cross-reference stream."));
+                        throw PDFException(tr("Invalid format of cross-reference stream."));
                     }
 
                     const int columnTypeBytes = wArray[0];
@@ -268,7 +268,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                                 // data aren't corrupted etc.)
                                 if (dataStream.status() != QDataStream::Ok)
                                 {
-                                    throw PDFParserException(tr("Invalid format of cross-reference stream - not enough data in the stream."));
+                                    throw PDFException(tr("Invalid format of cross-reference stream - not enough data in the stream."));
                                 }
                             }
 
@@ -343,7 +343,7 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                 continue;
             }
 
-            throw PDFParserException(tr("Invalid format of reference table."));
+            throw PDFException(tr("Invalid format of reference table."));
         }
     }
 }

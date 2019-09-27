@@ -206,7 +206,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
 
     if (!encryptionDictionaryObject.isDictionary())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid encryption dictionary."));
+        throw PDFException(PDFTranslationContext::tr("Invalid encryption dictionary."));
     }
 
     const PDFDictionary* dictionary = encryptionDictionaryObject.getDictionary();
@@ -224,7 +224,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
         {
             if (required)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Name expected.").arg(QString::fromLatin1(key)));
+                throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Name expected.").arg(QString::fromLatin1(key)));
             }
 
             return defaultValue ? QByteArray(defaultValue) : QByteArray();
@@ -240,7 +240,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
         {
             if (required)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Integer expected.").arg(QString::fromLatin1(key)));
+                throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Integer expected.").arg(QString::fromLatin1(key)));
             }
 
             return defaultValue;
@@ -252,7 +252,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     QByteArray filterName = getName(dictionary, "Filter", true);
     if (filterName != "Standard")
     {
-        throw PDFParserException(PDFTranslationContext::tr("Unknown security handler."));
+        throw PDFException(PDFTranslationContext::tr("Unknown security handler."));
     }
 
     const int V = getInt(dictionary, "V", true);
@@ -260,7 +260,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     // Check V
     if (V < 1 || V > 5)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Unsupported version of document encryption (V = %1).").arg(V));
+        throw PDFException(PDFTranslationContext::tr("Unsupported version of document encryption (V = %1).").arg(V));
     }
 
     // Only valid for V == 2 or V == 3, otherwise we set file encryption key length manually
@@ -309,7 +309,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
             {
                 if (!object.isDictionary())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Crypt filter is not a dictionary!"));
+                    throw PDFException(PDFTranslationContext::tr("Crypt filter is not a dictionary!"));
                 }
                 const PDFDictionary* cryptFilterDictionary = object.getDictionary();
 
@@ -334,7 +334,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Unsupported encryption algorithm '%1'.").arg(QString::fromLatin1(CFMName)));
+                    throw PDFException(PDFTranslationContext::tr("Unsupported encryption algorithm '%1'.").arg(QString::fromLatin1(CFMName)));
                 }
 
                 QByteArray authEventName = getName(cryptFilterDictionary, "AuthEvent", false, "DocOpen");
@@ -348,7 +348,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Unsupported authorization event '%1'.").arg(QString::fromLatin1(authEventName)));
+                    throw PDFException(PDFTranslationContext::tr("Unsupported authorization event '%1'.").arg(QString::fromLatin1(authEventName)));
                 }
 
                 filter.keyLength = getInt(cryptFilterDictionary, "Length", false, Length / 8);
@@ -370,7 +370,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
 
             if (it == handler.m_cryptFilters.cend())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Uknown crypt filter '%1'.").arg(QString::fromLatin1(name)));
+                throw PDFException(PDFTranslationContext::tr("Uknown crypt filter '%1'.").arg(QString::fromLatin1(name)));
             }
 
             return it->second;
@@ -394,7 +394,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     int R = getInt(dictionary, "R", true);
     if (R < 2 || R > 6)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(R));
+        throw PDFException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(R));
     }
     handler.m_R = R;
 
@@ -413,12 +413,12 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
 
             if (result.size() != size)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Expected %1 characters long string in entry '%2'. Provided length is %3.").arg(size).arg(QString::fromLatin1(key)).arg(result.size()));
+                throw PDFException(PDFTranslationContext::tr("Expected %1 characters long string in entry '%2'. Provided length is %3.").arg(size).arg(QString::fromLatin1(key)).arg(result.size()));
             }
         }
         else
         {
-            throw PDFParserException(PDFTranslationContext::tr("Expected %1 characters long string in entry '%2'.").arg(size).arg(QString::fromLatin1(key)));
+            throw PDFException(PDFTranslationContext::tr("Expected %1 characters long string in entry '%2'.").arg(size).arg(QString::fromLatin1(key)));
         }
 
         return result;
@@ -570,24 +570,24 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                     // 1) Checks, if bytes 9, 10, 11 are 'a', 'd', 'b'
                     if (decodedPerms[9] != 'a' || decodedPerms[10] != 'd' || decodedPerms[11] != 'b')
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Permissions entry in the Encryption dictionary is invalid."));
+                        throw PDFException(PDFTranslationContext::tr("Permissions entry in the Encryption dictionary is invalid."));
                     }
 
                     // 2) Verify, that bytes 0-3 are valid permissions entry
                     const uint32_t permissions = qFromLittleEndian(*reinterpret_cast<const uint32_t*>(decodedPerms.data()));
                     if (permissions != m_permissions)
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
+                        throw PDFException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
                     }
 
                     // 3) Verify, that byte 8 is 'T' or 'F' and is equal to EncryptMetadata entry
                     if (decodedPerms[8] != 'T' && decodedPerms[8] != 'F')
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
+                        throw PDFException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
                     }
                     if ((decodedPerms[8] == 'T') != m_encryptMetadata)
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
+                        throw PDFException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
                     }
 
                     return m_authorizationData.authorizationResult;
@@ -774,7 +774,7 @@ QByteArray PDFStandardSecurityHandler::decryptByFilter(const QByteArray& data, c
     auto it = m_cryptFilters.find(filterName);
     if (it == m_cryptFilters.cend())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
+        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
     }
 
     return decryptUsingFilter(data, it->second, reference);
@@ -812,7 +812,7 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
             const int keyByteLength = m_keyLength / 8;
             if (keyByteLength > MD5_DIGEST_LENGTH)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
+                throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
             }
 
             if (m_R >= 3)
@@ -841,7 +841,7 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
 
         default:
         {
-            throw PDFParserException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(m_R));
+            throw PDFException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(m_R));
         }
     }
 
@@ -904,7 +904,7 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
 
         default:
         {
-            throw PDFParserException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(m_R));
+            throw PDFException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(m_R));
         }
     }
 
@@ -926,7 +926,7 @@ QByteArray PDFStandardSecurityHandler::createUserPasswordFromOwnerPassword(const
     const int keyByteLength = m_keyLength / 8;
     if (keyByteLength > MD5_DIGEST_LENGTH)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
+        throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
     }
 
     if (m_R >= 3)
@@ -977,7 +977,7 @@ QByteArray PDFStandardSecurityHandler::createUserPasswordFromOwnerPassword(const
 
         default:
         {
-            throw PDFParserException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(m_R));
+            throw PDFException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(m_R));
         }
     }
 

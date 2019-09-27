@@ -80,19 +80,19 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
                 // Verify the data
                 if (paintType != PDFTilingPattern::PaintType::Colored && paintType != PDFTilingPattern::PaintType::Uncolored)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - wrong paint type %1.").arg(static_cast<PDFInteger>(paintType)));
+                    throw PDFException(PDFTranslationContext::tr("Invalid tiling pattern - wrong paint type %1.").arg(static_cast<PDFInteger>(paintType)));
                 }
                 if (tilingType != PDFTilingPattern::TilingType::ConstantSpacing && tilingType != PDFTilingPattern::TilingType::NoDistortion && tilingType != PDFTilingPattern::TilingType::ConstantSpacingAndFasterTiling)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - wrong tiling type %1.").arg(static_cast<PDFInteger>(tilingType)));
+                    throw PDFException(PDFTranslationContext::tr("Invalid tiling pattern - wrong tiling type %1.").arg(static_cast<PDFInteger>(tilingType)));
                 }
                 if (!boundingBox.isValid())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - bounding box is invalid.").arg(static_cast<PDFInteger>(paintType)));
+                    throw PDFException(PDFTranslationContext::tr("Invalid tiling pattern - bounding box is invalid.").arg(static_cast<PDFInteger>(paintType)));
                 }
                 if (isZero(xStep) || isZero(yStep))
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid tiling pattern - steps are invalid.").arg(static_cast<PDFInteger>(paintType)));
+                    throw PDFException(PDFTranslationContext::tr("Invalid tiling pattern - steps are invalid.").arg(static_cast<PDFInteger>(paintType)));
                 }
 
                 PDFTilingPattern* pattern = new PDFTilingPattern();
@@ -116,13 +116,13 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
             }
 
             default:
-                throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
+                throw PDFException(PDFTranslationContext::tr("Invalid pattern."));
         }
 
         return PDFPatternPtr();
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
+    throw PDFException(PDFTranslationContext::tr("Invalid pattern."));
     return PDFPatternPtr();
 }
 
@@ -136,7 +136,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
     const PDFObject& dereferencedShadingObject = document->getObject(shadingObject);
     if (!dereferencedShadingObject.isDictionary() && !dereferencedShadingObject.isStream())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid shading."));
+        throw PDFException(PDFTranslationContext::tr("Invalid shading."));
     }
 
     PDFDocumentDataLoaderDecorator loader(document);
@@ -158,7 +158,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 
     if (colorSpace->asPatternColorSpace())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Pattern color space is not valid for shading patterns."));
+        throw PDFException(PDFTranslationContext::tr("Pattern color space is not valid for shading patterns."));
     }
 
     QColor backgroundColor;
@@ -180,7 +180,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
         const PDFArray* array = extendObject.getArray();
         if (array->getCount() != 2)
         {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid shading pattern extends. Expected 2, but %1 provided.").arg(array->getCount()));
+            throw PDFException(PDFTranslationContext::tr("Invalid shading pattern extends. Expected 2, but %1 provided.").arg(array->getCount()));
         }
 
         extendStart = loader.readBoolean(array->getItem(0), false);
@@ -213,11 +213,11 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             std::vector<PDFReal> functionDomain = loader.readNumberArrayFromDictionary(shadingDictionary, "Domain", { 0.0, 1.0, 0.0, 1.0 });
             if (functionDomain.size() != 4)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid function shading pattern domain. Expected 4 values, but %1 provided.").arg(functionDomain.size()));
+                throw PDFException(PDFTranslationContext::tr("Invalid function shading pattern domain. Expected 4 values, but %1 provided.").arg(functionDomain.size()));
             }
             if (functionDomain[1] < functionDomain[0] || functionDomain[3] < functionDomain[2])
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid function shading pattern domain. Invalid domain ranges."));
+                throw PDFException(PDFTranslationContext::tr("Invalid function shading pattern domain. Invalid domain ranges."));
             }
 
             QMatrix domainToTargetTransform = loader.readMatrixFromDictionary(shadingDictionary, "Matrix", QMatrix());
@@ -225,7 +225,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             size_t colorComponentCount = colorSpace->getColorComponentCount();
             if (functions.size() > 1 && colorComponentCount != functions.size())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
+                throw PDFException(PDFTranslationContext::tr("Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
             }
 
             // Load items for function shading
@@ -250,7 +250,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             std::vector<PDFReal> coordinates = loader.readNumberArrayFromDictionary(shadingDictionary, "Coords");
             if (coordinates.size() != 4)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid axial shading pattern coordinates. Expected 4, but %1 provided.").arg(coordinates.size()));
+                throw PDFException(PDFTranslationContext::tr("Invalid axial shading pattern coordinates. Expected 4, but %1 provided.").arg(coordinates.size()));
             }
 
             std::vector<PDFReal> domain = loader.readNumberArrayFromDictionary(shadingDictionary, "Domain");
@@ -260,13 +260,13 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             }
             if (domain.size() != 2)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid axial shading pattern domain. Expected 2, but %1 provided.").arg(domain.size()));
+                throw PDFException(PDFTranslationContext::tr("Invalid axial shading pattern domain. Expected 2, but %1 provided.").arg(domain.size()));
             }
 
             size_t colorComponentCount = colorSpace->getColorComponentCount();
             if (functions.size() > 1 && colorComponentCount != functions.size())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
+                throw PDFException(PDFTranslationContext::tr("Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
             }
 
             // Load items for axial shading
@@ -295,7 +295,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             std::vector<PDFReal> coordinates = loader.readNumberArrayFromDictionary(shadingDictionary, "Coords");
             if (coordinates.size() != 6)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid radial shading pattern coordinates. Expected 6, but %1 provided.").arg(coordinates.size()));
+                throw PDFException(PDFTranslationContext::tr("Invalid radial shading pattern coordinates. Expected 6, but %1 provided.").arg(coordinates.size()));
             }
 
             std::vector<PDFReal> domain = loader.readNumberArrayFromDictionary(shadingDictionary, "Domain");
@@ -305,18 +305,18 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             }
             if (domain.size() != 2)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid radial shading pattern domain. Expected 2, but %1 provided.").arg(domain.size()));
+                throw PDFException(PDFTranslationContext::tr("Invalid radial shading pattern domain. Expected 2, but %1 provided.").arg(domain.size()));
             }
 
             size_t colorComponentCount = colorSpace->getColorComponentCount();
             if (functions.size() > 1 && colorComponentCount != functions.size())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid radial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
+                throw PDFException(PDFTranslationContext::tr("Invalid radial shading pattern color functions. Expected %1 functions, but %2 provided.").arg(int(colorComponentCount)).arg(int(functions.size())));
             }
 
             if (coordinates[2] < 0.0 || coordinates[5] < 0.0)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Radial shading cannot have negative circle radius."));
+                throw PDFException(PDFTranslationContext::tr("Radial shading cannot have negative circle radius."));
             }
 
             // Load items for axial shading
@@ -386,12 +386,12 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             PDFInteger bitsPerCoordinate = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerCoordinate", -1);
             if (!contains(bitsPerCoordinate, std::initializer_list<PDFInteger>{ 1, 2, 4, 8, 12, 16, 24, 32 }))
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per coordinate (%1) for shading.").arg(bitsPerCoordinate));
+                throw PDFException(PDFTranslationContext::tr("Invalid bits per coordinate (%1) for shading.").arg(bitsPerCoordinate));
             }
             PDFInteger bitsPerComponent = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerComponent", -1);
             if (!contains(bitsPerComponent, std::initializer_list<PDFInteger>{ 1, 2, 4, 8, 12, 16 }))
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid bits per component (%1) for shading.").arg(bitsPerComponent));
+                throw PDFException(PDFTranslationContext::tr("Invalid bits per component (%1) for shading.").arg(bitsPerComponent));
             }
 
             std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(shadingDictionary, "Decode");
@@ -399,7 +399,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             {
                 if (decode.size() != 6)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain for shading. Expected size is 6, actual size is %1.").arg(decode.size()));
+                    throw PDFException(PDFTranslationContext::tr("Invalid domain for shading. Expected size is 6, actual size is %1.").arg(decode.size()));
                 }
             }
             else
@@ -407,7 +407,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                 const size_t expectedSize = colorSpace->getColorComponentCount() * 2 + 4;
                 if (decode.size() != expectedSize)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid domain for shading. Expected size is %1, actual size is %2.").arg(expectedSize).arg(decode.size()));
+                    throw PDFException(PDFTranslationContext::tr("Invalid domain for shading. Expected size is %1, actual size is %2.").arg(expectedSize).arg(decode.size()));
                 }
             }
 
@@ -436,7 +436,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                     PDFInteger bitsPerFlag = loader.readIntegerFromDictionary(shadingDictionary, "BitsPerFlag", -1);
                     if (!contains(bitsPerFlag, std::initializer_list<PDFInteger>{ 2, 4, 8 }))
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Invalid bits per flag (%1) for shading.").arg(bitsPerFlag));
+                        throw PDFException(PDFTranslationContext::tr("Invalid bits per flag (%1) for shading.").arg(bitsPerFlag));
                     }
                     type4567Shading->m_bitsPerFlag = bitsPerFlag;
                     break;
@@ -447,7 +447,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                     latticeFormGouradTriangleShading->m_verticesPerRow = loader.readIntegerFromDictionary(shadingDictionary, "VerticesPerRow", -1);
                     if (latticeFormGouradTriangleShading->m_verticesPerRow < 2)
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Invalid vertices per row (%1) for lattice-form gourad triangle meshing.").arg(latticeFormGouradTriangleShading->m_verticesPerRow));
+                        throw PDFException(PDFTranslationContext::tr("Invalid vertices per row (%1) for lattice-form gourad triangle meshing.").arg(latticeFormGouradTriangleShading->m_verticesPerRow));
                     }
                     break;
                 }
@@ -461,11 +461,11 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 
         default:
         {
-            throw PDFParserException(PDFTranslationContext::tr("Invalid shading pattern type (%1).").arg(static_cast<PDFInteger>(shadingType)));
+            throw PDFException(PDFTranslationContext::tr("Invalid shading pattern type (%1).").arg(static_cast<PDFInteger>(shadingType)));
         }
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Invalid shading."));
+    throw PDFException(PDFTranslationContext::tr("Invalid shading."));
     return PDFPatternPtr();
 }
 
@@ -2018,7 +2018,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
             {
                 if (patches.empty())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
+                    throw PDFException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
                 }
 
                 const PDFTensorPatch& previousPatch = patches.back();
@@ -2061,7 +2061,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
             {
                 if (patches.empty())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
+                    throw PDFException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
                 }
 
                 const PDFTensorPatch& previousPatch = patches.back();
@@ -2104,7 +2104,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
             {
                 if (patches.empty())
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
+                    throw PDFException(PDFTranslationContext::tr("Nonzero flag for first patch (flags = %1).").arg(flags));
                 }
 
                 const PDFTensorPatch& previousPatch = patches.back();
@@ -2144,7 +2144,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
             }
 
             default:
-                throw PDFParserException(PDFTranslationContext::tr("Invalid data in tensor product patch shading (flags = %1).").arg(flags));
+                throw PDFException(PDFTranslationContext::tr("Invalid data in tensor product patch shading (flags = %1).").arg(flags));
         }
     }
 
@@ -2602,7 +2602,7 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings)
             }
 
             default:
-                throw PDFParserException(PDFTranslationContext::tr("Invalid data in coons patch shading (flags = %1).").arg(flags));
+                throw PDFException(PDFTranslationContext::tr("Invalid data in coons patch shading (flags = %1).").arg(flags));
         }
     }
 
@@ -2610,8 +2610,6 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings)
     return mesh;
 }
 
-// TODO: Apply graphic state of the pattern
 // TODO: Implement settings of meshing in the settings dialog
-// TODO: Zmenit PDFParserException na PDFException
 
 }   // namespace pdf

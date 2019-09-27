@@ -263,7 +263,7 @@ QByteArray PDFLzwStreamDecoder::decompress()
         else
         {
             // Unknown code
-            throw PDFParserException(PDFTranslationContext::tr("Invalid code in the LZW stream."));
+            throw PDFException(PDFTranslationContext::tr("Invalid code in the LZW stream."));
         }
         m_newCharacter = m_sequence.front();
 
@@ -415,7 +415,7 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
     int error = inflateInit(&stream);
     if (error != Z_OK)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Failed to initialize flate decompression stream."));
+        throw PDFException(PDFTranslationContext::tr("Failed to initialize flate decompression stream."));
     }
 
     do
@@ -443,7 +443,7 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
             break; // No error, normal behaviour
 
         default:
-            throw PDFParserException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+            throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
     }
 
     return result;
@@ -643,7 +643,7 @@ PDFStreamPredictor PDFStreamPredictor::createPredictor(const PDFObjectFetcher& o
                 PDFInteger value = object.getInteger();
                 if (value < min || value > max)
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Property '%1' should be in range from %2 to %3.").arg(QString::fromLatin1(key)).arg(min).arg(max));
+                    throw PDFException(PDFTranslationContext::tr("Property '%1' should be in range from %2 to %3.").arg(QString::fromLatin1(key)).arg(min).arg(max));
                 }
 
                 return value;
@@ -653,7 +653,7 @@ PDFStreamPredictor PDFStreamPredictor::createPredictor(const PDFObjectFetcher& o
                 return defaultValue;
             }
 
-            throw PDFParserException(PDFTranslationContext::tr("Invalid property '%1' of the stream predictor parameters.").arg(QString::fromLatin1(key)));
+            throw PDFException(PDFTranslationContext::tr("Invalid property '%1' of the stream predictor parameters.").arg(QString::fromLatin1(key)));
             return 0;
         };
 
@@ -688,7 +688,7 @@ QByteArray PDFStreamPredictor::apply(const QByteArray& data) const
         }
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Invalid predictor algorithm."));
+    throw PDFException(PDFTranslationContext::tr("Invalid predictor algorithm."));
     return QByteArray();
 }
 
@@ -801,7 +801,7 @@ QByteArray PDFStreamPredictor::applyTIFFPredictor(const QByteArray& data) const
     Q_UNUSED(data);
 
     // TODO: Implement TIFF algorithm filter
-    throw PDFParserException(PDFTranslationContext::tr("Invalid predictor algorithm."));
+    throw PDFException(PDFTranslationContext::tr("Invalid predictor algorithm."));
     return QByteArray();
 }
 
@@ -812,7 +812,7 @@ QByteArray PDFCryptFilter::apply(const QByteArray& data,
 {
     if (!securityHandler)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Security handler required, but not provided."));
+        throw PDFException(PDFTranslationContext::tr("Security handler required, but not provided."));
     }
 
     PDFObjectReference objectReference;

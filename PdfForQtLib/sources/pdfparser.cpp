@@ -627,7 +627,7 @@ constexpr bool PDFLexicalAnalyzer::isHexCharacter(const char character)
 void PDFLexicalAnalyzer::error(const QString& message) const
 {
     std::size_t distance = std::distance(m_begin, m_current);
-    throw PDFParserException(tr("Error near position %1. %2").arg(distance).arg(message));
+    throw PDFException(tr("Error near position %1. %2").arg(distance).arg(message));
 }
 
 PDFObject PDFParsingContext::getObject(const PDFObject& object)
@@ -645,7 +645,7 @@ void PDFParsingContext::beginParsingObject(PDFObjectReference reference)
 {
     if (m_activeParsedObjectSet.search(reference))
     {
-        throw PDFParserException(tr("Cyclical reference found while parsing object %1 %2.").arg(reference.objectNumber).arg(reference.generation));
+        throw PDFException(tr("Cyclical reference found while parsing object %1 %2.").arg(reference.objectNumber).arg(reference.generation));
     }
     else
     {
@@ -927,7 +927,7 @@ PDFObject PDFParser::getObject(PDFObjectReference reference)
 
 void PDFParser::error(const QString& message) const
 {
-    throw PDFParserException(message);
+    throw PDFException(message);
 }
 
 void PDFParser::seek(PDFInteger offset)

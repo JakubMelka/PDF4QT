@@ -198,6 +198,8 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_patternDictionary(nullptr),
     m_textBeginEndState(0),
     m_compatibilityBeginEndState(0),
+    m_drawingUncoloredTilingPatternState(0),
+    m_isWarningColorOperatorsInUncoloredTilingPatternReported(false),
     m_patternBaseMatrix(pagePointToDevicePointMatrix),
     m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)
 {
@@ -230,7 +232,7 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
         m_deviceRGBColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_RGB);
         m_deviceCMYKColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_CMYK);
     }
-    catch (PDFParserException exception)
+    catch (PDFException exception)
     {
         m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
 
@@ -405,7 +407,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                         if (operatorIDPosition == -1 || operatorEIPosition == -1)
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Invalid inline image dictionary, ID operator is missing."));
+                            throw PDFException(PDFTranslationContext::tr("Invalid inline image dictionary, ID operator is missing."));
                         }
 
                         Q_ASSERT(operatorBIPosition < content.size());
@@ -438,7 +440,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                             if (!nameObject.isName())
                             {
-                                throw PDFParserException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
+                                throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
                             }
 
                             // Replace the name, if neccessary
@@ -476,7 +478,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                             if (width <= 0 || height <= 0 || bpc <= 0)
                             {
-                                throw PDFParserException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
+                                throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
                             }
 
                             const PDFInteger stride = (width * bpc + 7) / 8;
@@ -487,7 +489,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                         operatorEIPosition = parser.findSubstring("EI", startDataPosition + dataLength);
                         if (operatorEIPosition == -1)
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Invalid inline image stream."));
+                            throw PDFException(PDFTranslationContext::tr("Invalid inline image stream."));
                         }
 
                         // We must seek after EI operator. Then we will paint the image. Because painting of image can throw exception,
@@ -522,7 +524,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                 }
             }
         }
-        catch (PDFParserException exception)
+        catch (PDFException exception)
         {
             m_operands.clear();
             m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
@@ -543,7 +545,7 @@ void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
 
         processContent(content);
     }
-    catch (PDFParserException exception)
+    catch (PDFException exception)
     {
         m_operands.clear();
         m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
@@ -608,7 +610,22 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                 case PatternType::Shading:
                 {
+                    PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
                     const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
+
+                    // Apply pattern graphic state
+                    const PDFObject& patternGraphicState = m_document->getObject(shadingPattern->getPatternGraphicState());
+                    if (!patternGraphicState.isNull())
+                    {
+                        if (patternGraphicState.isDictionary())
+                        {
+                            processApplyGraphicState(patternGraphicState.getDictionary());
+                        }
+                        else
+                        {
+                            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading pattern graphic state is invalid."));
+                        }
+                    }
 
                     // We must create a mesh and then draw pattern
                     PDFMeshQualitySettings settings;
@@ -636,7 +653,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                 case PatternType::Invalid:
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
+                    throw PDFException(PDFTranslationContext::tr("Invalid pattern."));
                     break;
                 }
 
@@ -682,7 +699,22 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                 case PatternType::Shading:
                 {
-                    const PDFShadingPattern* shadingPatern = pattern->getShadingPattern();
+                    PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
+                    const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
+
+                    // Apply pattern graphic state
+                    const PDFObject& patternGraphicState = m_document->getObject(shadingPattern->getPatternGraphicState());
+                    if (!patternGraphicState.isNull())
+                    {
+                        if (patternGraphicState.isDictionary())
+                        {
+                            processApplyGraphicState(patternGraphicState.getDictionary());
+                        }
+                        else
+                        {
+                            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading pattern graphic state is invalid."));
+                        }
+                    }
 
                     // We must create a mesh and then draw pattern
                     PDFMeshQualitySettings settings;
@@ -690,7 +722,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
                     settings.initDefaultResolution();
 
-                    PDFMesh mesh = shadingPatern->createMesh(settings);
+                    PDFMesh mesh = shadingPattern->createMesh(settings);
 
                     // We must stroke the path.
                     QPainterPathStroker stroker;
@@ -724,7 +756,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                 case PatternType::Invalid:
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid pattern."));
+                    throw PDFException(PDFTranslationContext::tr("Invalid pattern."));
                     break;
                 }
 
@@ -768,6 +800,8 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     QMatrix pathTransformationMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix.inverted();
     m_graphicState.setCurrentTransformationMatrix(matrix);
 
+    int uncoloredTilingPatternFlag = 0;
+
     // Initialize colors for uncolored color space pattern
     if (tilingPattern->getPaintingType() == PDFTilingPattern::PaintType::Uncolored)
     {
@@ -775,6 +809,8 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
         {
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Uncolored tiling pattern has not underlying color space."));
         }
+
+        uncoloredTilingPatternFlag = 1;
 
         m_graphicState.setStrokeColorSpace(uncoloredPatternColorSpace);
         m_graphicState.setFillColorSpace(uncoloredPatternColorSpace);
@@ -795,6 +831,9 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     }
 
     updateGraphicState();
+
+    // Mark uncolored flag, if we drawing uncolored color pattern
+    PDFTemporaryValueChange guard2(&m_drawingUncoloredTilingPatternState, m_drawingUncoloredTilingPatternState + uncoloredTilingPatternFlag);
 
     // Tiling parameters
     const QRectF tilingArea = pathTransformationMatrix.map(path).boundingRect();
@@ -1523,6 +1562,62 @@ void PDFPageContentProcessor::operatorSetFlatness(PDFReal flatness)
     updateGraphicState();
 }
 
+void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* graphicStateDictionary)
+{
+    PDFDocumentDataLoaderDecorator loader(m_document);
+    const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
+    const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
+    const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
+    const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "MT", m_graphicState.getMitterLimit());
+
+    const PDFObject& lineDashPatternObject = m_document->getObject(graphicStateDictionary->get("D"));
+    if (lineDashPatternObject.isArray())
+    {
+        const PDFArray* lineDashPatternDefinitionArray = lineDashPatternObject.getArray();
+        if (lineDashPatternDefinitionArray->getCount() == 2)
+        {
+            PDFLineDashPattern pattern(loader.readNumberArray(lineDashPatternDefinitionArray->getItem(0)), loader.readNumber(lineDashPatternDefinitionArray->getItem(1), 0.0));
+            m_graphicState.setLineDashPattern(pattern);
+        }
+    }
+
+    const PDFObject& renderingIntentObject = m_document->getObject(graphicStateDictionary->get("RI"));
+    if (renderingIntentObject.isName())
+    {
+        m_graphicState.setRenderingIntent(renderingIntentObject.getString());
+    }
+
+    const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
+    const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
+    const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
+
+    // TODO: Implement alpha constant
+    const PDFReal strokingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "CA", 1.0);
+    const PDFReal fillingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "ca", 1.0);
+    QByteArray blendMode = loader.readNameFromDictionary(graphicStateDictionary, "BM");
+    if (strokingAlpha != 1.0)
+    {
+        m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for stroking not implemented!").arg(strokingAlpha)));
+    }
+    if (fillingAlpha != 1.0)
+    {
+        m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for filling not implemented!").arg(fillingAlpha)));
+    }
+    if (!blendMode.isEmpty() && blendMode != "Normal")
+    {
+        m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' not implemented!").arg(QString::fromLatin1(blendMode))));
+    }
+
+    m_graphicState.setLineWidth(lineWidth);
+    m_graphicState.setLineCapStyle(penCapStyle);
+    m_graphicState.setLineJoinStyle(penJoinStyle);
+    m_graphicState.setMitterLimit(mitterLimit);
+    m_graphicState.setFlatness(flatness);
+    m_graphicState.setSmoothness(smoothness);
+    m_graphicState.setTextKnockout(textKnockout);
+    updateGraphicState();
+}
+
 void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryName)
 {
     if (m_extendedGraphicStateDictionary)
@@ -1533,59 +1628,7 @@ void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryN
             if (graphicStateObject.isDictionary())
             {
                 const PDFDictionary* graphicStateDictionary = graphicStateObject.getDictionary();
-
-                PDFDocumentDataLoaderDecorator loader(m_document);
-                const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
-                const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
-                const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
-                const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "MT", m_graphicState.getMitterLimit());
-
-                const PDFObject& lineDashPatternObject = m_document->getObject(graphicStateDictionary->get("D"));
-                if (lineDashPatternObject.isArray())
-                {
-                    const PDFArray* lineDashPatternDefinitionArray = lineDashPatternObject.getArray();
-                    if (lineDashPatternDefinitionArray->getCount() == 2)
-                    {
-                        PDFLineDashPattern pattern(loader.readNumberArray(lineDashPatternDefinitionArray->getItem(0)), loader.readNumber(lineDashPatternDefinitionArray->getItem(1), 0.0));
-                        m_graphicState.setLineDashPattern(pattern);
-                    }
-                }
-
-                const PDFObject& renderingIntentObject = m_document->getObject(graphicStateDictionary->get("RI"));
-                if (renderingIntentObject.isName())
-                {
-                    m_graphicState.setRenderingIntent(renderingIntentObject.getString());
-                }
-
-                const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
-                const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
-                const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
-
-                // TODO: Implement alpha constant
-                const PDFReal strokingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "CA", 1.0);
-                const PDFReal fillingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "ca", 1.0);
-                QByteArray blendMode = loader.readNameFromDictionary(graphicStateDictionary, "BM");
-                if (strokingAlpha != 1.0)
-                {
-                    m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for stroking not implemented!").arg(strokingAlpha)));
-                }
-                if (fillingAlpha != 1.0)
-                {
-                    m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for filling not implemented!").arg(fillingAlpha)));
-                }
-                if (!blendMode.isEmpty() && blendMode != "Normal")
-                {
-                    m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' not implemented!").arg(QString::fromLatin1(blendMode))));
-                }
-
-                m_graphicState.setLineWidth(lineWidth);
-                m_graphicState.setLineCapStyle(penCapStyle);
-                m_graphicState.setLineJoinStyle(penJoinStyle);
-                m_graphicState.setMitterLimit(mitterLimit);
-                m_graphicState.setFlatness(flatness);
-                m_graphicState.setSmoothness(smoothness);
-                m_graphicState.setTextKnockout(textKnockout);
-                updateGraphicState();
+                processApplyGraphicState(graphicStateDictionary);
             }
             else
             {
@@ -1919,6 +1962,12 @@ void PDFPageContentProcessor::operatorType3FontSetOffsetAndBB(PDFReal wx, PDFRea
 
 void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentProcessor::PDFOperandName name)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
     if (colorSpace)
     {
@@ -1936,6 +1985,12 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
 
 void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName name)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
     if (colorSpace)
     {
@@ -1953,6 +2008,12 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
 
 void PDFPageContentProcessor::operatorColorSetStrokingColor()
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     const PDFAbstractColorSpace* colorSpace = m_graphicState.getStrokeColorSpace();
     const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
     const size_t operandCount = m_operands.size();
@@ -1976,6 +2037,12 @@ void PDFPageContentProcessor::operatorColorSetStrokingColor()
 
 void PDFPageContentProcessor::operatorColorSetStrokingColorN()
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     // In our implementation, operator 'SC' can also set color using all color spaces
     // PDF reference 1.7 allows here Pattern, Separation, DeviceN and ICCBased color spaces here,
     // but default operator can use them (with exception of Pattern color space). For pattern color space,
@@ -2019,6 +2086,12 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorN()
 
 void PDFPageContentProcessor::operatorColorSetFillingColor()
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     const PDFAbstractColorSpace* colorSpace = m_graphicState.getFillColorSpace();
     const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
     const size_t operandCount = m_operands.size();
@@ -2042,6 +2115,12 @@ void PDFPageContentProcessor::operatorColorSetFillingColor()
 
 void PDFPageContentProcessor::operatorColorSetFillingColorN()
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     // In our implementation, operator 'sc' can also set color using all color spaces
     // PDF reference 1.7 allows here Pattern, Separation, DeviceN and ICCBased color spaces here,
     // but default operator can use them (with exception of Pattern color space). For pattern color space,
@@ -2085,6 +2164,12 @@ void PDFPageContentProcessor::operatorColorSetFillingColorN()
 
 void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
     m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), gray));
     updateGraphicState();
@@ -2093,6 +2178,12 @@ void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)
 
 void PDFPageContentProcessor::operatorColorSetDeviceGrayFilling(PDFReal gray)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
     m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), gray));
     updateGraphicState();
@@ -2101,6 +2192,12 @@ void PDFPageContentProcessor::operatorColorSetDeviceGrayFilling(PDFReal gray)
 
 void PDFPageContentProcessor::operatorColorSetDeviceRGBStroking(PDFReal r, PDFReal g, PDFReal b)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     m_graphicState.setStrokeColorSpace(m_deviceRGBColorSpace);
     m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), r, g, b));
     updateGraphicState();
@@ -2109,6 +2206,12 @@ void PDFPageContentProcessor::operatorColorSetDeviceRGBStroking(PDFReal r, PDFRe
 
 void PDFPageContentProcessor::operatorColorSetDeviceRGBFilling(PDFReal r, PDFReal g, PDFReal b)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     m_graphicState.setFillColorSpace(m_deviceRGBColorSpace);
     m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), r, g, b));
     updateGraphicState();
@@ -2117,6 +2220,12 @@ void PDFPageContentProcessor::operatorColorSetDeviceRGBFilling(PDFReal r, PDFRea
 
 void PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking(PDFReal c, PDFReal m, PDFReal y, PDFReal k)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     m_graphicState.setStrokeColorSpace(m_deviceCMYKColorSpace);
     m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), c, m, y, k));
     updateGraphicState();
@@ -2125,6 +2234,12 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking(PDFReal c, PDFR
 
 void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFReal m, PDFReal y, PDFReal k)
 {
+    if (m_drawingUncoloredTilingPatternState)
+    {
+        reportWarningAboutColorOperatorsInUTP();
+        return;
+    }
+
     m_graphicState.setFillColorSpace(m_deviceCMYKColorSpace);
     m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), c, m, y, k));
     updateGraphicState();
@@ -2201,7 +2316,7 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
                 m_graphicState.setTextFontSize(fontSize);
                 updateGraphicState();
             }
-            catch (PDFParserException)
+            catch (PDFException)
             {
                 m_graphicState.setTextFont(nullptr);
                 m_graphicState.setTextFontSize(fontSize);
@@ -2455,6 +2570,15 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
     else
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+    }
+}
+
+void PDFPageContentProcessor::reportWarningAboutColorOperatorsInUTP()
+{
+    if (!m_isWarningColorOperatorsInUncoloredTilingPatternReported)
+    {
+        m_isWarningColorOperatorsInUncoloredTilingPatternReported = true;
+        m_errorList.push_back(PDFRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Color operators are not allowed in uncolored tilling pattern.")));
     }
 }
 
@@ -2808,7 +2932,7 @@ bool PDFPageContentProcessor::isContentSuppressedByOC(PDFObjectReference ocgOrOc
     {
         ocmd = PDFOptionalContentMembershipObject::create(m_document, PDFObject::createReference(ocgOrOcmd));
     }
-    catch (PDFParserException e)
+    catch (PDFException e)
     {
         m_errorList.push_back(PDFRenderError(RenderErrorType::Error, e.getMessage()));
     }

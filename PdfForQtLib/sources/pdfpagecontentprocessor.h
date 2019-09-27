@@ -475,6 +475,10 @@ private:
                                        PDFColorSpacePointer uncoloredPatternColorSpace,
                                        PDFColor uncoloredPatternColor);
 
+    /// Applies graphic state dictionary
+    /// \param graphicStateDictionary Dictionary to be applied to the current graphic state
+    void processApplyGraphicState(const PDFDictionary* graphicStateDictionary);
+
     enum class MarkedContentKind
     {
         OptionalContent,
@@ -743,6 +747,9 @@ private:
     /// Implementation of painting of XObject image
     void paintXObjectImage(const PDFStream* stream);
 
+    /// Report warning about color operators in uncolored tiling pattern
+    void reportWarningAboutColorOperatorsInUTP();
+
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
@@ -783,6 +790,12 @@ private:
 
     /// Compatibility level (if positive, then unrecognized operators are ignored)
     int m_compatibilityBeginEndState;
+
+    /// Is drawing uncolored tiling pattern?
+    int m_drawingUncoloredTilingPatternState;
+
+    /// Is warning about uncolored tiling patterns reported?
+    bool m_isWarningColorOperatorsInUncoloredTilingPatternReported;
 
     /// Actually realized physical font
     PDFCachedItem<PDFRealizedFontPointer> m_realizedFont;

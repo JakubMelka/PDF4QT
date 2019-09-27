@@ -69,7 +69,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
     if (!dictionary)
     {
-        throw PDFParserException(PDFParsingContext::tr("Function dictionary expected."));
+        throw PDFException(PDFParsingContext::tr("Function dictionary expected."));
     }
 
     PDFDocumentDataLoaderDecorator loader(document);
@@ -80,12 +80,12 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
     // Domain is required for all function
     if (domain.empty())
     {
-        throw PDFParserException(PDFParsingContext::tr("Fuction has invalid domain."));
+        throw PDFException(PDFParsingContext::tr("Fuction has invalid domain."));
     }
 
     if ((functionType == 0 || functionType == 4) && range.empty())
     {
-        throw PDFParserException(PDFParsingContext::tr("Fuction has invalid range."));
+        throw PDFException(PDFParsingContext::tr("Fuction has invalid range."));
     }
 
     switch (functionType)
@@ -100,12 +100,12 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
             if (size.empty() || !std::all_of(size.cbegin(), size.cend(), [](PDFInteger size) { return size >= 1; }))
             {
-                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid sample size."));
+                throw PDFException(PDFParsingContext::tr("Sampled function has invalid sample size."));
             }
 
             if (bitsPerSample < 1 || bitsPerSample > 32)
             {
-                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid count of bits per sample."));
+                throw PDFException(PDFParsingContext::tr("Sampled function has invalid count of bits per sample."));
             }
 
             if (encode.empty())
@@ -129,17 +129,17 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
             if (n == 0)
             {
-                throw PDFParserException(PDFParsingContext::tr("Sampled function hasn't any output."));
+                throw PDFException(PDFParsingContext::tr("Sampled function hasn't any output."));
             }
 
             if (domain.size() != encode.size())
             {
-                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid encode array."));
+                throw PDFException(PDFParsingContext::tr("Sampled function has invalid encode array."));
             }
 
             if (range.size() != decode.size())
             {
-                throw PDFParserException(PDFParsingContext::tr("Sampled function has invalid decode array."));
+                throw PDFException(PDFParsingContext::tr("Sampled function has invalid decode array."));
             }
 
             const uint64_t sampleMaxValueInteger = (static_cast<uint64_t>(1) << static_cast<uint64_t>(bitsPerSample)) - 1;
@@ -169,7 +169,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
                     }
                     else
                     {
-                        throw PDFParserException(PDFParsingContext::tr("Not enough samples for sampled function."));
+                        throw PDFException(PDFParsingContext::tr("Not enough samples for sampled function."));
                     }
                 }
 
@@ -193,17 +193,17 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
             if (domain.size() != 2)
             {
-                throw PDFParserException(PDFParsingContext::tr("Exponential function can have only one input value."));
+                throw PDFException(PDFParsingContext::tr("Exponential function can have only one input value."));
             }
 
             if (exponent < 0.0 && domain[0] <= 0.0)
             {
-                throw PDFParserException(PDFParsingContext::tr("Invalid domain of exponential function."));
+                throw PDFException(PDFParsingContext::tr("Invalid domain of exponential function."));
             }
 
             if (!qFuzzyIsNull(std::fmod(exponent, 1.0)) && domain[0] < 0.0)
             {
-                throw PDFParserException(PDFParsingContext::tr("Invalid domain of exponential function."));
+                throw PDFException(PDFParsingContext::tr("Invalid domain of exponential function."));
             }
 
             constexpr uint32_t m = 1;
@@ -223,11 +223,11 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
             if (c0.size() != n)
             {
-                throw PDFParserException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 0.0)."));
+                throw PDFException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 0.0)."));
             }
             if (c1.size() != n)
             {
-                throw PDFParserException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 1.0)."));
+                throw PDFException(PDFParsingContext::tr("Invalid parameter of exponential function (at x = 1.0)."));
             }
 
             return std::make_shared<PDFExponentialFunction>(m, n, std::move(domain), std::move(range), std::move(c0), std::move(c1), exponent);
@@ -240,7 +240,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
             if (domain.size() != 2)
             {
-                throw PDFParserException(PDFParsingContext::tr("Stitching function can have only one input value."));
+                throw PDFException(PDFParsingContext::tr("Stitching function can have only one input value."));
             }
 
             if (dictionary->hasKey("Functions"))
@@ -251,7 +251,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
                     const PDFArray* array = functions.getArray();
                     if (array->getCount() != bounds.size() + 1)
                     {
-                        throw PDFParserException(PDFParsingContext::tr("Stitching function has different function count. Expected %1, actual %2.").arg(array->getCount()).arg(bounds.size() + 1));
+                        throw PDFException(PDFParsingContext::tr("Stitching function has different function count. Expected %1, actual %2.").arg(array->getCount()).arg(bounds.size() + 1));
                     }
 
                     std::vector<PDFStitchingFunction::PartialFunction> partialFunctions;
@@ -259,7 +259,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
                     if (encode.size() != partialFunctions.size() * 2)
                     {
-                        throw PDFParserException(PDFParsingContext::tr("Stitching function has invalid encode array. Expected %1 items, actual %2.").arg(partialFunctions.size() * 2).arg(encode.size()));
+                        throw PDFException(PDFParsingContext::tr("Stitching function has invalid encode array. Expected %1 items, actual %2.").arg(partialFunctions.size() * 2).arg(encode.size()));
                     }
 
                     std::vector<PDFReal> boundsAdjusted;
@@ -288,7 +288,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
                         }
                         else if (n != nLocal)
                         {
-                            throw PDFParserException(PDFParsingContext::tr("Functions in stitching function has different number of output variables."));
+                            throw PDFException(PDFParsingContext::tr("Functions in stitching function has different number of output variables."));
                         }
                     }
 
@@ -296,12 +296,12 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
                 }
                 else
                 {
-                    throw PDFParserException(PDFParsingContext::tr("Stitching function has invalid functions."));
+                    throw PDFException(PDFParsingContext::tr("Stitching function has invalid functions."));
                 }
             }
             else
             {
-                throw PDFParserException(PDFParsingContext::tr("Stitching function hasn't functions array."));
+                throw PDFException(PDFParsingContext::tr("Stitching function hasn't functions array."));
             }
         }
         case 4:
@@ -314,7 +314,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
             if (program.empty())
             {
-                throw PDFParserException(PDFParsingContext::tr("Empty program in PostScript function."));
+                throw PDFException(PDFParsingContext::tr("Empty program in PostScript function."));
             }
 
             return std::make_shared<PDFPostScriptFunction>(m, n, std::move(domain), std::move(range), std::move(program));
@@ -322,7 +322,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
 
         default:
         {
-            throw PDFParserException(PDFParsingContext::tr("Invalid function type: %1.").arg(functionType));
+            throw PDFException(PDFParsingContext::tr("Invalid function type: %1.").arg(functionType));
         }
     }
 
@@ -1638,7 +1638,7 @@ PDFPostScriptFunction::Code PDFPostScriptFunction::getCode(const QByteArray& byt
         }
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Invalid operator (PostScript function) '%1'.").arg(QString::fromLatin1(byteArray)));
+    throw PDFException(PDFTranslationContext::tr("Invalid operator (PostScript function) '%1'.").arg(QString::fromLatin1(byteArray)));
 }
 
 PDFPostScriptFunction::PDFPostScriptFunction(uint32_t m, uint32_t n, std::vector<PDFReal>&& domain, std::vector<PDFReal>&& range, PDFPostScriptFunction::Program&& program) :
@@ -1707,7 +1707,7 @@ PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteAr
                     // Closing bracket - means end of block
                     if (blockCallStack.empty())
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Invalid program - bad enclosing brackets (PostScript function)."));
+                        throw PDFException(PDFTranslationContext::tr("Invalid program - bad enclosing brackets (PostScript function)."));
                     }
 
                     result[blockCallStack.top()].next = result.size() + 1;
@@ -1725,14 +1725,14 @@ PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteAr
             default:
             {
                 // All other tokens treat as invalid.
-                throw PDFParserException(PDFTranslationContext::tr("Invalid program (PostScript function)."));
+                throw PDFException(PDFTranslationContext::tr("Invalid program (PostScript function)."));
             }
         }
     }
 
     if (result.empty())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Empty program (PostScript function)."));
+        throw PDFException(PDFTranslationContext::tr("Empty program (PostScript function)."));
     }
 
     // We must insert execute instructions, where blocks without if/ifelse occurs.

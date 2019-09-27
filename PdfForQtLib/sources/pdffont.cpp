@@ -605,7 +605,7 @@ void PDFRealizedFontImpl::checkFreeTypeError(FT_Error error)
             message = QString::fromLatin1(errorString);
         }
 
-        throw PDFParserException(PDFTranslationContext::tr("FreeType error code %1: %2").arg(error).arg(message));
+        throw PDFException(PDFTranslationContext::tr("FreeType error code %1: %2").arg(error).arg(message));
     }
 }
 
@@ -673,7 +673,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
 
             if (impl->m_systemFontData.isEmpty())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Can't load system font '%1'.").arg(QString::fromLatin1(descriptor->fontName)));
+                throw PDFException(PDFTranslationContext::tr("Can't load system font '%1'.").arg(QString::fromLatin1(descriptor->fontName)));
             }
 
             PDFRealizedFontImpl::checkFreeTypeError(FT_Init_FreeType(&impl->m_library));
@@ -751,7 +751,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     const PDFObject& dereferencedFontDictionary = document->getObject(object);
     if (!dereferencedFontDictionary.isDictionary())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Font object must be a dictionary."));
+        throw PDFException(PDFTranslationContext::tr("Font object must be a dictionary."));
     }
 
     const PDFDictionary* fontDictionary = dereferencedFontDictionary.getDictionary();
@@ -768,7 +768,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     const FontType fontType = fontLoader.readEnumByName(fontDictionary->get("Subtype"), fontTypes.cbegin(), fontTypes.cend(), FontType::Invalid);
     if (fontType == FontType::Invalid)
     {
-        throw PDFParserException(PDFTranslationContext::tr("Invalid font type."));
+        throw PDFException(PDFTranslationContext::tr("Invalid font type."));
     }
 
     QByteArray name = fontLoader.readNameFromDictionary(fontDictionary, "Name");
@@ -872,7 +872,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                 {
                                     if (currentOffset >= differences.size())
                                     {
-                                        throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
+                                        throw PDFException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
                                     }
 
                                     QChar character = PDFNameToUnicode::getUnicodeUsingResolvedName(item.getString());
@@ -882,19 +882,19 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                 }
                                 else
                                 {
-                                    throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
+                                    throw PDFException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
                                 }
                             }
                         }
                         else
                         {
-                            throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
+                            throw PDFException(PDFTranslationContext::tr("Invalid differences in encoding entry of the font."));
                         }
                     }
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid encoding entry of the font."));
+                    throw PDFException(PDFTranslationContext::tr("Invalid encoding entry of the font."));
                 }
             }
 
@@ -907,7 +907,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
 
             if (encoding == PDFEncoding::Encoding::Invalid)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid encoding entry of the font."));
+                throw PDFException(PDFTranslationContext::tr("Invalid encoding entry of the font."));
             }
 
             simpleFontEncodingTable = *PDFEncoding::getTableForEncoding(encoding);
@@ -1086,25 +1086,25 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
 
             if (!cmap.isValid())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid CMAP in CID-keyed font."));
+                throw PDFException(PDFTranslationContext::tr("Invalid CMAP in CID-keyed font."));
             }
 
             const PDFObject& descendantFonts = document->getObject(fontDictionary->get("DescendantFonts"));
             if (!descendantFonts.isArray())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid descendant font in CID-keyed font."));
+                throw PDFException(PDFTranslationContext::tr("Invalid descendant font in CID-keyed font."));
             }
 
             const PDFArray* descendantFontsArray = descendantFonts.getArray();
             if (descendantFontsArray->getCount() != 1)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.").arg(descendantFontsArray->getCount()));
+                throw PDFException(PDFTranslationContext::tr("Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.").arg(descendantFontsArray->getCount()));
             }
 
             const PDFObject& descendantFont = document->getObject(descendantFontsArray->getItem(0));
             if (!descendantFont.isDictionary())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid descendant font in CID-keyed font."));
+                throw PDFException(PDFTranslationContext::tr("Invalid descendant font in CID-keyed font."));
             }
 
             const PDFDictionary* descendantFontDictionary = descendantFont.getDictionary();
@@ -1190,14 +1190,14 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
 
             if (fontMatrixValues.size() != 6)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font matrix."));
+                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font matrix."));
             }
             QMatrix fontMatrix(fontMatrixValues[0], fontMatrixValues[1], fontMatrixValues[2], fontMatrixValues[3], fontMatrixValues[4], fontMatrixValues[5]);
 
             PDFObject charProcs = document->getObject(fontDictionary->get("CharProcs"));
             if (!charProcs.isDictionary())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font character content streams."));
+                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font character content streams."));
             }
             const PDFDictionary* charProcsDictionary = charProcs.getDictionary();
 
@@ -1206,20 +1206,20 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
 
             if (firstChar < 0 || lastChar > 255 || firstChar > lastChar)
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font character range (from %1 to %2).").arg(firstChar).arg(lastChar));
+                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font character range (from %1 to %2).").arg(firstChar).arg(lastChar));
             }
 
             const PDFObject& encoding = document->getObject(fontDictionary->get("Encoding"));
             if (!encoding.isDictionary())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
+                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
             }
 
             const PDFDictionary* encodingDictionary = encoding.getDictionary();
             const PDFObject& differences = document->getObject(encodingDictionary->get("Differences"));
             if (!differences.isArray())
             {
-                throw PDFParserException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
+                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
             }
 
             std::map<int, QByteArray> characterContentStreams;
@@ -1237,7 +1237,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                 {
                     if (currentOffset > 255)
                     {
-                        throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of type 3 font."));
+                        throw PDFException(PDFTranslationContext::tr("Invalid differences in encoding entry of type 3 font."));
                     }
 
                     QByteArray characterName = item.getString();
@@ -1252,7 +1252,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Invalid differences in encoding entry of type 3 font."));
+                    throw PDFException(PDFTranslationContext::tr("Invalid differences in encoding entry of type 3 font."));
                 }
             }
 
@@ -1448,7 +1448,7 @@ PDFFontCMap PDFFontCMap::createFromName(const QByteArray& name)
         return createFromData(data);
     }
 
-    throw PDFParserException(PDFTranslationContext::tr("Can't load CID font mapping named '%1'.").arg(QString::fromLatin1(name)));
+    throw PDFException(PDFTranslationContext::tr("Can't load CID font mapping named '%1'.").arg(QString::fromLatin1(name)));
     return PDFFontCMap();
 }
 
@@ -1488,7 +1488,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
                 return std::make_pair(codeValue, byteArray.size());
             }
 
-            throw PDFParserException(PDFTranslationContext::tr("Can't fetch code from CMap definition."));
+            throw PDFException(PDFTranslationContext::tr("Can't fetch code from CMap definition."));
             return std::pair<unsigned int, unsigned int>();
         };
 
@@ -1499,7 +1499,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
                 return currentToken.data.value<PDFInteger>();
             }
 
-            throw PDFParserException(PDFTranslationContext::tr("Can't fetch CID from CMap definition."));
+            throw PDFException(PDFTranslationContext::tr("Can't fetch CID from CMap definition."));
             return 0;
         };
 
@@ -1533,7 +1533,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
                 }
                 else
                 {
-                    throw PDFParserException(PDFTranslationContext::tr("Can't use cmap inside cmap file."));
+                    throw PDFException(PDFTranslationContext::tr("Can't use cmap inside cmap file."));
                 }
             }
             else if (command == "beginbfrange")

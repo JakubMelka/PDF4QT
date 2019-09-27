@@ -56,7 +56,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
 
     if (content.isEmpty())
     {
-        throw PDFParserException(PDFTranslationContext::tr("Image has not data."));
+        throw PDFException(PDFTranslationContext::tr("Image has not data."));
     }
 
     // TODO: Implement SMask
@@ -166,7 +166,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             (ptr->err->format_message)(ptr, buffer);
 
             jpeg_destroy(ptr);
-            throw PDFParserException(PDFTranslationContext::tr("Error reading JPEG (DCT) image: %1.").arg(QString::fromLatin1(buffer)));
+            throw PDFException(PDFTranslationContext::tr("Error reading JPEG (DCT) image: %1.").arg(QString::fromLatin1(buffer)));
         };
 
         auto fillInputBufferMethod = [](j_decompress_ptr decompress) -> boolean
