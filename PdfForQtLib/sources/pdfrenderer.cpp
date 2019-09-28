@@ -22,11 +22,16 @@
 namespace pdf
 {
 
-PDFRenderer::PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity, Features features) :
+PDFRenderer::PDFRenderer(const PDFDocument* document,
+                         const PDFFontCache* fontCache,
+                         const PDFOptionalContentActivity* optionalContentActivity,
+                         Features features,
+                         const PDFMeshQualitySettings& meshQualitySettings) :
     m_document(document),
     m_fontCache(fontCache),
     m_optionalContentActivity(optionalContentActivity),
-    m_features(features)
+    m_features(features),
+    m_meshQualitySettings(meshQualitySettings)
 {
     Q_ASSERT(document);
 }
@@ -88,7 +93,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
         }
     }
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity, m_meshQualitySettings);
     return processor.processContents();
 }
 
@@ -106,7 +111,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matr
     const PDFPage* page = catalog->getPage(pageIndex);
     Q_ASSERT(page);
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity, m_meshQualitySettings);
     return processor.processContents();
 }
 

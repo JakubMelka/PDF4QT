@@ -184,7 +184,8 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
                                                  const PDFDocument* document,
                                                  const PDFFontCache* fontCache,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
-                                                 QMatrix pagePointToDevicePointMatrix) :
+                                                 QMatrix pagePointToDevicePointMatrix,
+                                                 const PDFMeshQualitySettings& meshQualitySettings) :
     m_page(page),
     m_document(document),
     m_fontCache(fontCache),
@@ -201,7 +202,8 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_drawingUncoloredTilingPatternState(0),
     m_isWarningColorOperatorsInUncoloredTilingPatternReported(false),
     m_patternBaseMatrix(pagePointToDevicePointMatrix),
-    m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix)
+    m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix),
+    m_meshQualitySettings(meshQualitySettings)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
@@ -628,10 +630,10 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     }
 
                     // We must create a mesh and then draw pattern
-                    PDFMeshQualitySettings settings;
+                    PDFMeshQualitySettings settings = m_meshQualitySettings;
                     settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
                     settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-                    settings.initDefaultResolution();
+                    settings.initResolution();
 
                     PDFMesh mesh = shadingPattern->createMesh(settings);
 
@@ -717,10 +719,10 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     }
 
                     // We must create a mesh and then draw pattern
-                    PDFMeshQualitySettings settings;
+                    PDFMeshQualitySettings settings = m_meshQualitySettings;
                     settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
                     settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-                    settings.initDefaultResolution();
+                    settings.initResolution();
 
                     PDFMesh mesh = shadingPattern->createMesh(settings);
 

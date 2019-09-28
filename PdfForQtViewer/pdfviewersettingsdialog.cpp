@@ -4,6 +4,7 @@
 #include "pdfglobal.h"
 #include "pdfutils.h"
 
+#include <QMessageBox>
 #include <QListWidgetItem>
 
 namespace pdfviewer
@@ -41,6 +42,10 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     for (QComboBox* comboBox : { ui->renderingEngineComboBox, ui->multisampleAntialiasingSamplesCountComboBox })
     {
         connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFViewerSettingsDialog::saveData);
+    }
+    for (QDoubleSpinBox* spinBox : { ui->preferredMeshResolutionEdit, ui->minimalMeshResolutionEdit, ui->colorToleranceEdit })
+    {
+        connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFViewerSettingsDialog::saveData);
     }
 
     ui->optionsPagesWidget->setCurrentRow(0);
@@ -82,6 +87,7 @@ void PDFViewerSettingsDialog::loadData()
     pdf::PDFTemporaryValueChange guard(&m_isLoadingData, true);
     ui->renderingEngineComboBox->setCurrentIndex(ui->renderingEngineComboBox->findData(static_cast<int>(m_settings.m_rendererEngine)));
 
+    // Engine
     if (m_settings.m_rendererEngine == pdf::RendererEngine::OpenGL)
     {
         ui->multisampleAntialiasingCheckBox->setEnabled(true);
@@ -106,11 +112,17 @@ void PDFViewerSettingsDialog::loadData()
         ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
     }
 
+    // Rendering
     ui->antialiasingCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::Antialiasing));
     ui->textAntialiasingCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::TextAntialiasing));
     ui->smoothPicturesCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::SmoothImages));
     ui->ignoreOptionalContentCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::IgnoreOptionalContent));
     ui->clipToCropBoxCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::ClipToCropBox));
+
+    // Shading
+    ui->preferredMeshResolutionEdit->setValue(m_settings.m_preferredMeshResolutionRatio);
+    ui->minimalMeshResolutionEdit->setValue(m_settings.m_minimalMeshResolutionRatio);
+    ui->colorToleranceEdit->setValue(m_settings.m_colorTolerance);
 }
 
 void PDFViewerSettingsDialog::saveData()
@@ -153,6 +165,18 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->clipToCropBoxCheckBox)
     {
         m_settings.m_features.setFlag(pdf::PDFRenderer::ClipToCropBox, ui->clipToCropBoxCheckBox->isChecked());
+    }
+    else if (sender == ui->preferredMeshResolutionEdit)
+    {
+        m_settings.m_preferredMeshResolutionRatio = ui->preferredMeshResolutionEdit->value();
+    }
+    else if (sender == ui->minimalMeshResolutionEdit)
+    {
+        m_settings.m_minimalMeshResolutionRatio = ui->minimalMeshResolutionEdit->value();
+    }
+    else if (sender == ui->colorToleranceEdit)
+    {
+        m_settings.m_colorTolerance = ui->colorToleranceEdit->value();
     }
 
     loadData();

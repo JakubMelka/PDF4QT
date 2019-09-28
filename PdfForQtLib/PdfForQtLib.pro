@@ -65,6 +65,7 @@ SOURCES += \
 
 HEADERS += \
     sources/pdfitemmodels.h \
+    sources/pdfmeshqualitysettings.h \
     sources/pdfobject.h \
     sources/pdfoptionalcontent.h \
     sources/pdfparser.h \

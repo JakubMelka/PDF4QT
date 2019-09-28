@@ -215,6 +215,9 @@ public:
 
     PDFRenderer::Features getFeatures() const;
     void setFeatures(PDFRenderer::Features features);
+    void setPreferredMeshResolutionRatio(PDFReal ratio);
+    void setMinimalMeshResolutionRatio(PDFReal ratio);
+    void setColorTolerance(PDFReal colorTolerance);
 
 signals:
     void drawSpaceChanged();
@@ -332,6 +335,9 @@ private:
 
     /// Renderer features
     PDFRenderer::Features m_features;
+
+    /// Mesh quality settings
+    PDFMeshQualitySettings m_meshQualitySettings;
 };
 
 }   // namespace pdf

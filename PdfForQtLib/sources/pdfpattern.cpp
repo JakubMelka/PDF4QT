@@ -903,7 +903,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
     {
         // We will skip this coordinate, if both of meshing criteria have been met:
         //  1) Color difference is small (lesser than tolerance)
-        //  2) Distance from previous and next point is less than preffered meshing resolution OR colors are equal
+        //  2) Distance from previous and next point is less than preferred meshing resolution OR colors are equal
 
         if (it != coloredCoordinates.cbegin() && std::next(it) != coloredCoordinates.cend())
         {
@@ -1083,15 +1083,12 @@ QPointF PDFMesh::getTriangleCenter(const PDFMesh::Triangle& triangle) const
     return (m_vertices[triangle.v1] + m_vertices[triangle.v2] + m_vertices[triangle.v3]) / 3.0;
 }
 
-void PDFMeshQualitySettings::initDefaultResolution()
+void PDFMeshQualitySettings::initResolution()
 {
-    // We will take 0.5% percent of device space meshing area as minimal resolution (it is ~1.5 mm for
-    // A4 page) and default resolution 4x number of that.
-
     Q_ASSERT(deviceSpaceMeshingArea.isValid());
     PDFReal size = qMax(deviceSpaceMeshingArea.width(), deviceSpaceMeshingArea.height());
-    minimalMeshResolution = size * 0.005;
-    preferredMeshResolution = minimalMeshResolution * 4;
+    minimalMeshResolution = size * minimalMeshResolutionRatio;
+    preferredMeshResolution = size * qMax(preferredMeshResolutionRatio, minimalMeshResolutionRatio);
 }
 
 ShadingType PDFRadialShading::getShadingType() const
@@ -1272,7 +1269,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) con
     {
         // We will skip this coordinate, if both of meshing criteria have been met:
         //  1) Color difference is small (lesser than tolerance)
-        //  2) Distance from previous and next point is less than preffered meshing resolution OR colors are equal
+        //  2) Distance from previous and next point is less than preferred meshing resolution OR colors are equal
 
         if (it != coloredCoordinates.cbegin() && std::next(it) != coloredCoordinates.cend())
         {
@@ -2609,7 +2606,5 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings)
     fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches);
     return mesh;
 }
-
-// TODO: Implement settings of meshing in the settings dialog
 
 }   // namespace pdf

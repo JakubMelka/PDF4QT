@@ -552,7 +552,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features);
+            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
 
             if (!errors.empty())
@@ -823,6 +823,33 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
     if (m_features != features)
     {
         m_features = features;
+        emit repaintNeeded();
+    }
+}
+
+void PDFDrawWidgetProxy::setPreferredMeshResolutionRatio(PDFReal ratio)
+{
+    if (m_meshQualitySettings.preferredMeshResolutionRatio != ratio)
+    {
+        m_meshQualitySettings.preferredMeshResolutionRatio = ratio;
+        emit repaintNeeded();
+    }
+}
+
+void PDFDrawWidgetProxy::setMinimalMeshResolutionRatio(PDFReal ratio)
+{
+    if (m_meshQualitySettings.minimalMeshResolutionRatio != ratio)
+    {
+        m_meshQualitySettings.minimalMeshResolutionRatio = ratio;
+        emit repaintNeeded();
+    }
+}
+
+void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
+{
+    if (m_meshQualitySettings.tolerance != colorTolerance)
+    {
+        m_meshQualitySettings.tolerance = colorTolerance;
         emit repaintNeeded();
     }
 }

@@ -21,6 +21,7 @@
 #include "pdfobject.h"
 #include "pdffunction.h"
 #include "pdfcolorspaces.h"
+#include "pdfmeshqualitysettings.h"
 
 #include <QMatrix>
 
@@ -51,45 +52,6 @@ enum class ShadingType
     LatticeFormGouradTriangle = 5,
     CoonsPatchMesh = 6,
     TensorProductPatchMesh = 7
-};
-
-struct PDFMeshQualitySettings
-{
-    /// Initializes default resolution
-    void initDefaultResolution();
-
-    /// Matrix, which transforms user space points (user space is target space of the shading)
-    /// to the device space of the paint device.
-    QMatrix userSpaceToDeviceSpaceMatrix;
-
-    /// Rectangle in device space coordinate system, onto which is area meshed.
-    QRectF deviceSpaceMeshingArea;
-
-    /// Preferred mesh resolution in device space pixels. Mesh will be created in this
-    /// resolution, if it is smooth enough (no jumps in colors occurs).
-    PDFReal preferredMeshResolution = 1.0;
-
-    /// Minimal mesh resolution in device space pixels. If jumps in colors occurs (jump
-    /// is two colors, that differ more than \p color tolerance), then mesh is meshed to
-    /// minimal mesh resolution.
-    PDFReal minimalMeshResolution = 1.0;
-
-    /// Color tolerance - 1% by default
-    PDFReal tolerance = 0.01;
-
-    /// Test points to determine maximal curvature of the tensor product patch meshes
-    PDFInteger patchTestPoints = 64;
-
-    /// Lower value of the surface curvature meshing resolution mapping. When ratio between
-    /// current curvature at the center of meshed triangle and maximal curvature is below
-    /// this value, then prefered mesh resolution is used. If ratio is higher than this value
-    /// and lower than \p patchResolutionMappingRatioHigh, then target length is linearly mapped.
-    /// If value is higher, than \p patchResolutionMappingRatioHigh, then minimal mesh resolution
-    /// is used when generating triangles on the patch.
-    PDFReal patchResolutionMappingRatioLow = 0.3;
-
-    /// Highter value of the surface curvature meshing resolution mapping. \sa patchResolutionMappingRatioLow
-    PDFReal patchResolutionMappingRatioHigh = 0.9;
 };
 
 /// Mesh consisting of triangles

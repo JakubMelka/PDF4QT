@@ -20,6 +20,7 @@
 
 #include "pdfpage.h"
 #include "pdfexception.h"
+#include "pdfmeshqualitysettings.h"
 
 class QPainter;
 
@@ -44,7 +45,7 @@ public:
 
     Q_DECLARE_FLAGS(Features, Feature)
 
-    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity, Features features);
+    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity, Features features, const PDFMeshQualitySettings& meshQualitySettings);
 
     /// Paints desired page onto the painter. Page is painted in the rectangle using best-fit method.
     /// If the page doesn't exist, then error is returned. No exception is thrown. Rendering errors
@@ -67,6 +68,7 @@ private:
     const PDFFontCache* m_fontCache;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     Features m_features;
+    PDFMeshQualitySettings m_meshQualitySettings;
 };
 
 

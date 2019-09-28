@@ -11,12 +11,17 @@ void PDFViewerSettings::setSettings(const PDFViewerSettings::Settings& settings)
 
 void PDFViewerSettings::readSettings(QSettings& settings)
 {
+    Settings defaultSettings;
+
     settings.beginGroup("ViewerSettings");
     m_settings.m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
     m_settings.m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeatures", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
     m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::OpenGL)).toInt());
-    m_settings.m_multisampleAntialiasing = settings.value("msaa", true).toBool();
-    m_settings.m_rendererSamples = settings.value("rendererSamples", 16).toInt();
+    m_settings.m_multisampleAntialiasing = settings.value("msaa", defaultSettings.m_multisampleAntialiasing).toBool();
+    m_settings.m_rendererSamples = settings.value("rendererSamples", defaultSettings.m_rendererSamples).toInt();
+    m_settings.m_preferredMeshResolutionRatio = settings.value("preferredMeshResolutionRatio", defaultSettings.m_preferredMeshResolutionRatio).toDouble();
+    m_settings.m_minimalMeshResolutionRatio = settings.value("minimalMeshResolutionRatio", defaultSettings.m_minimalMeshResolutionRatio).toDouble();
+    m_settings.m_colorTolerance = settings.value("colorTolerance", defaultSettings.m_colorTolerance).toDouble();
     settings.endGroup();
 
     emit settingsChanged();
@@ -30,6 +35,9 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("renderingEngine", static_cast<int>(m_settings.m_rendererEngine));
     settings.setValue("msaa", m_settings.m_multisampleAntialiasing);
     settings.setValue("rendererSamples", m_settings.m_rendererSamples);
+    settings.setValue("preferredMeshResolutionRatio", m_settings.m_preferredMeshResolutionRatio);
+    settings.setValue("minimalMeshResolutionRatio", m_settings.m_minimalMeshResolutionRatio);
+    settings.setValue("colorTolerance", m_settings.m_colorTolerance);
     settings.endGroup();
 }
 
@@ -85,6 +93,33 @@ void PDFViewerSettings::setRendererSamples(int rendererSamples)
     if (m_settings.m_rendererSamples != rendererSamples)
     {
         m_settings.m_rendererSamples = rendererSamples;
+        emit settingsChanged();
+    }
+}
+
+void PDFViewerSettings::setPreferredMeshResolutionRatio(pdf::PDFReal preferredMeshResolutionRatio)
+{
+    if (m_settings.m_preferredMeshResolutionRatio != preferredMeshResolutionRatio)
+    {
+        m_settings.m_preferredMeshResolutionRatio = preferredMeshResolutionRatio;
+        emit settingsChanged();
+    }
+}
+
+void PDFViewerSettings::setMinimalMeshResolutionRatio(pdf::PDFReal minimalMeshResolutionRatio)
+{
+    if (m_settings.m_minimalMeshResolutionRatio != minimalMeshResolutionRatio)
+    {
+        m_settings.m_minimalMeshResolutionRatio = minimalMeshResolutionRatio;
+        emit settingsChanged();
+    }
+}
+
+void PDFViewerSettings::setColorTolerance(pdf::PDFReal colorTolerance)
+{
+    if (m_settings.m_colorTolerance != colorTolerance)
+    {
+        m_settings.m_colorTolerance = colorTolerance;
         emit settingsChanged();
     }
 }

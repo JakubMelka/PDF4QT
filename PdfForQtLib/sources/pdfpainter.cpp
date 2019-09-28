@@ -29,8 +29,9 @@ PDFPainter::PDFPainter(QPainter* painter,
                        const PDFPage* page,
                        const PDFDocument* document,
                        const PDFFontCache* fontCache,
-                       const PDFOptionalContentActivity* optionalContentActivity) :
-    PDFPageContentProcessor(page, document, fontCache, optionalContentActivity, pagePointToDevicePointMatrix),
+                       const PDFOptionalContentActivity* optionalContentActivity,
+                       const PDFMeshQualitySettings& meshQualitySettings) :
+    PDFPageContentProcessor(page, document, fontCache, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
     m_painter(painter),
     m_features(features)
 {

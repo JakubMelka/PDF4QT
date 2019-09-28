@@ -25,7 +25,10 @@ public:
             m_features(pdf::PDFRenderer::getDefaultFeatures()),
             m_rendererEngine(pdf::RendererEngine::OpenGL),
             m_multisampleAntialiasing(true),
-            m_rendererSamples(16)
+            m_rendererSamples(16),
+            m_preferredMeshResolutionRatio(0.02),
+            m_minimalMeshResolutionRatio(0.005),
+            m_colorTolerance(0.01)
         {
 
         }
@@ -35,6 +38,9 @@ public:
         pdf::RendererEngine m_rendererEngine;
         bool m_multisampleAntialiasing;
         int m_rendererSamples;
+        pdf::PDFReal m_preferredMeshResolutionRatio;
+        pdf::PDFReal m_minimalMeshResolutionRatio;
+        pdf::PDFReal m_colorTolerance;
     };
 
     const Settings& getSettings() const { return m_settings; }
@@ -56,6 +62,15 @@ public:
     void setRendererSamples(int rendererSamples);
 
     bool isMultisampleAntialiasingEnabled() const { return m_settings.m_multisampleAntialiasing; }
+
+    pdf::PDFReal getPreferredMeshResolutionRatio() const { return m_settings.m_preferredMeshResolutionRatio; }
+    void setPreferredMeshResolutionRatio(pdf::PDFReal preferredMeshResolutionRatio);
+
+    pdf::PDFReal getMinimalMeshResolutionRatio() const { return m_settings.m_minimalMeshResolutionRatio; }
+    void setMinimalMeshResolutionRatio(pdf::PDFReal minimalMeshResolutionRatio);
+
+    pdf::PDFReal getColorTolerance() const { return m_settings.m_colorTolerance; }
+    void setColorTolerance(pdf::PDFReal colorTolerance);
 
 signals:
     void settingsChanged();

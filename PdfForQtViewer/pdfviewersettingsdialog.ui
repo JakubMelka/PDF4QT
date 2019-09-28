@@ -255,6 +255,113 @@
            <property name="title">
             <string>Shading Settings</string>
            </property>
+           <layout class="QVBoxLayout" name="verticalLayout_2">
+            <item>
+             <layout class="QGridLayout" name="gridLayout">
+              <item row="0" column="0">
+               <widget class="QLabel" name="preferredMeshResolutionLabel">
+                <property name="text">
+                 <string>Preferred mesh resolution ratio</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="colorToleranceLabel">
+                <property name="text">
+                 <string>Color tolerance</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="minimalMeshResolutionLabel">
+                <property name="text">
+                 <string>Minimal mesh resolution ratio</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QDoubleSpinBox" name="preferredMeshResolutionEdit">
+                <property name="correctionMode">
+                 <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                </property>
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>0.001000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>0.100000000000000</double>
+                </property>
+                <property name="singleStep">
+                 <double>0.010000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QDoubleSpinBox" name="minimalMeshResolutionEdit">
+                <property name="correctionMode">
+                 <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                </property>
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>0.001000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>0.100000000000000</double>
+                </property>
+                <property name="singleStep">
+                 <double>0.010000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="colorToleranceEdit">
+                <property name="correctionMode">
+                 <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                </property>
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="minimum">
+                 <double>0.001000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>0.100000000000000</double>
+                </property>
+                <property name="singleStep">
+                 <double>0.010000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="shadingInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Shading is meshed according the mesh quality criteria. It involves &lt;span style=&quot; font-weight:600;&quot;&gt;color tolerance&lt;/span&gt; and shape tolerance. If color of vertices of triangle in the mesh is too different (it differs more than color tolerance) then mesh is refined and triangle is subdivided. Some shadings are defined by patterns (such as &lt;span style=&quot; font-style:italic;&quot;&gt;Coons patch shading &lt;/span&gt;or &lt;span style=&quot; font-style:italic;&quot;&gt;Tensor product patch shading&lt;/span&gt;), which is also considered in meshing.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Preferred mesh resolution ratio&lt;/span&gt; should be set to optimal balance between performance of mesh generation and quality of the mesh. Optimal triangle size will be computed in the following way: total meshing area (typically a page) will be multiplied with this ratio and that will determine the triangle size. So, if we have A4 page (210 mm x 297mm), and ratio is set to 0,01, then we will get optimal triangle size as 297 * 0.01 = ~3mm.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Minimal mesh resolution ratio&lt;/span&gt; is ratio, which will determine triangle minimal size. At this bound, no triangles are subdivided, even if color is different or shape is not good. This should be set to a value, at which user barely can recognize patterns on the screen (for example, the size of triangle should be &amp;lt; 1mm). But it also affect performance, because too much triangles can be generated.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color tolerance&lt;/span&gt; is threshold, at which is two colors recognized as different. The comparation is done component-wise, so if at least one of color components is greater than this parameter, then colors are treated as different.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="shadingVerticalSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>91</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
           </widget>
          </item>
         </layout>

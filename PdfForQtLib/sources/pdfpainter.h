@@ -41,13 +41,15 @@ public:
     /// \param document Document owning the page
     /// \param fontCache Font cache
     /// \param optionalContentActivity Activity of optional content
+    /// \param meshQualitySettings Mesh quality settings
     explicit PDFPainter(QPainter* painter,
                         PDFRenderer::Features features,
                         QMatrix pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         const PDFDocument* document,
                         const PDFFontCache* fontCache,
-                        const PDFOptionalContentActivity* optionalContentActivity);
+                        const PDFOptionalContentActivity* optionalContentActivity,
+                        const PDFMeshQualitySettings& meshQualitySettings);
     virtual ~PDFPainter() override;
 
 protected:

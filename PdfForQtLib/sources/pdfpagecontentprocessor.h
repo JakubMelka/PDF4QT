@@ -23,6 +23,7 @@
 #include "pdfparser.h"
 #include "pdffont.h"
 #include "pdfutils.h"
+#include "pdfmeshqualitysettings.h"
 
 #include <QMatrix>
 #include <QPainterPath>
@@ -48,7 +49,8 @@ public:
                                      const PDFDocument* document,
                                      const PDFFontCache* fontCache,
                                      const PDFOptionalContentActivity* optionalContentActivity,
-                                     QMatrix pagePointToDevicePointMatrix);
+                                     QMatrix pagePointToDevicePointMatrix,
+                                     const PDFMeshQualitySettings& meshQualitySettings);
     virtual ~PDFPageContentProcessor();
 
     enum class Operator
@@ -814,6 +816,9 @@ private:
     /// Bounding rectangle of pages media box in device space coordinates. If drawing rotation
     /// is zero, then it corresponds to the scaled media box of the page.
     QRectF m_pageBoundingRectDeviceSpace;
+
+    /// Mesh quality settings
+    PDFMeshQualitySettings m_meshQualitySettings;
 };
 
 }   // namespace pdf
