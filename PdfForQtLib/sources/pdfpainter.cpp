@@ -42,7 +42,7 @@ PDFPainter::PDFPainter(QPainter* painter,
 
     if (features.testFlag(PDFRenderer::ClipToCropBox))
     {
-        QRectF cropBox = page->getRotatedCropBox();
+        QRectF cropBox = page->getCropBox();
         if (cropBox.isValid())
         {
             QPainterPath path;
@@ -365,5 +365,8 @@ bool PDFPainter::canSetBlendMode(BlendMode mode) const
     Q_UNUSED(mode);
     return std::all_of(m_transparencyGroupDataStack.cbegin(), m_transparencyGroupDataStack.cend(), [](const PDFTransparencyGroupPainterData& group) { return group.blendMode == BlendMode::Normal || group.blendMode == BlendMode::Compatible; });
 }
+
+// TODO: Check all graphic state parameter dictionaries, warn about missing ones
+// TODO: Recompile libraries in MSVC 2019
 
 }   // namespace pdf

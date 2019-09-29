@@ -75,6 +75,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
         {
             matrix.translate(rectangle.right(), rectangle.top());
             matrix.rotate(-90);
+            matrix.translate(-rectangle.height(), 0);
             matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
             break;
         }
