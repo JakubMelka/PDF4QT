@@ -198,6 +198,13 @@ protected:
         PDFReal m_dashOffset = 0.0;
     };
 
+    struct PDFTransparencyGroup
+    {
+        PDFColorSpacePointer colorSpacePointer;
+        bool isolated = false;
+        bool knockout = false;
+    };
+
     /// Represents graphic state of the PDF (holding current graphic state parameters).
     /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"
     class PDFPageContentProcessorState
@@ -435,6 +442,16 @@ protected:
     /// Implement to react on set cache device request
     virtual void performSetCacheDevice(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury);
 
+    /// Implement to begin new transparency group
+    /// \param Order, in which is function called (before/after setting new transparency group)
+    /// \param transparencyGroup Transparency group
+    virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
+
+    /// Implement to end current transparency group
+    /// \param Order, in which is function called (before/after setting new transparency group)
+    /// \param transparencyGroup Transparency group
+    virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
+
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
 
@@ -478,8 +495,9 @@ private:
     /// \param Matrix Transformation matrix from form coordinate system to page coordinate system
     /// \param boundingBox Bounding box, to which is drawed content clipped
     /// \param resources Resources, assigned to the form
+    /// \param transparencyGroup Transparency group object
     /// \param content Content stream of the form
-    void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content);
+    void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const PDFObject& transparencyGroup, const QByteArray& content);
 
     /// Performs path painting
     /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)
@@ -525,7 +543,7 @@ private:
         bool contentSuppressed = false;
     };
 
-    struct PDFPageContentProcessorStateGuard
+    class PDFPageContentProcessorStateGuard
     {
     public:
         explicit PDFPageContentProcessorStateGuard(PDFPageContentProcessor* processor);
@@ -544,7 +562,7 @@ private:
         const PDFDictionary* m_patternDictionary;
     };
 
-    struct PDFPageContentProcessorGraphicStateSaveRestoreGuard
+    class PDFPageContentProcessorGraphicStateSaveRestoreGuard
     {
     public:
         inline explicit PDFPageContentProcessorGraphicStateSaveRestoreGuard(PDFPageContentProcessor* processor) :
@@ -556,6 +574,16 @@ private:
         {
             m_processor->operatorRestoreGraphicState();
         }
+
+    private:
+        PDFPageContentProcessor* m_processor;
+    };
+
+    class PDFTransparencyGroupGuard
+    {
+    public:
+        explicit PDFTransparencyGroupGuard(PDFPageContentProcessor* processor, PDFTransparencyGroup&& group);
+        ~PDFTransparencyGroupGuard();
 
     private:
         PDFPageContentProcessor* m_processor;
@@ -796,6 +824,9 @@ private:
 
     /// Stack with saved graphic states
     std::stack<PDFPageContentProcessorState> m_stack;
+
+    /// Stack with transparency groups
+    std::stack<PDFTransparencyGroup> m_transparencyGroupStack;
 
     /// Stack with marked content
     std::vector<MarkedContentState> m_markedContentStack;

@@ -374,6 +374,18 @@ void PDFPageContentProcessor::performSetCacheDevice(PDFReal wx, PDFReal wy, PDFR
     Q_UNUSED(ury);
 }
 
+void PDFPageContentProcessor::performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
+    Q_UNUSED(order);
+    Q_UNUSED(transparencyGroup);
+}
+
+void PDFPageContentProcessor::performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
+    Q_UNUSED(order);
+    Q_UNUSED(transparencyGroup);
+}
+
 bool PDFPageContentProcessor::isContentSuppressed() const
 {
     return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
@@ -554,9 +566,37 @@ void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
     }
 }
 
-void PDFPageContentProcessor::processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const QByteArray& content)
+void PDFPageContentProcessor::processForm(const QMatrix& matrix,
+                                          const QRectF& boundingBox,
+                                          const PDFObject& resources,
+                                          const PDFObject& transparencyGroup,
+                                          const QByteArray& content)
 {
     PDFPageContentProcessorStateGuard guard(this);
+
+    std::unique_ptr<PDFTransparencyGroupGuard> guard2;
+    if (transparencyGroup.isDictionary())
+    {
+        // Parse the transparency group
+        const PDFDictionary* transparencyDictionary = transparencyGroup.getDictionary();
+        PDFDocumentDataLoaderDecorator loader(m_document);
+        PDFTransparencyGroup group;
+
+        const PDFObject& colorSpaceObject = m_document->getObject(transparencyDictionary->get("CS"));
+        if (!colorSpaceObject.isNull())
+        {
+            group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+        }
+        group.isolated = loader.readBooleanFromDictionary(transparencyDictionary, "I", false);
+        group.knockout = loader.readBooleanFromDictionary(transparencyDictionary, "K", false);
+        guard2.reset(new PDFTransparencyGroupGuard(this, qMove(group)));
+
+        // If we are in transparency group, we must reset transparency settings in the graphic state.
+        // Graphic state is then updated in the lines below.
+        m_graphicState.setBlendMode(BlendMode::Normal);
+        m_graphicState.setAlphaFilling(1.0);
+        m_graphicState.setAlphaStroking(1.0);
+    }
 
     QMatrix formMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
     m_graphicState.setCurrentTransformationMatrix(formMatrix);
@@ -2640,7 +2680,10 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                 // Read resources
                 PDFObject resources = m_document->getObject(streamDictionary->get("Resources"));
 
-                processForm(transformationMatrix, boundingBox, resources, content);
+                // Transparency group
+                PDFObject transparencyGroup = m_document->getObject(streamDictionary->get("Group"));
+
+                processForm(transformationMatrix, boundingBox, resources, transparencyGroup, content);
             }
             else
             {
@@ -3296,6 +3339,22 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::~PDFPageContentProce
     m_processor->m_patternDictionary = m_patternDictionary;
 
     m_processor->operatorRestoreGraphicState();
+}
+
+PDFPageContentProcessor::PDFTransparencyGroupGuard::PDFTransparencyGroupGuard(PDFPageContentProcessor* processor, PDFTransparencyGroup&& group) :
+    m_processor(processor)
+{
+    m_processor->performBeginTransparencyGroup(ProcessOrder::BeforeOperation, group);
+    m_processor->m_transparencyGroupStack.push(qMove(group));
+    m_processor->performBeginTransparencyGroup(ProcessOrder::AfterOperation, m_processor->m_transparencyGroupStack.top());
+}
+
+PDFPageContentProcessor::PDFTransparencyGroupGuard::~PDFTransparencyGroupGuard()
+{
+    m_processor->performEndTransparencyGroup(ProcessOrder::BeforeOperation, m_processor->m_transparencyGroupStack.top());
+    PDFTransparencyGroup group = qMove(m_processor->m_transparencyGroupStack.top());
+    m_processor->m_transparencyGroupStack.pop();
+    m_processor->performEndTransparencyGroup(ProcessOrder::AfterOperation, group);
 }
 
 }   // namespace pdf

@@ -154,7 +154,7 @@ void PDFPainter::performMeshPainting(const PDFMesh& mesh)
 {
     m_painter->save();
     m_painter->setWorldMatrix(QMatrix());
-    mesh.paint(m_painter, getGraphicState()->getAlphaFilling());
+    mesh.paint(m_painter, getEffectiveFillingAlpha());
     m_painter->restore();
 }
 
@@ -188,15 +188,26 @@ void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& 
     // If current blend mode has changed, then update it
     if (flags.testFlag(PDFPageContentProcessorState::StateBlendMode))
     {
+        // Try to simulate transparency groups. Use only first composition mode,
+        // outside the transparency groups (so we are on pages main transparency
+        // groups).
+
         const BlendMode blendMode = state.getBlendMode();
-        const QPainter::CompositionMode compositionMode = PDFBlendModeInfo::getCompositionModeFromBlendMode(blendMode);
-
-        if (!PDFBlendModeInfo::isSupportedByQt(blendMode))
+        if (canSetBlendMode(blendMode))
         {
-            reportRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
-        }
+            const QPainter::CompositionMode compositionMode = PDFBlendModeInfo::getCompositionModeFromBlendMode(blendMode);
 
-        m_painter->setCompositionMode(compositionMode);
+            if (!PDFBlendModeInfo::isSupportedByQt(blendMode))
+            {
+                reportRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("Blend mode '%1' not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
+            }
+
+            m_painter->setCompositionMode(compositionMode);
+        }
+        else if (blendMode != BlendMode::Normal && blendMode != BlendMode::Compatible)
+        {
+            reportRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("Blend mode '%1' is in transparency group, which is not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
+        }
     }
 
     PDFPageContentProcessor::performUpdateGraphicsState(state);
@@ -218,6 +229,29 @@ void PDFPainter::performRestoreGraphicState(ProcessOrder order)
     }
 }
 
+void PDFPainter::performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
+    if (order == ProcessOrder::BeforeOperation)
+    {
+        PDFTransparencyGroupPainterData data;
+        data.group = transparencyGroup;
+        data.alphaFill = getGraphicState()->getAlphaFilling();
+        data.alphaStroke = getGraphicState()->getAlphaStroking();
+        data.blendMode = getGraphicState()->getBlendMode();
+        m_transparencyGroupDataStack.emplace_back(qMove(data));
+    }
+}
+
+void PDFPainter::performEndTransparencyGroup(PDFPageContentProcessor::ProcessOrder order, const PDFPageContentProcessor::PDFTransparencyGroup& transparencyGroup)
+{
+    Q_UNUSED(transparencyGroup);
+
+    if (order == ProcessOrder::AfterOperation)
+    {
+        m_transparencyGroupDataStack.pop_back();
+    }
+}
+
 bool PDFPainter::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
 {
     if (m_features.testFlag(PDFRenderer::IgnoreOptionalContent))
@@ -231,9 +265,10 @@ bool PDFPainter::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
 QPen PDFPainter::getCurrentPenImpl() const
 {
     const PDFPageContentProcessorState* graphicState = getGraphicState();
-    const QColor& color = graphicState->getStrokeColorWithAlpha();
+    QColor color = graphicState->getStrokeColor();
     if (color.isValid())
     {
+        color.setAlphaF(getEffectiveStrokingAlpha());
         const PDFReal lineWidth = graphicState->getLineWidth();
         Qt::PenCapStyle penCapStyle = graphicState->getLineCapStyle();
         Qt::PenJoinStyle penJoinStyle = graphicState->getLineJoinStyle();
@@ -269,15 +304,66 @@ QPen PDFPainter::getCurrentPenImpl() const
 QBrush PDFPainter::getCurrentBrushImpl() const
 {
     const PDFPageContentProcessorState* graphicState = getGraphicState();
-    const QColor& color = graphicState->getFillColorWithAlpha();
+    QColor color = graphicState->getFillColor();
     if (color.isValid())
     {
+        color.setAlphaF(getEffectiveFillingAlpha());
         return QBrush(color, Qt::SolidPattern);
     }
     else
     {
         return QBrush(Qt::NoBrush);
     }
+}
+
+PDFReal PDFPainter::getEffectiveStrokingAlpha() const
+{
+    PDFReal alpha = getGraphicState()->getAlphaStroking();
+
+    auto it = m_transparencyGroupDataStack.crbegin();
+    auto itEnd = m_transparencyGroupDataStack.crend();
+    for (; it != itEnd; ++it)
+    {
+        const PDFTransparencyGroupPainterData& transparencyGroup = *it;
+        alpha *= transparencyGroup.alphaStroke;
+
+        if (transparencyGroup.group.isolated)
+        {
+            break;
+        }
+    }
+
+    return alpha;
+}
+
+PDFReal PDFPainter::getEffectiveFillingAlpha() const
+{
+    PDFReal alpha = getGraphicState()->getAlphaFilling();
+
+    auto it = m_transparencyGroupDataStack.crbegin();
+    auto itEnd = m_transparencyGroupDataStack.crend();
+    for (; it != itEnd; ++it)
+    {
+        const PDFTransparencyGroupPainterData& transparencyGroup = *it;
+        alpha *= transparencyGroup.alphaFill;
+
+        if (transparencyGroup.group.isolated)
+        {
+            break;
+        }
+    }
+
+    return alpha;
+}
+
+bool PDFPainter::canSetBlendMode(BlendMode mode) const
+{
+    // We will assume, that we can set blend mode, when
+    // all other blend modes on transparency stack are normal,
+    // or compatible. It should work.
+
+    Q_UNUSED(mode);
+    return std::all_of(m_transparencyGroupDataStack.cbegin(), m_transparencyGroupDataStack.cend(), [](const PDFTransparencyGroupPainterData& group) { return group.blendMode == BlendMode::Normal || group.blendMode == BlendMode::Compatible; });
 }
 
 }   // namespace pdf

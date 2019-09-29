@@ -30,6 +30,8 @@ namespace pdf
 
 /// Processor, which processes PDF's page commands on the QPainter. It works with QPainter
 /// and with transformation matrix, which translates page points to the device points.
+/// Only basic transparency is supported, advanced transparency, such as transparency groups,
+/// are not supported. Painter will try to emulate them so painting will not fail completely.
 class PDFPainter : public PDFPageContentProcessor
 {
 public:
@@ -60,6 +62,8 @@ protected:
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;
     virtual void performRestoreGraphicState(ProcessOrder order) override;
+    virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
+    virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
 
 private:
@@ -75,10 +79,28 @@ private:
     /// Returns current brush (implementation)
     QBrush getCurrentBrushImpl() const;
 
+    /// Returns effective stroking alpha from transparency groups and current graphic state
+    PDFReal getEffectiveStrokingAlpha() const;
+
+    /// Returns effective filling alpha from transparency groups and current graphic state
+    PDFReal getEffectiveFillingAlpha() const;
+
+    /// Returns true, if blend mode can be set according the transparency group stack
+    bool canSetBlendMode(BlendMode mode) const;
+
+    struct PDFTransparencyGroupPainterData
+    {
+        PDFTransparencyGroup group;
+        PDFReal alphaStroke = 1.0;
+        PDFReal alphaFill = 1.0;
+        BlendMode blendMode = BlendMode::Normal;
+    };
+
     QPainter* m_painter;
     PDFRenderer::Features m_features;
     PDFCachedItem<QPen> m_currentPen;
     PDFCachedItem<QBrush> m_currentBrush;
+    std::vector<PDFTransparencyGroupPainterData> m_transparencyGroupDataStack;
 };
 
 }   // namespace pdf
