@@ -89,7 +89,8 @@ public:
 
     /// Paints the mesh on the painter
     /// \param painter Painter, onto which is mesh drawn
-    void paint(QPainter* painter) const;
+    /// \param alpha Opacity factor
+    void paint(QPainter* painter, PDFReal alpha) const;
 
     /// Transforms the mesh according to the matrix transform
     /// \param matrix Matrix transform to be performed

@@ -154,7 +154,7 @@ void PDFPainter::performMeshPainting(const PDFMesh& mesh)
 {
     m_painter->save();
     m_painter->setWorldMatrix(QMatrix());
-    mesh.paint(m_painter);
+    mesh.paint(m_painter, getGraphicState()->getAlphaFilling());
     m_painter->restore();
 }
 
@@ -173,14 +173,30 @@ void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& 
         flags.testFlag(PDFPageContentProcessorState::StateLineCapStyle) ||
         flags.testFlag(PDFPageContentProcessorState::StateLineJoinStyle) ||
         flags.testFlag(PDFPageContentProcessorState::StateMitterLimit) ||
-        flags.testFlag(PDFPageContentProcessorState::StateLineDashPattern))
+        flags.testFlag(PDFPageContentProcessorState::StateLineDashPattern) ||
+        flags.testFlag(PDFPageContentProcessorState::StateAlphaStroking))
     {
         m_currentPen.dirty();
     }
 
-    if (flags.testFlag(PDFPageContentProcessorState::StateFillColor))
+    if (flags.testFlag(PDFPageContentProcessorState::StateFillColor) ||
+        flags.testFlag(PDFPageContentProcessorState::StateAlphaFilling))
     {
         m_currentBrush.dirty();
+    }
+
+    // If current blend mode has changed, then update it
+    if (flags.testFlag(PDFPageContentProcessorState::StateBlendMode))
+    {
+        const BlendMode blendMode = state.getBlendMode();
+        const QPainter::CompositionMode compositionMode = PDFBlendModeInfo::getCompositionModeFromBlendMode(blendMode);
+
+        if (!PDFBlendModeInfo::isSupportedByQt(blendMode))
+        {
+            reportRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
+        }
+
+        m_painter->setCompositionMode(compositionMode);
     }
 
     PDFPageContentProcessor::performUpdateGraphicsState(state);
@@ -215,7 +231,7 @@ bool PDFPainter::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
 QPen PDFPainter::getCurrentPenImpl() const
 {
     const PDFPageContentProcessorState* graphicState = getGraphicState();
-    const QColor& color = graphicState->getStrokeColor();
+    const QColor& color = graphicState->getStrokeColorWithAlpha();
     if (color.isValid())
     {
         const PDFReal lineWidth = graphicState->getLineWidth();
@@ -253,7 +269,7 @@ QPen PDFPainter::getCurrentPenImpl() const
 QBrush PDFPainter::getCurrentBrushImpl() const
 {
     const PDFPageContentProcessorState* graphicState = getGraphicState();
-    const QColor& color = graphicState->getFillColor();
+    const QColor& color = graphicState->getFillColorWithAlpha();
     if (color.isValid())
     {
         return QBrush(color, Qt::SolidPattern);

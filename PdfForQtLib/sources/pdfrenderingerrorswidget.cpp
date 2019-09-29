@@ -68,6 +68,12 @@ PDFRenderingErrorsWidget::PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* p
                     break;
                 }
 
+                case RenderErrorType::NotSupported:
+                {
+                    typeString = tr("Not supported");
+                    break;
+                }
+
                 default:
                 {
                     Q_ASSERT(false);

@@ -1002,7 +1002,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
     return mesh;
 }
 
-void PDFMesh::paint(QPainter* painter) const
+void PDFMesh::paint(QPainter* painter, PDFReal alpha) const
 {
     if (m_triangles.empty())
     {
@@ -1021,7 +1021,9 @@ void PDFMesh::paint(QPainter* painter) const
 
     if (!m_backgroundPath.isEmpty() && m_backgroundColor.isValid())
     {
-        painter->setBrush(QBrush(m_backgroundColor, Qt::SolidPattern));
+        QColor backgroundColor = m_backgroundColor;
+        backgroundColor.setAlphaF(alpha);
+        painter->setBrush(QBrush(backgroundColor, Qt::SolidPattern));
         painter->drawPath(m_backgroundPath);
     }
 
@@ -1032,9 +1034,11 @@ void PDFMesh::paint(QPainter* painter) const
     {
         if (color != triangle.color)
         {
-            painter->setPen(QColor(triangle.color));
-            painter->setBrush(QBrush(triangle.color, Qt::SolidPattern));
-            color = triangle.color;
+            QColor newColor(triangle.color);
+            newColor.setAlphaF(alpha);
+            painter->setPen(newColor);
+            painter->setBrush(QBrush(newColor, Qt::SolidPattern));
+            color = newColor;
         }
 
         std::array<QPointF, 3> triangleCorners = { m_vertices[triangle.v1], m_vertices[triangle.v2], m_vertices[triangle.v3] };

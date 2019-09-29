@@ -43,7 +43,8 @@ enum RenderErrorType
 {
     Error,
     Warning,
-    NotImplemented
+    NotImplemented,
+    NotSupported
 };
 
 struct PDFRenderError

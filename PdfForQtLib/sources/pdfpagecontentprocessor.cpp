@@ -1592,22 +1592,20 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
     const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
     const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
+    const PDFReal strokingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "CA", m_graphicState.getAlphaStroking());
+    const PDFReal fillingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "ca", m_graphicState.getAlphaFilling());
+    QByteArray blendModeName = loader.readNameFromDictionary(graphicStateDictionary, "BM");
 
-    // TODO: Implement alpha constant
-    const PDFReal strokingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "CA", 1.0);
-    const PDFReal fillingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "ca", 1.0);
-    QByteArray blendMode = loader.readNameFromDictionary(graphicStateDictionary, "BM");
-    if (strokingAlpha != 1.0)
+    if (!blendModeName.isEmpty())
     {
-        m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for stroking not implemented!").arg(strokingAlpha)));
-    }
-    if (fillingAlpha != 1.0)
-    {
-        m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Alpha constant %1 for filling not implemented!").arg(fillingAlpha)));
-    }
-    if (!blendMode.isEmpty() && blendMode != "Normal")
-    {
-        m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' not implemented!").arg(QString::fromLatin1(blendMode))));
+        BlendMode blendMode = PDFBlendModeInfo::getBlendMode(blendModeName);
+
+        if (blendMode == BlendMode::Invalid)
+        {
+            blendMode = BlendMode::Normal;
+            m_errorList.append(PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Blend mode '%1' is invalid.").arg(QString::fromLatin1(blendModeName))));
+        }
+        m_graphicState.setBlendMode(blendMode);
     }
 
     m_graphicState.setLineWidth(lineWidth);
@@ -1617,6 +1615,8 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     m_graphicState.setFlatness(flatness);
     m_graphicState.setSmoothness(smoothness);
     m_graphicState.setTextKnockout(textKnockout);
+    m_graphicState.setAlphaStroking(strokingAlpha);
+    m_graphicState.setAlphaFilling(fillingAlpha);
     updateGraphicState();
 }
 
@@ -2968,6 +2968,9 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_textRenderingMode(TextRenderingMode::Fill),
     m_textRise(0.0),
     m_textKnockout(true),
+    m_alphaStroking(1.0),
+    m_alphaFilling(1.0),
+    m_blendMode(BlendMode::Normal),
     m_stateFlags(StateUnchanged)
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
@@ -3005,6 +3008,9 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setTextKnockout(other.getTextKnockout());
     setTextMatrix(other.getTextMatrix());
     setTextLineMatrix(other.getTextLineMatrix());
+    setAlphaStroking(other.getAlphaStroking());
+    setAlphaFilling(other.getAlphaFilling());
+    setBlendMode(other.getBlendMode());
     return *this;
 }
 
@@ -3159,6 +3165,47 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setTextLineMatrix(co
         m_textLineMatrix = textLineMatrix;
         m_stateFlags |= StateTextLineMatrix;
     }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setAlphaStroking(PDFReal alpha)
+{
+    if (m_alphaStroking != alpha)
+    {
+        m_alphaStroking = alpha;
+        m_stateFlags |= StateAlphaStroking;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setAlphaFilling(PDFReal alpha)
+{
+    if (m_alphaFilling != alpha)
+    {
+        m_alphaFilling = alpha;
+        m_stateFlags |= StateAlphaFilling;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setBlendMode(BlendMode mode)
+{
+    if (m_blendMode != mode)
+    {
+        m_blendMode = mode;
+        m_stateFlags |= StateBlendMode;
+    }
+}
+
+QColor PDFPageContentProcessor::PDFPageContentProcessorState::getStrokeColorWithAlpha() const
+{
+    QColor color = getStrokeColor();
+    color.setAlphaF(m_alphaStroking);
+    return color;
+}
+
+QColor PDFPageContentProcessor::PDFPageContentProcessorState::getFillColorWithAlpha() const
+{
+    QColor color = getFillColor();
+    color.setAlphaF(m_alphaFilling);
+    return color;
 }
 
 void PDFPageContentProcessor::PDFPageContentProcessorState::setTextMatrix(const QMatrix& textMatrix)

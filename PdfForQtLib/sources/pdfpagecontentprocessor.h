@@ -24,6 +24,7 @@
 #include "pdffont.h"
 #include "pdfutils.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfblendfunction.h"
 
 #include <QMatrix>
 #include <QPainterPath>
@@ -211,7 +212,7 @@ protected:
         PDFPageContentProcessorState& operator=(PDFPageContentProcessorState&&) = delete;
         PDFPageContentProcessorState& operator=(const PDFPageContentProcessorState& other);
 
-        enum StateFlag
+        enum StateFlag : uint32_t
         {
             StateUnchanged                      = 0x00000000,
             StateCurrentTransformationMatrix    = 0x00000001,
@@ -238,7 +239,10 @@ protected:
             StateTextRenderingMode              = 0x00200000,
             StateTextRise                       = 0x00400000,
             StateTextKnockout                   = 0x00800000,
-            StateAll                            = 0xFFFF
+            StateAlphaStroking                  = 0x01000000,
+            StateAlphaFilling                   = 0x02000000,
+            StateBlendMode                      = 0x04000000,
+            StateAll                            = 0xFFFFFFFF
         };
 
         Q_DECLARE_FLAGS(StateFlags, StateFlag)
@@ -318,6 +322,21 @@ protected:
         const QMatrix& getTextLineMatrix() const { return m_textLineMatrix; }
         void setTextLineMatrix(const QMatrix& textLineMatrix);
 
+        PDFReal getAlphaStroking() const { return m_alphaStroking; }
+        void setAlphaStroking(PDFReal alpha);
+
+        PDFReal getAlphaFilling() const { return m_alphaFilling; }
+        void setAlphaFilling(PDFReal alpha);
+
+        BlendMode getBlendMode() const { return m_blendMode; }
+        void setBlendMode(BlendMode mode);
+
+        /// Returns stroke color with alpha channel
+        QColor getStrokeColorWithAlpha() const;
+
+        /// Returns fill color with alpha channel
+        QColor getFillColorWithAlpha() const;
+
     private:
         QMatrix m_currentTransformationMatrix;
         PDFColorSpacePointer m_strokeColorSpace;
@@ -343,6 +362,9 @@ protected:
         bool m_textKnockout;
         QMatrix m_textMatrix;
         QMatrix m_textLineMatrix;
+        PDFReal m_alphaStroking;
+        PDFReal m_alphaFilling;
+        BlendMode m_blendMode;
         StateFlags m_stateFlags;
     };
 

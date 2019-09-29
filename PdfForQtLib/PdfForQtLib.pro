@@ -36,6 +36,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 DESTDIR = $$OUT_PWD/..
 
 SOURCES += \
+    sources/pdfblendfunction.cpp \
     sources/pdfitemmodels.cpp \
     sources/pdfobject.cpp \
     sources/pdfoptionalcontent.cpp \
@@ -64,6 +65,7 @@ SOURCES += \
     sources/pdfimage.cpp
 
 HEADERS += \
+    sources/pdfblendfunction.h \
     sources/pdfitemmodels.h \
     sources/pdfmeshqualitysettings.h \
     sources/pdfobject.h \
