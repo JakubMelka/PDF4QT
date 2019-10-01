@@ -605,9 +605,9 @@ QColor PDFLabColorSpace::getColor(const PDFColor& color) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
-    const PDFColorComponent LStar = qBound(0.0f, color[0], 100.0f);
-    const PDFColorComponent aStar = qBound(m_aMin, color[1], m_aMax);
-    const PDFColorComponent bStar = qBound(m_bMin, color[2], m_bMax);
+    const PDFColorComponent LStar = qBound(0.0, interpolate(color[0], 0.0, 1.0, 0.0, 100.0), 100.0);
+    const PDFColorComponent aStar = qBound<PDFColorComponent>(m_aMin, interpolate(color[1], 0.0, 1.0, m_aMin, m_aMax), m_aMax);
+    const PDFColorComponent bStar = qBound<PDFColorComponent>(m_bMin, interpolate(color[2], 0.0, 1.0, m_bMin, m_bMax), m_bMax);
 
     const PDFColorComponent param1 = (LStar + 16.0f) / 116.0f;
     const PDFColorComponent param2 = aStar / 500.0f;
