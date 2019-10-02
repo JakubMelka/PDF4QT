@@ -785,7 +785,7 @@ private:
     const PDFRealizedFontPointer& getRealizedFont() { return m_realizedFont.get(this, &PDFPageContentProcessor::getRealizedFontImpl); }
 
     /// Returns realized font (or empty font, if font can't be realized)
-    PDFRealizedFontPointer getRealizedFontImpl() const;
+    PDFRealizedFontPointer getRealizedFontImpl();
 
     /// Checks, if stroking color is valid
     void checkStrokingColor();

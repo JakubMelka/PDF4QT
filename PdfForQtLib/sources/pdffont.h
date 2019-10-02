@@ -233,7 +233,7 @@ public:
 
     /// Creates new realized font from the standard font. If font can't be created,
     /// then exception is thrown.
-    static PDFRealizedFontPointer createRealizedFont(PDFFontPointer font, PDFReal pixelSize);
+    static PDFRealizedFontPointer createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter);
 
 private:
     /// Constructs new realized font
@@ -393,7 +393,8 @@ public:
     /// then exception is thrown.
     /// \param font Font, which should be realized
     /// \param size Size of the font (in pixels)
-    PDFRealizedFontPointer getRealizedFont(const PDFFontPointer& font, PDFReal size) const;
+    /// \param reporter Error reporter
+    PDFRealizedFontPointer getRealizedFont(const PDFFontPointer& font, PDFReal size, PDFRenderErrorReporter* reporter) const;
 
 private:
     const size_t m_fontCacheLimit;

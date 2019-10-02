@@ -52,7 +52,7 @@ public:
 
     /// Loads font from descriptor
     /// \param descriptor Descriptor describing the font
-    QByteArray loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType) const;
+    QByteArray loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType, PDFRenderErrorReporter* reporter) const;
 
 private:
     explicit PDFSystemFontInfoStorage();
@@ -91,7 +91,7 @@ const PDFSystemFontInfoStorage* PDFSystemFontInfoStorage::getInstance()
     return &instance;
 }
 
-QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType) const
+QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType, PDFRenderErrorReporter* reporter) const
 {
     QByteArray result;
 
@@ -187,7 +187,7 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
     // and try to set weight
     QString fontFamily = QString::fromLatin1(descriptor->fontFamily);
 
-    if (!fontFamily.isEmpty())
+    if (!fontFamily.isEmpty() && result.isEmpty())
     {
         for (const FontInfo& fontInfo : m_fontInfos)
         {
@@ -199,6 +199,7 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
 
                 if (!result.isEmpty())
                 {
+                    reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by %2 using font family %3.").arg(fontName, fontInfo.faceNameAdjusted, fontFamily));
                     break;
                 }
             }
@@ -218,8 +219,30 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
 
                     if (!result.isEmpty())
                     {
+                        reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by %2 using font family %3.").arg(fontName, fontInfo.faceNameAdjusted, fontFamily));
                         break;
                     }
+                }
+            }
+        }
+    }
+
+    // Try to inexact match for font name - find similar font
+    if (!fontName.isEmpty() && result.isEmpty())
+    {
+        for (const FontInfo& fontInfo : m_fontInfos)
+        {
+            if (fontInfo.faceNameAdjusted.contains(fontName))
+            {
+                LOGFONT logFont = fontInfo.logFont;
+                logFont.lfWeight = descriptor->fontWeight;
+                logFont.lfItalic = lfItalic;
+                result = getFontData(&logFont, hdc);
+
+                if (!result.isEmpty())
+                {
+                    reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by %2.").arg(fontName, fontInfo.faceNameAdjusted));
+                    break;
                 }
             }
         }
@@ -624,7 +647,7 @@ bool PDFRealizedFont::isHorizontalWritingSystem() const
     return m_impl->isHorizontalWritingSystem();
 }
 
-PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize)
+PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter)
 {
     PDFRealizedFontPointer result;
 
@@ -669,7 +692,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             }
 
             const PDFSystemFontInfoStorage* fontStorage = PDFSystemFontInfoStorage::getInstance();
-            impl->m_systemFontData = fontStorage->loadFont(descriptor, standardFontType);
+            impl->m_systemFontData = fontStorage->loadFont(descriptor, standardFontType, reporter);
 
             if (impl->m_systemFontData.isEmpty())
             {
@@ -1393,7 +1416,7 @@ PDFFontPointer PDFFontCache::getFont(const PDFObject& fontObject) const
     }
 }
 
-PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font, PDFReal size) const
+PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font, PDFReal size, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(font);
 
@@ -1402,7 +1425,7 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
     if (it == m_realizedFontCache.cend())
     {
         // We must create the realized font
-        PDFRealizedFontPointer realizedFont = PDFRealizedFont::createRealizedFont(font, size);
+        PDFRealizedFontPointer realizedFont = PDFRealizedFont::createRealizedFont(font, size, reporter);
 
         if (m_realizedFontCache.size() >= m_realizedFontCacheLimit)
         {

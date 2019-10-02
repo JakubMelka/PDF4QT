@@ -2917,11 +2917,11 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
     }
 }
 
-PDFRealizedFontPointer PDFPageContentProcessor::getRealizedFontImpl() const
+PDFRealizedFontPointer PDFPageContentProcessor::getRealizedFontImpl()
 {
     if (m_graphicState.getTextFont())
     {
-        return m_fontCache->getRealizedFont(m_graphicState.getTextFont(), m_graphicState.getTextFontSize());
+        return m_fontCache->getRealizedFont(m_graphicState.getTextFont(), m_graphicState.getTextFontSize(), this);
     }
 
     return PDFRealizedFontPointer();

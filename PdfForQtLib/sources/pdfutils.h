@@ -59,6 +59,21 @@ public:
         return m_object;
     }
 
+    /// Returns the cached object. If object is dirty, then cached object is refreshed.
+    /// \param holder Holder object, which owns the cached item
+    /// \param function Refresh function
+    template<typename H>
+    inline const T& get(H* holder, T(H::* function)(void))
+    {
+        if (m_dirty)
+        {
+            m_object = (holder->*function)();
+            m_dirty = false;
+        }
+
+        return m_object;
+    }
+
     /// Invalidates the cached item, so it must be refreshed from the cache next time,
     /// if it is accessed.
     inline void dirty()
