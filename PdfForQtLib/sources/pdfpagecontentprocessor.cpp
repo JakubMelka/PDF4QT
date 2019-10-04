@@ -1593,7 +1593,7 @@ void PDFPageContentProcessor::operatorSetLineDashPattern()
 
 void PDFPageContentProcessor::operatorSetRenderingIntent(PDFOperandName intent)
 {
-    m_graphicState.setRenderingIntent(intent.name);
+    setRenderingIntentByName(intent.name);
     updateGraphicState();
 }
 
@@ -1602,6 +1602,30 @@ void PDFPageContentProcessor::operatorSetFlatness(PDFReal flatness)
     flatness = qBound(0.0, flatness, 100.0);
     m_graphicState.setFlatness(flatness);
     updateGraphicState();
+}
+
+void PDFPageContentProcessor::setRenderingIntentByName(QByteArray renderingIntentName)
+{
+    RenderingIntent renderingIntent = RenderingIntent::Unknown;
+
+    if (renderingIntentName == "Perceptual")
+    {
+        renderingIntent = RenderingIntent::Perceptual;
+    }
+    else if (renderingIntentName == "AbsoluteColorimetric")
+    {
+        renderingIntent = RenderingIntent::AbsoluteColorimetric;
+    }
+    else if (renderingIntentName == "RelativeColorimetric")
+    {
+        renderingIntent = RenderingIntent::RelativeColorimetric;
+    }
+    else if (renderingIntentName == "Saturation")
+    {
+        renderingIntent = RenderingIntent::Saturation;
+    }
+    m_graphicState.setRenderingIntent(renderingIntent);
+    m_graphicState.setRenderingIntentName(renderingIntentName);
 }
 
 void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* graphicStateDictionary)
@@ -1623,18 +1647,14 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
         }
     }
 
-    const PDFObject& renderingIntentObject = m_document->getObject(graphicStateDictionary->get("RI"));
-    if (renderingIntentObject.isName())
-    {
-        m_graphicState.setRenderingIntent(renderingIntentObject.getString());
-    }
-
     const PDFReal flatness = loader.readNumberFromDictionary(graphicStateDictionary, "FL", m_graphicState.getFlatness());
     const PDFReal smoothness = loader.readNumberFromDictionary(graphicStateDictionary, "SM", m_graphicState.getSmoothness());
     const bool textKnockout = loader.readBooleanFromDictionary(graphicStateDictionary, "TK", m_graphicState.getTextKnockout());
     const PDFReal strokingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "CA", m_graphicState.getAlphaStroking());
     const PDFReal fillingAlpha = loader.readNumberFromDictionary(graphicStateDictionary, "ca", m_graphicState.getAlphaFilling());
     QByteArray blendModeName = loader.readNameFromDictionary(graphicStateDictionary, "BM");
+    QByteArray renderingIntentName = loader.readNameFromDictionary(graphicStateDictionary, "RI");
+    const bool alphaIsShape = loader.readBooleanFromDictionary(graphicStateDictionary, "AIS", m_graphicState.getAlphaIsShape());
 
     if (!blendModeName.isEmpty())
     {
@@ -1648,6 +1668,20 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
         m_graphicState.setBlendMode(blendMode);
     }
 
+    if (!renderingIntentName.isEmpty())
+    {
+        setRenderingIntentByName(renderingIntentName);
+    }
+
+    PDFOverprintMode overprintMode = m_graphicState.getOverprintMode();
+    overprintMode.overprintMode = loader.readIntegerFromDictionary(graphicStateDictionary, "OPM", overprintMode.overprintMode);
+    if (graphicStateDictionary->hasKey("OP"))
+    {
+        // Overprint for filling is ruled by overprint for stroking, if "op" is not present, according to the specification
+        overprintMode.overprintStroking = loader.readBooleanFromDictionary(graphicStateDictionary, "OP", overprintMode.overprintStroking);
+        overprintMode.overprintFilling = loader.readBooleanFromDictionary(graphicStateDictionary, "op", overprintMode.overprintStroking);
+    }
+
     m_graphicState.setLineWidth(lineWidth);
     m_graphicState.setLineCapStyle(penCapStyle);
     m_graphicState.setLineJoinStyle(penJoinStyle);
@@ -1657,7 +1691,35 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     m_graphicState.setTextKnockout(textKnockout);
     m_graphicState.setAlphaStroking(strokingAlpha);
     m_graphicState.setAlphaFilling(fillingAlpha);
+    m_graphicState.setOverprintMode(overprintMode);
+    m_graphicState.setAlphaIsShape(alphaIsShape);
     updateGraphicState();
+
+    if (graphicStateDictionary->hasKey("Font"))
+    {
+        const PDFObject& fontObject = m_document->getObject(graphicStateDictionary->get("Font"));
+        if (fontObject.isArray())
+        {
+            const PDFArray* fontObjectArray = fontObject.getArray();
+            if (fontObjectArray->getCount() == 2)
+            {
+                PDFOperandName operandName;
+                operandName.name = loader.readName(fontObjectArray->getItem(0));
+                operatorTextSetFontAndFontSize(operandName, loader.readNumber(fontObjectArray->getItem(1), 1.0));
+            }
+        }
+    }
+
+    if (graphicStateDictionary->hasKey("SMask"))
+    {
+        const PDFObject& softMaskObject = m_document->getObject(graphicStateDictionary->get("SMask"));
+
+        bool isNone = (softMaskObject.isName() && softMaskObject.getString() == "None");
+        if (!isNone)
+        {
+            reportRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("Soft masks not supported."));
+        }
+    }
 }
 
 void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryName)
@@ -3000,7 +3062,7 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_lineCapStyle(Qt::FlatCap),
     m_lineJoinStyle(Qt::MiterJoin),
     m_mitterLimit(10.0),
-    m_renderingIntent(),
+    m_renderingIntentName(),
     m_flatness(1.0),
     m_smoothness(0.01),
     m_textCharacterSpacing(0.0),
@@ -3014,6 +3076,9 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_alphaStroking(1.0),
     m_alphaFilling(1.0),
     m_blendMode(BlendMode::Normal),
+    m_renderingIntent(RenderingIntent::Perceptual),
+    m_overprintMode(),
+    m_alphaIsShape(false),
     m_stateFlags(StateUnchanged)
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
@@ -3037,7 +3102,7 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setLineJoinStyle(other.getLineJoinStyle());
     setMitterLimit(other.getMitterLimit());
     setLineDashPattern(other.getLineDashPattern());
-    setRenderingIntent(other.getRenderingIntent());
+    setRenderingIntentName(other.getRenderingIntentName());
     setFlatness(other.getFlatness());
     setSmoothness(other.getSmoothness());
     setTextCharacterSpacing(other.getTextCharacterSpacing());
@@ -3054,6 +3119,9 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setAlphaStroking(other.getAlphaStroking());
     setAlphaFilling(other.getAlphaFilling());
     setBlendMode(other.getBlendMode());
+    setRenderingIntent(other.getRenderingIntent());
+    setOverprintMode(other.getOverprintMode());
+    setAlphaIsShape(other.getAlphaIsShape());
     return *this;
 }
 
@@ -3147,12 +3215,12 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setLineDashPattern(P
     }
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setRenderingIntent(const QByteArray& renderingIntent)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setRenderingIntentName(const QByteArray& renderingIntentName)
 {
-    if (m_renderingIntent != renderingIntent)
+    if (m_renderingIntentName != renderingIntentName)
     {
-        m_renderingIntent = renderingIntent;
-        m_stateFlags |= StateRenderingIntent;
+        m_renderingIntentName = renderingIntentName;
+        m_stateFlags |= StateRenderingIntentName;
     }
 }
 
@@ -3237,6 +3305,15 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setBlendMode(BlendMo
     }
 }
 
+void PDFPageContentProcessor::PDFPageContentProcessorState::setRenderingIntent(RenderingIntent renderingIntent)
+{
+    if (m_renderingIntent != renderingIntent)
+    {
+        m_renderingIntent = renderingIntent;
+        m_stateFlags |= StateRenderingIntent;
+    }
+}
+
 QColor PDFPageContentProcessor::PDFPageContentProcessorState::getStrokeColorWithAlpha() const
 {
     QColor color = getStrokeColor();
@@ -3249,6 +3326,24 @@ QColor PDFPageContentProcessor::PDFPageContentProcessorState::getFillColorWithAl
     QColor color = getFillColor();
     color.setAlphaF(m_alphaFilling);
     return color;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setOverprintMode(PDFOverprintMode overprintMode)
+{
+    if (m_overprintMode != overprintMode)
+    {
+        m_overprintMode = overprintMode;
+        m_stateFlags |= StateOverprint;
+    }
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setAlphaIsShape(bool alphaIsShape)
+{
+    if (m_alphaIsShape != alphaIsShape)
+    {
+        m_alphaIsShape = alphaIsShape;
+        m_stateFlags |= StateAlphaIsShape;
+    }
 }
 
 void PDFPageContentProcessor::PDFPageContentProcessorState::setTextMatrix(const QMatrix& textMatrix)

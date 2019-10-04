@@ -205,6 +205,22 @@ protected:
         bool knockout = false;
     };
 
+    struct PDFOverprintMode
+    {
+        bool overprintStroking = false;
+        bool overprintFilling = false;
+        int overprintMode = 0;
+
+        inline bool operator==(const PDFOverprintMode& other) const
+        {
+            return std::tie(overprintStroking, overprintFilling, overprintMode) == std::tie(other.overprintStroking, other.overprintFilling, other.overprintMode);
+        }
+        inline bool operator!=(const PDFOverprintMode& other) const
+        {
+            return !(*this == other);
+        }
+    };
+
     /// Represents graphic state of the PDF (holding current graphic state parameters).
     /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"
     class PDFPageContentProcessorState
@@ -232,7 +248,7 @@ protected:
             StateLineJoinStyle                  = 0x00000080,
             StateMitterLimit                    = 0x00000100,
             StateLineDashPattern                = 0x00000200,
-            StateRenderingIntent                = 0x00000400,
+            StateRenderingIntentName            = 0x00000400,
             StateFlatness                       = 0x00000800,
             StateSmoothness                     = 0x00001000,
             StateTextMatrix                     = 0x00002000,
@@ -249,6 +265,9 @@ protected:
             StateAlphaStroking                  = 0x01000000,
             StateAlphaFilling                   = 0x02000000,
             StateBlendMode                      = 0x04000000,
+            StateRenderingIntent                = 0x08000000,
+            StateOverprint                      = 0x10000000,
+            StateAlphaIsShape                   = 0x20000000,
             StateAll                            = 0xFFFFFFFF
         };
 
@@ -284,8 +303,8 @@ protected:
         const PDFLineDashPattern& getLineDashPattern() const { return m_lineDashPattern; }
         void setLineDashPattern(PDFLineDashPattern pattern);
 
-        const QByteArray& getRenderingIntent() const { return m_renderingIntent; }
-        void setRenderingIntent(const QByteArray& renderingIntent);
+        const QByteArray& getRenderingIntentName() const { return m_renderingIntentName; }
+        void setRenderingIntentName(const QByteArray& renderingIntentName);
 
         PDFReal getFlatness() const { return m_flatness; }
         void setFlatness(PDFReal flatness);
@@ -338,11 +357,20 @@ protected:
         BlendMode getBlendMode() const { return m_blendMode; }
         void setBlendMode(BlendMode mode);
 
+        RenderingIntent getRenderingIntent() const { return m_renderingIntent; }
+        void setRenderingIntent(RenderingIntent renderingIntent);
+
         /// Returns stroke color with alpha channel
         QColor getStrokeColorWithAlpha() const;
 
         /// Returns fill color with alpha channel
         QColor getFillColorWithAlpha() const;
+
+        PDFOverprintMode getOverprintMode() const { return m_overprintMode; }
+        void setOverprintMode(PDFOverprintMode overprintMode);
+
+        bool getAlphaIsShape() const { return m_alphaIsShape; }
+        void setAlphaIsShape(bool alphaIsShape);
 
     private:
         QMatrix m_currentTransformationMatrix;
@@ -355,7 +383,7 @@ protected:
         Qt::PenJoinStyle m_lineJoinStyle;
         PDFReal m_mitterLimit;
         PDFLineDashPattern m_lineDashPattern;
-        QByteArray m_renderingIntent;
+        QByteArray m_renderingIntentName;
         PDFReal m_flatness;
         PDFReal m_smoothness;
         PDFReal m_textCharacterSpacing; // T_c
@@ -372,6 +400,9 @@ protected:
         PDFReal m_alphaStroking;
         PDFReal m_alphaFilling;
         BlendMode m_blendMode;
+        RenderingIntent m_renderingIntent;
+        PDFOverprintMode m_overprintMode;
+        bool m_alphaIsShape;
         StateFlags m_stateFlags;
     };
 
@@ -801,6 +832,9 @@ private:
 
     /// Report warning about color operators in uncolored tiling pattern
     void reportWarningAboutColorOperatorsInUTP();
+
+    /// Set rendering intent by name
+    void setRenderingIntentByName(QByteArray renderingIntentName);
 
     const PDFPage* m_page;
     const PDFDocument* m_document;

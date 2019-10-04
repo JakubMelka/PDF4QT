@@ -148,6 +148,15 @@ enum class RendererEngine
     OpenGL
 };
 
+enum class RenderingIntent
+{
+    Perceptual,
+    AbsoluteColorimetric,
+    RelativeColorimetric,
+    Saturation,
+    Unknown
+};
+
 }   // namespace pdf
 
 #endif // PDFGLOBAL_H
