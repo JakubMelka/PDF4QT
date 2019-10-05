@@ -87,6 +87,7 @@ public:
         ColorKeyMasking,    ///< Masking by color key
         Image,              ///< Masking by image with alpha mask
         ImageMask,          ///< Masking by 1-bit image (see "ImageMask" entry in image's dictionary), current color from the graphic state is used to paint an image
+        SoftMask,           ///< Image is masked by soft mask
     };
 
     explicit PDFImageData() :
@@ -108,7 +109,8 @@ public:
                                  MaskingType maskingType,
                                  QByteArray data,
                                  std::vector<PDFInteger>&& colorKeyMask,
-                                 std::vector<PDFReal>&& decode) :
+                                 std::vector<PDFReal>&& decode,
+                                 std::vector<PDFReal>&& matte) :
         m_components(components),
         m_bitsPerComponent(bitsPerComponent),
         m_width(width),
@@ -117,7 +119,8 @@ public:
         m_maskingType(maskingType),
         m_data(qMove(data)),
         m_colorKeyMask(qMove(colorKeyMask)),
-        m_decode(qMove(decode))
+        m_decode(qMove(decode)),
+        m_matte(qMove(matte))
     {
 
     }
@@ -131,6 +134,7 @@ public:
     const QByteArray& getData() const { return m_data; }
     const std::vector<PDFInteger>& getColorKeyMask() const { return m_colorKeyMask; }
     const std::vector<PDFReal>& getDecode() const { return m_decode; }
+    const std::vector<PDFReal>& getMatte() const { return m_matte; }
 
     /// Returns number of color channels
     unsigned int getColorChannels() const { return m_components; }
@@ -162,6 +166,10 @@ private:
     /// then contains n pairs of numbers, where n is number of color components. If ImageMask
     /// in the image dictionary is true, then decode array should be [0 1] or [1 0].
     std::vector<PDFReal> m_decode;
+
+    /// Matte color (color, agains which is image preblended, when using soft masking
+    /// image (defined for soft masks).
+    std::vector<PDFReal> m_matte;
 };
 
 using PDFColor3 = std::array<PDFColorComponent, 3>;
@@ -211,12 +219,16 @@ public:
     virtual QColor getDefaultColor() const = 0;
     virtual QColor getColor(const PDFColor& color) const = 0;
     virtual size_t getColorComponentCount() const = 0;
-    virtual QImage getImage(const PDFImageData& imageData) const;
+    virtual QImage getImage(const PDFImageData& imageData, const PDFImageData& softMask) const;
     virtual const PDFPatternColorSpace* asPatternColorSpace() const { return nullptr; }
 
     /// Checks, if number of color components is OK, and if yes, converts them to the QColor value.
     /// If they are not OK, exception is thrown.
     QColor getCheckedColor(const PDFColor& color) const;
+
+    /// Creates alpha mask from soft image data. Exception is thrown, if something fails.
+    /// \param softMask Soft mask
+    static QImage createAlphaMask(const PDFImageData& softMask);
 
     /// Parses the desired color space. If desired color space is not found, then exception is thrown.
     /// If everything is OK, then shared pointer to the new color space is returned.
@@ -496,7 +508,7 @@ public:
     virtual QColor getDefaultColor() const override;
     virtual QColor getColor(const PDFColor& color) const override;
     virtual size_t getColorComponentCount() const override;
-    virtual QImage getImage(const PDFImageData& imageData) const override;
+    virtual QImage getImage(const PDFImageData& imageData, const PDFImageData& softMask) const override;
 
     /// Creates indexed color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary

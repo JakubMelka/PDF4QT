@@ -2663,7 +2663,7 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
         }
     }
 
-    PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), this);
+    PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), false, this);
     QImage image = pdfImage.getImage();
 
     if (image.format() == QImage::Format_Alpha8)

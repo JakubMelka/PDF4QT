@@ -87,7 +87,7 @@ size_t PDFDeviceCMYKColorSpace::getColorComponentCount() const
     return 4;
 }
 
-QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
+QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFImageData& softMask) const
 {
     if (imageData.isValid())
     {
@@ -107,7 +107,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                 const std::vector<PDFReal>& decode = imageData.getDecode();
                 if (!decode.empty() && decode.size() != componentCount * 2)
                 {
-                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
                 PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
@@ -145,6 +145,74 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData) const
                         *outputLine++ = qRed(rgb);
                         *outputLine++ = qGreen(rgb);
                         *outputLine++ = qBlue(rgb);
+                    }
+                }
+
+                return image;
+            }
+
+            case PDFImageData::MaskingType::SoftMask:
+            {
+                const bool hasMatte = !softMask.getMatte().empty();
+                QImage image(imageData.getWidth(), imageData.getHeight(), hasMatte ? QImage::Format_RGBA8888_Premultiplied : QImage::Format_RGBA8888);
+                image.fill(QColor(Qt::white));
+
+                unsigned int componentCount = imageData.getComponents();
+                if (componentCount != getColorComponentCount())
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+                }
+
+                const std::vector<PDFReal>& decode = imageData.getDecode();
+                if (!decode.empty() && decode.size() != componentCount * 2)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                }
+
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+
+                PDFColor color;
+                color.resize(componentCount);
+
+                QImage alphaMask = createAlphaMask(softMask);
+                if (alphaMask.size() != image.size())
+                {
+                    // Scale the alpha mask, if it is masked
+                    alphaMask = alphaMask.scaled(image.size());
+                }
+
+                const double max = reader.max();
+                const double coefficient = 1.0 / max;
+                for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+                {
+                    reader.seek(i * imageData.getStride());
+                    unsigned char* outputLine = image.scanLine(i);
+                    unsigned char* alphaLine = alphaMask.scanLine(i);
+
+                    for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                    {
+                        for (unsigned int k = 0; k < componentCount; ++k)
+                        {
+                            PDFReal value = reader.read();
+
+                            // Interpolate value, if it is not empty
+                            if (!decode.empty())
+                            {
+                                color[k] = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                            }
+                            else
+                            {
+                                color[k] = value * coefficient;
+                            }
+                        }
+
+                        QColor transformedColor = getColor(color);
+                        QRgb rgb = transformedColor.rgb();
+
+                        *outputLine++ = qRed(rgb);
+                        *outputLine++ = qGreen(rgb);
+                        *outputLine++ = qBlue(rgb);
+                        *outputLine++ = *alphaLine++;
                     }
                 }
 
@@ -245,6 +313,69 @@ QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color) const
     }
 
     return getColor(color);
+}
+
+QImage PDFAbstractColorSpace::createAlphaMask(const PDFImageData& softMask)
+{
+    if (softMask.getMaskingType() != PDFImageData::MaskingType::None)
+    {
+        throw PDFException(PDFTranslationContext::tr("Soft mask can't have masking."));
+    }
+
+    if (softMask.getWidth() < 1 || softMask.getHeight() < 1)
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid size of soft mask."));
+    }
+
+    QImage image(softMask.getWidth(), softMask.getHeight(), QImage::Format_Alpha8);
+
+    unsigned int componentCount = softMask.getComponents();
+    if (componentCount != 1)
+    {
+        throw PDFException(PDFTranslationContext::tr("Soft mask should have only 1 color component (alpha) instead of %1.").arg(componentCount));
+    }
+
+    const std::vector<PDFReal>& decode = softMask.getDecode();
+    if (!decode.empty() && decode.size() != componentCount * 2)
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+    }
+
+    PDFBitReader reader(&softMask.getData(), softMask.getBitsPerComponent());
+
+    PDFColor color;
+    color.resize(componentCount);
+
+    const double max = reader.max();
+    const double coefficient = 1.0 / max;
+    for (unsigned int i = 0, rowCount = softMask.getHeight(); i < rowCount; ++i)
+    {
+        reader.seek(i * softMask.getStride());
+        unsigned char* outputLine = image.scanLine(i);
+
+        for (unsigned int j = 0; j < softMask.getWidth(); ++j)
+        {
+            PDFReal alpha = 0.0;
+
+            PDFReal value = reader.read();
+
+            // Interpolate value, if it is not empty
+            if (!decode.empty())
+            {
+                alpha = interpolate(value, 0.0, max, decode[0], decode[1]);
+            }
+            else
+            {
+                alpha = value * coefficient;
+            }
+
+            alpha = qBound(0.0, alpha, 1.0);
+            uint8_t alphaCoded = alpha * 255;
+            *outputLine++ = alphaCoded;
+        }
+    }
+
+    return image;
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpace(const PDFDictionary* colorSpaceDictionary,
@@ -818,46 +949,104 @@ size_t PDFIndexedColorSpace::getColorComponentCount() const
     return 1;
 }
 
-QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData) const
+QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData, const PDFImageData& softMask) const
 {
     if (imageData.isValid())
     {
-        QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGB888);
-        image.fill(QColor(Qt::white));
-
-        unsigned int componentCount = imageData.getComponents();
-        PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
-
-        if (componentCount != getColorComponentCount())
+        switch (imageData.getMaskingType())
         {
-            throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
-        }
-
-        Q_ASSERT(componentCount == 1);
-
-        PDFColor color;
-        color.resize(1);
-
-        for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
-        {
-            reader.seek(i * imageData.getStride());
-            unsigned char* outputLine = image.scanLine(i);
-
-            for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+            case PDFImageData::MaskingType::None:
             {
-                PDFBitReader::Value index = reader.read();
-                color[0] = index;
+                QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGB888);
+                image.fill(QColor(Qt::white));
 
-                QColor transformedColor = getColor(color);
-                QRgb rgb = transformedColor.rgb();
+                unsigned int componentCount = imageData.getComponents();
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
 
-                *outputLine++ = qRed(rgb);
-                *outputLine++ = qGreen(rgb);
-                *outputLine++ = qBlue(rgb);
+                if (componentCount != getColorComponentCount())
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+                }
+
+                Q_ASSERT(componentCount == 1);
+
+                PDFColor color;
+                color.resize(1);
+
+                for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+                {
+                    reader.seek(i * imageData.getStride());
+                    unsigned char* outputLine = image.scanLine(i);
+
+                    for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                    {
+                        PDFBitReader::Value index = reader.read();
+                        color[0] = index;
+
+                        QColor transformedColor = getColor(color);
+                        QRgb rgb = transformedColor.rgb();
+
+                        *outputLine++ = qRed(rgb);
+                        *outputLine++ = qGreen(rgb);
+                        *outputLine++ = qBlue(rgb);
+                    }
+                }
+
+                return image;
             }
-        }
 
-        return image;
+            case PDFImageData::MaskingType::SoftMask:
+            {
+                const bool hasMatte = !softMask.getMatte().empty();
+                QImage image(imageData.getWidth(), imageData.getHeight(), hasMatte ? QImage::Format_RGBA8888_Premultiplied : QImage::Format_RGBA8888);
+
+                unsigned int componentCount = imageData.getComponents();
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+
+                if (componentCount != getColorComponentCount())
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(getColorComponentCount()).arg(componentCount));
+                }
+
+                Q_ASSERT(componentCount == 1);
+
+                PDFColor color;
+                color.resize(1);
+
+                QImage alphaMask = createAlphaMask(softMask);
+                if (alphaMask.size() != image.size())
+                {
+                    // Scale the alpha mask, if it is masked
+                    alphaMask = alphaMask.scaled(image.size());
+                }
+
+                for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+                {
+                    reader.seek(i * imageData.getStride());
+                    unsigned char* outputLine = image.scanLine(i);
+                    unsigned char* alphaLine = alphaMask.scanLine(i);
+
+                    for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                    {
+                        PDFBitReader::Value index = reader.read();
+                        color[0] = index;
+
+                        QColor transformedColor = getColor(color);
+                        QRgb rgb = transformedColor.rgb();
+
+                        *outputLine++ = qRed(rgb);
+                        *outputLine++ = qGreen(rgb);
+                        *outputLine++ = qBlue(rgb);
+                        *outputLine++ = *alphaLine++;
+                    }
+                }
+
+                return image;
+            }
+
+            default:
+                throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Image masking not implemented!"));
+        }
     }
 
     return QImage();

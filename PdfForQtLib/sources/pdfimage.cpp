@@ -45,7 +45,7 @@ struct PDFJPEGDCTSource
     int startByte = 0;
 };
 
-PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, PDFRenderErrorReporter* errorReporter)
+PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, bool isSoftMask, PDFRenderErrorReporter* errorReporter)
 {
     PDFImage image;
     image.m_colorSpace = colorSpace;
@@ -59,10 +59,9 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         throw PDFException(PDFTranslationContext::tr("Image has not data."));
     }
 
-    // TODO: Implement SMask
     // TODO: Implement SMaskInData
 
-    for (const char* notImplementedKey : { "SMask", "SMaskInData" })
+    for (const char* notImplementedKey : { "SMaskInData" })
     {
         if (dictionary->hasKey(notImplementedKey))
         {
@@ -74,6 +73,17 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
     std::vector<PDFInteger> mask;
     std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(dictionary, "Decode");
     bool imageMask = loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
+    std::vector<PDFReal> matte = loader.readNumberArrayFromDictionary(dictionary, "Matte");
+
+    if (isSoftMask && (imageMask || dictionary->hasKey("Mask") || dictionary->hasKey("SMask")))
+    {
+        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Soft mask image can't have mask / soft mask itself."));
+    }
+
+    if (!isSoftMask && !matte.empty())
+    {
+        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Regular image can't have Matte entry (used for soft masks)."));
+    }
 
     // Fill Mask
     if (dictionary->hasKey("Mask"))
@@ -89,6 +99,22 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             // TODO: Implement Mask Image
             maskingType = PDFImageData::MaskingType::Image;
             throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mask image is not implemented."));
+        }
+    }
+    else if (dictionary->hasKey("SMask"))
+    {
+        // Parse soft mask image
+        const PDFObject& softMaskObject = document->getObject(dictionary->get("SMask"));
+
+        if (softMaskObject.isStream())
+        {
+            PDFImage softMaskImage = createImage(document, softMaskObject.getStream(), PDFColorSpacePointer(new PDFDeviceGrayColorSpace()), true, errorReporter);
+            maskingType = PDFImageData::MaskingType::SoftMask;
+            image.m_softMask = qMove(softMaskImage.m_imageData);
+        }
+        else if (!softMaskObject.isNull())
+        {
+            throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Invalid soft mask object."));
         }
     }
 
@@ -262,7 +288,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             }
 
             jpeg_finish_decompress(&codec);
-            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, maskingType, qMove(buffer), qMove(mask), qMove(decode));
+            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, maskingType, qMove(buffer), qMove(mask), qMove(decode), qMove(matte));
         }
 
         jpeg_destroy_decompress(&codec);
@@ -428,7 +454,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
                         }
                     }
 
-                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode));
+                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
                     valid = image.m_imageData.isValid();
                 }
                 else
@@ -472,7 +498,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
     {
         throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'JBIG2Decode'."));
     }
-    else if (colorSpace)
+    else if (colorSpace || isSoftMask)
     {
         // We treat data as binary maybe compressed stream (for example by Flate/LZW method), but data can also be not compressed.
         const unsigned int components = static_cast<unsigned int>(colorSpace->getColorComponentCount());
@@ -494,7 +520,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         const unsigned int stride = (components * bitsPerComponent * width + 7) / 8;
 
         QByteArray imageDataBuffer = document->getDecodedStream(stream);
-        image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode));
+        image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
     }
     else if (imageMask)
     {
@@ -519,7 +545,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         const unsigned int stride = (width + 7) / 8;
 
         QByteArray imageDataBuffer = document->getDecodedStream(stream);
-        image.m_imageData = PDFImageData(1, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode));
+        image.m_imageData = PDFImageData(1, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
     }
 
     return image;
@@ -530,7 +556,7 @@ QImage PDFImage::getImage() const
     const bool isImageMask = m_imageData.getMaskingType() == PDFImageData::MaskingType::ImageMask;
     if (m_colorSpace && !isImageMask)
     {
-        return m_colorSpace->getImage(m_imageData);
+        return m_colorSpace->getImage(m_imageData, m_softMask);
     }
     else if (isImageMask)
     {

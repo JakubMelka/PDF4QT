@@ -38,8 +38,9 @@ public:
     /// \param document Document
     /// \param stream Stream with image
     /// \param colorSpace Color space of the image
+    /// \param isSoftMask Is it a soft mask image?
     /// \param errorReporter Error reporter for reporting errors (or warnings)
-    static PDFImage createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, PDFRenderErrorReporter* errorReporter);
+    static PDFImage createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, bool isSoftMask, PDFRenderErrorReporter* errorReporter);
 
     /// Returns image transformed from image data and color space
     QImage getImage() const;
@@ -48,6 +49,7 @@ private:
     PDFImage() = default;
 
     PDFImageData m_imageData;
+    PDFImageData m_softMask;
     PDFColorSpacePointer m_colorSpace;
 };
 
