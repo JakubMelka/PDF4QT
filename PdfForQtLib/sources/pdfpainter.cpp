@@ -199,14 +199,14 @@ void PDFPainter::performUpdateGraphicsState(const PDFPageContentProcessorState& 
 
             if (!PDFBlendModeInfo::isSupportedByQt(blendMode))
             {
-                reportRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("Blend mode '%1' not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
+                reportRenderErrorOnce(RenderErrorType::NotSupported, PDFTranslationContext::tr("Blend mode '%1' not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
             }
 
             m_painter->setCompositionMode(compositionMode);
         }
         else if (blendMode != BlendMode::Normal && blendMode != BlendMode::Compatible)
         {
-            reportRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("Blend mode '%1' is in transparency group, which is not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
+            reportRenderErrorOnce(RenderErrorType::NotSupported, PDFTranslationContext::tr("Blend mode '%1' is in transparency group, which is not supported.").arg(PDFBlendModeInfo::getBlendModeName(blendMode)));
         }
     }
 
@@ -365,8 +365,5 @@ bool PDFPainter::canSetBlendMode(BlendMode mode) const
     Q_UNUSED(mode);
     return std::all_of(m_transparencyGroupDataStack.cbegin(), m_transparencyGroupDataStack.cend(), [](const PDFTransparencyGroupPainterData& group) { return group.blendMode == BlendMode::Normal || group.blendMode == BlendMode::Compatible; });
 }
-
-// TODO: Check all graphic state parameter dictionaries, warn about missing ones
-// TODO: Recompile libraries in MSVC 2019
 
 }   // namespace pdf

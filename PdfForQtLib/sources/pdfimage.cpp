@@ -464,7 +464,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             }
         }
     }
-    else if (imageFilterName == "CCITTFaxDecode")
+    else if (imageFilterName == "CCITTFaxDecode" || imageFilterName == "CCF")
     {
         throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'CCITFaxDecode'."));
     }

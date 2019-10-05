@@ -200,7 +200,6 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_textBeginEndState(0),
     m_compatibilityBeginEndState(0),
     m_drawingUncoloredTilingPatternState(0),
-    m_isWarningColorOperatorsInUncoloredTilingPatternReported(false),
     m_patternBaseMatrix(pagePointToDevicePointMatrix),
     m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix),
     m_meshQualitySettings(meshQualitySettings)
@@ -1628,6 +1627,15 @@ void PDFPageContentProcessor::setRenderingIntentByName(QByteArray renderingInten
     m_graphicState.setRenderingIntentName(renderingIntentName);
 }
 
+void PDFPageContentProcessor::reportRenderErrorOnce(RenderErrorType type, QString message)
+{
+    if (!m_onceReportedErrors.count(message))
+    {
+        m_onceReportedErrors.insert(message);
+        reportRenderError(type, message);
+    }
+}
+
 void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* graphicStateDictionary)
 {
     PDFDocumentDataLoaderDecorator loader(m_document);
@@ -1717,7 +1725,7 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
         bool isNone = (softMaskObject.isName() && softMaskObject.getString() == "None");
         if (!isNone)
         {
-            reportRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("Soft masks not supported."));
+            reportRenderErrorOnce(RenderErrorType::NotSupported, PDFTranslationContext::tr("Soft masks not supported."));
         }
     }
 }
@@ -2679,11 +2687,7 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 
 void PDFPageContentProcessor::reportWarningAboutColorOperatorsInUTP()
 {
-    if (!m_isWarningColorOperatorsInUncoloredTilingPatternReported)
-    {
-        m_isWarningColorOperatorsInUncoloredTilingPatternReported = true;
-        m_errorList.push_back(PDFRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Color operators are not allowed in uncolored tilling pattern.")));
-    }
+    reportRenderErrorOnce(RenderErrorType::Warning, PDFTranslationContext::tr("Color operators are not allowed in uncolored tilling pattern."));
 }
 
 void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFOperandName name)

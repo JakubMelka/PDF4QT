@@ -168,6 +168,10 @@ public:
 
     virtual void reportRenderError(RenderErrorType type, QString message) override;
 
+    /// Reports render error, but only once - if same error was already reported,
+    /// then no new error is reported.
+    void reportRenderErrorOnce(RenderErrorType type, QString message);
+
 protected:
 
     class PDFLineDashPattern
@@ -883,9 +887,6 @@ private:
     /// Is drawing uncolored tiling pattern?
     int m_drawingUncoloredTilingPatternState;
 
-    /// Is warning about uncolored tiling patterns reported?
-    bool m_isWarningColorOperatorsInUncoloredTilingPatternReported;
-
     /// Actually realized physical font
     PDFCachedItem<PDFRealizedFontPointer> m_realizedFont;
 
@@ -906,6 +907,9 @@ private:
 
     /// Mesh quality settings
     PDFMeshQualitySettings m_meshQualitySettings;
+
+    /// Set with rendering errors, which were reported (and should be reported once)
+    std::set<QString> m_onceReportedErrors;
 };
 
 }   // namespace pdf
