@@ -84,4 +84,48 @@ bool PDFBitReader::isAtEnd() const
     return (m_position >= m_stream->size());
 }
 
+PDFBitWriter::PDFBitWriter(Value bitsPerComponent) :
+    m_bitsPerComponent(bitsPerComponent),
+    m_mask((static_cast<Value>(1) << m_bitsPerComponent) - static_cast<Value>(1)),
+    m_buffer(0),
+    m_bitsInBuffer(0)
+{
+
+}
+
+void PDFBitWriter::write(Value value)
+{
+    m_buffer = (m_buffer << m_bitsPerComponent) | (value & m_mask);
+    m_bitsInBuffer += m_bitsPerComponent;
+
+    flush(false);
+}
+
+void PDFBitWriter::flush(bool alignToByteBoundary)
+{
+    if (m_bitsInBuffer >= 8)
+    {
+        Value remainder = m_bitsInBuffer % 8;
+        Value alignedBuffer = m_buffer >> remainder;
+        Value bitsToWrite = m_bitsInBuffer - remainder;
+        Value bytesToWrite = bitsToWrite / 8;
+
+        for (Value byteIndex = 0; byteIndex < bytesToWrite; ++byteIndex)
+        {
+            const Value shift = (bytesToWrite - 1 - byteIndex) * 8;
+            m_outputByteArray.push_back(static_cast<const char>(static_cast<uint8_t>((alignedBuffer >> shift) & 0xFF)));
+        }
+
+        m_bitsInBuffer = remainder;
+    }
+
+    if (alignToByteBoundary && m_bitsInBuffer > 0)
+    {
+        Value missingBits = 8 - m_bitsInBuffer % 8;
+        m_buffer = m_buffer << missingBits;
+        m_bitsInBuffer += missingBits;
+        flush(false);
+    }
+}
+
 }   // namespace pdf

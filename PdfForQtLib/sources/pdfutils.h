@@ -128,6 +128,37 @@ private:
     Value m_bitsInBuffer;
 };
 
+/// Bit writer
+class PDFBitWriter
+{
+public:
+    using Value = uint64_t;
+
+    explicit PDFBitWriter(Value bitsPerComponent);
+
+    /// Writes value to the output stream
+    void write(Value value);
+
+    /// Finish line - align to byte boundary
+    void finishLine() { flush(true); }
+
+    /// Returns the result byte array
+    QByteArray takeByteArray() { return qMove(m_outputByteArray); }
+
+    /// Reserve memory in buffer
+    void reserve(int size) { m_outputByteArray.reserve(size); }
+
+private:
+    void flush(bool alignToByteBoundary);
+
+    QByteArray m_outputByteArray;
+
+    Value m_bitsPerComponent;
+    Value m_mask;
+    Value m_buffer;
+    Value m_bitsInBuffer;
+};
+
 /// Simple class guard, for properly saving/restoring new/old value. In the constructor,
 /// new value is stored in the pointer (old one is being saved), and in the destructor,
 /// old value is restored. This object assumes, that value is not a null pointer.

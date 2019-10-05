@@ -77,12 +77,12 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
 
     if (isSoftMask && (imageMask || dictionary->hasKey("Mask") || dictionary->hasKey("SMask")))
     {
-        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Soft mask image can't have mask / soft mask itself."));
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Soft mask image can't have mask / soft mask itself."));
     }
 
     if (!isSoftMask && !matte.empty())
     {
-        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Regular image can't have Matte entry (used for soft masks)."));
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Regular image can't have Matte entry (used for soft masks)."));
     }
 
     // Fill Mask

@@ -800,9 +800,29 @@ QByteArray PDFStreamPredictor::applyTIFFPredictor(const QByteArray& data) const
 {
     Q_UNUSED(data);
 
-    // TODO: Implement TIFF algorithm filter
-    throw PDFException(PDFTranslationContext::tr("Invalid predictor algorithm."));
-    return QByteArray();
+    PDFBitWriter writer(m_bitsPerComponent);
+    PDFBitReader reader(&data, m_bitsPerComponent);
+
+    writer.reserve(data.size());
+    std::vector<uint32_t> leftValues(m_components, 0);
+
+    while (!reader.isAtEnd())
+    {
+        for (int i = 0; i < m_columns; ++i)
+        {
+            for (int componentIndex = 0; componentIndex < m_components; ++componentIndex)
+            {
+                leftValues[componentIndex] = (leftValues[componentIndex] + reader.read()) & reader.max();
+                writer.write(leftValues[componentIndex]);
+            }
+        }
+
+        std::fill(leftValues.begin(), leftValues.end(), 0);
+        reader.alignToBytes();
+        writer.finishLine();
+    }
+
+    return writer.takeByteArray();
 }
 
 QByteArray PDFCryptFilter::apply(const QByteArray& data,
