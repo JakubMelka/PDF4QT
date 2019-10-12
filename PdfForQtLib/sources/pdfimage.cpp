@@ -97,6 +97,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         else if (object.isStream())
         {
             // TODO: Implement Mask Image
+            PDFImage maskImage = createImage(document, object.getStream(), colorSpace, false, errorReporter);
             maskingType = PDFImageData::MaskingType::Image;
             throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mask image is not implemented."));
         }
@@ -492,7 +493,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
     }
     else if (imageFilterName == "CCITTFaxDecode" || imageFilterName == "CCF")
     {
-        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'CCITFaxDecode'."));
+        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'CCITTFaxDecode'."));
     }
     else if (imageFilterName == "JBIG2Decode")
     {
@@ -657,5 +658,7 @@ OPJ_OFF_T PDFJPEG2000ImageData::skip(OPJ_OFF_T p_nb_bytes, void* p_user_data)
     data->position += length;
     return length;
 }
+
+// Implement image rendering intent
 
 }   // namespace pdf

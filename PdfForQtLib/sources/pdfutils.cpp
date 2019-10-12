@@ -56,6 +56,12 @@ PDFBitReader::Value PDFBitReader::read(PDFBitReader::Value bits)
     return value;
 }
 
+PDFBitReader::Value PDFBitReader::look(PDFBitReader::Value bits) const
+{
+    PDFBitReader temp(*this);
+    return temp.read(bits);
+}
+
 void PDFBitReader::seek(qint64 position)
 {
     if (position < m_stream->size())

@@ -107,6 +107,11 @@ public:
     /// then exception is thrown.
     Value read(Value bits);
 
+    /// Reads single n-bit value from the stream. If stream hasn't enough data,
+    /// then exception is thrown. State of the stream is not changed, i.e., read
+    /// bits are reverted back.
+    Value look(Value bits) const;
+
     /// Seeks the desired position in the data stream. If position can't be seeked,
     /// then exception is thrown.
     void seek(qint64 position);

@@ -17,6 +17,7 @@
 
 
 #include "pdfccittfaxdecoder.h"
+#include "pdfexception.h"
 
 namespace pdf
 {
@@ -26,6 +27,42 @@ constexpr uint8_t operator "" _bitlength()
 {
     return sizeof...(Digits);
 }
+
+enum CCITT_2D_Code_Mode
+{
+    Pass,
+    Horizontal,
+    Vertical_3L,
+    Vertical_2L,
+    Vertical_1L,
+    Vertical_0,
+    Vertical_1R,
+    Vertical_2R,
+    Vertical_3R,
+    Invalid
+};
+
+struct PDFCCITT2DModeInfo
+{
+    CCITT_2D_Code_Mode mode;
+    uint16_t code;
+    uint8_t bits;
+};
+
+static constexpr uint8_t MAX_2D_MODE_BIT_LENGTH = 7;
+
+static constexpr PDFCCITT2DModeInfo CCITT_2D_CODE_MODES[] =
+{
+    { Pass,         0b0001,       0001_bitlength },
+    { Horizontal,   0b001,        001_bitlength },
+    { Vertical_3L,  0b0000010,    0000010_bitlength },
+    { Vertical_2L,  0b000010,     000010_bitlength },
+    { Vertical_1L,  0b010,        010_bitlength },
+    { Vertical_0,   0b1,          1_bitlength },
+    { Vertical_1R,  0b011,        011_bitlength },
+    { Vertical_2R,  0b000011,     000011_bitlength },
+    { Vertical_3R,  0b0000011,    0000011_bitlength }
+};
 
 struct PDFCCITTCode
 {
@@ -260,10 +297,222 @@ static constexpr PDFCCITTCode CCITT_BLACK_CODES[] = {
     { 2560,    0b000000011111,     000000011111_bitlength }
 };
 
-PDFCCITTFaxDecoder::PDFCCITTFaxDecoder(const QByteArray* stream) :
-    m_reader(stream, 1)
+PDFCCITTFaxDecoder::PDFCCITTFaxDecoder(const QByteArray* stream, const PDFCCITTFaxDecoderParameters& parameters) :
+    m_reader(stream, 1),
+    m_parameters(parameters)
 {
 
+}
+
+PDFImageData PDFCCITTFaxDecoder::decode()
+{
+    PDFBitWriter writer(1);
+    std::vector<int> codingLine;
+    std::vector<int> referenceLine;
+
+    int row = 0;
+    const size_t lineSize = m_parameters.columns + 2;
+    codingLine.resize(lineSize, m_parameters.columns);
+    referenceLine.resize(lineSize, m_parameters.columns);
+    bool isUsing2DEncoding = m_parameters.K < 0;
+    bool isEndOfLineOccured = m_parameters.hasEndOfLine;
+
+    auto updateIsUsing2DEncoding = [this, &isUsing2DEncoding]()
+    {
+        if (m_parameters.K > 0)
+        {
+            // Mixed encoding
+            isUsing2DEncoding = !m_reader.read(1);
+        }
+    };
+
+    isEndOfLineOccured = skipFillAndEOL() || isEndOfLineOccured;
+    updateIsUsing2DEncoding();
+
+    while (!m_reader.isAtEnd())
+    {
+        int a0_index = 0;
+        bool isCurrentPixelBlack = false;
+
+
+        if (isUsing2DEncoding)
+        {
+            int b1_index = 0;
+
+            // 2D encoding
+            while (codingLine[a0_index] < m_parameters.columns)
+            {
+                CCITT_2D_Code_Mode mode = get2DMode();
+                switch (mode)
+                {
+                    case Pass:
+                    {
+                        // In this mode, we set a0 to the b2 (from reference line). In pass mode,
+                        // we do not change pixel color. Why we are adding 2 to the b1_index?
+                        // We want to skip both b1, b2, because they will be left of new a0.
+                        const size_t b2_index = b1_index + 1;
+                        if (b2_index < referenceLine.size())
+                        {
+                            addPixels(codingLine, a0_index, referenceLine[b2_index], isCurrentPixelBlack, false);
+                            b1_index += 2;
+                        }
+                        else
+                        {
+                            throw PDFException(PDFTranslationContext::tr("CCITT b2 index out of range."));
+                        }
+
+                        break;
+                    }
+
+                    case Horizontal:
+                    {
+                        // We scan two sequence length.
+                        int a0a1 = getRunLength(!isCurrentPixelBlack);
+                        int a1a2 = getRunLength(isCurrentPixelBlack);
+
+                        addPixels(codingLine, a0_index, codingLine[a0_index] + a0a1, isCurrentPixelBlack, false);
+                        addPixels(codingLine, a0_index, codingLine[a0_index] + a1a2, !isCurrentPixelBlack, false);
+
+                        while (referenceLine[b1_index] <= codingLine[a0_index] && b1_index < m_parameters.columns)
+                        {
+                            // We do not want to change the color (b1 should have opposite color of a0,
+                            // should be first changing element of reference line right of a0).
+                            b1_index += 2;
+                        }
+
+                        break;
+                    }
+
+                    case Vertical_3L:
+                    case Vertical_2L:
+                    case Vertical_1L:
+                    case Vertical_0:
+                    case Vertical_1R:
+                    case Vertical_2R:
+                    case Vertical_3R:
+                    {
+                        const int32_t a1 = static_cast<int32_t>(referenceLine[b1_index]) + mode - static_cast<int32_t>(Vertical_0);
+
+                        if (a1 < 0 || a1 > m_parameters.columns)
+                        {
+                            throw PDFException(PDFTranslationContext::tr("Invalid vertical encoding data in CCITT stream."));
+                        }
+
+                        addPixels(codingLine, a0_index, static_cast<uint32_t>(a1), isCurrentPixelBlack, mode < Vertical_0);
+                        isCurrentPixelBlack = !isCurrentPixelBlack;
+
+                        if (codingLine[a0_index] < m_parameters.columns)
+                        {
+                            ++b1_index;
+
+                            while (referenceLine[b1_index] <= codingLine[a0_index] && b1_index < m_parameters.columns)
+                            {
+                                // We do not want to change the color (b1 should have opposite color of a0,
+                                // should be first changing element of reference line right of a0).
+                                b1_index += 2;
+                            }
+                        }
+
+                        break;
+                    }
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+            }
+        }
+        else
+        {
+            // Simple 1D encoding
+            while (codingLine[a0_index] < m_parameters.columns)
+            {
+                const uint32_t sequenceLength = getRunLength(!isCurrentPixelBlack);
+                addPixels(codingLine, a0_index, codingLine[a0_index] + sequenceLength, isCurrentPixelBlack, false);
+                isCurrentPixelBlack = !isCurrentPixelBlack;
+            }
+        }
+
+        // Write the line to the output buffer
+        isCurrentPixelBlack = false;
+        int index = 0;
+        for (int i = 0; i < m_parameters.columns; ++i)
+        {
+            if (i == codingLine[index])
+            {
+                isCurrentPixelBlack = !isCurrentPixelBlack;
+                ++index;
+            }
+
+            writer.write((isCurrentPixelBlack != m_parameters.hasBlackIsOne) ? 0 : 1);
+        }
+        writer.finishLine();
+
+        ++row;
+
+        if (!m_parameters.hasEndOfBlock && row == m_parameters.rows)
+        {
+            // We have reached number of rows, stop reading the data
+            break;
+        }
+        pokracovat zde
+
+        std::swap(codingLine, referenceLine);
+
+    }
+}
+
+void PDFCCITTFaxDecoder::skipFill()
+{
+    // This functions skips zero bits (because codewords have at most 12 bits,
+    // we use 12 bit lookahead to ensure, that we do not broke data sequence).
+
+    while (m_reader.look(12) == 0)
+    {
+        m_reader.read(1);
+    }
+}
+
+bool PDFCCITTFaxDecoder::skipEOL()
+{
+    if (m_reader.look(12) == 1)
+    {
+        m_reader.read(12);
+        return true;
+    }
+
+    return false;
+}
+
+void PDFCCITTFaxDecoder::addPixels(std::vector<int>& line, int& a0_index, int a1, bool isCurrentPixelBlack, bool isA1LeftOfA0Allowed)
+{
+    if (a1 > line[a0_index])
+    {
+        if (a1 > m_parameters.columns)
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid index of CCITT changing element a1: a1 = %1, columns = %2.").arg(a1).arg(m_parameters.columns));
+        }
+
+        // If we are changing the color, increment a0_index. a0_index == 0 is white, a0_index == 1 is black, etc.,
+        // sequence of white and black runs alternates.
+        if ((a0_index & 1) != isCurrentPixelBlack)
+        {
+            ++a0_index;
+        }
+
+        line[a0_index] = a1;
+    }
+    else if (isA1LeftOfA0Allowed && a1 < line[a0_index])
+    {
+        // We want to find first index, for which it holds:
+        //  a1 > line[a0_index - 1], so if we set line[a0_index] = a1,
+        // then we get a valid increasing sequence.
+        while (a0_index > 0 && a1 <= line[a0_index - 1])
+        {
+            --a0_index;
+        }
+        line[a0_index] = a1;
+    }
 }
 
 uint32_t PDFCCITTFaxDecoder::getRunLength(bool white)
@@ -322,7 +571,31 @@ uint32_t PDFCCITTFaxDecoder::getCode(const PDFCCITTCode* codes, size_t codeCount
         }
     }
 
+    throw PDFException(PDFTranslationContext::tr("Invalid CCITT run length code word."));
     return 0;
+}
+
+CCITT_2D_Code_Mode PDFCCITTFaxDecoder::get2DMode()
+{
+    uint32_t code = 0;
+    uint8_t bits = 0;
+
+    while (bits <= MAX_2D_MODE_BIT_LENGTH)
+    {
+        code = (code << 1) + m_reader.read(1);
+        ++bits;
+
+        for (const PDFCCITT2DModeInfo& info : CCITT_2D_CODE_MODES)
+        {
+            if (info.bits == bits && info.code == code)
+            {
+                return info.mode;
+            }
+        }
+    }
+
+    throw PDFException(PDFTranslationContext::tr("Invalid CCITT 2D mode."));
+    return Invalid;
 }
 
 }   // namespace pdf
