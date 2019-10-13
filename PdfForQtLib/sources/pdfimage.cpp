@@ -20,6 +20,7 @@
 #include "pdfconstants.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
+#include "pdfccittfaxdecoder.h"
 
 #include <openjpeg.h>
 #include <jpeglib.h>
@@ -162,6 +163,26 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
             if (object.isName())
             {
                 imageFilterName = object.getString();
+            }
+        }
+    }
+
+    const PDFDictionary* filterParamsDictionary = nullptr;
+    if (filterParameters.isDictionary())
+    {
+        filterParamsDictionary = filterParameters.getDictionary();
+    }
+    else if (filterParameters.isArray())
+    {
+        const PDFArray* filterParametersArray = filterParameters.getArray();
+        const size_t filterParamsCount = filterParametersArray->getCount();
+
+        if (filterParamsCount)
+        {
+            const PDFObject& object = document->getObject(filterParametersArray->getItem(filterParamsCount - 1));
+            if (object.isDictionary())
+            {
+                filterParamsDictionary = object.getDictionary();
             }
         }
     }
@@ -493,7 +514,26 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
     }
     else if (imageFilterName == "CCITTFaxDecode" || imageFilterName == "CCF")
     {
-        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'CCITTFaxDecode'."));
+        if (!filterParamsDictionary)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid parameters for filter CCITT fax decode."));
+        }
+
+        PDFCCITTFaxDecoderParameters parameters;
+        parameters.maskingType = maskingType;
+
+        parameters.K = loader.readIntegerFromDictionary(filterParamsDictionary, "K", 0);
+        parameters.hasEndOfLine = loader.readBooleanFromDictionary(filterParamsDictionary, "EndOfLine", false);
+        parameters.hasEncodedByteAlign = loader.readBooleanFromDictionary(filterParamsDictionary, "EncodedByteAlign", false);
+        parameters.columns = loader.readIntegerFromDictionary(filterParamsDictionary, "Columns", 1728);
+        parameters.rows = loader.readIntegerFromDictionary(filterParamsDictionary, "Rows", 0);
+        parameters.hasEndOfBlock = loader.readBooleanFromDictionary(filterParamsDictionary, "EndOfBlock", true);
+        parameters.hasBlackIsOne = loader.readBooleanFromDictionary(filterParamsDictionary, "BlackIs1", false);
+        parameters.damagedRowsBeforeError = loader.readIntegerFromDictionary(filterParamsDictionary, "DamagedRowsBeforeError", 0);
+
+        QByteArray imageDataBuffer = document->getDecodedStream(stream);
+        PDFCCITTFaxDecoder decoder(&imageDataBuffer, parameters);
+        image.m_imageData = decoder.decode();
     }
     else if (imageFilterName == "JBIG2Decode")
     {

@@ -64,6 +64,8 @@ struct PDFCCITTFaxDecoderParameters
     /// If this flag is true, then 1 means black pixel, 0 white pixel. Otherwise, if false,
     /// then 0 means black pixel and 1 white pixel.
     bool hasBlackIsOne = false;
+
+    PDFImageData::MaskingType maskingType = PDFImageData::MaskingType::None;
 };
 
 enum CCITT_2D_Code_Mode;

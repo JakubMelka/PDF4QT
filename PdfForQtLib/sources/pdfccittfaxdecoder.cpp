@@ -312,7 +312,7 @@ PDFImageData PDFCCITTFaxDecoder::decode()
 
     int row = 0;
     const size_t lineSize = m_parameters.columns + 2;
-    codingLine.resize(lineSize, m_parameters.columns);
+    codingLine.resize(lineSize, 0);
     referenceLine.resize(lineSize, m_parameters.columns);
     bool isUsing2DEncoding = m_parameters.K < 0;
     bool isEndOfLineOccured = m_parameters.hasEndOfLine;
@@ -333,7 +333,6 @@ PDFImageData PDFCCITTFaxDecoder::decode()
     {
         int a0_index = 0;
         bool isCurrentPixelBlack = false;
-
 
         if (isUsing2DEncoding)
         {
@@ -444,22 +443,74 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                 ++index;
             }
 
-            writer.write((isCurrentPixelBlack != m_parameters.hasBlackIsOne) ? 0 : 1);
+            writer.write((isCurrentPixelBlack != m_parameters.hasBlackIsOne) ? 1 : 0);
         }
         writer.finishLine();
 
         ++row;
 
+        // Check if we have reached desired number of rows (and end-of-block mode
+        // is not set). If yes, then break the reading.
         if (!m_parameters.hasEndOfBlock && row == m_parameters.rows)
         {
             // We have reached number of rows, stop reading the data
             break;
         }
-        pokracovat zde
+
+        bool foundEndOfLine = false;
+        if (m_parameters.hasEndOfLine)
+        {
+            // End of line is required, try to scan it (until end of stream is reached).
+            while (!m_reader.isAtEnd())
+            {
+                if (m_reader.look(12) == 1)
+                {
+                    m_reader.read(12);
+                    foundEndOfLine = true;
+                    break;
+                }
+                else
+                {
+                    m_reader.read(1);
+                }
+            }
+        }
+        else if (!m_parameters.hasEncodedByteAlign)
+        {
+            // Skip fill zeros and possibly find EOL
+            foundEndOfLine = skipFillAndEOL();
+        }
+
+        // If end of line is found, be do not perform align to bytes (end of line
+        // has perference against byte align)
+        if (m_parameters.hasEncodedByteAlign && !foundEndOfLine)
+        {
+            m_reader.alignToBytes();
+        }
+
+        if (m_reader.isAtEnd())
+        {
+            // Have we finished reading?
+            break;
+        }
+
+        updateIsUsing2DEncoding();
+
+        if (m_parameters.hasEndOfBlock && foundEndOfLine)
+        {
+            if (m_reader.look(60) == 0x1001001001001ULL)
+            {
+                // End of block found, stop reading the data
+                break;
+            }
+        }
 
         std::swap(codingLine, referenceLine);
-
+        std::fill(codingLine.begin(), codingLine.end(), 0);
+        std::fill(std::next(referenceLine.begin(), a0_index + 1), referenceLine.end(), m_parameters.columns);
     }
+
+    return PDFImageData(1, 1, m_parameters.columns, row, (m_parameters.columns + 7) / 8, m_parameters.maskingType, writer.takeByteArray(), { }, { }, { });
 }
 
 void PDFCCITTFaxDecoder::skipFill()
@@ -467,7 +518,7 @@ void PDFCCITTFaxDecoder::skipFill()
     // This functions skips zero bits (because codewords have at most 12 bits,
     // we use 12 bit lookahead to ensure, that we do not broke data sequence).
 
-    while (m_reader.look(12) == 0)
+    while (!m_reader.isAtEnd() && m_reader.look(12) == 0)
     {
         m_reader.read(1);
     }
