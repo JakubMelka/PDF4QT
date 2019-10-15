@@ -312,10 +312,11 @@ PDFImageData PDFCCITTFaxDecoder::decode()
 
     int row = 0;
     const size_t lineSize = m_parameters.columns + 2;
-    codingLine.resize(lineSize, 0);
+    codingLine.resize(lineSize, m_parameters.columns);
     referenceLine.resize(lineSize, m_parameters.columns);
     bool isUsing2DEncoding = m_parameters.K < 0;
     bool isEndOfLineOccured = m_parameters.hasEndOfLine;
+    codingLine[0] = 0;
 
     auto updateIsUsing2DEncoding = [this, &isUsing2DEncoding]()
     {
@@ -496,18 +497,32 @@ PDFImageData PDFCCITTFaxDecoder::decode()
 
         updateIsUsing2DEncoding();
 
-        if (m_parameters.hasEndOfBlock && foundEndOfLine)
+        if (m_parameters.hasEndOfBlock)
         {
-            if (m_reader.look(60) == 0x1001001001001ULL)
+            if (!m_parameters.hasEndOfLine && m_parameters.hasEncodedByteAlign)
             {
-                // End of block found, stop reading the data
-                break;
+                // We do not have look for EOL above. We check, if we get end-of-facsimile-block signal.
+                // It consists of two consecutive EOLs (see specification).
+                if (m_reader.look(24) == 0x1001)
+                {
+                    // End of block found, stop reading the data
+                    break;
+                }
+            }
+            else if (foundEndOfLine)
+            {
+                if (m_reader.look(12) == 1)
+                {
+                    // End of block found, stop reading the data
+                    break;
+                }
             }
         }
 
         std::swap(codingLine, referenceLine);
-        std::fill(codingLine.begin(), codingLine.end(), 0);
+        std::fill(codingLine.begin(), codingLine.end(), m_parameters.columns);
         std::fill(std::next(referenceLine.begin(), a0_index + 1), referenceLine.end(), m_parameters.columns);
+        codingLine[0] = 0;
     }
 
     return PDFImageData(1, 1, m_parameters.columns, row, (m_parameters.columns + 7) / 8, m_parameters.maskingType, writer.takeByteArray(), { }, { }, { });
