@@ -444,7 +444,7 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                 ++index;
             }
 
-            writer.write((isCurrentPixelBlack != m_parameters.hasBlackIsOne) ? 1 : 0);
+            writer.write(isCurrentPixelBlack ? 0 : 1);
         }
         writer.finishLine();
 
