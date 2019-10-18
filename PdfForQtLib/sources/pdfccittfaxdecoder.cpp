@@ -558,7 +558,18 @@ PDFImageData PDFCCITTFaxDecoder::decode()
         codingLine[0] = 0;
     }
 
-    return PDFImageData(1, 1, m_parameters.columns, row, (m_parameters.columns + 7) / 8, m_parameters.maskingType, writer.takeByteArray(), { }, { }, { });
+    Q_ASSERT(m_parameters.decode.size() == 2);
+    std::vector<PDFReal> decode;
+    if (m_parameters.hasBlackIsOne)
+    {
+        decode = { m_parameters.decode[1], m_parameters.decode[0] };
+    }
+    else
+    {
+        decode = { m_parameters.decode[0], m_parameters.decode[1] };
+    }
+
+    return PDFImageData(1, 1, m_parameters.columns, row, (m_parameters.columns + 7) / 8, m_parameters.maskingType, writer.takeByteArray(), { }, qMove(decode), { });
 }
 
 void PDFCCITTFaxDecoder::skipFill()

@@ -46,10 +46,16 @@ struct PDFJPEGDCTSource
     int startByte = 0;
 };
 
-PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, bool isSoftMask, PDFRenderErrorReporter* errorReporter)
+PDFImage PDFImage::createImage(const PDFDocument* document,
+                               const PDFStream* stream,
+                               PDFColorSpacePointer colorSpace,
+                               bool isSoftMask,
+                               RenderingIntent renderingIntent,
+                               PDFRenderErrorReporter* errorReporter)
 {
     PDFImage image;
     image.m_colorSpace = colorSpace;
+    image.m_renderingIntent = renderingIntent;
 
     const PDFDictionary* dictionary = stream->getDictionary();
     QByteArray content = document->getDecodedStream(stream);
@@ -86,6 +92,28 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Regular image can't have Matte entry (used for soft masks)."));
     }
 
+    // Set rendering intent
+    if (dictionary->hasKey("Intent"))
+    {
+        QByteArray renderingIntentName = loader.readNameFromDictionary(dictionary, "Intent");
+        if (renderingIntentName == "Perceptual")
+        {
+            image.m_renderingIntent = RenderingIntent::Perceptual;
+        }
+        else if (renderingIntentName == "AbsoluteColorimetric")
+        {
+            image.m_renderingIntent = RenderingIntent::AbsoluteColorimetric;
+        }
+        else if (renderingIntentName == "RelativeColorimetric")
+        {
+            image.m_renderingIntent = RenderingIntent::RelativeColorimetric;
+        }
+        else if (renderingIntentName == "Saturation")
+        {
+            image.m_renderingIntent = RenderingIntent::Saturation;
+        }
+    }
+
     // Fill Mask
     if (dictionary->hasKey("Mask"))
     {
@@ -98,7 +126,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         else if (object.isStream())
         {
             // TODO: Implement Mask Image
-            PDFImage maskImage = createImage(document, object.getStream(), colorSpace, false, errorReporter);
+            PDFImage maskImage = createImage(document, object.getStream(), colorSpace, false, renderingIntent, errorReporter);
             maskingType = PDFImageData::MaskingType::Image;
             throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mask image is not implemented."));
         }
@@ -110,7 +138,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
 
         if (softMaskObject.isStream())
         {
-            PDFImage softMaskImage = createImage(document, softMaskObject.getStream(), PDFColorSpacePointer(new PDFDeviceGrayColorSpace()), true, errorReporter);
+            PDFImage softMaskImage = createImage(document, softMaskObject.getStream(), PDFColorSpacePointer(new PDFDeviceGrayColorSpace()), true, renderingIntent, errorReporter);
             maskingType = PDFImageData::MaskingType::SoftMask;
             image.m_softMask = qMove(softMaskImage.m_imageData);
         }
@@ -530,6 +558,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document, const PDFStream* str
         parameters.hasEndOfBlock = loader.readBooleanFromDictionary(filterParamsDictionary, "EndOfBlock", true);
         parameters.hasBlackIsOne = loader.readBooleanFromDictionary(filterParamsDictionary, "BlackIs1", false);
         parameters.damagedRowsBeforeError = loader.readIntegerFromDictionary(filterParamsDictionary, "DamagedRowsBeforeError", 0);
+        parameters.decode = !decode.empty() ? qMove(decode) : std::vector<PDFReal>({ 0.0, 1.0 });
 
         QByteArray imageDataBuffer = document->getDecodedStream(stream);
         PDFCCITTFaxDecoder decoder(&imageDataBuffer, parameters);

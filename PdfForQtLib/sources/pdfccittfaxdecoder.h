@@ -65,6 +65,10 @@ struct PDFCCITTFaxDecoderParameters
     /// then 0 means black pixel and 1 white pixel.
     bool hasBlackIsOne = false;
 
+    /// Decode
+    std::vector<PDFReal> decode;
+
+    /// Masking type
     PDFImageData::MaskingType maskingType = PDFImageData::MaskingType::None;
 };
 

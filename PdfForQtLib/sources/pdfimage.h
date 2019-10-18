@@ -39,11 +39,20 @@ public:
     /// \param stream Stream with image
     /// \param colorSpace Color space of the image
     /// \param isSoftMask Is it a soft mask image?
+    /// \param renderingIntent Default rendering intent of the image
     /// \param errorReporter Error reporter for reporting errors (or warnings)
-    static PDFImage createImage(const PDFDocument* document, const PDFStream* stream, PDFColorSpacePointer colorSpace, bool isSoftMask, PDFRenderErrorReporter* errorReporter);
+    static PDFImage createImage(const PDFDocument* document,
+                                const PDFStream* stream,
+                                PDFColorSpacePointer colorSpace,
+                                bool isSoftMask,
+                                RenderingIntent renderingIntent,
+                                PDFRenderErrorReporter* errorReporter);
 
     /// Returns image transformed from image data and color space
     QImage getImage() const;
+
+    /// Returns rendering intent of the image
+    RenderingIntent getRenderingIntent() const { return m_renderingIntent; }
 
 private:
     PDFImage() = default;
@@ -51,6 +60,7 @@ private:
     PDFImageData m_imageData;
     PDFImageData m_softMask;
     PDFColorSpacePointer m_colorSpace;
+    RenderingIntent m_renderingIntent = RenderingIntent::Perceptual;
 };
 
 }   // namespace pdf
