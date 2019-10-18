@@ -354,7 +354,16 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                         if (b2_index < referenceLine.size())
                         {
                             addPixels(codingLine, a0_index, referenceLine[b2_index], isCurrentPixelBlack, false);
-                            b1_index += 2;
+
+                            if (referenceLine[b2_index] < m_parameters.columns)
+                            {
+                                b1_index += 2;
+
+                                if (b1_index >= referenceLine.size())
+                                {
+                                    throw PDFException(PDFTranslationContext::tr("Invalid pass encoding data in CCITT stream."));
+                                }
+                            }
                         }
                         else
                         {
@@ -367,17 +376,22 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                     case Horizontal:
                     {
                         // We scan two sequence length.
-                        int a0a1 = getRunLength(!isCurrentPixelBlack);
-                        int a1a2 = getRunLength(isCurrentPixelBlack);
+                        const int a0a1 = getRunLength(!isCurrentPixelBlack);
+                        const int a1a2 = getRunLength(isCurrentPixelBlack);
 
                         addPixels(codingLine, a0_index, codingLine[a0_index] + a0a1, isCurrentPixelBlack, false);
                         addPixels(codingLine, a0_index, codingLine[a0_index] + a1a2, !isCurrentPixelBlack, false);
 
-                        while (referenceLine[b1_index] <= codingLine[a0_index] && b1_index < m_parameters.columns)
+                        while (referenceLine[b1_index] <= codingLine[a0_index] && referenceLine[b1_index] < m_parameters.columns)
                         {
                             // We do not want to change the color (b1 should have opposite color of a0,
                             // should be first changing element of reference line right of a0).
                             b1_index += 2;
+
+                            if (b1_index >= referenceLine.size())
+                            {
+                                throw PDFException(PDFTranslationContext::tr("Invalid horizontal encoding data in CCITT stream."));
+                            }
                         }
 
                         break;
@@ -398,18 +412,37 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                             throw PDFException(PDFTranslationContext::tr("Invalid vertical encoding data in CCITT stream."));
                         }
 
-                        addPixels(codingLine, a0_index, static_cast<uint32_t>(a1), isCurrentPixelBlack, mode < Vertical_0);
+                        const bool isNegativeOffset = mode < Vertical_0;
+                        addPixels(codingLine, a0_index, static_cast<uint32_t>(a1), isCurrentPixelBlack, isNegativeOffset);
                         isCurrentPixelBlack = !isCurrentPixelBlack;
 
                         if (codingLine[a0_index] < m_parameters.columns)
                         {
-                            ++b1_index;
+                            // We must upgrade b1 index in such a way that it is first index
+                            // of opposite color, than a0 index. If we are using negative offsets, then
+                            // current position can move backward, and so we must look for first b1 index,
+                            // which is of opposite color, than a0. So we decrease index by 1. But what to do,
+                            // if we have b1 index equal to zero? In this case, we add -1 + 2 = 1 index, so we do it in
+                            // same way, as positive/zero shift.
+                            b1_index += (isNegativeOffset && b1_index > 0) ? -1 : 1;
 
-                            while (referenceLine[b1_index] <= codingLine[a0_index] && b1_index < m_parameters.columns)
+                            // Why we have this check, if same check is in while cycle? Because if we are adding
+                            // to the b1_index, we can go outside of reference line range.
+                            if (b1_index >= referenceLine.size())
+                            {
+                                throw PDFException(PDFTranslationContext::tr("Invalid vertical encoding data in CCITT stream."));
+                            }
+
+                            while (referenceLine[b1_index] <= codingLine[a0_index] && referenceLine[b1_index] < m_parameters.columns)
                             {
                                 // We do not want to change the color (b1 should have opposite color of a0,
                                 // should be first changing element of reference line right of a0).
                                 b1_index += 2;
+
+                                if (b1_index >= referenceLine.size())
+                                {
+                                    throw PDFException(PDFTranslationContext::tr("Invalid vertical encoding data in CCITT stream."));
+                                }
                             }
                         }
 

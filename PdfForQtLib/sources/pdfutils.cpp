@@ -101,7 +101,7 @@ void PDFBitReader::alignToBytes()
 
 bool PDFBitReader::isAtEnd() const
 {
-    return (m_position >= m_stream->size());
+    return (m_position >= m_stream->size()) && m_bitsInBuffer == 0;
 }
 
 PDFBitWriter::PDFBitWriter(Value bitsPerComponent) :
