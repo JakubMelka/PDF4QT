@@ -66,21 +66,12 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
         throw PDFException(PDFTranslationContext::tr("Image has not data."));
     }
 
-    // TODO: Implement SMaskInData
-
-    for (const char* notImplementedKey : { "SMaskInData" })
-    {
-        if (dictionary->hasKey(notImplementedKey))
-        {
-            throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image property '%2'.").arg(QString::fromLatin1(notImplementedKey)));
-        }
-    }
-
     PDFImageData::MaskingType maskingType = PDFImageData::MaskingType::None;
     std::vector<PDFInteger> mask;
     std::vector<PDFReal> decode = loader.readNumberArrayFromDictionary(dictionary, "Decode");
     bool imageMask = loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
     std::vector<PDFReal> matte = loader.readNumberArrayFromDictionary(dictionary, "Matte");
+    PDFInteger sMaskInData = loader.readIntegerFromDictionary(dictionary, "SMaskInData", 0);
 
     if (isSoftMask && (imageMask || dictionary->hasKey("Mask") || dictionary->hasKey("SMask")))
     {
@@ -447,11 +438,39 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             // If we have a valid image, then adjust it
             if (jpegImage)
             {
+                // This image type can have color space defined in the data (definition of color space in PDF
+                // is only optional). So, if we doesn't have a color space, then we must determine it from the data.
+                if (!image.m_colorSpace)
+                {
+                    switch (jpegImage->color_space)
+                    {
+                        case OPJ_CLRSPC_SRGB:
+                            image.m_colorSpace.reset(new PDFDeviceRGBColorSpace());
+                            break;
+
+                        case OPJ_CLRSPC_GRAY:
+                            image.m_colorSpace.reset(new PDFDeviceGrayColorSpace());
+                            break;
+
+                        case OPJ_CLRSPC_CMYK:
+                            image.m_colorSpace.reset(new PDFDeviceCMYKColorSpace());
+                            break;
+
+                        default:
+                            imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Unknown color space for JPEG 2000 image.")));
+                            break;
+                    }
+                }
+
                 // First we must check, if all components are valid (i.e has same width/height/precision)
+
+                std::vector<OPJ_UINT32> ordinaryComponents;
+                std::vector<OPJ_UINT32> alphaComponents;
 
                 bool valid = true;
                 const OPJ_UINT32 componentCount = jpegImage->numcomps;
-                for (OPJ_UINT32 i = 1; i < componentCount; ++i)
+                ordinaryComponents.reserve(componentCount);
+                for (OPJ_UINT32 i = 0; i < componentCount; ++i)
                 {
                     if (jpegImage->comps[0].w != jpegImage->comps[i].w ||
                         jpegImage->comps[0].h != jpegImage->comps[i].h ||
@@ -461,12 +480,37 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                         valid = false;
                         break;
                     }
+                    else
+                    {
+                        // Fill in ordinary component, or alpha component
+                        if (!jpegImage->comps[i].alpha)
+                        {
+                            ordinaryComponents.push_back(i);
+                        }
+                        else
+                        {
+                            alphaComponents.push_back(i);
+                        }
+                    }
                 }
-
-                // TODO: Include alpha channel functionality - mask in image
 
                 if (valid)
                 {
+                    const size_t colorSpaceComponentCount = image.m_colorSpace->getColorComponentCount();
+                    const bool hasAlphaChannel = !alphaComponents.empty();
+
+                    if (colorSpaceComponentCount < ordinaryComponents.size())
+                    {
+                        // We have too much ordinary components
+                        imageData.errors.push_back(PDFRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JPEG 2000 image has too much non-alpha channels. Ignoring %1 channels.").arg(ordinaryComponents.size() - colorSpaceComponentCount)));
+                    }
+
+                    if (alphaComponents.size() > 1)
+                    {
+                        // We support only one alpha channel component
+                        imageData.errors.push_back(PDFRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JPEG 2000 image has too much alpha channels. Ignoring %1 alpha channels.").arg(alphaComponents.size() - 1)));
+                    }
+
                     const OPJ_UINT32 w = jpegImage->comps[0].w;
                     const OPJ_UINT32 h = jpegImage->comps[0].h;
                     const OPJ_UINT32 prec = jpegImage->comps[0].prec;
@@ -501,7 +545,8 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                     };
 
                     // Variables for image data. We convert all components to the 8-bit format
-                    unsigned int components = jpegImage->numcomps;
+                    const size_t ordinaryComponentCount = ordinaryComponents.size();
+                    unsigned int components = static_cast<unsigned int>(qMin(ordinaryComponentCount, colorSpaceComponentCount));
                     unsigned int bitsPerComponent = 8;
                     unsigned int width = w;
                     unsigned int height = h;
@@ -517,13 +562,40 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                                 int index = stride * row + col * components + componentIndex;
                                 Q_ASSERT(index < imageDataBuffer.size());
 
-                                imageDataBuffer[index] = transformValue(jpegImage->comps[componentIndex].data[w * row + col]);
+                                imageDataBuffer[index] = transformValue(jpegImage->comps[ordinaryComponents[componentIndex]].data[w * row + col]);
                             }
                         }
                     }
 
                     image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
                     valid = image.m_imageData.isValid();
+
+                    // Handle the alpha channel buffer - create soft mask. If SMaskInData equals to 1, then alpha channel is used.
+                    // If SMaskInData equals to 2, then premultiplied alpha channel is used.
+                    if (hasAlphaChannel && (sMaskInData == 1 || sMaskInData == 2))
+                    {
+                        const int alphaStride = w;
+                        QByteArray alphaDataBuffer(width * height, 0);
+                        const OPJ_UINT32 alphaComponentIndex = alphaComponents.front();
+                        for (unsigned int row = 0; row < h; ++row)
+                        {
+                            for (unsigned int col = 0; col < w; ++col)
+                            {
+                                int index = alphaStride * row + col;
+                                Q_ASSERT(index < alphaDataBuffer.size());
+
+                                alphaDataBuffer[index] = transformValue(jpegImage->comps[alphaComponentIndex].data[w * row + col]);
+                            }
+                        }
+
+                        if (sMaskInData == 2)
+                        {
+                            matte.resize(ordinaryComponentCount, 0.0);
+                        }
+
+                        image.m_softMask = PDFImageData(1, bitsPerComponent, width, height, alphaStride, PDFImageData::MaskingType::None, qMove(alphaDataBuffer), { }, { }, qMove(matte));
+                        image.m_imageData.setMaskingType(PDFImageData::MaskingType::SoftMask);
+                    }
                 }
                 else
                 {

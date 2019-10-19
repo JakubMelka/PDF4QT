@@ -141,10 +141,6 @@ public:
     /// Returns number of color channels
     unsigned int getColorChannels() const { return m_components; }
 
-    // TODO: Implement alpha channel functionality
-    /// Returns number of alpha transparency channels (0 or 1)
-    unsigned int getAlphaChannels() const { return 0; }
-
     bool isValid() const { return m_width && m_height && m_components && m_bitsPerComponent; }
 
     const unsigned char* getRow(unsigned int rowIndex) const;
