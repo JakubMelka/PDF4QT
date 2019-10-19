@@ -125,10 +125,28 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
         }
         else if (object.isStream())
         {
-            // TODO: Implement Mask Image
-            PDFImage maskImage = createImage(document, object.getStream(), colorSpace, false, renderingIntent, errorReporter);
-            maskingType = PDFImageData::MaskingType::Image;
-            throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mask image is not implemented."));
+            PDFImage softMaskImage = createImage(document, object.getStream(), colorSpace, false, renderingIntent, errorReporter);
+
+            if (softMaskImage.m_imageData.getMaskingType() != PDFImageData::MaskingType::ImageMask ||
+                softMaskImage.m_imageData.getColorChannels() != 1 ||
+                softMaskImage.m_imageData.getBitsPerComponent() != 1)
+            {
+                throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Invalid mask image."));
+            }
+
+            // We must alter decode, because it has opposite meaning (it is transparency)
+            std::vector<PDFReal> decode = softMaskImage.m_imageData.getDecode();
+            if (decode.size() < 2)
+            {
+                decode = { 0.0, 1.0};
+            }
+            std::swap(decode[0], decode[1]);
+
+            // Create soft mask from image
+            maskingType = PDFImageData::MaskingType::SoftMask;
+            image.m_softMask = qMove(softMaskImage.m_imageData);
+            image.m_softMask.setMaskingType(PDFImageData::MaskingType::None);
+            image.m_softMask.setDecode(qMove(decode));
         }
     }
     else if (dictionary->hasKey("SMask"))

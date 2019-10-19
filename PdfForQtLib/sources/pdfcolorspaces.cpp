@@ -1088,7 +1088,7 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
     const int colorCount = maxValue - MIN_VALUE + 1;
     const int componentCount = static_cast<int>(baseColorSpace->getColorComponentCount());
     const int byteCount = colorCount * componentCount;
-    if (byteCount != colors.size())
+    if (byteCount > colors.size())
     {
         throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.").arg(colorCount).arg(componentCount).arg(byteCount).arg(colors.size()));
     }

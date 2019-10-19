@@ -85,7 +85,6 @@ public:
     {
         None,
         ColorKeyMasking,    ///< Masking by color key
-        Image,              ///< Masking by image with alpha mask
         ImageMask,          ///< Masking by 1-bit image (see "ImageMask" entry in image's dictionary), current color from the graphic state is used to paint an image
         SoftMask,           ///< Image is masked by soft mask
     };
@@ -135,6 +134,9 @@ public:
     const std::vector<PDFInteger>& getColorKeyMask() const { return m_colorKeyMask; }
     const std::vector<PDFReal>& getDecode() const { return m_decode; }
     const std::vector<PDFReal>& getMatte() const { return m_matte; }
+
+    void setMaskingType(MaskingType maskingType) { m_maskingType = maskingType; }
+    void setDecode(std::vector<PDFReal> decode) { m_decode = qMove(decode); }
 
     /// Returns number of color channels
     unsigned int getColorChannels() const { return m_components; }
