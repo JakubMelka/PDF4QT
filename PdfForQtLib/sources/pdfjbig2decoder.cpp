@@ -20,6 +20,276 @@
 namespace pdf
 {
 
+static constexpr uint16_t HUFFMAN_LOW_VALUE = 0xFFFE;
+static constexpr uint16_t HUFFMAN_OOB_VALUE = 0xFFFF;
+
+struct PDFJBIG2HuffmanTableEntry
+{
+    enum class Type : uint8_t
+    {
+        Standard,
+        Negative,
+        OutOfBand
+    };
+
+    /// Returns true, if current row represents interval (-∞, value),
+    /// it means 32bit number must be read and
+    bool isLowValue() const { return rangeBitLength == 0xFFFE; }
+
+    /// Returns true, if current row represents out-of-band value
+    bool isOutOfBand() const { return rangeBitLength == HUFFMAN_OOB_VALUE; }
+
+    int32_t value;              ///< Base value
+    uint16_t prefixBitLength;   ///< Bit length of prefix
+    uint16_t rangeBitLength;    ///< Bit length of additional value
+    uint16_t prefix;            ///< Bit prefix of the huffman code
+    Type type;                  ///< Type of the value
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_A[] =
+{
+    {     0, 1,  4,   0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    16, 2,  8,  0b10, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   272, 3, 16, 0b110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 65808, 3, 32, 0b111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_B[] =
+{
+    {  0, 1,  0,      0b0,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  1, 2,  0,     0b10,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  2, 3,  0,    0b110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  3, 4,  3,   0b1110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 11, 5,  6,  0b11110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  0, 6,  0, 0b111111, PDFJBIG2HuffmanTableEntry::Type::OutOfBand},
+    { 75, 6, 32, 0b111110,  PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_C[] =
+{
+    {    0, 1,  0,        0b0,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    1, 2,  0,       0b10,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    2, 3,  0,      0b110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    3, 4,  3,     0b1110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   11, 5,  6,    0b11110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    0, 6,  0,   0b111110, PDFJBIG2HuffmanTableEntry::Type::OutOfBand},
+    {   75, 7, 32,  0b1111110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -257, 8, 32, 0b11111111,  PDFJBIG2HuffmanTableEntry::Type::Negative},
+    { -256, 8,  8, 0b11111110,  PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_D[] =
+{
+    {  1, 1,  0,     0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  2, 2,  0,    0b10, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  3, 3,  0,   0b110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  4, 4,  3,  0b1110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 12, 5,  6, 0b11110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 76, 5, 32, 0b11111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_E[] =
+{
+    {    1, 1,  0,       0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    2, 2,  0,      0b10, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    3, 3,  0,     0b110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    4, 4,  3,    0b1110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   12, 5,  6,   0b11110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   76, 6, 32,  0b111110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -256, 7, 32, 0b1111111, PDFJBIG2HuffmanTableEntry::Type::Negative},
+    { -255, 7,  8, 0b1111110, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_F[] =
+{
+    {     0, 2,  7,     0b00, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   128, 3,  7,    0b010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   256, 3,  8,    0b011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -1024, 4,  9,   0b1000, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -512, 4,  8,   0b1001, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -256, 4,  7,   0b1010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -32, 4,  5,   0b1011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   512, 4,  9,   0b1100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  1024, 4, 10,   0b1101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -2048, 5, 10,  0b11100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -128, 5,  6,  0b11101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -64, 5,  5,  0b11110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -2049, 6, 32, 0b111110, PDFJBIG2HuffmanTableEntry::Type::Negative},
+    {  2048, 6, 32, 0b111111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_G[] =
+{
+    {  -512, 3,  8,   0b000, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   256, 3,  8,   0b001, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   512, 3,  9,   0b010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  1024, 3, 10,   0b011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -1024, 4,  9,  0b1000, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -256, 4,  7,  0b1001, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -32, 4,  5,  0b1010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {     0, 4,  5,  0b1011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   128, 4,  7,  0b1100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -1025, 5, 32, 0b11110, PDFJBIG2HuffmanTableEntry::Type::Negative},
+    {  -128, 5,  6, 0b11010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -64, 5,  5, 0b11011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    32, 5,  5, 0b11100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    64, 5,  6, 0b11101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  2048, 5, 32, 0b11111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_H[] =
+{
+    {    0, 2,  1,        0b00,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    0, 2,  0,        0b01, PDFJBIG2HuffmanTableEntry::Type::OutOfBand},
+    {    4, 3,  4,       0b100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -1, 4,  0,      0b1010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   22, 4,  4,      0b1011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   38, 4,  5,      0b1100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    2, 5,  0,     0b11010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   70, 5,  6,     0b11011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  134, 5,  7,     0b11100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    3, 6,  0,    0b111010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   20, 6,  1,    0b111011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  262, 6,  7,    0b111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  646, 6, 10,    0b111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -2, 7,  0,   0b1111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  390, 7,  8,   0b1111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -15, 8,  3,  0b11111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -5, 8,  1,  0b11111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -16, 9, 32, 0b111111110,  PDFJBIG2HuffmanTableEntry::Type::Negative},
+    {   -7, 9,  1, 0b111111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -3, 9,  0, 0b111111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 1670, 9, 32, 0b111111111,  PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_I[] =
+{
+    {    0, 2,  0,        0b00, PDFJBIG2HuffmanTableEntry::Type::OutOfBand},
+    {   -1, 3,  1,       0b010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    1, 3,  1,       0b011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    7, 3,  5,       0b100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -3, 4,  1,      0b1010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   43, 4,  5,      0b1011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   75, 4,  6,      0b1100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    3, 5,  1,     0b11010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  139, 5,  7,     0b11011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  267, 5,  8,     0b11100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    5, 6,  1,    0b111010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   39, 6,  2,    0b111011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  523, 6,  8,    0b111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 1291, 6, 11,    0b111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -5, 7,  1,   0b1111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  779, 7,  9,   0b1111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -31, 8,  4,  0b11111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -11, 8,  2,  0b11111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -32, 9, 32, 0b111111110,  PDFJBIG2HuffmanTableEntry::Type::Negative},
+    {  -15, 9,  2, 0b111111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -7, 9,  1, 0b111111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 3339, 9, 32, 0b111111111,  PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_J[] =
+{
+    {   -2, 2,  2,       0b00,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    0, 2,  0,       0b10, PDFJBIG2HuffmanTableEntry::Type::OutOfBand},
+    {    6, 2,  6,       0b01,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -3, 5,  0,    0b11000,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    2, 5,  0,    0b11001,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   70, 5,  5,    0b11010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    3, 6,  0,   0b110110,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  102, 6,  5,   0b110111,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  134, 6,  6,   0b111000,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  198, 6,  7,   0b111001,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  326, 6,  8,   0b111010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  582, 6,  9,   0b111011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 1094, 6, 10,   0b111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -21, 7,  4,  0b1111010,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   -4, 7,  0,  0b1111011,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    4, 7,  0,  0b1111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 2118, 7, 11,  0b1111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -22, 8, 32, 0b11111110,  PDFJBIG2HuffmanTableEntry::Type::Negative},
+    {   -5, 8,  0, 0b11111100,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {    5, 8,  0, 0b11111101,  PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 4166, 8, 32, 0b11111111,  PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_K[] =
+{
+    {   1, 1,  0,       0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   2, 2,  1,      0b10, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   4, 4,  0,    0b1100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   5, 4,  1,    0b1101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   7, 5,  1,   0b11100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   9, 5,  2,   0b11101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  13, 6,  2,  0b111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  17, 7,  2, 0b1111010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  21, 7,  3, 0b1111011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  29, 7,  4, 0b1111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  45, 7,  5, 0b1111101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  77, 7,  6, 0b1111110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 141, 7, 32, 0b1111111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_L[] =
+{
+    {  1, 1,  0,        0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  2, 2,  0,       0b10, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  3, 3,  1,      0b110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  5, 5,  0,    0b11100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  6, 5,  1,    0b11101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  8, 6,  1,   0b111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 10, 7,  0,  0b1111010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 11, 7,  1,  0b1111011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 13, 7,  2,  0b1111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 17, 7,  3,  0b1111101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 25, 7,  4,  0b1111110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 41, 8,  5, 0b11111110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 73, 8, 32, 0b11111111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_M[] =
+{
+    {   1, 1,  0,       0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   2, 3,  0,     0b100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   7, 3,  3,     0b101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   3, 4,  0,    0b1100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   5, 4,  1,    0b1101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   4, 5,  0,   0b11100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  15, 6,  1,  0b111010, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  17, 6,  2,  0b111011, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  21, 6,  3,  0b111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  29, 6,  4,  0b111101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  45, 6,  5,  0b111110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  77, 7,  6, 0b1111110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { 141, 7, 32, 0b1111111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_N[] =
+{
+    {  0, 1, 0,   0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -2, 3, 0, 0b100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -1, 3, 0, 0b101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  1, 3, 0, 0b110, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  2, 3, 0, 0b111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
+static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_O[] =
+{
+    {   0, 1,  0,       0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -1, 3,  0,     0b100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   1, 3,  0,     0b101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -2, 4,  0,    0b1100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   2, 4,  0,    0b1101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -4, 5,  1,   0b11100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   3, 5,  1,   0b11101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  -8, 6,  2,  0b111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   5, 6,  2,  0b111101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    { -25, 7, 32, 0b1111110, PDFJBIG2HuffmanTableEntry::Type::Negative},
+    { -24, 7,  4, 0b1111100, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {   9, 7,  4, 0b1111101, PDFJBIG2HuffmanTableEntry::Type::Standard},
+    {  25, 7, 32, 0b1111111, PDFJBIG2HuffmanTableEntry::Type::Standard}
+};
+
 struct PDFJBIG2ArithmeticDecoderQeValue
 {
     uint32_t Qe;        ///< Value of Qe
