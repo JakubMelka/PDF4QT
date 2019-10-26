@@ -96,6 +96,12 @@ public:
 
     explicit PDFBitReader(const QByteArray* stream, Value bitsPerComponent);
 
+    PDFBitReader(const PDFBitReader&) = default;
+    PDFBitReader(PDFBitReader&&) = default;
+
+    PDFBitReader& operator=(const PDFBitReader&) = default;
+    PDFBitReader& operator=(PDFBitReader&&) = default;
+
     /// Returns maximal value of n-bit unsigned integer.
     Value max() const { return m_maximalValue; }
 
@@ -116,18 +122,25 @@ public:
     /// then exception is thrown.
     void seek(qint64 position);
 
+    /// Skips desired number of bytes
+    void skipBytes(Value bytes);
+
     /// Seeks data to the byte boundary (number of processed bits is divisible by 8)
     void alignToBytes();
 
     /// Returns true, if we are at the end of the data stream (no more data can be read)
     bool isAtEnd() const;
 
+    /// Returns position in the data stream (byte position, not bit position, so
+    /// result of this function is sometimes inaccurate)
+    int getPosition() const { return m_position; }
+
 private:
     const QByteArray* m_stream;
     int m_position;
 
-    const Value m_bitsPerComponent;
-    const Value m_maximalValue;
+    Value m_bitsPerComponent;
+    Value m_maximalValue;
 
     Value m_buffer;
     Value m_bitsInBuffer;

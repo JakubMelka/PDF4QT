@@ -78,7 +78,7 @@ PDFBitReader::Value PDFBitReader::look(Value bits) const
 
 void PDFBitReader::seek(qint64 position)
 {
-    if (position < m_stream->size())
+    if (position <= m_stream->size())
     {
         m_position = position;
         m_buffer = 0;
@@ -87,6 +87,22 @@ void PDFBitReader::seek(qint64 position)
     else
     {
         throw PDFException(PDFTranslationContext::tr("Can't seek to position %1.").arg(position));
+    }
+}
+
+void PDFBitReader::skipBytes(Value bytes)
+{
+    // Jakub Melka: if we are lucky, then we just seek to the new position
+    if (m_bitsInBuffer == 0)
+    {
+        seek(m_position + bytes);
+    }
+    else
+    {
+        for (Value i = 0; i < bytes; ++i)
+        {
+            read(8);
+        }
     }
 }
 

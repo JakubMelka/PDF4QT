@@ -22,6 +22,7 @@
 
 namespace pdf
 {
+class PDFRenderErrorReporter;
 
 /// Arithmetic decoder state for JBIG2 data streams. It contains state for context,
 /// state is stored as 8-bit value, where only 7 bits are used. 6 bits are used
@@ -111,10 +112,102 @@ private:
     PDFBitReader* m_reader;
 };
 
+enum class JBIG2SegmentType : uint32_t
+{
+    Invalid,
+    SymbolDictionary,           ///< See chapter 7.4.2  in specification
+    TextRegion,                 ///< See chapter 7.4.3  in specification
+    PatternDictionary,          ///< See chapter 7.4.4  in specification
+    HalftoneRegion,             ///< See chapter 7.4.5  in specification
+    GenericRegion,              ///< See chapter 7.4.6  in specification
+    GenericRefinementRegion,    ///< See chapter 7.4.7  in specification
+    PageInformation,            ///< See chapter 7.4.8  in specification
+    EndOfPage,                  ///< See chapter 7.4.9  in specification
+    EndOfStripe,                ///< See chapter 7.4.10 in specification
+    EndOfFile,                  ///< See chapter 7.4.11 in specification
+    Profiles,                   ///< See chapter 7.4.12 in specification
+    Tables,                     ///< See chapter 7.4.13 in specification
+    Extension                   ///< See chapter 7.4.14 in specification
+};
+
+class PDFJBIG2SegmentHeader
+{
+public:
+    explicit inline PDFJBIG2SegmentHeader() = default;
+
+    /// Returns segment type
+    inline JBIG2SegmentType getSegmentType() const { return m_segmentType; }
+
+    /// Returns segment number
+    inline uint32_t getSegmentNumber() const { return m_segmentNumber; }
+
+    /// Returns segment data length (or 0xFFFFFFFF, if length is not defined)
+    /// \sa isSegmentDataLengthDefined
+    inline uint32_t getSegmentDataLength() const { return m_segmentDataLength; }
+
+    /// Returns true, if segment is immediate (direct paint on page's bitmap)
+    inline bool isImmediate() const { return m_immediate; }
+
+    /// Returns true, if segment is lossless
+    inline bool isLossless() const { return m_lossless; }
+
+    /// Returns true, if segmend data length is defined
+    inline bool isSegmentDataLengthDefined() const { return m_segmentDataLength != 0xFFFFFFFF; }
+
+    /// Reads the segment header from the data stream. If error occurs, then
+    /// exception is thrown.
+    static PDFJBIG2SegmentHeader read(PDFBitReader* reader);
+
+private:
+    uint32_t m_segmentNumber = 0;
+    uint32_t m_pageAssociation = 0;
+    uint32_t m_segmentDataLength = 0;
+    JBIG2SegmentType m_segmentType = JBIG2SegmentType::Invalid;
+    bool m_immediate = false;
+    bool m_lossless = false;
+    std::vector<uint32_t> m_referredSegments;
+};
+
+/// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
+/// Handles also global segments. Decoder decodes data using the specification
+/// ISO/IEC 14492:2001, T.88.
 class PDFJBIG2Decoder
 {
 public:
-    PDFJBIG2Decoder();
+    explicit inline PDFJBIG2Decoder(QByteArray data, QByteArray globalData, PDFRenderErrorReporter* errorReporter) :
+        m_data(qMove(data)),
+        m_globalData(qMove(globalData)),
+        m_errorReporter(errorReporter),
+        m_reader(nullptr, 8)
+    {
+
+    }
+
+    void decode();
+
+private:
+    /// Processes current data stream (reads all data from the stream, interprets
+    /// them as segments and processes the segments).
+    void processStream();
+
+    void processSymbolDictionary(const PDFJBIG2SegmentHeader& header);
+    void processTextRegion(const PDFJBIG2SegmentHeader& header);
+    void processPatternDictionary(const PDFJBIG2SegmentHeader& header);
+    void processHalftoneRegion(const PDFJBIG2SegmentHeader& header);
+    void processGenericRegion(const PDFJBIG2SegmentHeader& header);
+    void processGenericRefinementRegion(const PDFJBIG2SegmentHeader& header);
+    void processPageInformation(const PDFJBIG2SegmentHeader& header);
+    void processEndOfPage(const PDFJBIG2SegmentHeader& header);
+    void processEndOfStripe(const PDFJBIG2SegmentHeader& header);
+    void processEndOfFile(const PDFJBIG2SegmentHeader& header);
+    void processProfiles(const PDFJBIG2SegmentHeader& header);
+    void processCodeTables(const PDFJBIG2SegmentHeader& header);
+    void processExtension(const PDFJBIG2SegmentHeader& header);
+
+    QByteArray m_data;
+    QByteArray m_globalData;
+    PDFRenderErrorReporter* m_errorReporter;
+    PDFBitReader m_reader;
 };
 
 }   // namespace pdf

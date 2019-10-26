@@ -16,6 +16,7 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfjbig2decoder.h"
+#include "pdfexception.h"
 
 namespace pdf
 {
@@ -464,9 +465,250 @@ uint32_t PDFJBIG2ArithmeticDecoder::perform_DECODE(size_t context, PDFJBIG2Arith
     return D;
 }
 
-PDFJBIG2Decoder::PDFJBIG2Decoder()
+PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
 {
+    PDFJBIG2SegmentHeader header;
 
+    // Parse segment headers and segment flags
+    header.m_segmentNumber = reader->read(32);
+    const uint8_t flags = reader->read(8);
+    const uint8_t type = flags & 0x3F;
+    const bool isPageAssociationSize4ByteLong = flags & 0x40;
+
+    // Jakub Melka: Now parse referred to segments. We do not use retain flags, so we skip
+    // these bits. Data format is described in chapter 7.2.4 of the specification. According
+    // the specification, values 5 or 6 can't be in bits 6,7,8, of the first byte. If these
+    // occurs, exception is thrown.
+    uint32_t retentionField = reader->read(8);
+    uint32_t referredSegmentsCount = retentionField >> 5; // Bits 6,7,8
+
+    if (referredSegmentsCount == 5 || referredSegmentsCount == 6)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid header - bad referred segments."));
+    }
+
+    if (referredSegmentsCount == 7)
+    {
+        // This signalizes, that we have more than 4 referred segments. We will read 32-bit value,
+        // where bits 0-28 will be number of referred segments, and bits 29-31 should be all set to 1.
+        retentionField = (retentionField << 24) | reader->read(24);
+        referredSegmentsCount = retentionField & 0x1FFFFFFF;
+
+        if ((retentionField & 0xE0000000) != 0xE0000000)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid header - bad referred segments."));
+        }
+
+        // According the specification, retention header is 4 + ceil( (R + 1) / 8) bytes long. We have already 4 bytes read,
+        // so only ceil( (R + 1) / 8 ) bytes we must skip. So, we will add 7 "bits", so we have (R + 1 + 7) / 8 bytes
+        // to be skipped. We have R + 1 bits, not R bits, because 1 bit is used for this segment retain flag.
+        const uint32_t bytesToSkip = (referredSegmentsCount + 8) / 8;
+        reader->skipBytes(bytesToSkip);
+    }
+
+    // Read referred segment numbers. According to specification, chapter 7.2.5, referred segments should have
+    // segment number lesser than actual segment number. So, if segment number is less, or equal to 256, then
+    // 8-bit value is used to store referred segment number, if segment number is less, or equal to 65536, then
+    // 16-bit value is used, otherwise 32 bit value is used.
+    header.m_referredSegments.reserve(referredSegmentsCount);
+    const PDFBitReader::Value referredSegmentNumberBits = (header.m_segmentNumber <= 256) ? 8 : ((header.m_segmentNumber <= 65536) ? 16 : 32);
+    for (uint32_t i = 0; i < referredSegmentsCount; ++i)
+    {
+        header.m_referredSegments.push_back(reader->read(referredSegmentNumberBits));
+    }
+
+    header.m_pageAssociation = reader->read(isPageAssociationSize4ByteLong ? 32 : 8);
+    header.m_segmentDataLength = reader->read(32);
+    header.m_lossless = type & 0x01;
+    header.m_immediate = type & 0x02;
+
+    switch (type)
+    {
+        case 0:
+            header.m_segmentType = JBIG2SegmentType::SymbolDictionary;
+            break;
+
+        case 4:
+        case 6:
+        case 7:
+            header.m_segmentType = JBIG2SegmentType::TextRegion;
+            break;
+
+        case 16:
+            header.m_segmentType = JBIG2SegmentType::PatternDictionary;
+            break;
+
+        case 20:
+        case 22:
+        case 23:
+            header.m_segmentType = JBIG2SegmentType::HalftoneRegion;
+            break;
+
+        case 36:
+        case 38:
+        case 39:
+            header.m_segmentType = JBIG2SegmentType::GenericRegion;
+            break;
+
+        case 40:
+        case 42:
+        case 43:
+            header.m_segmentType = JBIG2SegmentType::GenericRefinementRegion;
+            break;
+
+        case 48:
+            header.m_segmentType = JBIG2SegmentType::PageInformation;
+            break;
+
+        case 49:
+            header.m_segmentType = JBIG2SegmentType::EndOfPage;
+            break;
+
+        case 50:
+            header.m_segmentType = JBIG2SegmentType::EndOfStripe;
+            break;
+
+        case 51:
+            header.m_segmentType = JBIG2SegmentType::EndOfFile;
+            break;
+
+        case 52:
+            header.m_segmentType = JBIG2SegmentType::Profiles;
+            break;
+
+        case 53:
+            header.m_segmentType = JBIG2SegmentType::Tables;
+            break;
+
+        case 62:
+            header.m_segmentType = JBIG2SegmentType::Extension;
+            break;
+
+        default:
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid segment type %1.").arg(type));
+    }
+
+    return header;
+}
+
+void PDFJBIG2Decoder::decode()
+{
+    for (const QByteArray* data :  { &m_globalData, &m_data })
+    {
+        if (!data->isEmpty())
+        {
+            m_reader = PDFBitReader(data, 8);
+            processStream();
+        }
+    }
+}
+
+void PDFJBIG2Decoder::processStream()
+{
+    while (!m_reader.isAtEnd())
+    {
+        // Read the segment header, then process the segment data
+        PDFJBIG2SegmentHeader segmentHeader = PDFJBIG2SegmentHeader::read(&m_reader);
+        const int64_t segmentDataStartPosition = m_reader.getPosition();
+
+        switch (segmentHeader.getSegmentType())
+        {
+            case JBIG2SegmentType::SymbolDictionary:
+                processSymbolDictionary(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::TextRegion:
+                processTextRegion(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::PatternDictionary:
+                processPatternDictionary(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::HalftoneRegion:
+                processHalftoneRegion(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::GenericRegion:
+                processGenericRegion(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::GenericRefinementRegion:
+                processGenericRefinementRegion(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::PageInformation:
+                processPageInformation(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::EndOfPage:
+                processEndOfPage(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::EndOfStripe:
+                processEndOfStripe(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::EndOfFile:
+                processEndOfFile(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::Profiles:
+                processProfiles(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::Tables:
+                processCodeTables(segmentHeader);
+                break;
+
+            case JBIG2SegmentType::Extension:
+                processExtension(segmentHeader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid segment type %1.").arg(static_cast<uint32_t>(segmentHeader.getSegmentType())));
+        }
+
+        // Make sure, that all data are processed by segment header. Positive offset means,
+        // that we did not read all the data bytes. Negative offset means, that we read more
+        // bytes in segment handler, that the segment has specified.
+        if (segmentHeader.isSegmentDataLengthDefined())
+        {
+            const int64_t offset = static_cast<int64_t>(segmentDataStartPosition) + static_cast<int64_t>(segmentHeader.getSegmentDataLength()) - static_cast<int64_t>(m_reader.getPosition());
+            if (offset > 0)
+            {
+                m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 bad segment data - handler doesn't process all segment data - %1 bytes left.").arg(offset));
+            }
+            else if (offset < 0)
+            {
+                // This is fatal error, we have read data, which doesn't belong to this segment
+                throw PDFException(PDFTranslationContext::tr("JBIG2 bad segment data - handler reads %1 bytes past segment end.").arg(-offset));
+            }
+
+            // Always seek to the right position
+            m_reader.seek(segmentDataStartPosition + segmentHeader.getSegmentDataLength());
+        }
+    }
+}
+
+void PDFJBIG2Decoder::processExtension(const PDFJBIG2SegmentHeader& header)
+{
+    // We will read the extension header, and check "Necessary bit"
+    const uint32_t extensionHeader = m_reader.read(32);
+    if (extensionHeader & 0x8000000)
+    {
+        const uint32_t extensionCode = extensionHeader & 0x3FFFFFFF;
+        throw PDFException(PDFTranslationContext::tr("JBIG2 unknown extension %1 necessary for decoding the image.").arg(extensionCode));
+    }
+
+    if (header.isSegmentDataLengthDefined())
+    {
+        m_reader.skipBytes(header.getSegmentDataLength() - 4);
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 segment with unknown extension has not defined length."));
+    }
 }
 
 }   // namespace pdf

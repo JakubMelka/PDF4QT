@@ -20,6 +20,7 @@
 #include "pdfconstants.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
+#include "pdfjbig2decoder.h"
 #include "pdfccittfaxdecoder.h"
 
 #include <openjpeg.h>
@@ -656,7 +657,21 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
     }
     else if (imageFilterName == "JBIG2Decode")
     {
-        throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Not implemented image filter 'JBIG2Decode'."));
+        QByteArray data = document->getDecodedStream(stream);
+        QByteArray globalData;
+        if (filterParamsDictionary)
+        {
+            const PDFObject& globalDataObject = document->getObject(filterParamsDictionary->get("JBIG2Globals"));
+            if (globalDataObject.isStream())
+            {
+                globalData = document->getDecodedStream(globalDataObject.getStream());
+            }
+        }
+
+        PDFJBIG2Decoder decoder(qMove(data), qMove(globalData), errorReporter);
+        decoder.decode();
+
+        // TODO: Finish JBIG2 decoder
     }
     else if (colorSpace || isSoftMask)
     {
