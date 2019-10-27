@@ -19,10 +19,24 @@
 #define PDFJBIG2DECODER_H
 
 #include "pdfutils.h"
+#include "pdfcolorspaces.h"
 
 namespace pdf
 {
+class PDFJBIG2Bitmap;
 class PDFRenderErrorReporter;
+class PDFJBIG2HuffmanCodeTable;
+
+struct PDFJBIG2HuffmanTableEntry;
+
+enum class PDFJBIG2BitOperation
+{
+    Invalid,
+    Or,
+    And,
+    Xor,
+    NotXor
+};
 
 /// Arithmetic decoder state for JBIG2 data streams. It contains state for context,
 /// state is stored as 8-bit value, where only 7 bits are used. 6 bits are used
@@ -168,6 +182,68 @@ private:
     std::vector<uint32_t> m_referredSegments;
 };
 
+class PDFJBIG2Segment
+{
+public:
+    explicit inline PDFJBIG2Segment() = default;
+    virtual ~PDFJBIG2Segment() = default;
+
+    virtual const PDFJBIG2Bitmap* asBitmap() const { return nullptr; }
+    virtual PDFJBIG2Bitmap* asBitmap() { return nullptr; }
+
+    virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const { return nullptr; }
+    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() { return nullptr; }
+};
+
+class PDFJBIG2HuffmanCodeTable : public PDFJBIG2Segment
+{
+public:
+    explicit PDFJBIG2HuffmanCodeTable(std::vector<PDFJBIG2HuffmanTableEntry>&& entries);
+
+    virtual ~PDFJBIG2HuffmanCodeTable();
+
+    virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const override { return this; }
+    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() override { return this; }
+
+    const std::vector<PDFJBIG2HuffmanTableEntry>& getEntries() const { return m_entries; }
+
+    /// Builds prefixes using algorithm in annex B.3 of specification. Unused rows are removed.
+    /// Rows are sorted according the criteria. Prefixes are then filled.
+    /// \param entries Entries for building the table
+    static std::vector<PDFJBIG2HuffmanTableEntry> buildPrefixes(const std::vector<PDFJBIG2HuffmanTableEntry>& entries);
+
+private:
+    std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
+};
+
+class PDFJBIG2Bitmap : public PDFJBIG2Segment
+{
+public:
+    explicit PDFJBIG2Bitmap();
+    explicit PDFJBIG2Bitmap(size_t width, size_t height);
+    explicit PDFJBIG2Bitmap(size_t width, size_t height, uint8_t fill);
+
+    virtual const PDFJBIG2Bitmap* asBitmap() const override { return this; }
+    virtual PDFJBIG2Bitmap* asBitmap() override { return this; }
+
+    inline size_t getWidth() const { return m_width; }
+    inline size_t getHeight() const { return m_height; }
+    inline size_t getPixelCount() const { return m_width * m_height; }
+    inline uint8_t getPixel(size_t x, size_t y) const { return m_data[y * m_width + x]; }
+    inline void setPixel(size_t x, size_t y, uint8_t value) { m_data[y * m_width + x] = value; }
+
+    inline void fill(uint8_t value) { std::fill(m_data.begin(), m_data.end(), value); }
+    inline void fillZero() { fill(0); }
+    inline void fillOne() { fill(0xFF); }
+
+    inline bool isValid() const { return getPixelCount() > 0; }
+
+private:
+    size_t m_width;
+    size_t m_height;
+    std::vector<uint8_t> m_data;
+};
+
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
 /// Handles also global segments. Decoder decodes data using the specification
 /// ISO/IEC 14492:2001, T.88.
@@ -178,14 +254,22 @@ public:
         m_data(qMove(data)),
         m_globalData(qMove(globalData)),
         m_errorReporter(errorReporter),
-        m_reader(nullptr, 8)
+        m_reader(nullptr, 8),
+        m_pageDefaultPixelValue(0),
+        m_pageDefaultCompositionOperator(PDFJBIG2BitOperation::Invalid),
+        m_pageDefaultCompositionOperatorOverriden(false)
     {
 
     }
 
-    void decode();
+    /// Decodes image interpreting the data as JBIG2 data stream. If image cannot
+    /// be decoded, exception is thrown (or invalid PDFImageData is returned).
+    /// \param maskingType Image masking type
+    PDFImageData decode(PDFImageData::MaskingType maskingType);
 
 private:
+    static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
+
     /// Processes current data stream (reads all data from the stream, interprets
     /// them as segments and processes the segments).
     void processStream();
@@ -204,10 +288,21 @@ private:
     void processCodeTables(const PDFJBIG2SegmentHeader& header);
     void processExtension(const PDFJBIG2SegmentHeader& header);
 
+    void skipSegment(const PDFJBIG2SegmentHeader& header);
+
+    static void checkBitmapSize(const uint32_t size);
+
     QByteArray m_data;
     QByteArray m_globalData;
     PDFRenderErrorReporter* m_errorReporter;
     PDFBitReader m_reader;
+    std::map<uint32_t, std::unique_ptr<PDFJBIG2Segment>> m_segments;
+
+    /// Page default pixel value
+    uint8_t m_pageDefaultPixelValue;
+    PDFJBIG2BitOperation m_pageDefaultCompositionOperator;
+    bool m_pageDefaultCompositionOperatorOverriden;
+    PDFJBIG2Bitmap m_pageBitmap;
 };
 
 }   // namespace pdf

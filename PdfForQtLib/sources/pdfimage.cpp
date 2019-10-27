@@ -669,9 +669,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
         }
 
         PDFJBIG2Decoder decoder(qMove(data), qMove(globalData), errorReporter);
-        decoder.decode();
-
-        // TODO: Finish JBIG2 decoder
+        image.m_imageData = decoder.decode(maskingType);
     }
     else if (colorSpace || isSoftMask)
     {

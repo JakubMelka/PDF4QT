@@ -135,6 +135,18 @@ public:
     /// result of this function is sometimes inaccurate)
     int getPosition() const { return m_position; }
 
+    /// Reads signed 32-bit integer from the stream
+    int32_t readSignedInt();
+
+    /// Reads unsigned 32-bit integer from the stream
+    uint32_t readUnsignedInt() { return read(32); }
+
+    /// Reads unsigned 16-bit integer from the stream
+    uint16_t readUnsignedWord() { return read(16); }
+
+    /// Reads unsigned 8-bit integer from the stream
+    uint8_t readUnsignedByte() { return read(8); }
+
 private:
     const QByteArray* m_stream;
     int m_position;

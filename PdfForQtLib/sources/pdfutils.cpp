@@ -120,6 +120,12 @@ bool PDFBitReader::isAtEnd() const
     return (m_position >= m_stream->size()) && m_bitsInBuffer == 0;
 }
 
+int32_t PDFBitReader::readSignedInt()
+{
+    const uint32_t value = read(32);
+    return *reinterpret_cast<const int32_t*>(&value);
+}
+
 PDFBitWriter::PDFBitWriter(Value bitsPerComponent) :
     m_bitsPerComponent(bitsPerComponent),
     m_mask((static_cast<Value>(1) << m_bitsPerComponent) - static_cast<Value>(1)),

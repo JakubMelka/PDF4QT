@@ -35,16 +35,16 @@ struct PDFJBIG2HuffmanTableEntry
 
     /// Returns true, if current row represents interval (-∞, value),
     /// it means 32bit number must be read and
-    bool isLowValue() const { return rangeBitLength == 0xFFFE; }
+    bool isLowValue() const { return type == Type::Negative; }
 
     /// Returns true, if current row represents out-of-band value
-    bool isOutOfBand() const { return rangeBitLength == HUFFMAN_OOB_VALUE; }
+    bool isOutOfBand() const { return type == Type::OutOfBand; }
 
-    int32_t value;              ///< Base value
-    uint16_t prefixBitLength;   ///< Bit length of prefix
-    uint16_t rangeBitLength;    ///< Bit length of additional value
-    uint16_t prefix;            ///< Bit prefix of the huffman code
-    Type type;                  ///< Type of the value
+    int32_t value = 0;              ///< Base value
+    uint16_t prefixBitLength = 0;   ///< Bit length of prefix
+    uint16_t rangeBitLength = 0;    ///< Bit length of additional value
+    uint16_t prefix = 0;            ///< Bit prefix of the huffman code
+    Type type = Type::Standard;     ///< Type of the value
 };
 
 static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_A[] =
@@ -353,7 +353,7 @@ static constexpr PDFJBIG2ArithmeticDecoderQeValue JBIG2_ARITHMETIC_DECODER_QE_VA
 void PDFJBIG2ArithmeticDecoder::perform_INITDEC()
 {
     // Used figure G.1, in annex G, of specification
-    uint32_t B = m_reader->read(8);
+    uint32_t B = m_reader->readUnsignedByte();
     m_c = (B ^ 0xFF) << 16;
     perform_BYTEIN();
     m_c = m_c << 7;
@@ -364,7 +364,7 @@ void PDFJBIG2ArithmeticDecoder::perform_INITDEC()
 void PDFJBIG2ArithmeticDecoder::perform_BYTEIN()
 {
     // Used figure G.3, in annex G, of specification
-    const uint32_t B = m_reader->read(8);
+    const uint32_t B = m_reader->readUnsignedByte();
     if (B == 0xFF)
     {
         const uint32_t B1 = m_reader->look(8);
@@ -376,7 +376,7 @@ void PDFJBIG2ArithmeticDecoder::perform_BYTEIN()
         {
             m_c = m_c + (0xFE00 - (B << 9));
             m_ct = 7;
-            m_reader->read(8);
+            m_reader->readUnsignedByte();
         }
     }
     else
@@ -470,8 +470,8 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     PDFJBIG2SegmentHeader header;
 
     // Parse segment headers and segment flags
-    header.m_segmentNumber = reader->read(32);
-    const uint8_t flags = reader->read(8);
+    header.m_segmentNumber = reader->readUnsignedInt();
+    const uint8_t flags = reader->readUnsignedByte();
     const uint8_t type = flags & 0x3F;
     const bool isPageAssociationSize4ByteLong = flags & 0x40;
 
@@ -479,7 +479,7 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     // these bits. Data format is described in chapter 7.2.4 of the specification. According
     // the specification, values 5 or 6 can't be in bits 6,7,8, of the first byte. If these
     // occurs, exception is thrown.
-    uint32_t retentionField = reader->read(8);
+    uint32_t retentionField = reader->readUnsignedByte();
     uint32_t referredSegmentsCount = retentionField >> 5; // Bits 6,7,8
 
     if (referredSegmentsCount == 5 || referredSegmentsCount == 6)
@@ -518,7 +518,7 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     }
 
     header.m_pageAssociation = reader->read(isPageAssociationSize4ByteLong ? 32 : 8);
-    header.m_segmentDataLength = reader->read(32);
+    header.m_segmentDataLength = reader->readUnsignedInt();
     header.m_lossless = type & 0x01;
     header.m_immediate = type & 0x02;
 
@@ -591,7 +591,7 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     return header;
 }
 
-void PDFJBIG2Decoder::decode()
+PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
 {
     for (const QByteArray* data :  { &m_globalData, &m_data })
     {
@@ -601,6 +601,27 @@ void PDFJBIG2Decoder::decode()
             processStream();
         }
     }
+
+    if (m_pageBitmap.isValid())
+    {
+        PDFBitWriter writer(1);
+
+        const size_t columns = m_pageBitmap.getWidth();
+        const size_t rows = m_pageBitmap.getHeight();
+
+        for (size_t row = 0; row < rows; ++row)
+        {
+            for (size_t column = 0; column < columns; ++column)
+            {
+                writer.write(m_pageBitmap.getPixel(column, row));
+            }
+            writer.finishLine();
+        }
+
+        return PDFImageData(1, 1, static_cast<uint32_t>(columns), static_cast<uint32_t>(rows), static_cast<uint32_t>((columns + 7) / 8), maskingType, writer.takeByteArray(), { }, { }, { });
+    }
+
+    return PDFImageData();
 }
 
 void PDFJBIG2Decoder::processStream()
@@ -691,10 +712,179 @@ void PDFJBIG2Decoder::processStream()
     }
 }
 
+void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& header)
+{
+    // TODO: JBIG2 - processSymbolDictionary
+}
+
+void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
+{
+    // TODO: JBIG2 - processTextRegion
+}
+
+void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& header)
+{
+    // TODO: JBIG2 - processPatternDictionary
+}
+
+void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
+{
+    // TODO: JBIG2 - processHalftoneRegion
+}
+
+void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
+{
+    // TODO: JBIG2 - processGenericRegion
+}
+
+void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader& header)
+{
+    // TODO: JBIG2 - processGenericRefinementRegion
+}
+
+void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
+{
+    const uint32_t width = m_reader.readUnsignedInt();
+    const uint32_t height = m_reader.readUnsignedInt();
+
+    // Skip 8 bites - resolution. We do not need the resolution values.
+    m_reader.skipBytes(sizeof(uint32_t) * 2);
+
+    const uint8_t flags = m_reader.readUnsignedByte();
+    const uint16_t striping = m_reader.readUnsignedWord();
+
+    m_pageDefaultPixelValue = (flags & 0x04) ? 0xFF : 0x00;
+    m_pageDefaultCompositionOperatorOverriden = (flags & 0x40);
+
+    const uint8_t defaultOperator = (flags >> 3) & 0b11;
+    switch (defaultOperator)
+    {
+        case 0:
+            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::Or;
+            break;
+
+        case 1:
+            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::And;
+            break;
+
+        case 2:
+            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::Xor;
+            break;
+
+        case 3:
+            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::NotXor;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    const uint32_t correctedWidth = width;
+    const uint32_t correctedHeight = (height != 0xFFFFFFFF) ? height : 0;
+
+    checkBitmapSize(correctedWidth);
+    checkBitmapSize(correctedHeight);
+
+    m_pageBitmap = PDFJBIG2Bitmap(width, height, m_pageDefaultPixelValue);
+}
+
+void PDFJBIG2Decoder::processEndOfPage(const PDFJBIG2SegmentHeader& header)
+{
+    if (header.getSegmentDataLength() != 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 end-of-page segment shouldn't contain any data, but has extra data of %1 bytes.").arg(header.getSegmentDataLength()));
+    }
+
+    // We will write a warning, because end-of-page segments should not be in PDF according to specification
+    m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-page segment detected and ignored."));
+}
+
+void PDFJBIG2Decoder::processEndOfStripe(const PDFJBIG2SegmentHeader& header)
+{
+    // Just skip the segment, do nothing
+    skipSegment(header);
+}
+
+void PDFJBIG2Decoder::processEndOfFile(const PDFJBIG2SegmentHeader& header)
+{
+    if (header.getSegmentDataLength() != 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 end-of-file segment shouldn't contain any data, but has extra data of %1 bytes.").arg(header.getSegmentDataLength()));
+    }
+
+    // We will write a warning, because end-of-file segments should not be in PDF according to specification
+    m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-file segment detected and ignored."));
+}
+
+void PDFJBIG2Decoder::processProfiles(const PDFJBIG2SegmentHeader& header)
+{
+    skipSegment(header);
+}
+
+void PDFJBIG2Decoder::processCodeTables(const PDFJBIG2SegmentHeader& header)
+{
+    const uint8_t flags = m_reader.readUnsignedByte();
+    const int32_t htLow = m_reader.readSignedInt();
+    const int32_t htHigh = m_reader.readSignedInt();
+
+    if (htLow == std::numeric_limits<int32_t>::min())
+    {
+        // Check for underflow, we subtract 1 from htLow value
+        throw PDFException(PDFTranslationContext::tr("JBIG2 underflow of the low value in huffman table."));
+    }
+
+    const bool hasOOB = flags & 0x01;
+    const PDFBitReader::Value htps = ((flags >> 1) & 0b111) + 1;
+    const PDFBitReader::Value htrs = ((flags >> 4) & 0b111) + 1;
+
+    std::vector<PDFJBIG2HuffmanTableEntry> table;
+    table.reserve(32);
+
+    // Read standard values
+    int32_t currentRangeLow = htLow;
+    while (currentRangeLow < htHigh)
+    {
+        PDFJBIG2HuffmanTableEntry entry;
+        entry.prefixBitLength = m_reader.read(htps);
+        entry.rangeBitLength = m_reader.read(htrs);
+        entry.value = currentRangeLow;
+        currentRangeLow += 1 << entry.rangeBitLength;
+        table.push_back(entry);
+    }
+
+    // Read "low" value
+    PDFJBIG2HuffmanTableEntry lowEntry;
+    lowEntry.prefixBitLength = m_reader.read(htps);
+    lowEntry.rangeBitLength = 32;
+    lowEntry.value = htLow - 1;
+    lowEntry.type = PDFJBIG2HuffmanTableEntry::Type::Negative;
+    table.push_back(lowEntry);
+
+    // Read "high" value
+    PDFJBIG2HuffmanTableEntry highEntry;
+    highEntry.prefixBitLength = m_reader.read(htps);
+    highEntry.rangeBitLength = 32;
+    highEntry.value = htHigh;
+    table.push_back(highEntry);
+
+    // Read out-of-band value, if we have it
+    if (hasOOB)
+    {
+        PDFJBIG2HuffmanTableEntry oobEntry;
+        oobEntry.prefixBitLength = m_reader.read(htps);
+        oobEntry.type = PDFJBIG2HuffmanTableEntry::Type::OutOfBand;
+        table.push_back(oobEntry);
+    }
+
+    table = PDFJBIG2HuffmanCodeTable::buildPrefixes(table);
+    m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2HuffmanCodeTable>(qMove(table));
+}
+
 void PDFJBIG2Decoder::processExtension(const PDFJBIG2SegmentHeader& header)
 {
     // We will read the extension header, and check "Necessary bit"
-    const uint32_t extensionHeader = m_reader.read(32);
+    const uint32_t extensionHeader = m_reader.readUnsignedInt();
     if (extensionHeader & 0x8000000)
     {
         const uint32_t extensionCode = extensionHeader & 0x3FFFFFFF;
@@ -709,6 +899,102 @@ void PDFJBIG2Decoder::processExtension(const PDFJBIG2SegmentHeader& header)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 segment with unknown extension has not defined length."));
     }
+}
+
+void PDFJBIG2Decoder::skipSegment(const PDFJBIG2SegmentHeader& header)
+{
+    if (header.isSegmentDataLengthDefined())
+    {
+        m_reader.skipBytes(header.getSegmentDataLength());
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 segment with unknown data length can't be skipped."));
+    }
+}
+
+void PDFJBIG2Decoder::checkBitmapSize(const uint32_t size)
+{
+    if (size > MAX_BITMAP_SIZE)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum bitmap size exceeded (%1 > %2).").arg(size).arg(MAX_BITMAP_SIZE));
+    }
+}
+
+PDFJBIG2Bitmap::PDFJBIG2Bitmap() :
+    m_width(0),
+    m_height(0)
+{
+
+}
+
+PDFJBIG2Bitmap::PDFJBIG2Bitmap(size_t width, size_t height) :
+    m_width(width),
+    m_height(height)
+{
+    m_data.resize(width * height, 0);
+}
+
+PDFJBIG2Bitmap::PDFJBIG2Bitmap(size_t width, size_t height, uint8_t fill) :
+    m_width(width),
+    m_height(height)
+{
+    m_data.resize(width * height, fill);
+}
+
+PDFJBIG2HuffmanCodeTable::PDFJBIG2HuffmanCodeTable(std::vector<PDFJBIG2HuffmanTableEntry>&& entries) :
+    m_entries(qMove(entries))
+{
+
+}
+
+PDFJBIG2HuffmanCodeTable::~PDFJBIG2HuffmanCodeTable()
+{
+
+}
+
+std::vector<PDFJBIG2HuffmanTableEntry> PDFJBIG2HuffmanCodeTable::buildPrefixes(const std::vector<PDFJBIG2HuffmanTableEntry>& entries)
+{
+    std::vector<PDFJBIG2HuffmanTableEntry> result = entries;
+    result.erase(std::remove_if(result.begin(), result.end(), [](const PDFJBIG2HuffmanTableEntry& entry) { return entry.prefixBitLength == 0; }), result.end());
+    std::stable_sort(result.begin(), result.end(), [](const PDFJBIG2HuffmanTableEntry& l, const PDFJBIG2HuffmanTableEntry& r) { return l.prefixBitLength < r.prefixBitLength; });
+
+    if (!result.empty())
+    {
+        result[0].prefix = 0;
+
+        // Strategy: we will have variable prefix containing actual prefix value. If we are changing
+        // the number of bits, then we must update "FIRSTCODE" variable as in the specification, i.e.
+        // compute FIRSTCODE[current bit length] = (FIRSTCODE[previous bit length] + #number of items) * 2.
+        // Number of items is automatically computed by incrementing the variable prefix, so at the end
+        // of each cycle, when we are about to shift number of bits in next cycle, we have computed
+        // variable (FIRSTCODE[last bit length] + #number of items), so in next cycle, we just do a bit shift.
+        uint16_t prefix = 1;
+        uint16_t count = 1;
+        for (uint32_t i = 1; i < result.size(); ++i)
+        {
+            const uint16_t bitShift = result[i].prefixBitLength - result[i - 1].prefixBitLength;
+            if (bitShift > 0)
+            {
+                // Bit length of the prefix changed, we must shift the prefix by amount of new bits
+                prefix = prefix << bitShift;
+                count = 0;
+            }
+
+            result[i].prefix = prefix;
+            ++prefix;
+            ++count;
+
+            if (count > (1 << result[i].prefixBitLength))
+            {
+                // We have "overflow" of values, for binary number with prefixBitLength digits (0/1), we can
+                // have only 2^prefixBitLength values, which we exceeded. This is unrecoverable error.
+                throw PDFException(PDFTranslationContext::tr("JBIG2 overflow of prefix bit values in huffman table."));
+            }
+        }
+    }
+
+    return result;
 }
 
 }   // namespace pdf
