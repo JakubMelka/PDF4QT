@@ -55,7 +55,7 @@ struct PDFCCITTFaxDecoderParameters
     /// to achieve byte alignment.
     bool hasEncodedByteAlign = false;
 
-    /// Flag indicating, that filter excepts the data be terminated by end of block bit pattern.
+    /// Flag indicating, that filter expects the data be terminated by end of block bit pattern.
     /// In this case, \p rows parameter is ignored. Otherwise, rows parameter is used, or image
     /// is terminated by end of data stream, whichever occurs first. The end of block is marked
     /// as end-of-facsimile block (EOFB), or return to control (RTC), according the K parameter.

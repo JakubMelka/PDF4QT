@@ -35,7 +35,8 @@ enum class PDFJBIG2BitOperation
     Or,
     And,
     Xor,
-    NotXor
+    NotXor,
+    Replace
 };
 
 /// Arithmetic decoder state for JBIG2 data streams. It contains state for context,
@@ -45,10 +46,22 @@ enum class PDFJBIG2BitOperation
 class PDFJBIG2ArithmeticDecoderState
 {
 public:
+    explicit inline PDFJBIG2ArithmeticDecoderState() = default;
     explicit inline PDFJBIG2ArithmeticDecoderState(size_t size) :
         m_state(size, 0)
     {
 
+    }
+
+    /// Resets the context
+    inline void reset(const uint8_t bits)
+    {
+        size_t size = (1ULL << bits);
+        std::fill(m_state.begin(), m_state.end(), 0);
+        if (m_state.size() != size)
+        {
+            m_state.resize(size, 0);
+        }
     }
 
     /// Returns row index to Qe value table, according to document ISO/IEC 14492:2001,
@@ -86,16 +99,17 @@ private:
 class PDFJBIG2ArithmeticDecoder
 {
 public:
-    explicit inline PDFJBIG2ArithmeticDecoder() :
+    explicit inline PDFJBIG2ArithmeticDecoder(PDFBitReader* reader) :
         m_c(0),
         m_a(0),
         m_ct(0),
-        m_reader(nullptr)
+        m_reader(reader)
     {
 
     }
 
     void initialize() { perform_INITDEC(); }
+    uint32_t readBit(size_t context, PDFJBIG2ArithmeticDecoderState* state) { return perform_DECODE(context, state); }
 
 private:
     /// Performs INITDEC operation as described in the specification
@@ -220,17 +234,27 @@ class PDFJBIG2Bitmap : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2Bitmap();
-    explicit PDFJBIG2Bitmap(size_t width, size_t height);
-    explicit PDFJBIG2Bitmap(size_t width, size_t height, uint8_t fill);
+    explicit PDFJBIG2Bitmap(int width, int height);
+    explicit PDFJBIG2Bitmap(int width, int height, uint8_t fill);
 
     virtual const PDFJBIG2Bitmap* asBitmap() const override { return this; }
     virtual PDFJBIG2Bitmap* asBitmap() override { return this; }
 
-    inline size_t getWidth() const { return m_width; }
-    inline size_t getHeight() const { return m_height; }
-    inline size_t getPixelCount() const { return m_width * m_height; }
-    inline uint8_t getPixel(size_t x, size_t y) const { return m_data[y * m_width + x]; }
-    inline void setPixel(size_t x, size_t y, uint8_t value) { m_data[y * m_width + x] = value; }
+    inline int getWidth() const { return m_width; }
+    inline int getHeight() const { return m_height; }
+    inline int getPixelCount() const { return m_width * m_height; }
+    inline uint8_t getPixel(int x, int y) const { return m_data[y * m_width + x]; }
+    inline void setPixel(int x, int y, uint8_t value) { m_data[y * m_width + x] = value; }
+
+    inline uint8_t getPixelSafe(int x, int y) const
+    {
+        if (x < 0 || x >= m_width || y < 0 || y >= m_height)
+        {
+            return 0;
+        }
+
+        return getPixel(x, y);
+    }
 
     inline void fill(uint8_t value) { std::fill(m_data.begin(), m_data.end(), value); }
     inline void fillZero() { fill(0); }
@@ -238,10 +262,77 @@ public:
 
     inline bool isValid() const { return getPixelCount() > 0; }
 
+    /// Paints another bitmap onto this bitmap. If bitmap is invalid, nothing is done.
+    /// If \p expandY is true, height of target bitmap is expanded to fit source draw area.
+    /// \param bitmap Bitmap to be painted on this
+    /// \param offsetX Horizontal offset of paint area
+    /// \param offsetY Vertical offset of paint area
+    /// \param operation Paint operation to be performed
+    /// \param expandY Expand vertically, if painted bitmap exceeds current bitmap area
+    /// \param expandPixel Initialize pixels by this value during expanding
+    void paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel);
+
+    /// Copies data from source row to target row. If source or target row doesn't exists,
+    /// then exception is thrown.
+    /// \param target Target row
+    /// \param source Source row
+    void copyRow(int target, int source);
+
 private:
-    size_t m_width;
-    size_t m_height;
+    int m_width;
+    int m_height;
     std::vector<uint8_t> m_data;
+};
+
+/// Region segment information field, see chapter 7.4.1 in the specification
+struct PDFJBIG2RegionSegmentInformationField
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t offsetX = 0;
+    uint32_t offsetY = 0;
+    PDFJBIG2BitOperation operation = PDFJBIG2BitOperation::Invalid;
+};
+
+/// Info structure for adaptative template
+struct PDFJBIG2ATPosition
+{
+    int8_t x = 0;
+    int8_t y = 0;
+};
+
+using PDFJBIG2ATPositions = std::array<PDFJBIG2ATPosition, 4>;
+
+/// Info structure for bitmap decoding parameters
+struct PDFJBIG2BitmapDecodingParameters
+{
+    /// Is Modified-Modified-Read encoding used? This encoding is simalr to CCITT pure 2D encoding.
+    bool MMR = false;
+
+    /// Is typical prediction for generic direct coding used?
+    bool TPGDON = false;
+
+    /// Width of the image
+    int width = 0;
+
+    /// Height of the image
+    int height = 0;
+
+    /// Template mode (not used for MMR).
+    uint8_t GBTEMPLATE = 0;
+
+    /// Positions of adaptative pixels
+    PDFJBIG2ATPositions ATXY = { };
+
+    /// Data with encoded image
+    QByteArray data;
+
+    /// State of arithmetic decoder
+    PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
+
+    /// Skip bitmap (pixel is skipped if corresponding pixel in the
+    /// skip bitmap is 1). Set to nullptr, if not used.
+    const PDFJBIG2Bitmap* SKIP = nullptr;
 };
 
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
@@ -257,7 +348,9 @@ public:
         m_reader(nullptr, 8),
         m_pageDefaultPixelValue(0),
         m_pageDefaultCompositionOperator(PDFJBIG2BitOperation::Invalid),
-        m_pageDefaultCompositionOperatorOverriden(false)
+        m_pageDefaultCompositionOperatorOverriden(false),
+        m_pageSizeUndefined(false),
+        m_arithmeticDecoderStates()
     {
 
     }
@@ -269,6 +362,12 @@ public:
 
 private:
     static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
+
+    enum ArithmeticDecoderStates
+    {
+        Generic,
+        EndState
+    };
 
     /// Processes current data stream (reads all data from the stream, interprets
     /// them as segments and processes the segments).
@@ -288,21 +387,35 @@ private:
     void processCodeTables(const PDFJBIG2SegmentHeader& header);
     void processExtension(const PDFJBIG2SegmentHeader& header);
 
+    /// Reads the bitmap using decoding parameters
+    /// \param parameters Decoding parameters
+    PDFJBIG2Bitmap readBitmap(const PDFJBIG2BitmapDecodingParameters& parameters);
+
+    /// Reads the region segment information field (see chapter 7.4.1)
+    PDFJBIG2RegionSegmentInformationField readRegionSegmentInformationField();
+
+    /// Read adaptative pixel template positions, positions, which are not read, are filled with 0
+    PDFJBIG2ATPositions readATTemplatePixelPositions(int count);
+
+    /// Reset arithmetic decoder stats for generic
+    void resetArithmeticStatesGeneric(const uint8_t templateMode);
+
     void skipSegment(const PDFJBIG2SegmentHeader& header);
 
     static void checkBitmapSize(const uint32_t size);
+    static void checkRegionSegmentInformationField(const PDFJBIG2RegionSegmentInformationField& field);
 
     QByteArray m_data;
     QByteArray m_globalData;
     PDFRenderErrorReporter* m_errorReporter;
     PDFBitReader m_reader;
     std::map<uint32_t, std::unique_ptr<PDFJBIG2Segment>> m_segments;
-
-    /// Page default pixel value
     uint8_t m_pageDefaultPixelValue;
     PDFJBIG2BitOperation m_pageDefaultCompositionOperator;
     bool m_pageDefaultCompositionOperatorOverriden;
+    bool m_pageSizeUndefined;
     PDFJBIG2Bitmap m_pageBitmap;
+    std::array<PDFJBIG2ArithmeticDecoderState, EndState> m_arithmeticDecoderStates;
 };
 
 }   // namespace pdf

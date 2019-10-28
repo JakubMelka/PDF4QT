@@ -138,6 +138,9 @@ public:
     /// Reads signed 32-bit integer from the stream
     int32_t readSignedInt();
 
+    /// Reads signed 8-bit integer from the stream
+    int8_t readSignedByte();
+
     /// Reads unsigned 32-bit integer from the stream
     uint32_t readUnsignedInt() { return read(32); }
 
@@ -146,6 +149,9 @@ public:
 
     /// Reads unsigned 8-bit integer from the stream
     uint8_t readUnsignedByte() { return read(8); }
+
+    /// Return underlying byte stream
+    const QByteArray* getStream() const { return m_stream; }
 
 private:
     const QByteArray* m_stream;

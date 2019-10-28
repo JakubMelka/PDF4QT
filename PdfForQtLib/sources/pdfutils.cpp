@@ -126,6 +126,12 @@ int32_t PDFBitReader::readSignedInt()
     return *reinterpret_cast<const int32_t*>(&value);
 }
 
+int8_t PDFBitReader::readSignedByte()
+{
+    const uint8_t value = read(8);
+    return *reinterpret_cast<const int8_t*>(&value);
+}
+
 PDFBitWriter::PDFBitWriter(Value bitsPerComponent) :
     m_bitsPerComponent(bitsPerComponent),
     m_mask((static_cast<Value>(1) << m_bitsPerComponent) - static_cast<Value>(1)),

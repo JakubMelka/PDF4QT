@@ -17,6 +17,7 @@
 
 #include "pdfjbig2decoder.h"
 #include "pdfexception.h"
+#include "pdfccittfaxdecoder.h"
 
 namespace pdf
 {
@@ -606,12 +607,12 @@ PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
     {
         PDFBitWriter writer(1);
 
-        const size_t columns = m_pageBitmap.getWidth();
-        const size_t rows = m_pageBitmap.getHeight();
+        const int columns = m_pageBitmap.getWidth();
+        const int rows = m_pageBitmap.getHeight();
 
-        for (size_t row = 0; row < rows; ++row)
+        for (int row = 0; row < rows; ++row)
         {
-            for (size_t column = 0; column < columns; ++column)
+            for (int column = 0; column < columns; ++column)
             {
                 writer.write(m_pageBitmap.getPixel(column, row));
             }
@@ -734,7 +735,87 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 
 void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 {
-    // TODO: JBIG2 - processGenericRegion
+    const int segmentStartPosition = m_reader.getPosition();
+    PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
+    const uint8_t flags = m_reader.readUnsignedByte();
+
+    PDFJBIG2BitmapDecodingParameters parameters;
+    parameters.MMR = flags & 0b0001;
+    parameters.TPGDON = flags & 0b1000;
+    parameters.GBTEMPLATE = (flags >> 1) & 0b0011;
+
+    if ((flags & 0b11110000) != 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 - malformed generic region flags."));
+    }
+
+    if (!parameters.MMR)
+    {
+        // We will use arithmetic coding, read template pixels and reset arithmetic coder state
+        parameters.ATXY = readATTemplatePixelPositions((parameters.GBTEMPLATE == 0) ? 4 : 1);
+        resetArithmeticStatesGeneric(parameters.GBTEMPLATE);
+    }
+
+    // Determine segment data length
+    const int segmentDataStartPosition = m_reader.getPosition();
+    const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
+    int segmentDataBytes = 0;
+    if (header.isSegmentDataLengthDefined())
+    {
+        segmentDataBytes = header.getSegmentDataLength() - segmentHeaderBytes;
+    }
+    else
+    {
+        // We must find byte sequence { 0x00, 0x00 } for MMR and { 0xFF, 0xAC } for arithmetic decoder
+        const QByteArray* stream = m_reader.getStream();
+
+        QByteArray endSequence(2, 0);
+        if (!parameters.MMR)
+        {
+            endSequence[0] = char(0xFF);
+            endSequence[1] = char(0xAC);
+        }
+
+        int endPosition = stream->indexOf(endSequence);
+        if (endPosition == -1)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 - end of data byte sequence not found for generic region."));
+        }
+
+        // Add end bytes (they are also a part of stream)
+        endPosition += endSequence.size();
+
+        segmentDataBytes = endPosition - segmentDataStartPosition;
+    }
+    parameters.data = m_reader.getStream()->mid(segmentDataStartPosition, segmentDataBytes);
+    parameters.width = field.width;
+    parameters.height = field.height;
+    parameters.arithmeticDecoderState = &m_arithmeticDecoderStates[Generic];
+
+    PDFJBIG2Bitmap bitmap = readBitmap(parameters);
+    if (bitmap.isValid())
+    {
+        if (header.isImmediate())
+        {
+            m_pageBitmap.paint(bitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+        }
+        else
+        {
+            m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(bitmap));
+        }
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for generic region."));
+    }
+
+    // Now skip the data
+    m_reader.skipBytes(segmentDataBytes);
+
+    if (header.isImmediate() && !header.isSegmentDataLengthDefined())
+    {
+        m_reader.skipBytes(4);
+    }
 }
 
 void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader& header)
@@ -782,6 +863,7 @@ void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
 
     const uint32_t correctedWidth = width;
     const uint32_t correctedHeight = (height != 0xFFFFFFFF) ? height : 0;
+    m_pageSizeUndefined = height == 0xFFFFFFFF;
 
     checkBitmapSize(correctedWidth);
     checkBitmapSize(correctedHeight);
@@ -901,6 +983,289 @@ void PDFJBIG2Decoder::processExtension(const PDFJBIG2SegmentHeader& header)
     }
 }
 
+PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(const PDFJBIG2BitmapDecodingParameters& parameters)
+{
+    if (parameters.MMR)
+    {
+        // Use modified-modified-read (it corresponds to CCITT 2D encoding)
+        PDFCCITTFaxDecoderParameters ccittParameters;
+        ccittParameters.K = -1;
+        ccittParameters.columns = parameters.width;
+        ccittParameters.rows = parameters.height;
+        ccittParameters.hasEndOfBlock = false;
+
+        PDFCCITTFaxDecoder decoder(&parameters.data, ccittParameters);
+        PDFImageData data = decoder.decode();
+
+        PDFJBIG2Bitmap bitmap(data.getWidth(), data.getHeight(), m_pageDefaultPixelValue);
+
+        // Copy the data
+        PDFBitReader reader(&data.getData(), data.getBitsPerComponent());
+        for (unsigned int row = 0; row < data.getHeight(); ++row)
+        {
+            for (unsigned int column = 0; column < data.getWidth(); ++column)
+            {
+                bitmap.setPixel(column, row, (reader.read()) ? 0xFF : 0x00);
+            }
+
+            reader.alignToBytes();
+        }
+
+        return bitmap;
+    }
+    else
+    {
+        // Use arithmetic encoding. For templates, we fill bytes from right to left, from bottom to top bits,
+        // filling from lowest bit to highest bit. We will have a maximum of 16 bits.
+
+        uint8_t LTP = 0;
+        uint16_t LTPContext = 0;
+        if (parameters.TPGDON)
+        {
+            switch (parameters.GBTEMPLATE)
+            {
+                case 0:
+                    LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0x9B25
+                    break;
+
+                case 1:
+                    LTPContext = 0b0011110010101; // 13-bit context, hexadecimal value is 0x0795
+                    break;
+
+                case 2:
+                    LTPContext = 0b0011100101; // 10-bit context, hexadecimal value is 0x00E5
+                    break;
+
+                case 3:
+                    LTPContext = 0b0110010101; // 10-bit context, hexadecimal value is 0x0195
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+        }
+
+        PDFBitReader reader(&parameters.data, 1);
+        PDFJBIG2ArithmeticDecoder decoder(&reader);
+        decoder.initialize();
+
+        PDFJBIG2Bitmap bitmap(parameters.width, parameters.height, 0x00);
+        for (int y = 0; y < parameters.height; ++y)
+        {
+            // Check TPGDON prediction - if we use same pixels as in previous line
+            if (parameters.TPGDON)
+            {
+                LTP = LTP ^ decoder.readBit(LTPContext, parameters.arithmeticDecoderState);
+                if (LTP)
+                {
+                    if (y > 0)
+                    {
+                        bitmap.copyRow(y, y - 1);
+                    }
+                    continue;
+                }
+            }
+
+            for (int x = 0; x < parameters.width; ++x)
+            {
+                // Check, if we have to skip pixel. Pixel should be set to 0, but it is done
+                // in the initialization of the bitmap.
+                if (parameters.SKIP && parameters.SKIP->getPixelSafe(x, y))
+                {
+                    continue;
+                }
+
+                uint16_t pixelContext = 0;
+                uint16_t pixelContextShift = 0;
+                auto createContextBit = [&](int offsetX, int offsetY)
+                {
+                    uint16_t bit = bitmap.getPixelSafe(offsetX, offsetY) ? 1 : 0;
+                    bit = bit << pixelContextShift;
+                    pixelContext |= bit;
+                    ++pixelContextShift;
+                };
+
+                // Create pixel context based on used template
+                switch (parameters.GBTEMPLATE)
+                {
+                    case 0:
+                    {
+                        // 16-bit context
+                        createContextBit(x - 1, y);
+                        createContextBit(x - 2, y);
+                        createContextBit(x - 3, y);
+                        createContextBit(x - 4, y);
+                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + 2, y - 1);
+                        createContextBit(x + 1, y - 1);
+                        createContextBit(x + 0, y - 1);
+                        createContextBit(x - 1, y - 1);
+                        createContextBit(x - 2, y - 1);
+                        createContextBit(x + parameters.ATXY[1].x, y + parameters.ATXY[1].y);
+                        createContextBit(x + parameters.ATXY[2].x, y + parameters.ATXY[2].y);
+                        createContextBit(x + 1, y - 2);
+                        createContextBit(x + 0, y - 2);
+                        createContextBit(x - 1, y - 2);
+                        createContextBit(x + parameters.ATXY[3].x, y + parameters.ATXY[3].y);
+                        break;
+                    }
+
+                    case 1:
+                    {
+                        // 13-bit context
+                        createContextBit(x - 1, y);
+                        createContextBit(x - 2, y);
+                        createContextBit(x - 3, y);
+                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + 2, y - 1);
+                        createContextBit(x + 1, y - 1);
+                        createContextBit(x + 0, y - 1);
+                        createContextBit(x - 1, y - 1);
+                        createContextBit(x - 2, y - 1);
+                        createContextBit(x + 2, y - 2);
+                        createContextBit(x + 1, y - 2);
+                        createContextBit(x + 0, y - 2);
+                        createContextBit(x - 1, y - 2);
+                        break;
+                    }
+
+                    case 2:
+                    {
+                        // 10-bit context
+                        createContextBit(x - 1, y);
+                        createContextBit(x - 2, y);
+                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + 1, y - 1);
+                        createContextBit(x + 0, y - 1);
+                        createContextBit(x - 1, y - 1);
+                        createContextBit(x - 2, y - 1);
+                        createContextBit(x + 1, y - 2);
+                        createContextBit(x + 0, y - 2);
+                        createContextBit(x - 1, y - 2);
+                        break;
+                    }
+
+                    case 3:
+                    {
+                        // 10-bit context
+                        createContextBit(x - 1, y);
+                        createContextBit(x - 2, y);
+                        createContextBit(x - 3, y);
+                        createContextBit(x - 4, y);
+                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + 1, y - 1);
+                        createContextBit(x + 0, y - 1);
+                        createContextBit(x - 1, y - 1);
+                        createContextBit(x - 2, y - 1);
+                        createContextBit(x - 3, y - 1);
+                        break;
+                    }
+
+                    default:
+                    {
+                        Q_ASSERT(false);
+                        break;
+                    }
+                }
+
+                bitmap.setPixel(x, y, (decoder.readBit(pixelContext, parameters.arithmeticDecoderState)) ? 0xFF : 0x00);
+            }
+        }
+
+        return bitmap;
+    }
+
+    return PDFJBIG2Bitmap();
+}
+
+PDFJBIG2RegionSegmentInformationField PDFJBIG2Decoder::readRegionSegmentInformationField()
+{
+    PDFJBIG2RegionSegmentInformationField result;
+
+    result.width = m_reader.readUnsignedInt();
+    result.height = m_reader.readUnsignedInt();
+    result.offsetX = m_reader.readUnsignedInt();
+    result.offsetY = m_reader.readUnsignedInt();
+
+    // Parse flags
+    const uint8_t flags = m_reader.readUnsignedByte();
+
+    if ((flags & 0b11111000) != 0)
+    {
+        // This is forbidden by the specification
+        throw PDFException(PDFTranslationContext::tr("JBIG2 region segment information flags are invalid."));
+    }
+
+    switch (flags)
+    {
+        case 0:
+            result.operation = PDFJBIG2BitOperation::Or;
+            break;
+
+        case 1:
+            result.operation = PDFJBIG2BitOperation::And;
+            break;
+
+        case 2:
+            result.operation = PDFJBIG2BitOperation::Xor;
+            break;
+
+        case 3:
+            result.operation = PDFJBIG2BitOperation::NotXor;
+            break;
+
+        case 4:
+            result.operation = PDFJBIG2BitOperation::Replace;
+            break;
+
+        default:
+            throw PDFException(PDFTranslationContext::tr("JBIG2 region segment information - invalid bit operation mode."));
+    }
+
+    checkRegionSegmentInformationField(result);
+    return result;
+}
+
+PDFJBIG2ATPositions PDFJBIG2Decoder::readATTemplatePixelPositions(int count)
+{
+    PDFJBIG2ATPositions result = { };
+
+    for (int i = 0; i < count; ++i)
+    {
+        result[i].x = m_reader.readSignedByte();
+        result[i].y = m_reader.readSignedByte();
+    }
+
+    return result;
+}
+
+void PDFJBIG2Decoder::resetArithmeticStatesGeneric(const uint8_t templateMode)
+{
+    uint8_t bits = 0;
+    switch (templateMode)
+    {
+        case 0:
+            bits = 16;
+            break;
+
+        case 1:
+            bits = 13;
+            break;
+
+        case 2:
+        case 3:
+            bits = 10;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    m_arithmeticDecoderStates[Generic].reset(bits);
+}
+
 void PDFJBIG2Decoder::skipSegment(const PDFJBIG2SegmentHeader& header)
 {
     if (header.isSegmentDataLengthDefined())
@@ -921,6 +1286,24 @@ void PDFJBIG2Decoder::checkBitmapSize(const uint32_t size)
     }
 }
 
+void PDFJBIG2Decoder::checkRegionSegmentInformationField(const PDFJBIG2RegionSegmentInformationField& field)
+{
+    checkBitmapSize(field.width);
+    checkBitmapSize(field.height);
+    checkBitmapSize(field.offsetX);
+    checkBitmapSize(field.offsetY);
+
+    if (field.width == 0 || field.height == 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid bitmap size (%1 x %2).").arg(field.width).arg(field.height));
+    }
+
+    if (field.operation == PDFJBIG2BitOperation::Invalid)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid bit operation."));
+    }
+}
+
 PDFJBIG2Bitmap::PDFJBIG2Bitmap() :
     m_width(0),
     m_height(0)
@@ -928,18 +1311,92 @@ PDFJBIG2Bitmap::PDFJBIG2Bitmap() :
 
 }
 
-PDFJBIG2Bitmap::PDFJBIG2Bitmap(size_t width, size_t height) :
+PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height) :
     m_width(width),
     m_height(height)
 {
     m_data.resize(width * height, 0);
 }
 
-PDFJBIG2Bitmap::PDFJBIG2Bitmap(size_t width, size_t height, uint8_t fill) :
+PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height, uint8_t fill) :
     m_width(width),
     m_height(height)
 {
     m_data.resize(width * height, fill);
+}
+
+void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel)
+{
+    if (!bitmap.isValid())
+    {
+        return;
+    }
+
+    // Expand, if it is allowed and target bitmap has too low height
+    if (expandY && offsetY + bitmap.getHeight() > m_height)
+    {
+        m_height = offsetY + bitmap.getHeight();
+        m_data.resize(getPixelCount(), expandPixel);
+    }
+
+    // Check out pathological cases
+    if (offsetX >= m_width || offsetY >= m_height)
+    {
+        return;
+    }
+
+    const int targetStartX = offsetX;
+    const int targetEndX = qMin(offsetX + bitmap.getWidth(), m_width);
+    const int targetStartY = offsetY;
+    const int targetEndY = qMin(offsetY + bitmap.getHeight(), m_height);
+
+    for (int targetY = targetStartY; targetY < targetEndY; ++targetY)
+    {
+        for (int targetX = targetStartX; targetX < targetEndX; ++targetX)
+        {
+            const int sourceX = targetX - targetStartX;
+            const int sourceY = targetY - targetStartY;
+
+            switch (operation)
+            {
+                case PDFJBIG2BitOperation::Or:
+                    setPixel(targetX, targetY, getPixel(targetX, targetY) | bitmap.getPixel(sourceX, sourceY));
+                    break;
+
+                case PDFJBIG2BitOperation::And:
+                    setPixel(targetX, targetY, getPixel(targetX, targetY) & bitmap.getPixel(sourceX, sourceY));
+                    break;
+
+                case PDFJBIG2BitOperation::Xor:
+                    setPixel(targetX, targetY, getPixel(targetX, targetY) ^ bitmap.getPixel(sourceX, sourceY));
+                    break;
+
+                case PDFJBIG2BitOperation::NotXor:
+                    setPixel(targetX, targetY, getPixel(targetX, targetY) ^ (~bitmap.getPixel(sourceX, sourceY)));
+                    break;
+
+                case PDFJBIG2BitOperation::Replace:
+                    setPixel(targetX, targetY, bitmap.getPixel(sourceX, sourceY));
+                    break;
+
+                default:
+                    throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap paint operation."));
+            }
+        }
+    }
+}
+
+void PDFJBIG2Bitmap::copyRow(int target, int source)
+{
+    if (target < 0 || target >= m_height || source < 0 || source >= m_height)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap copy row operation."));
+    }
+
+    auto itSource = std::next(m_data.cbegin(), source * m_width);
+    auto itSourceEnd = std::next(itSource, m_width);
+    auto itTarget = std::next(m_data.begin(), target * m_width);
+    std::copy(itSource, itSourceEnd, itTarget);
 }
 
 PDFJBIG2HuffmanCodeTable::PDFJBIG2HuffmanCodeTable(std::vector<PDFJBIG2HuffmanTableEntry>&& entries) :
