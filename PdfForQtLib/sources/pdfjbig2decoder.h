@@ -43,7 +43,7 @@ enum class PDFJBIG2BitOperation
 /// state is stored as 8-bit value, where only 7 bits are used. 6 bits are used
 /// to store Qe value index (current row in the table, number 0-46), and lowest 1 bit
 /// is used to store current MPS value (most probable symbol - 0/1).
-class PDFJBIG2ArithmeticDecoderState
+class PDFFORQTLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoderState
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoderState() = default;
@@ -72,6 +72,10 @@ public:
         return m_state[context] >> 1;
     }
 
+    /// Returns Qe value for row index, according to document ISO/IEC 14492:2001,
+    /// annex E, table E.1 (Qe values and probability estimation process).
+    inline uint32_t getQe(size_t context) const;
+
     /// Returns current bit value of MPS (most probable symbol)
     inline uint8_t getMPS(size_t context) const
     {
@@ -96,13 +100,14 @@ private:
 /// of decoder described in document ISO/IEC 14492:2001, T.88, annex G (arithmetic decoding
 /// procedure). It uses 32-bit fixed point arithmetic instead of 16-bit fixed point
 /// arithmetic described in the specification (it is much faster).
-class PDFJBIG2ArithmeticDecoder
+class PDFFORQTLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoder
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoder(PDFBitReader* reader) :
         m_c(0),
         m_a(0),
         m_ct(0),
+        m_lastByte(0),
         m_reader(reader)
     {
 
@@ -110,6 +115,11 @@ public:
 
     void initialize() { perform_INITDEC(); }
     uint32_t readBit(size_t context, PDFJBIG2ArithmeticDecoderState* state) { return perform_DECODE(context, state); }
+    uint32_t readByte(size_t context, PDFJBIG2ArithmeticDecoderState* state);
+
+    uint32_t getRegisterC() const { return m_c; }
+    uint32_t getRegisterA() const { return m_a; }
+    uint32_t getRegisterCT() const { return m_ct; }
 
 private:
     /// Performs INITDEC operation as described in the specification
@@ -135,6 +145,9 @@ private:
 
     /// Number of current unprocessed bits.
     uint32_t m_ct;
+
+    /// Last processed byte
+    uint8_t m_lastByte;
 
     /// Data source to read from
     PDFBitReader* m_reader;

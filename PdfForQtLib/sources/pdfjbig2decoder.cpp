@@ -351,11 +351,23 @@ static constexpr PDFJBIG2ArithmeticDecoderQeValue JBIG2_ARITHMETIC_DECODER_QE_VA
     { 0x56010000, 46, 46, 0 }
 };
 
+uint32_t PDFJBIG2ArithmeticDecoder::readByte(size_t context, PDFJBIG2ArithmeticDecoderState* state)
+{
+    uint32_t byte = 0;
+    for (int i = 0; i < 8; ++i)
+    {
+        byte = (byte << 1) | readBit(context, state);
+    }
+
+    return byte;
+}
+
 void PDFJBIG2ArithmeticDecoder::perform_INITDEC()
 {
     // Used figure G.1, in annex G, of specification
     uint32_t B = m_reader->readUnsignedByte();
-    m_c = (B ^ 0xFF) << 16;
+    m_lastByte = B;
+    m_c = B << 16;
     perform_BYTEIN();
     m_c = m_c << 7;
     m_ct -= 7;
@@ -365,24 +377,26 @@ void PDFJBIG2ArithmeticDecoder::perform_INITDEC()
 void PDFJBIG2ArithmeticDecoder::perform_BYTEIN()
 {
     // Used figure G.3, in annex G, of specification
-    const uint32_t B = m_reader->readUnsignedByte();
-    if (B == 0xFF)
+    if (m_lastByte == 0xFF)
     {
         const uint32_t B1 = m_reader->look(8);
         if (B1 > 0x8F)
         {
+            m_c += 0xFF00;
             m_ct = 8;
         }
         else
         {
-            m_c = m_c + (0xFE00 - (B << 9));
+            m_c = m_c + (B1 << 9);
             m_ct = 7;
-            m_reader->readUnsignedByte();
+            m_lastByte = m_reader->readUnsignedByte();
         }
     }
     else
     {
-        m_c = m_c + (0xFF00 - (B << 8));
+        const uint32_t B = m_reader->readUnsignedByte();
+        m_lastByte = B;
+        m_c = m_c + (B << 8);
         m_ct = 8;
     }
 }
@@ -402,8 +416,11 @@ uint32_t PDFJBIG2ArithmeticDecoder::perform_DECODE(size_t context, PDFJBIG2Arith
     const uint32_t Qe = QeInfo.Qe;
     m_a -= Qe;
 
-    if (m_c < m_a)
+    if (m_c >= Qe)
     {
+        // We are substracting this value according figure E.15 in the specification
+        m_c -= Qe;
+
         if ((m_a & 0x80000000) == 0)
         {
             // We must perform MPS_EXCHANGE algorithm, according to figure E.16, in annex E, of specification
@@ -430,9 +447,6 @@ uint32_t PDFJBIG2ArithmeticDecoder::perform_DECODE(size_t context, PDFJBIG2Arith
     }
     else
     {
-        m_c -= m_a;
-        m_a = Qe;
-
         // We must perform LPS_EXCHANGE algorithm, according to figure E.17, in annex E, of specification
         if (m_a < Qe)
         {
@@ -447,6 +461,8 @@ uint32_t PDFJBIG2ArithmeticDecoder::perform_DECODE(size_t context, PDFJBIG2Arith
             }
             state->setQeRowIndexAndMPS(context, QeInfo.newLPS, MPS);
         }
+
+        m_a = Qe;
     }
 
     // Perform RENORMD algorithm, according to figure E.18, in annex E, of specification
@@ -1452,6 +1468,11 @@ std::vector<PDFJBIG2HuffmanTableEntry> PDFJBIG2HuffmanCodeTable::buildPrefixes(c
     }
 
     return result;
+}
+
+uint32_t PDFJBIG2ArithmeticDecoderState::getQe(size_t context) const
+{
+    return JBIG2_ARITHMETIC_DECODER_QE_VALUES[getQeRowIndex(context)].Qe;
 }
 
 }   // namespace pdf

@@ -26,6 +26,7 @@
 #include "pdffunction.h"
 #include "pdfdocument.h"
 #include "pdfexception.h"
+#include "pdfjbig2decoder.h"
 
 #include <regex>
 
@@ -53,6 +54,7 @@ private slots:
     void test_exponential_function();
     void test_stitching_function();
     void test_postscript_function();
+    void test_jbig2_arithmetic_decoder();
 
 private:
     void scanWholeStream(const char* stream);
@@ -309,7 +311,7 @@ void LexicalAnalyzerTest::test_lzw_filter()
     // This example is from PDF 1.7 Reference
     QByteArray byteArray = QByteArray::fromHex("800B6050220C0C8501");
     pdf::PDFLzwDecodeFilter filter;
-    QByteArray decoded = filter.apply(byteArray, nullptr, pdf::PDFObject(), nullptr);
+    QByteArray decoded = filter.apply(byteArray, [](const pdf::PDFObject& object) -> const pdf::PDFObject& { return object; }, pdf::PDFObject(), nullptr);
     QByteArray valid = "-----A---B";
 
     QCOMPARE(decoded, valid);
@@ -1054,6 +1056,45 @@ void LexicalAnalyzerTest::test_postscript_function()
     test01("pop 4 3 2 1   3 -1 roll 3 eq { 1 eq { 2 eq { 4 eq { 1.0 } { 0.0 } ifelse } { 0.0 } ifelse } { 0.0 } ifelse } { 0.0 } ifelse", [](double) { return 1.0; }); // we should have 4 2 1 3
     test01("2.0 2 copy div 3 1 roll exp add", [](double x) { return qBound(0.0, 0.5 * x + std::pow(x, 2.0), 1.0); });
     test01("2.0 1 index exch div exch pop", [](double x) { return x / 2.0; });
+}
+
+void LexicalAnalyzerTest::test_jbig2_arithmetic_decoder()
+{
+    std::vector<uint8_t> compressed = { 0x84, 0xC7, 0x3B, 0xFC, 0xE1, 0xA1, 0x43, 0x04, 0x02, 0x20, 0x00, 0x00, 0x41, 0x0D, 0xBB, 0x86, 0xF4, 0x31, 0x7F, 0xFF, 0x88, 0xFF, 0x37, 0x47, 0x1A, 0xDB, 0x6A, 0xDF, 0xFF, 0xAC };
+    std::vector<uint8_t> decompressed = { 0x00, 0x02, 0x00, 0x51, 0x00, 0x00, 0x00, 0xC0, 0x03, 0x52, 0x87, 0x2A, 0xAA, 0xAA, 0xAA, 0xAA, 0x82, 0xC0, 0x20, 0x00, 0xFC, 0xD7, 0x9E, 0xF6, 0xBF, 0x7F, 0xED, 0x90, 0x4F, 0x46, 0xA3, 0xBF };
+
+    QByteArray input;
+    input.append(reinterpret_cast<char*>(compressed.data()), static_cast<int>(compressed.size()));
+
+    pdf::PDFBitReader reader(&input, 1);
+    pdf::PDFJBIG2ArithmeticDecoder decoder(&reader);
+    decoder.initialize();
+
+    pdf::PDFJBIG2ArithmeticDecoderState state;
+    state.reset(1);
+    std::vector<uint8_t> decompressedByAD;
+    decompressedByAD.reserve(decompressed.size());
+/*
+    for (size_t i = 0; i < decompressed.size() * 8; ++i)
+    {
+        uint32_t Qe = state.getQe(0);
+        uint8_t MPS = state.getMPS(0);
+        qDebug() << (i - 1) << ", Qe = " << qPrintable(QString("0x%1").arg(Qe, 8, 16, QChar(' '))) << ", MPS = " << MPS <<
+                    ", A = " << qPrintable(QString("0x%1").arg(decoder.getRegisterA(), 8, 16, QChar(' '))) << ", CT = " << decoder.getRegisterCT() <<
+                    ", C = " <<  qPrintable(QString("0x%1").arg(decoder.getRegisterC(), 8, 16, QChar(' '))) ;
+        decoder.readBit(0, &state);
+    }
+
+    reader.seek(0);
+    state.reset(1);
+    decoder.initialize();*/
+
+    for (size_t i = 0; i < decompressed.size(); ++i)
+    {
+        decompressedByAD.push_back(decoder.readByte(0, &state));
+    }
+
+    QVERIFY(decompressed == decompressedByAD);
 }
 
 void LexicalAnalyzerTest::scanWholeStream(const char* stream)

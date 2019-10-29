@@ -89,7 +89,7 @@ private:
 
 /// Bit-reader, which can read n-bit unsigned integers from the stream.
 /// Number of bits can be set in the constructor and is constant.
-class PDFBitReader
+class PDFFORQTLIBSHARED_EXPORT PDFBitReader
 {
 public:
     using Value = uint64_t;
