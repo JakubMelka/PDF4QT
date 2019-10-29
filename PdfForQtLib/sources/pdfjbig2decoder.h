@@ -213,7 +213,7 @@ class PDFJBIG2Segment
 {
 public:
     explicit inline PDFJBIG2Segment() = default;
-    virtual ~PDFJBIG2Segment() = default;
+    virtual ~PDFJBIG2Segment();
 
     virtual const PDFJBIG2Bitmap* asBitmap() const { return nullptr; }
     virtual PDFJBIG2Bitmap* asBitmap() { return nullptr; }
@@ -243,12 +243,13 @@ private:
     std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
 };
 
-class PDFJBIG2Bitmap : public PDFJBIG2Segment
+class PDFFORQTLIBSHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2Bitmap();
     explicit PDFJBIG2Bitmap(int width, int height);
     explicit PDFJBIG2Bitmap(int width, int height, uint8_t fill);
+    virtual ~PDFJBIG2Bitmap() override;
 
     virtual const PDFJBIG2Bitmap* asBitmap() const override { return this; }
     virtual PDFJBIG2Bitmap* asBitmap() override { return this; }
@@ -351,7 +352,7 @@ struct PDFJBIG2BitmapDecodingParameters
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
 /// Handles also global segments. Decoder decodes data using the specification
 /// ISO/IEC 14492:2001, T.88.
-class PDFJBIG2Decoder
+class PDFFORQTLIBSHARED_EXPORT PDFJBIG2Decoder
 {
 public:
     explicit inline PDFJBIG2Decoder(QByteArray data, QByteArray globalData, PDFRenderErrorReporter* errorReporter) :
@@ -367,6 +368,14 @@ public:
     {
 
     }
+
+    PDFJBIG2Decoder(const PDFJBIG2Decoder&) = delete;
+    PDFJBIG2Decoder(PDFJBIG2Decoder&&) = default;
+
+    PDFJBIG2Decoder& operator=(const PDFJBIG2Decoder&) = delete;
+    PDFJBIG2Decoder& operator=(PDFJBIG2Decoder&&) = default;
+
+    ~PDFJBIG2Decoder();
 
     /// Decodes image interpreting the data as JBIG2 data stream. If image cannot
     /// be decoded, exception is thrown (or invalid PDFImageData is returned).

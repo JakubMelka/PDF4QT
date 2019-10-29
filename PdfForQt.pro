@@ -18,9 +18,11 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
+    JBIG2_Viewer \
     PdfForQtLib \
     UnitTests \
     PdfForQtViewer
 
 UnitTests.depends = PdfForQtLib
 PdfForQtViewer.depends = PdfForQtLib
+JBIG2_Viewer.depends = PdfForQtLib

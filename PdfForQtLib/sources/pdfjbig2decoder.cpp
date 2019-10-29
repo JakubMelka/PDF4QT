@@ -608,6 +608,11 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     return header;
 }
 
+PDFJBIG2Decoder::~PDFJBIG2Decoder()
+{
+
+}
+
 PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
 {
     for (const QByteArray* data :  { &m_globalData, &m_data })
@@ -1341,6 +1346,11 @@ PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height, uint8_t fill) :
     m_data.resize(width * height, fill);
 }
 
+PDFJBIG2Bitmap::~PDFJBIG2Bitmap()
+{
+
+}
+
 void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel)
 {
     if (!bitmap.isValid())
@@ -1473,6 +1483,11 @@ std::vector<PDFJBIG2HuffmanTableEntry> PDFJBIG2HuffmanCodeTable::buildPrefixes(c
 uint32_t PDFJBIG2ArithmeticDecoderState::getQe(size_t context) const
 {
     return JBIG2_ARITHMETIC_DECODER_QE_VALUES[getQeRowIndex(context)].Qe;
+}
+
+PDFJBIG2Segment::~PDFJBIG2Segment()
+{
+
 }
 
 }   // namespace pdf
