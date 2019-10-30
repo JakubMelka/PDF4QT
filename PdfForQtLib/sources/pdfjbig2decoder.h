@@ -195,6 +195,9 @@ public:
     /// Returns true, if segmend data length is defined
     inline bool isSegmentDataLengthDefined() const { return m_segmentDataLength != 0xFFFFFFFF; }
 
+    /// Returns referred segments
+    inline const std::vector<uint32_t>& getReferredSegments() const { return m_referredSegments; }
+
     /// Reads the segment header from the data stream. If error occurs, then
     /// exception is thrown.
     static PDFJBIG2SegmentHeader read(PDFBitReader* reader);
@@ -276,6 +279,14 @@ public:
 
     inline bool isValid() const { return getPixelCount() > 0; }
 
+    /// Returns subbitmap of this bitmap. If some pixels of subbitmap are outside
+    /// of current bitmap, then they are reset to zero.
+    /// \param offsetX Horizontal offset of subbitmap
+    /// \param offsetY Vertical offset of subbitmap
+    /// \param width Width of subbitmap
+    /// \param height Height of subbitmap
+    PDFJBIG2Bitmap getSubbitmap(int offsetX, int offsetY, int width, int height) const;
+
     /// Paints another bitmap onto this bitmap. If bitmap is invalid, nothing is done.
     /// If \p expandY is true, height of target bitmap is expanded to fit source draw area.
     /// \param bitmap Bitmap to be painted on this
@@ -303,8 +314,8 @@ struct PDFJBIG2RegionSegmentInformationField
 {
     uint32_t width = 0;
     uint32_t height = 0;
-    uint32_t offsetX = 0;
-    uint32_t offsetY = 0;
+    int32_t offsetX = 0;
+    int32_t offsetY = 0;
     PDFJBIG2BitOperation operation = PDFJBIG2BitOperation::Invalid;
 };
 
@@ -349,6 +360,37 @@ struct PDFJBIG2BitmapDecodingParameters
     const PDFJBIG2Bitmap* SKIP = nullptr;
 };
 
+/// Info structure for refinement bitmap decoding parameters
+struct PDFJBIG2BitmapRefinementDecodingParameters
+{
+    /// Template mode used (0/1)
+    uint8_t GRTEMPLATE = 0;
+
+    /// Prediction (same as previous row)
+    bool TPGRON = false;
+
+    /// Bitmap width
+    uint32_t GRW = 0;
+
+    /// Bitmap height
+    uint32_t GRH = 0;
+
+    /// Reference bitmap
+    const PDFJBIG2Bitmap* GRREFERENCE = nullptr;
+
+    /// Offset x
+    int32_t GRREFERENCEX = 0;
+
+    /// Offset y
+    int32_t GRREFERENCEY = 0;
+
+    /// State of arithmetic decoder
+    PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
+
+    /// Positions of adaptative pixels
+    PDFJBIG2ATPositions GRAT = { };
+};
+
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
 /// Handles also global segments. Decoder decodes data using the specification
 /// ISO/IEC 14492:2001, T.88.
@@ -382,12 +424,18 @@ public:
     /// \param maskingType Image masking type
     PDFImageData decode(PDFImageData::MaskingType maskingType);
 
+    /// Decodes image interpreting the data as JBIG2 file stream (not data stream).
+    /// Decoding procedure also handles file header/file flags and number of pages.
+    /// If number of pages is invalid, then exception is thrown.
+    PDFImageData decodeFileStream();
+
 private:
     static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
 
     enum ArithmeticDecoderStates
     {
         Generic,
+        Refinement,
         EndState
     };
 
@@ -409,9 +457,19 @@ private:
     void processCodeTables(const PDFJBIG2SegmentHeader& header);
     void processExtension(const PDFJBIG2SegmentHeader& header);
 
-    /// Reads the bitmap using decoding parameters
+    /// Returns bitmap for given segment index. If bitmap is not found, or segment
+    /// is of different type, then exception is thrown.
+    /// \param segmentIndex Segment index with bitmap
+    /// \param remove Remove the segment?
+    PDFJBIG2Bitmap getBitmap(const uint32_t segmentIndex, bool remove);
+
+    /// Reads bitmap using decoding parameters
     /// \param parameters Decoding parameters
     PDFJBIG2Bitmap readBitmap(const PDFJBIG2BitmapDecodingParameters& parameters);
+
+    /// Reads refined bitmap using decoding parameters
+    /// \param parameters Decoding parameters
+    PDFJBIG2Bitmap readRefinementBitmap(const PDFJBIG2BitmapRefinementDecodingParameters& parameters);
 
     /// Reads the region segment information field (see chapter 7.4.1)
     PDFJBIG2RegionSegmentInformationField readRegionSegmentInformationField();
@@ -421,6 +479,9 @@ private:
 
     /// Reset arithmetic decoder stats for generic
     void resetArithmeticStatesGeneric(const uint8_t templateMode);
+
+    /// Reset arithmetic decoder stats for generic refinement
+    void resetArithmeticStatesGenericRefinement(const uint8_t templateMode);
 
     void skipSegment(const PDFJBIG2SegmentHeader& header);
 

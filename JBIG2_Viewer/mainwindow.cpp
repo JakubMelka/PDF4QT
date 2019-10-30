@@ -89,19 +89,15 @@ void MainWindow::on_actionAdd_JBIG2_image_triggered()
 
             try
             {
-                if (data.startsWith( "\x97\x4A\x42\x32\x0D\x0A\x1A\x0A"))
-                {
-                    data = data.mid(13);
-                }
-
                 pdf::PDFJBIG2Decoder decoder(data, QByteArray(), this);
-                pdf::PDFImageData imageData = decoder.decode(pdf::PDFImageData::MaskingType::None);
+                pdf::PDFImageData imageData = decoder.decodeFileStream();
 
                 if (imageData.isValid())
                 {
                     QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_Mono);
                     const uchar* sourceData = reinterpret_cast<const uchar*>(imageData.getData().constData());
-                    std::copy(sourceData, sourceData + imageData.getData().size(), image.bits());
+                    Q_ASSERT(imageData.getData().size() == image.byteCount());
+                    std::transform(sourceData, sourceData + imageData.getData().size(), image.bits(), [](const uchar value) { return ~value; });
                     addImage(file.fileName(), qMove(image));
                 }
             }

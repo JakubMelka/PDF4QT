@@ -153,6 +153,11 @@ public:
     /// Return underlying byte stream
     const QByteArray* getStream() const { return m_stream; }
 
+    /// Reads substream from current stream. This function works only on byte boundary,
+    /// otherwise exception is thrown.
+    /// \param length Length of the substream. Can be -1, in this case, all remaining data is read.
+    QByteArray readSubstream(int length);
+
 private:
     const QByteArray* m_stream;
     int m_position;

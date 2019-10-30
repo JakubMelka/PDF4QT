@@ -132,6 +132,26 @@ int8_t PDFBitReader::readSignedByte()
     return *reinterpret_cast<const int8_t*>(&value);
 }
 
+QByteArray PDFBitReader::readSubstream(int length)
+{
+    if (m_bitsInBuffer)
+    {
+        throw PDFException(PDFTranslationContext::tr("Can't get substream - remaining %1 bits in buffer.").arg(m_bitsInBuffer));
+    }
+
+    QByteArray result = m_stream->mid(m_position, length);
+    if (length == -1)
+    {
+        m_position = m_stream->size();
+    }
+    else
+    {
+        skipBytes(length);
+    }
+
+    return result;
+}
+
 PDFBitWriter::PDFBitWriter(Value bitsPerComponent) :
     m_bitsPerComponent(bitsPerComponent),
     m_mask((static_cast<Value>(1) << m_bitsPerComponent) - static_cast<Value>(1)),
