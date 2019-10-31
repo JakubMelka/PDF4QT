@@ -21,11 +21,14 @@
 #include "pdfutils.h"
 #include "pdfcolorspaces.h"
 
+#include <optional>
+
 namespace pdf
 {
 class PDFJBIG2Bitmap;
 class PDFRenderErrorReporter;
 class PDFJBIG2HuffmanCodeTable;
+class PDFJBIG2SymbolDictionary;
 
 struct PDFJBIG2HuffmanTableEntry;
 
@@ -37,6 +40,29 @@ enum class PDFJBIG2BitOperation
     Xor,
     NotXor,
     Replace
+};
+
+struct PDFJBIG2HuffmanTableEntry
+{
+    enum class Type : uint8_t
+    {
+        Standard,
+        Negative,
+        OutOfBand
+    };
+
+    /// Returns true, if current row represents interval (-∞, value),
+    /// it means 32bit number must be read and
+    bool isLowValue() const { return type == Type::Negative; }
+
+    /// Returns true, if current row represents out-of-band value
+    bool isOutOfBand() const { return type == Type::OutOfBand; }
+
+    int32_t value = 0;              ///< Base value
+    uint16_t prefixBitLength = 0;   ///< Bit length of prefix
+    uint16_t rangeBitLength = 0;    ///< Bit length of additional value
+    uint16_t prefix = 0;            ///< Bit prefix of the huffman code
+    Type type = Type::Standard;     ///< Type of the value
 };
 
 /// Arithmetic decoder state for JBIG2 data streams. It contains state for context,
@@ -62,6 +88,15 @@ public:
         {
             m_state.resize(size, 0);
         }
+    }
+
+    /// Resets the context using another context
+    inline void reset(const uint8_t bits, const PDFJBIG2ArithmeticDecoderState& other)
+    {
+        reset(bits);
+
+        const size_t size = qMin(m_state.size(), other.m_state.size());
+        std::copy(other.m_state.begin(), other.m_state.begin() + size, m_state.begin());
     }
 
     /// Returns row index to Qe value table, according to document ISO/IEC 14492:2001,
@@ -120,6 +155,9 @@ public:
     uint32_t getRegisterC() const { return m_c; }
     uint32_t getRegisterA() const { return m_a; }
     uint32_t getRegisterCT() const { return m_ct; }
+
+    int32_t getIAID(uint32_t size, PDFJBIG2ArithmeticDecoderState* state);
+    std::optional<int32_t> getSignedInteger(PDFJBIG2ArithmeticDecoderState* state);
 
 private:
     /// Performs INITDEC operation as described in the specification
@@ -223,13 +261,15 @@ public:
 
     virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const { return nullptr; }
     virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() { return nullptr; }
+
+    virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const { return nullptr; }
+    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() { return nullptr; }
 };
 
 class PDFJBIG2HuffmanCodeTable : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2HuffmanCodeTable(std::vector<PDFJBIG2HuffmanTableEntry>&& entries);
-
     virtual ~PDFJBIG2HuffmanCodeTable();
 
     virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const override { return this; }
@@ -243,6 +283,43 @@ public:
     static std::vector<PDFJBIG2HuffmanTableEntry> buildPrefixes(const std::vector<PDFJBIG2HuffmanTableEntry>& entries);
 
 private:
+    std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
+};
+
+/// Huffman decoder - can decode integers / out of band values from huffman table.
+class PDFJBIG2HuffmanDecoder
+{
+public:
+    explicit inline PDFJBIG2HuffmanDecoder() = default;
+
+    /// Constructs huffman decoder from static tables, so no memory are allocated (vector is empty)
+    explicit inline PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJBIG2HuffmanTableEntry* begin, const PDFJBIG2HuffmanTableEntry* end) :
+        m_reader(reader),
+        m_begin(begin),
+        m_end(end)
+    {
+
+    }
+
+    /// Constructs huffman decoder from huffman code table, in this case, memory is allocated
+    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJBIG2HuffmanCodeTable* table);
+
+    /// Returns true, if huffman table is valid (and usable)
+    bool isValid() const { return m_begin != m_end; }
+
+    /// Returns true, if huffman table has out-of-band value
+    bool isOutOfBandSupported() const;
+
+    /// Tries to read signed integer using the table and current reader.
+    /// \returns Integer, or out-of-band value, using the std::optional semantics
+    std::optional<int32_t> readSignedInteger();
+
+private:
+    /// Data source to read from
+    PDFBitReader* m_reader = nullptr;
+
+    const PDFJBIG2HuffmanTableEntry* m_begin = nullptr;
+    const PDFJBIG2HuffmanTableEntry* m_end = nullptr;
     std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
 };
 
@@ -307,6 +384,40 @@ private:
     int m_width;
     int m_height;
     std::vector<uint8_t> m_data;
+};
+
+class PDFJBIG2SymbolDictionary : public PDFJBIG2Segment
+{
+public:
+    explicit inline PDFJBIG2SymbolDictionary() = default;
+    explicit inline PDFJBIG2SymbolDictionary(std::vector<PDFJBIG2Bitmap>&& bitmaps,
+                                             PDFJBIG2ArithmeticDecoderState&& genericState,
+                                             PDFJBIG2ArithmeticDecoderState&& genericRefinementState) :
+        m_bitmaps(qMove(bitmaps)),
+        m_genericState(qMove(genericState)),
+        m_genericRefinementState(qMove(genericRefinementState))
+    {
+
+    }
+
+    virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const override { return this; }
+    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() override { return this; }
+
+    const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
+    const PDFJBIG2ArithmeticDecoderState& getGenericState() const { return m_genericState; }
+    const PDFJBIG2ArithmeticDecoderState& getGenericRefinementState() const { return m_genericRefinementState; }
+
+private:
+    std::vector<PDFJBIG2Bitmap> m_bitmaps;
+    PDFJBIG2ArithmeticDecoderState m_genericState;
+    PDFJBIG2ArithmeticDecoderState m_genericRefinementState;
+};
+
+struct PDFJBIG2ReferencedSegments
+{
+    std::vector<const PDFJBIG2Bitmap*> bitmaps;
+    std::vector<const PDFJBIG2HuffmanCodeTable*> codeTables;
+    std::vector<const PDFJBIG2SymbolDictionary*> symbolDictionaries;
 };
 
 /// Region segment information field, see chapter 7.4.1 in the specification
@@ -389,6 +500,71 @@ struct PDFJBIG2BitmapRefinementDecodingParameters
 
     /// Positions of adaptative pixels
     PDFJBIG2ATPositions GRAT = { };
+};
+
+/// Info structure for symbol dictionary decoding procedure
+struct PDFJBIG2SymbolDictionaryDecodingParameters
+{
+    /// If true, huffman encoding is used to decode dictionary,
+    /// otherwise arithmetic decoding is used to decode dictionary.
+    bool SDHUFF = false;
+
+    /// If true, each symbol is refinement/aggregate. If false,
+    /// then symbols are ordinary bitmaps.
+    bool SDREFAGG = false;
+
+    /// Table selector for huffman table encoding (height)
+    uint8_t SDHUFFDH = 0;
+
+    /// Table selector for huffman table encoding (width)
+    uint8_t SDHUFFDW = 0;
+
+    /// Table selector for huffman table encoding
+    uint8_t SDHUFFBMSIZE = 0;
+
+    /// Table selector for huffman table encoding
+    uint8_t SDHUFFAGGINST = 0;
+
+    /// Is statistics for arithmetic coding used from previous symbol dictionary?
+    bool isArithmeticCodingStateUsed = false;
+
+    /// Is statistics for arithmetic coding symbols retained for future use?
+    bool isArithmeticCodingStateRetained = false;
+
+    /// Template for decoding
+    uint8_t SDTEMPLATE = 0;
+
+    /// Template for decoding refinements
+    uint8_t SDRTEMPLATE = 0;
+
+    /// Adaptative pixel positions
+    PDFJBIG2ATPositions SDAT = { };
+
+    /// Adaptative pixel positions
+    PDFJBIG2ATPositions SDRAT = { };
+
+    /// Number of exported symbols
+    uint32_t SDNUMEXSYMS = 0;
+
+    /// Number of new symbols
+    uint32_t SDNUMNEWSYMS = 0;
+
+    PDFJBIG2HuffmanDecoder SDHUFFDH_Decoder;
+    PDFJBIG2HuffmanDecoder SDHUFFDW_Decoder;
+    PDFJBIG2HuffmanDecoder SDHUFFBMSIZE_Decoder;
+    PDFJBIG2HuffmanDecoder SDHUFFAGGINST_Decoder;
+
+    /// Input bitmaps
+    std::vector<const PDFJBIG2Bitmap*> SDINSYMS;
+
+    /// Number of input bitmaps
+    uint32_t SDNUMINSYMS = 0;
+
+    /// Output bitmaps
+    std::vector<PDFJBIG2Bitmap> SDNEWSYMS;
+
+    /// Widths
+    std::vector<int32_t> SDNEWSYMWIDTHS;
 };
 
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
@@ -478,15 +654,26 @@ private:
     PDFJBIG2ATPositions readATTemplatePixelPositions(int count);
 
     /// Reset arithmetic decoder stats for generic
-    void resetArithmeticStatesGeneric(const uint8_t templateMode);
+    /// \param templateMode Template mode
+    /// \param state State to copy from (can be nullptr)
+    void resetArithmeticStatesGeneric(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
 
     /// Reset arithmetic decoder stats for generic refinement
-    void resetArithmeticStatesGenericRefinement(const uint8_t templateMode);
+    /// \param templateMode Template mode
+    /// \param state State to copy from (can be nullptr)
+    void resetArithmeticStatesGenericRefinement(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
 
+    /// Skip segment data
     void skipSegment(const PDFJBIG2SegmentHeader& header);
+
+    /// Returns structure containing referenced segments. If segment numbers
+    /// are wrong, or invalid segments appears, then exception is thrown.
+    /// \param header Header, from which referred segments are read
+    PDFJBIG2ReferencedSegments getReferencedSegments(const PDFJBIG2SegmentHeader& header) const;
 
     static void checkBitmapSize(const uint32_t size);
     static void checkRegionSegmentInformationField(const PDFJBIG2RegionSegmentInformationField& field);
+    static int32_t checkInteger(std::optional<int32_t> value);
 
     QByteArray m_data;
     QByteArray m_globalData;
