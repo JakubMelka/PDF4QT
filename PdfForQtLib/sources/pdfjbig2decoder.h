@@ -449,10 +449,10 @@ struct PDFJBIG2BitmapDecodingParameters
     bool TPGDON = false;
 
     /// Width of the image
-    int width = 0;
+    int GBW = 0;
 
     /// Height of the image
-    int height = 0;
+    int GBH = 0;
 
     /// Template mode (not used for MMR).
     uint8_t GBTEMPLATE = 0;
@@ -469,6 +469,9 @@ struct PDFJBIG2BitmapDecodingParameters
     /// Skip bitmap (pixel is skipped if corresponding pixel in the
     /// skip bitmap is 1). Set to nullptr, if not used.
     const PDFJBIG2Bitmap* SKIP = nullptr;
+
+    /// Arithmetic decoder (used, if MMR == false)
+    PDFJBIG2ArithmeticDecoder* arithmeticDecoder = nullptr;
 };
 
 /// Info structure for refinement bitmap decoding parameters
@@ -553,6 +556,7 @@ struct PDFJBIG2SymbolDictionaryDecodingParameters
     PDFJBIG2HuffmanDecoder SDHUFFDW_Decoder;
     PDFJBIG2HuffmanDecoder SDHUFFBMSIZE_Decoder;
     PDFJBIG2HuffmanDecoder SDHUFFAGGINST_Decoder;
+    PDFJBIG2HuffmanDecoder EXRUNLENGTH_Decoder;
 
     /// Input bitmaps
     std::vector<const PDFJBIG2Bitmap*> SDINSYMS;

@@ -1054,6 +1054,8 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                 throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
         }
 
+        parameters.EXRUNLENGTH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+
         if (currentUserCodeTableIndex != references.codeTables.size())
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 invalid number of huffam code table - %1 unused.").arg(references.codeTables.size() - currentUserCodeTableIndex));
@@ -1097,11 +1099,13 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     PDFJBIG2ArithmeticDecoder decoder(&m_reader);
     PDFJBIG2ArithmeticDecoderState IADH;
     PDFJBIG2ArithmeticDecoderState IADW;
+    PDFJBIG2ArithmeticDecoderState IAEX;
     if (!parameters.SDHUFF)
     {
         decoder.initialize();
         IADH.reset(9);
         IADW.reset(9);
+        IAEX.reset(9);
     }
 
     /* 6.5.5 - algorithm for decoding symbol dictionary */
@@ -1152,7 +1156,26 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
             if (parameters.SDHUFF == 0 || parameters.SDREFAGG == 1)
             {
                 /* 6.5.5 step 4) c) ii) - read bitmap acc. to 6.5.8 */
-                // TODO: JBIG2 read bitmap
+
+                if (parameters.SDREFAGG == 0)
+                {
+                    /* 6.5.8.1 Direct-coded symbol bitmap, using Table 16 */
+                    PDFJBIG2BitmapDecodingParameters bitmapParameters;
+                    bitmapParameters.MMR = false;
+                    bitmapParameters.GBW = SYMWIDTH;
+                    bitmapParameters.GBH = HCHEIGHT;
+                    bitmapParameters.GBTEMPLATE = parameters.SDTEMPLATE;
+                    bitmapParameters.TPGDON = false;
+                    bitmapParameters.ATXY = parameters.SDAT;
+                    bitmapParameters.arithmeticDecoder = &decoder;
+                    bitmapParameters.arithmeticDecoderState = &m_arithmeticDecoderStates[Generic];
+                    parameters.SDNEWSYMS[NSYMSDECODED] = readBitmap(bitmapParameters);
+                }
+                else
+                {
+                    /* 6.5.8.2 Refinement/aggregate-coded symbol bitmap */
+                    // TODO: JBIG2 read bitmap
+                }
             }
             else
             {
@@ -1168,9 +1191,55 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
         // TODO: JBIG2 - create collective bitmap
     }
 
-    /* 6.5.5 step 5) - determine exports */
+    /* 6.5.5 step 5) - determine exports according to 6.5.10 */
+    std::vector<bool> EXFLAGS;
+    const size_t symbolsSize = parameters.SDNUMINSYMS + parameters.SDNEWSYMS.size();
+    EXFLAGS.reserve(symbolsSize);
+    bool CUREXFLAG = false;
+    while (EXFLAGS.size() < symbolsSize)
+    {
+        const uint32_t EXRUNLENGTH = static_cast<uint32_t>(checkInteger(parameters.SDHUFF ? parameters.EXRUNLENGTH_Decoder.readSignedInteger() : decoder.getSignedInteger(&IAEX)));
+        EXFLAGS.insert(EXFLAGS.end(), EXRUNLENGTH, CUREXFLAG);
+        CUREXFLAG = !CUREXFLAG;
+    }
+    m_reader.alignToBytes();
+    if (!parameters.SDHUFF)
+    {
+        // Skipneme 1 byte na konci
+        m_reader.skipBytes(1);
+    }
 
-    // TODO: JBIG2 - dodelat
+    std::vector<PDFJBIG2Bitmap> bitmaps;
+    bitmaps.reserve(parameters.SDNUMEXSYMS);
+
+    // Insert input bitmaps
+    for (size_t i = 0; i < parameters.SDNUMINSYMS; ++i)
+    {
+        if (EXFLAGS[i])
+        {
+            bitmaps.push_back(*parameters.SDINSYMS[i]);
+        }
+    }
+
+    // Insert output bitmaps
+    for (size_t i = 0; i < NSYMSDECODED; ++i)
+    {
+        if (EXFLAGS[i + parameters.SDNUMINSYMS])
+        {
+            bitmaps.push_back(parameters.SDNEWSYMS[i]);
+        }
+    }
+
+    PDFJBIG2ArithmeticDecoderState savedGeneric;
+    PDFJBIG2ArithmeticDecoderState savedRefine;
+
+    if (parameters.isArithmeticCodingStateRetained)
+    {
+        savedGeneric = qMove(m_arithmeticDecoderStates[Generic]);
+        savedRefine = qMove(m_arithmeticDecoderStates[Refinement]);
+    }
+
+    m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2SymbolDictionary>(qMove(bitmaps), qMove(savedGeneric), qMove(savedRefine));
 }
 
 void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
@@ -1242,10 +1311,21 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 
         segmentDataBytes = endPosition - segmentDataStartPosition;
     }
+
     parameters.data = m_reader.getStream()->mid(segmentDataStartPosition, segmentDataBytes);
-    parameters.width = field.width;
-    parameters.height = field.height;
+    parameters.GBW = field.width;
+    parameters.GBH = field.height;
     parameters.arithmeticDecoderState = &m_arithmeticDecoderStates[Generic];
+
+
+    PDFBitReader reader(&parameters.data, 1);
+    PDFJBIG2ArithmeticDecoder decoder(&reader);
+
+    if (!parameters.MMR)
+    {
+        decoder.initialize();
+        parameters.arithmeticDecoder = &decoder;
+    }
 
     PDFJBIG2Bitmap bitmap = readBitmap(parameters);
     if (bitmap.isValid())
@@ -1552,8 +1632,8 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(const PDFJBIG2BitmapDecodingParameter
         // Use modified-modified-read (it corresponds to CCITT 2D encoding)
         PDFCCITTFaxDecoderParameters ccittParameters;
         ccittParameters.K = -1;
-        ccittParameters.columns = parameters.width;
-        ccittParameters.rows = parameters.height;
+        ccittParameters.columns = parameters.GBW;
+        ccittParameters.rows = parameters.GBH;
         ccittParameters.hasEndOfBlock = false;
         ccittParameters.decode = { 1.0, 0.0 };
         ccittParameters.hasBlackIsOne = true;
@@ -1610,12 +1690,11 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(const PDFJBIG2BitmapDecodingParameter
             }
         }
 
-        PDFBitReader reader(&parameters.data, 1);
-        PDFJBIG2ArithmeticDecoder decoder(&reader);
-        decoder.initialize();
+        Q_ASSERT(parameters.arithmeticDecoder);
+        PDFJBIG2ArithmeticDecoder& decoder = *parameters.arithmeticDecoder;
 
-        PDFJBIG2Bitmap bitmap(parameters.width, parameters.height, 0x00);
-        for (int y = 0; y < parameters.height; ++y)
+        PDFJBIG2Bitmap bitmap(parameters.GBW, parameters.GBH, 0x00);
+        for (int y = 0; y < parameters.GBH; ++y)
         {
             // Check TPGDON prediction - if we use same pixels as in previous line
             if (parameters.TPGDON)
@@ -1631,7 +1710,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(const PDFJBIG2BitmapDecodingParameter
                 }
             }
 
-            for (int x = 0; x < parameters.width; ++x)
+            for (int x = 0; x < parameters.GBW; ++x)
             {
                 // Check, if we have to skip pixel. Pixel should be set to 0, but it is done
                 // in the initialization of the bitmap.
