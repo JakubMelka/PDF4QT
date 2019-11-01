@@ -593,11 +593,15 @@ private:
 
     /// Reads bitmap using decoding parameters
     /// \param parameters Decoding parameters
-    PDFJBIG2Bitmap readBitmap(const PDFJBIG2BitmapDecodingParameters& parameters);
+    PDFJBIG2Bitmap readBitmap(PDFJBIG2BitmapDecodingParameters& parameters);
 
     /// Reads refined bitmap using decoding parameters
     /// \param parameters Decoding parameters
-    PDFJBIG2Bitmap readRefinementBitmap(const PDFJBIG2BitmapRefinementDecodingParameters& parameters);
+    PDFJBIG2Bitmap readRefinementBitmap(PDFJBIG2BitmapRefinementDecodingParameters& parameters);
+
+    /// Reads text bitmap using decoding parameters
+    /// \param parameters Decoding parameters
+    PDFJBIG2Bitmap readTextBitmap(PDFJBIG2TextRegionDecodingParameters& parameters);
 
     /// Reads the region segment information field (see chapter 7.4.1)
     PDFJBIG2RegionSegmentInformationField readRegionSegmentInformationField();

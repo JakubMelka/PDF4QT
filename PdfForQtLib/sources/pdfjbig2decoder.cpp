@@ -35,6 +35,7 @@ struct PDFJBIG2TextRegionDecodingParameters
     uint32_t SBW = 0;
     uint32_t SBH = 0;
     uint32_t SBNUMINSTANCES = 0;
+    uint8_t LOG2SBSTRIPS = 0;
     uint8_t SBSTRIPS = 0;
     uint32_t SBNUMSYMS = 0;
     std::vector<const PDFJBIG2Bitmap*> SBSYMS;
@@ -51,6 +52,7 @@ struct PDFJBIG2TextRegionDecodingParameters
     uint8_t SBRTEMPLATE = 0;
     PDFJBIG2ATPositions SBRAT = { };
     PDFJBIG2ArithmeticDecoder* arithmeticDecoder = nullptr;
+    PDFBitReader* reader = nullptr;
 };
 
 /// Info structure for bitmap decoding parameters
@@ -117,6 +119,8 @@ struct PDFJBIG2BitmapRefinementDecodingParameters
 
     /// Positions of adaptative pixels
     PDFJBIG2ATPositions GRAT = { };
+
+    PDFJBIG2ArithmeticDecoder* decoder = nullptr;
 };
 
 static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_A[] =
@@ -1344,7 +1348,8 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     const uint16_t flags = m_reader.readUnsignedWord();
     const bool SBHUFF = flags & 0x0001;
     const bool SBREFINE = flags & 0x0002;
-    const uint8_t SBSTRIPS = 1 << ((flags >> 2) & 0x03);
+    const uint8_t LOG2SBSTRIPS = ((flags >> 2) & 0x03);
+    const uint8_t SBSTRIPS = 1 << LOG2SBSTRIPS;
     const uint8_t REFCORNER = (flags >> 4) & 0x03;
     const bool TRANSPOSED = (flags >> 6) & 0x01;
     const uint8_t SBCOMBOOP_value = (flags >> 7) & 0x03;
@@ -1366,6 +1371,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     parameters.SBH = regionSegmentInfo.height;
     parameters.SBRTEMPLATE = SBRTEMPLATE;
     parameters.SBSTRIPS = SBSTRIPS;
+    parameters.LOG2SBSTRIPS = LOG2SBSTRIPS;
 
     // Referenced segments data
     PDFJBIG2ReferencedSegments references = getReferencedSegments(header);
@@ -1645,6 +1651,8 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         resetArithmeticStatesGenericRefinement(parameters.SBRTEMPLATE, nullptr);
     }
 
+    parameters.reader = &m_reader;
+
     PDFJBIG2Bitmap bitmap = readTextBitmap(parameters);
     if (bitmap.isValid())
     {
@@ -1833,6 +1841,10 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     parameters.GRREFERENCE = &GRREFERENCE;
     parameters.GRREFERENCEX = 0;
     parameters.GRREFERENCEY = 0;
+
+    PDFJBIG2ArithmeticDecoder decoder(&m_reader);
+    decoder.initialize();
+    parameters.decoder = &decoder;
 
     PDFJBIG2Bitmap refinementBitmap = readRefinementBitmap(parameters);
     if (refinementBitmap.isValid())
@@ -2043,7 +2055,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::getBitmap(const uint32_t segmentIndex, bool remo
     return result;
 }
 
-PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(const PDFJBIG2BitmapDecodingParameters& parameters)
+PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& parameters)
 {
     if (parameters.MMR)
     {
@@ -2240,7 +2252,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(const PDFJBIG2BitmapDecodingParameter
     return PDFJBIG2Bitmap();
 }
 
-PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(const PDFJBIG2BitmapRefinementDecodingParameters& parameters)
+PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDecodingParameters& parameters)
 {
     // Use algorithm described in 6.3.5.6
     PDFJBIG2Bitmap GRREG(parameters.GRW, parameters.GRH, 0x00);
@@ -2251,9 +2263,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(const PDFJBIG2BitmapRefinem
     uint32_t LTP = 0;
     const uint32_t LTPContext = !parameters.GRTEMPLATE ? 0b0000100000000 : 0b0010000000;
 
-    PDFBitReader reader(m_reader.getStream(), 1);
-    PDFJBIG2ArithmeticDecoder decoder(&reader);
-    decoder.initialize();
+    PDFJBIG2ArithmeticDecoder& decoder = *parameters.decoder;
 
     auto createContext = [&](int x, int y) -> uint16_t
     {
@@ -2363,6 +2373,133 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(const PDFJBIG2BitmapRefinem
     }
 
     return GRREG;
+}
+
+PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParameters& parameters)
+{
+    /* 6.4.5 step 1) */
+    PDFJBIG2Bitmap SBREG(parameters.SBW, parameters.SBH, parameters.SBDEFPIXEL);
+
+    Q_ASSERT(parameters.SBNUMSYMS == parameters.SBSYMS.size());
+
+    /* 6.4.5 step 2) */
+    int32_t STRIPT = checkInteger(parameters.SBHUFF ? parameters.SBHUFFDT.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IADT));
+    STRIPT *= -parameters.SBSTRIPS;
+    int32_t FIRSTS = 0;
+    uint32_t NINSTANCES = 0;
+
+    /* 6.4.5. step 3) */
+    while (NINSTANCES < parameters.SBNUMINSTANCES)
+    {
+        /* 6.4.5. step 3) b), using decoding procedure 6.4.6 */
+        int32_t DT = checkInteger(parameters.SBHUFF ? parameters.SBHUFFDT.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IADT));
+        STRIPT += DT * parameters.SBSTRIPS;
+        int32_t CURS = 0;
+
+        bool firstSymbolInstance = true;
+        while (NINSTANCES < parameters.SBNUMINSTANCES)
+        {
+            if (firstSymbolInstance)
+            {
+                /* 6.4.5. step 3) i), using decoding procedure 6.4.7 */
+                int32_t DFS = checkInteger(parameters.SBHUFF ? parameters.SBHUFFFS.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IAFS));
+                FIRSTS += DFS;
+                CURS = FIRSTS;
+                firstSymbolInstance = false;
+            }
+            else
+            {
+                /* 6.4.5. step 3) ii), using decoding procedure 6.4.8 */
+                std::optional<int32_t> DS = parameters.SBHUFF ? parameters.SBHUFFDS.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IADS);
+                if (DS.has_value())
+                {
+                    const int32_t IDS = *DS;
+                    CURS += IDS + parameters.SBDSOFFSET;
+                }
+                else
+                {
+                    // End of strip, proceed to the next strip
+                    break;
+                }
+            }
+
+            /* 6.4.5. step 3) iii), using decoding procedure 6.4.9 */
+            int32_t CURT = 0;
+            if (parameters.SBSTRIPS > 1)
+            {
+                CURT = parameters.SBHUFF ? parameters.reader->read(parameters.LOG2SBSTRIPS) : checkInteger(parameters.arithmeticDecoder->getSignedInteger(parameters.IAIT));
+            }
+
+            const int32_t TI = STRIPT + CURT;
+
+            /* 6.4.5. step 3) iv), using decoding procedure 6.4.10 */
+            uint32_t ID = parameters.SBHUFF ? checkInteger(parameters.SBSYMCODES.readSignedInteger()) : parameters.arithmeticDecoder->getIAID(parameters.SBSYMCODELEN, parameters.IAID);
+
+            /* 6.4.5. step 3) v), determine instance bitmap according to 6.4.11 */
+            if (ID >= parameters.SBNUMSYMS)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 symbol index %1 not found in symbol table of length %2.").arg(ID).arg(parameters.SBNUMSYMS));
+            }
+
+            bool RI = 0;
+            if (parameters.SBREFINE)
+            {
+                RI = parameters.SBHUFF ? parameters.reader->read(1) : parameters.arithmeticDecoder->getSignedInteger(parameters.IARI);
+            }
+
+            PDFJBIG2Bitmap IB;
+            if (RI == 0)
+            {
+                IB = *parameters.SBSYMS[ID];
+            }
+            else
+            {
+                /* 6.4.11 1), 2), 3), 4) */
+                int32_t RDW = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDW.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDW));
+                int32_t RDH = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDH.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDH));
+                int32_t RDX = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDX.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDX));
+                int32_t RDY = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDY.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDY));
+
+                /* 6.4.11 5) */
+                int32_t bmsize = parameters.SBHUFF ? checkInteger(parameters.SBHUFFRSIZE.readSignedInteger()) : 0;
+
+                if (parameters.SBHUFF)
+                {
+                    parameters.reader->alignToBytes();
+                }
+
+                /* 6.4.11 6) */
+                const PDFJBIG2Bitmap* IBO = parameters.SBSYMS[ID];
+                const int WOI = IBO->getWidth();
+                const int HOI = IBO->getHeight();
+
+                // Apply the refinement procedure acc. to Table 12
+                PDFJBIG2BitmapRefinementDecodingParameters refinementParameters;
+                refinementParameters.decoder = parameters.arithmeticDecoder;
+                refinementParameters.arithmeticDecoderState = parameters.refinementDecoderState;
+                refinementParameters.GRW = WOI + RDW;
+                refinementParameters.GRH = HOI + RDH;
+                refinementParameters.GRTEMPLATE = parameters.SBRTEMPLATE;
+                refinementParameters.GRREFERENCE = IBO;
+                refinementParameters.GRREFERENCEX = (RDW / 2) + RDX;
+                refinementParameters.GRREFERENCEY = (RDH / 2) + RDY;
+                refinementParameters.TPGRON = false;
+                refinementParameters.GRAT = parameters.SBRAT;
+                IB = readRefinementBitmap(refinementParameters);
+
+                /* 6.4.11 7 */
+                if (parameters.SBHUFF)
+                {
+                    parameters.reader->alignToBytes();
+                }
+            }
+
+            pokracovat zde
+        }
+    }
+
+
+    return SBREG;
 }
 
 PDFJBIG2RegionSegmentInformationField PDFJBIG2Decoder::readRegionSegmentInformationField()
