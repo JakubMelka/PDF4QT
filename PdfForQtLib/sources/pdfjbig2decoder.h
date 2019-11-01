@@ -31,6 +31,9 @@ class PDFJBIG2HuffmanCodeTable;
 class PDFJBIG2SymbolDictionary;
 
 struct PDFJBIG2HuffmanTableEntry;
+struct PDFJBIG2BitmapDecodingParameters;
+struct PDFJBIG2TextRegionDecodingParameters;
+struct PDFJBIG2BitmapRefinementDecodingParameters;
 
 enum class PDFJBIG2BitOperation
 {
@@ -304,6 +307,9 @@ public:
     /// Constructs huffman decoder from huffman code table, in this case, memory is allocated
     explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJBIG2HuffmanCodeTable* table);
 
+    /// Constructs huffman decoder from huffman code table, in this case, memory is allocated
+    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector<PDFJBIG2HuffmanTableEntry>&& table);
+
     /// Returns true, if huffman table is valid (and usable)
     bool isValid() const { return m_begin != m_end; }
 
@@ -418,6 +424,14 @@ struct PDFJBIG2ReferencedSegments
     std::vector<const PDFJBIG2Bitmap*> bitmaps;
     std::vector<const PDFJBIG2HuffmanCodeTable*> codeTables;
     std::vector<const PDFJBIG2SymbolDictionary*> symbolDictionaries;
+    size_t currentUserCodeTableIndex = 0;
+
+    /// Returns symbol bitmaps from all symbol dictionaries
+    std::vector<const PDFJBIG2Bitmap*> getSymbolBitmaps() const;
+
+    /// Returns current user huffman table according the index. If index
+    /// is out of range, then exception is thrown.
+    PDFJBIG2HuffmanDecoder getUserTable(PDFBitReader* reader);
 };
 
 /// Region segment information field, see chapter 7.4.1 in the specification
@@ -438,72 +452,6 @@ struct PDFJBIG2ATPosition
 };
 
 using PDFJBIG2ATPositions = std::array<PDFJBIG2ATPosition, 4>;
-
-/// Info structure for bitmap decoding parameters
-struct PDFJBIG2BitmapDecodingParameters
-{
-    /// Is Modified-Modified-Read encoding used? This encoding is simalr to CCITT pure 2D encoding.
-    bool MMR = false;
-
-    /// Is typical prediction for generic direct coding used?
-    bool TPGDON = false;
-
-    /// Width of the image
-    int GBW = 0;
-
-    /// Height of the image
-    int GBH = 0;
-
-    /// Template mode (not used for MMR).
-    uint8_t GBTEMPLATE = 0;
-
-    /// Positions of adaptative pixels
-    PDFJBIG2ATPositions ATXY = { };
-
-    /// Data with encoded image
-    QByteArray data;
-
-    /// State of arithmetic decoder
-    PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
-
-    /// Skip bitmap (pixel is skipped if corresponding pixel in the
-    /// skip bitmap is 1). Set to nullptr, if not used.
-    const PDFJBIG2Bitmap* SKIP = nullptr;
-
-    /// Arithmetic decoder (used, if MMR == false)
-    PDFJBIG2ArithmeticDecoder* arithmeticDecoder = nullptr;
-};
-
-/// Info structure for refinement bitmap decoding parameters
-struct PDFJBIG2BitmapRefinementDecodingParameters
-{
-    /// Template mode used (0/1)
-    uint8_t GRTEMPLATE = 0;
-
-    /// Prediction (same as previous row)
-    bool TPGRON = false;
-
-    /// Bitmap width
-    uint32_t GRW = 0;
-
-    /// Bitmap height
-    uint32_t GRH = 0;
-
-    /// Reference bitmap
-    const PDFJBIG2Bitmap* GRREFERENCE = nullptr;
-
-    /// Offset x
-    int32_t GRREFERENCEX = 0;
-
-    /// Offset y
-    int32_t GRREFERENCEY = 0;
-
-    /// State of arithmetic decoder
-    PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
-
-    /// Positions of adaptative pixels
-    PDFJBIG2ATPositions GRAT = { };
-};
 
 /// Info structure for symbol dictionary decoding procedure
 struct PDFJBIG2SymbolDictionaryDecodingParameters

@@ -22,6 +22,103 @@
 namespace pdf
 {
 
+/// Info structure for text region decoding structure
+struct PDFJBIG2TextRegionDecodingParameters
+{
+    bool SBHUFF = false;
+    bool SBREFINE = false;
+    uint8_t SBDEFPIXEL = 0;
+    PDFJBIG2BitOperation SBCOMBOP = PDFJBIG2BitOperation::Invalid;
+    bool TRANSPOSED = false;
+    uint8_t REFCORNER = 0;
+    uint8_t SBDSOFFSET = 0;
+    uint32_t SBW = 0;
+    uint32_t SBH = 0;
+    uint32_t SBNUMINSTANCES = 0;
+    uint8_t SBSTRIPS = 0;
+    uint32_t SBNUMSYMS = 0;
+    std::vector<const PDFJBIG2Bitmap*> SBSYMS;
+    uint8_t SBSYMCODELEN = 0;
+    PDFJBIG2HuffmanDecoder SBSYMCODES;
+    PDFJBIG2HuffmanDecoder SBHUFFFS;
+    PDFJBIG2HuffmanDecoder SBHUFFDS;
+    PDFJBIG2HuffmanDecoder SBHUFFDT;
+    PDFJBIG2HuffmanDecoder SBHUFFRDW;
+    PDFJBIG2HuffmanDecoder SBHUFFRDH;
+    PDFJBIG2HuffmanDecoder SBHUFFRDX;
+    PDFJBIG2HuffmanDecoder SBHUFFRDY;
+    PDFJBIG2HuffmanDecoder SBHUFFRSIZE;
+    uint8_t SBRTEMPLATE = 0;
+    PDFJBIG2ATPositions SBRAT = { };
+    PDFJBIG2ArithmeticDecoder* arithmeticDecoder = nullptr;
+};
+
+/// Info structure for bitmap decoding parameters
+struct PDFJBIG2BitmapDecodingParameters
+{
+    /// Is Modified-Modified-Read encoding used? This encoding is simalr to CCITT pure 2D encoding.
+    bool MMR = false;
+
+    /// Is typical prediction for generic direct coding used?
+    bool TPGDON = false;
+
+    /// Width of the image
+    int GBW = 0;
+
+    /// Height of the image
+    int GBH = 0;
+
+    /// Template mode (not used for MMR).
+    uint8_t GBTEMPLATE = 0;
+
+    /// Positions of adaptative pixels
+    PDFJBIG2ATPositions ATXY = { };
+
+    /// Data with encoded image
+    QByteArray data;
+
+    /// State of arithmetic decoder
+    PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
+
+    /// Skip bitmap (pixel is skipped if corresponding pixel in the
+    /// skip bitmap is 1). Set to nullptr, if not used.
+    const PDFJBIG2Bitmap* SKIP = nullptr;
+
+    /// Arithmetic decoder (used, if MMR == false)
+    PDFJBIG2ArithmeticDecoder* arithmeticDecoder = nullptr;
+};
+
+/// Info structure for refinement bitmap decoding parameters
+struct PDFJBIG2BitmapRefinementDecodingParameters
+{
+    /// Template mode used (0/1)
+    uint8_t GRTEMPLATE = 0;
+
+    /// Prediction (same as previous row)
+    bool TPGRON = false;
+
+    /// Bitmap width
+    uint32_t GRW = 0;
+
+    /// Bitmap height
+    uint32_t GRH = 0;
+
+    /// Reference bitmap
+    const PDFJBIG2Bitmap* GRREFERENCE = nullptr;
+
+    /// Offset x
+    int32_t GRREFERENCEX = 0;
+
+    /// Offset y
+    int32_t GRREFERENCEY = 0;
+
+    /// State of arithmetic decoder
+    PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
+
+    /// Positions of adaptative pixels
+    PDFJBIG2ATPositions GRAT = { };
+};
+
 static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_A[] =
 {
     {     0, 1,  4,   0b0, PDFJBIG2HuffmanTableEntry::Type::Standard},
@@ -958,38 +1055,13 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
 
     /* 7.4.2.2 step 2) */
     PDFJBIG2ReferencedSegments references = getReferencedSegments(header);
-
-    for (const PDFJBIG2SymbolDictionary* dictionary  : references.symbolDictionaries)
-    {
-        const std::vector<PDFJBIG2Bitmap>& bitmaps = dictionary->getBitmaps();
-        parameters.SDINSYMS.reserve(parameters.SDINSYMS.size() + bitmaps.size());
-        for (const PDFJBIG2Bitmap& bitmap : bitmaps)
-        {
-            parameters.SDINSYMS.push_back(&bitmap);
-        }
-    }
+    parameters.SDINSYMS = references.getSymbolBitmaps();
     parameters.SDNUMINSYMS = static_cast<uint32_t>(parameters.SDINSYMS.size());
 
     /* 7.4.2.1.6 - huffman table selection */
 
     if (parameters.SDHUFF)
     {
-        size_t currentUserCodeTableIndex = 0;
-
-        auto getUserTable = [&](void) -> PDFJBIG2HuffmanDecoder
-        {
-            if (currentUserCodeTableIndex < references.codeTables.size())
-            {
-                return PDFJBIG2HuffmanDecoder(&m_reader, references.codeTables[currentUserCodeTableIndex++]);
-            }
-            else
-            {
-                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
-            }
-
-            return PDFJBIG2HuffmanDecoder();
-        };
-
         switch (parameters.SDHUFFDH)
         {
             case 0:
@@ -1001,7 +1073,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                 break;
 
             case 3:
-                parameters.SDHUFFDH_Decoder = getUserTable();
+                parameters.SDHUFFDH_Decoder = references.getUserTable(&m_reader);
                 break;
 
             default:
@@ -1019,7 +1091,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                 break;
 
             case 3:
-                parameters.SDHUFFDW_Decoder = getUserTable();
+                parameters.SDHUFFDW_Decoder = references.getUserTable(&m_reader);
                 break;
 
             default:
@@ -1033,7 +1105,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                 break;
 
             case 1:
-                parameters.SDHUFFBMSIZE_Decoder = getUserTable();
+                parameters.SDHUFFBMSIZE_Decoder = references.getUserTable(&m_reader);
                 break;
 
             default:
@@ -1047,7 +1119,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                 break;
 
             case 1:
-                parameters.SDHUFFAGGINST_Decoder = getUserTable();
+                parameters.SDHUFFAGGINST_Decoder = references.getUserTable(&m_reader);
                 break;
 
             default:
@@ -1056,9 +1128,9 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
 
         parameters.EXRUNLENGTH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
 
-        if (currentUserCodeTableIndex != references.codeTables.size())
+        if (references.currentUserCodeTableIndex != references.codeTables.size())
         {
-            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid number of huffam code table - %1 unused.").arg(references.codeTables.size() - currentUserCodeTableIndex));
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid number of huffam code table - %1 unused.").arg(references.codeTables.size() - references.currentUserCodeTableIndex));
         }
     }
     else
@@ -1244,17 +1316,363 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
 
 void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
 {
-    // TODO: JBIG2 - processTextRegion
+    auto getSBCOMBOOP = [](const uint8_t value)
+    {
+        switch (value)
+        {
+            case 0:
+                return PDFJBIG2BitOperation::Or;
+
+            case 1:
+                return PDFJBIG2BitOperation::And;
+
+            case 2:
+                return PDFJBIG2BitOperation::Xor;
+
+            case 3:
+                return PDFJBIG2BitOperation::NotXor;
+
+            default:
+                break;
+        }
+
+        Q_ASSERT(false);
+        return PDFJBIG2BitOperation::Invalid;
+    };
+
+    PDFJBIG2RegionSegmentInformationField regionSegmentInfo = readRegionSegmentInformationField();
+    const uint16_t flags = m_reader.readUnsignedWord();
+    const bool SBHUFF = flags & 0x0001;
+    const bool SBREFINE = flags & 0x0002;
+    const uint8_t SBSTRIPS = 1 << ((flags >> 2) & 0x03);
+    const uint8_t REFCORNER = (flags >> 4) & 0x03;
+    const bool TRANSPOSED = (flags >> 6) & 0x01;
+    const uint8_t SBCOMBOOP_value = (flags >> 7) & 0x03;
+    const PDFJBIG2BitOperation SBCOMBOOP = getSBCOMBOOP(SBCOMBOOP_value);
+    const uint8_t SBDEFPIXEL = ((flags >> 9) & 0x01) ? 0xFF : 0x00;
+    const uint8_t SBDSOFFSET = (flags >> 10) & 0x1F;
+    const uint8_t SBRTEMPLATE = (flags >> 15) & 0x01;
+
+    // Decoding parameters
+    PDFJBIG2TextRegionDecodingParameters parameters;
+    parameters.SBHUFF = SBHUFF;
+    parameters.SBREFINE = SBREFINE;
+    parameters.SBDEFPIXEL = SBDEFPIXEL;
+    parameters.SBCOMBOP = SBCOMBOOP;
+    parameters.TRANSPOSED = TRANSPOSED;
+    parameters.REFCORNER = REFCORNER;
+    parameters.SBDSOFFSET = SBDSOFFSET;
+    parameters.SBW = regionSegmentInfo.width;
+    parameters.SBH = regionSegmentInfo.height;
+    parameters.SBRTEMPLATE = SBRTEMPLATE;
+    parameters.SBSTRIPS = SBSTRIPS;
+
+    // Referenced segments data
+    PDFJBIG2ReferencedSegments references = getReferencedSegments(header);
+
+    if (SBHUFF)
+    {
+        uint16_t huffmanFlags = m_reader.readUnsignedWord();
+
+        auto readHuffmanTableSelection = [&huffmanFlags]() -> const uint8_t
+        {
+            const uint8_t result = huffmanFlags & 0x03;
+            huffmanFlags = huffmanFlags >> 2;
+            return result;
+        };
+
+        const uint8_t SBHUFFFS = readHuffmanTableSelection();
+        const uint8_t SBHUFFDS = readHuffmanTableSelection();
+        const uint8_t SBHUFFDT = readHuffmanTableSelection();
+        const uint8_t SBHUFFRDW = readHuffmanTableSelection();
+        const uint8_t SBHUFFRDH = readHuffmanTableSelection();
+        const uint8_t SBHUFFRDX = readHuffmanTableSelection();
+        const uint8_t SBHUFFRDY = readHuffmanTableSelection();
+        const uint8_t SBHUFFRSIZE = readHuffmanTableSelection();
+
+        if (huffmanFlags)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid huffman table flags in text region segment."));
+        }
+
+        // Create huffman tables
+        switch (SBHUFFFS)
+        {
+            case 0:
+                parameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
+                break;
+
+            case 1:
+                parameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_G), std::end(PDFJBIG2StandardHuffmanTable_G));
+                break;
+
+            case 3:
+                parameters.SBHUFFFS = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFDS)
+        {
+            case 0:
+                parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
+                break;
+
+            case 1:
+                parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_I), std::end(PDFJBIG2StandardHuffmanTable_I));
+                break;
+
+            case 2:
+                parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_J), std::end(PDFJBIG2StandardHuffmanTable_J));
+                break;
+
+            case 3:
+                parameters.SBHUFFDS = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFDT)
+        {
+            case 0:
+                parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
+                break;
+
+            case 1:
+                parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_L), std::end(PDFJBIG2StandardHuffmanTable_L));
+                break;
+
+            case 2:
+                parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_M), std::end(PDFJBIG2StandardHuffmanTable_M));
+                break;
+
+            case 3:
+                parameters.SBHUFFDT = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFRDW)
+        {
+            case 0:
+                parameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                break;
+
+            case 1:
+                parameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                break;
+
+            case 3:
+                parameters.SBHUFFRDW = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFRDH)
+        {
+            case 0:
+                parameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                break;
+
+            case 1:
+                parameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                break;
+
+            case 3:
+                parameters.SBHUFFRDH = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFRDX)
+        {
+            case 0:
+                parameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                break;
+
+            case 1:
+                parameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                break;
+
+            case 3:
+                parameters.SBHUFFRDX = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFRDY)
+        {
+            case 0:
+                parameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                break;
+
+            case 1:
+                parameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                break;
+
+            case 3:
+                parameters.SBHUFFRDY = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+
+        switch (SBHUFFRSIZE)
+        {
+            case 0:
+                parameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+                break;
+
+            case 1:
+                parameters.SBHUFFRSIZE = references.getUserTable(&m_reader);
+                break;
+
+            default:
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+        }
+    }
+
+    if (SBREFINE && SBRTEMPLATE == 0)
+    {
+        parameters.SBRAT = readATTemplatePixelPositions(2);
+    }
+
+    parameters.SBSYMS = references.getSymbolBitmaps();
+    parameters.SBNUMSYMS = static_cast<uint32_t>(parameters.SBSYMS.size());
+    parameters.SBNUMINSTANCES = m_reader.readUnsignedInt();
+    parameters.SBSYMCODELEN = log2ceil(parameters.SBNUMSYMS);
+
+    if (parameters.SBNUMSYMS == 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 no referred symbols in text region segment."));
+    }
+
+    PDFJBIG2ArithmeticDecoder decoder(&m_reader);
+    if (SBHUFF)
+    {
+        // Read run code lengths
+        std::vector<PDFJBIG2HuffmanTableEntry> rangeLengthTable(35, PDFJBIG2HuffmanTableEntry());
+        for (int32_t i = 0; i < rangeLengthTable.size(); ++i)
+        {
+            rangeLengthTable[i].value = i;
+            rangeLengthTable[i].prefixBitLength = m_reader.read(4);
+        }
+        rangeLengthTable = PDFJBIG2HuffmanCodeTable::buildPrefixes(rangeLengthTable);
+        PDFJBIG2HuffmanDecoder runLengthDecoder(&m_reader, qMove(rangeLengthTable));
+
+        std::vector<PDFJBIG2HuffmanTableEntry> symCodeTable(parameters.SBNUMSYMS, PDFJBIG2HuffmanTableEntry());
+        for (uint32_t i = 0; i < parameters.SBNUMSYMS;)
+        {
+            symCodeTable[i].value = i;
+            uint32_t code = checkInteger(runLengthDecoder.readSignedInteger());
+            switch (code)
+            {
+                default:
+                    symCodeTable[i++].prefixBitLength = code;
+                    break;
+
+                case 32:
+                case 33:
+                case 34:
+                {
+                    uint32_t length = 0;
+                    uint32_t range = 0;
+
+                    if (code == 32)
+                    {
+                        if (i == 0)
+                        {
+                            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol length code table for text region segment."));
+                        }
+                        length = symCodeTable[i - 1].prefixBitLength;
+                    }
+
+                    switch (code)
+                    {
+                        case 32:
+                            range = m_reader.read(2) + 3;
+                            break;
+
+                        case 33:
+                            range = m_reader.read(3) + 3;
+                            break;
+
+                        case 34:
+                            range = m_reader.read(7) + 11;
+                            break;
+
+                        default:
+                            Q_ASSERT(false);
+                            break;
+                    }
+
+                    for (uint32_t j = 0; j < range; ++j)
+                    {
+                        symCodeTable[i].value = i;
+                        symCodeTable[i].prefixBitLength = length;
+                        ++i;
+                    }
+                    break;
+                }
+            }
+        }
+        symCodeTable = PDFJBIG2HuffmanCodeTable::buildPrefixes(symCodeTable);
+        parameters.SBSYMCODES = PDFJBIG2HuffmanDecoder(&m_reader, qMove(symCodeTable));
+        m_reader.alignToBytes();
+    }
+    else
+    {
+        // Arithmetic decoder
+        decoder.initialize();
+        parameters.arithmeticDecoder = &decoder;
+    }
+
+    if (parameters.SBREFINE)
+    {
+        resetArithmeticStatesGenericRefinement(parameters.SBRTEMPLATE, nullptr);
+    }
+
+    PDFJBIG2Bitmap bitmap = readTextBitmap(parameters);
+    if (bitmap.isValid())
+    {
+        if (header.isImmediate())
+        {
+            m_pageBitmap.paint(bitmap, regionSegmentInfo.offsetX, regionSegmentInfo.offsetY, regionSegmentInfo.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+        }
+        else
+        {
+            m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(bitmap));
+        }
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for generic region."));
+    }
 }
 
 void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& header)
 {
     // TODO: JBIG2 - processPatternDictionary
+    throw PDFException(PDFTranslationContext::tr("JBIG2 NOT IMPLEMENTED."));
 }
 
 void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 {
     // TODO: JBIG2 - processHalftoneRegion
+    throw PDFException(PDFTranslationContext::tr("JBIG2 NOT IMPLEMENTED."));
 }
 
 void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
@@ -2348,6 +2766,17 @@ PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJB
     }
 }
 
+PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector<PDFJBIG2HuffmanTableEntry>&& table) :
+    m_reader(reader),
+    m_entries(qMove(table))
+{
+    if (!m_entries.empty())
+    {
+        m_begin = m_entries.data();
+        m_end = m_entries.data() + m_entries.size();
+    }
+}
+
 bool PDFJBIG2HuffmanDecoder::isOutOfBandSupported() const
 {
     if (!isValid())
@@ -2407,6 +2836,37 @@ std::optional<int32_t> PDFJBIG2HuffmanDecoder::readSignedInteger()
     }
 
     return std::nullopt;
+}
+
+std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getSymbolBitmaps() const
+{
+    std::vector<const PDFJBIG2Bitmap*> result;
+
+    for (const PDFJBIG2SymbolDictionary* dictionary  : symbolDictionaries)
+    {
+        const std::vector<PDFJBIG2Bitmap>& bitmaps = dictionary->getBitmaps();
+        result.reserve(result.size() + bitmaps.size());
+        for (const PDFJBIG2Bitmap& bitmap : bitmaps)
+        {
+            result.push_back(&bitmap);
+        }
+    }
+
+    return result;
+}
+
+PDFJBIG2HuffmanDecoder PDFJBIG2ReferencedSegments::getUserTable(PDFBitReader* reader)
+{
+    if (currentUserCodeTableIndex < codeTables.size())
+    {
+        return PDFJBIG2HuffmanDecoder(reader, codeTables[currentUserCodeTableIndex++]);
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+    }
+
+    return PDFJBIG2HuffmanDecoder();
 }
 
 }   // namespace pdf
