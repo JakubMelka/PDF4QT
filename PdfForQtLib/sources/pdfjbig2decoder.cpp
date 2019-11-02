@@ -22,9 +22,185 @@
 namespace pdf
 {
 
-/// Info structure for text region decoding structure
-struct PDFJBIG2TextRegionDecodingParameters
+/// Structure containing arithmetic decoder states
+struct PDFJBIG2ArithmeticDecoderStates
 {
+    enum
+    {
+        IADH,
+        IADW,
+        IAEX,
+        IADT,
+        IAFS,
+        IADS,
+        IAIT,
+        IARI,
+        IARDW,
+        IARDH,
+        IARDX,
+        IARDY,
+        IAID,
+        Generic,
+        Refinement,
+        End
+    };
+
+    /// Resets integer arithmetic decoder statistics. For normal register, it uses context
+    /// of length 9 bits (512 states), for IAID, it uses \p IAIDbits bits for the context.
+    /// \param IAIDbits Bit length of context for IAID
+    void resetArithmeticStatesInteger(const uint8_t IAIDbits);
+
+    /// Reset arithmetic decoder stats for generic
+    /// \param templateMode Template mode
+    /// \param state State to copy from (can be nullptr)
+    void resetArithmeticStatesGeneric(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
+
+    /// Reset arithmetic decoder stats for generic refinement
+    /// \param templateMode Template mode
+    /// \param state State to copy from (can be nullptr)
+    void resetArithmeticStatesGenericRefinement(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
+
+    /// Reset arithmetic decoder stats for generic
+    /// \param newState State to be reset
+    /// \param templateMode Template mode
+    /// \param state State to copy from (can be nullptr)
+    static void resetArithmeticStatesGeneric(PDFJBIG2ArithmeticDecoderState* newState, const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
+
+    /// Reset arithmetic decoder stats for generic refinement
+    /// \param newState State to be reset
+    /// \param templateMode Template mode
+    /// \param state State to copy from (can be nullptr)
+    static void resetArithmeticStatesGenericRefinement(PDFJBIG2ArithmeticDecoderState* newState, const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
+
+    std::array<PDFJBIG2ArithmeticDecoderState, End> states;
+};
+
+void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesInteger(const uint8_t IAIDbits)
+{
+    for (auto context : { IADH, IADW, IAEX, IADT, IAFS, IADS, IAIT, IARI, IARDW, IARDH, IARDX,IARDY })
+    {
+        states[context].reset(9);
+    }
+    states[IAID].reset(IAIDbits);
+}
+
+void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
+{
+    resetArithmeticStatesGeneric(&states[Generic], templateMode, state);
+}
+
+void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGenericRefinement(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
+{
+    resetArithmeticStatesGenericRefinement(&states[Refinement], templateMode, state);
+}
+
+void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(PDFJBIG2ArithmeticDecoderState* newState, const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
+{
+    uint8_t bits = 0;
+    switch (templateMode)
+    {
+        case 0:
+            bits = 16;
+            break;
+
+        case 1:
+            bits = 13;
+            break;
+
+        case 2:
+        case 3:
+            bits = 10;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    if (!state)
+    {
+        newState->reset(bits);
+    }
+    else
+    {
+        newState->reset(bits, *state);
+    }
+}
+
+void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGenericRefinement(PDFJBIG2ArithmeticDecoderState* newState, const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
+{
+    uint8_t bits = 0;
+    switch (templateMode)
+    {
+        case 0:
+            bits = 13;
+            break;
+
+        case 1:
+            bits = 10;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    if (!state)
+    {
+        newState->reset(bits);
+    }
+    else
+    {
+        newState->reset(bits, *state);
+    }
+}
+
+/// Structure containing state pointers for arithmetic decoder
+struct PDFJBIG2ArithmeticDecoderStatePointers
+{
+    void initializeFrom(PDFJBIG2ArithmeticDecoderStates* states);
+
+    PDFJBIG2ArithmeticDecoderState* IADT = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IAFS = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IADS = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IAIT = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IAID = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IARI = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IARDW = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IARDH = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IARDX = nullptr;
+    PDFJBIG2ArithmeticDecoderState* IARDY = nullptr;
+    PDFJBIG2ArithmeticDecoderState* genericDecoderState = nullptr;
+    PDFJBIG2ArithmeticDecoderState* refinementDecoderState = nullptr;
+};
+
+void PDFJBIG2ArithmeticDecoderStatePointers::initializeFrom(PDFJBIG2ArithmeticDecoderStates* states)
+{
+    IADT = &states->states[PDFJBIG2ArithmeticDecoderStates::IADT];
+    IAFS = &states->states[PDFJBIG2ArithmeticDecoderStates::IAFS];
+    IADS = &states->states[PDFJBIG2ArithmeticDecoderStates::IADS];
+    IAIT = &states->states[PDFJBIG2ArithmeticDecoderStates::IAIT];
+    IAID = &states->states[PDFJBIG2ArithmeticDecoderStates::IAID];
+    IARI = &states->states[PDFJBIG2ArithmeticDecoderStates::IARI];
+    IARDW = &states->states[PDFJBIG2ArithmeticDecoderStates::IARDW];
+    IARDH = &states->states[PDFJBIG2ArithmeticDecoderStates::IARDH];
+    IARDX = &states->states[PDFJBIG2ArithmeticDecoderStates::IARDX];
+    IARDY = &states->states[PDFJBIG2ArithmeticDecoderStates::IARDY];
+    genericDecoderState = &states->states[PDFJBIG2ArithmeticDecoderStates::Generic];
+    refinementDecoderState = &states->states[PDFJBIG2ArithmeticDecoderStates::Refinement];
+}
+
+/// Info structure for text region decoding structure
+struct PDFJBIG2TextRegionDecodingParameters : public PDFJBIG2ArithmeticDecoderStatePointers
+{
+    enum : uint8_t
+    {
+        BOTTOMLEFT = 0,
+        TOPLEFT = 1,
+        BOTTOMRIGHT = 2,
+        TOPRIGHT = 3
+    };
+
     bool SBHUFF = false;
     bool SBREFINE = false;
     uint8_t SBDEFPIXEL = 0;
@@ -1062,6 +1238,9 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     parameters.SDINSYMS = references.getSymbolBitmaps();
     parameters.SDNUMINSYMS = static_cast<uint32_t>(parameters.SDINSYMS.size());
 
+    /* Arithmetic decoder stats */
+    PDFJBIG2ArithmeticDecoderStates arithmeticDecoderStates;
+
     /* 7.4.2.1.6 - huffman table selection */
 
     if (parameters.SDHUFF)
@@ -1147,11 +1326,11 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                 throw PDFException(PDFTranslationContext::tr("JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn't exist."));
             }
 
-            resetArithmeticStatesGeneric(parameters.SDTEMPLATE, &references.symbolDictionaries.back()->getGenericState());
+            arithmeticDecoderStates.resetArithmeticStatesGeneric(parameters.SDTEMPLATE, &references.symbolDictionaries.back()->getGenericState());
         }
         else
         {
-            resetArithmeticStatesGeneric(parameters.SDTEMPLATE, nullptr);
+            arithmeticDecoderStates.resetArithmeticStatesGeneric(parameters.SDTEMPLATE, nullptr);
         }
 
         if (parameters.SDREFAGG)
@@ -1163,11 +1342,11 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                     throw PDFException(PDFTranslationContext::tr("JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn't exist."));
                 }
 
-                resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, &references.symbolDictionaries.back()->getGenericRefinementState());
+                arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, &references.symbolDictionaries.back()->getGenericRefinementState());
             }
             else
             {
-                resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, nullptr);
+                arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, nullptr);
             }
         }
     }
@@ -1244,7 +1423,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                     bitmapParameters.TPGDON = false;
                     bitmapParameters.ATXY = parameters.SDAT;
                     bitmapParameters.arithmeticDecoder = &decoder;
-                    bitmapParameters.arithmeticDecoderState = &m_arithmeticDecoderStates[Generic];
+                    bitmapParameters.arithmeticDecoderState = &arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Generic];
                     parameters.SDNEWSYMS[NSYMSDECODED] = readBitmap(bitmapParameters);
                 }
                 else
@@ -1311,8 +1490,8 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
 
     if (parameters.isArithmeticCodingStateRetained)
     {
-        savedGeneric = qMove(m_arithmeticDecoderStates[Generic]);
-        savedRefine = qMove(m_arithmeticDecoderStates[Refinement]);
+        savedGeneric = qMove(arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Generic]);
+        savedRefine = qMove(arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Refinement]);
     }
 
     m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2SymbolDictionary>(qMove(bitmaps), qMove(savedGeneric), qMove(savedRefine));
@@ -1646,9 +1825,13 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         parameters.arithmeticDecoder = &decoder;
     }
 
+    PDFJBIG2ArithmeticDecoderStates arithmeticDecoderStates;
+    arithmeticDecoderStates.resetArithmeticStatesInteger(parameters.SBSYMCODELEN);
+    parameters.initializeFrom(&arithmeticDecoderStates);
+
     if (parameters.SBREFINE)
     {
-        resetArithmeticStatesGenericRefinement(parameters.SBRTEMPLATE, nullptr);
+        arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SBRTEMPLATE, nullptr);
     }
 
     parameters.reader = &m_reader;
@@ -1699,11 +1882,13 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
         throw PDFException(PDFTranslationContext::tr("JBIG2 - malformed generic region flags."));
     }
 
+    PDFJBIG2ArithmeticDecoderState genericState;
+
     if (!parameters.MMR)
     {
         // We will use arithmetic coding, read template pixels and reset arithmetic coder state
         parameters.ATXY = readATTemplatePixelPositions((parameters.GBTEMPLATE == 0) ? 4 : 1);
-        resetArithmeticStatesGeneric(parameters.GBTEMPLATE, nullptr);
+        PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, parameters.GBTEMPLATE, nullptr);
     }
 
     // Determine segment data length
@@ -1741,7 +1926,7 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
     parameters.data = m_reader.getStream()->mid(segmentDataStartPosition, segmentDataBytes);
     parameters.GBW = field.width;
     parameters.GBH = field.height;
-    parameters.arithmeticDecoderState = &m_arithmeticDecoderStates[Generic];
+    parameters.arithmeticDecoderState = &genericState;
 
 
     PDFBitReader reader(&parameters.data, 1);
@@ -1829,7 +2014,8 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
         throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid referred bitmap size [%1 x %2] instead of [%3 x %4] for generic refinement region.").arg(GRREFERENCE.getWidth()).arg(GRREFERENCE.getHeight()).arg(field.width).arg(field.height));
     }
 
-    resetArithmeticStatesGenericRefinement(GRTEMPLATE, nullptr);
+    PDFJBIG2ArithmeticDecoderState refinementState;
+    PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGenericRefinement(&refinementState, GRTEMPLATE, nullptr);
 
     PDFJBIG2BitmapRefinementDecodingParameters parameters;
     parameters.GRTEMPLATE = GRTEMPLATE;
@@ -1837,7 +2023,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     parameters.GRW = field.width;
     parameters.GRH = field.height;
     parameters.GRAT = GRAT;
-    parameters.arithmeticDecoderState = &m_arithmeticDecoderStates[Refinement];
+    parameters.arithmeticDecoderState = &refinementState;
     parameters.GRREFERENCE = &GRREFERENCE;
     parameters.GRREFERENCEX = 0;
     parameters.GRREFERENCEY = 0;
@@ -2444,7 +2630,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
             bool RI = 0;
             if (parameters.SBREFINE)
             {
-                RI = parameters.SBHUFF ? parameters.reader->read(1) : parameters.arithmeticDecoder->getSignedInteger(parameters.IARI);
+                RI = parameters.SBHUFF ? parameters.reader->read(1) : checkInteger(parameters.arithmeticDecoder->getSignedInteger(parameters.IARI));
             }
 
             PDFJBIG2Bitmap IB;
@@ -2461,11 +2647,14 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                 int32_t RDY = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDY.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDY));
 
                 /* 6.4.11 5) */
+                int32_t position = 0;
                 int32_t bmsize = parameters.SBHUFF ? checkInteger(parameters.SBHUFFRSIZE.readSignedInteger()) : 0;
 
                 if (parameters.SBHUFF)
                 {
                     parameters.reader->alignToBytes();
+                    position = parameters.reader->getPosition();
+                    parameters.arithmeticDecoder->initialize();
                 }
 
                 /* 6.4.11 6) */
@@ -2487,18 +2676,104 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                 refinementParameters.GRAT = parameters.SBRAT;
                 IB = readRefinementBitmap(refinementParameters);
 
-                /* 6.4.11 7 */
+                /* 6.4.11 7) */
                 if (parameters.SBHUFF)
                 {
                     parameters.reader->alignToBytes();
+                    parameters.reader->seek(position + bmsize);
                 }
             }
 
-            pokracovat zde
+            const int32_t WI = IB.getWidth();
+            const int32_t HI = IB.getHeight();
+
+            /* 6.4.5. step 3) vi) */
+            if (parameters.TRANSPOSED == 0 && (parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::TOPRIGHT ||
+                                               parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::BOTTOMRIGHT))
+            {
+                CURS += WI - 1;
+            }
+            if (parameters.TRANSPOSED == 1 && (parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::BOTTOMLEFT ||
+                                               parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::BOTTOMRIGHT))
+            {
+                CURS += HI - 1;
+            }
+
+            /* 6.4.5. step 3) c) vii) */
+            const int32_t SI = CURS;
+
+            /* 6.4.5. step 3) c) viii) + ix) */
+            if (parameters.TRANSPOSED == 0)
+            {
+                // Standard
+                switch (parameters.REFCORNER)
+                {
+                    case PDFJBIG2TextRegionDecodingParameters::TOPLEFT:
+                        SBREG.paint(IB, SI, TI, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    case PDFJBIG2TextRegionDecodingParameters::TOPRIGHT:
+                        SBREG.paint(IB, SI - WI + 1, TI, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMLEFT:
+                        SBREG.paint(IB, SI, TI - HI + 1, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMRIGHT:
+                        SBREG.paint(IB, SI - WI + 1, TI - HI + 1, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+            }
+            else
+            {
+                // Transposed
+                switch (parameters.REFCORNER)
+                {
+                    case PDFJBIG2TextRegionDecodingParameters::TOPLEFT:
+                        SBREG.paint(IB, TI, SI, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    case PDFJBIG2TextRegionDecodingParameters::TOPRIGHT:
+                        SBREG.paint(IB, TI - WI + 1, SI, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMLEFT:
+                        SBREG.paint(IB, TI, SI - HI + 1, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMRIGHT:
+                        SBREG.paint(IB, TI - WI + 1, SI - HI + 1, parameters.SBCOMBOP, false, 0x00);
+                        break;
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+            }
+
+            /* 6.4.5. step 3) c) x) */
+            if (parameters.TRANSPOSED == 0 && (parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::TOPLEFT ||
+                                               parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::BOTTOMLEFT))
+            {
+                CURS += WI - 1;
+            }
+            if (parameters.TRANSPOSED == 1 && (parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::TOPLEFT ||
+                                               parameters.REFCORNER == PDFJBIG2TextRegionDecodingParameters::TOPRIGHT))
+            {
+                CURS += HI - 1;
+            }
+
+            /* 6.4.5. step 3) c) xi) */
+            ++NINSTANCES;
         }
     }
 
-
+    /* 6.4.5 4) */
     return SBREG;
 }
 
@@ -2561,67 +2836,6 @@ PDFJBIG2ATPositions PDFJBIG2Decoder::readATTemplatePixelPositions(int count)
     }
 
     return result;
-}
-
-void PDFJBIG2Decoder::resetArithmeticStatesGeneric(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
-{
-    uint8_t bits = 0;
-    switch (templateMode)
-    {
-        case 0:
-            bits = 16;
-            break;
-
-        case 1:
-            bits = 13;
-            break;
-
-        case 2:
-        case 3:
-            bits = 10;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    if (!state)
-    {
-        m_arithmeticDecoderStates[Generic].reset(bits);
-    }
-    else
-    {
-        m_arithmeticDecoderStates[Generic].reset(bits, *state);
-    }
-}
-
-void PDFJBIG2Decoder::resetArithmeticStatesGenericRefinement(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
-{
-    uint8_t bits = 0;
-    switch (templateMode)
-    {
-        case 0:
-            bits = 13;
-            break;
-
-        case 1:
-            bits = 10;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    if (!state)
-    {
-        m_arithmeticDecoderStates[Refinement].reset(bits);
-    }
-    else
-    {
-        m_arithmeticDecoderStates[Refinement].reset(bits, *state);
-    }
 }
 
 void PDFJBIG2Decoder::skipSegment(const PDFJBIG2SegmentHeader& header)
@@ -2784,6 +2998,11 @@ void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offset
         {
             const int sourceX = targetX - targetStartX;
             const int sourceY = targetY - targetStartY;
+
+            if (targetX < 0 || targetX >= m_width || targetY < 0 || targetY >= m_height)
+            {
+                continue;
+            }
 
             switch (operation)
             {

@@ -533,8 +533,7 @@ public:
         m_pageDefaultPixelValue(0),
         m_pageDefaultCompositionOperator(PDFJBIG2BitOperation::Invalid),
         m_pageDefaultCompositionOperatorOverriden(false),
-        m_pageSizeUndefined(false),
-        m_arithmeticDecoderStates()
+        m_pageSizeUndefined(false)
     {
 
     }
@@ -559,13 +558,6 @@ public:
 
 private:
     static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
-
-    enum ArithmeticDecoderStates
-    {
-        Generic,
-        Refinement,
-        EndState
-    };
 
     /// Processes current data stream (reads all data from the stream, interprets
     /// them as segments and processes the segments).
@@ -609,16 +601,6 @@ private:
     /// Read adaptative pixel template positions, positions, which are not read, are filled with 0
     PDFJBIG2ATPositions readATTemplatePixelPositions(int count);
 
-    /// Reset arithmetic decoder stats for generic
-    /// \param templateMode Template mode
-    /// \param state State to copy from (can be nullptr)
-    void resetArithmeticStatesGeneric(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
-
-    /// Reset arithmetic decoder stats for generic refinement
-    /// \param templateMode Template mode
-    /// \param state State to copy from (can be nullptr)
-    void resetArithmeticStatesGenericRefinement(const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state);
-
     /// Skip segment data
     void skipSegment(const PDFJBIG2SegmentHeader& header);
 
@@ -641,7 +623,6 @@ private:
     bool m_pageDefaultCompositionOperatorOverriden;
     bool m_pageSizeUndefined;
     PDFJBIG2Bitmap m_pageBitmap;
-    std::array<PDFJBIG2ArithmeticDecoderState, EndState> m_arithmeticDecoderStates;
 };
 
 }   // namespace pdf
