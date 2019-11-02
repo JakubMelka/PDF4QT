@@ -162,6 +162,10 @@ public:
     int32_t getIAID(uint32_t size, PDFJBIG2ArithmeticDecoderState* state);
     std::optional<int32_t> getSignedInteger(PDFJBIG2ArithmeticDecoderState* state);
 
+    /// This function is used to read last byte of byte sequence { 0xFF, 0xAC },
+    /// when finishing data stream.
+    void finalize();
+
 private:
     /// Performs INITDEC operation as described in the specification
     void perform_INITDEC();

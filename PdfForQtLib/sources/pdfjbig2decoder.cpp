@@ -708,6 +708,17 @@ std::optional<int32_t> PDFJBIG2ArithmeticDecoder::getSignedInteger(PDFJBIG2Arith
     }
 }
 
+void PDFJBIG2ArithmeticDecoder::finalize()
+{
+    if (m_lastByte == 0xFF)
+    {
+        if (m_reader->look(8) == 0xAC)
+        {
+            m_reader->read(8);
+        }
+    }
+}
+
 void PDFJBIG2ArithmeticDecoder::perform_INITDEC()
 {
     // Used figure G.1, in annex G, of specification
@@ -1391,7 +1402,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
         uint32_t HCFIRSTSYM = NSYMSDECODED;
 
         /* 6.5.5 step 4) c) - read height class */
-        while (NSYMSDECODED < parameters.SDNUMNEWSYMS)
+        while (NSYMSDECODED <= parameters.SDNUMNEWSYMS)
         {
             /* 6.5.5 step 4) c) i) - Delta width acc. to 6.5.7 */
             std::optional<int32_t> DW = parameters.SDHUFF ? parameters.SDHUFFDW_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IADW]);
@@ -1596,6 +1607,12 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     while (EXFLAGS.size() < symbolsSize)
     {
         const uint32_t EXRUNLENGTH = static_cast<uint32_t>(checkInteger(parameters.SDHUFF ? parameters.EXRUNLENGTH_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IAEX])));
+
+        if (EXRUNLENGTH + EXFLAGS.size() > symbolsSize)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid export flags in symbol dictionary."));
+        }
+
         EXFLAGS.insert(EXFLAGS.end(), EXRUNLENGTH, CUREXFLAG);
         CUREXFLAG = !CUREXFLAG;
     }
@@ -1603,7 +1620,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     if (!parameters.SDHUFF)
     {
         // Skipneme 1 byte na konci
-        m_reader.skipBytes(1);
+        arithmeticDecoder.finalize();
     }
 
     std::vector<PDFJBIG2Bitmap> bitmaps;
@@ -1994,6 +2011,11 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for generic region."));
     }
+
+    if (!parameters.SBHUFF)
+    {
+        decoder.finalize();
+    }
 }
 
 void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& header)
@@ -2190,6 +2212,8 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for generic refinement region."));
     }
+
+    decoder.finalize();
 }
 
 void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)

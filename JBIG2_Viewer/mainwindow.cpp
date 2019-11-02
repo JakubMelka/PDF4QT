@@ -12,6 +12,7 @@
 #include <QPixmap>
 #include <QSettings>
 #include <QMessageBox>
+#include <QElapsedTimer>
 
 MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
@@ -90,7 +91,11 @@ void MainWindow::on_actionAdd_JBIG2_image_triggered()
             try
             {
                 pdf::PDFJBIG2Decoder decoder(data, QByteArray(), this);
+
+                QElapsedTimer timer;
+                timer.start();
                 pdf::PDFImageData imageData = decoder.decodeFileStream();
+                qint64 time = timer.elapsed();
 
                 if (imageData.isValid())
                 {
@@ -98,7 +103,7 @@ void MainWindow::on_actionAdd_JBIG2_image_triggered()
                     const uchar* sourceData = reinterpret_cast<const uchar*>(imageData.getData().constData());
                     Q_ASSERT(imageData.getData().size() == image.byteCount());
                     std::transform(sourceData, sourceData + imageData.getData().size(), image.bits(), [](const uchar value) { return ~value; });
-                    addImage(file.fileName(), qMove(image));
+                    addImage(file.fileName() + QString(", Decoded in %1 [msec]").arg(time), qMove(image));
                 }
             }
             catch (pdf::PDFException exception)
