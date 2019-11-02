@@ -39,6 +39,7 @@ struct PDFJBIG2ArithmeticDecoderStates
         IARDH,
         IARDX,
         IARDY,
+        IAAI,
         IAID,
         Generic,
         Refinement,
@@ -77,7 +78,7 @@ struct PDFJBIG2ArithmeticDecoderStates
 
 void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesInteger(const uint8_t IAIDbits)
 {
-    for (auto context : { IADH, IADW, IAEX, IADT, IAFS, IADS, IAIT, IARI, IARDW, IARDH, IARDX,IARDY })
+    for (auto context : { IADH, IADW, IAEX, IADT, IAFS, IADS, IAIT, IARI, IARDW, IARDH, IARDX, IARDY, IAAI })
     {
         states[context].reset(9);
     }
@@ -250,7 +251,7 @@ struct PDFJBIG2BitmapDecodingParameters
     uint8_t GBTEMPLATE = 0;
 
     /// Positions of adaptative pixels
-    PDFJBIG2ATPositions ATXY = { };
+    PDFJBIG2ATPositions GBAT = { };
 
     /// Data with encoded image
     QByteArray data;
@@ -1351,16 +1352,17 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
         }
     }
 
-    PDFJBIG2ArithmeticDecoder decoder(&m_reader);
-    PDFJBIG2ArithmeticDecoderState IADH;
-    PDFJBIG2ArithmeticDecoderState IADW;
-    PDFJBIG2ArithmeticDecoderState IAEX;
+    uint8_t SBSYMCODELENGTH = log2ceil(parameters.SDNUMINSYMS + parameters.SDNUMNEWSYMS);
+    if (parameters.SDHUFF)
+    {
+        SBSYMCODELENGTH = qMax<uint8_t>(SBSYMCODELENGTH, 1);
+    }
+
+    arithmeticDecoderStates.resetArithmeticStatesInteger(SBSYMCODELENGTH);
+    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader);
     if (!parameters.SDHUFF)
     {
-        decoder.initialize();
-        IADH.reset(9);
-        IADW.reset(9);
-        IAEX.reset(9);
+        arithmeticDecoder.initialize();
     }
 
     /* 6.5.5 - algorithm for decoding symbol dictionary */
@@ -1382,7 +1384,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     while (NSYMSDECODED < parameters.SDNUMNEWSYMS)
     {
         /* 6.5.5 step 4) b) - decode height class delta height according to 6.5.6 */
-        int32_t HCDH = checkInteger(parameters.SDHUFF ? parameters.SDHUFFDH_Decoder.readSignedInteger() : decoder.getSignedInteger(&IADH));
+        int32_t HCDH = checkInteger(parameters.SDHUFF ? parameters.SDHUFFDH_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IADH]));
         HCHEIGHT += HCDH;
         uint32_t SYMWIDTH = 0;
         uint32_t TOTWIDTH = 0;
@@ -1392,7 +1394,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
         while (NSYMSDECODED < parameters.SDNUMNEWSYMS)
         {
             /* 6.5.5 step 4) c) i) - Delta width acc. to 6.5.7 */
-            std::optional<int32_t> DW = parameters.SDHUFF ? parameters.SDHUFFDW_Decoder.readSignedInteger() : decoder.getSignedInteger(&IADW);
+            std::optional<int32_t> DW = parameters.SDHUFF ? parameters.SDHUFFDW_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IADW]);
 
             if (!DW.has_value())
             {
@@ -1421,15 +1423,117 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                     bitmapParameters.GBH = HCHEIGHT;
                     bitmapParameters.GBTEMPLATE = parameters.SDTEMPLATE;
                     bitmapParameters.TPGDON = false;
-                    bitmapParameters.ATXY = parameters.SDAT;
-                    bitmapParameters.arithmeticDecoder = &decoder;
+                    bitmapParameters.GBAT = parameters.SDAT;
+                    bitmapParameters.arithmeticDecoder = &arithmeticDecoder;
                     bitmapParameters.arithmeticDecoderState = &arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Generic];
                     parameters.SDNEWSYMS[NSYMSDECODED] = readBitmap(bitmapParameters);
                 }
                 else
                 {
                     /* 6.5.8.2 Refinement/aggregate-coded symbol bitmap */
-                    // TODO: JBIG2 read bitmap
+                    int32_t REFAGGNINST = checkInteger(parameters.SDHUFF ? parameters.SDHUFFAGGINST_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IAAI]));
+
+                    if (REFAGGNINST == 1)
+                    {
+                        uint32_t ID = 0;
+                        int32_t RDXI = 0;
+                        int32_t RDYI = 0;
+                        uint32_t BMSIZE = 0;
+                        int oldPosition = 0;
+
+                        if (parameters.SDHUFF)
+                        {
+                            PDFJBIG2HuffmanDecoder huffmanDecoderO(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                            PDFJBIG2HuffmanDecoder huffmanDecoderA(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+
+                            ID = m_reader.read(SBSYMCODELENGTH);
+                            RDXI = checkInteger(huffmanDecoderO.readSignedInteger());
+                            RDYI = checkInteger(huffmanDecoderO.readSignedInteger());
+                            BMSIZE = checkInteger(huffmanDecoderA.readSignedInteger());
+                            m_reader.alignToBytes();
+                            oldPosition = m_reader.getPosition();
+                            arithmeticDecoder.initialize();
+                        }
+                        else
+                        {
+                            ID = arithmeticDecoder.getIAID(SBSYMCODELENGTH, &arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IAID]);
+                            RDXI = checkInteger(arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IARDX]));
+                            RDYI = checkInteger(arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IARDY]));
+                        }
+
+                        if (ID >= parameters.SDNUMINSYMS + NSYMSDECODED)
+                        {
+                            throw PDFException(PDFTranslationContext::tr("Trying to use reference bitmap %1, but number of decoded bitmaps is %2.").arg(ID).arg(parameters.SDNUMINSYMS + NSYMSDECODED));
+                        }
+
+                        // Decode the bitmap
+                        PDFJBIG2BitmapRefinementDecodingParameters refinementParameters;
+                        refinementParameters.GRW = SYMWIDTH;
+                        refinementParameters.GRH = HCHEIGHT;
+                        refinementParameters.GRTEMPLATE = parameters.SDRTEMPLATE;
+                        refinementParameters.GRREFERENCE =  (ID < parameters.SDNUMINSYMS) ? parameters.SDINSYMS[ID] : &parameters.SDNEWSYMS[ID - parameters.SDNUMINSYMS];
+                        refinementParameters.GRREFERENCEX = RDXI;
+                        refinementParameters.GRREFERENCEY = RDYI;
+                        refinementParameters.TPGRON = false;
+                        refinementParameters.GRAT = parameters.SDRAT;
+                        parameters.SDNEWSYMS[NSYMSDECODED] = readRefinementBitmap(refinementParameters);
+
+                        if (parameters.SDHUFF)
+                        {
+                            m_reader.alignToBytes();
+                            m_reader.seek(oldPosition + BMSIZE);
+                        }
+                    }
+                    else
+                    {
+                        // Use table 17 to decode text region bitmap
+                        PDFJBIG2TextRegionDecodingParameters textParameters;
+                        textParameters.SBHUFF = parameters.SDHUFF;
+                        textParameters.SBREFINE = true;
+                        textParameters.SBDEFPIXEL = 0;
+                        textParameters.SBCOMBOP = PDFJBIG2BitOperation::Or;
+                        textParameters.TRANSPOSED = false;
+                        textParameters.REFCORNER = PDFJBIG2TextRegionDecodingParameters::TOPLEFT;
+                        textParameters.SBDSOFFSET = 0;
+                        textParameters.SBW = SYMWIDTH;
+                        textParameters.SBH = HCHEIGHT;
+                        textParameters.SBNUMINSTANCES = 1;
+                        textParameters.LOG2SBSTRIPS = 0;
+                        textParameters.SBSTRIPS = 1;
+                        textParameters.SBSYMS = parameters.SDINSYMS;
+
+                        for (uint32_t i = 0; i < NSYMSDECODED; ++i)
+                        {
+                            textParameters.SBSYMS.push_back(&parameters.SDNEWSYMS[i]);
+                        }
+                        textParameters.SBNUMSYMS = static_cast<uint32_t>(textParameters.SBSYMS.size());
+                        textParameters.SBSYMCODELEN = SBSYMCODELENGTH;
+                        textParameters.SBRTEMPLATE = parameters.SDRTEMPLATE;
+                        textParameters.SBRAT = parameters.SDRAT;
+                        textParameters.arithmeticDecoder = &arithmeticDecoder;
+                        textParameters.reader = &m_reader;
+                        textParameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
+                        textParameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
+                        textParameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
+                        textParameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+                        textParameters.initializeFrom(&arithmeticDecoderStates);
+
+                        std::vector<PDFJBIG2HuffmanTableEntry> symbols(textParameters.SBNUMSYMS, PDFJBIG2HuffmanTableEntry());
+                        for (uint32_t i = 0; i < textParameters.SBNUMSYMS; ++i)
+                        {
+                            symbols[i].value = i;
+                            symbols[i].prefixBitLength = SBSYMCODELENGTH;
+                        }
+
+                        textParameters.SBSYMCODES = PDFJBIG2HuffmanDecoder(&m_reader, PDFJBIG2HuffmanCodeTable::buildPrefixes(symbols));
+
+                        // Now, we can read the bitmap using text decode procedure
+                        parameters.SDNEWSYMS[NSYMSDECODED] = readTextBitmap(textParameters);
+                    }
                 }
             }
             else
@@ -1442,8 +1546,46 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
             ++NSYMSDECODED;
         }
 
-        /* 6.5.5 step 4) d) - create collective bitmap (if it does exist) */
-        // TODO: JBIG2 - create collective bitmap
+        /* 6.5.5 step 4) d) - create collective bitmap */
+        if (parameters.SDHUFF && parameters.SDREFAGG == 0)
+        {
+            PDFJBIG2Bitmap collectiveBitmap;
+            int32_t BMSIZE = checkInteger(parameters.SDHUFFBMSIZE_Decoder.readSignedInteger());
+            m_reader.alignToBytes();
+
+            if (BMSIZE == 0)
+            {
+                // Uncompressed data
+                collectiveBitmap = PDFJBIG2Bitmap(TOTWIDTH, HCHEIGHT, 0x00);
+                BMSIZE = HCHEIGHT * (TOTWIDTH + 7) / 8;
+                for (uint32_t y = 0; y < HCHEIGHT; ++y)
+                {
+                    for (uint32_t x = 0; x < TOTWIDTH; ++x)
+                    {
+                        collectiveBitmap.setPixel(x, y, m_reader.read(1) ? 0xFF : 0x00);
+                    }
+
+                    m_reader.alignToBytes();
+                }
+            }
+            else
+            {
+                PDFJBIG2BitmapDecodingParameters bitmapParameters;
+                bitmapParameters.MMR = true;
+                bitmapParameters.GBW = TOTWIDTH;
+                bitmapParameters.GBH = HCHEIGHT;
+                bitmapParameters.data = m_reader.readSubstream(BMSIZE);
+                collectiveBitmap = readBitmap(bitmapParameters);
+            }
+
+            m_reader.alignToBytes();
+
+            for (int32_t x = 0; HCFIRSTSYM < NSYMSDECODED; ++HCFIRSTSYM)
+            {
+                parameters.SDNEWSYMS[HCFIRSTSYM] = collectiveBitmap.getSubbitmap(x, 0, parameters.SDNEWSYMWIDTHS[HCFIRSTSYM], HCHEIGHT);
+                x += parameters.SDNEWSYMWIDTHS[HCFIRSTSYM];
+            }
+        }
     }
 
     /* 6.5.5 step 5) - determine exports according to 6.5.10 */
@@ -1453,7 +1595,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     bool CUREXFLAG = false;
     while (EXFLAGS.size() < symbolsSize)
     {
-        const uint32_t EXRUNLENGTH = static_cast<uint32_t>(checkInteger(parameters.SDHUFF ? parameters.EXRUNLENGTH_Decoder.readSignedInteger() : decoder.getSignedInteger(&IAEX)));
+        const uint32_t EXRUNLENGTH = static_cast<uint32_t>(checkInteger(parameters.SDHUFF ? parameters.EXRUNLENGTH_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IAEX])));
         EXFLAGS.insert(EXFLAGS.end(), EXRUNLENGTH, CUREXFLAG);
         CUREXFLAG = !CUREXFLAG;
     }
@@ -1887,7 +2029,7 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
     if (!parameters.MMR)
     {
         // We will use arithmetic coding, read template pixels and reset arithmetic coder state
-        parameters.ATXY = readATTemplatePixelPositions((parameters.GBTEMPLATE == 0) ? 4 : 1);
+        parameters.GBAT = readATTemplatePixelPositions((parameters.GBTEMPLATE == 0) ? 4 : 1);
         PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, parameters.GBTEMPLATE, nullptr);
     }
 
@@ -2355,18 +2497,18 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                         createContextBit(x - 2, y);
                         createContextBit(x - 3, y);
                         createContextBit(x - 4, y);
-                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
                         createContextBit(x + 2, y - 1);
                         createContextBit(x + 1, y - 1);
                         createContextBit(x + 0, y - 1);
                         createContextBit(x - 1, y - 1);
                         createContextBit(x - 2, y - 1);
-                        createContextBit(x + parameters.ATXY[1].x, y + parameters.ATXY[1].y);
-                        createContextBit(x + parameters.ATXY[2].x, y + parameters.ATXY[2].y);
+                        createContextBit(x + parameters.GBAT[1].x, y + parameters.GBAT[1].y);
+                        createContextBit(x + parameters.GBAT[2].x, y + parameters.GBAT[2].y);
                         createContextBit(x + 1, y - 2);
                         createContextBit(x + 0, y - 2);
                         createContextBit(x - 1, y - 2);
-                        createContextBit(x + parameters.ATXY[3].x, y + parameters.ATXY[3].y);
+                        createContextBit(x + parameters.GBAT[3].x, y + parameters.GBAT[3].y);
                         break;
                     }
 
@@ -2376,7 +2518,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                         createContextBit(x - 1, y);
                         createContextBit(x - 2, y);
                         createContextBit(x - 3, y);
-                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
                         createContextBit(x + 2, y - 1);
                         createContextBit(x + 1, y - 1);
                         createContextBit(x + 0, y - 1);
@@ -2394,7 +2536,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                         // 10-bit context
                         createContextBit(x - 1, y);
                         createContextBit(x - 2, y);
-                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
                         createContextBit(x + 1, y - 1);
                         createContextBit(x + 0, y - 1);
                         createContextBit(x - 1, y - 1);
@@ -2412,7 +2554,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                         createContextBit(x - 2, y);
                         createContextBit(x - 3, y);
                         createContextBit(x - 4, y);
-                        createContextBit(x + parameters.ATXY[0].x, y + parameters.ATXY[0].y);
+                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
                         createContextBit(x + 1, y - 1);
                         createContextBit(x + 0, y - 1);
                         createContextBit(x - 1, y - 1);
