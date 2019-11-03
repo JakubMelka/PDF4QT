@@ -29,6 +29,7 @@ class PDFJBIG2Bitmap;
 class PDFRenderErrorReporter;
 class PDFJBIG2HuffmanCodeTable;
 class PDFJBIG2SymbolDictionary;
+class PDFJBIG2PatternDictionary;
 
 struct PDFJBIG2HuffmanTableEntry;
 struct PDFJBIG2BitmapDecodingParameters;
@@ -271,26 +272,9 @@ public:
 
     virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const { return nullptr; }
     virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() { return nullptr; }
-};
 
-class PDFJBIG2HuffmanCodeTable : public PDFJBIG2Segment
-{
-public:
-    explicit PDFJBIG2HuffmanCodeTable(std::vector<PDFJBIG2HuffmanTableEntry>&& entries);
-    virtual ~PDFJBIG2HuffmanCodeTable();
-
-    virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const override { return this; }
-    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() override { return this; }
-
-    const std::vector<PDFJBIG2HuffmanTableEntry>& getEntries() const { return m_entries; }
-
-    /// Builds prefixes using algorithm in annex B.3 of specification. Unused rows are removed.
-    /// Rows are sorted according the criteria. Prefixes are then filled.
-    /// \param entries Entries for building the table
-    static std::vector<PDFJBIG2HuffmanTableEntry> buildPrefixes(const std::vector<PDFJBIG2HuffmanTableEntry>& entries);
-
-private:
-    std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
+    virtual const PDFJBIG2PatternDictionary* asPatternDictionary() const { return nullptr; }
+    virtual PDFJBIG2PatternDictionary* asPatternDictionary() { return nullptr; }
 };
 
 /// Huffman decoder - can decode integers / out of band values from huffman table.
@@ -396,42 +380,19 @@ private:
     std::vector<uint8_t> m_data;
 };
 
-class PDFJBIG2SymbolDictionary : public PDFJBIG2Segment
-{
-public:
-    explicit inline PDFJBIG2SymbolDictionary() = default;
-    explicit inline PDFJBIG2SymbolDictionary(std::vector<PDFJBIG2Bitmap>&& bitmaps,
-                                             PDFJBIG2ArithmeticDecoderState&& genericState,
-                                             PDFJBIG2ArithmeticDecoderState&& genericRefinementState) :
-        m_bitmaps(qMove(bitmaps)),
-        m_genericState(qMove(genericState)),
-        m_genericRefinementState(qMove(genericRefinementState))
-    {
-
-    }
-
-    virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const override { return this; }
-    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() override { return this; }
-
-    const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
-    const PDFJBIG2ArithmeticDecoderState& getGenericState() const { return m_genericState; }
-    const PDFJBIG2ArithmeticDecoderState& getGenericRefinementState() const { return m_genericRefinementState; }
-
-private:
-    std::vector<PDFJBIG2Bitmap> m_bitmaps;
-    PDFJBIG2ArithmeticDecoderState m_genericState;
-    PDFJBIG2ArithmeticDecoderState m_genericRefinementState;
-};
-
 struct PDFJBIG2ReferencedSegments
 {
     std::vector<const PDFJBIG2Bitmap*> bitmaps;
     std::vector<const PDFJBIG2HuffmanCodeTable*> codeTables;
     std::vector<const PDFJBIG2SymbolDictionary*> symbolDictionaries;
+    std::vector<const PDFJBIG2PatternDictionary*> patternDictionaries;
     size_t currentUserCodeTableIndex = 0;
 
     /// Returns symbol bitmaps from all symbol dictionaries
     std::vector<const PDFJBIG2Bitmap*> getSymbolBitmaps() const;
+
+    /// Returns pattern bitmaps from all pattern dictionaries
+    std::vector<const PDFJBIG2Bitmap*> getPatternBitmaps() const;
 
     /// Returns current user huffman table according the index. If index
     /// is out of range, then exception is thrown.
@@ -456,72 +417,6 @@ struct PDFJBIG2ATPosition
 };
 
 using PDFJBIG2ATPositions = std::array<PDFJBIG2ATPosition, 4>;
-
-/// Info structure for symbol dictionary decoding procedure
-struct PDFJBIG2SymbolDictionaryDecodingParameters
-{
-    /// If true, huffman encoding is used to decode dictionary,
-    /// otherwise arithmetic decoding is used to decode dictionary.
-    bool SDHUFF = false;
-
-    /// If true, each symbol is refinement/aggregate. If false,
-    /// then symbols are ordinary bitmaps.
-    bool SDREFAGG = false;
-
-    /// Table selector for huffman table encoding (height)
-    uint8_t SDHUFFDH = 0;
-
-    /// Table selector for huffman table encoding (width)
-    uint8_t SDHUFFDW = 0;
-
-    /// Table selector for huffman table encoding
-    uint8_t SDHUFFBMSIZE = 0;
-
-    /// Table selector for huffman table encoding
-    uint8_t SDHUFFAGGINST = 0;
-
-    /// Is statistics for arithmetic coding used from previous symbol dictionary?
-    bool isArithmeticCodingStateUsed = false;
-
-    /// Is statistics for arithmetic coding symbols retained for future use?
-    bool isArithmeticCodingStateRetained = false;
-
-    /// Template for decoding
-    uint8_t SDTEMPLATE = 0;
-
-    /// Template for decoding refinements
-    uint8_t SDRTEMPLATE = 0;
-
-    /// Adaptative pixel positions
-    PDFJBIG2ATPositions SDAT = { };
-
-    /// Adaptative pixel positions
-    PDFJBIG2ATPositions SDRAT = { };
-
-    /// Number of exported symbols
-    uint32_t SDNUMEXSYMS = 0;
-
-    /// Number of new symbols
-    uint32_t SDNUMNEWSYMS = 0;
-
-    PDFJBIG2HuffmanDecoder SDHUFFDH_Decoder;
-    PDFJBIG2HuffmanDecoder SDHUFFDW_Decoder;
-    PDFJBIG2HuffmanDecoder SDHUFFBMSIZE_Decoder;
-    PDFJBIG2HuffmanDecoder SDHUFFAGGINST_Decoder;
-    PDFJBIG2HuffmanDecoder EXRUNLENGTH_Decoder;
-
-    /// Input bitmaps
-    std::vector<const PDFJBIG2Bitmap*> SDINSYMS;
-
-    /// Number of input bitmaps
-    uint32_t SDNUMINSYMS = 0;
-
-    /// Output bitmaps
-    std::vector<PDFJBIG2Bitmap> SDNEWSYMS;
-
-    /// Widths
-    std::vector<int32_t> SDNEWSYMWIDTHS;
-};
 
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
 /// Handles also global segments. Decoder decodes data using the specification

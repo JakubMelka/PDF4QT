@@ -22,6 +22,72 @@
 namespace pdf
 {
 
+class PDFJBIG2HuffmanCodeTable : public PDFJBIG2Segment
+{
+public:
+    explicit PDFJBIG2HuffmanCodeTable(std::vector<PDFJBIG2HuffmanTableEntry>&& entries);
+    virtual ~PDFJBIG2HuffmanCodeTable();
+
+    virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const override { return this; }
+    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() override { return this; }
+
+    const std::vector<PDFJBIG2HuffmanTableEntry>& getEntries() const { return m_entries; }
+
+    /// Builds prefixes using algorithm in annex B.3 of specification. Unused rows are removed.
+    /// Rows are sorted according the criteria. Prefixes are then filled.
+    /// \param entries Entries for building the table
+    static std::vector<PDFJBIG2HuffmanTableEntry> buildPrefixes(const std::vector<PDFJBIG2HuffmanTableEntry>& entries);
+
+private:
+    std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
+};
+
+class PDFJBIG2SymbolDictionary : public PDFJBIG2Segment
+{
+public:
+    explicit inline PDFJBIG2SymbolDictionary() = default;
+    explicit inline PDFJBIG2SymbolDictionary(std::vector<PDFJBIG2Bitmap>&& bitmaps,
+                                             PDFJBIG2ArithmeticDecoderState&& genericState,
+                                             PDFJBIG2ArithmeticDecoderState&& genericRefinementState) :
+        m_bitmaps(qMove(bitmaps)),
+        m_genericState(qMove(genericState)),
+        m_genericRefinementState(qMove(genericRefinementState))
+    {
+
+    }
+
+    virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const override { return this; }
+    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() override { return this; }
+
+    const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
+    const PDFJBIG2ArithmeticDecoderState& getGenericState() const { return m_genericState; }
+    const PDFJBIG2ArithmeticDecoderState& getGenericRefinementState() const { return m_genericRefinementState; }
+
+private:
+    std::vector<PDFJBIG2Bitmap> m_bitmaps;
+    PDFJBIG2ArithmeticDecoderState m_genericState;
+    PDFJBIG2ArithmeticDecoderState m_genericRefinementState;
+};
+
+class PDFJBIG2PatternDictionary : public PDFJBIG2Segment
+{
+public:
+    explicit inline PDFJBIG2PatternDictionary() = default;
+    explicit inline PDFJBIG2PatternDictionary(std::vector<PDFJBIG2Bitmap>&& bitmaps) :
+        m_bitmaps(qMove(bitmaps))
+    {
+
+    }
+
+    virtual const PDFJBIG2PatternDictionary* asPatternDictionary() const override { return this; }
+    virtual PDFJBIG2PatternDictionary* asPatternDictionary() override { return this; }
+
+    const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
+
+private:
+    std::vector<PDFJBIG2Bitmap> m_bitmaps;
+};
+
 /// Structure containing arithmetic decoder states
 struct PDFJBIG2ArithmeticDecoderStates
 {
@@ -298,6 +364,72 @@ struct PDFJBIG2BitmapRefinementDecodingParameters
     PDFJBIG2ATPositions GRAT = { };
 
     PDFJBIG2ArithmeticDecoder* decoder = nullptr;
+};
+
+/// Info structure for symbol dictionary decoding procedure
+struct PDFJBIG2SymbolDictionaryDecodingParameters
+{
+    /// If true, huffman encoding is used to decode dictionary,
+    /// otherwise arithmetic decoding is used to decode dictionary.
+    bool SDHUFF = false;
+
+    /// If true, each symbol is refinement/aggregate. If false,
+    /// then symbols are ordinary bitmaps.
+    bool SDREFAGG = false;
+
+    /// Table selector for huffman table encoding (height)
+    uint8_t SDHUFFDH = 0;
+
+    /// Table selector for huffman table encoding (width)
+    uint8_t SDHUFFDW = 0;
+
+    /// Table selector for huffman table encoding
+    uint8_t SDHUFFBMSIZE = 0;
+
+    /// Table selector for huffman table encoding
+    uint8_t SDHUFFAGGINST = 0;
+
+    /// Is statistics for arithmetic coding used from previous symbol dictionary?
+    bool isArithmeticCodingStateUsed = false;
+
+    /// Is statistics for arithmetic coding symbols retained for future use?
+    bool isArithmeticCodingStateRetained = false;
+
+    /// Template for decoding
+    uint8_t SDTEMPLATE = 0;
+
+    /// Template for decoding refinements
+    uint8_t SDRTEMPLATE = 0;
+
+    /// Adaptative pixel positions
+    PDFJBIG2ATPositions SDAT = { };
+
+    /// Adaptative pixel positions
+    PDFJBIG2ATPositions SDRAT = { };
+
+    /// Number of exported symbols
+    uint32_t SDNUMEXSYMS = 0;
+
+    /// Number of new symbols
+    uint32_t SDNUMNEWSYMS = 0;
+
+    PDFJBIG2HuffmanDecoder SDHUFFDH_Decoder;
+    PDFJBIG2HuffmanDecoder SDHUFFDW_Decoder;
+    PDFJBIG2HuffmanDecoder SDHUFFBMSIZE_Decoder;
+    PDFJBIG2HuffmanDecoder SDHUFFAGGINST_Decoder;
+    PDFJBIG2HuffmanDecoder EXRUNLENGTH_Decoder;
+
+    /// Input bitmaps
+    std::vector<const PDFJBIG2Bitmap*> SDINSYMS;
+
+    /// Number of input bitmaps
+    uint32_t SDNUMINSYMS = 0;
+
+    /// Output bitmaps
+    std::vector<PDFJBIG2Bitmap> SDNEWSYMS;
+
+    /// Widths
+    std::vector<int32_t> SDNEWSYMWIDTHS;
 };
 
 static constexpr PDFJBIG2HuffmanTableEntry PDFJBIG2StandardHuffmanTable_A[] =
@@ -2024,12 +2156,118 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
 
 void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& header)
 {
-    // TODO: JBIG2 - processPatternDictionary
-    throw PDFException(PDFTranslationContext::tr("JBIG2 NOT IMPLEMENTED."));
+    const int segmentStartPosition = m_reader.getPosition();
+    const uint8_t flags = m_reader.readUnsignedByte();
+    const uint8_t HDPW = m_reader.readUnsignedByte();
+    const uint8_t HDPH = m_reader.readUnsignedByte();
+    const uint32_t GRAYMAX = m_reader.readUnsignedInt();
+    const bool HDMMR = flags & 0x01;
+    const uint8_t HDTEMPLATE = (flags >> 1) &0x03;
+
+    if ((flags & 0b11111000) != 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid pattern dictionary flags."));
+    }
+
+    QByteArray mmrData;
+    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader);
+    PDFJBIG2ArithmeticDecoderState genericState;
+    if (!HDMMR)
+    {
+        arithmeticDecoder.initialize();
+        PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, HDTEMPLATE, nullptr);
+    }
+    else
+    {
+        // Determine segment data length
+        const int segmentDataStartPosition = m_reader.getPosition();
+        const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
+        if (header.isSegmentDataLengthDefined())
+        {
+            int segmentDataBytes = header.getSegmentDataLength() - segmentHeaderBytes;
+            mmrData = m_reader.readSubstream(segmentDataBytes);
+        }
+        else
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 unknown data length for pattern dictionary."));
+        }
+    }
+
+    PDFJBIG2BitmapDecodingParameters parameters;
+    parameters.MMR = HDMMR;
+    parameters.GBW = (GRAYMAX + 1) * HDPW;
+    parameters.GBH = HDPH;
+    parameters.GBTEMPLATE = HDTEMPLATE;
+    parameters.TPGDON = false;
+    parameters.SKIP = nullptr;
+    parameters.GBAT[0] = { -static_cast<int8_t>(HDPW), 0 };
+    parameters.GBAT[1] = { -3, -1 };
+    parameters.GBAT[2] = { 2, -2 };
+    parameters.GBAT[3] = { -2, -2 };
+    parameters.arithmeticDecoder = &arithmeticDecoder;
+    parameters.arithmeticDecoderState = &genericState;
+    parameters.data = qMove(mmrData);
+
+    PDFJBIG2Bitmap collectiveBitmap = readBitmap(parameters);
+
+    if (!HDMMR)
+    {
+        arithmeticDecoder.finalize();
+    }
+
+    if (collectiveBitmap.getWidth() != parameters.GBW || collectiveBitmap.getHeight() != parameters.GBH)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid pattern dictionary collective bitmap."));
+    }
+
+    std::vector<PDFJBIG2Bitmap> bitmaps;
+    bitmaps.reserve(GRAYMAX + 1);
+
+    int offsetX = 0;
+    for (uint32_t i = 0; i <= GRAYMAX; ++i)
+    {
+        bitmaps.push_back(collectiveBitmap.getSubbitmap(offsetX, 0, HDPW, HDPH));
+        offsetX += HDPW;
+    }
+
+    m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2PatternDictionary>(qMove(bitmaps));
 }
 
 void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 {
+    PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
+    const uint8_t flags = m_reader.readUnsignedByte();
+    const bool HMMR = flags & 0x01;
+    const uint8_t HTEMPLATE = (flags >> 1) & 0x03;
+    const bool HENABLESKIP = flags & 0x08;
+    const uint8_t HCOMBOOP = (flags >> 4) & 0x07;
+    const uint8_t HDEFPIXEL = (flags >> 7) & 0x01;
+    const uint32_t HGW = m_reader.readUnsignedInt();
+    const uint32_t HGH = m_reader.readUnsignedInt();
+    const uint32_t HGX = m_reader.readSignedInt();
+    const uint32_t HGY = m_reader.readSignedInt();
+    const uint16_t HRX = m_reader.readUnsignedWord();
+    const uint16_t HRY = m_reader.readUnsignedWord();
+
+    PDFJBIG2ReferencedSegments references = getReferencedSegments(header);
+    if (references.patternDictionaries.size() != 1)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referenced pattern dictionaries for halftone segment."));
+    }
+
+    std::vector<const PDFJBIG2Bitmap*> HPATS = references.getPatternBitmaps();
+    const uint32_t HNUMPATS = static_cast<uint32_t>(HPATS.size());
+
+    if (!HNUMPATS)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid patterns for halftone segment."));
+    }
+
+    const PDFJBIG2Bitmap* firstBitmap = HPATS.front();
+    const int HPW = firstBitmap->getWidth();
+    const int HPH = firstBitmap->getHeight();
+
+
     // TODO: JBIG2 - processHalftoneRegion
     throw PDFException(PDFTranslationContext::tr("JBIG2 NOT IMPLEMENTED."));
 }
@@ -3038,6 +3276,10 @@ PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2
             {
                 segments.symbolDictionaries.push_back(symbolDictionary);
             }
+            else if (const PDFJBIG2PatternDictionary* patternDictionary = referredSegment->asPatternDictionary())
+            {
+                segments.patternDictionaries.push_back(patternDictionary);
+            }
             else
             {
                 Q_ASSERT(false);
@@ -3365,6 +3607,23 @@ std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getSymbolBitmaps(
     std::vector<const PDFJBIG2Bitmap*> result;
 
     for (const PDFJBIG2SymbolDictionary* dictionary  : symbolDictionaries)
+    {
+        const std::vector<PDFJBIG2Bitmap>& bitmaps = dictionary->getBitmaps();
+        result.reserve(result.size() + bitmaps.size());
+        for (const PDFJBIG2Bitmap& bitmap : bitmaps)
+        {
+            result.push_back(&bitmap);
+        }
+    }
+
+    return result;
+}
+
+std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getPatternBitmaps() const
+{
+    std::vector<const PDFJBIG2Bitmap*> result;
+
+    for (const PDFJBIG2PatternDictionary* dictionary  : patternDictionaries)
     {
         const std::vector<PDFJBIG2Bitmap>& bitmaps = dictionary->getBitmaps();
         result.reserve(result.size() + bitmaps.size());
