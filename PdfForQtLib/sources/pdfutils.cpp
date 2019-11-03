@@ -112,6 +112,11 @@ void PDFBitReader::alignToBytes()
     if (remainder > 0)
     {
         read(remainder);
+
+        if (m_bitsInBuffer == 0)
+        {
+            m_buffer = 0;
+        }
     }
 }
 

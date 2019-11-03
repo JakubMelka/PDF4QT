@@ -992,7 +992,7 @@ PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
         {
             for (int column = 0; column < columns; ++column)
             {
-                writer.write(m_pageBitmap.getPixel(column, row));
+                writer.write(!m_pageBitmap.getPixel(column, row));
             }
             writer.finishLine();
         }
@@ -1205,8 +1205,8 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     parameters.isArithmeticCodingStateRetained = (symbolDictionaryFlags >> 9) & 0x0001;
     parameters.SDTEMPLATE = (symbolDictionaryFlags >> 10) & 0x0003;
     parameters.SDRTEMPLATE = (symbolDictionaryFlags >> 12) & 0x0001;
-    parameters.SDAT = readATTemplatePixelPositions((parameters.SDHUFF == 0) ? ((parameters.SDTEMPLATE == 0) ? 4 : 1) : 0);
-    parameters.SDRAT = readATTemplatePixelPositions((parameters.SDREFAGG == 1 && parameters.SDRTEMPLATE == 0) ? 2 : 0);
+    parameters.SDAT = readATTemplatePixelPositions((!parameters.SDHUFF) ? ((parameters.SDTEMPLATE == 0) ? 4 : 1) : 0);
+    parameters.SDRAT = readATTemplatePixelPositions((parameters.SDREFAGG && parameters.SDRTEMPLATE == 0) ? 2 : 0);
     parameters.SDNUMEXSYMS = m_reader.readUnsignedInt();
     parameters.SDNUMNEWSYMS = m_reader.readUnsignedInt();
 

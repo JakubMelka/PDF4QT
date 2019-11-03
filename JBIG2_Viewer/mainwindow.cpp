@@ -102,7 +102,7 @@ void MainWindow::on_actionAdd_JBIG2_image_triggered()
                     QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_Mono);
                     const uchar* sourceData = reinterpret_cast<const uchar*>(imageData.getData().constData());
                     Q_ASSERT(imageData.getData().size() == image.byteCount());
-                    std::transform(sourceData, sourceData + imageData.getData().size(), image.bits(), [](const uchar value) { return ~value; });
+                    std::transform(sourceData, sourceData + imageData.getData().size(), image.bits(), [](const uchar value) { return value; });
                     addImage(file.fileName() + QString(", Decoded in %1 [msec]").arg(time), qMove(image));
                 }
             }

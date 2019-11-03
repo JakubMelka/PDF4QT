@@ -670,6 +670,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
 
         PDFJBIG2Decoder decoder(qMove(data), qMove(globalData), errorReporter);
         image.m_imageData = decoder.decode(maskingType);
+        image.m_imageData.setDecode(!decode.empty() ? qMove(decode) : std::vector<PDFReal>({ 0.0, 1.0 }));
     }
     else if (colorSpace || isSoftMask)
     {
