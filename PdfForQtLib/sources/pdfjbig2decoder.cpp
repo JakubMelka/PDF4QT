@@ -208,7 +208,7 @@ struct PDFJBIG2TextRegionDecodingParameters : public PDFJBIG2ArithmeticDecoderSt
     PDFJBIG2BitOperation SBCOMBOP = PDFJBIG2BitOperation::Invalid;
     bool TRANSPOSED = false;
     uint8_t REFCORNER = 0;
-    uint8_t SBDSOFFSET = 0;
+    int32_t SBDSOFFSET = 0;
     uint32_t SBW = 0;
     uint32_t SBH = 0;
     uint32_t SBNUMINSTANCES = 0;
@@ -1344,22 +1344,22 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
         {
             arithmeticDecoderStates.resetArithmeticStatesGeneric(parameters.SDTEMPLATE, nullptr);
         }
+    }
 
-        if (parameters.SDREFAGG)
+    if (parameters.SDREFAGG)
+    {
+        if (parameters.isArithmeticCodingStateUsed)
         {
-            if (parameters.isArithmeticCodingStateUsed)
+            if (references.symbolDictionaries.empty())
             {
-                if (references.symbolDictionaries.empty())
-                {
-                    throw PDFException(PDFTranslationContext::tr("JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn't exist."));
-                }
+                throw PDFException(PDFTranslationContext::tr("JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn't exist."));
+            }
 
-                arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, &references.symbolDictionaries.back()->getGenericRefinementState());
-            }
-            else
-            {
-                arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, nullptr);
-            }
+            arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, &references.symbolDictionaries.back()->getGenericRefinementState());
+        }
+        else
+        {
+            arithmeticDecoderStates.resetArithmeticStatesGenericRefinement(parameters.SDRTEMPLATE, nullptr);
         }
     }
 
@@ -1487,10 +1487,13 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                         refinementParameters.GRREFERENCEY = RDYI;
                         refinementParameters.TPGRON = false;
                         refinementParameters.GRAT = parameters.SDRAT;
+                        refinementParameters.decoder = &arithmeticDecoder;
+                        refinementParameters.arithmeticDecoderState = &arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Refinement];
                         parameters.SDNEWSYMS[NSYMSDECODED] = readRefinementBitmap(refinementParameters);
 
                         if (parameters.SDHUFF)
                         {
+                            arithmeticDecoder.finalize();
                             m_reader.alignToBytes();
                             m_reader.seek(oldPosition + BMSIZE);
                         }
@@ -1693,8 +1696,9 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     const uint8_t SBCOMBOOP_value = (flags >> 7) & 0x03;
     const PDFJBIG2BitOperation SBCOMBOOP = getSBCOMBOOP(SBCOMBOOP_value);
     const uint8_t SBDEFPIXEL = ((flags >> 9) & 0x01) ? 0xFF : 0x00;
-    const uint8_t SBDSOFFSET = (flags >> 10) & 0x1F;
+    const int32_t SBDSOFFSET = (flags >> 10) & 0x1F;
     const uint8_t SBRTEMPLATE = (flags >> 15) & 0x01;
+    const int32_t SBDSOFFSET_SIGNED = (SBDSOFFSET & 0b10000) ? (SBDSOFFSET - 0b100000) : SBDSOFFSET;
 
     // Decoding parameters
     PDFJBIG2TextRegionDecodingParameters parameters;
@@ -1704,7 +1708,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     parameters.SBCOMBOP = SBCOMBOOP;
     parameters.TRANSPOSED = TRANSPOSED;
     parameters.REFCORNER = REFCORNER;
-    parameters.SBDSOFFSET = SBDSOFFSET;
+    parameters.SBDSOFFSET = SBDSOFFSET_SIGNED;
     parameters.SBW = regionSegmentInfo.width;
     parameters.SBH = regionSegmentInfo.height;
     parameters.SBRTEMPLATE = SBRTEMPLATE;
@@ -2431,7 +2435,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
         {
             for (unsigned int column = 0; column < data.getWidth(); ++column)
             {
-                bitmap.setPixel(column, row, (reader.read()) ? 0xFF : 0x00);
+                bitmap.setPixel(column, row, (reader.read()) ? 0x00 : 0xFF);
             }
 
             reader.alignToBytes();
@@ -2694,10 +2698,6 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDec
         if (parameters.TPGRON)
         {
             LTP = LTP ^ decoder.readBit(LTPContext, parameters.arithmeticDecoderState);
-            if (LTP)
-            {
-
-            }
         }
 
         if (!LTP)
