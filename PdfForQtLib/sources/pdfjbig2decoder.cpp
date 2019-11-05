@@ -322,6 +322,9 @@ struct PDFJBIG2BitmapDecodingParameters
     /// Data with encoded image
     QByteArray data;
 
+    /// End position in the data after reading MMR
+    int dataEndPosition = 0;
+
     /// State of arithmetic decoder
     PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
 
@@ -2235,6 +2238,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
 
 void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 {
+    const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
     const uint8_t flags = m_reader.readUnsignedByte();
     const bool HMMR = flags & 0x01;
@@ -2248,6 +2252,35 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     const uint32_t HGY = m_reader.readSignedInt();
     const uint16_t HRX = m_reader.readUnsignedWord();
     const uint16_t HRY = m_reader.readUnsignedWord();
+    const int HBW = field.width;
+    const int HBH = field.height;
+
+    PDFJBIG2BitOperation HCOMBOOPValue = PDFJBIG2BitOperation::Invalid;
+    switch (HCOMBOOP)
+    {
+        case 0:
+            HCOMBOOPValue = PDFJBIG2BitOperation::Or;
+            break;
+
+        case 1:
+            HCOMBOOPValue = PDFJBIG2BitOperation::And;
+            break;
+
+        case 2:
+            HCOMBOOPValue = PDFJBIG2BitOperation::Xor;
+            break;
+
+        case 3:
+            HCOMBOOPValue = PDFJBIG2BitOperation::NotXor;
+            break;
+
+        case 4:
+            HCOMBOOPValue = PDFJBIG2BitOperation::Replace;
+            break;
+
+        default:
+            throw PDFException(PDFTranslationContext::tr("JBIG2 region segment information - invalid bit operation mode."));
+    }
 
     PDFJBIG2ReferencedSegments references = getReferencedSegments(header);
     if (references.patternDictionaries.size() != 1)
@@ -2267,9 +2300,168 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     const int HPW = firstBitmap->getWidth();
     const int HPH = firstBitmap->getHeight();
 
+    /* 6.6 step 1) */
+    PDFJBIG2Bitmap HTREG(HBW, HBH, HDEFPIXEL ? 0xFF : 0x00);
 
-    // TODO: JBIG2 - processHalftoneRegion
-    throw PDFException(PDFTranslationContext::tr("JBIG2 NOT IMPLEMENTED."));
+    /* 6.6 step 2) compute HSKIP bitmap */
+    PDFJBIG2Bitmap HSKIP;
+    if (HENABLESKIP)
+    {
+        /* 6.6.5.1 */
+        HSKIP = PDFJBIG2Bitmap(HGW, HGH, 0x00);
+
+        for (int MG = 0; MG < static_cast<int>(HGH); ++MG)
+        {
+            for (int NG = 0; NG < static_cast<int>(HGW); ++NG)
+            {
+                /* 6.6.5.1 1) a) i) */
+                const int x = (static_cast<int>(HGX) + MG * static_cast<int>(HRY) + NG * static_cast<int>(HRX)) / 256;
+                const int y = (static_cast<int>(HGY) + MG * static_cast<int>(HRX) - NG * static_cast<int>(HRY)) / 256;
+
+                /* 6.6.5.1 1) a) ii) */
+                if ((x + static_cast<int>(HPW) <= 0) || (x >= HBW) || (y + static_cast<int>(HPH) <= 0) || (y >= HBH))
+                {
+                    HSKIP.setPixel(NG, MG, 0xFF);
+                }
+            }
+        }
+    }
+
+    /* 6.6 step 3) */
+    const uint8_t HBPP = log2ceil(HNUMPATS);
+    Q_ASSERT(HBPP > 0);
+
+    if (HBPP > 8)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 halftoning with more than 8 grayscale bit planes not supported (current bitplanes: %1).").arg(HBPP));
+    }
+
+    /* 6.6 step 4) */
+
+    QByteArray mmrData;
+    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader);
+    PDFJBIG2ArithmeticDecoderState genericState;
+    if (!HMMR)
+    {
+        arithmeticDecoder.initialize();
+        PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, HTEMPLATE, nullptr);
+    }
+    else
+    {
+        // Determine segment data length
+        const int segmentDataStartPosition = m_reader.getPosition();
+        const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
+        if (header.isSegmentDataLengthDefined())
+        {
+            int segmentDataBytes = header.getSegmentDataLength() - segmentHeaderBytes;
+            mmrData = m_reader.readSubstream(segmentDataBytes);
+        }
+        else
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 unknown data length for halftone dictionary."));
+        }
+    }
+
+    /*  Annex C5 decoding procedure */
+    PDFJBIG2BitmapDecodingParameters parameters;
+    parameters.MMR = HMMR;
+    parameters.GBW = HGW;
+    parameters.GBH = HGH;
+    parameters.GBTEMPLATE = HTEMPLATE;
+    parameters.SKIP = HENABLESKIP ? &HSKIP : nullptr;
+    parameters.TPGDON = false;
+    parameters.GBAT[0] = { ((HTEMPLATE <= 1) ? 3 : 2), -1 };
+    parameters.GBAT[1] = { -3, -1 };
+    parameters.GBAT[2] = { 2, -2 };
+    parameters.GBAT[3] = { -2, -2 };
+    parameters.arithmeticDecoder = &arithmeticDecoder;
+    parameters.arithmeticDecoderState = &genericState;
+    parameters.data = qMove(mmrData);
+
+    PDFJBIG2Bitmap GI(HGW, HGH, 0x00);
+    for (int J = HBPP - 1; J >= 0; --J)
+    {
+        PDFJBIG2Bitmap PLANE = readBitmap(parameters);
+
+        if (HMMR)
+        {
+            // We must find EOFB symbol in the data. We hope, that EOFB symbol
+            // lies in the compressed data, otherwise we can't do anything...
+            PDFBitReader reader(&parameters.data, 1);
+			
+            while (!reader.isAtEnd())
+            {
+                if (reader.look(24) == 0x1001)
+                {
+                    reader.read(24);
+                    reader.alignToBytes();
+                    parameters.data = parameters.data.mid(reader.getPosition());
+                    break;
+                }
+                else
+                {
+                    reader.read(1);
+                }
+            }
+        }
+
+        if (PLANE.getWidth() != HGW || PLANE.getHeight() != HGH)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid halftone grayscale bit plane image."));
+        }
+
+        for (int x = 0; x < static_cast<int>(HGW); ++x)
+        {
+            for (int y = 0; y < static_cast<int>(HGH); ++y)
+            {
+                // Old bit is in the first position of grayscale image
+                const uint8_t oldPixel = GI.getPixel(x, y);
+                const uint8_t bit = (oldPixel ^ PLANE.getPixel(x, y)) & 0x01;
+                GI.setPixel(x, y, (oldPixel << 1) | bit);
+            }
+        }
+    }
+
+    /* 6.6 step 5) - 6.6.5.2 render the grid */
+    for (int MG = 0; MG < static_cast<int>(HGH); ++MG)
+    {
+        for (int NG = 0; NG < static_cast<int>(HGW); ++NG)
+        {
+            /* 6.6.5.2 1) a) i) */
+            const int x = (static_cast<int>(HGX) + MG * static_cast<int>(HRY) + NG * static_cast<int>(HRX)) / 256;
+            const int y = (static_cast<int>(HGY) + MG * static_cast<int>(HRX) - NG * static_cast<int>(HRY)) / 256;
+
+            /* 6.6.5.1 1) a) ii) */
+            const uint8_t index = GI.getPixel(NG, MG);
+            if (Q_UNLIKELY(index >= HNUMPATS))
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 halftoning pattern index %1 out of bounds [0, %2]").arg(index).arg(HNUMPATS));
+            }
+
+            HTREG.paint(*HPATS[index], x, y, HCOMBOOPValue, false, 0x00);
+        }
+    }
+
+    if (HTREG.isValid())
+    {
+        if (header.isImmediate())
+        {
+            m_pageBitmap.paint(HTREG, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+        }
+        else
+        {
+            m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(HTREG));
+        }
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for halftone region."));
+    }
+
+    if (!HMMR)
+    {
+        arithmeticDecoder.finalize();
+    }
 }
 
 void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
@@ -2664,6 +2856,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
 
         PDFCCITTFaxDecoder decoder(&parameters.data, ccittParameters);
         PDFImageData data = decoder.decode();
+        parameters.dataEndPosition = decoder.getReader()->getPosition();
 
         PDFJBIG2Bitmap bitmap(data.getWidth(), data.getHeight(), m_pageDefaultPixelValue);
 

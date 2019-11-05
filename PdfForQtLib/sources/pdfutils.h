@@ -325,6 +325,7 @@ unsigned char* convertByteArrayToUcharPtr(QByteArray& data)
 /// License for this function is public domain.
 inline constexpr uint8_t log2ceil(uint32_t value)
 {
+    const uint32_t originalValue = value;
     constexpr uint8_t MULTIPLY_DE_BRUIJN_BIT_POSITION[32] =
     {
       0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
@@ -340,7 +341,7 @@ inline constexpr uint8_t log2ceil(uint32_t value)
     uint8_t logarithm = MULTIPLY_DE_BRUIJN_BIT_POSITION[static_cast<uint32_t>((value * 0x07C4ACDDU) >> 27)];
 
     // Ceil
-    if ((1U << logarithm) < value)
+    if ((1U << logarithm) < originalValue)
     {
         ++logarithm;
     }

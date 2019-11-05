@@ -81,6 +81,8 @@ public:
 
     PDFImageData decode();
 
+    const PDFBitReader* getReader() const { return &m_reader; }
+
 private:
     /// Skip zero bits at the start
     void skipFill();
