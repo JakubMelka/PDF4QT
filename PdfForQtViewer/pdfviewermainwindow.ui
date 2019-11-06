@@ -62,6 +62,9 @@
     </widget>
     <addaction name="menuPage_Layout"/>
     <addaction name="menuRendering_Options"/>
+    <addaction name="separator"/>
+    <addaction name="actionZoom_In"/>
+    <addaction name="actionZoom_Out"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -83,9 +86,14 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="actionOpen"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionOpen">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/open.svg</normaloff>:/resources/open.svg</iconset>
+   </property>
    <property name="text">
     <string>Open</string>
    </property>
@@ -96,6 +104,10 @@
    </property>
   </action>
   <action name="actionQuit">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/quit.svg</normaloff>:/resources/quit.svg</iconset>
+   </property>
    <property name="text">
     <string>Quit</string>
    </property>
@@ -159,6 +171,10 @@
    </property>
   </action>
   <action name="actionRendering_Errors">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/rendering-errors.svg</normaloff>:/resources/rendering-errors.svg</iconset>
+   </property>
    <property name="text">
     <string>Rendering Errors</string>
    </property>
@@ -199,6 +215,10 @@
    </property>
   </action>
   <action name="actionOptions">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/settings.svg</normaloff>:/resources/settings.svg</iconset>
+   </property>
    <property name="text">
     <string>Options...</string>
    </property>
@@ -206,8 +226,28 @@
     <string>Ctrl+K</string>
    </property>
   </action>
+  <action name="actionZoom_In">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/zoom-in.svg</normaloff>:/resources/zoom-in.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Zoom In</string>
+   </property>
+  </action>
+  <action name="actionZoom_Out">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/zoom-out.svg</normaloff>:/resources/zoom-out.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Zoom Out</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <resources/>
+ <resources>
+  <include location="pdfforqtviewer.qrc"/>
+ </resources>
  <connections/>
 </ui>

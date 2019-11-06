@@ -172,6 +172,15 @@ public:
     /// then exception is thrown.
     static PDFViewerPreferences parse(const PDFObject& catalogDictionary, const PDFDocument* document);
 
+    OptionFlags getOptions() const { return m_optionFlags; }
+    const QByteArray& getProperty(Properties property) const { return m_properties.at(property); }
+    NonFullScreenPageMode getNonFullScreenPageMode() const { return m_nonFullScreenPageMode; }
+    Direction getDirection() const { return m_direction; }
+    Duplex getDuplex() const { return m_duplex; }
+    PrintScaling getPrintScaling() const { return m_printScaling; }
+    const std::vector<std::pair<PDFInteger, PDFInteger>>& getPrintPageRanges() const { return m_printPageRanges; }
+    PDFInteger getNumberOfCopies() const { return m_numberOfCopies; }
+
 private:
     OptionFlags m_optionFlags = None;
     std::array<QByteArray, EndProperties> m_properties;

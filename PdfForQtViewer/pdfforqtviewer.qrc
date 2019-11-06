@@ -3,5 +3,18 @@
         <file>resources/engine.svg</file>
         <file>resources/rendering.svg</file>
         <file>resources/shading.svg</file>
+        <file>resources/next.svg</file>
+        <file>resources/next-end.svg</file>
+        <file>resources/next-page.svg</file>
+        <file>resources/open.svg</file>
+        <file>resources/previous.svg</file>
+        <file>resources/previous-page.svg</file>
+        <file>resources/previous-start.svg</file>
+        <file>resources/options.svg</file>
+        <file>resources/quit.svg</file>
+        <file>resources/rendering-errors.svg</file>
+        <file>resources/settings.svg</file>
+        <file>resources/zoom-in.svg</file>
+        <file>resources/zoom-out.svg</file>
     </qresource>
 </RCC>

@@ -27,7 +27,10 @@
 #include <QMainWindow>
 #include <QSharedPointer>
 
+class QLabel;
+class QSpinBox;
 class QSettings;
+class QDoubleSpinBox;
 
 namespace Ui
 {
@@ -69,6 +72,8 @@ private:
     void onActionCloseTriggered();
     void onActionQuitTriggered();
     void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
+    void onDrawSpaceChanged();
+    void onPageLayoutChanged();
 
     void readSettings();
     void writeSettings();
@@ -76,6 +81,7 @@ private:
     void updateTitle();
     void updatePageLayoutActions();
     void updateRenderingOptionActions();
+    void updateUI(bool fullUpdate);
 
     void onViewerSettingsChanged();
     void onRenderingOptionTriggered(bool checked);
@@ -88,6 +94,8 @@ private:
 
     std::vector<QAction*> getRenderingOptionActions() const;
 
+    int adjustDpiX(int value);
+
     Ui::PDFViewerMainWindow* ui;
     PDFViewerSettings* m_settings;
     pdf::PDFWidget* m_pdfWidget;
@@ -97,6 +105,10 @@ private:
     QTreeView* m_optionalContentTreeView;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
+    QSpinBox* m_pageNumberSpinBox;
+    QLabel* m_pageNumberLabel;
+    QDoubleSpinBox* m_pageZoomSpinBox;
+    bool m_isLoadingUI;
 };
 
 }   // namespace pdfviewer

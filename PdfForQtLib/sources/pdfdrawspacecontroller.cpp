@@ -664,6 +664,18 @@ void PDFDrawWidgetProxy::performOperation(Operation operation)
             break;
         }
 
+        case ZoomIn:
+        {
+            zoom(m_zoom * ZOOM_STEP);
+            break;
+        }
+
+        case ZoomOut:
+        {
+            zoom(m_zoom / ZOOM_STEP);
+            break;
+        }
+
         default:
         {
             Q_ASSERT(false);

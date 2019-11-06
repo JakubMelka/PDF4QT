@@ -166,6 +166,8 @@ public:
 
     enum Operation
     {
+        ZoomIn,
+        ZoomOut,
         NavigateDocumentStart,
         NavigateDocumentEnd,
         NavigateNextPage,
@@ -218,6 +220,9 @@ public:
     void setPreferredMeshResolutionRatio(PDFReal ratio);
     void setMinimalMeshResolutionRatio(PDFReal ratio);
     void setColorTolerance(PDFReal colorTolerance);
+
+    static constexpr PDFReal getMinZoom() { return MIN_ZOOM; }
+    static constexpr PDFReal getMaxZoom() { return MAX_ZOOM; }
 
 signals:
     void drawSpaceChanged();

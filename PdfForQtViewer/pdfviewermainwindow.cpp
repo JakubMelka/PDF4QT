@@ -28,6 +28,7 @@
 #include "pdfrenderingerrorswidget.h"
 #include "pdffont.h"
 #include "pdfitemmodels.h"
+#include "pdfutils.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -41,6 +42,9 @@
 #include <QLayout>
 #include <QHeaderView>
 #include <QInputDialog>
+#include <QSpinBox>
+#include <QLabel>
+#include <QDoubleSpinBox>
 
 namespace pdfviewer
 {
@@ -53,7 +57,11 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_optionalContentDockWidget(nullptr),
     m_optionalContentTreeView(nullptr),
     m_optionalContentTreeModel(nullptr),
-    m_optionalContentActivity(nullptr)
+    m_optionalContentActivity(nullptr),
+    m_pageNumberSpinBox(nullptr),
+    m_pageNumberLabel(nullptr),
+    m_pageZoomSpinBox(nullptr),
+    m_isLoadingUI(false)
 {
     ui->setupUi(this);
 
@@ -66,9 +74,11 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);
 
-    auto createGoToAction = [this](QMenu* menu, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation)
+    auto createGoToAction = [this](QMenu* menu, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation, QString iconPath)
     {
-        QAction* action = new QAction(text, this);
+        QIcon icon;
+        icon.addFile(iconPath);
+        QAction* action = new QAction(icon, text, this);
         action->setShortcut(key);
         menu->addAction(action);
 
@@ -77,14 +87,44 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
             m_pdfWidget->getDrawWidgetProxy()->performOperation(operation);
         };
         connect(action, &QAction::triggered, this, onTriggered);
+        return action;
     };
 
-    createGoToAction(ui->menuGoTo, tr("Go to document start"), QKeySequence::MoveToStartOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentStart);
-    createGoToAction(ui->menuGoTo, tr("Go to document end"), QKeySequence::MoveToEndOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentEnd);
-    createGoToAction(ui->menuGoTo, tr("Go to next page"), QKeySequence::MoveToNextPage, pdf::PDFDrawWidgetProxy::NavigateNextPage);
-    createGoToAction(ui->menuGoTo, tr("Go to previous page"), QKeySequence::MoveToPreviousPage, pdf::PDFDrawWidgetProxy::NavigatePreviousPage);
-    createGoToAction(ui->menuGoTo, tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep);
-    createGoToAction(ui->menuGoTo, tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep);
+    QAction* actionGoToDocumentStart = createGoToAction(ui->menuGoTo, tr("Go to document start"), QKeySequence::MoveToStartOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentStart, ":/resources/previous-start.svg");
+    QAction* actionGoToDocumentEnd = createGoToAction(ui->menuGoTo, tr("Go to document end"), QKeySequence::MoveToEndOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentEnd, ":/resources/next-end.svg");
+    QAction* actionGoToNextPage = createGoToAction(ui->menuGoTo, tr("Go to next page"), QKeySequence::MoveToNextPage, pdf::PDFDrawWidgetProxy::NavigateNextPage, ":/resources/next-page.svg");
+    QAction* actionGoToPreviousPage = createGoToAction(ui->menuGoTo, tr("Go to previous page"), QKeySequence::MoveToPreviousPage, pdf::PDFDrawWidgetProxy::NavigatePreviousPage, ":/resources/previous-page.svg");
+    createGoToAction(ui->menuGoTo, tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep, ":/resources/next.svg");
+    createGoToAction(ui->menuGoTo, tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep, ":/resources/previous.svg");
+
+    m_pageNumberSpinBox = new QSpinBox(this);
+    m_pageNumberLabel = new QLabel(this);
+    m_pageNumberSpinBox->setFixedWidth(adjustDpiX(80));
+
+    // Page control
+    ui->mainToolBar->addSeparator();
+    ui->mainToolBar->addAction(actionGoToDocumentStart);
+    ui->mainToolBar->addAction(actionGoToPreviousPage);
+    ui->mainToolBar->addWidget(m_pageNumberSpinBox);
+    ui->mainToolBar->addWidget(m_pageNumberLabel);
+    ui->mainToolBar->addAction(actionGoToNextPage);
+    ui->mainToolBar->addAction(actionGoToDocumentEnd);
+
+    // Zoom
+    ui->mainToolBar->addSeparator();
+    ui->mainToolBar->addAction(ui->actionZoom_In);
+    ui->mainToolBar->addAction(ui->actionZoom_Out);
+
+    m_pageZoomSpinBox = new QDoubleSpinBox(this);
+    m_pageZoomSpinBox->setMinimum(pdf::PDFDrawWidgetProxy::getMinZoom() * 100);
+    m_pageZoomSpinBox->setMaximum(pdf::PDFDrawWidgetProxy::getMaxZoom() * 100);
+    m_pageZoomSpinBox->setDecimals(2);
+    m_pageZoomSpinBox->setSuffix(tr("%"));
+    m_pageZoomSpinBox->setFixedWidth(adjustDpiX(80));
+    ui->mainToolBar->addWidget(m_pageZoomSpinBox);
+
+    connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
+    connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
 
     readSettings();
 
@@ -116,11 +156,13 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_optionalContentDockWidget->toggleViewAction());
 
-    connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::updatePageLayoutActions);
+    connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
+    connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
     connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFViewerMainWindow::onViewerSettingsChanged);
 
     updatePageLayoutActions();
+    updateUI(true);
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
@@ -153,6 +195,17 @@ void PDFViewerMainWindow::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex
     {
         statusBar()->showMessage(tr("Rendering of page %1: %2 errors occured.").arg(pageIndex + 1).arg(errorsCount), 4000);
     }
+}
+
+void PDFViewerMainWindow::onDrawSpaceChanged()
+{
+    updateUI(false);
+}
+
+void PDFViewerMainWindow::onPageLayoutChanged()
+{
+    updateUI(false);
+    updatePageLayoutActions();
 }
 
 void PDFViewerMainWindow::readSettings()
@@ -251,6 +304,30 @@ void PDFViewerMainWindow::updateRenderingOptionActions()
     }
 }
 
+void PDFViewerMainWindow::updateUI(bool fullUpdate)
+{
+    pdf::PDFTemporaryValueChange guard(&m_isLoadingUI, true);
+
+    if (fullUpdate)
+    {
+        if (m_pdfDocument)
+        {
+            size_t pageCount = m_pdfDocument->getCatalog()->getPageCount();
+            m_pageNumberSpinBox->setMinimum(1);
+            m_pageNumberSpinBox->setMaximum(static_cast<int>(pageCount));
+            m_pageNumberSpinBox->setEnabled(true);
+            m_pageNumberLabel->setText(tr(" / %1").arg(pageCount));
+        }
+        else
+        {
+            m_pageNumberSpinBox->setEnabled(false);
+            m_pageNumberLabel->setText(QString());
+        }
+    }
+
+    m_pageZoomSpinBox->setValue(m_pdfWidget->getDrawWidgetProxy()->getZoom() * 100);
+}
+
 void PDFViewerMainWindow::onViewerSettingsChanged()
 {
     m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
@@ -345,6 +422,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
     }
 
     updateTitle();
+    updateUI(true);
 }
 
 void PDFViewerMainWindow::closeDocument()
@@ -361,6 +439,13 @@ void PDFViewerMainWindow::setPageLayout(pdf::PageLayout pageLayout)
 std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
 {
     return { ui->actionRenderOptionAntialiasing, ui->actionRenderOptionTextAntialiasing, ui->actionRenderOptionSmoothPictures, ui->actionRenderOptionIgnoreOptionalContentSettings };
+}
+
+int PDFViewerMainWindow::adjustDpiX(int value)
+{
+    const int physicalDpiX = this->physicalDpiX();
+    const int adjustedValue = (value * physicalDpiX) / 96;
+    return adjustedValue;
 }
 
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
