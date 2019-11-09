@@ -20,12 +20,14 @@
 
 #include "pdfcatalog.h"
 #include "pdfrenderer.h"
-
+#include "pdfprogress.h"
 #include "pdfviewersettings.h"
 
 #include <QTreeView>
 #include <QMainWindow>
 #include <QSharedPointer>
+#include <QWinTaskbarButton>
+#include <QWinTaskbarProgress>
 
 class QLabel;
 class QSpinBox;
@@ -56,6 +58,7 @@ public:
     virtual ~PDFViewerMainWindow() override;
 
     virtual void closeEvent(QCloseEvent* event) override;
+    virtual void showEvent(QShowEvent* event) override;
 
 private slots:
     void on_actionPageLayoutSinglePage_triggered();
@@ -76,6 +79,10 @@ private:
     void onPageLayoutChanged();
     void onPageNumberSpinboxEditingFinished();
     void onPageZoomSpinboxEditingFinished();
+
+    void onProgressStarted();
+    void onProgressStep(int percentage);
+    void onProgressFinished();
 
     void readSettings();
     void writeSettings();
@@ -111,6 +118,9 @@ private:
     QLabel* m_pageNumberLabel;
     QDoubleSpinBox* m_pageZoomSpinBox;
     bool m_isLoadingUI;
+    pdf::PDFProgress* m_progress;
+    QWinTaskbarButton* m_taskbarButton;
+    QWinTaskbarProgress* m_progressTaskbarIndicator;
 };
 
 }   // namespace pdfviewer

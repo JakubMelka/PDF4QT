@@ -33,9 +33,10 @@
 namespace pdf
 {
 
-PDFDocumentReader::PDFDocumentReader(const std::function<QString(bool*)>& getPasswordCallback) :
+PDFDocumentReader::PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback) :
     m_result(Result::OK),
-    m_getPasswordCallback(getPasswordCallback)
+    m_getPasswordCallback(getPasswordCallback),
+    m_progress(progress)
 {
 
 }
@@ -253,6 +254,8 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                     PDFParsingContext context(objectFetcher);
                     PDFObject object = getObject(&context, entry.offset, entry.reference);
 
+                    progressStep();
+
                     QMutexLocker lock(&m_mutex);
                     objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, object);
                 }
@@ -266,7 +269,9 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         };
 
         // Now, we are ready to scan all objects
+        progressStart(occupiedEntries.size());
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
+        progressFinish();
 
         if (m_result != Result::OK)
         {
@@ -351,8 +356,10 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         // decipher object streams here. 4) must be handled in the security handler.
         if (securityHandler->getMode() != EncryptionMode::None)
         {
-            auto decryptEntry = [encryptObjectReference, &securityHandler, &objects](const PDFXRefTable::Entry& entry)
+            auto decryptEntry = [this, encryptObjectReference, &securityHandler, &objects](const PDFXRefTable::Entry& entry)
             {
+                progressStep();
+
                 if (encryptObjectReference.objectNumber != 0 && encryptObjectReference == entry.reference)
                 {
                     // 2) - Encrypt dictionary
@@ -362,7 +369,9 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                 objects[entry.reference.objectNumber].object = securityHandler->decryptObject(objects[entry.reference.objectNumber].object, entry.reference);
             };
 
+            progressStart(occupiedEntries.size());
             std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
+            progressFinish();
         }
 
         // ------------------------------------------------------------------------------------------
@@ -518,6 +527,30 @@ int PDFDocumentReader::findFromEnd(const char* what, const QByteArray& byteArray
     }
 
     return FIND_NOT_FOUND_RESULT;
+}
+
+void PDFDocumentReader::progressStart(size_t stepCount)
+{
+    if (m_progress)
+    {
+        m_progress->start(stepCount);
+    }
+}
+
+void PDFDocumentReader::progressStep()
+{
+    if (m_progress)
+    {
+        m_progress->step();
+    }
+}
+
+void PDFDocumentReader::progressFinish()
+{
+    if (m_progress)
+    {
+        m_progress->finish();
+    }
 }
 
 }   // namespace pdf

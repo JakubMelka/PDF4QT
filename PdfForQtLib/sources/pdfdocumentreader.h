@@ -21,6 +21,7 @@
 
 #include "pdfglobal.h"
 #include "pdfdocument.h"
+#include "pdfprogress.h"
 
 #include <QtCore>
 #include <QIODevice>
@@ -36,7 +37,7 @@ class PDFFORQTLIBSHARED_EXPORT PDFDocumentReader
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 
 public:
-    explicit PDFDocumentReader(const std::function<QString(bool*)>& getPasswordCallback);
+    explicit PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback);
 
     constexpr inline PDFDocumentReader(const PDFDocumentReader&) = delete;
     constexpr inline PDFDocumentReader(PDFDocumentReader&&) = delete;
@@ -86,6 +87,10 @@ private:
     /// \returns Position of string, or FIND_NOT_FOUND_RESULT
     int findFromEnd(const char* what, const QByteArray& byteArray, int limit);
 
+    void progressStart(size_t stepCount);
+    void progressStep();
+    void progressFinish();
+
     /// Mutex for access to variables of this reader from more threads
     /// (providing thread safety)
     QMutex m_mutex;
@@ -101,6 +106,9 @@ private:
 
     /// Callback to obtain password from the user
     std::function<QString(bool*)> m_getPasswordCallback;
+
+    /// Progress indicator
+    PDFProgress* m_progress;
 };
 
 }   // namespace pdf

@@ -61,9 +61,15 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_pageNumberSpinBox(nullptr),
     m_pageNumberLabel(nullptr),
     m_pageZoomSpinBox(nullptr),
-    m_isLoadingUI(false)
+    m_isLoadingUI(false),
+    m_progress(new pdf::PDFProgress(this)),
+    m_taskbarButton(new QWinTaskbarButton(this)),
+    m_progressTaskbarIndicator(nullptr)
 {
     ui->setupUi(this);
+
+    // Initialize task bar progress
+    m_progressTaskbarIndicator = m_taskbarButton->progress();
 
     // Initialize shortcuts
     ui->actionOpen->setShortcut(QKeySequence::Open);
@@ -164,6 +170,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
     connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFViewerMainWindow::onViewerSettingsChanged);
+    connect(m_progress, &pdf::PDFProgress::progressStarted, this, &PDFViewerMainWindow::onProgressStarted);
+    connect(m_progress, &pdf::PDFProgress::progressStep, this, &PDFViewerMainWindow::onProgressStep);
+    connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
 
     updatePageLayoutActions();
     updateUI(true);
@@ -240,6 +249,23 @@ void PDFViewerMainWindow::onPageZoomSpinboxEditingFinished()
     }
 
     m_pdfWidget->getDrawWidgetProxy()->zoom(m_pageZoomSpinBox->value() / 100.0);
+}
+
+void PDFViewerMainWindow::onProgressStarted()
+{
+    m_progressTaskbarIndicator->setRange(0, 100);
+    m_progressTaskbarIndicator->reset();
+    m_progressTaskbarIndicator->show();
+}
+
+void PDFViewerMainWindow::onProgressStep(int percentage)
+{
+    m_progressTaskbarIndicator->setValue(percentage);
+}
+
+void PDFViewerMainWindow::onProgressFinished()
+{
+    m_progressTaskbarIndicator->hide();
 }
 
 void PDFViewerMainWindow::readSettings()
@@ -403,7 +429,7 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
 
     // Try to open a new document
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    pdf::PDFDocumentReader reader(qMove(getPasswordCallback));
+    pdf::PDFDocumentReader reader(m_progress, qMove(getPasswordCallback));
     pdf::PDFDocument document = reader.readFromFile(fileName);
     QApplication::restoreOverrideCursor();
 
@@ -495,6 +521,12 @@ void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
     writeSettings();
     closeDocument();
     event->accept();
+}
+
+void PDFViewerMainWindow::showEvent(QShowEvent* event)
+{
+    Q_UNUSED(event);
+    m_taskbarButton->setWindow(windowHandle());
 }
 
 void PDFViewerMainWindow::on_actionPageLayoutSinglePage_triggered()
