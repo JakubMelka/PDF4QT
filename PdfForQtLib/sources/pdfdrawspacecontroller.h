@@ -76,6 +76,8 @@ public:
         constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, PageRotation rotation, const QRectF& pageRectMM) :
             blockIndex(blockIndex), pageIndex(pageIndex), pageRotation(rotation), pageRectMM(pageRectMM) { }
 
+        bool isValid() const { return pageIndex != -1; }
+
         PDFInteger blockIndex;
         PDFInteger pageIndex;
         PageRotation pageRotation;
@@ -88,6 +90,11 @@ public:
     /// then empty array is returned.
     /// \param blockIndex Index of the block
     LayoutItems getLayoutItems(size_t blockIndex) const;
+
+    /// Returns layout for single page. If page index is invalid,
+    /// or page layout cannot be found, then invalid layout item is returned.
+    /// \param pageIndex Page index
+    LayoutItem getLayoutItemForPage(PDFInteger pageIndex) const;
 
     /// Returns the document
     const PDFDocument* getDocument() const { return m_document; }
@@ -189,6 +196,10 @@ public:
     /// area will be visible after the zoom).
     /// \param zoom New zoom
     void zoom(PDFReal zoom);
+
+    /// Go to the specified page
+    /// \param pageIndex Page to scroll to
+    void goToPage(PDFInteger pageIndex);
 
     /// Returns current zoom from widget space to device space. So, for example 2.00 corresponds to 200% zoom,
     /// and each 1 cm of widget area corresponds to 0.5 cm of the device space area.

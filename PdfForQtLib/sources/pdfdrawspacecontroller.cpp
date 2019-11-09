@@ -93,6 +93,27 @@ PDFDrawSpaceController::LayoutItems PDFDrawSpaceController::getLayoutItems(size_
     return result;
 }
 
+PDFDrawSpaceController::LayoutItem PDFDrawSpaceController::getLayoutItemForPage(PDFInteger pageIndex) const
+{
+    LayoutItem result;
+
+    if (pageIndex >= 0 && pageIndex < static_cast<PDFInteger>(m_layoutItems.size()) && m_layoutItems[pageIndex].pageIndex == pageIndex)
+    {
+        result = m_layoutItems[pageIndex];
+    }
+
+    if (!result.isValid())
+    {
+        auto it = std::find_if(m_layoutItems.cbegin(), m_layoutItems.cend(), [pageIndex](const LayoutItem& item) { return item.pageIndex == pageIndex; });
+        if (it != m_layoutItems.cend())
+        {
+            result = *it;
+        }
+    }
+
+    return result;
+}
+
 void PDFDrawSpaceController::recalculate()
 {
     if (!m_document)
@@ -710,6 +731,25 @@ void PDFDrawWidgetProxy::zoom(PDFReal zoom)
         // Try to restore offsets, so we are in the same place
         setHorizontalOffset(oldHorizontalOffsetMM * m_deviceSpaceUnitToPixel);
         setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
+    }
+}
+
+void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)
+{
+    PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
+
+    if (layoutItem.isValid())
+    {
+        // We have found our page, navigate onto it
+        if (isBlockMode())
+        {
+            setBlockIndex(layoutItem.blockIndex);
+        }
+        else
+        {
+            QRect rect = fromDeviceSpace(layoutItem.pageRectMM).toRect();
+            setVerticalOffset(-rect.top() - m_layout.blockRect.top());
+        }
     }
 }
 

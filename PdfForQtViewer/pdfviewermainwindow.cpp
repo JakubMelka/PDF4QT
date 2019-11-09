@@ -100,6 +100,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_pageNumberSpinBox = new QSpinBox(this);
     m_pageNumberLabel = new QLabel(this);
     m_pageNumberSpinBox->setFixedWidth(adjustDpiX(80));
+    m_pageNumberSpinBox->setAlignment(Qt::AlignCenter);
+    connect(m_pageNumberSpinBox, &QSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageNumberSpinboxEditingFinished);
 
     // Page control
     ui->mainToolBar->addSeparator();
@@ -121,6 +123,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_pageZoomSpinBox->setDecimals(2);
     m_pageZoomSpinBox->setSuffix(tr("%"));
     m_pageZoomSpinBox->setFixedWidth(adjustDpiX(80));
+    m_pageZoomSpinBox->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+    connect(m_pageZoomSpinBox, &QDoubleSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageZoomSpinboxEditingFinished);
     ui->mainToolBar->addWidget(m_pageZoomSpinBox);
 
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
@@ -206,6 +210,36 @@ void PDFViewerMainWindow::onPageLayoutChanged()
 {
     updateUI(false);
     updatePageLayoutActions();
+}
+
+void PDFViewerMainWindow::onPageNumberSpinboxEditingFinished()
+{
+    if (m_isLoadingUI)
+    {
+        return;
+    }
+
+    if (m_pageNumberSpinBox->hasFocus())
+    {
+        m_pdfWidget->setFocus();
+    }
+
+    m_pdfWidget->getDrawWidgetProxy()->goToPage(m_pageNumberSpinBox->value() - 1);
+}
+
+void PDFViewerMainWindow::onPageZoomSpinboxEditingFinished()
+{
+    if (m_isLoadingUI)
+    {
+        return;
+    }
+
+    if (m_pageZoomSpinBox->hasFocus())
+    {
+        m_pdfWidget->setFocus();
+    }
+
+    m_pdfWidget->getDrawWidgetProxy()->zoom(m_pageZoomSpinBox->value() / 100.0);
 }
 
 void PDFViewerMainWindow::readSettings()
@@ -322,6 +356,14 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
         {
             m_pageNumberSpinBox->setEnabled(false);
             m_pageNumberLabel->setText(QString());
+        }
+    }
+    else
+    {
+        std::vector<pdf::PDFInteger> currentPages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+        if (!currentPages.empty())
+        {
+            m_pageNumberSpinBox->setValue(currentPages.front() + 1);
         }
     }
 

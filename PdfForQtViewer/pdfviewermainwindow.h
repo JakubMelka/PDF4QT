@@ -74,6 +74,8 @@ private:
     void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
     void onDrawSpaceChanged();
     void onPageLayoutChanged();
+    void onPageNumberSpinboxEditingFinished();
+    void onPageZoomSpinboxEditingFinished();
 
     void readSettings();
     void writeSettings();
