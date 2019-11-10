@@ -349,6 +349,19 @@ inline constexpr uint8_t log2ceil(uint32_t value)
     return logarithm;
 }
 
+struct PDFFORQTLIBSHARED_EXPORT PDFDependentLibraryInfo
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFDependentLibraryInfo)
+
+public:
+    QString library;
+    QString version;
+    QString license;
+    QString url;
+
+    static std::vector<PDFDependentLibraryInfo> getLibraryInfo();
+};
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H

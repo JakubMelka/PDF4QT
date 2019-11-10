@@ -18,6 +18,7 @@
 #include "pdfviewermainwindow.h"
 #include "ui_pdfviewermainwindow.h"
 
+#include "pdfaboutdialog.h"
 #include "pdfviewersettingsdialog.h"
 
 #include "pdfdocumentreader.h"
@@ -587,4 +588,11 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
     }
 }
 
+void PDFViewerMainWindow::on_actionAbout_triggered()
+{
+    PDFAboutDialog dialog(this);
+    dialog.exec();
+}
+
 }   // namespace pdfviewer
+

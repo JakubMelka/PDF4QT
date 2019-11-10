@@ -18,6 +18,12 @@
 #include "pdfutils.h"
 #include "pdfexception.h"
 
+#include <jpeglib.h>
+#include <ft2build.h>
+#include <freetype/freetype.h>
+#include <openjpeg.h>
+#include <openssl/opensslv.h>
+
 namespace pdf
 {
 
@@ -199,6 +205,62 @@ void PDFBitWriter::flush(bool alignToByteBoundary)
         m_bitsInBuffer += missingBits;
         flush(false);
     }
+}
+
+std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
+{
+    std::vector<PDFDependentLibraryInfo> result;
+
+    // Jakub Melka: iterate all used libraries, fill info...
+
+    // Qt
+    PDFDependentLibraryInfo qtInfo;
+    qtInfo.library = tr("Qt");
+    qtInfo.license = tr("LGPLv3");
+    qtInfo.version = QT_VERSION_STR;
+    qtInfo.url = tr("https://www.qt.io/");
+    result.emplace_back(qMove(qtInfo));
+
+    // libjpeg
+    PDFDependentLibraryInfo libjpegInfo;
+    libjpegInfo.library = tr("libjpeg");
+    libjpegInfo.license = tr("permissive + ack.");
+    libjpegInfo.url = tr("https://www.ijg.org/");
+    libjpegInfo.version = tr("%1.%2").arg(JPEG_LIB_VERSION_MAJOR).arg(JPEG_LIB_VERSION_MINOR);
+    result.emplace_back(qMove(libjpegInfo));
+
+    // FreeType
+    FT_Library ftLibrary;
+    FT_Init_FreeType(&ftLibrary);
+    FT_Int ftMajor = 0;
+    FT_Int ftMinor = 0;
+    FT_Int ftPatch = 0;
+    FT_Library_Version(ftLibrary, &ftMajor, &ftMinor, &ftPatch);
+    FT_Done_FreeType(ftLibrary);
+    PDFDependentLibraryInfo freetypeInfo;
+    freetypeInfo.library = tr("FreeType");
+    freetypeInfo.license = tr("FTL");
+    freetypeInfo.version = tr("%1.%2.%3").arg(ftMajor).arg(ftMinor).arg(ftPatch);
+    freetypeInfo.url = tr("https://www.freetype.org/index.html");
+    result.emplace_back(qMove(freetypeInfo));
+
+    // OpenJPEG
+    PDFDependentLibraryInfo openjpegInfo;
+    openjpegInfo.library = tr("OpenJPEG");
+    openjpegInfo.license = tr("2-clause MIT license");
+    openjpegInfo.version = opj_version();
+    openjpegInfo.url = tr("https://www.openjpeg.org/");
+    result.emplace_back(qMove(openjpegInfo));
+
+    // OpenSSL
+    PDFDependentLibraryInfo opensslInfo;
+    opensslInfo.library = tr("OpenSSL");
+    opensslInfo.license = tr("Apache 2.0");
+    opensslInfo.version = OPENSSL_VERSION_TEXT;
+    opensslInfo.url = tr("https://www.openssl.org/");
+    result.emplace_back(qMove(opensslInfo));
+
+    return result;
 }
 
 }   // namespace pdf

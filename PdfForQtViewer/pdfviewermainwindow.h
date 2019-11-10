@@ -70,6 +70,8 @@ private slots:
     void on_actionRendering_Errors_triggered();
     void on_actionOptions_triggered();
 
+    void on_actionAbout_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
