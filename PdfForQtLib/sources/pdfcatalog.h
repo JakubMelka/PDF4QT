@@ -21,6 +21,7 @@
 #include "pdfobject.h"
 #include "pdfpage.h"
 #include "pdfoptionalcontent.h"
+#include "pdfoutline.h"
 
 #include <QtCore>
 
@@ -224,6 +225,7 @@ private:
     std::vector<PDFPage> m_pages;
     std::vector<PDFPageLabel> m_pageLabels;
     PDFOptionalContentProperties m_optionalContentProperties;
+    QSharedPointer<PDFOutlineItem> m_outlineRoot;
 };
 
 }   // namespace pdf

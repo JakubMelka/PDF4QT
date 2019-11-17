@@ -36,12 +36,15 @@ DEFINES += QT_DEPRECATED_WARNINGS
 DESTDIR = $$OUT_PWD/..
 
 SOURCES += \
+    sources/pdfaction.cpp \
     sources/pdfblendfunction.cpp \
     sources/pdfccittfaxdecoder.cpp \
+    sources/pdffile.cpp \
     sources/pdfitemmodels.cpp \
     sources/pdfjbig2decoder.cpp \
     sources/pdfobject.cpp \
     sources/pdfoptionalcontent.cpp \
+    sources/pdfoutline.cpp \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \
@@ -68,13 +71,16 @@ SOURCES += \
     sources/pdfimage.cpp
 
 HEADERS += \
+    sources/pdfaction.h \
     sources/pdfblendfunction.h \
     sources/pdfccittfaxdecoder.h \
+    sources/pdffile.h \
     sources/pdfitemmodels.h \
     sources/pdfjbig2decoder.h \
     sources/pdfmeshqualitysettings.h \
     sources/pdfobject.h \
     sources/pdfoptionalcontent.h \
+    sources/pdfoutline.h \
     sources/pdfparser.h \
     sources/pdfglobal.h \
     sources/pdfconstants.h \

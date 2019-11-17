@@ -62,6 +62,11 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         catalogObject.m_optionalContentProperties = PDFOptionalContentProperties::create(document, catalogDictionary->get("OCProperties"));
     }
 
+    if (catalogDictionary->hasKey("Outlines"))
+    {
+        catalogObject.m_outlineRoot = PDFOutlineItem::parse(document, catalogDictionary->get("Outlines"));
+    }
+
     return catalogObject;
 }
 

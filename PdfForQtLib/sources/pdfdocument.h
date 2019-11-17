@@ -326,6 +326,10 @@ public:
     /// is returned (no exception is thrown).
     const PDFObject& getObject(const PDFObject& object) const;
 
+    /// Returns object by reference. If dereference attempt fails, then null object
+    /// is returned (no exception is thrown).
+    const PDFObject& getObjectByReference(PDFObjectReference reference) const;
+
     /// Returns the document catalog
     const PDFCatalog* getCatalog() const { return &m_catalog; }
 
@@ -377,6 +381,12 @@ const PDFObject& PDFDocument::getObject(const PDFObject& object) const
     }
 
     return object;
+}
+
+inline
+const PDFObject& PDFDocument::getObjectByReference(PDFObjectReference reference) const
+{
+    return m_pdfObjectStorage.getObject(reference);
 }
 
 }   // namespace pdf
