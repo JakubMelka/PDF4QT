@@ -547,4 +547,46 @@ QByteArray PDFDocumentDataLoaderDecorator::readStringFromDictionary(const PDFDic
     return QByteArray();
 }
 
+std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readStringArray(dictionary->get(key));
+    }
+
+    return std::vector<QByteArray>();
+}
+
+std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArray(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = m_document->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        std::vector<QByteArray> result;
+        const size_t count = array->getCount();
+        result.reserve(count);
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFObject& stringObject = array->getItem(i);
+            if (stringObject.isString())
+            {
+                result.push_back(stringObject.getString());
+            }
+            else
+            {
+                result.clear();
+                break;
+            }
+        }
+
+        // We assume, that RVO (return value optimization) will not work for this function
+        // (multiple return points).
+        return std::move(result);
+    }
+
+    return std::vector<QByteArray>();
+}
+
 }   // namespace pdf

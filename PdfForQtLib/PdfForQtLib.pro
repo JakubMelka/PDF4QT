@@ -42,6 +42,7 @@ SOURCES += \
     sources/pdffile.cpp \
     sources/pdfitemmodels.cpp \
     sources/pdfjbig2decoder.cpp \
+    sources/pdfmultimedia.cpp \
     sources/pdfobject.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
@@ -78,6 +79,7 @@ HEADERS += \
     sources/pdfitemmodels.h \
     sources/pdfjbig2decoder.h \
     sources/pdfmeshqualitysettings.h \
+    sources/pdfmultimedia.h \
     sources/pdfobject.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \

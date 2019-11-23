@@ -139,7 +139,7 @@ public:
     Enum readEnumByName(const PDFObject& object, Iterator begin, Iterator end, Enum defaultValue) const
     {
         const PDFObject& dereferencedObject = m_document->getObject(object);
-        if (dereferencedObject.isName())
+        if (dereferencedObject.isName() || dereferencedObject.isString())
         {
             QByteArray name = dereferencedObject.getString();
 
@@ -258,6 +258,11 @@ public:
     /// \param object Object containing array of references
     std::vector<QByteArray> readNameArray(const PDFObject& object) const;
 
+    /// Reads string array. Reads all values. If error occurs,
+    /// then empty array is returned.
+    /// \param object Object containing array of references
+    std::vector<QByteArray> readStringArray(const PDFObject& object) const;
+
     /// Reads name array from dictionary. Reads all values. If error occurs,
     /// then empty array is returned.
     /// \param dictionary Dictionary containing desired data
@@ -279,6 +284,12 @@ public:
     /// \param dictionary Dictionary containing desired data
     /// \param key Entry key
     QByteArray readStringFromDictionary(const PDFDictionary* dictionary, const char* key);
+
+    /// Reads string array from dictionary. Reads all values. If error occurs,
+    /// then empty array is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    std::vector<QByteArray> readStringArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
 private:
     const PDFDocument* m_document;
@@ -325,6 +336,10 @@ public:
     /// is returned. If dereference attempt fails, then null object
     /// is returned (no exception is thrown).
     const PDFObject& getObject(const PDFObject& object) const;
+
+    /// Returns dictionary from an object. If object is not a dictionary,
+    /// then nullptr is returned (no exception is thrown).
+    const PDFDictionary* getDictionaryFromObject(const PDFObject& object) const;
 
     /// Returns object by reference. If dereference attempt fails, then null object
     /// is returned (no exception is thrown).
@@ -381,6 +396,22 @@ const PDFObject& PDFDocument::getObject(const PDFObject& object) const
     }
 
     return object;
+}
+
+inline
+const PDFDictionary* PDFDocument::getDictionaryFromObject(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = getObject(object);
+    if (dereferencedObject.isDictionary())
+    {
+        return dereferencedObject.getDictionary();
+    }
+    else if (dereferencedObject.isStream())
+    {
+        return dereferencedObject.getStream()->getDictionary();
+    }
+
+    return nullptr;
 }
 
 inline

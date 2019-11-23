@@ -21,6 +21,7 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 #include "pdffile.h"
+#include "pdfmultimedia.h"
 
 #include <QSharedPointer>
 
@@ -40,7 +41,12 @@ enum class ActionType
     GoToE,
     Launch,
     Thread,
-    URI
+    URI,
+    Sound,
+    Movie,
+    Hide,
+    Named,
+    SetOCGState
 };
 
 enum class DestinationType
@@ -262,6 +268,149 @@ public:
 private:
     QByteArray m_URI;
     bool m_isMap;
+};
+
+class PDFActionSound : public PDFAction
+{
+public:
+    explicit inline PDFActionSound(PDFSound sound, PDFReal volume, bool isSynchronous, bool isRepeat, bool isMix) :
+        m_sound(qMove(sound)),
+        m_volume(qMove(volume)),
+        m_isSynchronous(isSynchronous),
+        m_isRepeat(isRepeat),
+        m_isMix(isMix)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::Sound; }
+
+    const PDFSound* getSound() const { return &m_sound; }
+    PDFReal getVolume() const { return m_volume; }
+    bool isSynchronous() const { return m_isSynchronous; }
+    bool isRepeat() const { return m_isRepeat; }
+    bool isMix() const { return m_isMix; }
+
+private:
+    PDFSound m_sound;
+    PDFReal m_volume;
+    bool m_isSynchronous;
+    bool m_isRepeat;
+    bool m_isMix;
+};
+
+class PDFActionMovie : public PDFAction
+{
+public:
+    enum class Operation
+    {
+        Play,
+        Stop,
+        Pause,
+        Resume
+    };
+
+    explicit inline PDFActionMovie(PDFObjectReference annotation, QString title, Operation operation) :
+        m_annotation(qMove(annotation)),
+        m_title(qMove(title)),
+        m_operation(operation)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::Movie; }
+
+    PDFObjectReference getAnnotation() const { return m_annotation; }
+    const QString& getTitle() const { return m_title; }
+    Operation getOperation() const { return m_operation; }
+
+private:
+    PDFObjectReference m_annotation;
+    QString m_title;
+    Operation m_operation;
+};
+
+class PDFActionHide : public PDFAction
+{
+public:
+    explicit inline PDFActionHide(std::vector<PDFObjectReference>&& annotations, std::vector<QString>&& fieldNames, bool hide) :
+        m_annotations(qMove(annotations)),
+        m_fieldNames(qMove(fieldNames)),
+        m_hide(hide)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::Hide; }
+
+    const std::vector<PDFObjectReference>& getAnnotations() const { return m_annotations; }
+    const std::vector<QString>& getFieldNames() const { return m_fieldNames; }
+    bool isHide() const { return m_hide; }
+
+private:
+    std::vector<PDFObjectReference> m_annotations;
+    std::vector<QString> m_fieldNames;
+    bool m_hide;
+};
+
+class PDFActionNamed : public PDFAction
+{
+public:
+    enum class NamedActionType
+    {
+        Custom,
+        NextPage,
+        PrevPage,
+        FirstPage,
+        LastPage
+    };
+
+    explicit inline PDFActionNamed(NamedActionType namedActionType, QByteArray&& customNamedAction) :
+        m_namedActionType(namedActionType),
+        m_customNamedAction(qMove(customNamedAction))
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::Named; }
+
+    NamedActionType getNamedActionType() const { return m_namedActionType; }
+    const QByteArray& getCustomNamedAction() const { return m_customNamedAction; }
+
+private:
+    NamedActionType m_namedActionType;
+    QByteArray m_customNamedAction;
+};
+
+class PDFActionSetOCGState : public PDFAction
+{
+public:
+
+    enum class SwitchType
+    {
+        ON,
+        OFF,
+        Toggle
+    };
+
+    using StateChangeItem = std::pair<SwitchType, PDFObjectReference>;
+    using StateChangeItems = std::vector<StateChangeItem>;
+
+    explicit inline PDFActionSetOCGState(StateChangeItems&& stateChangeItems, bool isRadioButtonsPreserved) :
+        m_items(qMove(stateChangeItems)),
+        m_isRadioButtonsPreserved(isRadioButtonsPreserved)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::SetOCGState; }
+
+    const StateChangeItems& getStateChangeItems() const { return m_items; }
+    bool isRadioButtonsPreserved() const { return m_isRadioButtonsPreserved; }
+
+private:
+    StateChangeItems m_items;
+    bool m_isRadioButtonsPreserved;
 };
 
 }   // namespace pdf

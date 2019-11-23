@@ -136,6 +136,111 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
     {
         return PDFActionPtr(new PDFActionURI(loader.readStringFromDictionary(dictionary, "URI"), loader.readBooleanFromDictionary(dictionary, "IsMap", false)));
     }
+    else if (name == "Sound")
+    {
+        const PDFReal volume = loader.readNumberFromDictionary(dictionary, "Volume", 1.0);
+        const bool isSynchronous = loader.readBooleanFromDictionary(dictionary, "Synchronous", false);
+        const bool isRepeat = loader.readBooleanFromDictionary(dictionary, "Repeat", false);
+        const bool isMix = loader.readBooleanFromDictionary(dictionary, "Mix", false);
+        return PDFActionPtr(new PDFActionSound(PDFSound::parse(document, dictionary->get("Sound")), volume, isSynchronous, isRepeat, isMix));
+    }
+    else if (name == "Movie")
+    {
+        constexpr const std::array<std::pair<const char*, PDFActionMovie::Operation>, 4> operations = {
+            std::pair<const char*, PDFActionMovie::Operation>{ "Play", PDFActionMovie::Operation::Play },
+            std::pair<const char*, PDFActionMovie::Operation>{ "Stop", PDFActionMovie::Operation::Stop },
+            std::pair<const char*, PDFActionMovie::Operation>{ "Pause", PDFActionMovie::Operation::Pause },
+            std::pair<const char*, PDFActionMovie::Operation>{ "Resume", PDFActionMovie::Operation::Resume }
+        };
+
+        // Jakub Melka: parse the movie action
+        PDFObject annotationObject = dictionary->get("Annotation");
+        PDFObjectReference annotation = annotationObject.isReference() ? annotationObject.getReference() : PDFObjectReference();
+        QString title = loader.readTextStringFromDictionary(dictionary, "T", QString());
+        PDFActionMovie::Operation operation = loader.readEnumByName(dictionary->get("Operation"), operations.cbegin(), operations.cend(), PDFActionMovie::Operation::Play);
+
+        return PDFActionPtr(new PDFActionMovie(annotation, qMove(title), operation));
+    }
+    else if (name == "Hide")
+    {
+        std::vector<PDFObjectReference> annotations;
+        std::vector<QString> fieldNames;
+
+        const PDFObject& object = dictionary->get("T");
+        if (object.isReference())
+        {
+            annotations = { object.getReference() };
+        }
+        else if (object.isString())
+        {
+            fieldNames = { loader.readTextString(object, QString()) };
+        }
+        else if (object.isArray())
+        {
+            const PDFArray* items = object.getArray();
+            for (size_t i = 0; i < items->getCount(); ++i)
+            {
+                const PDFObject& itemObject = items->getItem(i);
+                if (itemObject.isReference())
+                {
+                    annotations.push_back(itemObject.getReference());
+                }
+                else if (itemObject.isString())
+                {
+                    fieldNames.push_back(loader.readTextString(itemObject, QString()));
+                }
+            }
+        }
+
+        const bool hide = loader.readBooleanFromDictionary(dictionary, "H", true);
+        return PDFActionPtr(new PDFActionHide(qMove(annotations), qMove(fieldNames), hide));
+    }
+    else if (name == "Named")
+    {
+        constexpr const std::array<std::pair<const char*, PDFActionNamed::NamedActionType>, 4> types = {
+            std::pair<const char*, PDFActionNamed::NamedActionType>{ "NextPage", PDFActionNamed::NamedActionType::NextPage },
+            std::pair<const char*, PDFActionNamed::NamedActionType>{ "PrevPage", PDFActionNamed::NamedActionType::PrevPage },
+            std::pair<const char*, PDFActionNamed::NamedActionType>{ "FirstPage", PDFActionNamed::NamedActionType::FirstPage },
+            std::pair<const char*, PDFActionNamed::NamedActionType>{ "LastPage", PDFActionNamed::NamedActionType::LastPage }
+        };
+
+        QByteArray name = loader.readNameFromDictionary(dictionary, "N");
+        PDFActionNamed::NamedActionType actionType = loader.readEnumByName(dictionary->get("N"), types.cbegin(), types.cend(), PDFActionNamed::NamedActionType::Custom);
+        return PDFActionPtr(new PDFActionNamed(actionType, qMove(name)));
+    }
+    else if (name == "SetOCGState")
+    {
+        const bool isRadioButtonsPreserved = loader.readBooleanFromDictionary(dictionary, "PreserveRB", true);
+        PDFActionSetOCGState::StateChangeItems items;
+
+        PDFObject stateArrayObject = document->getObject(dictionary->get("State"));
+        if (stateArrayObject.isArray())
+        {
+            constexpr const std::array<std::pair<const char*, PDFActionSetOCGState::SwitchType>, 3> types = {
+                std::pair<const char*, PDFActionSetOCGState::SwitchType>{ "ON", PDFActionSetOCGState::SwitchType::ON },
+                std::pair<const char*, PDFActionSetOCGState::SwitchType>{ "OFF", PDFActionSetOCGState::SwitchType::OFF },
+                std::pair<const char*, PDFActionSetOCGState::SwitchType>{ "Toggle", PDFActionSetOCGState::SwitchType::Toggle }
+            };
+
+            PDFActionSetOCGState::SwitchType switchType = PDFActionSetOCGState::SwitchType::ON;
+            const PDFArray* stateArray = stateArrayObject.getArray();
+            items.reserve(stateArray->getCount());
+            for (size_t i = 0; i < stateArray->getCount(); ++i)
+            {
+                const PDFObject& item = stateArray->getItem(i);
+                if (item.isName())
+                {
+                    switchType = loader.readEnumByName(item, types.cbegin(), types.cend(), PDFActionSetOCGState::SwitchType::ON);
+                }
+                else if (item.isReference())
+                {
+                    items.emplace_back(switchType, item.getReference());
+                }
+            }
+        }
+
+        return PDFActionPtr(new PDFActionSetOCGState(qMove(items), isRadioButtonsPreserved));
+    }
 
     return PDFActionPtr();
 }
