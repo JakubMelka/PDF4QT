@@ -46,6 +46,7 @@ SOURCES += \
     sources/pdfobject.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
+    sources/pdfpagetransition.cpp \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \
@@ -83,6 +84,7 @@ HEADERS += \
     sources/pdfobject.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
+    sources/pdfpagetransition.h \
     sources/pdfparser.h \
     sources/pdfglobal.h \
     sources/pdfconstants.h \

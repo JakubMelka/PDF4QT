@@ -241,6 +241,38 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
 
         return PDFActionPtr(new PDFActionSetOCGState(qMove(items), isRadioButtonsPreserved));
     }
+    else if (name == "Rendition")
+    {
+        PDFObject annotationObject = dictionary->get("AN");
+        std::optional<PDFRendition> rendition;
+        PDFObjectReference annotation = annotationObject.isReference() ? annotationObject.getReference() : PDFObjectReference();
+        PDFActionRendition::Operation operation = static_cast<PDFActionRendition::Operation>(loader.readIntegerFromDictionary(dictionary, "OP", 4));
+        QString javascript;
+
+        if (dictionary->hasKey("R"))
+        {
+            rendition = PDFRendition::parse(document, dictionary->get("R"));
+        }
+        PDFObject javascriptObject = document->getObject(dictionary->get("JS"));
+        if (javascriptObject.isString())
+        {
+            javascript = PDFEncoding::convertTextString(javascriptObject.getString());
+        }
+        else if (javascriptObject.isStream())
+        {
+            javascript = PDFEncoding::convertTextString(document->getDecodedStream(javascriptObject.getStream()));
+        }
+
+        return PDFActionPtr(new PDFActionRendition(qMove(rendition), annotation, operation, qMove(javascript)));
+    }
+    else if (name == "Trans")
+    {
+        return PDFActionPtr(new PDFActionTransition(PDFPageTransition::parse(document, dictionary->get("Trans"))));
+    }
+    else if (name == "GoTo3DView")
+    {
+        return PDFActionPtr(new PDFActionGoTo3DView(dictionary->get("TA"), dictionary->get("V")));
+    }
 
     return PDFActionPtr();
 }

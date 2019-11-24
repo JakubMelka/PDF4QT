@@ -48,6 +48,18 @@ public:
     const PDFAction* getAction() const;
     void setAction(const PDFActionPtr& action);
 
+    QColor getTextColor() const;
+    void setTextColor(const QColor& textColor);
+
+    bool isFontItalics() const;
+    void setFontItalics(bool fontItalics);
+
+    bool isFontBold() const;
+    void setFontBold(bool fontBold);
+
+    PDFObjectReference getStructureElement() const;
+    void setStructureElement(PDFObjectReference structureElement);
+
 private:
     static void parseImpl(const PDFDocument* document,
                           PDFOutlineItem* parent,
@@ -57,6 +69,10 @@ private:
     QString m_title;
     std::vector<QSharedPointer<PDFOutlineItem>> m_children;
     PDFActionPtr m_action;
+    PDFObjectReference m_structureElement;
+    QColor m_textColor;
+    bool m_fontItalics = false;
+    bool m_fontBold = false;
 };
 
 }   // namespace pdf

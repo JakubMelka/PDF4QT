@@ -22,6 +22,7 @@
 #include "pdfobject.h"
 #include "pdffile.h"
 #include "pdfmultimedia.h"
+#include "pdfpagetransition.h"
 
 #include <QSharedPointer>
 
@@ -46,7 +47,10 @@ enum class ActionType
     Movie,
     Hide,
     Named,
-    SetOCGState
+    SetOCGState,
+    Rendition,
+    Transition,
+    GoTo3DView
 };
 
 enum class DestinationType
@@ -388,9 +392,9 @@ public:
 
     enum class SwitchType
     {
-        ON,
-        OFF,
-        Toggle
+        ON = 0,
+        OFF = 1,
+        Toggle = 2
     };
 
     using StateChangeItem = std::pair<SwitchType, PDFObjectReference>;
@@ -411,6 +415,79 @@ public:
 private:
     StateChangeItems m_items;
     bool m_isRadioButtonsPreserved;
+};
+
+class PDFActionRendition : public PDFAction
+{
+public:
+
+    enum class Operation
+    {
+        PlayAndAssociate = 0,
+        Stop = 1,
+        Pause = 2,
+        Resume = 3,
+        Play = 4
+    };
+
+    explicit inline PDFActionRendition(std::optional<PDFRendition>&& rendition, PDFObjectReference annotation, Operation operation, QString javascript) :
+        m_rendition(qMove(rendition)),
+        m_annotation(annotation),
+        m_operation(operation),
+        m_javascript(qMove(javascript))
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::Rendition; }
+
+    const PDFRendition* getRendition() const { return m_rendition.has_value() ? &m_rendition.value() : nullptr; }
+    PDFObjectReference getAnnotation() const { return m_annotation; }
+    Operation getOperation() const { return m_operation; }
+    const QString& getJavascript() const { return m_javascript; }
+
+private:
+    std::optional<PDFRendition> m_rendition;
+    PDFObjectReference m_annotation;
+    Operation m_operation;
+    QString m_javascript;
+};
+
+class PDFActionTransition : public PDFAction
+{
+public:
+    explicit inline PDFActionTransition(PDFPageTransition&& transition) :
+        m_transition(qMove(transition))
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::Transition; }
+
+    const PDFPageTransition& getTransition() const { return m_transition; }
+
+private:
+    PDFPageTransition m_transition;
+};
+
+class PDFActionGoTo3DView : public PDFAction
+{
+public:
+    explicit PDFActionGoTo3DView(PDFObject annotation, PDFObject view) :
+        m_annotation(qMove(annotation)),
+        m_view(qMove(view))
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::GoTo3DView; }
+
+    const PDFObject& getAnnotation() const { return m_annotation; }
+    const PDFObject& getView() const { return m_view; }
+
+private:
+    PDFObject m_annotation;
+    PDFObject m_view;
 };
 
 }   // namespace pdf

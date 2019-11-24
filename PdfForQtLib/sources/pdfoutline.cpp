@@ -71,6 +71,23 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
             currentOutlineItem->setTitle(PDFEncoding::convertTextString(titleObject.getString()));
         }
         currentOutlineItem->setAction(PDFAction::parse(document, dictionary->get("A")));
+        if (!currentOutlineItem->getAction() && dictionary->hasKey("Dest"))
+        {
+            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(document, dictionary->get("Dest")))));
+        }
+
+        PDFDocumentDataLoaderDecorator loader(document);
+        std::vector<PDFReal> colors = loader.readNumberArrayFromDictionary(dictionary, "C", { 0.0, 0.0, 0.0 });
+        colors.resize(3, 0.0);
+        currentOutlineItem->setTextColor(QColor::fromRgbF(colors[0], colors[1], colors[2]));
+        PDFInteger flag = loader.readIntegerFromDictionary(dictionary, "F", 0);
+        currentOutlineItem->setFontItalics(flag & 0x1);
+        currentOutlineItem->setFontBold(flag & 0x2);
+        PDFObject structureElementObject = dictionary->get("SE");
+        if (structureElementObject.isReference())
+        {
+            currentOutlineItem->setStructureElement(structureElementObject.getReference());
+        }
 
         // Parse children of this item
         const PDFObject& firstItem = dictionary->get("First");
@@ -95,6 +112,46 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
             break;
         }
     }
+}
+
+PDFObjectReference PDFOutlineItem::getStructureElement() const
+{
+    return m_structureElement;
+}
+
+void PDFOutlineItem::setStructureElement(PDFObjectReference structureElement)
+{
+    m_structureElement = structureElement;
+}
+
+bool PDFOutlineItem::isFontBold() const
+{
+    return m_fontBold;
+}
+
+void PDFOutlineItem::setFontBold(bool fontBold)
+{
+    m_fontBold = fontBold;
+}
+
+bool PDFOutlineItem::isFontItalics() const
+{
+    return m_fontItalics;
+}
+
+void PDFOutlineItem::setFontItalics(bool fontItalics)
+{
+    m_fontItalics = fontItalics;
+}
+
+QColor PDFOutlineItem::getTextColor() const
+{
+    return m_textColor;
+}
+
+void PDFOutlineItem::setTextColor(const QColor& textColor)
+{
+    m_textColor = textColor;
 }
 
 const PDFAction* PDFOutlineItem::getAction() const
