@@ -213,8 +213,11 @@ public:
     /// Returns the page
     const PDFPage* getPage(size_t index) const { return &m_pages.at(index); }
 
-    /// Return optional content properties
+    /// Returns optional content properties
     const PDFOptionalContentProperties* getOptionalContentProperties() const { return &m_optionalContentProperties; }
+
+    /// Returns root pointer for outline items
+    QSharedPointer<PDFOutlineItem> getOutlineRootPtr() const { return m_outlineRoot; }
 
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.

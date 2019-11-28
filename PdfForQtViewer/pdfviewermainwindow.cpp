@@ -20,6 +20,7 @@
 
 #include "pdfaboutdialog.h"
 #include "pdfviewersettingsdialog.h"
+#include "pdfsidebarwidget.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
@@ -55,9 +56,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     ui(new Ui::PDFViewerMainWindow),
     m_settings(new PDFViewerSettings(this)),
     m_pdfWidget(nullptr),
-    m_optionalContentDockWidget(nullptr),
-    m_optionalContentTreeView(nullptr),
-    m_optionalContentTreeModel(nullptr),
+    m_sidebarDockWidget(nullptr),
     m_optionalContentActivity(nullptr),
     m_pageNumberSpinBox(nullptr),
     m_pageNumberLabel(nullptr),
@@ -143,16 +142,13 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
 
-    m_optionalContentDockWidget = new QDockWidget(tr("Optional Content"), this);
-    m_optionalContentDockWidget->setObjectName("OptionalContentDockWidget");
-    m_optionalContentDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_optionalContentTreeView = new QTreeView(m_optionalContentDockWidget);
-    m_optionalContentTreeView->header()->hide();
-    m_optionalContentTreeModel = new pdf::PDFOptionalContentTreeItemModel(m_optionalContentTreeView);
-    m_optionalContentTreeView->setModel(m_optionalContentTreeModel);
-    m_optionalContentDockWidget->setWidget(m_optionalContentTreeView);
-    addDockWidget(Qt::LeftDockWidgetArea, m_optionalContentDockWidget);
-    m_optionalContentDockWidget->hide();
+    m_sidebarWidget = new PDFSidebarWidget(this);
+    m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
+    m_sidebarDockWidget->setObjectName("SidebarDockWidget");
+    m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_sidebarDockWidget->setWidget(m_sidebarWidget);
+    addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
+    m_sidebarDockWidget->hide();
 
     ui->actionRenderOptionAntialiasing->setData(pdf::PDFRenderer::Antialiasing);
     ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
@@ -165,7 +161,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     }
 
     ui->menuView->addSeparator();
-    ui->menuView->addAction(m_optionalContentDockWidget->toggleViewAction());
+    ui->menuView->addAction(m_sidebarDockWidget->toggleViewAction());
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
@@ -477,17 +473,15 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
     }
 
     m_pdfWidget->setDocument(document, m_optionalContentActivity);
-    m_optionalContentTreeModel->setDocument(document);
-    m_optionalContentTreeModel->setActivity(m_optionalContentActivity);
-    m_optionalContentTreeView->expandAll();
+    m_sidebarWidget->setDocument(document, m_optionalContentActivity);
 
-    if (m_optionalContentTreeModel->isEmpty())
+    if (m_sidebarWidget->isEmpty())
     {
-        m_optionalContentDockWidget->hide();
+        m_sidebarDockWidget->hide();
     }
     else
     {
-        m_optionalContentDockWidget->show();
+        m_sidebarDockWidget->show();
     }
 
     updateTitle();

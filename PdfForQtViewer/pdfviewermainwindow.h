@@ -48,6 +48,7 @@ class PDFOptionalContentTreeItemModel;
 
 namespace pdfviewer
 {
+class PDFSidebarWidget;
 
 class PDFViewerMainWindow : public QMainWindow
 {
@@ -112,9 +113,8 @@ private:
     pdf::PDFWidget* m_pdfWidget;
     QSharedPointer<pdf::PDFDocument> m_pdfDocument;
     QString m_currentFile;
-    QDockWidget* m_optionalContentDockWidget;
-    QTreeView* m_optionalContentTreeView;
-    pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
+    PDFSidebarWidget* m_sidebarWidget;
+    QDockWidget* m_sidebarDockWidget;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     QSpinBox* m_pageNumberSpinBox;
     QLabel* m_pageNumberLabel;

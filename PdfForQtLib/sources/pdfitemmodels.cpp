@@ -18,6 +18,9 @@
 #include "pdfitemmodels.h"
 #include "pdfdocument.h"
 
+#include <QFont>
+#include <QApplication>
+
 namespace pdf
 {
 
@@ -322,6 +325,94 @@ bool PDFOptionalContentTreeItemModel::setData(const QModelIndex& index, const QV
     }
 
     return false;
+}
+
+PDFOutlineTreeItem::PDFOutlineTreeItem(PDFOutlineTreeItem* parent, QSharedPointer<PDFOutlineItem> outlineItem) :
+    PDFTreeItem(parent),
+    m_outlineItem(qMove(outlineItem))
+{
+    size_t childCount = m_outlineItem->getChildCount();
+    for (size_t i = 0; i < childCount; ++i)
+    {
+        addCreatedChild(new PDFOutlineTreeItem(nullptr, m_outlineItem->getChildPtr(i)));
+    }
+}
+
+int PDFOutlineTreeItemModel::columnCount(const QModelIndex& parent) const
+{
+    Q_UNUSED(parent);
+    return 1;
+}
+
+QVariant PDFOutlineTreeItemModel::data(const QModelIndex& index, int role) const
+{
+    if (!index.isValid())
+    {
+        return QVariant();
+    }
+
+    const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+    const PDFOutlineItem* outlineItem = item->getOutlineItem();
+    switch (role)
+    {
+        case Qt::DisplayRole:
+            return outlineItem->getTitle();
+
+        case Qt::TextColorRole:
+            return outlineItem->getTextColor();
+
+        case Qt::FontRole:
+        {
+            QFont font = QApplication::font();
+            font.setBold(outlineItem->isFontBold());
+            font.setItalic(outlineItem->isFontItalics());
+            return font;
+        }
+
+        default:
+            break;
+    }
+
+    return QString();
+}
+
+void PDFOutlineTreeItemModel::update()
+{
+    beginResetModel();
+
+    QSharedPointer<PDFOutlineItem> outlineRoot;
+    if (m_document)
+    {
+        outlineRoot = m_document->getCatalog()->getOutlineRootPtr();
+    }
+    if (outlineRoot)
+    {
+        m_rootItem.reset(new PDFOutlineTreeItem(nullptr, qMove(outlineRoot)));
+    }
+    else
+    {
+        m_rootItem.reset();
+    }
+
+    endResetModel();
+}
+
+Qt::ItemFlags PDFOutlineTreeItemModel::flags(const QModelIndex& index) const
+{
+    Qt::ItemFlags flags = PDFTreeItemModel::flags(index);
+
+    if (!index.isValid())
+    {
+        return flags;
+    }
+
+    const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+    if (item->getChildCount() == 0)
+    {
+        flags = flags | Qt::ItemNeverHasChildren;
+    }
+
+    return flags;
 }
 
 }   // namespace pdf

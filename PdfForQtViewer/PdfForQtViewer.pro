@@ -35,18 +35,21 @@ LIBS += -lPDFForQtLib
 SOURCES += \
         main.cpp \
         pdfaboutdialog.cpp \
+        pdfsidebarwidget.cpp \
         pdfviewermainwindow.cpp \
         pdfviewersettings.cpp \
         pdfviewersettingsdialog.cpp
 
 HEADERS += \
         pdfaboutdialog.h \
+        pdfsidebarwidget.h \
         pdfviewermainwindow.h \
         pdfviewersettings.h \
         pdfviewersettingsdialog.h
 
 FORMS += \
         pdfaboutdialog.ui \
+        pdfsidebarwidget.ui \
         pdfviewermainwindow.ui \
         pdfviewersettingsdialog.ui
 

@@ -42,6 +42,7 @@ public:
     size_t getChildCount() const { return m_children.size(); }
     const PDFOutlineItem* getChild(size_t index) const { return m_children[index].get(); }
     void addChild(QSharedPointer<PDFOutlineItem> child) { m_children.emplace_back(qMove(child)); }
+    QSharedPointer<PDFOutlineItem> getChildPtr(size_t index) const { return m_children[index]; }
 
     static QSharedPointer<PDFOutlineItem> parse(const PDFDocument* document, const PDFObject& root);
 
