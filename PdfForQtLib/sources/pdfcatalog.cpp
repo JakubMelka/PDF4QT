@@ -67,6 +67,48 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         catalogObject.m_outlineRoot = PDFOutlineItem::parse(document, catalogDictionary->get("Outlines"));
     }
 
+    if (catalogDictionary->hasKey("OpenAction"))
+    {
+        PDFObject openAction = document->getObject(catalogDictionary->get("OpenAction"));
+        if (openAction.isArray())
+        {
+            catalogObject.m_openAction.reset(new PDFActionGoTo(PDFDestination::parse(document, openAction)));
+        }
+        if (openAction.isDictionary())
+        {
+            catalogObject.m_openAction = PDFAction::parse(document, openAction);
+        }
+    }
+
+    PDFDocumentDataLoaderDecorator loader(document);
+    if (catalogDictionary->hasKey("PageLayout"))
+    {
+        constexpr const std::array<std::pair<const char*, PageLayout>, 6> pageLayouts = {
+            std::pair<const char*, PageLayout>{ "SinglePage", PageLayout::SinglePage },
+            std::pair<const char*, PageLayout>{ "OneColumn", PageLayout::OneColumn },
+            std::pair<const char*, PageLayout>{ "TwoColumnLeft", PageLayout::TwoColumnLeft },
+            std::pair<const char*, PageLayout>{ "TwoColumnRight", PageLayout::TwoColumnRight },
+            std::pair<const char*, PageLayout>{ "TwoPageLeft", PageLayout::TwoPagesLeft },
+            std::pair<const char*, PageLayout>{ "TwoPageRight", PageLayout::TwoPagesRight }
+        };
+
+        catalogObject.m_pageLayout = loader.readEnumByName(catalogDictionary->get("PageLayout"), pageLayouts.begin(), pageLayouts.end(), PageLayout::SinglePage);
+    }
+
+    if (catalogDictionary->hasKey("PageMode"))
+    {
+        constexpr const std::array<std::pair<const char*, PageMode>, 6> pageModes = {
+            std::pair<const char*, PageMode>{ "UseNone", PageMode::UseNone },
+            std::pair<const char*, PageMode>{ "UseOutlines", PageMode::UseOutlines },
+            std::pair<const char*, PageMode>{ "UseThumbs", PageMode::UseThumbnails },
+            std::pair<const char*, PageMode>{ "FullScreen", PageMode::Fullscreen },
+            std::pair<const char*, PageMode>{ "UseOC", PageMode::UseOptionalContent },
+            std::pair<const char*, PageMode>{ "UseAttachments", PageMode::UseAttachments }
+        };
+
+        catalogObject.m_pageMode = loader.readEnumByName(catalogDictionary->get("PageMode"), pageModes.begin(), pageModes.end(), PageMode::UseNone);
+    }
+
     return catalogObject;
 }
 

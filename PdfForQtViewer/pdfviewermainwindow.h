@@ -41,6 +41,7 @@ class PDFViewerMainWindow;
 
 namespace pdf
 {
+class PDFAction;
 class PDFWidget;
 class PDFDocument;
 class PDFOptionalContentTreeItemModel;
@@ -82,6 +83,7 @@ private:
     void onPageLayoutChanged();
     void onPageNumberSpinboxEditingFinished();
     void onPageZoomSpinboxEditingFinished();
+    void onActionTriggered(const pdf::PDFAction* action);
 
     void onProgressStarted();
     void onProgressStep(int percentage);

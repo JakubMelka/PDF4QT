@@ -31,6 +31,7 @@ class PDFSidebarWidget;
 
 namespace pdf
 {
+class PDFAction;
 class PDFDocument;
 class PDFOutlineTreeItemModel;
 class PDFOptionalContentActivity;
@@ -72,9 +73,14 @@ public:
     /// Returns list of valid pages (nonempty pages)
     std::vector<Page> getValidPages() const;
 
+signals:
+    void actionTriggered(const pdf::PDFAction* action);
+
 private:
     void updateGUI(Page preferredPage);
     void updateButtons();
+
+    void onOutlineItemClicked(const QModelIndex& index);
 
     struct PageInfo
     {

@@ -35,9 +35,11 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     ui->setupUi(this);
 
     // Outline
-    m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(this);
+    QIcon bookmarkIcon(":/resources/bookmark.svg");
+    m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(qMove(bookmarkIcon), this);
     ui->bookmarksTreeView->setModel(m_outlineTreeModel);
     ui->bookmarksTreeView->header()->hide();
+    connect(ui->bookmarksTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
 
     // Optional content
     ui->optionalContentTreeView->header()->hide();
@@ -75,18 +77,18 @@ void PDFSidebarWidget::setDocument(const pdf::PDFDocument* document, pdf::PDFOpt
     Page preferred = Invalid;
     if (m_document)
     {
-        const pdf::PDFViewerPreferences::NonFullScreenPageMode pageMode = m_document->getCatalog()->getViewerPreferences()->getNonFullScreenPageMode();
+        const pdf::PageMode pageMode = m_document->getCatalog()->getPageMode();
         switch (pageMode)
         {
-            case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseOutline:
+            case pdf::PageMode::UseOutlines:
                 preferred = Bookmarks;
                 break;
 
-            case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseThumbnails:
+            case pdf::PageMode::UseThumbnails:
                 preferred = Thumbnails;
                 break;
 
-            case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseOptionalContent:
+            case pdf::PageMode::UseOptionalContent:
                 preferred = OptionalContent;
                 break;
 
@@ -199,6 +201,14 @@ void PDFSidebarWidget::updateButtons()
         {
             pageInfo.second.button->setEnabled(!isEmpty(pageInfo.first));
         }
+    }
+}
+
+void PDFSidebarWidget::onOutlineItemClicked(const QModelIndex& index)
+{
+    if (const pdf::PDFAction* action = m_outlineTreeModel->getAction(index))
+    {
+        emit actionTriggered(action);
     }
 }
 

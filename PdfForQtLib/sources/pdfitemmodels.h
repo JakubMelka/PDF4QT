@@ -21,10 +21,12 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 
+#include <QIcon>
 #include <QAbstractItemModel>
 
 namespace pdf
 {
+class PDFAction;
 class PDFDocument;
 class PDFOutlineItem;
 class PDFOptionalContentActivity;
@@ -107,6 +109,7 @@ private:
 
 class PDFFORQTLIBSHARED_EXPORT PDFOptionalContentTreeItemModel : public PDFTreeItemModel
 {
+    Q_OBJECT
 public:
     inline explicit PDFOptionalContentTreeItemModel(QObject* parent) :
         PDFTreeItemModel(parent),
@@ -140,13 +143,27 @@ private:
 
 class PDFFORQTLIBSHARED_EXPORT PDFOutlineTreeItemModel : public PDFTreeItemModel
 {
+    Q_OBJECT
 public:
-    using PDFTreeItemModel::PDFTreeItemModel;
+    PDFOutlineTreeItemModel(QIcon icon, QObject* parent) :
+        PDFTreeItemModel(parent),
+        m_icon(qMove(icon))
+    {
+
+    }
 
     virtual int columnCount(const QModelIndex& parent) const override;
     virtual QVariant data(const QModelIndex& index, int role) const override;
     virtual void update() override;
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
+
+    /// Returns action assigned to the index. If index is invalid, or
+    /// points to the invalid item, nullptr is returned.
+    /// \param index Index of the outline item
+    const PDFAction* getAction(const QModelIndex& index) const;
+
+private:
+    QIcon m_icon;
 };
 
 }   // namespace pdf

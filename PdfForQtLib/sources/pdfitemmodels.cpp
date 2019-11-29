@@ -364,16 +364,26 @@ QVariant PDFOutlineTreeItemModel::data(const QModelIndex& index, int role) const
         case Qt::FontRole:
         {
             QFont font = QApplication::font();
+            font.setPointSize(10);
             font.setBold(outlineItem->isFontBold());
             font.setItalic(outlineItem->isFontItalics());
             return font;
+        }
+
+        case Qt::DecorationRole:
+        {
+            if (!m_icon.isNull())
+            {
+                return m_icon;
+            }
+            break;
         }
 
         default:
             break;
     }
 
-    return QString();
+    return QVariant();
 }
 
 void PDFOutlineTreeItemModel::update()
@@ -413,6 +423,18 @@ Qt::ItemFlags PDFOutlineTreeItemModel::flags(const QModelIndex& index) const
     }
 
     return flags;
+}
+
+const PDFAction* PDFOutlineTreeItemModel::getAction(const QModelIndex& index) const
+{
+    if (index.isValid())
+    {
+        const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+        const PDFOutlineItem* outlineItem = item->getOutlineItem();
+        return outlineItem->getAction();
+    }
+
+    return nullptr;
 }
 
 }   // namespace pdf

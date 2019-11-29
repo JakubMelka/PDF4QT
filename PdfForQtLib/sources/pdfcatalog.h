@@ -22,6 +22,7 @@
 #include "pdfpage.h"
 #include "pdfoptionalcontent.h"
 #include "pdfoutline.h"
+#include "pdfaction.h"
 
 #include <QtCore>
 
@@ -219,6 +220,12 @@ public:
     /// Returns root pointer for outline items
     QSharedPointer<PDFOutlineItem> getOutlineRootPtr() const { return m_outlineRoot; }
 
+    /// Returns action, which should be performed
+    const PDFAction* getOpenAction() const { return m_openAction.data(); }
+
+    PageLayout getPageLayout() const { return m_pageLayout; }
+    PageMode getPageMode() const { return m_pageMode; }
+
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.
     static PDFCatalog parse(const PDFObject& catalog, const PDFDocument* document);
@@ -229,6 +236,9 @@ private:
     std::vector<PDFPageLabel> m_pageLabels;
     PDFOptionalContentProperties m_optionalContentProperties;
     QSharedPointer<PDFOutlineItem> m_outlineRoot;
+    PDFActionPtr m_openAction;
+    PageLayout m_pageLayout = PageLayout::SinglePage;
+    PageMode m_pageMode = PageMode::UseNone;
 };
 
 }   // namespace pdf

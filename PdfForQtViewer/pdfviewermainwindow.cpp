@@ -149,6 +149,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_sidebarDockWidget->setWidget(m_sidebarWidget);
     addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
     m_sidebarDockWidget->hide();
+    connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
 
     ui->actionRenderOptionAntialiasing->setData(pdf::PDFRenderer::Antialiasing);
     ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
@@ -246,6 +247,11 @@ void PDFViewerMainWindow::onPageZoomSpinboxEditingFinished()
     }
 
     m_pdfWidget->getDrawWidgetProxy()->zoom(m_pageZoomSpinBox->value() / 100.0);
+}
+
+void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
+{
+
 }
 
 void PDFViewerMainWindow::onProgressStarted()
@@ -486,6 +492,18 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
 
     updateTitle();
     updateUI(true);
+
+    if (m_pdfDocument)
+    {
+        const pdf::PDFCatalog* catalog = m_pdfDocument->getCatalog();
+        setPageLayout(catalog->getPageLayout());
+        updatePageLayoutActions();
+
+        if (const pdf::PDFAction* action = catalog->getOpenAction())
+        {
+            onActionTriggered(action);
+        }
+    }
 }
 
 void PDFViewerMainWindow::closeDocument()
