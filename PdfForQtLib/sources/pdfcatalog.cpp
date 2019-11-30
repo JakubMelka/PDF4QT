@@ -19,6 +19,7 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfnumbertreeloader.h"
+#include "pdfnametreeloader.h"
 
 namespace pdf
 {
@@ -41,6 +42,28 @@ static constexpr const char* PDF_VIEWER_PREFERENCES_DUPLEX = "Duplex";
 static constexpr const char* PDF_VIEWER_PREFERENCES_PICK_TRAY_BY_PDF_SIZE = "PickTrayByPDFSize";
 static constexpr const char* PDF_VIEWER_PREFERENCES_NUMBER_OF_COPIES = "NumCopies";
 static constexpr const char* PDF_VIEWER_PREFERENCES_PRINT_PAGE_RANGE = "PrintPageRange";
+
+size_t PDFCatalog::getPageIndexFromPageReference(PDFObjectReference reference) const
+{
+    auto it = std::find_if(m_pages.cbegin(), m_pages.cend(), [reference](const PDFPage& page) { return page.getPageReference() == reference; });
+    if (it != m_pages.cend())
+    {
+        return std::distance(m_pages.cbegin(), it);
+    }
+
+    return INVALID_PAGE_INDEX;
+}
+
+const PDFDestination* PDFCatalog::getDestination(const QByteArray& key) const
+{
+    auto it = m_destinations.find(key);
+    if (it != m_destinations.cend())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
 
 PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* document)
 {
@@ -107,6 +130,41 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         };
 
         catalogObject.m_pageMode = loader.readEnumByName(catalogDictionary->get("PageMode"), pageModes.begin(), pageModes.end(), PageMode::UseNone);
+    }
+
+    catalogObject.m_version = loader.readNameFromDictionary(catalogDictionary, "Version");
+
+    if (const PDFDictionary* namesDictionary = document->getDictionaryFromObject(catalogDictionary->get("Names")))
+    {
+        auto parseDestination = [](const PDFDocument* document, PDFObject object)
+        {
+            object = document->getObject(object);
+            if (object.isDictionary())
+            {
+                object = object.getDictionary()->get("D");
+            }
+            return PDFDestination::parse(document, qMove(object));
+        };
+
+        catalogObject.m_destinations = PDFNameTreeLoader<PDFDestination>::parse(document, namesDictionary->get("Dests"), parseDestination);
+        catalogObject.m_javaScriptActions = PDFNameTreeLoader<PDFActionPtr>::parse(document, namesDictionary->get("JavaScript"), &PDFAction::parse);
+        catalogObject.m_embeddedFiles = PDFNameTreeLoader<PDFFileSpecification>::parse(document, namesDictionary->get("EmbeddedFiles"), &PDFFileSpecification::parse);
+    }
+
+    // Examine "Dests" dictionary
+    if (const PDFDictionary* destsDictionary = document->getDictionaryFromObject(catalogDictionary->get("Dests")))
+    {
+        const size_t count = destsDictionary->getCount();
+        for (size_t i = 0; i < count; ++i)
+        {
+            catalogObject.m_destinations[destsDictionary->getKey(i)] = PDFDestination::parse(document, destsDictionary->getValue(i));
+        }
+    }
+
+    // Examine "URI" dictionary
+    if (const PDFDictionary* URIDictionary = document->getDictionaryFromObject(catalogDictionary->get("URI")))
+    {
+        catalogObject.m_baseURI = loader.readStringFromDictionary(URIDictionary, "Base");
     }
 
     return catalogObject;

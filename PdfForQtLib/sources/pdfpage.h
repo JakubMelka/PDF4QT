@@ -94,6 +94,8 @@ public:
     inline QRectF getTrimBoxMM() const { return getRectMM(m_trimBox); }
     inline QRectF getArtBoxMM() const { return getRectMM(m_artBox); }
 
+    inline PDFObjectReference getPageReference() const { return m_pageReference; }
+
     QRectF getRotatedMediaBox() const;
     QRectF getRotatedCropBox() const;
 
@@ -120,6 +122,7 @@ private:
     PageRotation m_pageRotation = PageRotation::None;
     PDFObject m_resources;
     PDFObject m_contents;
+    PDFObjectReference m_pageReference;
 };
 
 }   // namespace pdf

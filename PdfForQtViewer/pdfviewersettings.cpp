@@ -22,6 +22,8 @@ void PDFViewerSettings::readSettings(QSettings& settings)
     m_settings.m_preferredMeshResolutionRatio = settings.value("preferredMeshResolutionRatio", defaultSettings.m_preferredMeshResolutionRatio).toDouble();
     m_settings.m_minimalMeshResolutionRatio = settings.value("minimalMeshResolutionRatio", defaultSettings.m_minimalMeshResolutionRatio).toDouble();
     m_settings.m_colorTolerance = settings.value("colorTolerance", defaultSettings.m_colorTolerance).toDouble();
+    m_settings.m_allowLaunchApplications = settings.value("allowLaunchApplications", defaultSettings.m_allowLaunchApplications).toBool();
+    m_settings.m_allowLaunchURI = settings.value("allowLaunchURI", defaultSettings.m_allowLaunchURI).toBool();
     settings.endGroup();
 
     emit settingsChanged();
@@ -38,6 +40,8 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("preferredMeshResolutionRatio", m_settings.m_preferredMeshResolutionRatio);
     settings.setValue("minimalMeshResolutionRatio", m_settings.m_minimalMeshResolutionRatio);
     settings.setValue("colorTolerance", m_settings.m_colorTolerance);
+    settings.setValue("allowLaunchApplications", m_settings.m_allowLaunchApplications);
+    settings.setValue("allowLaunchURI", m_settings.m_allowLaunchURI);
     settings.endGroup();
 }
 

@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>0</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -357,6 +357,86 @@
                <size>
                 <width>20</width>
                 <height>91</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="securityPage">
+        <layout class="QVBoxLayout" name="securityPageLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="securitySettingsGroupBox">
+           <property name="title">
+            <string>Security Settings</string>
+           </property>
+           <layout class="QVBoxLayout" name="securitySettingsGroupBoxLayout">
+            <item>
+             <layout class="QGridLayout" name="securitySettingsGridLayout">
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="allowLaunchCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="allowRunURILabel">
+                <property name="text">
+                 <string>Allow URI link launch</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="allowRunExeLabel">
+                <property name="text">
+                 <string>Allow application launch</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="allowRunURICheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="securityInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If launch of application is allowed, then, after &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, message box appears, which asks the user, if he wants to execute external application. If user confirms the dialog, then external application is executed (for example, by windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, then no dialog appears and external application is never executed.&lt;/p&gt;&lt;p&gt;If &lt;span style=&quot; font-weight:600;&quot;&gt;URI link &lt;/span&gt;launch is allowed, then, again, message box appears and asks the user, if he wants to open the URI link. If user confirms the dialog, then URI link is opened by standard web browser (or standard application, if URI links to the file system).&lt;/p&gt;&lt;p&gt;User should be really carefull with these settings, and only confirm the execution, if the document is safe, i.e. it comes from reliable source. Launching external applications and following URI links can be harmfull to the user's computer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="securityPageSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>74</height>
                </size>
               </property>
              </spacer>

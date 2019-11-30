@@ -150,6 +150,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                         const PDFDocument* document)
 {
     // Are we in internal node, or leaf (page object)?
+    PDFObjectReference objectReference = root.isReference() ? root.getReference() : PDFObjectReference();
     const PDFObject& dereferenced = document->getObject(root);
 
     if (dereferenced.isDictionary())
@@ -198,6 +199,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
             {
                 PDFPage page;
 
+                page.m_pageReference = objectReference;
                 page.m_mediaBox = currentInheritableAttributes.getMediaBox();
                 page.m_cropBox = currentInheritableAttributes.getCropBox();
                 page.m_resources = document->getObject(currentInheritableAttributes.getResources());

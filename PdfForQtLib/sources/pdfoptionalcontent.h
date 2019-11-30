@@ -164,18 +164,20 @@ public:
 
     /// Gets the optional content groups state. If optional content group doesn't exist,
     /// then it returns Unknown state.
-    /// \param ocg Optional conteng group
+    /// \param ocg Optional content group
     OCState getState(PDFObjectReference ocg) const;
 
     /// Sets the state of optional content group. If optional content group doesn't exist,
     /// then nothing happens. If optional content group is contained in radio button group, then
     /// all other optional content groups in the group are switched off, if we are
     /// switching this one to ON state. If we are switching it off, then nothing happens (as all
-    /// optional content groups in radio button group can be switched off).
+    /// optional content groups in radio button group can be switched off). This behaviour can be
+    /// controlled via parameter \p preserveRadioButtons.
     /// \param ocg Optional content group
     /// \param state New state of the optional content group
+    /// \param preserveRadioButtons Switch off other radio buttons in group?
     /// \note If something changed, then signal \p optionalContentGroupStateChanged is emitted.
-    void setState(PDFObjectReference ocg, OCState state);
+    void setState(PDFObjectReference ocg, OCState state, bool preserveRadioButtons = true);
 
     /// Applies configuration to the current state of optional content groups
     void applyConfiguration(const PDFOptionalContentConfiguration& configuration);

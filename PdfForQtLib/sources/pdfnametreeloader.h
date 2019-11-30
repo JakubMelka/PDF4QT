@@ -1,4 +1,4 @@
-//    Copyright (C) 2018-2019 Jakub Melka
+//    Copyright (C) 2019 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -15,65 +15,62 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-
-#ifndef PDFNUMBERTREELOADER_H
-#define PDFNUMBERTREELOADER_H
+#ifndef PDFNAMETREELOADER_H
+#define PDFNAMETREELOADER_H
 
 #include "pdfdocument.h"
 
-#include <vector>
+#include <map>
+#include <functional>
 
 namespace pdf
 {
 
 /// This class can load a number tree into the array
 template<typename Type>
-class PDFNumberTreeLoader
+class PDFNameTreeLoader
 {
 public:
-    explicit PDFNumberTreeLoader() = delete;
+    explicit PDFNameTreeLoader() = delete;
 
-    using Objects = std::vector<Type>;
+    using MappedObjects = std::map<QByteArray, Type>;
+    using LoadMethod = std::function<Type(const PDFDocument*, const PDFObject&)>;
 
-    /// Parses the number tree and loads its items into the array. Some errors are ignored,
-    /// e.g. when kid is null. Type must contain methods to load object array.
-    static Objects parse(const PDFDocument* document, const PDFObject& root)
+    /// Parses the name tree and loads its items into the map. Some errors are ignored,
+    /// e.g. when kid is null. Objects are retrieved by \p loadMethod.
+    /// \param document Document
+    /// \param root Root of the name tree
+    /// \param loadMethod Parsing method, which retrieves parsed object
+    static MappedObjects parse(const PDFDocument* document, const PDFObject& root, const LoadMethod& loadMethod)
     {
-        Objects result;
-
-        // First, try to load items from the tree into the array
-        parseImpl(result, document, root);
-
-        // Array may not be sorted. Sort it using comparison operator for Type.
-        std::stable_sort(result.begin(), result.end());
-
+        MappedObjects result;
+        parseImpl(result, document, root, loadMethod);
         return result;
     }
 
 private:
-    static void parseImpl(Objects& objects, const PDFDocument* document, const PDFObject& root)
+    static void parseImpl(MappedObjects& objects, const PDFDocument* document, const PDFObject& root, const LoadMethod& loadMethod)
     {
         if (const PDFDictionary* dictionary = document->getDictionaryFromObject(root))
         {
-            // First, load the objects into the array
-            const PDFObject& numberedItems = document->getObject(dictionary->get("Nums"));
-            if (numberedItems.isArray())
+            // Jakub Melka: First, load the objects into the map
+            const PDFObject& namedItems = document->getObject(dictionary->get("Names"));
+            if (namedItems.isArray())
             {
-                const PDFArray* numberedItemsArray = numberedItems.getArray();
-                const size_t count = numberedItemsArray->getCount() / 2;
-                objects.reserve(objects.size() + count);
+                const PDFArray* namedItemsArray = namedItems.getArray();
+                const size_t count = namedItemsArray->getCount() / 2;
                 for (size_t i = 0; i < count; ++i)
                 {
                     const size_t numberIndex = 2 * i;
                     const size_t valueIndex = 2 * i + 1;
 
-                    const PDFObject& number = document->getObject(numberedItemsArray->getItem(numberIndex));
-                    if (!number.isInt())
+                    const PDFObject& name = document->getObject(namedItemsArray->getItem(numberIndex));
+                    if (!name.isString())
                     {
                         continue;
                     }
 
-                    objects.emplace_back(Type::parse(number.getInteger(), document, numberedItemsArray->getItem(valueIndex)));
+                    objects[name.getString()] = loadMethod(document, namedItemsArray->getItem(valueIndex));
                 }
             }
 
@@ -85,7 +82,7 @@ private:
                 const size_t count = kidsArray->getCount();
                 for (size_t i = 0; i < count; ++i)
                 {
-                    parseImpl(objects, document, kidsArray->getItem(i));
+                    parseImpl(objects, document, kidsArray->getItem(i), loadMethod);
                 }
             }
         }
@@ -94,4 +91,4 @@ private:
 
 }   // namespace pdf
 
-#endif // PDFNUMBERTREELOADER_H
+#endif // PDFNAMETREELOADER_H

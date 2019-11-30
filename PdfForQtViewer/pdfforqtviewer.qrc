@@ -17,5 +17,6 @@
         <file>resources/zoom-in.svg</file>
         <file>resources/zoom-out.svg</file>
         <file>resources/bookmark.svg</file>
+        <file>resources/security.svg</file>
     </qresource>
 </RCC>

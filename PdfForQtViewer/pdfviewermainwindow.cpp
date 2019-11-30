@@ -47,6 +47,11 @@
 #include <QSpinBox>
 #include <QLabel>
 #include <QDoubleSpinBox>
+#include <QDesktopServices>
+
+#ifdef Q_OS_WIN
+#include "Windows.h"
+#endif
 
 namespace pdfviewer
 {
@@ -251,7 +256,216 @@ void PDFViewerMainWindow::onPageZoomSpinboxEditingFinished()
 
 void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
 {
+    Q_ASSERT(action);
 
+    for (const pdf::PDFAction* currentAction : action->getActionList())
+    {
+        switch (action->getType())
+        {
+            case pdf::ActionType::GoTo:
+            {
+                const pdf::PDFActionGoTo* typedAction = dynamic_cast<const pdf::PDFActionGoTo*>(currentAction);
+                pdf::PDFDestination destination = typedAction->getDestination();
+                if (destination.getDestinationType() == pdf::DestinationType::Named)
+                {
+                    if (const pdf::PDFDestination* targetDestination = m_pdfDocument->getCatalog()->getDestination(destination.getName()))
+                    {
+                        destination = *targetDestination;
+                    }
+                    else
+                    {
+                        destination = pdf::PDFDestination();
+                        QMessageBox::critical(this, tr("Go to action"), tr("Failed to go to destination '%1'. Destination wasn't found.").arg(pdf::PDFEncoding::convertTextString(destination.getName())));
+                    }
+                }
+
+                if (destination.getDestinationType() != pdf::DestinationType::Invalid &&
+                    destination.getPageReference() != pdf::PDFObjectReference())
+                {
+                    const size_t pageIndex = m_pdfDocument->getCatalog()->getPageIndexFromPageReference(destination.getPageReference());
+                    if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
+                    {
+                        m_pdfWidget->getDrawWidgetProxy()->goToPage(pageIndex);
+                    }
+                }
+
+                break;
+            }
+
+            case pdf::ActionType::Launch:
+            {
+                if (!m_settings->getSettings().m_allowLaunchApplications)
+                {
+                    // Launching of applications is disabled -> continue to next action
+                    continue;
+                }
+
+                const pdf::PDFActionLaunch* typedAction = dynamic_cast<const pdf::PDFActionLaunch*>(currentAction);
+#ifdef Q_OS_WIN
+                const pdf::PDFActionLaunch::Win& winSpecification = typedAction->getWinSpecification();
+                if (!winSpecification.file.isEmpty())
+                {
+                    QString message = tr("Would you like to launch application '%1' in working directory '%2' with parameters '%3'?").arg(QString::fromLatin1(winSpecification.file), QString::fromLatin1(winSpecification.directory), QString::fromLatin1(winSpecification.parameters));
+                    if (QMessageBox::question(this, tr("Launch application"), message) == QMessageBox::Yes)
+                    {
+                        auto getStringOrNULL = [](const QByteArray& array) -> LPCSTR
+                        {
+                            if (!array.isEmpty())
+                            {
+                                return array.data();
+                            }
+                            return NULL;
+                        };
+
+                        const HINSTANCE result = ::ShellExecuteA(NULL, getStringOrNULL(winSpecification.operation), getStringOrNULL(winSpecification.file), getStringOrNULL(winSpecification.parameters), getStringOrNULL(winSpecification.directory), SW_SHOWNORMAL);
+                        if (result <= HINSTANCE(32))
+                        {
+                            // Error occured
+                            QMessageBox::warning(this, tr("Launch application"), tr("Executing application failed. Error code is %1.").arg(reinterpret_cast<intptr_t>(result)));
+                        }
+                    }
+
+                    // Continue next action
+                    continue;
+                }
+
+                const pdf::PDFFileSpecification& fileSpecification = typedAction->getFileSpecification();
+                QString plaftormFileName = fileSpecification.getPlatformFileName();
+                if (!plaftormFileName.isEmpty())
+                {
+                    QString message = tr("Would you like to launch application '%1'?").arg(plaftormFileName);
+                    if (QMessageBox::question(this, tr("Launch application"), message) == QMessageBox::Yes)
+                    {
+                        const HINSTANCE result = ::ShellExecuteW(NULL, NULL, plaftormFileName.toStdWString().c_str(), NULL, NULL, SW_SHOWNORMAL);
+                        if (result <= HINSTANCE(32))
+                        {
+                            // Error occured
+                            QMessageBox::warning(this, tr("Launch application"), tr("Executing application failed. Error code is %1.").arg(reinterpret_cast<intptr_t>(result)));
+                        }
+                    }
+
+                    // Continue next action
+                    continue;
+                }
+#endif
+                break;
+            }
+
+            case pdf::ActionType::URI:
+            {
+                if (!m_settings->getSettings().m_allowLaunchURI)
+                {
+                    // Launching of URI is disabled -> continue to next action
+                    continue;
+                }
+
+                const pdf::PDFActionURI* typedAction = dynamic_cast<const pdf::PDFActionURI*>(currentAction);
+                QByteArray URI = m_pdfDocument->getCatalog()->getBaseURI() + typedAction->getURI();
+                QString urlString = QString::fromLatin1(URI);
+                QString message = tr("Would you like to open URL '%1'?").arg(urlString);
+                if (QMessageBox::question(this, tr("Open URL"), message) == QMessageBox::Yes)
+                {
+                    if (!QDesktopServices::openUrl(QUrl(urlString)))
+                    {
+                        // Error occured
+                        QMessageBox::warning(this, tr("Open URL"), tr("Opening url '%1' failed.").arg(urlString));
+                    }
+                }
+
+                break;
+            }
+
+            case pdf::ActionType::Named:
+            {
+                const pdf::PDFActionNamed* typedAction = dynamic_cast<const pdf::PDFActionNamed*>(currentAction);
+                switch (typedAction->getNamedActionType())
+                {
+                    case pdf::PDFActionNamed::NamedActionType::NextPage:
+                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigateNextPage);
+                        break;
+
+                    case pdf::PDFActionNamed::NamedActionType::PrevPage:
+                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigatePreviousPage);
+                        break;
+
+                    case pdf::PDFActionNamed::NamedActionType::FirstPage:
+                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigateDocumentStart);
+                        break;
+
+                    case pdf::PDFActionNamed::NamedActionType::LastPage:
+                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigateDocumentEnd);
+                        break;
+
+                    default:
+                        break;
+                }
+
+                break;
+            }
+
+            case pdf::ActionType::SetOCGState:
+            {
+                const pdf::PDFActionSetOCGState* typedAction = dynamic_cast<const pdf::PDFActionSetOCGState*>(currentAction);
+                const pdf::PDFActionSetOCGState::StateChangeItems& stateChanges = typedAction->getStateChangeItems();
+                const bool isRadioButtonsPreserved = typedAction->isRadioButtonsPreserved();
+
+                if (m_optionalContentActivity)
+                {
+                    for (const pdf::PDFActionSetOCGState::StateChangeItem& stateChange : stateChanges)
+                    {
+                        pdf::OCState newState = pdf::OCState::Unknown;
+                        switch (stateChange.first)
+                        {
+                            case pdf::PDFActionSetOCGState::SwitchType::ON:
+                                newState = pdf::OCState::ON;
+                                break;
+
+                            case pdf::PDFActionSetOCGState::SwitchType::OFF:
+                                newState = pdf::OCState::OFF;
+                                break;
+
+                            case pdf::PDFActionSetOCGState::SwitchType::Toggle:
+                            {
+                                pdf::OCState oldState = m_optionalContentActivity->getState(stateChange.second);
+                                switch (oldState)
+                                {
+                                    case pdf::OCState::ON:
+                                        newState = pdf::OCState::OFF;
+                                        break;
+
+                                    case pdf::OCState::OFF:
+                                        newState = pdf::OCState::ON;
+                                        break;
+
+                                    case pdf::OCState::Unknown:
+                                        break;
+
+                                    default:
+                                        Q_ASSERT(false);
+                                        break;
+                                }
+
+                                break;
+                            }
+
+                            default:
+                                Q_ASSERT(false);
+                        }
+
+                        if (newState != pdf::OCState::Unknown)
+                        {
+                            m_optionalContentActivity->setState(stateChange.second, newState, isRadioButtonsPreserved);
+                        }
+                    }
+                }
+
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
 }
 
 void PDFViewerMainWindow::onProgressStarted()

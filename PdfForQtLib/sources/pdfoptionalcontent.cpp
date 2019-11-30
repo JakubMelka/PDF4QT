@@ -343,13 +343,13 @@ OCState PDFOptionalContentActivity::getState(PDFObjectReference ocg) const
     return OCState::Unknown;
 }
 
-void PDFOptionalContentActivity::setState(PDFObjectReference ocg, OCState state)
+void PDFOptionalContentActivity::setState(PDFObjectReference ocg, OCState state, bool preserveRadioButtons)
 {
     auto it = m_states.find(ocg);
     if (it != m_states.cend() && it->second != state)
     {
         // We are changing the state. If new state is ON, then we must check radio button groups.
-        if (state == OCState::ON)
+        if (state == OCState::ON && preserveRadioButtons)
         {
             for (const std::vector<PDFObjectReference>& radioButtonGroup : m_properties->getDefaultConfiguration().getRadioButtonGroups())
             {

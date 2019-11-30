@@ -27,7 +27,8 @@ public:
     {
         EngineSettings,
         RenderingSettings,
-        ShadingSettings
+        ShadingSettings,
+        SecuritySettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }

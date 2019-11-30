@@ -194,7 +194,7 @@ private:
     PDFInteger m_numberOfCopies = 1;
 };
 
-class PDFCatalog
+class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:
     constexpr inline PDFCatalog() = default;
@@ -205,6 +205,8 @@ public:
     constexpr inline PDFCatalog& operator=(const PDFCatalog&) = default;
     constexpr inline PDFCatalog& operator=(PDFCatalog&&) = default;
 
+    static constexpr const size_t INVALID_PAGE_INDEX = std::numeric_limits<size_t>::max();
+
     /// Returns viewer preferences of the application
     const PDFViewerPreferences* getViewerPreferences() const { return &m_viewerPreferences; }
 
@@ -213,6 +215,9 @@ public:
 
     /// Returns the page
     const PDFPage* getPage(size_t index) const { return &m_pages.at(index); }
+
+    /// Returns page index. If page is not found, then INVALID_PAGE_INDEX is returned.
+    size_t getPageIndexFromPageReference(PDFObjectReference reference) const;
 
     /// Returns optional content properties
     const PDFOptionalContentProperties* getOptionalContentProperties() const { return &m_optionalContentProperties; }
@@ -223,14 +228,25 @@ public:
     /// Returns action, which should be performed
     const PDFAction* getOpenAction() const { return m_openAction.data(); }
 
+    /// Returns version of the PDF specification, to which the document conforms.
+    const QByteArray& getVersion() const { return m_version; }
+
     PageLayout getPageLayout() const { return m_pageLayout; }
     PageMode getPageMode() const { return m_pageMode; }
+    const QByteArray& getBaseURI() const { return m_baseURI; }
+
+    /// Returns destination using the key. If destination with the key is not found,
+    /// then nullptr is returned.
+    /// \param key Destination key
+    /// \returns Pointer to the destination, or nullptr
+    const PDFDestination* getDestination(const QByteArray& key) const;
 
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.
     static PDFCatalog parse(const PDFObject& catalog, const PDFDocument* document);
 
 private:
+    QByteArray m_version;
     PDFViewerPreferences m_viewerPreferences;
     std::vector<PDFPage> m_pages;
     std::vector<PDFPageLabel> m_pageLabels;
@@ -239,6 +255,12 @@ private:
     PDFActionPtr m_openAction;
     PageLayout m_pageLayout = PageLayout::SinglePage;
     PageMode m_pageMode = PageMode::UseNone;
+    QByteArray m_baseURI;
+
+    // Maps from Names dictionary
+    std::map<QByteArray, PDFDestination> m_destinations;
+    std::map<QByteArray, PDFActionPtr> m_javaScriptActions;
+    std::map<QByteArray, PDFFileSpecification> m_embeddedFiles;
 };
 
 }   // namespace pdf

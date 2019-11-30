@@ -45,7 +45,7 @@ private:
 };
 
 /// File specification
-class PDFFileSpecification
+class PDFFORQTLIBSHARED_EXPORT PDFFileSpecification
 {
 public:
     explicit PDFFileSpecification() = default;

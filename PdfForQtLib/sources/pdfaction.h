@@ -50,7 +50,8 @@ enum class ActionType
     SetOCGState,
     Rendition,
     Transition,
-    GoTo3DView
+    GoTo3DView,
+    JavaScript
 };
 
 enum class DestinationType
@@ -105,7 +106,7 @@ private:
 using PDFActionPtr = QSharedPointer<PDFAction>;
 
 /// Base class for action types.
-class PDFAction
+class PDFFORQTLIBSHARED_EXPORT PDFAction
 {
 public:
     explicit PDFAction() = default;
@@ -127,8 +128,13 @@ public:
     /// the 'Next' entry, as described by PDF 1.7 specification.
     void apply(const std::function<void(const PDFAction* action)>& callback);
 
+    /// Returns list of actions to be executed
+    std::vector<const PDFAction*> getActionList() const;
+
 private:
     static PDFActionPtr parseImpl(const PDFDocument* document, PDFObject object, std::set<PDFObjectReference>& usedReferences);
+
+    void fillActionList(std::vector<const PDFAction*>& actionList) const;
 
     std::vector<PDFActionPtr> m_nextActions;
 };
@@ -488,6 +494,23 @@ public:
 private:
     PDFObject m_annotation;
     PDFObject m_view;
+};
+
+class PDFActionJavaScript : public PDFAction
+{
+public:
+    explicit PDFActionJavaScript(const QString& javaScript) :
+        m_javaScript(javaScript)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::JavaScript; }
+
+    const QString& getJavaScript() const { return m_javaScript; }
+
+private:
+    QString m_javaScript;
 };
 
 }   // namespace pdf

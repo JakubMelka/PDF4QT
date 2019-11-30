@@ -28,7 +28,9 @@ public:
             m_rendererSamples(16),
             m_preferredMeshResolutionRatio(0.02),
             m_minimalMeshResolutionRatio(0.005),
-            m_colorTolerance(0.01)
+            m_colorTolerance(0.01),
+            m_allowLaunchApplications(true),
+            m_allowLaunchURI(true)
         {
 
         }
@@ -41,6 +43,8 @@ public:
         pdf::PDFReal m_preferredMeshResolutionRatio;
         pdf::PDFReal m_minimalMeshResolutionRatio;
         pdf::PDFReal m_colorTolerance;
+        bool m_allowLaunchApplications;
+        bool m_allowLaunchURI;
     };
 
     const Settings& getSettings() const { return m_settings; }

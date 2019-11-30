@@ -81,6 +81,7 @@ HEADERS += \
     sources/pdfjbig2decoder.h \
     sources/pdfmeshqualitysettings.h \
     sources/pdfmultimedia.h \
+    sources/pdfnametreeloader.h \
     sources/pdfobject.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \

@@ -18,6 +18,8 @@
 #ifndef PDFENCODING_H
 #define PDFENCODING_H
 
+#include "pdfglobal.h"
+
 #include <QString>
 #include <QDateTime>
 
@@ -33,7 +35,7 @@ using EncodingTable = std::array<QChar, 256>;
 
 /// This class can convert byte stream to the QString in unicode encoding.
 /// PDF has several encodings, see PDF Reference 1.7, Appendix D.
-class PDFEncoding
+class PDFFORQTLIBSHARED_EXPORT PDFEncoding
 {
 public:
     explicit PDFEncoding() = delete;

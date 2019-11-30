@@ -39,6 +39,13 @@ void PDFAction::apply(const std::function<void (const PDFAction*)>& callback)
     }
 }
 
+std::vector<const PDFAction*> PDFAction::getActionList() const
+{
+    std::vector<const PDFAction*> result;
+    fillActionList(result);
+    return result;
+}
+
 PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object, std::set<PDFObjectReference>& usedReferences)
 {
     if (object.isReference())
@@ -273,8 +280,35 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
     {
         return PDFActionPtr(new PDFActionGoTo3DView(dictionary->get("TA"), dictionary->get("V")));
     }
+    else if (name == "JavaScript")
+    {
+        QByteArray textJavaScript;
+        const PDFObject& javaScriptObject = document->getObject(dictionary->get("JS"));
+        if (javaScriptObject.isString())
+        {
+            textJavaScript = javaScriptObject.getString();
+        }
+        else if (javaScriptObject.isStream())
+        {
+            textJavaScript = document->getDecodedStream(javaScriptObject.getStream());
+        }
+        return PDFActionPtr(new PDFActionJavaScript(PDFEncoding::convertTextString(textJavaScript)));
+    }
 
     return PDFActionPtr();
+}
+
+void PDFAction::fillActionList(std::vector<const PDFAction*>& actionList) const
+{
+    actionList.push_back(this);
+
+    for (const PDFActionPtr& actionPointer : m_nextActions)
+    {
+        if (actionPointer)
+        {
+            actionPointer->fillActionList(actionList);
+        }
+    }
 }
 
 PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject object)

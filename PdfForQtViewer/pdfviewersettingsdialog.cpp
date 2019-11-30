@@ -21,6 +21,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/engine.svg"), tr("Engine"), ui->optionsPagesWidget, EngineSettings);
     new QListWidgetItem(QIcon(":/resources/rendering.svg"), tr("Rendering"), ui->optionsPagesWidget, RenderingSettings);
     new QListWidgetItem(QIcon(":/resources/shading.svg"), tr("Shading"), ui->optionsPagesWidget, ShadingSettings);
+    new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
@@ -30,20 +31,20 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
         ui->multisampleAntialiasingSamplesCountComboBox->addItem(QString::number(i), i);
     }
 
-    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel })
+    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel, ui->securityInfoLabel })
     {
         widget->setMinimumWidth(widget->sizeHint().width());
     }
 
-    for (QCheckBox* checkBox : { ui->multisampleAntialiasingCheckBox, ui->antialiasingCheckBox, ui->textAntialiasingCheckBox, ui->smoothPicturesCheckBox, ui->ignoreOptionalContentCheckBox, ui->clipToCropBoxCheckBox })
+    for (QCheckBox* checkBox : findChildren<QCheckBox*>())
     {
         connect(checkBox, &QCheckBox::clicked, this, &PDFViewerSettingsDialog::saveData);
     }
-    for (QComboBox* comboBox : { ui->renderingEngineComboBox, ui->multisampleAntialiasingSamplesCountComboBox })
+    for (QComboBox* comboBox : findChildren<QComboBox*>())
     {
         connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFViewerSettingsDialog::saveData);
     }
-    for (QDoubleSpinBox* spinBox : { ui->preferredMeshResolutionEdit, ui->minimalMeshResolutionEdit, ui->colorToleranceEdit })
+    for (QDoubleSpinBox* spinBox : findChildren<QDoubleSpinBox*>())
     {
         connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFViewerSettingsDialog::saveData);
     }
@@ -74,6 +75,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case ShadingSettings:
             ui->stackedWidget->setCurrentWidget(ui->shadingPage);
+            break;
+
+        case SecuritySettings:
+            ui->stackedWidget->setCurrentWidget(ui->securityPage);
             break;
 
         default:
@@ -123,6 +128,10 @@ void PDFViewerSettingsDialog::loadData()
     ui->preferredMeshResolutionEdit->setValue(m_settings.m_preferredMeshResolutionRatio);
     ui->minimalMeshResolutionEdit->setValue(m_settings.m_minimalMeshResolutionRatio);
     ui->colorToleranceEdit->setValue(m_settings.m_colorTolerance);
+
+    // Security
+    ui->allowLaunchCheckBox->setChecked(m_settings.m_allowLaunchApplications);
+    ui->allowRunURICheckBox->setChecked(m_settings.m_allowLaunchURI);
 }
 
 void PDFViewerSettingsDialog::saveData()
@@ -177,6 +186,14 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->colorToleranceEdit)
     {
         m_settings.m_colorTolerance = ui->colorToleranceEdit->value();
+    }
+    else if (sender == ui->allowLaunchCheckBox)
+    {
+        m_settings.m_allowLaunchApplications = ui->allowLaunchCheckBox->isChecked();
+    }
+    else if (sender == ui->allowRunURICheckBox)
+    {
+        m_settings.m_allowLaunchURI = ui->allowRunURICheckBox->isChecked();
     }
 
     loadData();
