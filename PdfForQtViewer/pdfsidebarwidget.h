@@ -34,6 +34,7 @@ namespace pdf
 class PDFAction;
 class PDFDocument;
 class PDFOutlineTreeItemModel;
+class PDFAttachmentsTreeItemModel;
 class PDFOptionalContentActivity;
 class PDFOptionalContentTreeItemModel;
 }
@@ -53,9 +54,10 @@ public:
     {
         Invalid,
         _BEGIN,
-        OptionalContent = _BEGIN,
-        Bookmarks,
+        Bookmarks = _BEGIN,
         Thumbnails,
+        OptionalContent,
+        Attachments,
         _END
     };
 
@@ -93,6 +95,7 @@ private:
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
     const pdf::PDFDocument* m_document;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
+    pdf::PDFAttachmentsTreeItemModel* m_attachmentsTreeModel;
     std::map<Page, PageInfo> m_pageInfo;
 };
 

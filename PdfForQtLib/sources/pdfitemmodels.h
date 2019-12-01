@@ -29,6 +29,7 @@ namespace pdf
 class PDFAction;
 class PDFDocument;
 class PDFOutlineItem;
+class PDFFileSpecification;
 class PDFOptionalContentActivity;
 
 /// Represents tree item in the GUI tree
@@ -164,6 +165,54 @@ public:
 
 private:
     QIcon m_icon;
+};
+
+class PDFAttachmentsTreeItem : public PDFTreeItem
+{
+public:
+    explicit PDFAttachmentsTreeItem(PDFAttachmentsTreeItem* parent, QIcon icon, QString title, QString description, const PDFFileSpecification* fileSpecification) :
+        PDFTreeItem(parent),
+        m_icon(qMove(icon)),
+        m_title(qMove(title)),
+        m_description(qMove(description)),
+        m_fileSpecification(fileSpecification)
+    {
+
+    }
+
+    const QIcon& getIcon() const { return m_icon; }
+    const QString& getTitle() const { return m_title; }
+    const QString& getDescription() const { return m_description; }
+    const PDFFileSpecification* getFileSpecification() const { return m_fileSpecification; }
+
+private:
+    QIcon m_icon;
+    QString m_title;
+    QString m_description;
+    const PDFFileSpecification* m_fileSpecification;
+};
+
+class PDFFORQTLIBSHARED_EXPORT PDFAttachmentsTreeItemModel : public PDFTreeItemModel
+{
+    Q_OBJECT
+public:
+    PDFAttachmentsTreeItemModel(QObject* parent) :
+        PDFTreeItemModel(parent)
+    {
+
+    }
+
+    enum Column
+    {
+        Title,
+        Description,
+        EndColumn
+    };
+
+    virtual int columnCount(const QModelIndex& parent) const override;
+    virtual QVariant data(const QModelIndex& index, int role) const override;
+    virtual void update() override;
+    virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
 };
 
 }   // namespace pdf

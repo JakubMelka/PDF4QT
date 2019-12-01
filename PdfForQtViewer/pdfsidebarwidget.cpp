@@ -30,7 +30,8 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     m_outlineTreeModel(nullptr),
     m_optionalContentTreeModel(nullptr),
     m_document(nullptr),
-    m_optionalContentActivity(nullptr)
+    m_optionalContentActivity(nullptr),
+    m_attachmentsTreeModel(nullptr)
 {
     ui->setupUi(this);
 
@@ -46,10 +47,18 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     m_optionalContentTreeModel = new pdf::PDFOptionalContentTreeItemModel(this);
     ui->optionalContentTreeView->setModel(m_optionalContentTreeModel);
 
+    // Attachments
+    ui->attachmentsTreeView->header()->hide();
+    m_attachmentsTreeModel = new pdf::PDFAttachmentsTreeItemModel(this);
+    ui->attachmentsTreeView->setModel(m_attachmentsTreeModel);
+    ui->attachmentsTreeView->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->attachmentsTreeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
     m_pageInfo[Bookmarks] = { ui->bookmarksButton, ui->bookmarksPage };
     m_pageInfo[Thumbnails] = { ui->thumbnailsButton, ui->thumbnailsPage };
+    m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
 
     setAutoFillBackground(true);
     selectPage(Invalid);
@@ -74,6 +83,11 @@ void PDFSidebarWidget::setDocument(const pdf::PDFDocument* document, pdf::PDFOpt
     m_optionalContentTreeModel->setActivity(m_optionalContentActivity);
     ui->optionalContentTreeView->expandAll();
 
+    // Update attachments
+    m_attachmentsTreeModel->setDocument(document);
+    ui->attachmentsTreeView->expandAll();
+    ui->attachmentsTreeView->resizeColumnToContents(0);
+
     Page preferred = Invalid;
     if (m_document)
     {
@@ -90,6 +104,10 @@ void PDFSidebarWidget::setDocument(const pdf::PDFDocument* document, pdf::PDFOpt
 
             case pdf::PageMode::UseOptionalContent:
                 preferred = OptionalContent;
+                break;
+
+            case pdf::PageMode::UseAttachments:
+                preferred = Attachments;
                 break;
 
             default:
@@ -122,14 +140,17 @@ bool PDFSidebarWidget::isEmpty(Page page) const
         case Invalid:
             return true;
 
-        case OptionalContent:
-            return m_optionalContentTreeModel->isEmpty();
-
         case Bookmarks:
             return m_outlineTreeModel->isEmpty();
 
         case Thumbnails:
             return true;
+
+        case OptionalContent:
+            return m_optionalContentTreeModel->isEmpty();
+
+        case Attachments:
+            return m_attachmentsTreeModel->isEmpty();
 
         default:
             Q_ASSERT(false);

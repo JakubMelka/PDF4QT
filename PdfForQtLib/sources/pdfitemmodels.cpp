@@ -19,7 +19,10 @@
 #include "pdfdocument.h"
 
 #include <QFont>
+#include <QStyle>
 #include <QApplication>
+#include <QMimeDatabase>
+#include <QFileIconProvider>
 
 namespace pdf
 {
@@ -435,6 +438,154 @@ const PDFAction* PDFOutlineTreeItemModel::getAction(const QModelIndex& index) co
     }
 
     return nullptr;
+}
+
+int PDFAttachmentsTreeItemModel::columnCount(const QModelIndex& parent) const
+{
+    Q_UNUSED(parent);
+    return EndColumn;
+}
+
+QVariant PDFAttachmentsTreeItemModel::data(const QModelIndex& index, int role) const
+{
+    if (!index.isValid())
+    {
+        return QVariant();
+    }
+
+    const PDFAttachmentsTreeItem* item = static_cast<const PDFAttachmentsTreeItem*>(index.internalPointer());
+    switch (role)
+    {
+        case Qt::DisplayRole:
+        {
+            switch (index.column())
+            {
+                case Title:
+                    return item->getTitle();
+
+                case Description:
+                    return item->getDescription();
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+            break;
+        }
+
+        case Qt::DecorationRole:
+        {
+            switch (index.column())
+            {
+                case Title:
+                    return item->getIcon();
+
+                case Description:
+                    return QVariant();
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return QVariant();
+}
+
+void PDFAttachmentsTreeItemModel::update()
+{
+    beginResetModel();
+
+    m_rootItem.reset();
+    if (m_document)
+    {
+        const std::map<QByteArray, PDFFileSpecification>& embeddedFiles = m_document->getCatalog()->getEmbeddedFiles();
+        if (!embeddedFiles.empty())
+        {
+            QMimeDatabase mimeDatabase;
+            QFileIconProvider fileIconProvider;
+            fileIconProvider.setOptions(QFileIconProvider::DontUseCustomDirectoryIcons);
+            PDFAttachmentsTreeItem* root = new PDFAttachmentsTreeItem(nullptr, QIcon(), QString(), QString(), nullptr);
+            m_rootItem.reset(root);
+
+            std::map<QString, PDFAttachmentsTreeItem*> subroots;
+
+            for (const auto& embeddedFile : embeddedFiles)
+            {
+                const PDFFileSpecification* specification = &embeddedFile.second;
+                const PDFEmbeddedFile* file = specification->getPlatformFile();
+                if (!file)
+                {
+                    continue;
+                }
+
+                QString fileName = specification->getPlatformFileName();
+                QString description = specification->getDescription();
+
+                // Jakub Melka: try to obtain mime type from subtype, if it fails, then form file name.
+                // We do not obtain type from data, because it can be slow (files can be large).
+                QMimeType type = mimeDatabase.mimeTypeForName(file->getSubtype());
+                if (!type.isValid())
+                {
+                    type = mimeDatabase.mimeTypeForFile(fileName, QMimeDatabase::MatchExtension);
+                }
+
+                // Get icon and select folder, to which file belongs
+                QIcon icon;
+                QString fileTypeName = "@GENERIC";
+                QString fileTypeDescription = tr("Files");
+                if (type.isValid())
+                {
+                    icon = QIcon::fromTheme(type.iconName());
+                    if (icon.isNull())
+                    {
+                        icon = QIcon::fromTheme(type.genericIconName());
+                    }
+
+                    fileTypeName = type.name();
+                    fileTypeDescription = type.comment();
+                }
+
+                if (icon.isNull())
+                {
+                    icon = fileIconProvider.icon(QFileInfo(fileName));
+                }
+                if (icon.isNull())
+                {
+                    icon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
+                }
+
+                // Create subroot
+                PDFAttachmentsTreeItem* subroot = nullptr;
+                auto it = subroots.find(fileTypeName);
+                if (it == subroots.cend())
+                {
+                    subroot = new PDFAttachmentsTreeItem(nullptr, icon, fileTypeDescription, QString(), nullptr);
+                    root->addCreatedChild(subroot);
+                    subroots[fileTypeName] = subroot;
+                }
+                else
+                {
+                    subroot = it->second;
+                }
+
+                // Create item
+                subroot->addCreatedChild(new PDFAttachmentsTreeItem(nullptr, qMove(icon), qMove(fileName), qMove(description), specification));
+            }
+        }
+    }
+
+    endResetModel();
+}
+
+Qt::ItemFlags PDFAttachmentsTreeItemModel::flags(const QModelIndex& index) const
+{
+    return PDFTreeItemModel::flags(index);
 }
 
 }   // namespace pdf

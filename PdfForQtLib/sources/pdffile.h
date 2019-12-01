@@ -32,6 +32,11 @@ public:
     explicit PDFEmbeddedFile() = default;
 
     bool isValid() const { return m_stream.isStream(); }
+    const QByteArray& getSubtype() const { return m_subtype; }
+    PDFInteger getSize() const { return m_size; }
+    const QDateTime& getCreationDate() const { return m_creationDate; }
+    const QDateTime& getModifiedDate() const { return m_modifiedDate; }
+    const QByteArray& getChecksum() const { return m_checksum; }
 
     static PDFEmbeddedFile parse(const PDFDocument* document, PDFObject object);
 
