@@ -114,6 +114,25 @@ PDFDrawSpaceController::LayoutItem PDFDrawSpaceController::getLayoutItemForPage(
     return result;
 }
 
+QSizeF PDFDrawSpaceController::getReferenceBoundingBox() const
+{
+    QRectF rect;
+
+    for (const LayoutItem& item : m_layoutItems)
+    {
+        QRectF pageRect = item.pageRectMM;
+        pageRect.translate(0, -pageRect.top());
+        rect = rect.united(pageRect);
+    }
+
+    if (rect.isValid())
+    {
+        rect.adjust(0, 0, m_horizontalSpacingMM, m_verticalSpacingMM);
+    }
+
+    return rect.size();
+}
+
 void PDFDrawSpaceController::recalculate()
 {
     if (!m_document)
@@ -697,6 +716,24 @@ void PDFDrawWidgetProxy::performOperation(Operation operation)
             break;
         }
 
+        case ZoomFit:
+        {
+            zoom(getZoomHint(ZoomHint::Fit));
+            break;
+        }
+
+        case ZoomFitWidth:
+        {
+            zoom(getZoomHint(ZoomHint::FitWidth));
+            break;
+        }
+
+        case ZoomFitHeight:
+        {
+            zoom(getZoomHint(ZoomHint::FitHeight));
+            break;
+        }
+
         default:
         {
             Q_ASSERT(false);
@@ -732,6 +769,38 @@ void PDFDrawWidgetProxy::zoom(PDFReal zoom)
         setHorizontalOffset(oldHorizontalOffsetMM * m_deviceSpaceUnitToPixel);
         setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
     }
+}
+
+PDFReal PDFDrawWidgetProxy::getZoomHint(ZoomHint hint) const
+{
+    QSizeF referenceSize = m_controller->getReferenceBoundingBox();
+    if (referenceSize.isValid())
+    {
+        const PDFReal ratio = 0.95;
+        const PDFReal widthMM = m_widget->widthMM() * ratio;
+        const PDFReal heightMM = m_widget->heightMM() * ratio;
+
+        const PDFReal widthHint = widthMM / referenceSize.width();
+        const PDFReal heightHint = heightMM / referenceSize.height();
+
+        switch (hint)
+        {
+            case ZoomHint::Fit:
+                return qMin(widthHint, heightHint);
+
+            case ZoomHint::FitWidth:
+                return widthHint;
+
+            case ZoomHint::FitHeight:
+                return heightHint;
+
+            default:
+                break;
+        }
+    }
+
+    // Return default 100% zoom
+    return 1.0;
 }
 
 void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)

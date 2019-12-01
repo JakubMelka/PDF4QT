@@ -86,7 +86,7 @@ public:
     PDFInteger getPageIndex() const { return m_pageIndex; }
 
     /// Parses the destination from the object. If object contains invalid destination,
-    /// then exception is thrown. If object is empty, empty destination is returned.
+    /// then empty destination is returned. If object is empty, empty destination is returned.
     /// \param document Document
     /// \param object Destination object
     static PDFDestination parse(const PDFDocument* document, PDFObject object);

@@ -74,6 +74,12 @@ private slots:
 
     void on_actionAbout_triggered();
 
+    void on_actionFitPage_triggered();
+
+    void on_actionFitWidth_triggered();
+
+    void on_actionFitHeight_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();

@@ -327,7 +327,7 @@ PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject obje
         const PDFArray* array = object.getArray();
         if (array->getCount() < 2)
         {
-            throw PDFException(PDFTranslationContext::tr("Invalid destination - array has invalid size."));
+            return result;
         }
 
         PDFDocumentDataLoaderDecorator loader(document);
@@ -344,7 +344,7 @@ PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject obje
         }
         else
         {
-            throw PDFException(PDFTranslationContext::tr("Invalid destination - invalid page reference."));
+            return result;
         }
 
         QByteArray name = loader.readName(array->getItem(1));
@@ -352,11 +352,11 @@ PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject obje
         size_t currentIndex = 2;
         auto readNumber = [&]()
         {
-            if (currentIndex >= array->getCount())
+            if (currentIndex < array->getCount())
             {
-                throw PDFException(PDFTranslationContext::tr("Invalid destination - array has invalid size."));
+                return loader.readNumber(array->getItem(currentIndex++), 0.0);
             }
-            return loader.readNumber(array->getItem(currentIndex++), 0.0);
+            return 0.0;
         };
 
         if (name == "XYZ")
@@ -404,7 +404,7 @@ PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject obje
         }
         else
         {
-            throw PDFException(PDFTranslationContext::tr("Invalid destination - unknown type."));
+            return result;
         }
     }
 

@@ -105,6 +105,11 @@ public:
     /// Returns optional content activity
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
+    /// Returns reference bounding box for correct calculation of zoom fit/fit vertical/fit horizontal.
+    /// If zoom is set in a way to display this bounding box on a screen, then it is assured that
+    /// any page on the screen will fit this bounding box, regardless of mode (single/two columns, etc.).
+    QSizeF getReferenceBoundingBox() const;
+
 signals:
     void drawSpaceChanged();
     void repaintNeeded();
@@ -175,6 +180,9 @@ public:
     {
         ZoomIn,
         ZoomOut,
+        ZoomFit,
+        ZoomFitWidth,
+        ZoomFitHeight,
         NavigateDocumentStart,
         NavigateDocumentEnd,
         NavigateNextPage,
@@ -196,6 +204,18 @@ public:
     /// area will be visible after the zoom).
     /// \param zoom New zoom
     void zoom(PDFReal zoom);
+
+    enum class ZoomHint
+    {
+        Fit,
+        FitWidth,
+        FitHeight
+    };
+
+    /// Calculates zoom using given hint (i.e. to fill whole space, fill vertical,
+    /// or fill horizontal).
+    /// \param hint Zoom hint type
+    PDFReal getZoomHint(ZoomHint hint) const;
 
     /// Go to the specified page
     /// \param pageIndex Page to scroll to

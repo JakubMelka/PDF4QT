@@ -202,6 +202,8 @@ SUFFIX = d
 
 qt_libraries.files =    $$[QT_INSTALL_BINS]/Qt?Widgets$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?Gui$${SUFFIX}.dll \
-                        $$[QT_INSTALL_BINS]/Qt?Core$${SUFFIX}.dll
+                        $$[QT_INSTALL_BINS]/Qt?Core$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?WinExtras$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?Svg$${SUFFIX}.dll
 qt_libraries.path = $$DESTDIR/install
 INSTALLS += qt_libraries

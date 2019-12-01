@@ -143,6 +143,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
             {
                 object = object.getDictionary()->get("D");
             }
+
             return PDFDestination::parse(document, qMove(object));
         };
 

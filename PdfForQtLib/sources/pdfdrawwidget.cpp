@@ -176,6 +176,7 @@ template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
 {
     QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
+    event->ignore();
 
     // Vertical navigation
     if (verticalScrollbar->isVisible())
@@ -195,11 +196,10 @@ void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
             if (event->matches(keyToOperation.first))
             {
                 m_widget->getDrawWidgetProxy()->performOperation(keyToOperation.second);
+                event->accept();
             }
         }
     }
-
-    event->accept();
 }
 
 template<typename BaseWidget>

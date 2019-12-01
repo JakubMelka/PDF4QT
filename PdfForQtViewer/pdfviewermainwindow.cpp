@@ -138,6 +138,11 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(m_pageZoomSpinBox, &QDoubleSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageZoomSpinboxEditingFinished);
     ui->mainToolBar->addWidget(m_pageZoomSpinBox);
 
+    // Fit page, width, height
+    ui->mainToolBar->addAction(ui->actionFitPage);
+    ui->mainToolBar->addAction(ui->actionFitWidth);
+    ui->mainToolBar->addAction(ui->actionFitHeight);
+
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
     connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
 
@@ -286,6 +291,24 @@ void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
                     if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
                     {
                         m_pdfWidget->getDrawWidgetProxy()->goToPage(pageIndex);
+
+                        switch (destination.getDestinationType())
+                        {
+                            case pdf::DestinationType::Fit:
+                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
+                                break;
+
+                            case pdf::DestinationType::FitH:
+                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitWidth);
+                                break;
+
+                            case pdf::DestinationType::FitV:
+                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitHeight);
+                                break;
+
+                            default:
+                                break;
+                        }
                     }
                 }
 
@@ -799,6 +822,21 @@ void PDFViewerMainWindow::on_actionFirstPageOnRightSide_triggered()
     }
 }
 
+void PDFViewerMainWindow::on_actionFitPage_triggered()
+{
+    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
+}
+
+void PDFViewerMainWindow::on_actionFitWidth_triggered()
+{
+    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitWidth);
+}
+
+void PDFViewerMainWindow::on_actionFitHeight_triggered()
+{
+    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitHeight);
+}
+
 void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
 {
     pdf::PDFRenderingErrorsWidget renderingErrorsDialog(this, m_pdfWidget);
@@ -821,4 +859,3 @@ void PDFViewerMainWindow::on_actionAbout_triggered()
 }
 
 }   // namespace pdfviewer
-
