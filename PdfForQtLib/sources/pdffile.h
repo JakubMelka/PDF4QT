@@ -37,6 +37,7 @@ public:
     const QDateTime& getCreationDate() const { return m_creationDate; }
     const QDateTime& getModifiedDate() const { return m_modifiedDate; }
     const QByteArray& getChecksum() const { return m_checksum; }
+    const PDFStream* getStream() const { return m_stream.getStream(); }
 
     static PDFEmbeddedFile parse(const PDFDocument* document, PDFObject object);
 

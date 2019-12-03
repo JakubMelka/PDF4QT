@@ -565,7 +565,8 @@ void PDFAttachmentsTreeItemModel::update()
                 auto it = subroots.find(fileTypeName);
                 if (it == subroots.cend())
                 {
-                    subroot = new PDFAttachmentsTreeItem(nullptr, icon, fileTypeDescription, QString(), nullptr);
+                    QIcon folderIcon = QApplication::style()->standardIcon(QStyle::SP_DirIcon);
+                    subroot = new PDFAttachmentsTreeItem(nullptr, qMove(folderIcon), fileTypeDescription, QString(), nullptr);
                     root->addCreatedChild(subroot);
                     subroots[fileTypeName] = subroot;
                 }
@@ -585,7 +586,32 @@ void PDFAttachmentsTreeItemModel::update()
 
 Qt::ItemFlags PDFAttachmentsTreeItemModel::flags(const QModelIndex& index) const
 {
-    return PDFTreeItemModel::flags(index);
+    if (!index.isValid())
+    {
+        return Qt::NoItemFlags;
+    }
+
+    if (rowCount(index) > 0)
+    {
+        return Qt::ItemIsEnabled;
+    }
+
+    if (index.column() == Title)
+    {
+        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemNeverHasChildren;
+    }
+
+    return Qt::ItemIsEnabled | Qt::ItemNeverHasChildren;
+}
+
+const PDFFileSpecification* PDFAttachmentsTreeItemModel::getFileSpecification(const QModelIndex& index) const
+{
+    if (index.isValid())
+    {
+        return static_cast<const PDFAttachmentsTreeItem*>(index.internalPointer())->getFileSpecification();
+    }
+
+    return nullptr;
 }
 
 }   // namespace pdf

@@ -83,6 +83,7 @@ private:
     void updateButtons();
 
     void onOutlineItemClicked(const QModelIndex& index);
+    void onAttachmentCustomContextMenuRequested(const QPoint& pos);
 
     struct PageInfo
     {

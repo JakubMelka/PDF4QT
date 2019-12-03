@@ -213,6 +213,8 @@ public:
     virtual QVariant data(const QModelIndex& index, int role) const override;
     virtual void update() override;
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
+
+    const PDFFileSpecification* getFileSpecification(const QModelIndex& index) const;
 };
 
 }   // namespace pdf

@@ -296,7 +296,7 @@ private:
 };
 
 /// PDF document main class.
-class PDFDocument
+class PDFFORQTLIBSHARED_EXPORT PDFDocument
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocument)
 

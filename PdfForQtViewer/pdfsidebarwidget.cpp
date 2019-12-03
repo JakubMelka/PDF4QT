@@ -20,6 +20,13 @@
 
 #include "pdfdocument.h"
 #include "pdfitemmodels.h"
+#include "pdfexception.h"
+
+#include <QMenu>
+#include <QAction>
+#include <QFileDialog>
+#include <QStandardPaths>
+#include <QMessageBox>
 
 namespace pdfviewer
 {
@@ -52,7 +59,9 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     m_attachmentsTreeModel = new pdf::PDFAttachmentsTreeItemModel(this);
     ui->attachmentsTreeView->setModel(m_attachmentsTreeModel);
     ui->attachmentsTreeView->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->attachmentsTreeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->attachmentsTreeView->setSelectionBehavior(QAbstractItemView::SelectItems);
+    ui->attachmentsTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->attachmentsTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onAttachmentCustomContextMenuRequested);
 
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
@@ -230,6 +239,55 @@ void PDFSidebarWidget::onOutlineItemClicked(const QModelIndex& index)
     if (const pdf::PDFAction* action = m_outlineTreeModel->getAction(index))
     {
         emit actionTriggered(action);
+    }
+}
+
+void PDFSidebarWidget::onAttachmentCustomContextMenuRequested(const QPoint& pos)
+{
+    if (const pdf::PDFFileSpecification* fileSpecification = m_attachmentsTreeModel->getFileSpecification(ui->attachmentsTreeView->indexAt(pos)))
+    {
+        QMenu menu(this);
+        QAction* action = new QAction(QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton, nullptr, ui->attachmentsTreeView), tr("Save to File..."), &menu);
+
+        auto onSaveTriggered = [this, fileSpecification]()
+        {
+            const pdf::PDFEmbeddedFile* platformFile = fileSpecification->getPlatformFile();
+            if (platformFile && platformFile->isValid())
+            {
+                QString defaultFileName = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QDir::separator() + fileSpecification->getPlatformFileName();
+                QString saveFileName = QFileDialog::getSaveFileName(this, tr("Save attachment"), defaultFileName);
+                if (!saveFileName.isEmpty())
+                {
+                    try
+                    {
+                        QByteArray data = m_document->getDecodedStream(platformFile->getStream());
+
+                        QFile file(saveFileName);
+                        if (file.open(QFile::WriteOnly | QFile::Truncate))
+                        {
+                            file.write(data);
+                            file.close();
+                        }
+                        else
+                        {
+                            QMessageBox::critical(this, tr("Error"), tr("Failed to save attachment to file. %1").arg(file.errorString()));
+                        }
+                    }
+                    catch (pdf::PDFException e)
+                    {
+                        QMessageBox::critical(this, tr("Error"), tr("Failed to save attachment to file. %1").arg(e.getMessage()));
+                    }
+                }
+            }
+            else
+            {
+                QMessageBox::critical(this, tr("Error"), tr("Failed to save attachment to file. Attachment is corrupted."));
+            }
+        };
+        connect(action, &QAction::triggered, this, onSaveTriggered);
+
+        menu.addAction(action);
+        menu.exec(ui->attachmentsTreeView->viewport()->mapToGlobal(pos));
     }
 }
 
