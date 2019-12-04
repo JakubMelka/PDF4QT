@@ -27,9 +27,16 @@
 #include <QFileDialog>
 #include <QStandardPaths>
 #include <QMessageBox>
+#include <QPainter>
 
 namespace pdfviewer
 {
+
+constexpr const char* STYLESHEET =
+        "QPushButton { background-color: #404040; color: #FFFFFF; }"
+        "QPushButton:disabled { background-color: #404040; color: #000000; }"
+        "QPushButton:checked { background-color: #808080; color: #FFFFFF; }"
+        "QWidget#PDFSidebarWidget { background-color: #404040; background: green;}";
 
 PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     QWidget(parent),
@@ -41,6 +48,8 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     m_attachmentsTreeModel(nullptr)
 {
     ui->setupUi(this);
+
+    setStyleSheet(STYLESHEET);
 
     // Outline
     QIcon bookmarkIcon(":/resources/bookmark.svg");
@@ -69,7 +78,6 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     m_pageInfo[Thumbnails] = { ui->thumbnailsButton, ui->thumbnailsPage };
     m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
 
-    setAutoFillBackground(true);
     selectPage(Invalid);
     updateButtons();
 }
@@ -289,6 +297,13 @@ void PDFSidebarWidget::onAttachmentCustomContextMenuRequested(const QPoint& pos)
         menu.addAction(action);
         menu.exec(ui->attachmentsTreeView->viewport()->mapToGlobal(pos));
     }
+}
+
+void PDFSidebarWidget::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.fillRect(rect(), QColor(64, 64, 64));
 }
 
 }   // namespace pdfviewer

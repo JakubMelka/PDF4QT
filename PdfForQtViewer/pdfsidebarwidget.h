@@ -50,6 +50,8 @@ public:
     explicit PDFSidebarWidget(QWidget* parent = nullptr);
     virtual ~PDFSidebarWidget() override;
 
+    virtual void paintEvent(QPaintEvent* event) override;
+
     enum Page
     {
         Invalid,
