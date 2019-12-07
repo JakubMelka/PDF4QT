@@ -17,6 +17,7 @@
 
 #include "pdfitemmodels.h"
 #include "pdfdocument.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QFont>
 #include <QStyle>
@@ -612,6 +613,162 @@ const PDFFileSpecification* PDFAttachmentsTreeItemModel::getFileSpecification(co
     }
 
     return nullptr;
+}
+
+PDFThumbnailsItemModel::PDFThumbnailsItemModel(const PDFDrawWidgetProxy* proxy, QObject* parent) :
+    QAbstractItemModel(parent),
+    m_proxy(proxy),
+    m_thumbnailSize(100),
+    m_extraItemWidthHint(0),
+    m_extraItemHeighHint(0),
+    m_pageCount(0),
+    m_document(nullptr)
+{
+    connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFThumbnailsItemModel::onPageImageChanged);
+}
+
+bool PDFThumbnailsItemModel::isEmpty() const
+{
+    return rowCount(QModelIndex()) == 0;
+}
+
+QModelIndex PDFThumbnailsItemModel::index(int row, int column, const QModelIndex& parent) const
+{
+    if (parent.isValid())
+    {
+        return QModelIndex();
+    }
+
+    return createIndex(row, column, nullptr);
+}
+
+QModelIndex PDFThumbnailsItemModel::parent(const QModelIndex& child) const
+{
+    Q_UNUSED(child);
+    return QModelIndex();
+}
+
+int PDFThumbnailsItemModel::rowCount(const QModelIndex& parent) const
+{
+    if (parent.isValid())
+    {
+        return 0;
+    }
+
+    return m_pageCount;
+}
+
+int PDFThumbnailsItemModel::columnCount(const QModelIndex& parent) const
+{
+    Q_UNUSED(parent);
+    return 1;
+}
+
+QVariant PDFThumbnailsItemModel::data(const QModelIndex& index, int role) const
+{
+    if (!index.isValid() || !m_document)
+    {
+        return QVariant();
+    }
+
+    const int page = index.row();
+    switch (role)
+    {
+        case Qt::DisplayRole:
+            return QString::number(page + 1);
+
+        case Qt::DecorationRole:
+        {
+            QString key = getKey(index.row());
+
+            QPixmap pixmap;
+            if (!m_thumbnailCache.find(key, pixmap))
+            {
+                QImage thumbnail = m_proxy->drawThumbnailImage(index.row(), m_thumbnailSize);
+                if (!thumbnail.isNull())
+                {
+                    pixmap = QPixmap::fromImage(qMove(thumbnail));
+                    m_thumbnailCache.insert(key, pixmap);
+                }
+            }
+
+            return pixmap;
+        }
+
+        case Qt::TextAlignmentRole:
+        {
+            return int(Qt::AlignHCenter | Qt::AlignBottom);
+        }
+
+        case Qt::SizeHintRole:
+        {
+            const PDFPage* page = m_document->getCatalog()->getPage(index.row());
+            QSizeF pageSize = page->getRotatedMediaBox().size();
+            pageSize.scale(m_thumbnailSize, m_thumbnailSize, Qt::KeepAspectRatio);
+            return pageSize.toSize() + QSize(m_extraItemWidthHint, m_extraItemHeighHint);
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return QVariant();
+}
+
+void PDFThumbnailsItemModel::setThumbnailsSize(int size)
+{
+    if (m_thumbnailSize != size)
+    {
+        emit layoutAboutToBeChanged();
+        m_thumbnailSize = size;
+        m_thumbnailCache.clear();
+        emit layoutChanged();
+    }
+}
+
+void PDFThumbnailsItemModel::setDocument(const PDFDocument* document)
+{
+    if (m_document != document)
+    {
+        m_thumbnailCache.clear();
+        m_document = document;
+
+        m_pageCount = 0;
+        if (m_document)
+        {
+            m_pageCount = static_cast<int>(m_document->getCatalog()->getPageCount());
+        }
+    }
+}
+
+void PDFThumbnailsItemModel::onPageImageChanged(bool all, const std::vector<PDFInteger>& pages)
+{
+    Q_UNUSED(all);
+    Q_UNUSED(pages);
+
+    if (all)
+    {
+        m_thumbnailCache.clear();
+        emit dataChanged(index(0, 0, QModelIndex()), index(rowCount(QModelIndex()) - 1, 0, QModelIndex()));
+    }
+    else
+    {
+        const int rowCount = this->rowCount(QModelIndex());
+        for (const PDFInteger pageIndex : pages)
+        {
+            if (pageIndex < rowCount)
+            {
+                m_thumbnailCache.remove(getKey(pageIndex));
+                emit dataChanged(index(pageIndex, 0, QModelIndex()), index(pageIndex, 0, QModelIndex()));
+            }
+        }
+    }
+}
+
+QString PDFThumbnailsItemModel::getKey(int pageIndex) const
+{
+    return QString("PDF_THUMBNAIL_%1").arg(pageIndex);
 }
 
 }   // namespace pdf

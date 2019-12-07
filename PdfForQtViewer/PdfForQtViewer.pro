@@ -38,14 +38,16 @@ SOURCES += \
         pdfsidebarwidget.cpp \
         pdfviewermainwindow.cpp \
         pdfviewersettings.cpp \
-        pdfviewersettingsdialog.cpp
+        pdfviewersettingsdialog.cpp \
+        pdfwidgetutils.cpp
 
 HEADERS += \
         pdfaboutdialog.h \
         pdfsidebarwidget.h \
         pdfviewermainwindow.h \
         pdfviewersettings.h \
-        pdfviewersettingsdialog.h
+        pdfviewersettingsdialog.h \
+        pdfwidgetutils.h
 
 FORMS += \
         pdfaboutdialog.ui \

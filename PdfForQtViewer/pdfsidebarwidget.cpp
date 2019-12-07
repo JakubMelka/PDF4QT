@@ -18,6 +18,8 @@
 #include "pdfsidebarwidget.h"
 #include "ui_pdfsidebarwidget.h"
 
+#include "pdfwidgetutils.h"
+
 #include "pdfdocument.h"
 #include "pdfitemmodels.h"
 #include "pdfexception.h"
@@ -36,12 +38,14 @@ constexpr const char* STYLESHEET =
         "QPushButton { background-color: #404040; color: #FFFFFF; }"
         "QPushButton:disabled { background-color: #404040; color: #000000; }"
         "QPushButton:checked { background-color: #808080; color: #FFFFFF; }"
+        "QWidget#thumbnailsToolbarWidget { background-color: #F0F0F0 }"
         "QWidget#PDFSidebarWidget { background-color: #404040; background: green;}";
 
-PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
+PDFSidebarWidget::PDFSidebarWidget(const pdf::PDFDrawWidgetProxy* proxy, QWidget* parent) :
     QWidget(parent),
     ui(new Ui::PDFSidebarWidget),
     m_outlineTreeModel(nullptr),
+    m_thumbnailsModel(nullptr),
     m_optionalContentTreeModel(nullptr),
     m_document(nullptr),
     m_optionalContentActivity(nullptr),
@@ -57,6 +61,15 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     ui->bookmarksTreeView->setModel(m_outlineTreeModel);
     ui->bookmarksTreeView->header()->hide();
     connect(ui->bookmarksTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
+
+    // Thumbnails
+    m_thumbnailsModel = new pdf::PDFThumbnailsItemModel(proxy, this);
+    int thumbnailsMargin = ui->thumbnailsListView->style()->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, ui->thumbnailsListView) + 1;
+    int thumbnailsFontSize = QFontMetrics(ui->thumbnailsListView->font()).lineSpacing();
+    m_thumbnailsModel->setExtraItemSizeHint(2 * thumbnailsMargin, thumbnailsMargin + thumbnailsFontSize);
+    ui->thumbnailsListView->setModel(m_thumbnailsModel);
+    connect(ui->thumbnailsSizeSlider, &QSlider::valueChanged, this, &PDFSidebarWidget::onThumbnailsSizeChanged);
+    onThumbnailsSizeChanged(ui->thumbnailsSizeSlider->value());
 
     // Optional content
     ui->optionalContentTreeView->header()->hide();
@@ -78,6 +91,14 @@ PDFSidebarWidget::PDFSidebarWidget(QWidget* parent) :
     m_pageInfo[Thumbnails] = { ui->thumbnailsButton, ui->thumbnailsPage };
     m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
 
+    for (const auto& pageInfo : m_pageInfo)
+    {
+        if (pageInfo.second.button)
+        {
+            connect(pageInfo.second.button, &QPushButton::clicked, this, &PDFSidebarWidget::onPageButtonClicked);
+        }
+    }
+
     selectPage(Invalid);
     updateButtons();
 }
@@ -94,6 +115,9 @@ void PDFSidebarWidget::setDocument(const pdf::PDFDocument* document, pdf::PDFOpt
 
     // Update outline
     m_outlineTreeModel->setDocument(document);
+
+    // Thumbnails
+    m_thumbnailsModel->setDocument(document);
 
     // Update optional content
     m_optionalContentTreeModel->setDocument(document);
@@ -126,6 +150,30 @@ void PDFSidebarWidget::setDocument(const pdf::PDFDocument* document, pdf::PDFOpt
             case pdf::PageMode::UseAttachments:
                 preferred = Attachments;
                 break;
+
+            case pdf::PageMode::Fullscreen:
+            {
+                pdf::PDFViewerPreferences::NonFullScreenPageMode nonFullscreenPageMode = m_document->getCatalog()->getViewerPreferences()->getNonFullScreenPageMode();
+                switch (nonFullscreenPageMode)
+                {
+                    case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseOutline:
+                        preferred = Bookmarks;
+                        break;
+
+                    case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseThumbnails:
+                        preferred = Thumbnails;
+                        break;
+
+                    case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseOptionalContent:
+                        preferred = OptionalContent;
+                        break;
+
+                    default:
+                        break;
+                }
+
+                break;
+            }
 
             default:
                 break;
@@ -161,7 +209,7 @@ bool PDFSidebarWidget::isEmpty(Page page) const
             return m_outlineTreeModel->isEmpty();
 
         case Thumbnails:
-            return true;
+            return m_thumbnailsModel->isEmpty();
 
         case OptionalContent:
             return m_optionalContentTreeModel->isEmpty();
@@ -242,12 +290,34 @@ void PDFSidebarWidget::updateButtons()
     }
 }
 
+void PDFSidebarWidget::onPageButtonClicked()
+{
+    QObject* pushButton = sender();
+
+    for (const auto& pageInfo : m_pageInfo)
+    {
+        if (pageInfo.second.button == pushButton)
+        {
+            Q_ASSERT(!isEmpty(pageInfo.first));
+            selectPage(pageInfo.first);
+            break;
+        }
+    }
+}
+
 void PDFSidebarWidget::onOutlineItemClicked(const QModelIndex& index)
 {
     if (const pdf::PDFAction* action = m_outlineTreeModel->getAction(index))
     {
         emit actionTriggered(action);
     }
+}
+
+void PDFSidebarWidget::onThumbnailsSizeChanged(int size)
+{
+    const int thumbnailsSize = PDFWidgetUtils::getPixelSize(this, size * 10.0);
+    Q_ASSERT(thumbnailsSize > 0);
+    m_thumbnailsModel->setThumbnailsSize(thumbnailsSize);
 }
 
 void PDFSidebarWidget::onAttachmentCustomContextMenuRequested(const QPoint& pos)

@@ -49,7 +49,7 @@ void PDFDrawSpaceController::setDocument(const PDFDocument* document, const PDFO
         m_document = document;
         m_fontCache.setDocument(document);
         m_optionalContentActivity = optionalContentActivity;
-        connect(m_optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawSpaceController::repaintNeeded);
+        connect(m_optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawSpaceController::onOptionalContentGroupStateChanged);
         recalculate();
     }
 }
@@ -131,6 +131,12 @@ QSizeF PDFDrawSpaceController::getReferenceBoundingBox() const
     }
 
     return rect.size();
+}
+
+void PDFDrawSpaceController::onOptionalContentGroupStateChanged()
+{
+    emit pageImageChanged(true, { });
+    emit repaintNeeded();
 }
 
 void PDFDrawSpaceController::recalculate()
@@ -393,6 +399,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
     connect(m_controller, &PDFDrawSpaceController::repaintNeeded, this, &PDFDrawWidgetProxy::repaintNeeded);
+    connect(m_controller, &PDFDrawSpaceController::pageImageChanged, this, &PDFDrawWidgetProxy::pageImageChanged);
 }
 
 PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
@@ -601,6 +608,36 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             }
         }
     }
+}
+
+QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSize) const
+{
+    QImage image;
+    if (!m_controller->getDocument())
+    {
+        // No thumbnail - return empty image
+        return image;
+    }
+
+    if (const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(pageIndex))
+    {
+        QRectF pageRect = page->getRotatedMediaBox();
+        QSizeF pageSize = pageRect.size();
+        pageSize.scale(pixelSize, pixelSize, Qt::KeepAspectRatio);
+        QSize imageSize = pageSize.toSize();
+
+        if (imageSize.isValid())
+        {
+            image = QImage(imageSize, QImage::Format_RGBA8888_Premultiplied);
+            image.fill(Qt::white);
+
+            QPainter painter(&image);
+            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
+            renderer.render(&painter, QRect(QPoint(0, 0), imageSize), pageIndex);
+        }
+    }
+
+    return image;
 }
 
 std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect) const

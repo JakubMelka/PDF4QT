@@ -152,7 +152,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
 
-    m_sidebarWidget = new PDFSidebarWidget(this);
+    m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);

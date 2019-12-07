@@ -33,7 +33,9 @@ namespace pdf
 {
 class PDFAction;
 class PDFDocument;
+class PDFDrawWidgetProxy;
 class PDFOutlineTreeItemModel;
+class PDFThumbnailsItemModel;
 class PDFAttachmentsTreeItemModel;
 class PDFOptionalContentActivity;
 class PDFOptionalContentTreeItemModel;
@@ -47,7 +49,7 @@ class PDFSidebarWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit PDFSidebarWidget(QWidget* parent = nullptr);
+    explicit PDFSidebarWidget(const pdf::PDFDrawWidgetProxy* proxy, QWidget* parent = nullptr);
     virtual ~PDFSidebarWidget() override;
 
     virtual void paintEvent(QPaintEvent* event) override;
@@ -84,7 +86,9 @@ private:
     void updateGUI(Page preferredPage);
     void updateButtons();
 
+    void onPageButtonClicked();
     void onOutlineItemClicked(const QModelIndex& index);
+    void onThumbnailsSizeChanged(int size);
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
 
     struct PageInfo
@@ -95,6 +99,7 @@ private:
 
     Ui::PDFSidebarWidget* ui;
     pdf::PDFOutlineTreeItemModel* m_outlineTreeModel;
+    pdf::PDFThumbnailsItemModel* m_thumbnailsModel;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
     const pdf::PDFDocument* m_document;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;

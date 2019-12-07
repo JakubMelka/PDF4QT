@@ -98,7 +98,7 @@
    <item>
     <widget class="QStackedWidget" name="stackedWidget">
      <property name="currentIndex">
-      <number>1</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="emptyPage"/>
      <widget class="QWidget" name="bookmarksPage">
@@ -125,6 +125,9 @@
      </widget>
      <widget class="QWidget" name="thumbnailsPage">
       <layout class="QVBoxLayout" name="thumbnailsLayout">
+       <property name="spacing">
+        <number>0</number>
+       </property>
        <property name="leftMargin">
         <number>0</number>
        </property>
@@ -138,6 +141,45 @@
         <number>0</number>
        </property>
        <item>
+        <widget class="QWidget" name="thumbnailsToolbarWidget" native="true">
+         <layout class="QHBoxLayout" name="thumbnailsToolbarLayout">
+          <item>
+           <widget class="QToolButton" name="synchronizeThumbnailsButton">
+            <property name="toolTip">
+             <string>Synchronize thumbnails with current page</string>
+            </property>
+            <property name="icon">
+             <iconset resource="pdfforqtviewer.qrc">
+              <normaloff>:/resources/synchronize.svg</normaloff>:/resources/synchronize.svg</iconset>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="thumbnailsSizeSlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>6</number>
+            </property>
+            <property name="value">
+             <number>3</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <widget class="QListView" name="thumbnailsListView">
          <property name="movement">
           <enum>QListView::Static</enum>
@@ -147,6 +189,9 @@
          </property>
          <property name="viewMode">
           <enum>QListView::IconMode</enum>
+         </property>
+         <property name="itemAlignment">
+          <set>Qt::AlignBottom|Qt::AlignHCenter</set>
          </property>
         </widget>
        </item>
@@ -197,6 +242,8 @@
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="pdfforqtviewer.qrc"/>
+ </resources>
  <connections/>
 </ui>

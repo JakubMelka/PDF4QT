@@ -22,6 +22,7 @@
 #include "pdfobject.h"
 
 #include <QIcon>
+#include <QPixmapCache>
 #include <QAbstractItemModel>
 
 namespace pdf
@@ -31,6 +32,7 @@ class PDFDocument;
 class PDFOutlineItem;
 class PDFFileSpecification;
 class PDFOptionalContentActivity;
+class PDFDrawWidgetProxy;
 
 /// Represents tree item in the GUI tree
 class PDFTreeItem
@@ -215,6 +217,42 @@ public:
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
 
     const PDFFileSpecification* getFileSpecification(const QModelIndex& index) const;
+};
+
+class PDFFORQTLIBSHARED_EXPORT PDFThumbnailsItemModel : public QAbstractItemModel
+{
+    Q_OBJECT
+
+public:
+    explicit inline PDFThumbnailsItemModel(const PDFDrawWidgetProxy* proxy, QObject* parent);
+
+    bool isEmpty() const;
+
+    virtual QModelIndex index(int row, int column, const QModelIndex& parent) const override;
+    virtual QModelIndex parent(const QModelIndex& child) const override;
+    virtual int rowCount(const QModelIndex& parent) const override;
+    virtual int columnCount(const QModelIndex& parent) const override;
+    virtual QVariant data(const QModelIndex& index, int role) const override;
+
+    void setThumbnailsSize(int size);
+    void setDocument(const PDFDocument* document);
+
+    /// Sets the extra item width/height for size hint. This space will be added to the size hint (pixmap size)
+    void setExtraItemSizeHint(int width, int height) { m_extraItemWidthHint = width; m_extraItemHeighHint = height; }
+
+private:
+    void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
+
+    /// Returns generated key for page index
+    QString getKey(int pageIndex) const;
+
+    const PDFDrawWidgetProxy* m_proxy;
+    int m_thumbnailSize;
+    int m_extraItemWidthHint;
+    int m_extraItemHeighHint;
+    int m_pageCount;
+    const PDFDocument* m_document;
+    QPixmapCache m_thumbnailCache;
 };
 
 }   // namespace pdf

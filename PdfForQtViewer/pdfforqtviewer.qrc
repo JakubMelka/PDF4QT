@@ -21,5 +21,6 @@
         <file>resources/zoom-fit.svg</file>
         <file>resources/zoom-fit-horizontal.svg</file>
         <file>resources/zoom-fit-vertical.svg</file>
+        <file>resources/synchronize.svg</file>
     </qresource>
 </RCC>

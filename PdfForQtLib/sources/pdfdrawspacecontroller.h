@@ -113,8 +113,11 @@ public:
 signals:
     void drawSpaceChanged();
     void repaintNeeded();
+    void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 
 private:
+    void onOptionalContentGroupStateChanged();
+
     /// Recalculates the draw space. Preserves setted page rotation.
     void recalculate();
 
@@ -175,6 +178,12 @@ public:
     /// \param painter Painter to paint the PDF pages
     /// \param rect Rectangle in which the content is painted
     void draw(QPainter* painter, QRect rect);
+
+    /// Draws thumbnail image of the given size (so larger of the page size
+    /// width or height equals to pixel size and the latter size is rescaled
+    /// using the aspect ratio)
+    /// \param pixelSize Pixel size
+    QImage drawThumbnailImage(PDFInteger pageIndex, int pixelSize) const;
 
     enum Operation
     {
@@ -260,6 +269,7 @@ signals:
     void pageLayoutChanged();
     void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void repaintNeeded();
+    void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 
 private:
     struct LayoutItem
