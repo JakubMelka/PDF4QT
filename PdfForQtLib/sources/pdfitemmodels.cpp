@@ -742,6 +742,11 @@ void PDFThumbnailsItemModel::setDocument(const PDFDocument* document)
     }
 }
 
+PDFInteger PDFThumbnailsItemModel::getPageIndex(const QModelIndex& index) const
+{
+    return index.row();
+}
+
 void PDFThumbnailsItemModel::onPageImageChanged(bool all, const std::vector<PDFInteger>& pages)
 {
     Q_UNUSED(all);

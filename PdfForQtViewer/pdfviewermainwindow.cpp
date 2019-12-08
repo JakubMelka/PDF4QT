@@ -631,6 +631,8 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
         {
             m_pageNumberSpinBox->setValue(currentPages.front() + 1);
         }
+
+        m_sidebarWidget->setCurrentPages(currentPages);
     }
 
     m_pageZoomSpinBox->setValue(m_pdfWidget->getDrawWidgetProxy()->getZoom() * 100);

@@ -23,6 +23,7 @@
 #include "pdfdocument.h"
 #include "pdfitemmodels.h"
 #include "pdfexception.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QMenu>
 #include <QAction>
@@ -41,9 +42,10 @@ constexpr const char* STYLESHEET =
         "QWidget#thumbnailsToolbarWidget { background-color: #F0F0F0 }"
         "QWidget#PDFSidebarWidget { background-color: #404040; background: green;}";
 
-PDFSidebarWidget::PDFSidebarWidget(const pdf::PDFDrawWidgetProxy* proxy, QWidget* parent) :
+PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* parent) :
     QWidget(parent),
     ui(new Ui::PDFSidebarWidget),
+    m_proxy(proxy),
     m_outlineTreeModel(nullptr),
     m_thumbnailsModel(nullptr),
     m_optionalContentTreeModel(nullptr),
@@ -69,6 +71,7 @@ PDFSidebarWidget::PDFSidebarWidget(const pdf::PDFDrawWidgetProxy* proxy, QWidget
     m_thumbnailsModel->setExtraItemSizeHint(2 * thumbnailsMargin, thumbnailsMargin + thumbnailsFontSize);
     ui->thumbnailsListView->setModel(m_thumbnailsModel);
     connect(ui->thumbnailsSizeSlider, &QSlider::valueChanged, this, &PDFSidebarWidget::onThumbnailsSizeChanged);
+    connect(ui->thumbnailsListView, &QListView::clicked, this, &PDFSidebarWidget::onThumbnailClicked);
     onThumbnailsSizeChanged(ui->thumbnailsSizeSlider->value());
 
     // Optional content
@@ -258,6 +261,31 @@ std::vector<PDFSidebarWidget::Page> PDFSidebarWidget::getValidPages() const
     return result;
 }
 
+void PDFSidebarWidget::setCurrentPages(const std::vector<pdf::PDFInteger>& currentPages)
+{
+    if (!currentPages.empty() && ui->synchronizeThumbnailsButton->isChecked())
+    {
+        QModelIndex index = m_thumbnailsModel->index(currentPages.front(), 0, QModelIndex());
+        if (index.isValid())
+        {
+            ui->thumbnailsListView->scrollTo(index, QListView::EnsureVisible);
+
+            // Try to examine, if we have to switch the current index
+            QModelIndex currentIndex = ui->thumbnailsListView->currentIndex();
+            if (currentIndex.isValid())
+            {
+                const pdf::PDFInteger currentPageIndex = m_thumbnailsModel->getPageIndex(currentIndex);
+                Q_ASSERT(std::is_sorted(currentPages.cbegin(), currentPages.cend()));
+                if (std::binary_search(currentPages.cbegin(), currentPages.cend(), currentPageIndex))
+                {
+                    return;
+                }
+            }
+            ui->thumbnailsListView->setCurrentIndex(index);
+        }
+    }
+}
+
 void PDFSidebarWidget::updateGUI(Page preferredPage)
 {
     if (preferredPage != Invalid && !isEmpty(preferredPage))
@@ -366,6 +394,14 @@ void PDFSidebarWidget::onAttachmentCustomContextMenuRequested(const QPoint& pos)
 
         menu.addAction(action);
         menu.exec(ui->attachmentsTreeView->viewport()->mapToGlobal(pos));
+    }
+}
+
+void PDFSidebarWidget::onThumbnailClicked(const QModelIndex& index)
+{
+    if (index.isValid())
+    {
+        m_proxy->goToPage(m_thumbnailsModel->getPageIndex(index));
     }
 }
 

@@ -240,6 +240,8 @@ public:
     /// Sets the extra item width/height for size hint. This space will be added to the size hint (pixmap size)
     void setExtraItemSizeHint(int width, int height) { m_extraItemWidthHint = width; m_extraItemHeighHint = height; }
 
+    PDFInteger getPageIndex(const QModelIndex& index) const;
+
 private:
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 

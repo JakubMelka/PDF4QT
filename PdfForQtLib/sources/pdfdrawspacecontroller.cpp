@@ -659,6 +659,7 @@ std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect)
             pages.push_back(item.pageIndex);
         }
     }
+    qSort(pages);
 
     return pages;
 }
@@ -981,6 +982,7 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
     if (m_features != features)
     {
         m_features = features;
+        emit pageImageChanged(true, { });
         emit repaintNeeded();
     }
 }
@@ -990,6 +992,7 @@ void PDFDrawWidgetProxy::setPreferredMeshResolutionRatio(PDFReal ratio)
     if (m_meshQualitySettings.preferredMeshResolutionRatio != ratio)
     {
         m_meshQualitySettings.preferredMeshResolutionRatio = ratio;
+        emit pageImageChanged(true, { });
         emit repaintNeeded();
     }
 }
@@ -999,6 +1002,7 @@ void PDFDrawWidgetProxy::setMinimalMeshResolutionRatio(PDFReal ratio)
     if (m_meshQualitySettings.minimalMeshResolutionRatio != ratio)
     {
         m_meshQualitySettings.minimalMeshResolutionRatio = ratio;
+        emit pageImageChanged(true, { });
         emit repaintNeeded();
     }
 }
@@ -1008,6 +1012,7 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
     if (m_meshQualitySettings.tolerance != colorTolerance)
     {
         m_meshQualitySettings.tolerance = colorTolerance;
+        emit pageImageChanged(true, { });
         emit repaintNeeded();
     }
 }

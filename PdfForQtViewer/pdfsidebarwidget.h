@@ -19,6 +19,8 @@
 #ifndef PDFSIDEBARWIDGET_H
 #define PDFSIDEBARWIDGET_H
 
+#include "pdfglobal.h"
+
 #include <QWidget>
 
 class QPushButton;
@@ -49,7 +51,7 @@ class PDFSidebarWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit PDFSidebarWidget(const pdf::PDFDrawWidgetProxy* proxy, QWidget* parent = nullptr);
+    explicit PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* parent = nullptr);
     virtual ~PDFSidebarWidget() override;
 
     virtual void paintEvent(QPaintEvent* event) override;
@@ -79,6 +81,9 @@ public:
     /// Returns list of valid pages (nonempty pages)
     std::vector<Page> getValidPages() const;
 
+    /// Sets current pages (for example, selects the correct thumbnail)
+    void setCurrentPages(const std::vector<pdf::PDFInteger>& currentPages);
+
 signals:
     void actionTriggered(const pdf::PDFAction* action);
 
@@ -90,6 +95,7 @@ private:
     void onOutlineItemClicked(const QModelIndex& index);
     void onThumbnailsSizeChanged(int size);
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
+    void onThumbnailClicked(const QModelIndex& index);
 
     struct PageInfo
     {
@@ -98,6 +104,7 @@ private:
     };
 
     Ui::PDFSidebarWidget* ui;
+    pdf::PDFDrawWidgetProxy* m_proxy;
     pdf::PDFOutlineTreeItemModel* m_outlineTreeModel;
     pdf::PDFThumbnailsItemModel* m_thumbnailsModel;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
