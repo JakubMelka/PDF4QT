@@ -731,6 +731,7 @@ void PDFThumbnailsItemModel::setDocument(const PDFDocument* document)
 {
     if (m_document != document)
     {
+        beginResetModel();
         m_thumbnailCache.clear();
         m_document = document;
 
@@ -739,6 +740,7 @@ void PDFThumbnailsItemModel::setDocument(const PDFDocument* document)
         {
             m_pageCount = static_cast<int>(m_document->getCatalog()->getPageCount());
         }
+        endResetModel();
     }
 }
 
