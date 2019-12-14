@@ -19,6 +19,8 @@
 #include "pdfpainter.h"
 #include "pdfdocument.h"
 
+#include <QElapsedTimer>
+
 namespace pdf
 {
 
@@ -36,21 +38,8 @@ PDFRenderer::PDFRenderer(const PDFDocument* document,
     Q_ASSERT(document);
 }
 
-QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const
+QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
 {
-    Q_UNUSED(painter);
-    Q_UNUSED(rectangle);
-
-    const PDFCatalog* catalog = m_document->getCatalog();
-    if (pageIndex >= catalog->getPageCount() || !catalog->getPage(pageIndex))
-    {
-        // Invalid page index
-        return { PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 doesn't exist.").arg(pageIndex + 1)) };
-    }
-
-    const PDFPage* page = catalog->getPage(pageIndex);
-    Q_ASSERT(page);
-
     QRectF mediaBox = page->getRotatedMediaBox();
 
     QMatrix matrix;
@@ -94,14 +83,29 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
         }
     }
 
+    return matrix;
+}
+
+QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const
+{
+    const PDFCatalog* catalog = m_document->getCatalog();
+    if (pageIndex >= catalog->getPageCount() || !catalog->getPage(pageIndex))
+    {
+        // Invalid page index
+        return { PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 doesn't exist.").arg(pageIndex + 1)) };
+    }
+
+    const PDFPage* page = catalog->getPage(pageIndex);
+    Q_ASSERT(page);
+
+    QMatrix matrix = createPagePointToDevicePointMatrix(page, rectangle);
+
     PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity, m_meshQualitySettings);
     return processor.processContents();
 }
 
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const
 {
-    Q_UNUSED(painter);
-
     const PDFCatalog* catalog = m_document->getCatalog();
     if (pageIndex >= catalog->getPageCount() || !catalog->getPage(pageIndex))
     {
@@ -114,6 +118,29 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matr
 
     PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_optionalContentActivity, m_meshQualitySettings);
     return processor.processContents();
+}
+
+void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex) const
+{
+    const PDFCatalog* catalog = m_document->getCatalog();
+    if (pageIndex >= catalog->getPageCount() || !catalog->getPage(pageIndex))
+    {
+        // Invalid page index
+        precompiledPage->finalize(0, { PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 doesn't exist.").arg(pageIndex + 1)) });
+        return;
+    }
+
+    const PDFPage* page = catalog->getPage(pageIndex);
+    Q_ASSERT(page);
+
+    QElapsedTimer timer;
+    timer.start();
+
+    PDFPrecompiledPageGenerator generator(precompiledPage, m_features, page, m_document, m_fontCache, m_optionalContentActivity, m_meshQualitySettings);
+    QList<PDFRenderError> errors = generator.processContents();
+    precompiledPage->optimize();
+    precompiledPage->finalize(timer.nsecsElapsed(), qMove(errors));
+    timer.invalidate();
 }
 
 }   // namespace pdf

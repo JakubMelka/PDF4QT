@@ -27,6 +27,7 @@ class QPainter;
 namespace pdf
 {
 class PDFFontCache;
+class PDFPrecompiledPage;
 class PDFOptionalContentActivity;
 
 /// Renders the PDF page on the painter, or onto an image.
@@ -60,6 +61,19 @@ public:
     /// Rendering errors are reported and returned in the error list. If no error occured, empty list is returned.
     QList<PDFRenderError> render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const;
 
+    /// Compiles page (i.e. prepares compiled page). \p page should be empty page, onto which
+    /// are graphics commands written. No exception is thrown. Rendering errors are reported and written
+    /// to the compiled page.
+    /// \param precompiledPage Precompiled page pointer
+    /// \param pageIndex Index of page to be compiled
+    void compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex) const;
+
+    /// Creates page point to device point matrix for the given rectangle. It creates transformation
+    /// from page's media box to the target rectangle.
+    /// \param page Page, for which we want to create matrix
+    /// \param rectangle Page rectangle, to which is page media box transformed
+    QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const;
+
     /// Returns default renderer features
     static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing | ClipToCropBox; }
 
@@ -70,7 +84,6 @@ private:
     Features m_features;
     PDFMeshQualitySettings m_meshQualitySettings;
 };
-
 
 }   // namespace pdf
 

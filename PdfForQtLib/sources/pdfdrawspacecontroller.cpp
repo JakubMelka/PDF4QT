@@ -19,6 +19,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdfrenderer.h"
+#include "pdfpainter.h"
 
 #include <QPainter>
 
@@ -599,9 +600,27 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
+            /*
             PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
             QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
 
+            if (!errors.empty())
+            {
+                emit renderingError(item.pageIndex, errors);
+            }*/
+
+            PDFPrecompiledPage compiledPage;
+            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
+            renderer.compile(&compiledPage, item.pageIndex);
+
+            if (compiledPage.isValid())
+            {
+                const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
+                QMatrix matrix = renderer.createPagePointToDevicePointMatrix(page, placedRect);
+                compiledPage.draw(painter, page->getCropBox(), matrix, m_features);
+            }
+
+            const QList<PDFRenderError>& errors = compiledPage.getErrors();
             if (!errors.empty())
             {
                 emit renderingError(item.pageIndex, errors);
