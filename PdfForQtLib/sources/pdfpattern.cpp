@@ -1087,6 +1087,16 @@ QPointF PDFMesh::getTriangleCenter(const PDFMesh::Triangle& triangle) const
     return (m_vertices[triangle.v1] + m_vertices[triangle.v2] + m_vertices[triangle.v3]) / 3.0;
 }
 
+qint64 PDFMesh::getMemoryConsumptionEstimate() const
+{
+    qint64 memoryConsumption = sizeof(*this);
+    memoryConsumption += sizeof(QPointF) * m_vertices.capacity();
+    memoryConsumption += sizeof(Triangle) * m_triangles.capacity();
+    memoryConsumption += sizeof(QPainterPath::Element) * m_boundingPath.capacity();
+    memoryConsumption += sizeof(QPainterPath::Element) * m_backgroundPath.capacity();
+    return memoryConsumption;
+}
+
 void PDFMeshQualitySettings::initResolution()
 {
     Q_ASSERT(deviceSpaceMeshingArea.isValid());

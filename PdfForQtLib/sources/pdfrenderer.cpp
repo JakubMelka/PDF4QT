@@ -38,7 +38,7 @@ PDFRenderer::PDFRenderer(const PDFDocument* document,
     Q_ASSERT(document);
 }
 
-QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
+QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle)
 {
     QRectF mediaBox = page->getRotatedMediaBox();
 

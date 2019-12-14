@@ -42,6 +42,7 @@ public:
         SmoothImages            = 0x0004,   ///< Adjust images to the device space using smooth transformation (slower, but better image quality)
         IgnoreOptionalContent   = 0x0008,   ///< Ignore optional content (so all is drawn ignoring settings of optional content)
         ClipToCropBox           = 0x0010,   ///< Clip page content to crop box (items outside crop box will not be visible)
+        DisplayTimes            = 0x0020,   ///< Display page compile/draw time
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
@@ -72,7 +73,7 @@ public:
     /// from page's media box to the target rectangle.
     /// \param page Page, for which we want to create matrix
     /// \param rectangle Page rectangle, to which is page media box transformed
-    QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const;
+    static QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle);
 
     /// Returns default renderer features
     static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing | ClipToCropBox; }

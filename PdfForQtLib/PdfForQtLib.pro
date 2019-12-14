@@ -39,6 +39,7 @@ SOURCES += \
     sources/pdfaction.cpp \
     sources/pdfblendfunction.cpp \
     sources/pdfccittfaxdecoder.cpp \
+    sources/pdfcompiler.cpp \
     sources/pdffile.cpp \
     sources/pdfitemmodels.cpp \
     sources/pdfjbig2decoder.cpp \
@@ -76,6 +77,7 @@ HEADERS += \
     sources/pdfaction.h \
     sources/pdfblendfunction.h \
     sources/pdfccittfaxdecoder.h \
+    sources/pdfcompiler.h \
     sources/pdffile.h \
     sources/pdfitemmodels.h \
     sources/pdfjbig2decoder.h \

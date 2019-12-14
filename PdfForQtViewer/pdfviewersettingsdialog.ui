@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>3</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -136,29 +136,8 @@
            <layout class="QVBoxLayout" name="renderingSettingsGroupBoxLayout">
             <item>
              <layout class="QGridLayout" name="renderingSettingsGridLayout">
-              <item row="2" column="0">
-               <widget class="QLabel" name="smoothPicturesLabel">
-                <property name="text">
-                 <string>Smooth pictures</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="ignoreOptionalContentLabel">
-                <property name="text">
-                 <string>Ignore optional content</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="textAntialiasingLabel">
-                <property name="text">
-                 <string>Text antialiasing</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QCheckBox" name="antialiasingCheckBox">
+              <item row="3" column="1">
+               <widget class="QCheckBox" name="ignoreOptionalContentCheckBox">
                 <property name="text">
                  <string>Enable</string>
                 </property>
@@ -171,10 +150,10 @@
                 </property>
                </widget>
               </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="clipToCropBoxLabel">
+              <item row="2" column="1">
+               <widget class="QCheckBox" name="smoothPicturesCheckBox">
                 <property name="text">
-                 <string>Clip to crop box</string>
+                 <string>Enable</string>
                 </property>
                </widget>
               </item>
@@ -185,17 +164,31 @@
                 </property>
                </widget>
               </item>
-              <item row="2" column="1">
-               <widget class="QCheckBox" name="smoothPicturesCheckBox">
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="antialiasingCheckBox">
                 <property name="text">
                  <string>Enable</string>
                 </property>
                </widget>
               </item>
-              <item row="3" column="1">
-               <widget class="QCheckBox" name="ignoreOptionalContentCheckBox">
+              <item row="4" column="0">
+               <widget class="QLabel" name="clipToCropBoxLabel">
                 <property name="text">
-                 <string>Enable</string>
+                 <string>Clip to crop box</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="ignoreOptionalContentLabel">
+                <property name="text">
+                 <string>Ignore optional content</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="smoothPicturesLabel">
+                <property name="text">
+                 <string>Smooth pictures</string>
                 </property>
                </widget>
               </item>
@@ -206,12 +199,33 @@
                 </property>
                </widget>
               </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="textAntialiasingLabel">
+                <property name="text">
+                 <string>Text antialiasing</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="displayTimeLabel">
+                <property name="text">
+                 <string>Display page compile/draw time</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QCheckBox" name="displayTimeCheckBox">
+                <property name="text">
+                 <string>Enabled</string>
+                </property>
+               </widget>
+              </item>
              </layout>
             </item>
             <item>
              <widget class="QLabel" name="renderingInfoLabel">
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rendering settings defines, how rendering engine should handle the page content, and appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; turns on antialiasing of painted shapes, such as rectangles, vector graphics, lines, but it did not affects text (characters printed on the screen). &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;turns on antialiasing of painted characters on the screen, but not any other items. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;affects only software renderer. If you are using hardware rendering engine, such as OpenGL rendering engine, this doesn't do anything, because OpenGL engine renders the pictures using MSAA antialiasing (if turned on).&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; transforms pictures to device space coordinates using smooth image transformation, which usually leads to better image quality. When this is turned off, then default fast transformation is used, and quality of the image is lower, if the source DPI and device DPI is different.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and paints everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; clips the drawing rectangle to the crop box of the page, which is usually smaller, than whole page. The graphics outside of the crop box is not drawn (for example, it can contain marks for printer etc.).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rendering settings defines, how rendering engine should handle the page content, and appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; turns on antialiasing of painted shapes, such as rectangles, vector graphics, lines, but it did not affects text (characters printed on the screen). &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;turns on antialiasing of painted characters on the screen, but not any other items. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;affects only software renderer. If you are using hardware rendering engine, such as OpenGL rendering engine, this doesn't do anything, because OpenGL engine renders the pictures using MSAA antialiasing (if turned on).&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; transforms pictures to device space coordinates using smooth image transformation, which usually leads to better image quality. When this is turned off, then default fast transformation is used, and quality of the image is lower, if the source DPI and device DPI is different.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and paints everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; clips the drawing rectangle to the crop box of the page, which is usually smaller, than whole page. The graphics outside of the crop box is not drawn (for example, it can contain marks for printer etc.). &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time &lt;/span&gt;is used mainly for debugging purposes, it displays page compile time (compiled page is stored in the cache) and draw time (when the renderer draws compiled page contents to the output device).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="wordWrap">
                <bool>true</bool>

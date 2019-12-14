@@ -34,6 +34,7 @@ namespace pdf
 {
 class PDFWidget;
 class IDrawWidget;
+class PDFAsynchronousPageCompiler;
 
 /// This class controls draw space - page layout. Pages are divided into blocks
 /// each block can contain one or multiple pages. Units are in milimeters.
@@ -255,7 +256,12 @@ public:
 
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
+    const PDFDocument* getDocument() const { return m_controller->getDocument(); }
+    const PDFFontCache* getFontCache() const { return m_controller->getFontCache(); }
+    const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_controller->getOptionalContentActivity(); }
     PDFRenderer::Features getFeatures() const;
+    const PDFMeshQualitySettings& getMeshQualitySettings() const { return m_meshQualitySettings; }
+
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);
     void setMinimalMeshResolutionRatio(PDFReal ratio);
@@ -384,6 +390,9 @@ private:
 
     /// Mesh quality settings
     PDFMeshQualitySettings m_meshQualitySettings;
+
+    /// Page compiler
+    PDFAsynchronousPageCompiler* m_compiler;
 };
 
 }   // namespace pdf

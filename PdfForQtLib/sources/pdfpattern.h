@@ -140,6 +140,9 @@ public:
     /// Returns true, if mesh is empty
     bool isEmpty() const { return m_vertices.empty(); }
 
+    /// Returns estimate of number of bytes, which this mesh occupies in memory
+    qint64 getMemoryConsumptionEstimate() const;
+
 private:
     std::vector<QPointF> m_vertices;
     std::vector<Triangle> m_triangles;

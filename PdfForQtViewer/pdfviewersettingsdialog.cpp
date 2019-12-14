@@ -140,6 +140,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->smoothPicturesCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::SmoothImages));
     ui->ignoreOptionalContentCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::IgnoreOptionalContent));
     ui->clipToCropBoxCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::ClipToCropBox));
+    ui->displayTimeCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::DisplayTimes));
 
     // Shading
     ui->preferredMeshResolutionEdit->setValue(m_settings.m_preferredMeshResolutionRatio);
@@ -191,6 +192,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->clipToCropBoxCheckBox)
     {
         m_settings.m_features.setFlag(pdf::PDFRenderer::ClipToCropBox, ui->clipToCropBoxCheckBox->isChecked());
+    }
+    else if (sender == ui->displayTimeCheckBox)
+    {
+        m_settings.m_features.setFlag(pdf::PDFRenderer::DisplayTimes, ui->displayTimeCheckBox->isChecked());
     }
     else if (sender == ui->preferredMeshResolutionEdit)
     {

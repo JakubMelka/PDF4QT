@@ -80,6 +80,7 @@ signals:
 
 private:
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+    void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 
     IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
 

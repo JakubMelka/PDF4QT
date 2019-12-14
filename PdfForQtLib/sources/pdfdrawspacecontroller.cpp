@@ -20,6 +20,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfrenderer.h"
 #include "pdfpainter.h"
+#include "pdfcompiler.h"
 
 #include <QPainter>
 
@@ -137,7 +138,6 @@ QSizeF PDFDrawSpaceController::getReferenceBoundingBox() const
 void PDFDrawSpaceController::onOptionalContentGroupStateChanged()
 {
     emit pageImageChanged(true, { });
-    emit repaintNeeded();
 }
 
 void PDFDrawSpaceController::recalculate()
@@ -395,12 +395,15 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_widget(nullptr),
     m_horizontalScrollbar(nullptr),
     m_verticalScrollbar(nullptr),
-    m_features(PDFRenderer::getDefaultFeatures())
+    m_features(PDFRenderer::getDefaultFeatures()),
+    m_compiler(new PDFAsynchronousPageCompiler(this))
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
     connect(m_controller, &PDFDrawSpaceController::repaintNeeded, this, &PDFDrawWidgetProxy::repaintNeeded);
     connect(m_controller, &PDFDrawSpaceController::pageImageChanged, this, &PDFDrawWidgetProxy::pageImageChanged);
+    connect(m_compiler, &PDFAsynchronousPageCompiler::renderingError, this, &PDFDrawWidgetProxy::renderingError);
+    connect(m_compiler, &PDFAsynchronousPageCompiler::pageImageChanged, this, &PDFDrawWidgetProxy::pageImageChanged);
 }
 
 PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
@@ -410,7 +413,9 @@ PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 
 void PDFDrawWidgetProxy::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
 {
+    m_compiler->stop();
     m_controller->setDocument(document, optionalContentActivity);
+    m_compiler->start();
 }
 
 void PDFDrawWidgetProxy::init(PDFWidget* widget)
@@ -600,30 +605,53 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            /*
-            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
-            QList<PDFRenderError> errors = renderer.render(painter, placedRect, item.pageIndex);
-
-            if (!errors.empty())
+            const PDFPrecompiledPage* compiledPage = m_compiler->getPrecompiledCache(item.pageIndex, true);
+            if (compiledPage && compiledPage->isValid())
             {
-                emit renderingError(item.pageIndex, errors);
-            }*/
+                QElapsedTimer timer;
+                timer.start();
 
-            PDFPrecompiledPage compiledPage;
-            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
-            renderer.compile(&compiledPage, item.pageIndex);
-
-            if (compiledPage.isValid())
-            {
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = renderer.createPagePointToDevicePointMatrix(page, placedRect);
-                compiledPage.draw(painter, page->getCropBox(), matrix, m_features);
-            }
+                QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, placedRect);
+                compiledPage->draw(painter, page->getCropBox(), matrix, m_features);
 
-            const QList<PDFRenderError>& errors = compiledPage.getErrors();
-            if (!errors.empty())
-            {
-                emit renderingError(item.pageIndex, errors);
+                const qint64 drawTimeNS = timer.nsecsElapsed();
+
+                // Draw rendering times
+                if (m_features.testFlag(PDFRenderer::DisplayTimes))
+                {
+                    QFont font = m_widget->font();
+                    font.setPointSize(12);
+
+                    auto formatDrawTime = [](qint64 nanoseconds)
+                    {
+                        PDFReal miliseconds = nanoseconds / 1000000.0;
+                        return QString::number(miliseconds, 'f', 3);
+                    };
+
+                    QFontMetrics fontMetrics(font);
+                    const int lineSpacing = fontMetrics.lineSpacing();
+
+                    painter->save();
+                    painter->setPen(Qt::red);
+                    painter->setFont(font);
+                    painter->translate(placedRect.topLeft());
+                    painter->translate(placedRect.width() / 20.0, placedRect.height() / 20.0); // Offset
+
+                    painter->setBackground(QBrush(Qt::white));
+                    painter->setBackgroundMode(Qt::OpaqueMode);
+                    painter->drawText(0, 0, PDFTranslationContext::tr("Compile time:    %1 [ms]").arg(formatDrawTime(compiledPage->getCompilingTimeNS())));
+                    painter->translate(0, lineSpacing);
+                    painter->drawText(0, 0, PDFTranslationContext::tr("Draw time:       %1 [ms]").arg(formatDrawTime(drawTimeNS)));
+
+                    painter->restore();
+                }
+
+                const QList<PDFRenderError>& errors = compiledPage->getErrors();
+                if (!errors.empty())
+                {
+                    emit renderingError(item.pageIndex, errors);
+                }
             }
         }
     }
@@ -1000,9 +1028,10 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
 {
     if (m_features != features)
     {
+        m_compiler->stop();
         m_features = features;
+        m_compiler->start();
         emit pageImageChanged(true, { });
-        emit repaintNeeded();
     }
 }
 
@@ -1010,9 +1039,10 @@ void PDFDrawWidgetProxy::setPreferredMeshResolutionRatio(PDFReal ratio)
 {
     if (m_meshQualitySettings.preferredMeshResolutionRatio != ratio)
     {
+        m_compiler->stop();
         m_meshQualitySettings.preferredMeshResolutionRatio = ratio;
+        m_compiler->start();
         emit pageImageChanged(true, { });
-        emit repaintNeeded();
     }
 }
 
@@ -1020,9 +1050,10 @@ void PDFDrawWidgetProxy::setMinimalMeshResolutionRatio(PDFReal ratio)
 {
     if (m_meshQualitySettings.minimalMeshResolutionRatio != ratio)
     {
+        m_compiler->stop();
         m_meshQualitySettings.minimalMeshResolutionRatio = ratio;
+        m_compiler->start();
         emit pageImageChanged(true, { });
-        emit repaintNeeded();
     }
 }
 
@@ -1030,9 +1061,10 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
 {
     if (m_meshQualitySettings.tolerance != colorTolerance)
     {
+        m_compiler->stop();
         m_meshQualitySettings.tolerance = colorTolerance;
+        m_compiler->start();
         emit pageImageChanged(true, { });
-        emit repaintNeeded();
     }
 }
 

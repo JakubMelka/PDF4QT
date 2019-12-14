@@ -51,6 +51,7 @@ PDFWidget::PDFWidget(RendererEngine engine, int samplesCount, QWidget* parent) :
     m_proxy->init(this);
     connect(m_proxy, &PDFDrawWidgetProxy::renderingError, this, &PDFWidget::onRenderingError);
     connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
+    connect(m_proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFWidget::onPageImageChanged);
 }
 
 PDFWidget::~PDFWidget()
@@ -109,6 +110,28 @@ void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderErro
     Q_ASSERT(!errors.empty());
     m_pageRenderingErrors[pageIndex] = errors;
     emit pageRenderingErrorsChanged(pageIndex, errors.size());
+}
+
+void PDFWidget::onPageImageChanged(bool all, const std::vector<PDFInteger>& pages)
+{
+    if (all)
+    {
+        m_drawWidget->getWidget()->update();
+    }
+    else
+    {
+        std::vector<PDFInteger> currentPages = m_drawWidget->getCurrentPages();
+
+        Q_ASSERT(std::is_sorted(pages.cbegin(), pages.cend()));
+        for (PDFInteger pageIndex : currentPages)
+        {
+            if (std::binary_search(pages.cbegin(), pages.cend(), pageIndex))
+            {
+                m_drawWidget->getWidget()->update();
+                return;
+            }
+        }
+    }
 }
 
 IDrawWidget* PDFWidget::createDrawWidget(RendererEngine rendererEngine, int samplesCount)

@@ -80,6 +80,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     ui->actionOpen->setShortcut(QKeySequence::Open);
     ui->actionClose->setShortcut(QKeySequence::Close);
     ui->actionQuit->setShortcut(QKeySequence::Quit);
+    ui->actionZoom_In->setShortcut(QKeySequence::ZoomIn);
+    ui->actionZoom_Out->setShortcut(QKeySequence::ZoomOut);
 
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
@@ -184,6 +186,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
 
     updatePageLayoutActions();
     updateUI(true);
+    onViewerSettingsChanged();
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()

@@ -613,6 +613,42 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
 {
     m_compilingTimeNS = compilingTimeNS;
     m_errors = qMove(errors);
+
+    // Determine memory consumption
+    m_memoryConsumptionEstimate = sizeof(*this);
+    m_memoryConsumptionEstimate += sizeof(Instruction) * m_instructions.capacity();
+    m_memoryConsumptionEstimate += sizeof(PathPaintData) * m_paths.capacity();
+    m_memoryConsumptionEstimate += sizeof(ClipData) * m_clips.capacity();
+    m_memoryConsumptionEstimate += sizeof(ImageData) * m_images.capacity();
+    m_memoryConsumptionEstimate += sizeof(MeshPaintData) * m_meshes.capacity();
+    m_memoryConsumptionEstimate += sizeof(QMatrix) * m_matrices.capacity();
+    m_memoryConsumptionEstimate += sizeof(QPainter::CompositionMode) * m_compositionModes.capacity();
+    m_memoryConsumptionEstimate += sizeof(PDFRenderError) * m_errors.size();
+
+    auto calculateQPathMemoryConsumption = [](const QPainterPath& path)
+    {
+        return sizeof(QPainterPath::Element) * path.capacity();
+    };
+    for (const PathPaintData& data : m_paths)
+    {
+        // Texts are shared from the font
+        if (!data.isText)
+        {
+            m_memoryConsumptionEstimate += calculateQPathMemoryConsumption(data.path);
+        }
+    }
+    for (const ClipData& data : m_clips)
+    {
+        m_memoryConsumptionEstimate += calculateQPathMemoryConsumption(data.clipPath);
+    }
+    for (const ImageData& data : m_images)
+    {
+        m_memoryConsumptionEstimate += data.image.sizeInBytes();
+    }
+    for (const MeshPaintData& data : m_meshes)
+    {
+        m_memoryConsumptionEstimate += data.mesh.getMemoryConsumptionEstimate();
+    }
 }
 
 }   // namespace pdf

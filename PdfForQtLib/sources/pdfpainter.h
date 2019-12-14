@@ -139,6 +139,12 @@ private:
 class PDFPrecompiledPage
 {
 public:
+    explicit inline PDFPrecompiledPage() = default;
+
+    inline PDFPrecompiledPage(const PDFPrecompiledPage&) = default;
+    inline PDFPrecompiledPage(PDFPrecompiledPage&&) = default;
+    inline PDFPrecompiledPage& operator=(const PDFPrecompiledPage&) = default;
+    inline PDFPrecompiledPage& operator=(PDFPrecompiledPage&&) = default;
 
     enum class InstructionType
     {
@@ -200,6 +206,9 @@ public:
     /// Returns true, if page is valid (i.e. has nonzero instruction count)
     bool isValid() const { return !m_instructions.empty(); }
 
+    /// Returns memory consumption estimate
+    qint64 getMemoryConsumptionEstimate() const { return m_memoryConsumptionEstimate; }
+
 private:
     struct PathPaintData
     {
@@ -258,6 +267,7 @@ private:
     };
 
     qint64 m_compilingTimeNS = 0;
+    qint64 m_memoryConsumptionEstimate = 0;
     std::vector<Instruction> m_instructions;
     std::vector<PathPaintData> m_paths;
     std::vector<ClipData> m_clips;
