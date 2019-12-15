@@ -254,6 +254,12 @@ public:
     /// or continuous mode (single block with continuous list of separated pages).
     bool isBlockMode() const;
 
+    /// Updates renderer (in current implementation, renderer for page thumbnails)
+    /// using given parameters.
+    /// \param useOpenGL Use OpenGL for rendering?
+    /// \param surfaceFormat Surface format for OpenGL rendering
+    void updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
+
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
     const PDFDocument* getDocument() const { return m_controller->getDocument(); }
@@ -393,6 +399,9 @@ private:
 
     /// Page compiler
     PDFAsynchronousPageCompiler* m_compiler;
+
+    /// Page image rasterizer for thumbnails
+    PDFRasterizer* m_rasterizer;
 };
 
 }   // namespace pdf

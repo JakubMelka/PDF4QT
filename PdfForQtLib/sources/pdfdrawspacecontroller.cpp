@@ -396,7 +396,8 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_horizontalScrollbar(nullptr),
     m_verticalScrollbar(nullptr),
     m_features(PDFRenderer::getDefaultFeatures()),
-    m_compiler(new PDFAsynchronousPageCompiler(this))
+    m_compiler(new PDFAsynchronousPageCompiler(this)),
+    m_rasterizer(new PDFRasterizer(this))
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
@@ -675,12 +676,18 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
 
         if (imageSize.isValid())
         {
-            image = QImage(imageSize, QImage::Format_RGBA8888_Premultiplied);
-            image.fill(Qt::white);
+            const PDFPrecompiledPage* compiledPage = m_compiler->getPrecompiledCache(pageIndex, true);
+            if (compiledPage && compiledPage->isValid())
+            {
+                // Rasterize the image.
+                image = m_rasterizer->render(page, compiledPage, imageSize, m_features);
+            }
 
-            QPainter painter(&image);
-            PDFRenderer renderer(m_controller->getDocument(), m_controller->getFontCache(), m_controller->getOptionalContentActivity(), m_features, m_meshQualitySettings);
-            renderer.render(&painter, QRect(QPoint(0, 0), imageSize), pageIndex);
+            if (image.isNull())
+            {
+                image = QImage(imageSize, QImage::Format_RGBA8888_Premultiplied);
+                image.fill(Qt::white);
+            }
         }
     }
 
@@ -943,6 +950,11 @@ bool PDFDrawWidgetProxy::isBlockMode() const
 
     Q_ASSERT(false);
     return false;
+}
+
+void PDFDrawWidgetProxy::updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
+{
+    m_rasterizer->reset(useOpenGL, surfaceFormat);
 }
 
 void PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged(int value)

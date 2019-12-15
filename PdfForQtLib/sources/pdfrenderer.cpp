@@ -20,6 +20,10 @@
 #include "pdfdocument.h"
 
 #include <QElapsedTimer>
+#include <QOpenGLContext>
+#include <QOffscreenSurface>
+#include <QOpenGLPaintDevice>
+#include <QOpenGLFramebufferObject>
 
 namespace pdf
 {
@@ -141,6 +145,185 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
     precompiledPage->optimize();
     precompiledPage->finalize(timer.nsecsElapsed(), qMove(errors));
     timer.invalidate();
+}
+
+PDFRasterizer::PDFRasterizer(QObject* parent) :
+    BaseClass(parent),
+    m_features(),
+    m_surfaceFormat(),
+    m_surface(nullptr),
+    m_context(nullptr),
+    m_fbo(nullptr)
+{
+
+}
+
+PDFRasterizer::~PDFRasterizer()
+{
+    releaseOpenGL();
+}
+
+void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
+{
+    if (useOpenGL != m_features.testFlag(UseOpenGL) || surfaceFormat != m_surfaceFormat)
+    {
+        // In either case, we must reset OpenGL
+        releaseOpenGL();
+
+        m_features.setFlag(UseOpenGL, useOpenGL);
+        m_surfaceFormat = surfaceFormat;
+
+        // We create new OpenGL renderer, but only if it hasn't failed (we do not try
+        // again to create new OpenGL renderer.
+        if (m_features.testFlag(UseOpenGL) && !m_features.testFlag(FailedOpenGL))
+        {
+            initializeOpenGL();
+        }
+    }
+}
+
+QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* compiledPage, QSize size, PDFRenderer::Features features)
+{
+    QImage image;
+
+    QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size));
+    if (m_features.testFlag(UseOpenGL) && m_features.testFlag(ValidOpenGL))
+    {
+        // We have valid OpenGL context, try to select it and possibly create framebuffer object
+        // for target image (to paint it using paint device).
+        Q_ASSERT(m_surface && m_context);
+        if (m_context->makeCurrent(m_surface))
+        {
+            if (!m_fbo || m_fbo->width() != size.width() || m_fbo->height() != size.height())
+            {
+                // Delete old framebuffer object
+                delete m_fbo;
+
+                // Create a new framebuffer object
+                QOpenGLFramebufferObjectFormat format;
+                format.setSamples(m_surfaceFormat.samples());
+                m_fbo = new QOpenGLFramebufferObject(size.width(), size.height(), format);
+            }
+
+            Q_ASSERT(m_fbo);
+            if (m_fbo->isValid() && m_fbo->bind())
+            {
+                // Now, we have bind the buffer.
+                {
+                    QOpenGLPaintDevice device(size);
+                    QPainter painter(&device);
+                    painter.fillRect(QRect(QPoint(0, 0), size), Qt::white);
+                    compiledPage->draw(&painter, page->getCropBox(), matrix, features);
+                }
+
+                m_fbo->release();
+
+                image = m_fbo->toImage();
+            }
+            else
+            {
+                m_features.setFlag(FailedOpenGL, true);
+                m_features.setFlag(ValidOpenGL, false);
+            }
+
+            m_context->doneCurrent();
+        }
+    }
+
+    if (image.isNull())
+    {
+        // If we can't use OpenGL, or user doesn't want to use OpenGL, then fallback
+        // to standard software rasterizer.
+        image = QImage(size, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+
+        QPainter painter(&image);
+        compiledPage->draw(&painter, page->getCropBox(), matrix, features);
+    }
+
+    // Convert the image into format Format_ARGB32_Premultiplied for fast drawing.
+    // If this format is used, then no image conversion is performed while drawing.
+    if (image.format() != QImage::Format_ARGB32_Premultiplied)
+    {
+        image.convertTo(QImage::Format_ARGB32_Premultiplied);
+    }
+
+    return image;
+}
+
+void PDFRasterizer::initializeOpenGL()
+{
+    Q_ASSERT(!m_surface);
+    Q_ASSERT(!m_context);
+    Q_ASSERT(!m_fbo);
+
+    m_features.setFlag(ValidOpenGL, false);
+    m_features.setFlag(FailedOpenGL, false);
+
+    // Create context
+    m_context = new QOpenGLContext(this);
+    m_context->setFormat(m_surfaceFormat);
+    if (!m_context->create())
+    {
+        m_features.setFlag(FailedOpenGL, true);
+
+        delete m_context;
+        m_context = nullptr;
+    }
+
+    // Create surface
+    m_surface = new QOffscreenSurface(nullptr, this);
+    m_surface->setFormat(m_surfaceFormat);
+    m_surface->create();
+    if (!m_surface->isValid())
+    {
+        m_features.setFlag(FailedOpenGL, true);
+
+        delete m_context;
+        delete m_surface;
+
+        m_context = nullptr;
+        m_surface = nullptr;
+    }
+
+    // Check, if we can make it current
+    if (m_context->makeCurrent(m_surface))
+    {
+        m_features.setFlag(ValidOpenGL, true);
+        m_context->doneCurrent();
+    }
+    else
+    {
+        m_features.setFlag(FailedOpenGL, true);
+        releaseOpenGL();
+    }
+}
+
+void PDFRasterizer::releaseOpenGL()
+{
+    if (m_surface)
+    {
+        Q_ASSERT(m_context);
+        Q_ASSERT(m_fbo);
+
+        // Delete framebuffer
+        m_context->makeCurrent(m_surface);
+        delete m_fbo;
+        m_fbo = nullptr;
+        m_context->doneCurrent();
+
+        // Delete OpenGL context
+        delete m_context;
+        m_context = nullptr;
+
+        // Delete surface
+        m_surface->destroy();
+        delete m_surface;
+        m_surface = nullptr;
+
+        // Set flag, that we do not have valid OpenGL
+        m_features.setFlag(ValidOpenGL, false);
+    }
 }
 
 }   // namespace pdf

@@ -52,6 +52,7 @@ PDFWidget::PDFWidget(RendererEngine engine, int samplesCount, QWidget* parent) :
     connect(m_proxy, &PDFDrawWidgetProxy::renderingError, this, &PDFWidget::onRenderingError);
     connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
     connect(m_proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFWidget::onPageImageChanged);
+    updateRendererImpl();
 }
 
 PDFWidget::~PDFWidget()
@@ -92,6 +93,7 @@ void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
             openglDrawWidget->setFormat(format);
         }
     }
+    updateRendererImpl();
 }
 
 int PDFWidget::getPageRenderingErrorCount() const
@@ -102,6 +104,12 @@ int PDFWidget::getPageRenderingErrorCount() const
         count += item.second.size();
     }
     return count;
+}
+
+void PDFWidget::updateRendererImpl()
+{
+    PDFOpenGLDrawWidget* openglDrawWidget = qobject_cast<PDFOpenGLDrawWidget*>(m_drawWidget->getWidget());
+    m_proxy->updateRenderer(openglDrawWidget != nullptr, openglDrawWidget ? openglDrawWidget->format() : QSurfaceFormat::defaultFormat());
 }
 
 void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors)

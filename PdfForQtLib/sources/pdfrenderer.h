@@ -22,7 +22,12 @@
 #include "pdfexception.h"
 #include "pdfmeshqualitysettings.h"
 
+#include <QSurfaceFormat>
+
 class QPainter;
+class QOpenGLContext;
+class QOffscreenSurface;
+class QOpenGLFramebufferObject;
 
 namespace pdf
 {
@@ -84,6 +89,59 @@ private:
     const PDFOptionalContentActivity* m_optionalContentActivity;
     Features m_features;
     PDFMeshQualitySettings m_meshQualitySettings;
+};
+
+/// Renders PDF pages to bitmap images (QImage). It can use OpenGL for painting,
+/// if it is enabled, if this is the case, offscreen rendering to framebuffer
+/// is used.
+class PDFRasterizer : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFRasterizer(QObject* parent);
+    ~PDFRasterizer();
+
+    /// Resets the renderer. This function must be called from main GUI thread,
+    /// it cannot be called from deferred threads, because it can create hidden
+    /// window (offscreen surface).
+    /// \param useOpenGL Use OpenGL for rendering
+    /// \param surfaceFormat Surface format to render
+    void reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
+
+    enum Feature
+    {
+        UseOpenGL               = 0x0001,   ///< Use OpenGL for rendering
+        ValidOpenGL             = 0x0002,   ///< OpenGL is initialized and valid
+        FailedOpenGL            = 0x0004,   ///< OpenGL creation has failed
+    };
+
+    Q_DECLARE_FLAGS(Features, Feature)
+
+    /// Renders page to the image of given size. If some error occurs, then
+    /// empty image is returned. Warning: this function can modify this object,
+    /// so it is not const and is not thread safe.
+    /// \param page Page
+    /// \param compiledPage Compiled page contents
+    /// \param size Size of the target image
+    /// \param features Renderer features
+    QImage render(const PDFPage* page,
+                  const PDFPrecompiledPage* compiledPage,
+                  QSize size,
+                  PDFRenderer::Features features);
+
+private:
+    void initializeOpenGL();
+    void releaseOpenGL();
+
+    Features m_features;
+    QSurfaceFormat m_surfaceFormat;
+    QOffscreenSurface* m_surface;
+    QOpenGLContext* m_context;
+    QOpenGLFramebufferObject* m_fbo;
 };
 
 }   // namespace pdf

@@ -15,7 +15,6 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef PDFDRAWWIDGET_H
 #define PDFDRAWWIDGET_H
 
@@ -79,6 +78,7 @@ signals:
     void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
 
 private:
+    void updateRendererImpl();
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 
