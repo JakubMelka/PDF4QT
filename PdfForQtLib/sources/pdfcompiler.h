@@ -53,6 +53,10 @@ public:
     /// Resets the engine - calls stop and then calls start.
     void reset();
 
+    /// Sets cache limit in bytes
+    /// \param limit Cache limit [bytes]
+    void setCacheLimit(int limit);
+
     enum class State
     {
         Inactive,

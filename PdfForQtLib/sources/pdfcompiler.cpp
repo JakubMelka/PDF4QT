@@ -92,6 +92,11 @@ void PDFAsynchronousPageCompiler::reset()
     start();
 }
 
+void PDFAsynchronousPageCompiler::setCacheLimit(int limit)
+{
+    m_cache.setMaxCost(limit);
+}
+
 const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFInteger pageIndex, bool compile)
 {
     if (m_state != State::Active || !m_proxy->getDocument())
@@ -112,6 +117,7 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
             return compiledPage;
         };
 
+        m_proxy->getFontCache()->setCacheShrinkEnabled(false);
         CompileTask& task = m_tasks[pageIndex];
         task.taskFuture = QtConcurrent::run(compilePage);
         task.taskWatcher = new QFutureWatcher<PDFPrecompiledPage>(this);
@@ -159,6 +165,9 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
             ++it;
         }
     }
+
+    // We allow font cache shrinking, when we aren't doing something in parallel.
+    m_proxy->getFontCache()->setCacheShrinkEnabled(m_tasks.empty());
 
     if (!compiledPages.empty())
     {

@@ -103,6 +103,9 @@ public:
     /// Returns the font cache
     const PDFFontCache* getFontCache() const { return &m_fontCache; }
 
+    /// Returns the font cache
+    PDFFontCache* getFontCache() { return &m_fontCache; }
+
     /// Returns optional content activity
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
@@ -135,9 +138,6 @@ private:
     };
 
     using BlockItems = std::vector<LayoutBlock>;
-
-    static constexpr size_t FONT_CACHE_LIMIT = 32;
-    static constexpr size_t REALIZED_FONT_CACHE_LIMIT = 128;
 
     const PDFDocument* m_document;
     const PDFOptionalContentActivity* m_optionalContentActivity;
@@ -267,10 +267,11 @@ public:
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
     const PDFDocument* getDocument() const { return m_controller->getDocument(); }
-    const PDFFontCache* getFontCache() const { return m_controller->getFontCache(); }
+    PDFFontCache* getFontCache() const { return m_controller->getFontCache(); }
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_controller->getOptionalContentActivity(); }
     PDFRenderer::Features getFeatures() const;
     const PDFMeshQualitySettings& getMeshQualitySettings() const { return m_meshQualitySettings; }
+    PDFAsynchronousPageCompiler* getCompiler() const { return m_compiler; }
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);

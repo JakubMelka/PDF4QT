@@ -38,20 +38,7 @@ public:
 
     struct Settings
     {
-        Settings() :
-            m_features(pdf::PDFRenderer::getDefaultFeatures()),
-            m_rendererEngine(pdf::RendererEngine::OpenGL),
-            m_multisampleAntialiasing(true),
-            m_rendererSamples(16),
-            m_prefetchPages(true),
-            m_preferredMeshResolutionRatio(0.02),
-            m_minimalMeshResolutionRatio(0.005),
-            m_colorTolerance(0.01),
-            m_allowLaunchApplications(true),
-            m_allowLaunchURI(true)
-        {
-
-        }
+        Settings();
 
         pdf::PDFRenderer::Features m_features;
         QString m_directory;
@@ -64,6 +51,12 @@ public:
         pdf::PDFReal m_colorTolerance;
         bool m_allowLaunchApplications;
         bool m_allowLaunchURI;
+
+        // Cache settings
+        int m_compiledPageCacheLimit;
+        int m_thumbnailsCacheLimit;
+        int m_fontCacheLimit;
+        int m_instancedFontCacheLimit;
     };
 
     const Settings& getSettings() const { return m_settings; }
@@ -95,6 +88,11 @@ public:
 
     pdf::PDFReal getColorTolerance() const { return m_settings.m_colorTolerance; }
     void setColorTolerance(pdf::PDFReal colorTolerance);
+
+    int getCompiledPageCacheLimit() const { return m_settings.m_compiledPageCacheLimit; }
+    int getThumbnailsCacheLimit() const { return m_settings.m_thumbnailsCacheLimit; }
+    int getFontCacheLimit() const { return m_settings.m_fontCacheLimit; }
+    int getInstancedFontCacheLimit() const { return m_settings.m_instancedFontCacheLimit; }
 
 signals:
     void settingsChanged();

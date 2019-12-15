@@ -45,6 +45,7 @@ public:
         EngineSettings,
         RenderingSettings,
         ShadingSettings,
+        CacheSettings,
         SecuritySettings
     };
 

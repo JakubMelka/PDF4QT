@@ -1399,7 +1399,7 @@ PDFFontPointer PDFFontCache::getFont(const PDFObject& fontObject) const
             // We must create the font
             PDFFontPointer font = PDFFont::createFont(fontObject, m_document);
 
-            if (m_fontCache.size() >= m_fontCacheLimit)
+            if (m_fontCacheShrinkEnabled && m_fontCache.size() >= m_fontCacheLimit)
             {
                 // We have exceeded the cache limit. Clear the cache.
                 m_fontCache.clear();
@@ -1427,7 +1427,7 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
         // We must create the realized font
         PDFRealizedFontPointer realizedFont = PDFRealizedFont::createRealizedFont(font, size, reporter);
 
-        if (m_realizedFontCache.size() >= m_realizedFontCacheLimit)
+        if (m_fontCacheShrinkEnabled && m_realizedFontCache.size() >= m_realizedFontCacheLimit)
         {
             m_realizedFontCache.clear();
         }
@@ -1436,6 +1436,41 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
     }
 
     return it->second;
+}
+
+void PDFFontCache::setCacheShrinkEnabled(bool enabled)
+{
+    if (m_fontCacheShrinkEnabled != enabled)
+    {
+        m_fontCacheShrinkEnabled = enabled;
+        shrink();
+    }
+}
+
+void PDFFontCache::setCacheLimits(int fontCacheLimit, int instancedFontCacheLimit)
+{
+    if (m_fontCacheLimit != fontCacheLimit || m_realizedFontCacheLimit != instancedFontCacheLimit)
+    {
+        m_fontCacheLimit = fontCacheLimit;
+        m_realizedFontCacheLimit = instancedFontCacheLimit;
+        shrink();
+    }
+}
+
+void PDFFontCache::shrink()
+{
+    if (m_fontCacheShrinkEnabled)
+    {
+        QMutexLocker lock(&m_mutex);
+        if (m_fontCache.size() >= m_fontCacheLimit)
+        {
+            m_fontCache.clear();
+        }
+        if (m_realizedFontCache.size() >= m_realizedFontCacheLimit)
+        {
+            m_realizedFontCache.clear();
+        }
+    }
 }
 
 const QByteArray* FontDescriptor::getEmbeddedFontData() const

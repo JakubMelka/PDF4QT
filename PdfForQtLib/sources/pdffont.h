@@ -373,6 +373,7 @@ class PDFFontCache
 {
 public:
     inline explicit PDFFontCache(size_t fontCacheLimit, size_t realizedFontCacheLimit) :
+        m_fontCacheShrinkEnabled(true),
         m_fontCacheLimit(fontCacheLimit),
         m_realizedFontCacheLimit(realizedFontCacheLimit),
         m_document(nullptr)
@@ -396,9 +397,20 @@ public:
     /// \param reporter Error reporter
     PDFRealizedFontPointer getRealizedFont(const PDFFontPointer& font, PDFReal size, PDFRenderErrorReporter* reporter) const;
 
+    /// Sets or unsets font shrinking (i.e. font can be deleted from the cache). In multithreading environment,
+    /// font deletion is not thread safe. For this reason, disable font deletion by calling this function.
+    void setCacheShrinkEnabled(bool enabled);
+
+    /// Set font cache limits
+    void setCacheLimits(int fontCacheLimit, int instancedFontCacheLimit);
+
+    /// If shrinking is enabled, then erase font, if cache limit is exceeded.
+    void shrink();
+
 private:
-    const size_t m_fontCacheLimit;
-    const size_t m_realizedFontCacheLimit;
+    bool m_fontCacheShrinkEnabled;
+    size_t m_fontCacheLimit;
+    size_t m_realizedFontCacheLimit;
     mutable QMutex m_mutex;
     const PDFDocument* m_document;
     mutable std::map<PDFObjectReference, PDFFontPointer> m_fontCache;

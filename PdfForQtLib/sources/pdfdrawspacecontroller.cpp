@@ -21,6 +21,7 @@
 #include "pdfrenderer.h"
 #include "pdfpainter.h"
 #include "pdfcompiler.h"
+#include "pdfconstants.h"
 
 #include <QPainter>
 
@@ -34,7 +35,7 @@ PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     m_pageLayoutMode(PageLayout::OneColumn),
     m_verticalSpacingMM(5.0),
     m_horizontalSpacingMM(1.0),
-    m_fontCache(FONT_CACHE_LIMIT, REALIZED_FONT_CACHE_LIMIT)
+    m_fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT)
 {
 
 }

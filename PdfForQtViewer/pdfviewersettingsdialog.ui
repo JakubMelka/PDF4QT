@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>0</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -385,6 +385,144 @@
                <size>
                 <width>20</width>
                 <height>91</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="cachePage">
+        <layout class="QVBoxLayout" name="verticalLayout_3">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="cacheGroupBox">
+           <property name="title">
+            <string>Cache Settings</string>
+           </property>
+           <layout class="QVBoxLayout" name="cacheGroupBoxLayout">
+            <item>
+             <layout class="QGridLayout" name="cacheSettingsGridLayout">
+              <item row="1" column="0">
+               <widget class="QLabel" name="thumbnailCacheSizeLabel">
+                <property name="text">
+                 <string>Thumbnail image cache size</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="cachedFontLabel">
+                <property name="text">
+                 <string>Cached font limit</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="cachedFontLimitEdit">
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::PlusMinus</enum>
+                </property>
+                <property name="minimum">
+                 <number>4</number>
+                </property>
+                <property name="maximum">
+                 <number>256</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QSpinBox" name="compiledPageCacheSizeEdit">
+                <property name="buttonSymbols">
+                 <enum>QAbstractSpinBox::PlusMinus</enum>
+                </property>
+                <property name="suffix">
+                 <string> kB</string>
+                </property>
+                <property name="minimum">
+                 <number>65536</number>
+                </property>
+                <property name="maximum">
+                 <number>1048576</number>
+                </property>
+                <property name="singleStep">
+                 <number>1024</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="compiledPageCacheLabel">
+                <property name="text">
+                 <string>Compiled page cache size</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="thumbnailCacheSizeEdit">
+                <property name="suffix">
+                 <string> kB</string>
+                </property>
+                <property name="minimum">
+                 <number>1024</number>
+                </property>
+                <property name="maximum">
+                 <number>65536</number>
+                </property>
+                <property name="singleStep">
+                 <number>1024</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="cachedInstancedFontLimitLabel">
+                <property name="text">
+                 <string>Cached instanced font limit</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="cachedInstancedFontLimitEdit">
+                <property name="minimum">
+                 <number>4</number>
+                </property>
+                <property name="maximum">
+                 <number>256</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="cacheInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rendering engine first compiles page for fast drawing, and then stores them in the cache. Stored compiled pages are usually drawn much faster than direct drawing. &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled page cache size&lt;/span&gt; sets limits for compiled pages in kB. This limit should be at least two times large than largest compiled page size. If compiled page can't be inserted, then error is displayed during rendering. The higher this value is set, the faster the engine will be, at the cost of consumed operating memory.&lt;/p&gt;&lt;p&gt;Also, there is cache for thumbnails images. &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail image cache size &lt;/span&gt;determines, how much space there is for thumbnail images. Set this value to at least fill space for thumbnails images on the screen. Again, the higher value is, the faster displaying of thumbnails is, at the cost of consumed operating memory. Thumbnails are stored as bitmaps for fast drawing, not as precompiled pages.&lt;/p&gt;&lt;p&gt;During rendering, fonts are cached. There is a two-level cache, one for general fonts, one for instanced fonts (fonts with given size). The &lt;span style=&quot; font-weight:600;&quot;&gt;cached font limit&lt;/span&gt; sets font cache limit (number of fonts) which can be stored in the cache. The &lt;span style=&quot; font-weight:600;&quot;&gt;instanced font cache limit&lt;/span&gt; sets font cache limit for instanced fonts (number of fonts with determined size), which can be stored in the cache. When cache limit is exceeded, then fonts are erased from the cache, but only if no operation in another thread is performed (for example, compiling pages), to avoid race conditions.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="cachePageVerticalSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>74</height>
                </size>
               </property>
              </spacer>

@@ -38,6 +38,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/engine.svg"), tr("Engine"), ui->optionsPagesWidget, EngineSettings);
     new QListWidgetItem(QIcon(":/resources/rendering.svg"), tr("Rendering"), ui->optionsPagesWidget, RenderingSettings);
     new QListWidgetItem(QIcon(":/resources/shading.svg"), tr("Shading"), ui->optionsPagesWidget, ShadingSettings);
+    new QListWidgetItem(QIcon(":/resources/cache.svg"), tr("Cache"), ui->optionsPagesWidget, CacheSettings);
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
@@ -64,6 +65,10 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     for (QDoubleSpinBox* spinBox : findChildren<QDoubleSpinBox*>())
     {
         connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFViewerSettingsDialog::saveData);
+    }
+    for (QSpinBox* spinBox : findChildren<QSpinBox*>())
+    {
+        connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &PDFViewerSettingsDialog::saveData);
     }
 
     ui->optionsPagesWidget->setCurrentRow(0);
@@ -92,6 +97,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case ShadingSettings:
             ui->stackedWidget->setCurrentWidget(ui->shadingPage);
+            break;
+
+        case CacheSettings:
+            ui->stackedWidget->setCurrentWidget(ui->cachePage);
             break;
 
         case SecuritySettings:
@@ -147,6 +156,12 @@ void PDFViewerSettingsDialog::loadData()
     ui->preferredMeshResolutionEdit->setValue(m_settings.m_preferredMeshResolutionRatio);
     ui->minimalMeshResolutionEdit->setValue(m_settings.m_minimalMeshResolutionRatio);
     ui->colorToleranceEdit->setValue(m_settings.m_colorTolerance);
+
+    // Cache
+    ui->compiledPageCacheSizeEdit->setValue(m_settings.m_compiledPageCacheLimit);
+    ui->thumbnailCacheSizeEdit->setValue(m_settings.m_thumbnailsCacheLimit);
+    ui->cachedFontLimitEdit->setValue(m_settings.m_fontCacheLimit);
+    ui->cachedInstancedFontLimitEdit->setValue(m_settings.m_instancedFontCacheLimit);
 
     // Security
     ui->allowLaunchCheckBox->setChecked(m_settings.m_allowLaunchApplications);
@@ -221,6 +236,22 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->allowRunURICheckBox)
     {
         m_settings.m_allowLaunchURI = ui->allowRunURICheckBox->isChecked();
+    }
+    else if (sender == ui->compiledPageCacheSizeEdit)
+    {
+        m_settings.m_compiledPageCacheLimit = ui->compiledPageCacheSizeEdit->value();
+    }
+    else if (sender == ui->thumbnailCacheSizeEdit)
+    {
+        m_settings.m_thumbnailsCacheLimit = ui->thumbnailCacheSizeEdit->value();
+    }
+    else if (sender == ui->cachedFontLimitEdit)
+    {
+        m_settings.m_fontCacheLimit = ui->cachedFontLimitEdit->value();
+    }
+    else if (sender == ui->cachedInstancedFontLimitEdit)
+    {
+        m_settings.m_instancedFontCacheLimit = ui->cachedInstancedFontLimitEdit->value();
     }
 
     loadData();

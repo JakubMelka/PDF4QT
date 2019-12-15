@@ -58,6 +58,10 @@ static constexpr const char* PDF_OBJECT_END_MARK = "endobj";
 // Colors
 static constexpr const int PDF_MAX_COLOR_COMPONENTS = 32;
 
+// Cache limits
+static constexpr size_t DEFAULT_FONT_CACHE_LIMIT = 32;
+static constexpr size_t DEFAULT_REALIZED_FONT_CACHE_LIMIT = 128;
+
 }   // namespace pdf
 
 #endif // PDFCONSTANTS_H

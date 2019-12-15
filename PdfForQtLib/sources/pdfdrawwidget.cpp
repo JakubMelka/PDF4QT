@@ -17,11 +17,13 @@
 
 #include "pdfdrawwidget.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfcompiler.h"
 
 #include <QPainter>
 #include <QGridLayout>
 #include <QKeyEvent>
 #include <QApplication>
+#include <QPixmapCache>
 
 namespace pdf
 {
@@ -94,6 +96,13 @@ void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
         }
     }
     updateRendererImpl();
+}
+
+void PDFWidget::updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit)
+{
+    m_proxy->getCompiler()->setCacheLimit(compiledPageCacheLimit);
+    QPixmapCache::setCacheLimit(thumbnailsCacheLimit);
+    m_proxy->getFontCache()->setCacheLimits(fontCacheLimit, instancedFontCacheLimit);
 }
 
 int PDFWidget::getPageRenderingErrorCount() const

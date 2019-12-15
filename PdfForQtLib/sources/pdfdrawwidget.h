@@ -67,6 +67,13 @@ public:
     /// \param samplesCount Samples count for rendering engine MSAA antialiasing
     void updateRenderer(RendererEngine engine, int samplesCount);
 
+    /// Updates cache limits
+    /// \param compiledPageCacheLimit Compiled page cache limit [bytes]
+    /// \param thumbnailsCacheLimit Thumbnail image cache limit [kB]
+    /// \param fontCacheLimit Font cache limit [-]
+    /// \param instancedFontCacheLimit Instanced font cache limit [-]
+    void updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit);
+
     IDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
     QScrollBar* getVerticalScrollbar() const { return m_verticalScrollBar; }

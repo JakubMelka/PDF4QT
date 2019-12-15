@@ -16,9 +16,13 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfviewersettings.h"
+#include "pdfconstants.h"
+
+#include <QPixmapCache>
 
 namespace pdfviewer
 {
+const int PIXMAP_CACHE_LIMIT = QPixmapCache::cacheLimit();
 
 void PDFViewerSettings::setSettings(const PDFViewerSettings::Settings& settings)
 {
@@ -40,6 +44,10 @@ void PDFViewerSettings::readSettings(QSettings& settings)
     m_settings.m_preferredMeshResolutionRatio = settings.value("preferredMeshResolutionRatio", defaultSettings.m_preferredMeshResolutionRatio).toDouble();
     m_settings.m_minimalMeshResolutionRatio = settings.value("minimalMeshResolutionRatio", defaultSettings.m_minimalMeshResolutionRatio).toDouble();
     m_settings.m_colorTolerance = settings.value("colorTolerance", defaultSettings.m_colorTolerance).toDouble();
+    m_settings.m_compiledPageCacheLimit = settings.value("compiledPageCacheLimit", defaultSettings.m_compiledPageCacheLimit).toInt();
+    m_settings.m_thumbnailsCacheLimit = settings.value("thumbnailsCacheLimit", defaultSettings.m_thumbnailsCacheLimit).toInt();
+    m_settings.m_fontCacheLimit = settings.value("fontCacheLimit", defaultSettings.m_fontCacheLimit).toInt();
+    m_settings.m_instancedFontCacheLimit = settings.value("instancedFontCacheLimit", defaultSettings.m_instancedFontCacheLimit).toInt();
     m_settings.m_allowLaunchApplications = settings.value("allowLaunchApplications", defaultSettings.m_allowLaunchApplications).toBool();
     m_settings.m_allowLaunchURI = settings.value("allowLaunchURI", defaultSettings.m_allowLaunchURI).toBool();
     settings.endGroup();
@@ -59,6 +67,10 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("preferredMeshResolutionRatio", m_settings.m_preferredMeshResolutionRatio);
     settings.setValue("minimalMeshResolutionRatio", m_settings.m_minimalMeshResolutionRatio);
     settings.setValue("colorTolerance", m_settings.m_colorTolerance);
+    settings.setValue("compiledPageCacheLimit", m_settings.m_compiledPageCacheLimit);
+    settings.setValue("thumbnailsCacheLimit", m_settings.m_thumbnailsCacheLimit);
+    settings.setValue("fontCacheLimit", m_settings.m_fontCacheLimit);
+    settings.setValue("instancedFontCacheLimit", m_settings.m_instancedFontCacheLimit);
     settings.setValue("allowLaunchApplications", m_settings.m_allowLaunchApplications);
     settings.setValue("allowLaunchURI", m_settings.m_allowLaunchURI);
     settings.endGroup();
@@ -145,6 +157,25 @@ void PDFViewerSettings::setColorTolerance(pdf::PDFReal colorTolerance)
         m_settings.m_colorTolerance = colorTolerance;
         emit settingsChanged();
     }
+}
+
+PDFViewerSettings::Settings::Settings() :
+    m_features(pdf::PDFRenderer::getDefaultFeatures()),
+    m_rendererEngine(pdf::RendererEngine::OpenGL),
+    m_multisampleAntialiasing(true),
+    m_rendererSamples(16),
+    m_prefetchPages(true),
+    m_preferredMeshResolutionRatio(0.02),
+    m_minimalMeshResolutionRatio(0.005),
+    m_colorTolerance(0.01),
+    m_allowLaunchApplications(true),
+    m_allowLaunchURI(true),
+    m_compiledPageCacheLimit(128 * 1024),
+    m_thumbnailsCacheLimit(PIXMAP_CACHE_LIMIT),
+    m_fontCacheLimit(pdf::DEFAULT_FONT_CACHE_LIMIT),
+    m_instancedFontCacheLimit(pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT)
+{
+
 }
 
 }   // namespace pdfviewer

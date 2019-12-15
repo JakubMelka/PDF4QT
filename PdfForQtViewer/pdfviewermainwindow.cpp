@@ -153,6 +153,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     m_pdfWidget = new pdf::PDFWidget(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, this);
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
+    m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
 
     m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
@@ -650,10 +651,12 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
 void PDFViewerMainWindow::onViewerSettingsChanged()
 {
     m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
+    m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
     m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setMinimalMeshResolutionRatio(m_settings->getMinimalMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setColorTolerance(m_settings->getColorTolerance());
+
     updateRenderingOptionActions();
 }
 
