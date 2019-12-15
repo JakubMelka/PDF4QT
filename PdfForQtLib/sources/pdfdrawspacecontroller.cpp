@@ -606,7 +606,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
             // Clear the page space by white color
             painter->fillRect(placedRect, Qt::white);
 
-            const PDFPrecompiledPage* compiledPage = m_compiler->getPrecompiledCache(item.pageIndex, true);
+            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, true);
             if (compiledPage && compiledPage->isValid())
             {
                 QElapsedTimer timer;
@@ -676,7 +676,7 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
 
         if (imageSize.isValid())
         {
-            const PDFPrecompiledPage* compiledPage = m_compiler->getPrecompiledCache(pageIndex, true);
+            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(pageIndex, true);
             if (compiledPage && compiledPage->isValid())
             {
                 // Rasterize the image.
@@ -955,6 +955,41 @@ bool PDFDrawWidgetProxy::isBlockMode() const
 void PDFDrawWidgetProxy::updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
 {
     m_rasterizer->reset(useOpenGL, surfaceFormat);
+}
+
+void PDFDrawWidgetProxy::prefetchPages(PDFInteger pageIndex)
+{
+    // Determine number of pages, which should be prefetched. In case of two or more pages,
+    // we need to prefetch more pages (for example, two for two columns/two pages display mode).
+    int prefetchCount = 0;
+    switch (m_controller->getPageLayout())
+    {
+        case PageLayout::OneColumn:
+        case PageLayout::SinglePage:
+            prefetchCount = 1;
+            break;
+
+        case PageLayout::TwoPagesLeft:
+        case PageLayout::TwoPagesRight:
+        case PageLayout::TwoColumnLeft:
+        case PageLayout::TwoColumnRight:
+            prefetchCount = 2;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    if (const PDFDocument* document = getDocument())
+    {
+        const PDFInteger pageCount = document->getCatalog()->getPageCount();
+        const PDFInteger pageEnd = qMin(pageCount, pageIndex + prefetchCount + 1);
+        for (PDFInteger i = pageIndex + 1; i < pageEnd; ++i)
+        {
+            m_compiler->getCompiledPage(i, true);
+        }
+    }
 }
 
 void PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged(int value)

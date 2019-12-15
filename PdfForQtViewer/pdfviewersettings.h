@@ -43,6 +43,7 @@ public:
             m_rendererEngine(pdf::RendererEngine::OpenGL),
             m_multisampleAntialiasing(true),
             m_rendererSamples(16),
+            m_prefetchPages(true),
             m_preferredMeshResolutionRatio(0.02),
             m_minimalMeshResolutionRatio(0.005),
             m_colorTolerance(0.01),
@@ -57,6 +58,7 @@ public:
         pdf::RendererEngine m_rendererEngine;
         bool m_multisampleAntialiasing;
         int m_rendererSamples;
+        bool m_prefetchPages;
         pdf::PDFReal m_preferredMeshResolutionRatio;
         pdf::PDFReal m_minimalMeshResolutionRatio;
         pdf::PDFReal m_colorTolerance;
@@ -82,6 +84,7 @@ public:
     int getRendererSamples() const;
     void setRendererSamples(int rendererSamples);
 
+    bool isPagePrefetchingEnabled() const { return m_settings.m_prefetchPages; }
     bool isMultisampleAntialiasingEnabled() const { return m_settings.m_multisampleAntialiasing; }
 
     pdf::PDFReal getPreferredMeshResolutionRatio() const { return m_settings.m_preferredMeshResolutionRatio; }

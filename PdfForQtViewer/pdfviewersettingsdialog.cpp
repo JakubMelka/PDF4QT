@@ -133,6 +133,7 @@ void PDFViewerSettingsDialog::loadData()
         ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(false);
         ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
     }
+    ui->prefetchPagesCheckBox->setChecked(m_settings.m_prefetchPages);
 
     // Rendering
     ui->antialiasingCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::Antialiasing));
@@ -172,6 +173,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->multisampleAntialiasingSamplesCountComboBox)
     {
         m_settings.m_rendererSamples = ui->multisampleAntialiasingSamplesCountComboBox->currentData().toInt();
+    }
+    else if (sender == ui->prefetchPagesCheckBox)
+    {
+        m_settings.m_prefetchPages = ui->prefetchPagesCheckBox->isChecked();
     }
     else if (sender == ui->antialiasingCheckBox)
     {

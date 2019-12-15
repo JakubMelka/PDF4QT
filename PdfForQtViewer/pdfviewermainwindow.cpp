@@ -633,6 +633,12 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
         if (!currentPages.empty())
         {
             m_pageNumberSpinBox->setValue(currentPages.front() + 1);
+
+            // Prefetch pages, if it is enabled
+            if (m_settings->isPagePrefetchingEnabled())
+            {
+                m_pdfWidget->getDrawWidgetProxy()->prefetchPages(currentPages.back());
+            }
         }
 
         m_sidebarWidget->setCurrentPages(currentPages);

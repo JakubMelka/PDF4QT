@@ -92,7 +92,7 @@ void PDFAsynchronousPageCompiler::reset()
     start();
 }
 
-const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getPrecompiledCache(PDFInteger pageIndex, bool compile)
+const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFInteger pageIndex, bool compile)
 {
     if (m_state != State::Active || !m_proxy->getDocument())
     {
@@ -115,9 +115,8 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getPrecompiledCache(PDFIn
         CompileTask& task = m_tasks[pageIndex];
         task.taskFuture = QtConcurrent::run(compilePage);
         task.taskWatcher = new QFutureWatcher<PDFPrecompiledPage>(this);
-        task.taskWatcher->setFuture(task.taskFuture);
         connect(task.taskWatcher, &QFutureWatcher<PDFPrecompiledPage>::finished, this, &PDFAsynchronousPageCompiler::onPageCompiled);
-        onPageCompiled();
+        task.taskWatcher->setFuture(task.taskFuture);
     }
 
     return page;

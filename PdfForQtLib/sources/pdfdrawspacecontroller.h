@@ -260,6 +260,10 @@ public:
     /// \param surfaceFormat Surface format for OpenGL rendering
     void updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
 
+    /// Prefetches (prerenders) pages after page with pageIndex, i.e., prepares
+    /// for non-flickering scroll operation.
+    void prefetchPages(PDFInteger pageIndex);
+
     static constexpr PDFReal ZOOM_STEP = 1.2;
 
     const PDFDocument* getDocument() const { return m_controller->getDocument(); }

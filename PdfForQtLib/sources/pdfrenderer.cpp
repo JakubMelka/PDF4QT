@@ -241,7 +241,7 @@ QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* comp
         compiledPage->draw(&painter, page->getCropBox(), matrix, features);
     }
 
-    // Convert the image into format Format_ARGB32_Premultiplied for fast drawing.
+    // Jakub Melka: Convert the image into format Format_ARGB32_Premultiplied for fast drawing.
     // If this format is used, then no image conversion is performed while drawing.
     if (image.format() != QImage::Format_ARGB32_Premultiplied)
     {
@@ -304,13 +304,15 @@ void PDFRasterizer::releaseOpenGL()
     if (m_surface)
     {
         Q_ASSERT(m_context);
-        Q_ASSERT(m_fbo);
 
         // Delete framebuffer
-        m_context->makeCurrent(m_surface);
-        delete m_fbo;
-        m_fbo = nullptr;
-        m_context->doneCurrent();
+        if (m_fbo)
+        {
+            m_context->makeCurrent(m_surface);
+            delete m_fbo;
+            m_fbo = nullptr;
+            m_context->doneCurrent();
+        }
 
         // Delete OpenGL context
         delete m_context;

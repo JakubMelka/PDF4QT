@@ -36,6 +36,7 @@ void PDFViewerSettings::readSettings(QSettings& settings)
     m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::OpenGL)).toInt());
     m_settings.m_multisampleAntialiasing = settings.value("msaa", defaultSettings.m_multisampleAntialiasing).toBool();
     m_settings.m_rendererSamples = settings.value("rendererSamples", defaultSettings.m_rendererSamples).toInt();
+    m_settings.m_prefetchPages = settings.value("prefetchPages", defaultSettings.m_prefetchPages).toBool();
     m_settings.m_preferredMeshResolutionRatio = settings.value("preferredMeshResolutionRatio", defaultSettings.m_preferredMeshResolutionRatio).toDouble();
     m_settings.m_minimalMeshResolutionRatio = settings.value("minimalMeshResolutionRatio", defaultSettings.m_minimalMeshResolutionRatio).toDouble();
     m_settings.m_colorTolerance = settings.value("colorTolerance", defaultSettings.m_colorTolerance).toDouble();
@@ -54,6 +55,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("renderingEngine", static_cast<int>(m_settings.m_rendererEngine));
     settings.setValue("msaa", m_settings.m_multisampleAntialiasing);
     settings.setValue("rendererSamples", m_settings.m_rendererSamples);
+    settings.setValue("prefetchPages", m_settings.m_prefetchPages);
     settings.setValue("preferredMeshResolutionRatio", m_settings.m_preferredMeshResolutionRatio);
     settings.setValue("minimalMeshResolutionRatio", m_settings.m_minimalMeshResolutionRatio);
     settings.setValue("colorTolerance", m_settings.m_colorTolerance);

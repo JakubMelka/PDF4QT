@@ -66,7 +66,7 @@ public:
     /// task is performed.
     /// \param pageIndex Index of page
     /// \param compile Compile the page, if it is not found in the cache
-    const PDFPrecompiledPage* getPrecompiledCache(PDFInteger pageIndex, bool compile);
+    const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
 
 signals:
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
