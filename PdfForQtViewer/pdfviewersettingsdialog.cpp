@@ -21,16 +21,19 @@
 #include "pdfglobal.h"
 #include "pdfutils.h"
 
+#include <QAction>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QListWidgetItem>
 
 namespace pdfviewer
 {
 
-PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QWidget *parent) :
+PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QList<QAction*> actions, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::PDFViewerSettingsDialog),
     m_settings(settings),
+    m_actions(),
     m_isLoadingData(false)
 {
     ui->setupUi(this);
@@ -39,6 +42,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/rendering.svg"), tr("Rendering"), ui->optionsPagesWidget, RenderingSettings);
     new QListWidgetItem(QIcon(":/resources/shading.svg"), tr("Shading"), ui->optionsPagesWidget, ShadingSettings);
     new QListWidgetItem(QIcon(":/resources/cache.svg"), tr("Cache"), ui->optionsPagesWidget, CacheSettings);
+    new QListWidgetItem(QIcon(":/resources/shortcuts.svg"), tr("Shortcuts"), ui->optionsPagesWidget, ShortcutSettings);
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
@@ -71,9 +75,18 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
         connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &PDFViewerSettingsDialog::saveData);
     }
 
+    for (QAction* action : actions)
+    {
+        if (!action->objectName().isEmpty())
+        {
+            m_actions.append(action);
+        }
+    }
+
     ui->optionsPagesWidget->setCurrentRow(0);
     adjustSize();
     loadData();
+    loadActionShortcutsTable();
 }
 
 PDFViewerSettingsDialog::~PDFViewerSettingsDialog()
@@ -101,6 +114,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case CacheSettings:
             ui->stackedWidget->setCurrentWidget(ui->cachePage);
+            break;
+
+        case ShortcutSettings:
+            ui->stackedWidget->setCurrentWidget(ui->shortcutsPage);
             break;
 
         case SecuritySettings:
@@ -255,6 +272,66 @@ void PDFViewerSettingsDialog::saveData()
     }
 
     loadData();
+}
+
+void PDFViewerSettingsDialog::loadActionShortcutsTable()
+{
+    ui->shortcutsTableWidget->setRowCount(m_actions.size());
+    ui->shortcutsTableWidget->setColumnCount(2);
+    ui->shortcutsTableWidget->setHorizontalHeaderLabels({ tr("Action"), tr("Shortcut")});
+    ui->shortcutsTableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    for (int i = 0; i < m_actions.size(); ++i)
+    {
+        QAction* action = m_actions[i];
+
+        // Action name and icon
+        QTableWidgetItem* actionItem = new QTableWidgetItem(action->icon(), action->text());
+        actionItem->setFlags(Qt::ItemIsEnabled);
+        ui->shortcutsTableWidget->setItem(i, 0, actionItem);
+
+        // Action shortcut
+        QTableWidgetItem* shortcutItem = new QTableWidgetItem(action->shortcut().toString(QKeySequence::NativeText));
+        ui->shortcutsTableWidget->setItem(i, 1, shortcutItem);
+    }
+}
+
+bool PDFViewerSettingsDialog::saveActionShortcutsTable()
+{
+    // Jakub Melka: we need validation here
+    for (int i = 0; i < m_actions.size(); ++i)
+    {
+        QString shortcut = ui->shortcutsTableWidget->item(i, 1)->data(Qt::DisplayRole).toString();
+        if (!shortcut.isEmpty())
+        {
+            QKeySequence sequence = QKeySequence::fromString(shortcut, QKeySequence::NativeText);
+            if (sequence.toString(QKeySequence::PortableText).isEmpty())
+            {
+                QMessageBox::critical(this, tr("Error"), tr("Shortcut '%1' is invalid for action %2.").arg(shortcut, m_actions[i]->text()));
+                return false;
+            }
+        }
+    }
+
+    for (int i = 0; i < m_actions.size(); ++i)
+    {
+        QAction* action = m_actions[i];
+
+        // Set shortcut to the action
+        QString shortcut = ui->shortcutsTableWidget->item(i, 1)->data(Qt::DisplayRole).toString();
+        QKeySequence sequence = QKeySequence::fromString(shortcut, QKeySequence::NativeText);
+        action->setShortcut(sequence);
+    }
+
+    return true;
+}
+
+void PDFViewerSettingsDialog::accept()
+{
+    if (saveActionShortcutsTable())
+    {
+        QDialog::accept();
+    }
 }
 
 }   // namespace pdfviewer

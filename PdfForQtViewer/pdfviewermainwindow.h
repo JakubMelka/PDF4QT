@@ -71,13 +71,9 @@ private slots:
 
     void on_actionRendering_Errors_triggered();
     void on_actionOptions_triggered();
-
     void on_actionAbout_triggered();
-
     void on_actionFitPage_triggered();
-
     void on_actionFitWidth_triggered();
-
     void on_actionFitHeight_triggered();
 
 private:
@@ -96,6 +92,7 @@ private:
     void onProgressFinished();
 
     void readSettings();
+    void readActionSettings();
     void writeSettings();
 
     void updateTitle();
@@ -113,6 +110,7 @@ private:
     void setPageLayout(pdf::PageLayout pageLayout);
 
     std::vector<QAction*> getRenderingOptionActions() const;
+    QList<QAction*> getActions() const;
 
     int adjustDpiX(int value);
 

@@ -23,5 +23,6 @@
         <file>resources/zoom-fit-vertical.svg</file>
         <file>resources/synchronize.svg</file>
         <file>resources/cache.svg</file>
+        <file>resources/shortcuts.svg</file>
     </qresource>
 </RCC>

@@ -37,8 +37,10 @@ class PDFViewerSettingsDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QWidget* parent);
+    explicit PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QList<QAction*> actions, QWidget* parent);
     virtual ~PDFViewerSettingsDialog() override;
+
+    virtual void accept() override;
 
     enum Page : int
     {
@@ -46,6 +48,7 @@ public:
         RenderingSettings,
         ShadingSettings,
         CacheSettings,
+        ShortcutSettings,
         SecuritySettings
     };
 
@@ -58,8 +61,12 @@ private:
     void loadData();
     void saveData();
 
+    void loadActionShortcutsTable();
+    bool saveActionShortcutsTable();
+
     Ui::PDFViewerSettingsDialog* ui;
     PDFViewerSettings::Settings m_settings;
+    QList<QAction*> m_actions;
     bool m_isLoadingData;
 };
 

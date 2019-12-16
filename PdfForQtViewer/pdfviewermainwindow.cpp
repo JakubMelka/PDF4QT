@@ -87,11 +87,12 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);
 
-    auto createGoToAction = [this](QMenu* menu, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation, QString iconPath)
+    auto createGoToAction = [this](QMenu* menu, QString name, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation, QString iconPath)
     {
         QIcon icon;
         icon.addFile(iconPath);
         QAction* action = new QAction(icon, text, this);
+        action->setObjectName(name);
         action->setShortcut(key);
         menu->addAction(action);
 
@@ -103,12 +104,12 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
         return action;
     };
 
-    QAction* actionGoToDocumentStart = createGoToAction(ui->menuGoTo, tr("Go to document start"), QKeySequence::MoveToStartOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentStart, ":/resources/previous-start.svg");
-    QAction* actionGoToDocumentEnd = createGoToAction(ui->menuGoTo, tr("Go to document end"), QKeySequence::MoveToEndOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentEnd, ":/resources/next-end.svg");
-    QAction* actionGoToNextPage = createGoToAction(ui->menuGoTo, tr("Go to next page"), QKeySequence::MoveToNextPage, pdf::PDFDrawWidgetProxy::NavigateNextPage, ":/resources/next-page.svg");
-    QAction* actionGoToPreviousPage = createGoToAction(ui->menuGoTo, tr("Go to previous page"), QKeySequence::MoveToPreviousPage, pdf::PDFDrawWidgetProxy::NavigatePreviousPage, ":/resources/previous-page.svg");
-    createGoToAction(ui->menuGoTo, tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep, ":/resources/next.svg");
-    createGoToAction(ui->menuGoTo, tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep, ":/resources/previous.svg");
+    QAction* actionGoToDocumentStart = createGoToAction(ui->menuGoTo, "actionGoToDocumentStart", tr("Go to document start"), QKeySequence::MoveToStartOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentStart, ":/resources/previous-start.svg");
+    QAction* actionGoToDocumentEnd = createGoToAction(ui->menuGoTo, "actionGoToDocumentEnd", tr("Go to document end"), QKeySequence::MoveToEndOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentEnd, ":/resources/next-end.svg");
+    QAction* actionGoToNextPage = createGoToAction(ui->menuGoTo, "actionGoToNextPage", tr("Go to next page"), QKeySequence::MoveToNextPage, pdf::PDFDrawWidgetProxy::NavigateNextPage, ":/resources/next-page.svg");
+    QAction* actionGoToPreviousPage = createGoToAction(ui->menuGoTo, "actionGoToPreviousPage", tr("Go to previous page"), QKeySequence::MoveToPreviousPage, pdf::PDFDrawWidgetProxy::NavigatePreviousPage, ":/resources/previous-page.svg");
+    createGoToAction(ui->menuGoTo, "actionGoToNextLine", tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep, ":/resources/next.svg");
+    createGoToAction(ui->menuGoTo, "actionGoToPreviousLine", tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep, ":/resources/previous.svg");
 
     m_pageNumberSpinBox = new QSpinBox(this);
     m_pageNumberLabel = new QLabel(this);
@@ -176,6 +177,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
 
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_sidebarDockWidget->toggleViewAction());
+    m_sidebarDockWidget->toggleViewAction()->setObjectName("actionSidebar");
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
@@ -185,6 +187,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(m_progress, &pdf::PDFProgress::progressStep, this, &PDFViewerMainWindow::onProgressStep);
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
 
+    readActionSettings();
     updatePageLayoutActions();
     updateUI(true);
     onViewerSettingsChanged();
@@ -536,6 +539,25 @@ void PDFViewerMainWindow::readSettings()
     }
 
     m_settings->readSettings(settings);
+
+}
+
+void PDFViewerMainWindow::readActionSettings()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+    // Load action shortcuts
+    settings.beginGroup("Actions");
+    for (QAction* action : getActions())
+    {
+        QString name = action->objectName();
+        if (!name.isEmpty() && settings.contains(name))
+        {
+            QKeySequence sequence = QKeySequence::fromString(settings.value(name, action->shortcut().toString(QKeySequence::PortableText)).toString(), QKeySequence::PortableText);
+            action->setShortcut(sequence);
+        }
+    }
+    settings.endGroup();
 }
 
 void PDFViewerMainWindow::writeSettings()
@@ -545,6 +567,19 @@ void PDFViewerMainWindow::writeSettings()
     settings.setValue("windowState", saveState());
 
     m_settings->writeSettings(settings);
+
+    // Save action shortcuts
+    settings.beginGroup("Actions");
+    for (QAction* action : getActions())
+    {
+        QString name = action->objectName();
+        if (!name.isEmpty())
+        {
+            QString accelerator = action->shortcut().toString(QKeySequence::PortableText);
+            settings.setValue(name, accelerator);
+        }
+    }
+    settings.endGroup();
 }
 
 void PDFViewerMainWindow::updateTitle()
@@ -773,6 +808,11 @@ std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
     return { ui->actionRenderOptionAntialiasing, ui->actionRenderOptionTextAntialiasing, ui->actionRenderOptionSmoothPictures, ui->actionRenderOptionIgnoreOptionalContentSettings };
 }
 
+QList<QAction*> PDFViewerMainWindow::getActions() const
+{
+    return findChildren<QAction*>(QString(), Qt::FindChildrenRecursively);
+}
+
 int PDFViewerMainWindow::adjustDpiX(int value)
 {
     const int physicalDpiX = this->physicalDpiX();
@@ -859,7 +899,7 @@ void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
 
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
-    PDFViewerSettingsDialog dialog(m_settings->getSettings(), this);
+    PDFViewerSettingsDialog dialog(m_settings->getSettings(), getActions(), this);
     if (dialog.exec() == QDialog::Accepted)
     {
         m_settings->setSettings(dialog.getSettings());
