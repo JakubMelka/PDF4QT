@@ -29,6 +29,9 @@
     </property>
     <addaction name="actionOpen"/>
     <addaction name="actionClose"/>
+    <addaction name="separator"/>
+    <addaction name="actionProperties"/>
+    <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menuGoTo">
@@ -291,6 +294,15 @@
    </property>
    <property name="shortcut">
     <string>H</string>
+   </property>
+  </action>
+  <action name="actionProperties">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/info.svg</normaloff>:/resources/info.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Properties</string>
    </property>
   </action>
  </widget>

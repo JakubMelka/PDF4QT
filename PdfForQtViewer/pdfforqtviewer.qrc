@@ -24,5 +24,6 @@
         <file>resources/synchronize.svg</file>
         <file>resources/cache.svg</file>
         <file>resources/shortcuts.svg</file>
+        <file>resources/info.svg</file>
     </qresource>
 </RCC>

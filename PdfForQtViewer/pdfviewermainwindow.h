@@ -22,6 +22,7 @@
 #include "pdfrenderer.h"
 #include "pdfprogress.h"
 #include "pdfviewersettings.h"
+#include "pdfdocumentpropertiesdialog.h"
 
 #include <QTreeView>
 #include <QMainWindow>
@@ -76,6 +77,8 @@ private slots:
     void on_actionFitWidth_triggered();
     void on_actionFitHeight_triggered();
 
+    void on_actionProperties_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
@@ -129,6 +132,7 @@ private:
     pdf::PDFProgress* m_progress;
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
+    PDFFileInfo m_fileInfo;
 };
 
 }   // namespace pdfviewer

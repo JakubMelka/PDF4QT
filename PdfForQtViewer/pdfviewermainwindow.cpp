@@ -19,8 +19,9 @@
 #include "ui_pdfviewermainwindow.h"
 
 #include "pdfaboutdialog.h"
-#include "pdfviewersettingsdialog.h"
 #include "pdfsidebarwidget.h"
+#include "pdfviewersettingsdialog.h"
+#include "pdfdocumentpropertiesdialog.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
@@ -662,6 +663,8 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
             m_pageNumberSpinBox->setEnabled(false);
             m_pageNumberLabel->setText(QString());
         }
+
+        ui->actionProperties->setEnabled(m_pdfDocument);
     }
     else
     {
@@ -709,6 +712,15 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
 {
     // First close old document
     closeDocument();
+
+    QFileInfo fileInfo(fileName);
+    m_fileInfo.fileName = fileInfo.fileName();
+    m_fileInfo.path = fileInfo.path();
+    m_fileInfo.fileSize = fileInfo.size();
+    m_fileInfo.writable = fileInfo.isWritable();
+    m_fileInfo.creationTime = fileInfo.created();
+    m_fileInfo.lastModifiedTime = fileInfo.lastModified();
+    m_fileInfo.lastReadTime = fileInfo.lastRead();
 
     // Password callback
     auto getPasswordCallback = [this](bool* ok) -> QString
@@ -904,6 +916,14 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
     {
         m_settings->setSettings(dialog.getSettings());
     }
+}
+
+void PDFViewerMainWindow::on_actionProperties_triggered()
+{
+    Q_ASSERT(m_pdfDocument);
+
+    PDFDocumentPropertiesDialog documentPropertiesDialog(m_pdfDocument.data(), &m_fileInfo, this);
+    documentPropertiesDialog.exec();
 }
 
 void PDFViewerMainWindow::on_actionAbout_triggered()
