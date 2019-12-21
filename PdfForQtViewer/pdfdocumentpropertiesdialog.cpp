@@ -20,9 +20,15 @@
 
 #include "pdfdocument.h"
 #include "pdfwidgetutils.h"
+#include "pdffont.h"
+#include "pdfutils.h"
+#include "pdfexception.h"
 
 #include <QLocale>
 #include <QPageSize>
+#include <QtConcurrent/QtConcurrent>
+
+#include <execution>
 
 namespace pdfviewer
 {
@@ -38,6 +44,7 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
     initializeProperties(document);
     initializeFileInfoProperties(fileInfo);
     initializeSecurity(document);
+    initializeFonts(document);
 
     const int defaultWidth = PDFWidgetUtils::getPixelSize(this, 240.0);
     const int defaultHeight = PDFWidgetUtils::getPixelSize(this, 200.0);
@@ -46,6 +53,7 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
 
 PDFDocumentPropertiesDialog::~PDFDocumentPropertiesDialog()
 {
+    Q_ASSERT(m_fontTreeWidgetItems.empty());
     delete ui;
 }
 
@@ -226,6 +234,166 @@ void PDFDocumentPropertiesDialog::initializeSecurity(const pdf::PDFDocument* doc
     ui->securityTreeWidget->addTopLevelItem(permissionsRoot);
     ui->securityTreeWidget->expandAll();
     ui->securityTreeWidget->resizeColumnToContents(0);
+}
+
+void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* document)
+{
+    auto createFontInfo = [this, document]()
+    {
+        pdf::PDFInteger pageCount = document->getCatalog()->getPageCount();
+
+        QMutex fontTreeItemMutex;
+        QMutex usedFontReferencesMutex;
+        std::set<pdf::PDFObjectReference> usedFontReferences;
+
+        auto processPage = [&](pdf::PDFInteger pageIndex)
+        {
+            try
+            {
+                const pdf::PDFPage* page = document->getCatalog()->getPage(pageIndex);
+                if (const pdf::PDFDictionary* resourcesDictionary = document->getDictionaryFromObject(page->getResources()))
+                {
+                    if (const pdf::PDFDictionary* fontsDictionary = document->getDictionaryFromObject(resourcesDictionary->get("Font")))
+                    {
+                        // Iterate trough each font
+                        const size_t fontsCount = fontsDictionary->getCount();
+                        for (size_t i = 0; i < fontsCount; ++i)
+                        {
+                            pdf::PDFObject object = fontsDictionary->getValue(i);
+                            if (object.isReference())
+                            {
+                                // Check, if we have not processed the object. If we have it processed,
+                                // then do nothing, otherwise insert it into the processed objects.
+                                // We must also use mutex, because we use multithreading.
+                                QMutexLocker lock(&usedFontReferencesMutex);
+                                if (usedFontReferences.count(object.getReference()))
+                                {
+                                    continue;
+                                }
+                                else
+                                {
+                                    usedFontReferences.insert(object.getReference());
+                                }
+                            }
+
+                            try
+                            {
+                                if (pdf::PDFFontPointer font = pdf::PDFFont::createFont(object, document))
+                                {
+                                    pdf::PDFRealizedFontPointer realizedFont = pdf::PDFRealizedFont::createRealizedFont(font, 8.0, nullptr);
+                                    if (realizedFont)
+                                    {
+                                        const pdf::FontType fontType = font->getFontType();
+                                        const pdf::FontDescriptor* fontDescriptor = font->getFontDescriptor();
+                                        QString fontName = fontDescriptor->fontName;
+
+                                        // Try to remove characters from +, if we have font name 'SDFDSF+ValidFontName'
+                                        int plusPos = fontName.lastIndexOf('+');
+                                        if (plusPos != -1 && plusPos < fontName.size() - 1)
+                                        {
+                                            fontName = fontName.mid(plusPos + 1);
+                                        }
+
+                                        if (fontName.isEmpty())
+                                        {
+                                            fontName = QString::fromLatin1(fontsDictionary->getKey(i));
+                                        }
+
+                                        std::unique_ptr<QTreeWidgetItem> fontRootItemPtr = std::make_unique<QTreeWidgetItem>(QStringList({ fontName }));
+                                        QTreeWidgetItem* fontRootItem = fontRootItemPtr.get();
+
+                                        QString fontTypeString;
+                                        switch (fontType)
+                                        {
+                                            case pdf::FontType::TrueType:
+                                                fontTypeString = tr("TrueType");
+                                                break;
+
+                                            case pdf::FontType::Type0:
+                                                fontTypeString = tr("Type0 (CID keyed)");
+                                                break;
+
+                                            case pdf::FontType::Type1:
+                                                fontTypeString = tr("Type1 (8 bit keyed)");
+                                                break;
+
+                                            case pdf::FontType::Type3:
+                                                fontTypeString = tr("Type3 (content streams for font glyphs)");
+                                                break;
+
+                                            default:
+                                                Q_ASSERT(false);
+                                                break;
+                                        }
+
+                                        new QTreeWidgetItem(fontRootItem, { tr("Type"), fontTypeString });
+                                        if (!fontDescriptor->fontFamily.isEmpty())
+                                        {
+                                            new QTreeWidgetItem(fontRootItem, { tr("Font family"), fontDescriptor->fontFamily });
+                                        }
+                                        new QTreeWidgetItem(fontRootItem, { tr("Embedded subset"), fontDescriptor->getEmbeddedFontData() ? tr("Yes") : tr("No") });
+                                        font->dumpFontToTreeItem(fontRootItem);
+                                        realizedFont->dumpFontToTreeItem(fontRootItem);
+
+                                        // Separator item
+                                        new QTreeWidgetItem(fontRootItem, QStringList());
+
+                                        // Finally add the tree item
+                                        QMutexLocker lock(&fontTreeItemMutex);
+                                        m_fontTreeWidgetItems.push_back(fontRootItemPtr.release());
+                                    }
+                                }
+                            }
+                            catch (pdf::PDFException)
+                            {
+                                // Do nothing, some error occured, continue with next font
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (pdf::PDFException)
+            {
+                // Do nothing, some error occured
+            }
+        };
+
+        pdf::PDFIntegerRange<pdf::PDFInteger> indices(pdf::PDFInteger(0), pageCount);
+        std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), processPage);
+    };
+    m_future = QtConcurrent::run(createFontInfo);
+    connect(&m_futureWatcher, &QFutureWatcher<void>::finished, this, &PDFDocumentPropertiesDialog::onFontsFinished);
+    m_futureWatcher.setFuture(m_future);
+}
+
+void PDFDocumentPropertiesDialog::onFontsFinished()
+{
+    if (!m_fontTreeWidgetItems.empty())
+    {
+        std::sort(m_fontTreeWidgetItems.begin(), m_fontTreeWidgetItems.end(), [](QTreeWidgetItem* left, QTreeWidgetItem* right) { return left->data(0, Qt::DisplayRole) < right->data(0, Qt::DisplayRole); });
+        for (QTreeWidgetItem* item : m_fontTreeWidgetItems)
+        {
+            ui->fontsTreeWidget->addTopLevelItem(item);
+        }
+        m_fontTreeWidgetItems.clear();
+
+        ui->fontsTreeWidget->collapseAll();
+        ui->fontsTreeWidget->expandToDepth(0);
+        ui->fontsTreeWidget->resizeColumnToContents(0);
+    }
+}
+
+void PDFDocumentPropertiesDialog::closeEvent(QCloseEvent* event)
+{
+    // We must wait for finishing of font loading;
+    m_futureWatcher.waitForFinished();
+
+    // We must delete all font tree items, because of asynchronous signal sent
+    qDeleteAll(m_fontTreeWidgetItems);
+    m_fontTreeWidgetItems.clear();
+
+    BaseClass::closeEvent(event);
 }
 
 }   // namespace pdfviewer

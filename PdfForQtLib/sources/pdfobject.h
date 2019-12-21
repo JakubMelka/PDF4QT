@@ -226,7 +226,7 @@ private:
 /// an array of pairs key-value, where key is name object and value is any
 /// PDF object. For this reason, we use QByteArray for key. We do not use
 /// map, because dictionaries are usually small.
-class PDFDictionary : public PDFObjectContent
+class PDFFORQTLIBSHARED_EXPORT PDFDictionary : public PDFObjectContent
 {
 public:
     using DictionaryEntry = std::pair<QByteArray, PDFObject>;

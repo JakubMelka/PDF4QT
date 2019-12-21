@@ -25,6 +25,7 @@
 #include <QFont>
 #include <QMatrix>
 #include <QSharedPointer>
+#include <QTreeWidgetItem>
 
 #include <unordered_map>
 
@@ -166,7 +167,7 @@ static constexpr PDFEncoding::Encoding getEncodingForStandardFont(StandardFontTy
     }
 }
 
-struct FontDescriptor
+struct PDFFORQTLIBSHARED_EXPORT FontDescriptor
 {
     bool isEmbedded() const { return !fontFile.isEmpty() || !fontFile2.isEmpty() || !fontFile3.isEmpty(); }
 
@@ -216,7 +217,7 @@ using PDFRealizedFontPointer = QSharedPointer<PDFRealizedFont>;
 
 /// Font, which has fixed pixel size. It is programmed as PIMPL, because we need
 /// to remove FreeType types from the interface (so we do not include FreeType in the interface).
-class PDFRealizedFont
+class PDFFORQTLIBSHARED_EXPORT PDFRealizedFont
 {
 public:
     ~PDFRealizedFont();
@@ -231,6 +232,9 @@ public:
     /// Return true, if we have horizontal writing system
     bool isHorizontalWritingSystem() const;
 
+    /// Adds information about the font into tree item
+    void dumpFontToTreeItem(QTreeWidgetItem* item) const;
+
     /// Creates new realized font from the standard font. If font can't be created,
     /// then exception is thrown.
     static PDFRealizedFontPointer createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter);
@@ -243,7 +247,7 @@ private:
 };
 
 /// Base  class representing font in the PDF file
-class PDFFont
+class PDFFORQTLIBSHARED_EXPORT PDFFont
 {
 public:
     explicit PDFFont(FontDescriptor fontDescriptor);
@@ -254,6 +258,9 @@ public:
 
     /// Returns font descriptor
     const FontDescriptor* getFontDescriptor() const { return &m_fontDescriptor; }
+
+    /// Adds information about the font into tree item
+    virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const { Q_UNUSED(item); }
 
     /// Creates font from the object. If font can't be created, exception is thrown.
     /// \param object Font dictionary
@@ -274,6 +281,8 @@ private:
 /// which maps single-byte character to the glyph in the font.
 class PDFSimpleFont : public PDFFont
 {
+    using BaseClass = PDFFont;
+
 public:
     explicit PDFSimpleFont(FontDescriptor fontDescriptor,
                            QByteArray name,
@@ -292,6 +301,8 @@ public:
     /// Returns the glyph advance (or zero, if glyph advance is invalid)
     PDFInteger getGlyphAdvance(size_t index) const;
 
+    virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const override;
+
 protected:
     QByteArray m_name;
     QByteArray m_baseFont;
@@ -305,6 +316,8 @@ protected:
 
 class PDFType1Font : public PDFSimpleFont
 {
+    using BaseClass = PDFSimpleFont;
+
 public:
     explicit PDFType1Font(FontDescriptor fontDescriptor,
                           QByteArray name,
@@ -319,6 +332,7 @@ public:
     virtual ~PDFType1Font() override = default;
 
     virtual FontType getFontType() const override;
+    virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
 
     /// Returns the assigned standard font (or invalid, if font is not standard)
     StandardFontType getStandardFontType() const { return m_standardFontType; }
@@ -347,6 +361,7 @@ public:
                           const PDFObject& resources);
 
     virtual FontType getFontType() const override;
+    virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
 
     /// Returns width of the character. If character doesn't exist, then zero is returned.
     double getWidth(int characterIndex) const;

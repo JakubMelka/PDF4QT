@@ -21,6 +21,10 @@
 #include "pdfglobal.h"
 
 #include <QDialog>
+#include <QFuture>
+#include <QFutureWatcher>
+
+class QTreeWidgetItem;
 
 namespace Ui
 {
@@ -50,11 +54,17 @@ class PDFDocumentPropertiesDialog : public QDialog
 {
     Q_OBJECT
 
+private:
+    using BaseClass = QDialog;
+
 public:
     explicit PDFDocumentPropertiesDialog(const pdf::PDFDocument* document,
                                          const PDFFileInfo* fileInfo,
                                          QWidget* parent);
     virtual ~PDFDocumentPropertiesDialog() override;
+
+protected:
+    virtual void closeEvent(QCloseEvent* event) override;
 
 private:
     Ui::PDFDocumentPropertiesDialog* ui;
@@ -62,6 +72,13 @@ private:
     void initializeProperties(const pdf::PDFDocument* document);
     void initializeFileInfoProperties(const PDFFileInfo* fileInfo);
     void initializeSecurity(const pdf::PDFDocument* document);
+    void initializeFonts(const pdf::PDFDocument* document);
+
+    void onFontsFinished();
+
+    std::vector<QTreeWidgetItem*> m_fontTreeWidgetItems;
+    QFuture<void> m_future;
+    QFutureWatcher<void> m_futureWatcher;
 };
 
 }   // namespace pdfviewer

@@ -31,6 +31,7 @@
 #include <QMutex>
 #include <QPainterPath>
 #include <QDataStream>
+#include <QTreeWidgetItem>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -350,6 +351,9 @@ public:
 
     /// Returns true, if font has horizontal writing system
     virtual bool isHorizontalWritingSystem() const = 0;
+
+    /// Dumps information about the font
+    virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const { Q_UNUSED(item); }
 };
 
 /// Implementation of the PDFRealizedFont class using PIMPL pattern for Type 3 fonts
@@ -379,6 +383,7 @@ public:
 
     virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) override;
     virtual bool isHorizontalWritingSystem() const override { return !m_isVertical; }
+    virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const override;
 
     static constexpr const PDFReal PIXEL_SIZE_MULTIPLIER = 100.0;
 
@@ -553,6 +558,107 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
     }
 }
 
+void PDFRealizedFontImpl::dumpFontToTreeItem(QTreeWidgetItem* item) const
+{
+    QTreeWidgetItem* root = new QTreeWidgetItem(item, { PDFTranslationContext::tr("Details") });
+
+    if (m_face->family_name)
+    {
+        new QTreeWidgetItem(root, { PDFTranslationContext::tr("Font"), QString::fromLatin1(m_face->family_name) });
+    }
+    if (m_face->style_name)
+    {
+        new QTreeWidgetItem(root, { PDFTranslationContext::tr("Style"), QString::fromLatin1(m_face->style_name) });
+    }
+
+    QString yesString = PDFTranslationContext::tr("Yes");
+    QString noString = PDFTranslationContext::tr("No");
+
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Glyph count"), QString::number(m_face->num_glyphs) });
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Is CID keyed"), (m_face->face_flags & FT_FACE_FLAG_CID_KEYED) ? yesString : noString });
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Is bold"), (m_face->style_flags & FT_STYLE_FLAG_BOLD) ? yesString : noString });
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Is italics"), (m_face->style_flags & FT_STYLE_FLAG_ITALIC) ? yesString : noString });
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Has vertical writing system"), (m_face->face_flags & FT_FACE_FLAG_VERTICAL) ? yesString : noString });
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Has SFNT storage scheme"), (m_face->face_flags & FT_FACE_FLAG_SFNT) ? yesString : noString });
+    new QTreeWidgetItem(root, { PDFTranslationContext::tr("Has glyph names"), (m_face->face_flags & FT_FACE_FLAG_GLYPH_NAMES) ? yesString : noString });
+
+    if (m_face->num_charmaps > 0)
+    {
+        QTreeWidgetItem* encodingRoot = new QTreeWidgetItem(item, { PDFTranslationContext::tr("Encoding") });
+        for (FT_Int i = 0; i < m_face->num_charmaps; ++i)
+        {
+            FT_CharMap charMap = m_face->charmaps[i];
+
+            const FT_Encoding encoding = charMap->encoding;
+            QString encodingName;
+            switch (encoding)
+            {
+                case FT_ENCODING_NONE:
+                    encodingName = PDFTranslationContext::tr("None");
+                    break;
+
+                case FT_ENCODING_UNICODE:
+                    encodingName = PDFTranslationContext::tr("Unicode");
+                    break;
+
+                case FT_ENCODING_MS_SYMBOL:
+                    encodingName = PDFTranslationContext::tr("MS Symbol");
+                    break;
+
+                case FT_ENCODING_SJIS:
+                    encodingName = PDFTranslationContext::tr("Japanese Shift JIS");
+                    break;
+
+                case FT_ENCODING_PRC:
+                    encodingName = PDFTranslationContext::tr("PRC - Simplified Chinese");
+                    break;
+
+                case FT_ENCODING_BIG5:
+                    encodingName = PDFTranslationContext::tr("Traditional Chinese");
+                    break;
+
+                case FT_ENCODING_WANSUNG:
+                    encodingName = PDFTranslationContext::tr("Korean Extended Wansung");
+                    break;
+
+                case FT_ENCODING_JOHAB:
+                    encodingName = PDFTranslationContext::tr("Korean Standard");
+                    break;
+
+                case FT_ENCODING_ADOBE_STANDARD:
+                    encodingName = PDFTranslationContext::tr("Adobe Standard");
+                    break;
+
+                case FT_ENCODING_ADOBE_EXPERT:
+                    encodingName = PDFTranslationContext::tr("Adobe Expert");
+                    break;
+                case FT_ENCODING_ADOBE_CUSTOM:
+                    encodingName = PDFTranslationContext::tr("Adobe Custom");
+                    break;
+
+                case FT_ENCODING_ADOBE_LATIN_1:
+                    encodingName = PDFTranslationContext::tr("Adobe Latin 1");
+                    break;
+
+                case FT_ENCODING_OLD_LATIN_2:
+                    encodingName = PDFTranslationContext::tr("Old Latin 1");
+                    break;
+
+                case FT_ENCODING_APPLE_ROMAN:
+                    encodingName = PDFTranslationContext::tr("Apple Roman");
+                    break;
+
+                default:
+                    encodingName = PDFTranslationContext::tr("Unknown");
+                    break;
+            }
+
+            QString encodingString = PDFTranslationContext::tr("Platform/Encoding = %1 %2").arg(charMap->platform_id).arg(charMap->encoding_id);
+            new QTreeWidgetItem(encodingRoot, { encodingName, encodingString });
+        }
+    }
+}
+
 int PDFRealizedFontImpl::outlineMoveTo(const FT_Vector* to, void* user)
 {
     Glyph* glyph = reinterpret_cast<Glyph*>(user);
@@ -645,6 +751,11 @@ void PDFRealizedFont::fillTextSequence(const QByteArray& byteArray, TextSequence
 bool PDFRealizedFont::isHorizontalWritingSystem() const
 {
     return m_impl->isHorizontalWritingSystem();
+}
+
+void PDFRealizedFont::dumpFontToTreeItem(QTreeWidgetItem* item) const
+{
+    m_impl->dumpFontToTreeItem(item);
 }
 
 PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter)
@@ -1347,6 +1458,59 @@ PDFInteger PDFSimpleFont::getGlyphAdvance(size_t index) const
     return 0;
 }
 
+void PDFSimpleFont::dumpFontToTreeItem(QTreeWidgetItem* item) const
+{
+    BaseClass::dumpFontToTreeItem(item);
+
+    QString encodingTypeString;
+    switch (m_encodingType)
+    {
+       case PDFEncoding::Encoding::Standard:
+            encodingTypeString = PDFTranslationContext::tr("Standard");
+            break;
+
+       case PDFEncoding::Encoding::MacRoman:
+            encodingTypeString = PDFTranslationContext::tr("Mac Roman");
+            break;
+
+       case PDFEncoding::Encoding::WinAnsi:
+            encodingTypeString = PDFTranslationContext::tr("Win Ansi");
+            break;
+
+       case PDFEncoding::Encoding::PDFDoc:
+            encodingTypeString = PDFTranslationContext::tr("PDF Doc");
+            break;
+
+       case PDFEncoding::Encoding::MacExpert:
+            encodingTypeString = PDFTranslationContext::tr("Mac Expert");
+            break;
+
+       case PDFEncoding::Encoding::Symbol:
+            encodingTypeString = PDFTranslationContext::tr("Symbol");
+            break;
+
+       case PDFEncoding::Encoding::ZapfDingbats:
+            encodingTypeString = PDFTranslationContext::tr("Zapf Dingbats");
+            break;
+
+       case PDFEncoding::Encoding::MacOsRoman:
+            encodingTypeString = PDFTranslationContext::tr("Mac OS Roman");
+            break;
+
+       case PDFEncoding::Encoding::Custom:
+            encodingTypeString = PDFTranslationContext::tr("Custom");
+            break;
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    new QTreeWidgetItem(item, { PDFTranslationContext::tr("Encoding"), encodingTypeString });
+}
+
 PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
                            QByteArray name,
                            QByteArray baseFont,
@@ -1366,6 +1530,53 @@ PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
 FontType PDFType1Font::getFontType() const
 {
     return FontType::Type1;
+}
+
+void PDFType1Font::dumpFontToTreeItem(QTreeWidgetItem* item) const
+{
+    BaseClass::dumpFontToTreeItem(item);
+
+    if (m_standardFontType != StandardFontType::Invalid)
+    {
+        QString standardFontTypeString;
+        switch (m_standardFontType)
+        {
+            case StandardFontType::TimesRoman:
+            case StandardFontType::TimesRomanBold:
+            case StandardFontType::TimesRomanItalics:
+            case StandardFontType::TimesRomanBoldItalics:
+                standardFontTypeString = PDFTranslationContext::tr("Times Roman");
+                break;
+
+            case StandardFontType::Helvetica:
+            case StandardFontType::HelveticaBold:
+            case StandardFontType::HelveticaOblique:
+            case StandardFontType::HelveticaBoldOblique:
+                standardFontTypeString = PDFTranslationContext::tr("Helvetica");
+                break;
+
+            case StandardFontType::Courier:
+            case StandardFontType::CourierBold:
+            case StandardFontType::CourierOblique:
+            case StandardFontType::CourierBoldOblique:
+                standardFontTypeString = PDFTranslationContext::tr("Courier");
+                break;
+
+            case StandardFontType::Symbol:
+                standardFontTypeString = PDFTranslationContext::tr("Symbol");
+                break;
+
+            case StandardFontType::ZapfDingbats:
+                standardFontTypeString = PDFTranslationContext::tr("Zapf Dingbats");
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        new QTreeWidgetItem(item, { PDFTranslationContext::tr("Standard font"), standardFontTypeString });
+    }
 }
 
 FontType PDFTrueTypeFont::getFontType() const
@@ -1918,6 +2129,11 @@ PDFType3Font::PDFType3Font(FontDescriptor fontDescriptor,
 FontType PDFType3Font::getFontType() const
 {
     return FontType::Type3;
+}
+
+void PDFType3Font::dumpFontToTreeItem(QTreeWidgetItem* item) const
+{
+    new QTreeWidgetItem(item, { PDFTranslationContext::tr("Character count"), QString::number(m_characterContentStreams.size()) });
 }
 
 double PDFType3Font::getWidth(int characterIndex) const

@@ -25,11 +25,11 @@
       </attribute>
       <layout class="QVBoxLayout" name="propertiesLayout" stretch="3,2">
        <item>
-        <widget class="QGroupBox" name="documentPropertiesGroupBox">
+        <widget class="QGroupBox" name="propertiesGroupBox">
          <property name="title">
           <string>Properties</string>
          </property>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
+         <layout class="QVBoxLayout" name="propertiesGroupBoxLayout">
           <item>
            <widget class="QTreeWidget" name="propertiesTreeWidget">
             <property name="columnCount">
@@ -58,7 +58,7 @@
          <property name="title">
           <string>File Information</string>
          </property>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
+         <layout class="QVBoxLayout" name="fileInfoGroupBoxLayout">
           <item>
            <widget class="QTreeWidget" name="fileInfoTreeWidget">
             <property name="columnCount">
@@ -88,7 +88,7 @@
       <attribute name="title">
        <string>Security</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_4">
+      <layout class="QVBoxLayout" name="securityTabLayout">
        <item>
         <widget class="QGroupBox" name="securityGroupBox">
          <property name="title">
@@ -97,6 +97,42 @@
          <layout class="QVBoxLayout" name="verticalLayout_5">
           <item>
            <widget class="QTreeWidget" name="securityTreeWidget">
+            <property name="columnCount">
+             <number>2</number>
+            </property>
+            <attribute name="headerVisible">
+             <bool>false</bool>
+            </attribute>
+            <column>
+             <property name="text">
+              <string notr="true">1</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string notr="true">2</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="fontsTab">
+      <attribute name="title">
+       <string>Fonts</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="fontsTabLayout">
+       <item>
+        <widget class="QGroupBox" name="fontsGroupBox">
+         <property name="title">
+          <string>Fonts</string>
+         </property>
+         <layout class="QVBoxLayout" name="fontsGroupBoxLayout">
+          <item>
+           <widget class="QTreeWidget" name="fontsTreeWidget">
             <property name="columnCount">
              <number>2</number>
             </property>
