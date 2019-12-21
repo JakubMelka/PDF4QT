@@ -64,6 +64,18 @@ const PDFDictionary* PDFDocument::getTrailerDictionary() const
     return nullptr;
 }
 
+QByteArray PDFDocument::getVersion() const
+{
+    QByteArray result = m_catalog.getVersion();
+
+    if (result.isEmpty() && m_info.version.isValid())
+    {
+        result = QString("%1.%2").arg(m_info.version.major).arg(m_info.version.minor).toLatin1();
+    }
+
+    return result;
+}
+
 void PDFDocument::init()
 {
     initInfo();
@@ -162,6 +174,32 @@ void PDFDocument::initInfo()
                 else
                 {
                     throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
+                }
+            }
+
+            // Scan for extra items
+            constexpr const char* PREDEFINED_ITEMS[] = { PDF_DOCUMENT_INFO_ENTRY_TITLE, PDF_DOCUMENT_INFO_ENTRY_AUTHOR, PDF_DOCUMENT_INFO_ENTRY_SUBJECT,
+                                                         PDF_DOCUMENT_INFO_ENTRY_KEYWORDS, PDF_DOCUMENT_INFO_ENTRY_CREATOR, PDF_DOCUMENT_INFO_ENTRY_PRODUCER,
+                                                         PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE, PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE, PDF_DOCUMENT_INFO_ENTRY_TRAPPED };
+            for (size_t i = 0; i < infoDictionary->getCount(); ++i)
+            {
+                const QByteArray& key = infoDictionary->getKey(i);
+                if (std::none_of(std::begin(PREDEFINED_ITEMS), std::end(PREDEFINED_ITEMS), [&key](const char* item) { return item == key; }))
+                {
+                    const PDFObject& value = getObject(infoDictionary->getValue(i));
+                    if (value.isString())
+                    {
+                        const QByteArray& stringValue = value.getString();
+                        QDateTime dateTime = PDFEncoding::convertToDateTime(stringValue);
+                        if (dateTime.isValid())
+                        {
+                            m_info.extra[key] = dateTime;
+                        }
+                        else
+                        {
+                            m_info.extra[key] = PDFEncoding::convertTextString(stringValue);
+                        }
+                    }
                 }
             }
         }

@@ -37,6 +37,7 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
 
     initializeProperties(document);
     initializeFileInfoProperties(fileInfo);
+    initializeSecurity(document);
 
     const int defaultWidth = PDFWidgetUtils::getPixelSize(this, 240.0);
     const int defaultHeight = PDFWidgetUtils::getPixelSize(this, 200.0);
@@ -57,6 +58,7 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
 
     const pdf::PDFDocument::Info* info = document->getInfo();
     const pdf::PDFCatalog* catalog = document->getCatalog();
+    new QTreeWidgetItem(propertiesRoot, { tr("PDF version"), QString::fromLatin1(document->getVersion()) });
     new QTreeWidgetItem(propertiesRoot, { tr("Title"), info->title });
     new QTreeWidgetItem(propertiesRoot, { tr("Subject"), info->subject });
     new QTreeWidgetItem(propertiesRoot, { tr("Author"), info->author });
@@ -65,7 +67,6 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
     new QTreeWidgetItem(propertiesRoot, { tr("Producer"), info->producer });
     new QTreeWidgetItem(propertiesRoot, { tr("Creation date"), locale.toString(info->creationDate) });
     new QTreeWidgetItem(propertiesRoot, { tr("Modified date"), locale.toString(info->modifiedDate) });
-    new QTreeWidgetItem(propertiesRoot, { tr("Version"), QString::fromLatin1(catalog->getVersion()) });
 
     QString trapped;
     switch (info->trapped)
@@ -105,6 +106,20 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
 
     ui->propertiesTreeWidget->addTopLevelItem(propertiesRoot);
     ui->propertiesTreeWidget->addTopLevelItem(contentRoot);
+
+    if (!info->extra.empty())
+    {
+        QTreeWidgetItem* customRoot = new QTreeWidgetItem({ tr("Custom properties") });
+        for (const auto& item : info->extra)
+        {
+            QString key = QString::fromLatin1(item.first);
+            QVariant valueVariant = item.second;
+            QString value = (valueVariant.type() == QVariant::DateTime) ? locale.toString(valueVariant.toDateTime()) : valueVariant.toString();
+            new QTreeWidgetItem(customRoot, { key, value });
+        }
+        ui->propertiesTreeWidget->addTopLevelItem(customRoot);
+    }
+
     ui->propertiesTreeWidget->expandAll();
     ui->propertiesTreeWidget->resizeColumnToContents(0);
 }
@@ -138,6 +153,79 @@ void PDFDocumentPropertiesDialog::initializeFileInfoProperties(const PDFFileInfo
     ui->fileInfoTreeWidget->addTopLevelItem(fileInfoRoot);
     ui->fileInfoTreeWidget->expandAll();
     ui->fileInfoTreeWidget->resizeColumnToContents(0);
+}
+
+void PDFDocumentPropertiesDialog::initializeSecurity(const pdf::PDFDocument* document)
+{
+    QLocale locale;
+
+    QTreeWidgetItem* securityRoot = new QTreeWidgetItem({ tr("Security") });
+    const pdf::PDFSecurityHandler* securityHandler = document->getStorage().getSecurityHandler();
+    const pdf::EncryptionMode mode = securityHandler->getMode();
+    QString modeString;
+    switch (mode)
+    {
+        case pdf::EncryptionMode::None:
+            modeString = tr("None");
+            break;
+
+        case pdf::EncryptionMode::Standard:
+            modeString = tr("Standard");
+            break;
+
+        case pdf::EncryptionMode::Custom:
+            modeString = tr("Custom");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    QString authorizationMode;
+    switch (securityHandler->getAuthorizationResult())
+    {
+        case pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired:
+            authorizationMode = tr("No authorization required");
+            break;
+
+        case pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized:
+            authorizationMode = tr("Authorized as owner");
+            break;
+
+        case pdf::PDFSecurityHandler::AuthorizationResult::UserAuthorized:
+            authorizationMode = tr("Authorized as user");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    new QTreeWidgetItem(securityRoot, { tr("Document encryption"), modeString });
+    new QTreeWidgetItem(securityRoot, { tr("Authorized as"), authorizationMode });
+    new QTreeWidgetItem(securityRoot, { tr("Metadata encrypted"), securityHandler->isMetadataEncrypted() ? tr("Yes") : tr("No") });
+    new QTreeWidgetItem(securityRoot, { tr("Version"), locale.toString(securityHandler->getVersion()) });
+
+    QTreeWidgetItem* permissionsRoot = new QTreeWidgetItem({ tr("Permissions") });
+
+    auto addPermissionInfo = [securityHandler, permissionsRoot](QString caption, pdf::PDFSecurityHandler::Permission permission)
+    {
+        new QTreeWidgetItem(permissionsRoot, { caption, securityHandler->isAllowed(permission) ? tr("Yes") : tr("No")});
+    };
+    addPermissionInfo(tr("Print (low resolution)"), pdf::PDFSecurityHandler::Permission::PrintLowResolution);
+    addPermissionInfo(tr("Print (high resolution)"), pdf::PDFSecurityHandler::Permission::PrintHighResolution);
+    addPermissionInfo(tr("Content extraction"), pdf::PDFSecurityHandler::Permission::CopyContent);
+    addPermissionInfo(tr("Content extraction (accessibility)"), pdf::PDFSecurityHandler::Permission::Accessibility);
+    addPermissionInfo(tr("Page assembling"), pdf::PDFSecurityHandler::Permission::Assemble);
+    addPermissionInfo(tr("Modify content"), pdf::PDFSecurityHandler::Permission::Modify);
+    addPermissionInfo(tr("Modify interactive items"), pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems);
+    addPermissionInfo(tr("Fill form fields"), pdf::PDFSecurityHandler::Permission::ModifyFormFields);
+
+    ui->securityTreeWidget->addTopLevelItem(securityRoot);
+    ui->securityTreeWidget->addTopLevelItem(permissionsRoot);
+    ui->securityTreeWidget->expandAll();
+    ui->securityTreeWidget->resizeColumnToContents(0);
 }
 
 }   // namespace pdfviewer

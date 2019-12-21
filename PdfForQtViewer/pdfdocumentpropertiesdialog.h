@@ -61,6 +61,7 @@ private:
 
     void initializeProperties(const pdf::PDFDocument* document);
     void initializeFileInfoProperties(const PDFFileInfo* fileInfo);
+    void initializeSecurity(const pdf::PDFDocument* document);
 };
 
 }   // namespace pdfviewer

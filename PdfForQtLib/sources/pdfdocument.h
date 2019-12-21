@@ -305,7 +305,9 @@ public:
 
     const PDFObjectStorage& getStorage() const { return m_pdfObjectStorage; }
 
-    /// Info about the document. Title, Author, Keywords...
+    /// Info about the document. Title, Author, Keywords... It also stores "extra"
+    /// values, which are in info dictionary. They can be either strings, or date
+    /// time (QString or QDateTime).
     struct Info
     {
         /// Indicates, that document was modified that it includes trapping information.
@@ -326,6 +328,8 @@ public:
         QDateTime creationDate;
         QDateTime modifiedDate;
         Trapped trapped = Trapped::Unknown;
+        PDFVersion version;
+        std::map<QByteArray, QVariant> extra;
     };
 
     /// Returns info about the document (title, author, etc.)
@@ -356,13 +360,20 @@ public:
     /// Returns the trailer dictionary
     const PDFDictionary* getTrailerDictionary() const;
 
+    /// Returns version of the PDF document. Version can be taken from catalog,
+    /// or from PDF file header. Version from catalog has precedence over version from
+    /// header.
+    QByteArray getVersion() const;
+
 private:
     friend class PDFDocumentReader;
 
-    explicit PDFDocument(PDFObjectStorage&& storage) :
+    explicit PDFDocument(PDFObjectStorage&& storage, PDFVersion version) :
         m_pdfObjectStorage(std::move(storage))
     {
         init();
+
+        m_info.version = version;
     }
 
     /// Initialize data based on object in the storage.

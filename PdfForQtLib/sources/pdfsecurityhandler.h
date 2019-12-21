@@ -92,6 +92,7 @@ public:
 
     enum class AuthorizationResult
     {
+        NoAuthorizationRequired,
         UserAuthorized,
         OwnerAuthorized,
         Failed,
@@ -146,6 +147,12 @@ public:
     /// Returns true, if metadata are encrypted
     virtual bool isMetadataEncrypted() const = 0;
 
+    /// Returns result of authorization process
+    virtual AuthorizationResult getAuthorizationResult() const = 0;
+
+    /// Returns version of the encryption
+    int getVersion() const { return m_V; }
+
     /// Creates a security handler from the object. If object is null, then
     /// "None" security handler is created. If error occurs, then exception is thrown.
     /// \param encryptionDictionaryObject Encryption dictionary object
@@ -185,7 +192,8 @@ public:
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
     virtual bool isMetadataEncrypted() const override { return true; }
-    virtual bool isAllowed(Permission) const { return true; }
+    virtual bool isAllowed(Permission) const override { return true; }
+    virtual AuthorizationResult getAuthorizationResult() const override { return AuthorizationResult::NoAuthorizationRequired; }
 };
 
 /// Specifies the security using standard security handler (see PDF specification
@@ -199,6 +207,7 @@ public:
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
     virtual bool isAllowed(Permission permission) const { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
+    virtual AuthorizationResult getAuthorizationResult() const override { return m_authorizationData.authorizationResult; }
 
     struct AuthorizationData
     {

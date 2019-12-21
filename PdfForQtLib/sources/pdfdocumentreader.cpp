@@ -481,7 +481,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         std::for_each(std::execution::parallel_policy(), objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
 
         PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), std::move(securityHandler));
-        return PDFDocument(std::move(storage));
+        return PDFDocument(std::move(storage), m_version);
     }
     catch (PDFException parserException)
     {
