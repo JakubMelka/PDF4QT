@@ -45,10 +45,15 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
     initializeFileInfoProperties(fileInfo);
     initializeSecurity(document);
     initializeFonts(document);
+    initializeDisplayAndPrintSettings(document);
 
-    const int defaultWidth = PDFWidgetUtils::getPixelSize(this, 240.0);
-    const int defaultHeight = PDFWidgetUtils::getPixelSize(this, 200.0);
-    resize(defaultWidth, defaultHeight);
+    const int minimumSectionSize = PDFWidgetUtils::scaleDPI_x(this, 300);
+    for (QTreeWidget* widget : findChildren<QTreeWidget*>(QString(), Qt::FindChildrenRecursively))
+    {
+        widget->header()->setMinimumSectionSize(minimumSectionSize);
+    }
+
+    PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
 }
 
 PDFDocumentPropertiesDialog::~PDFDocumentPropertiesDialog()
@@ -212,8 +217,12 @@ void PDFDocumentPropertiesDialog::initializeSecurity(const pdf::PDFDocument* doc
 
     new QTreeWidgetItem(securityRoot, { tr("Document encryption"), modeString });
     new QTreeWidgetItem(securityRoot, { tr("Authorized as"), authorizationMode });
-    new QTreeWidgetItem(securityRoot, { tr("Metadata encrypted"), securityHandler->isMetadataEncrypted() ? tr("Yes") : tr("No") });
-    new QTreeWidgetItem(securityRoot, { tr("Version"), locale.toString(securityHandler->getVersion()) });
+
+    if (securityHandler->getAuthorizationResult() != pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired)
+    {
+        new QTreeWidgetItem(securityRoot, { tr("Metadata encrypted"), securityHandler->isMetadataEncrypted() ? tr("Yes") : tr("No") });
+        new QTreeWidgetItem(securityRoot, { tr("Version"), locale.toString(securityHandler->getVersion()) });
+    }
 
     QTreeWidgetItem* permissionsRoot = new QTreeWidgetItem({ tr("Permissions") });
 
@@ -365,6 +374,152 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
     m_future = QtConcurrent::run(createFontInfo);
     connect(&m_futureWatcher, &QFutureWatcher<void>::finished, this, &PDFDocumentPropertiesDialog::onFontsFinished);
     m_futureWatcher.setFuture(m_future);
+}
+
+void PDFDocumentPropertiesDialog::initializeDisplayAndPrintSettings(const pdf::PDFDocument* document)
+{
+    const pdf::PDFCatalog* catalog = document->getCatalog();
+    pdf::PageLayout pageLayout = catalog->getPageLayout();
+    pdf::PageMode pageMode = catalog->getPageMode();
+    const pdf::PDFViewerPreferences* viewerPreferences = catalog->getViewerPreferences();
+
+    QTreeWidgetItem* viewerSettingsRoot = new QTreeWidgetItem({ tr("Viewer settings") });
+    QTreeWidgetItem* printerSettingsRoot = new QTreeWidgetItem({ tr("Default printer settings") });
+
+    QString pageLayoutString;
+    switch (pageLayout)
+    {
+        case pdf::PageLayout::SinglePage:
+            pageLayoutString = tr("Single page");
+            break;
+
+        case pdf::PageLayout::OneColumn:
+            pageLayoutString = tr("Continuous column");
+            break;
+
+        case pdf::PageLayout::TwoColumnLeft:
+        case pdf::PageLayout::TwoColumnRight:
+            pageLayoutString = tr("Two continuous columns");
+            break;
+
+        case pdf::PageLayout::TwoPagesLeft:
+        case pdf::PageLayout::TwoPagesRight:
+            pageLayoutString = tr("Two pages");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    QString pageModeString;
+    switch (pageMode)
+    {
+        case pdf::PageMode::UseNone:
+            pageModeString = tr("Default");
+            break;
+
+        case pdf::PageMode::UseOutlines:
+            pageModeString = tr("Show outlines");
+            break;
+
+        case pdf::PageMode::UseThumbnails:
+            pageModeString = tr("Show thumbnails");
+            break;
+
+        case pdf::PageMode::Fullscreen:
+            pageModeString = tr("Fullscreen");
+            break;
+
+        case pdf::PageMode::UseOptionalContent:
+            pageModeString = tr("Show optional content");
+            break;
+
+        case pdf::PageMode::UseAttachments:
+            pageModeString = tr("Show attachments");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    QString directionString;
+    switch (viewerPreferences->getDirection())
+    {
+        case pdf::PDFViewerPreferences::Direction::LeftToRight:
+            directionString = tr("Left to right");
+            break;
+
+        case pdf::PDFViewerPreferences::Direction::RightToLeft:
+            directionString = tr("Right to left");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    new QTreeWidgetItem(viewerSettingsRoot, { tr("Page layout"), pageLayoutString });
+    new QTreeWidgetItem(viewerSettingsRoot, { tr("View mode"), pageModeString });
+    new QTreeWidgetItem(viewerSettingsRoot, { tr("Writing direction"), directionString });
+
+    QString printScalingString;
+    switch (viewerPreferences->getPrintScaling())
+    {
+        case pdf::PDFViewerPreferences::PrintScaling::None:
+            printScalingString = tr("None");
+            break;
+
+        case pdf::PDFViewerPreferences::PrintScaling::AppDefault:
+            printScalingString = tr("Application default");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+    new QTreeWidgetItem(printerSettingsRoot, { tr("Scale"), printScalingString });
+
+    QString duplexString;
+    switch (viewerPreferences->getDuplex())
+    {
+        case pdf::PDFViewerPreferences::Duplex::None:
+            duplexString = tr("None");
+            break;
+
+        case pdf::PDFViewerPreferences::Duplex::Simplex:
+            duplexString = tr("Simplex");
+            break;
+
+        case pdf::PDFViewerPreferences::Duplex::DuplexFlipLongEdge:
+            duplexString = tr("Duplex (flip long edge)");
+            break;
+
+        case pdf::PDFViewerPreferences::Duplex::DuplexFlipShortEdge:
+            duplexString = tr("Duplex (flip long edge)");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+    new QTreeWidgetItem(printerSettingsRoot, { tr("Duplex mode"), duplexString });
+    new QTreeWidgetItem(printerSettingsRoot, { tr("Pick tray by page size"), viewerPreferences->getOptions().testFlag(pdf::PDFViewerPreferences::PickTrayByPDFSize) ? tr("Yes") : tr("No") });
+
+    QStringList pageRanges;
+    for (const std::pair<pdf::PDFInteger, pdf::PDFInteger>& pageRange : viewerPreferences->getPrintPageRanges())
+    {
+        pageRanges << QString("%1-%2").arg(pageRange.first).arg(pageRange.second);
+    }
+    QString pageRangesString = pageRanges.join(",");
+    new QTreeWidgetItem(printerSettingsRoot, { tr("Default print page ranges"), pageRangesString });
+    new QTreeWidgetItem(printerSettingsRoot, { tr("Number of copies"), QString::number(viewerPreferences->getNumberOfCopies()) });
+
+    ui->displayAndPrintTreeWidget->addTopLevelItem(viewerSettingsRoot);
+    ui->displayAndPrintTreeWidget->addTopLevelItem(printerSettingsRoot);
+    ui->displayAndPrintTreeWidget->expandAll();
+    ui->displayAndPrintTreeWidget->resizeColumnToContents(0);
 }
 
 void PDFDocumentPropertiesDialog::onFontsFinished()

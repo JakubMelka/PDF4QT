@@ -17,6 +17,13 @@
 
 #include "pdfwidgetutils.h"
 
+#ifdef Q_OS_MAC
+int qt_default_dpi_x() { return 72; }
+int qt_default_dpi_y() { return 72; }
+#else
+int qt_default_dpi_x() { return 96; }
+int qt_default_dpi_y() { return 96; }
+#endif
 
 namespace pdfviewer
 {
@@ -34,6 +41,26 @@ int PDFWidgetUtils::getPixelSize(QWidget* widget, pdf::PDFReal sizeMM)
     {
         return pdf::PDFReal(height) * sizeMM / pdf::PDFReal(widget->heightMM());
     }
+}
+
+int PDFWidgetUtils::scaleDPI_x(QWidget* widget, int unscaledSize)
+{
+    const double logicalDPI_x = widget->logicalDpiX();
+    const double defaultDPI_x = qt_default_dpi_x();
+    return (logicalDPI_x / defaultDPI_x) * unscaledSize;
+}
+
+void PDFWidgetUtils::scaleWidget(QWidget* widget, QSize unscaledSize)
+{
+    const double logicalDPI_x = widget->logicalDpiX();
+    const double logicalDPI_y = widget->logicalDpiY();
+    const double defaultDPI_x = qt_default_dpi_x();
+    const double defaultDPI_y = qt_default_dpi_y();
+
+    const int width = (logicalDPI_x / defaultDPI_x) * unscaledSize.width();
+    const int height = (logicalDPI_y / defaultDPI_y) * unscaledSize.height();
+
+    widget->resize(width, height);
 }
 
 } // namespace pdfviewer

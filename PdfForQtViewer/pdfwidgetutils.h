@@ -32,6 +32,14 @@ public:
 
     /// Converts size in MM to pixel size
     static int getPixelSize(QWidget* widget, pdf::PDFReal sizeMM);
+
+    /// Scale horizontal DPI value
+    static int scaleDPI_x(QWidget* widget, int unscaledSize);
+
+    /// Scales widget based on DPI
+    /// \param widget Widget to be scaled
+    /// \param unscaledSize Unscaled size of the widget
+    static void scaleWidget(QWidget* widget, QSize unscaledSize);
 };
 
 } // namespace pdfviewer

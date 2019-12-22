@@ -19,8 +19,12 @@
 #include "ui_pdfaboutdialog.h"
 
 #include "pdfutils.h"
+#include "pdfwidgetutils.h"
 
-PDFAboutDialog::PDFAboutDialog(QWidget *parent) :
+namespace pdfviewer
+{
+
+PDFAboutDialog::PDFAboutDialog(QWidget* parent) :
     QDialog(parent),
     ui(new Ui::PDFAboutDialog)
 {
@@ -43,9 +47,13 @@ PDFAboutDialog::PDFAboutDialog(QWidget *parent) :
         ui->tableWidget->setItem(i, 2, new QTableWidgetItem(info.license));
         ui->tableWidget->setItem(i, 3, new QTableWidgetItem(info.url));
     }
+
+    PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
 }
 
 PDFAboutDialog::~PDFAboutDialog()
 {
     delete ui;
 }
+
+}   // namespace viewer

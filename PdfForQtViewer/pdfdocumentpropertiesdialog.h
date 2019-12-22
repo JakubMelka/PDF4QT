@@ -73,6 +73,7 @@ private:
     void initializeFileInfoProperties(const PDFFileInfo* fileInfo);
     void initializeSecurity(const pdf::PDFDocument* document);
     void initializeFonts(const pdf::PDFDocument* document);
+    void initializeDisplayAndPrintSettings(const pdf::PDFDocument* document);
 
     void onFontsFinished();
 

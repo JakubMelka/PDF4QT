@@ -25,16 +25,21 @@ namespace Ui
 class PDFAboutDialog;
 }
 
+namespace pdfviewer
+{
+
 class PDFAboutDialog : public QDialog
 {
     Q_OBJECT
 
 public:
     explicit PDFAboutDialog(QWidget* parent = nullptr);
-    ~PDFAboutDialog();
+    virtual ~PDFAboutDialog() override;
 
 private:
     Ui::PDFAboutDialog* ui;
 };
+
+}   // namespace pdfviewer
 
 #endif // PDFABOUTDIALOG_H

@@ -156,6 +156,42 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="displayAndPrintTab">
+      <attribute name="title">
+       <string>Display &amp;&amp; Print</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="displayAndPrintPageLayout">
+       <item>
+        <widget class="QGroupBox" name="displayAndPrintGroupBox">
+         <property name="title">
+          <string>Display &amp;&amp; Print Settings</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_2">
+          <item>
+           <widget class="QTreeWidget" name="displayAndPrintTreeWidget">
+            <property name="columnCount">
+             <number>2</number>
+            </property>
+            <attribute name="headerVisible">
+             <bool>false</bool>
+            </attribute>
+            <column>
+             <property name="text">
+              <string notr="true">1</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string notr="true">2</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>
