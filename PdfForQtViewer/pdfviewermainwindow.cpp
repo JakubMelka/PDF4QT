@@ -32,6 +32,7 @@
 #include "pdffont.h"
 #include "pdfitemmodels.h"
 #include "pdfutils.h"
+#include "pdfsendmail.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -665,6 +666,7 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
         }
 
         ui->actionProperties->setEnabled(m_pdfDocument);
+        ui->actionSend_by_E_Mail->setEnabled(m_pdfDocument);
     }
     else
     {
@@ -714,6 +716,7 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
     closeDocument();
 
     QFileInfo fileInfo(fileName);
+    m_fileInfo.originalFileName = fileName;
     m_fileInfo.fileName = fileInfo.fileName();
     m_fileInfo.path = fileInfo.path();
     m_fileInfo.fileSize = fileInfo.size();
@@ -930,6 +933,22 @@ void PDFViewerMainWindow::on_actionAbout_triggered()
 {
     PDFAboutDialog dialog(this);
     dialog.exec();
+}
+
+void PDFViewerMainWindow::on_actionSend_by_E_Mail_triggered()
+{
+    Q_ASSERT(m_pdfDocument);
+
+    QString subject = m_pdfDocument->getInfo()->title;
+    if (subject.isEmpty())
+    {
+        subject = m_fileInfo.fileName;
+    }
+
+    if (!PDFSendMail::sendMail(this, subject, m_fileInfo.originalFileName))
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Error while starting email client occured!"));
+    }
 }
 
 }   // namespace pdfviewer

@@ -79,6 +79,8 @@ private slots:
 
     void on_actionProperties_triggered();
 
+    void on_actionSend_by_E_Mail_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();

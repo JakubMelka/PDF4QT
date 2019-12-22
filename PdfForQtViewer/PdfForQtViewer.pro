@@ -36,6 +36,7 @@ SOURCES += \
         main.cpp \
         pdfaboutdialog.cpp \
         pdfdocumentpropertiesdialog.cpp \
+        pdfsendmail.cpp \
         pdfsidebarwidget.cpp \
         pdfviewermainwindow.cpp \
         pdfviewersettings.cpp \
@@ -45,6 +46,7 @@ SOURCES += \
 HEADERS += \
         pdfaboutdialog.h \
         pdfdocumentpropertiesdialog.h \
+        pdfsendmail.h \
         pdfsidebarwidget.h \
         pdfviewermainwindow.h \
         pdfviewersettings.h \
