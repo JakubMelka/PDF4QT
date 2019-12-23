@@ -50,6 +50,7 @@
 #include <QLabel>
 #include <QDoubleSpinBox>
 #include <QDesktopServices>
+#include <QtConcurrent/QtConcurrent>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -188,11 +189,14 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
     connect(m_progress, &pdf::PDFProgress::progressStarted, this, &PDFViewerMainWindow::onProgressStarted);
     connect(m_progress, &pdf::PDFProgress::progressStep, this, &PDFViewerMainWindow::onProgressStep);
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
+    connect(&m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
+    connect(this, &PDFViewerMainWindow::queryPasswordRequest, this, &PDFViewerMainWindow::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
 
     readActionSettings();
     updatePageLayoutActions();
     updateUI(true);
     onViewerSettingsChanged();
+    updateActionsAvailability();
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
@@ -688,6 +692,23 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
     m_pageZoomSpinBox->setValue(m_pdfWidget->getDrawWidgetProxy()->getZoom() * 100);
 }
 
+void PDFViewerMainWindow::updateActionsAvailability()
+{
+    const bool isReading = m_futureWatcher.isRunning();
+    const bool hasDocument = m_pdfDocument;
+    const bool hasValidDocument = !isReading && hasDocument;
+
+    ui->actionOpen->setEnabled(!isReading);
+    ui->actionClose->setEnabled(hasValidDocument);
+    ui->actionQuit->setEnabled(!isReading);
+    ui->actionOptions->setEnabled(!isReading);
+    ui->actionAbout->setEnabled(!isReading);
+    ui->actionFitPage->setEnabled(hasValidDocument);
+    ui->actionFitWidth->setEnabled(hasValidDocument);
+    ui->actionFitHeight->setEnabled(hasValidDocument);
+    ui->actionRendering_Errors->setEnabled(hasValidDocument);
+}
+
 void PDFViewerMainWindow::onViewerSettingsChanged()
 {
     m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
@@ -725,37 +746,61 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
     m_fileInfo.lastModifiedTime = fileInfo.lastModified();
     m_fileInfo.lastReadTime = fileInfo.lastRead();
 
-    // Password callback
-    auto getPasswordCallback = [this](bool* ok) -> QString
-    {
-        return QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to acces document content"), QLineEdit::Password, QString(), ok);
-    };
-
-    // Try to open a new document
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    pdf::PDFDocumentReader reader(m_progress, qMove(getPasswordCallback));
-    pdf::PDFDocument document = reader.readFromFile(fileName);
+    auto readDocument = [this, fileName]() -> AsyncReadingResult
+    {
+        AsyncReadingResult result;
+
+        auto queryPassword = [this](bool* ok)
+        {
+            QString result;
+            *ok = false;
+            emit queryPasswordRequest(&result, ok);
+            return result;
+        };
+
+        // Try to open a new document
+        pdf::PDFDocumentReader reader(m_progress, qMove(queryPassword));
+        pdf::PDFDocument document = reader.readFromFile(fileName);
+
+        result.errorMessage = reader.getErrorMessage();
+        result.result = reader.getReadingResult();
+        if (result.result == pdf::PDFDocumentReader::Result::OK)
+        {
+            result.document.reset(new pdf::PDFDocument(qMove(document)));
+        }
+
+        return result;
+    };
+    m_future = QtConcurrent::run(readDocument);
+    m_futureWatcher.setFuture(m_future);
+    updateActionsAvailability();
+}
+
+void PDFViewerMainWindow::onDocumentReadingFinished()
+{
     QApplication::restoreOverrideCursor();
 
-    switch (reader.getReadingResult())
+    AsyncReadingResult result = m_future.result();
+    switch (result.result)
     {
         case pdf::PDFDocumentReader::Result::OK:
         {
             // Mark current directory as this
-            QFileInfo fileInfo(fileName);
+            QFileInfo fileInfo(m_fileInfo.originalFileName);
             m_settings->setDirectory(fileInfo.dir().absolutePath());
             m_currentFile = fileInfo.fileName();
 
-            m_pdfDocument.reset(new pdf::PDFDocument(std::move(document)));
+            m_pdfDocument = result.document;
             setDocument(m_pdfDocument.data());
 
-            statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(fileName), 4000);
+            statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(m_fileInfo.fileName), 4000);
             break;
         }
 
         case pdf::PDFDocumentReader::Result::Failed:
         {
-            QMessageBox::critical(this, tr("PDF Viewer"), tr("Document read error: %1").arg(reader.getErrorMessage()));
+            QMessageBox::critical(this, tr("PDF Viewer"), tr("Document read error: %1").arg(result.errorMessage));
             break;
         }
 
@@ -805,6 +850,8 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
             onActionTriggered(action);
         }
     }
+
+    updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::closeDocument()
@@ -837,15 +884,29 @@ int PDFViewerMainWindow::adjustDpiX(int value)
 
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 {
-    writeSettings();
-    closeDocument();
-    event->accept();
+    if (m_futureWatcher.isRunning())
+    {
+        // Jakub Melka: Do not allow to close the application, if document
+        // reading is running.
+        event->ignore();
+    }
+    else
+    {
+        writeSettings();
+        closeDocument();
+        event->accept();
+    }
 }
 
 void PDFViewerMainWindow::showEvent(QShowEvent* event)
 {
     Q_UNUSED(event);
     m_taskbarButton->setWindow(windowHandle());
+}
+
+void PDFViewerMainWindow::onQueryPasswordRequest(QString* password, bool* ok)
+{
+    *password = QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to access document content"), QLineEdit::Password, QString(), ok);
 }
 
 void PDFViewerMainWindow::on_actionPageLayoutSinglePage_triggered()

@@ -21,14 +21,18 @@
 #include "pdfcatalog.h"
 #include "pdfrenderer.h"
 #include "pdfprogress.h"
+#include "pdfdocument.h"
 #include "pdfviewersettings.h"
+#include "pdfdocumentreader.h"
 #include "pdfdocumentpropertiesdialog.h"
 
+#include <QFuture>
 #include <QTreeView>
 #include <QMainWindow>
 #include <QSharedPointer>
 #include <QWinTaskbarButton>
 #include <QWinTaskbarProgress>
+#include <QFutureWatcher>
 
 class QLabel;
 class QSpinBox;
@@ -63,7 +67,12 @@ public:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void showEvent(QShowEvent* event) override;
 
+signals:
+    void queryPasswordRequest(QString* password, bool* ok);
+
 private slots:
+    void onQueryPasswordRequest(QString* password, bool* ok);
+
     void on_actionPageLayoutSinglePage_triggered();
     void on_actionPageLayoutContinuous_triggered();
     void on_actionPageLayoutTwoPages_triggered();
@@ -96,6 +105,8 @@ private:
     void onProgressStep(int percentage);
     void onProgressFinished();
 
+    void onDocumentReadingFinished();
+
     void readSettings();
     void readActionSettings();
     void writeSettings();
@@ -104,6 +115,7 @@ private:
     void updatePageLayoutActions();
     void updateRenderingOptionActions();
     void updateUI(bool fullUpdate);
+    void updateActionsAvailability();
 
     void onViewerSettingsChanged();
     void onRenderingOptionTriggered(bool checked);
@@ -118,6 +130,13 @@ private:
     QList<QAction*> getActions() const;
 
     int adjustDpiX(int value);
+
+    struct AsyncReadingResult
+    {
+        QSharedPointer<pdf::PDFDocument> document;
+        QString errorMessage;
+        pdf::PDFDocumentReader::Result result = pdf::PDFDocumentReader::Result::Cancelled;
+    };
 
     Ui::PDFViewerMainWindow* ui;
     PDFViewerSettings* m_settings;
@@ -135,6 +154,9 @@ private:
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
     PDFFileInfo m_fileInfo;
+
+    QFuture<AsyncReadingResult> m_future;
+    QFutureWatcher<AsyncReadingResult> m_futureWatcher;
 };
 
 }   // namespace pdfviewer
