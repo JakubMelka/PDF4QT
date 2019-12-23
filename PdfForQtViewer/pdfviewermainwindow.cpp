@@ -858,6 +858,7 @@ void PDFViewerMainWindow::closeDocument()
 {
     setDocument(nullptr);
     m_pdfDocument.reset();
+    updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::setPageLayout(pdf::PageLayout pageLayout)
