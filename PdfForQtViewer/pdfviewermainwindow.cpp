@@ -59,9 +59,10 @@
 namespace pdfviewer
 {
 
-PDFViewerMainWindow::PDFViewerMainWindow(QWidget *parent) :
+PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::PDFViewerMainWindow),
+    m_CMSManager(new pdf::PDFCMSManager(this)),
     m_settings(new PDFViewerSettings(this)),
     m_pdfWidget(nullptr),
     m_sidebarDockWidget(nullptr),
@@ -544,8 +545,7 @@ void PDFViewerMainWindow::readSettings()
         restoreState(state);
     }
 
-    m_settings->readSettings(settings);
-
+    m_settings->readSettings(settings, m_CMSManager->getDefaultSettings());
 }
 
 void PDFViewerMainWindow::readActionSettings()
@@ -976,10 +976,11 @@ void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
 
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
-    PDFViewerSettingsDialog dialog(m_settings->getSettings(), getActions(), this);
+    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(), getActions(), m_CMSManager, this);
     if (dialog.exec() == QDialog::Accepted)
     {
         m_settings->setSettings(dialog.getSettings());
+        m_settings->setColorManagementSystemSettings(dialog.getCMSSettings());
     }
 }
 

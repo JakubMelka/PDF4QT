@@ -26,5 +26,6 @@
         <file>resources/shortcuts.svg</file>
         <file>resources/info.svg</file>
         <file>resources/send-mail.svg</file>
+        <file>resources/cms.svg</file>
     </qresource>
 </RCC>

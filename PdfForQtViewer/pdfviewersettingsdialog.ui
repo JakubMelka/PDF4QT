@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>720</width>
-    <height>538</height>
+    <width>742</width>
+    <height>573</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>4</number>
+        <number>5</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -558,6 +558,144 @@
                <set>QAbstractItemView::AllEditTriggers</set>
               </property>
              </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="cmsPage">
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <item>
+          <widget class="QGroupBox" name="cmsGroupBox">
+           <property name="title">
+            <string>Color management system settings</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_6">
+            <item>
+             <layout class="QGridLayout" name="cmsWidgetsLayout">
+              <item row="0" column="1">
+               <widget class="QComboBox" name="cmsTypeComboBox"/>
+              </item>
+              <item row="4" column="1">
+               <widget class="QCheckBox" name="cmsWhitePaperColorTransformedCheckBox">
+                <property name="text">
+                 <string>Enabled</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="cmsWhitePaperColorTransformedLabel">
+                <property name="text">
+                 <string>White paper color transformed</string>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="0">
+               <widget class="QLabel" name="cmsDeviceRGBProfileLabel">
+                <property name="text">
+                 <string>Device RGB color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="cmsOutputProfileLabel">
+                <property name="text">
+                 <string>Output color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QCheckBox" name="cmsIsBlackPointCompensationCheckBox">
+                <property name="text">
+                 <string>Enabled</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="QLabel" name="cmsDeviceGrayColorProfileLabel">
+                <property name="text">
+                 <string>Device gray color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QComboBox" name="cmsRenderingIntentComboBox"/>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="cmsRenderingIntentLabel">
+                <property name="text">
+                 <string>Rendering intent</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QComboBox" name="cmsAccuracyComboBox"/>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="cmsAccuracyLabel">
+                <property name="text">
+                 <string>Accuracy</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="cmsLabel">
+                <property name="text">
+                 <string>Color management system</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="cmsBlackPointCompensationLabel">
+                <property name="text">
+                 <string>Black point compensation</string>
+                </property>
+               </widget>
+              </item>
+              <item row="8" column="0">
+               <widget class="QLabel" name="cmsDeviceCMYKColorProfileLabel">
+                <property name="text">
+                 <string>Device CMYK color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QComboBox" name="cmsOutputColorProfileComboBox"/>
+              </item>
+              <item row="6" column="1">
+               <widget class="QComboBox" name="cmsDeviceGrayColorProfileComboBox"/>
+              </item>
+              <item row="7" column="1">
+               <widget class="QComboBox" name="cmsDeviceRGBColorProfileComboBox"/>
+              </item>
+              <item row="8" column="1">
+               <widget class="QComboBox" name="cmsDeviceCMYKColorProfileComboBox"/>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="cmsInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color management system &lt;/span&gt;manages input and output color profiles and color transformations. It enables to perceive real colors defined in PDF document. Select 'Generic' to disable this functionality for fast color transform. &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering intent&lt;/span&gt; affects how colors are transformed. Rendering intents are usually defined in content streams in PDF document, but you can override them, if you select other intent, than 'Auto'. &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy &lt;/span&gt;affects how precise the color transformation would be, at the cost of more memory consumption. &lt;span style=&quot; font-weight:600;&quot;&gt;Black point compensation&lt;/span&gt; compensates black colors out of gamut. &lt;span style=&quot; font-weight:600;&quot;&gt;White paper color transformed &lt;/span&gt;affects color of the underlying white paper - it transforms pure white from device RGB profile to output profile, if enabled.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Output color profile&lt;/span&gt; defines output (target) rendering profile. This profile should be color space, in which your screen is displaying  colors. You can also define color spaces for &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt; device color spaces, which are used to transform gray/RGB/CMYK colors to the output color profile.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="cmsVerticalSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>41</height>
+               </size>
+              </property>
+             </spacer>
             </item>
            </layout>
           </widget>

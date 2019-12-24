@@ -39,6 +39,7 @@ SOURCES += \
     sources/pdfaction.cpp \
     sources/pdfblendfunction.cpp \
     sources/pdfccittfaxdecoder.cpp \
+    sources/pdfcms.cpp \
     sources/pdfcompiler.cpp \
     sources/pdffile.cpp \
     sources/pdfitemmodels.cpp \
@@ -77,6 +78,7 @@ HEADERS += \
     sources/pdfaction.h \
     sources/pdfblendfunction.h \
     sources/pdfccittfaxdecoder.h \
+    sources/pdfcms.h \
     sources/pdfcompiler.h \
     sources/pdffile.h \
     sources/pdfitemmodels.h \
@@ -173,6 +175,16 @@ DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
 zlib.files = $$PDFFORQT_DEPENDENCIES_PATH/zlib/bin/zlib.dll
 zlib.path = $$DESTDIR/install
 INSTALLS += zlib
+
+# Link lcms2
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/lcms2/bin/ -llcms2
+INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/lcms2/include
+DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/lcms2/include
+
+# Add lcms2 to installations
+lcms2.files = $$PDFFORQT_DEPENDENCIES_PATH/lcms2/bin/lcms2.dll
+lcms2.path = $$DESTDIR/install
+INSTALLS += lcms2
 
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info

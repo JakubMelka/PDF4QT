@@ -26,11 +26,14 @@ const int PIXMAP_CACHE_LIMIT = QPixmapCache::cacheLimit();
 
 void PDFViewerSettings::setSettings(const PDFViewerSettings::Settings& settings)
 {
-    m_settings = settings;
-    emit settingsChanged();
+    if (m_settings != settings)
+    {
+        m_settings = settings;
+        emit settingsChanged();
+    }
 }
 
-void PDFViewerSettings::readSettings(QSettings& settings)
+void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSettings& defaultCMSSettings)
 {
     Settings defaultSettings;
 
@@ -50,6 +53,18 @@ void PDFViewerSettings::readSettings(QSettings& settings)
     m_settings.m_instancedFontCacheLimit = settings.value("instancedFontCacheLimit", defaultSettings.m_instancedFontCacheLimit).toInt();
     m_settings.m_allowLaunchApplications = settings.value("allowLaunchApplications", defaultSettings.m_allowLaunchApplications).toBool();
     m_settings.m_allowLaunchURI = settings.value("allowLaunchURI", defaultSettings.m_allowLaunchURI).toBool();
+    settings.endGroup();
+
+    settings.beginGroup("ColorManagementSystemSettings");
+    m_colorManagementSystemSettings.system = static_cast<pdf::PDFCMSSettings::System>(settings.value("system", int(defaultCMSSettings.system)).toInt());
+    m_colorManagementSystemSettings.accuracy = static_cast<pdf::PDFCMSSettings::Accuracy>(settings.value("accuracy", int(defaultCMSSettings.accuracy)).toInt());
+    m_colorManagementSystemSettings.intent = static_cast<pdf::RenderingIntent>(settings.value("intent", int(defaultCMSSettings.intent)).toInt());
+    m_colorManagementSystemSettings.isBlackPointCompensationActive = settings.value("isBlackPointCompensationActive", defaultCMSSettings.isBlackPointCompensationActive).toBool();
+    m_colorManagementSystemSettings.isWhitePaperColorTransformed = settings.value("isWhitePaperColorTransformed", defaultCMSSettings.isWhitePaperColorTransformed).toBool();
+    m_colorManagementSystemSettings.outputCS = settings.value("outputCS", defaultCMSSettings.outputCS).toString();
+    m_colorManagementSystemSettings.deviceGray = settings.value("deviceGray", defaultCMSSettings.deviceGray).toString();
+    m_colorManagementSystemSettings.deviceRGB = settings.value("deviceRGB", defaultCMSSettings.deviceRGB).toString();
+    m_colorManagementSystemSettings.deviceCMYK = settings.value("deviceCMYK", defaultCMSSettings.deviceCMYK).toString();
     settings.endGroup();
 
     emit settingsChanged();
@@ -73,6 +88,18 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("instancedFontCacheLimit", m_settings.m_instancedFontCacheLimit);
     settings.setValue("allowLaunchApplications", m_settings.m_allowLaunchApplications);
     settings.setValue("allowLaunchURI", m_settings.m_allowLaunchURI);
+    settings.endGroup();
+
+    settings.beginGroup("ColorManagementSystemSettings");
+    settings.setValue("system", int(m_colorManagementSystemSettings.system));
+    settings.setValue("accuracy", int(m_colorManagementSystemSettings.accuracy));
+    settings.setValue("intent", int(m_colorManagementSystemSettings.intent));
+    settings.setValue("isBlackPointCompensationActive", m_colorManagementSystemSettings.isBlackPointCompensationActive);
+    settings.setValue("isWhitePaperColorTransformed", m_colorManagementSystemSettings.isWhitePaperColorTransformed);
+    settings.setValue("outputCS", m_colorManagementSystemSettings.outputCS);
+    settings.setValue("deviceGray", m_colorManagementSystemSettings.deviceGray);
+    settings.setValue("deviceRGB", m_colorManagementSystemSettings.deviceRGB);
+    settings.setValue("deviceCMYK", m_colorManagementSystemSettings.deviceCMYK);
     settings.endGroup();
 }
 

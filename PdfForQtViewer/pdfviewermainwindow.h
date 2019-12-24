@@ -139,6 +139,7 @@ private:
     };
 
     Ui::PDFViewerMainWindow* ui;
+    pdf::PDFCMSManager* m_CMSManager;
     PDFViewerSettings* m_settings;
     pdf::PDFWidget* m_pdfWidget;
     QSharedPointer<pdf::PDFDocument> m_pdfDocument;

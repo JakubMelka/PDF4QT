@@ -150,6 +150,7 @@ enum class RendererEngine
 
 enum class RenderingIntent
 {
+    Auto,                   ///< Rendering intent is automatically selected
     Perceptual,
     AbsoluteColorimetric,
     RelativeColorimetric,

@@ -37,7 +37,17 @@ class PDFViewerSettingsDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QList<QAction*> actions, QWidget* parent);
+    /// Constructor
+    /// \param settings Viewer settings
+    /// \param cmsSettings Color management system settings
+    /// \param actions Actions
+    /// \param cmsManager CMS manager
+    /// \param parent Parent widget
+    explicit PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings,
+                                     const pdf::PDFCMSSettings& cmsSettings,
+                                     QList<QAction*> actions,
+                                     pdf::PDFCMSManager* cmsManager,
+                                     QWidget* parent);
     virtual ~PDFViewerSettingsDialog() override;
 
     virtual void accept() override;
@@ -49,10 +59,12 @@ public:
         ShadingSettings,
         CacheSettings,
         ShortcutSettings,
+        ColorManagementSystemSettings,
         SecuritySettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }
+    const pdf::PDFCMSSettings& getCMSSettings() const { return m_cmsSettings; }
 
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
@@ -66,6 +78,7 @@ private:
 
     Ui::PDFViewerSettingsDialog* ui;
     PDFViewerSettings::Settings m_settings;
+    pdf::PDFCMSSettings m_cmsSettings;
     QList<QAction*> m_actions;
     bool m_isLoadingData;
 };

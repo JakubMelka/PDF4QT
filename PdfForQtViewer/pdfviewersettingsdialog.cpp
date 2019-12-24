@@ -29,10 +29,14 @@
 namespace pdfviewer
 {
 
-PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings, QList<QAction*> actions, QWidget *parent) :
+PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings,
+                                                 const pdf::PDFCMSSettings& cmsSettings,
+                                                 QList<QAction*> actions,
+                                                 pdf::PDFCMSManager* cmsManager, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::PDFViewerSettingsDialog),
     m_settings(settings),
+    m_cmsSettings(cmsSettings),
     m_actions(),
     m_isLoadingData(false)
 {
@@ -43,6 +47,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/shading.svg"), tr("Shading"), ui->optionsPagesWidget, ShadingSettings);
     new QListWidgetItem(QIcon(":/resources/cache.svg"), tr("Cache"), ui->optionsPagesWidget, CacheSettings);
     new QListWidgetItem(QIcon(":/resources/shortcuts.svg"), tr("Shortcuts"), ui->optionsPagesWidget, ShortcutSettings);
+    new QListWidgetItem(QIcon(":/resources/cms.svg"), tr("Colors"), ui->optionsPagesWidget, ColorManagementSystemSettings);
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
@@ -53,7 +58,33 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
         ui->multisampleAntialiasingSamplesCountComboBox->addItem(QString::number(i), i);
     }
 
-    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel, ui->securityInfoLabel })
+    // Load CMS data
+    ui->cmsTypeComboBox->addItem(pdf::PDFCMSManager::getSystemName(pdf::PDFCMSSettings::System::Generic), int(pdf::PDFCMSSettings::System::Generic));
+    ui->cmsTypeComboBox->addItem(pdf::PDFCMSManager::getSystemName(pdf::PDFCMSSettings::System::LittleCMS2), int(pdf::PDFCMSSettings::System::LittleCMS2));
+
+    ui->cmsRenderingIntentComboBox->addItem(tr("Auto"), int(pdf::RenderingIntent::Auto));
+    ui->cmsRenderingIntentComboBox->addItem(tr("Perceptual"), int(pdf::RenderingIntent::Perceptual));
+    ui->cmsRenderingIntentComboBox->addItem(tr("Relative colorimetric"), int(pdf::RenderingIntent::RelativeColorimetric));
+    ui->cmsRenderingIntentComboBox->addItem(tr("Absolute colorimetric"), int(pdf::RenderingIntent::AbsoluteColorimetric));
+    ui->cmsRenderingIntentComboBox->addItem(tr("Saturation"), int(pdf::RenderingIntent::Saturation));
+
+    ui->cmsAccuracyComboBox->addItem(tr("Low"), int(pdf::PDFCMSSettings::Accuracy::Low));
+    ui->cmsAccuracyComboBox->addItem(tr("Medium"), int(pdf::PDFCMSSettings::Accuracy::Medium));
+    ui->cmsAccuracyComboBox->addItem(tr("High"), int(pdf::PDFCMSSettings::Accuracy::High));
+
+    auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorSpaceIdentifiers& identifiers)
+    {
+        for (const pdf::PDFColorSpaceIdentifier& identifier : identifiers)
+        {
+            comboBox->addItem(identifier.name, identifier.id);
+        }
+    };
+    fillColorProfileList(ui->cmsOutputColorProfileComboBox, cmsManager->getOutputProfiles());
+    fillColorProfileList(ui->cmsDeviceGrayColorProfileComboBox, cmsManager->getGrayProfiles());
+    fillColorProfileList(ui->cmsDeviceRGBColorProfileComboBox, cmsManager->getRGBProfiles());
+    fillColorProfileList(ui->cmsDeviceCMYKColorProfileComboBox, cmsManager->getCMYKProfiles());
+
+    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel, ui->securityInfoLabel, ui->cmsInfoLabel })
     {
         widget->setMinimumWidth(widget->sizeHint().width());
     }
@@ -120,6 +151,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
             ui->stackedWidget->setCurrentWidget(ui->shortcutsPage);
             break;
 
+        case ColorManagementSystemSettings:
+            ui->stackedWidget->setCurrentWidget(ui->cmsPage);
+            break;
+
         case SecuritySettings:
             ui->stackedWidget->setCurrentWidget(ui->securityPage);
             break;
@@ -183,6 +218,47 @@ void PDFViewerSettingsDialog::loadData()
     // Security
     ui->allowLaunchCheckBox->setChecked(m_settings.m_allowLaunchApplications);
     ui->allowRunURICheckBox->setChecked(m_settings.m_allowLaunchURI);
+
+    // CMS
+    ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
+    if (m_cmsSettings.system != pdf::PDFCMSSettings::System::Generic)
+    {
+        ui->cmsRenderingIntentComboBox->setEnabled(true);
+        ui->cmsRenderingIntentComboBox->setCurrentIndex(ui->cmsRenderingIntentComboBox->findData(int(m_cmsSettings.intent)));
+        ui->cmsAccuracyComboBox->setEnabled(true);
+        ui->cmsAccuracyComboBox->setCurrentIndex(ui->cmsAccuracyComboBox->findData(int(m_cmsSettings.accuracy)));
+        ui->cmsIsBlackPointCompensationCheckBox->setEnabled(true);
+        ui->cmsIsBlackPointCompensationCheckBox->setChecked(m_cmsSettings.isBlackPointCompensationActive);
+        ui->cmsWhitePaperColorTransformedCheckBox->setEnabled(true);
+        ui->cmsWhitePaperColorTransformedCheckBox->setChecked(m_cmsSettings.isWhitePaperColorTransformed);
+        ui->cmsOutputColorProfileComboBox->setEnabled(true);
+        ui->cmsOutputColorProfileComboBox->setCurrentIndex(ui->cmsOutputColorProfileComboBox->findData(m_cmsSettings.outputCS));
+        ui->cmsDeviceGrayColorProfileComboBox->setEnabled(true);
+        ui->cmsDeviceGrayColorProfileComboBox->setCurrentIndex(ui->cmsDeviceGrayColorProfileComboBox->findData(m_cmsSettings.deviceGray));
+        ui->cmsDeviceRGBColorProfileComboBox->setEnabled(true);
+        ui->cmsDeviceRGBColorProfileComboBox->setCurrentIndex(ui->cmsDeviceRGBColorProfileComboBox->findData(m_cmsSettings.deviceRGB));
+        ui->cmsDeviceCMYKColorProfileComboBox->setEnabled(true);
+        ui->cmsDeviceCMYKColorProfileComboBox->setCurrentIndex(ui->cmsDeviceCMYKColorProfileComboBox->findData(m_cmsSettings.deviceCMYK));
+    }
+    else
+    {
+        ui->cmsRenderingIntentComboBox->setEnabled(false);
+        ui->cmsRenderingIntentComboBox->setCurrentIndex(-1);
+        ui->cmsAccuracyComboBox->setEnabled(false);
+        ui->cmsAccuracyComboBox->setCurrentIndex(-1);
+        ui->cmsIsBlackPointCompensationCheckBox->setEnabled(false);
+        ui->cmsIsBlackPointCompensationCheckBox->setChecked(false);
+        ui->cmsWhitePaperColorTransformedCheckBox->setEnabled(false);
+        ui->cmsWhitePaperColorTransformedCheckBox->setChecked(false);
+        ui->cmsOutputColorProfileComboBox->setEnabled(false);
+        ui->cmsOutputColorProfileComboBox->setCurrentIndex(-1);
+        ui->cmsDeviceGrayColorProfileComboBox->setEnabled(false);
+        ui->cmsDeviceGrayColorProfileComboBox->setCurrentIndex(-1);
+        ui->cmsDeviceRGBColorProfileComboBox->setEnabled(false);
+        ui->cmsDeviceRGBColorProfileComboBox->setCurrentIndex(-1);
+        ui->cmsDeviceCMYKColorProfileComboBox->setEnabled(false);
+        ui->cmsDeviceCMYKColorProfileComboBox->setCurrentIndex(-1);
+    }
 }
 
 void PDFViewerSettingsDialog::saveData()
@@ -269,6 +345,42 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->cachedInstancedFontLimitEdit)
     {
         m_settings.m_instancedFontCacheLimit = ui->cachedInstancedFontLimitEdit->value();
+    }
+    else if (sender == ui->cmsTypeComboBox)
+    {
+        m_cmsSettings.system = static_cast<pdf::PDFCMSSettings::System>(ui->cmsTypeComboBox->currentData().toInt());
+    }
+    else if (sender == ui->cmsRenderingIntentComboBox)
+    {
+        m_cmsSettings.intent = static_cast<pdf::RenderingIntent>(ui->cmsRenderingIntentComboBox->currentData().toInt());
+    }
+    else if (sender == ui->cmsAccuracyComboBox)
+    {
+        m_cmsSettings.accuracy = static_cast<pdf::PDFCMSSettings::Accuracy>(ui->cmsAccuracyComboBox->currentData().toInt());
+    }
+    else if (sender == ui->cmsIsBlackPointCompensationCheckBox)
+    {
+        m_cmsSettings.isBlackPointCompensationActive = ui->cmsIsBlackPointCompensationCheckBox->isChecked();
+    }
+    else if (sender == ui->cmsWhitePaperColorTransformedCheckBox)
+    {
+        m_cmsSettings.isWhitePaperColorTransformed = ui->cmsWhitePaperColorTransformedCheckBox->isChecked();
+    }
+    else if (sender == ui->cmsOutputColorProfileComboBox)
+    {
+        m_cmsSettings.outputCS = ui->cmsOutputColorProfileComboBox->currentData().toString();
+    }
+    else if (sender == ui->cmsDeviceGrayColorProfileComboBox)
+    {
+        m_cmsSettings.deviceGray = ui->cmsDeviceGrayColorProfileComboBox->currentData().toString();
+    }
+    else if (sender == ui->cmsDeviceRGBColorProfileComboBox)
+    {
+        m_cmsSettings.deviceRGB = ui->cmsDeviceRGBColorProfileComboBox->currentData().toString();
+    }
+    else if (sender == ui->cmsDeviceCMYKColorProfileComboBox)
+    {
+        m_cmsSettings.deviceCMYK = ui->cmsDeviceCMYKColorProfileComboBox->currentData().toString();
     }
 
     loadData();

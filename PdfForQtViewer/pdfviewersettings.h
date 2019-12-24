@@ -19,6 +19,7 @@
 #define PDFVIEWERSETTINGS_H
 
 #include "pdfrenderer.h"
+#include "pdfcms.h"
 
 #include <QObject>
 
@@ -39,6 +40,9 @@ public:
     struct Settings
     {
         Settings();
+
+        bool operator==(const Settings&) const = default;
+        bool operator!=(const Settings&) const = default;
 
         pdf::PDFRenderer::Features m_features;
         QString m_directory;
@@ -62,7 +66,7 @@ public:
     const Settings& getSettings() const { return m_settings; }
     void setSettings(const Settings& settings);
 
-    void readSettings(QSettings& settings);
+    void readSettings(QSettings& settings, const pdf::PDFCMSSettings& defaultCMSSettings);
     void writeSettings(QSettings& settings);
 
     QString getDirectory() const;
@@ -94,13 +98,16 @@ public:
     int getFontCacheLimit() const { return m_settings.m_fontCacheLimit; }
     int getInstancedFontCacheLimit() const { return m_settings.m_instancedFontCacheLimit; }
 
+    const pdf::PDFCMSSettings& getColorManagementSystemSettings() const { return m_colorManagementSystemSettings; }
+    void setColorManagementSystemSettings(const pdf::PDFCMSSettings& settings) { m_colorManagementSystemSettings = settings; }
+
 signals:
     void settingsChanged();
 
 private:
     Settings m_settings;
+    pdf::PDFCMSSettings m_colorManagementSystemSettings;
 };
-
 
 }   // namespace pdfviewer
 
