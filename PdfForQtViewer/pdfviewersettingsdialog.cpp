@@ -24,6 +24,7 @@
 #include <QAction>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QFileDialog>
 #include <QListWidgetItem>
 
 namespace pdfviewer
@@ -72,9 +73,9 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->cmsAccuracyComboBox->addItem(tr("Medium"), int(pdf::PDFCMSSettings::Accuracy::Medium));
     ui->cmsAccuracyComboBox->addItem(tr("High"), int(pdf::PDFCMSSettings::Accuracy::High));
 
-    auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorSpaceIdentifiers& identifiers)
+    auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorProfileIdentifiers& identifiers)
     {
-        for (const pdf::PDFColorSpaceIdentifier& identifier : identifiers)
+        for (const pdf::PDFColorProfileIdentifier& identifier : identifiers)
         {
             comboBox->addItem(identifier.name, identifier.id);
         }
@@ -104,6 +105,10 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     for (QSpinBox* spinBox : findChildren<QSpinBox*>())
     {
         connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &PDFViewerSettingsDialog::saveData);
+    }
+    for (QLineEdit* lineEdit : findChildren<QLineEdit*>())
+    {
+        connect(lineEdit, &QLineEdit::editingFinished, this, &PDFViewerSettingsDialog::saveData);
     }
 
     for (QAction* action : actions)
@@ -239,6 +244,9 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsDeviceRGBColorProfileComboBox->setCurrentIndex(ui->cmsDeviceRGBColorProfileComboBox->findData(m_cmsSettings.deviceRGB));
         ui->cmsDeviceCMYKColorProfileComboBox->setEnabled(true);
         ui->cmsDeviceCMYKColorProfileComboBox->setCurrentIndex(ui->cmsDeviceCMYKColorProfileComboBox->findData(m_cmsSettings.deviceCMYK));
+        ui->cmsProfileDirectoryButton->setEnabled(true);
+        ui->cmsProfileDirectoryEdit->setEnabled(true);
+        ui->cmsProfileDirectoryEdit->setText(m_cmsSettings.profileDirectory);
     }
     else
     {
@@ -258,6 +266,9 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsDeviceRGBColorProfileComboBox->setCurrentIndex(-1);
         ui->cmsDeviceCMYKColorProfileComboBox->setEnabled(false);
         ui->cmsDeviceCMYKColorProfileComboBox->setCurrentIndex(-1);
+        ui->cmsProfileDirectoryButton->setEnabled(false);
+        ui->cmsProfileDirectoryEdit->setEnabled(false);
+        ui->cmsProfileDirectoryEdit->setText(QString());
     }
 }
 
@@ -382,6 +393,10 @@ void PDFViewerSettingsDialog::saveData()
     {
         m_cmsSettings.deviceCMYK = ui->cmsDeviceCMYKColorProfileComboBox->currentData().toString();
     }
+    else if (sender == ui->cmsProfileDirectoryEdit)
+    {
+        m_cmsSettings.profileDirectory = ui->cmsProfileDirectoryEdit->text();
+    }
 
     loadData();
 }
@@ -443,6 +458,16 @@ void PDFViewerSettingsDialog::accept()
     if (saveActionShortcutsTable())
     {
         QDialog::accept();
+    }
+}
+
+void PDFViewerSettingsDialog::on_cmsProfileDirectoryButton_clicked()
+{
+    QString directory = QFileDialog::getExistingDirectory(this, tr("Select color profile directory"));
+    if (!directory.isEmpty())
+    {
+        m_cmsSettings.profileDirectory = directory;
+        loadData();
     }
 }
 

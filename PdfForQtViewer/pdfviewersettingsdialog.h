@@ -69,6 +69,8 @@ public:
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
 
+    void on_cmsProfileDirectoryButton_clicked();
+
 private:
     void loadData();
     void saveData();

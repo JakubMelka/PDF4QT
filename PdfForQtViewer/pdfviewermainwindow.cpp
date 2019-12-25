@@ -546,6 +546,7 @@ void PDFViewerMainWindow::readSettings()
     }
 
     m_settings->readSettings(settings, m_CMSManager->getDefaultSettings());
+    m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
 }
 
 void PDFViewerMainWindow::readActionSettings()
@@ -981,6 +982,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
     {
         m_settings->setSettings(dialog.getSettings());
         m_settings->setColorManagementSystemSettings(dialog.getCMSSettings());
+        m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
     }
 }
 

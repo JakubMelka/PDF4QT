@@ -585,35 +585,18 @@
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
             <item>
-             <layout class="QGridLayout" name="cmsWidgetsLayout">
-              <item row="0" column="1">
-               <widget class="QComboBox" name="cmsTypeComboBox"/>
-              </item>
-              <item row="4" column="1">
-               <widget class="QCheckBox" name="cmsWhitePaperColorTransformedCheckBox">
-                <property name="text">
-                 <string>Enable</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="cmsWhitePaperColorTransformedLabel">
-                <property name="text">
-                 <string>White paper color transformed</string>
-                </property>
-               </widget>
-              </item>
+             <layout class="QGridLayout" name="cmsWidgetsLayout" columnstretch="1,1">
               <item row="7" column="0">
-               <widget class="QLabel" name="cmsDeviceRGBProfileLabel">
+               <widget class="QLabel" name="cmsDeviceGrayColorProfileLabel">
                 <property name="text">
-                 <string>Device RGB color profile</string>
+                 <string>Device gray color profile</string>
                 </property>
                </widget>
               </item>
-              <item row="5" column="0">
-               <widget class="QLabel" name="cmsOutputProfileLabel">
+              <item row="9" column="0">
+               <widget class="QLabel" name="cmsDeviceCMYKColorProfileLabel">
                 <property name="text">
-                 <string>Output color profile</string>
+                 <string>Device CMYK color profile</string>
                 </property>
                </widget>
               </item>
@@ -625,36 +608,9 @@
                </widget>
               </item>
               <item row="6" column="0">
-               <widget class="QLabel" name="cmsDeviceGrayColorProfileLabel">
+               <widget class="QLabel" name="cmsOutputProfileLabel">
                 <property name="text">
-                 <string>Device gray color profile</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QComboBox" name="cmsRenderingIntentComboBox"/>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="cmsRenderingIntentLabel">
-                <property name="text">
-                 <string>Rendering intent</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QComboBox" name="cmsAccuracyComboBox"/>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="cmsAccuracyLabel">
-                <property name="text">
-                 <string>Accuracy</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="QLabel" name="cmsLabel">
-                <property name="text">
-                 <string>Color management system</string>
+                 <string>Output color profile</string>
                 </property>
                </widget>
               </item>
@@ -665,24 +621,89 @@
                 </property>
                </widget>
               </item>
-              <item row="8" column="0">
-               <widget class="QLabel" name="cmsDeviceCMYKColorProfileLabel">
+              <item row="1" column="1">
+               <widget class="QComboBox" name="cmsRenderingIntentComboBox"/>
+              </item>
+              <item row="2" column="1">
+               <widget class="QComboBox" name="cmsAccuracyComboBox"/>
+              </item>
+              <item row="7" column="1">
+               <widget class="QComboBox" name="cmsDeviceGrayColorProfileComboBox"/>
+              </item>
+              <item row="6" column="1">
+               <widget class="QComboBox" name="cmsOutputColorProfileComboBox"/>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="cmsWhitePaperColorTransformedLabel">
                 <property name="text">
-                 <string>Device CMYK color profile</string>
+                 <string>White paper color transformed</string>
+                </property>
+               </widget>
+              </item>
+              <item row="8" column="1">
+               <widget class="QComboBox" name="cmsDeviceRGBColorProfileComboBox"/>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="cmsRenderingIntentLabel">
+                <property name="text">
+                 <string>Rendering intent</string>
+                </property>
+               </widget>
+              </item>
+              <item row="8" column="0">
+               <widget class="QLabel" name="cmsDeviceRGBProfileLabel">
+                <property name="text">
+                 <string>Device RGB color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QComboBox" name="cmsTypeComboBox"/>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="cmsAccuracyLabel">
+                <property name="text">
+                 <string>Accuracy</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QCheckBox" name="cmsWhitePaperColorTransformedCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="9" column="1">
+               <widget class="QComboBox" name="cmsDeviceCMYKColorProfileComboBox"/>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="cmsLabel">
+                <property name="text">
+                 <string>Color management system</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="cmsProfileDirectoryLabel">
+                <property name="text">
+                 <string>Additional color profile directory</string>
                 </property>
                </widget>
               </item>
               <item row="5" column="1">
-               <widget class="QComboBox" name="cmsOutputColorProfileComboBox"/>
-              </item>
-              <item row="6" column="1">
-               <widget class="QComboBox" name="cmsDeviceGrayColorProfileComboBox"/>
-              </item>
-              <item row="7" column="1">
-               <widget class="QComboBox" name="cmsDeviceRGBColorProfileComboBox"/>
-              </item>
-              <item row="8" column="1">
-               <widget class="QComboBox" name="cmsDeviceCMYKColorProfileComboBox"/>
+               <layout class="QHBoxLayout" name="cmsProfileDirectoryLayout">
+                <item>
+                 <widget class="QLineEdit" name="cmsProfileDirectoryEdit"/>
+                </item>
+                <item>
+                 <widget class="QToolButton" name="cmsProfileDirectoryButton">
+                  <property name="text">
+                   <string>...</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </item>
              </layout>
             </item>

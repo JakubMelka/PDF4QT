@@ -65,6 +65,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_colorManagementSystemSettings.deviceGray = settings.value("deviceGray", defaultCMSSettings.deviceGray).toString();
     m_colorManagementSystemSettings.deviceRGB = settings.value("deviceRGB", defaultCMSSettings.deviceRGB).toString();
     m_colorManagementSystemSettings.deviceCMYK = settings.value("deviceCMYK", defaultCMSSettings.deviceCMYK).toString();
+    m_colorManagementSystemSettings.profileDirectory = settings.value("profileDirectory", defaultCMSSettings.profileDirectory).toString();
     settings.endGroup();
 
     emit settingsChanged();
@@ -100,6 +101,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("deviceGray", m_colorManagementSystemSettings.deviceGray);
     settings.setValue("deviceRGB", m_colorManagementSystemSettings.deviceRGB);
     settings.setValue("deviceCMYK", m_colorManagementSystemSettings.deviceCMYK);
+    settings.setValue("profileDirectory", m_colorManagementSystemSettings.profileDirectory);
     settings.endGroup();
 }
 

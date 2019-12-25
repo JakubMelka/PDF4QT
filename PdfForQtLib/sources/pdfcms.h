@@ -61,10 +61,11 @@ struct PDFCMSSettings
     RenderingIntent intent = RenderingIntent::Auto;
     bool isBlackPointCompensationActive = true;
     bool isWhitePaperColorTransformed = false;
-    QString outputCS;       ///< Output (rendering) color space
-    QString deviceGray;     ///< Identifiers for color space (device gray)
-    QString deviceRGB;      ///< Identifiers for color space (device RGB)
-    QString deviceCMYK;     ///< Identifiers for color space (device CMYK)
+    QString outputCS;           ///< Output (rendering) color space
+    QString deviceGray;         ///< Identifiers for color space (device gray)
+    QString deviceRGB;          ///< Identifiers for color space (device RGB)
+    QString deviceCMYK;         ///< Identifiers for color space (device CMYK)
+    QString profileDirectory;   ///< Directory containing color profiles
 };
 
 /// Color management system base class. It contains functions to transform
@@ -132,14 +133,17 @@ public:
     virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 };
 
-struct PDFColorSpaceIdentifier
+struct PDFColorProfileIdentifier
 {
     enum class Type
     {
         Gray,
         sRGB,
         RGB,
-        CMYK
+        FileGray,
+        FileRGB,
+        FileCMYK,
+        Invalid
     };
 
     Type type = Type::sRGB;
@@ -151,15 +155,15 @@ struct PDFColorSpaceIdentifier
     QPointF primaryB;
     PDFReal gamma = 1.0;
 
-    /// Creates gray color space identifier
+    /// Creates gray color profile identifier
     /// \param name Name of color profile
     /// \param id Identifier of color profile
     /// \param temperature White point temperature
     /// \param gamma Gamma correction
-    static PDFColorSpaceIdentifier createGray(QString name, QString id, PDFReal temperature, PDFReal gamma);
+    static PDFColorProfileIdentifier createGray(QString name, QString id, PDFReal temperature, PDFReal gamma);
 
-    /// Creates sRGB color space identifier
-    static PDFColorSpaceIdentifier createSRGB();
+    /// Creates sRGB color profile identifier
+    static PDFColorProfileIdentifier createSRGB();
 
     /// Creates RGB color space identifier
     /// \param name Name of color profile
@@ -169,10 +173,13 @@ struct PDFColorSpaceIdentifier
     /// \param primaryG Primary green
     /// \param primaryB Primary blue
     /// \param gamma Gamma correction
-    static PDFColorSpaceIdentifier createRGB(QString name, QString id, PDFReal temperature, QPointF primaryR, QPointF primaryG, QPointF primaryB, PDFReal gamma);
+    static PDFColorProfileIdentifier createRGB(QString name, QString id, PDFReal temperature, QPointF primaryR, QPointF primaryG, QPointF primaryB, PDFReal gamma);
+
+    /// Create file color profile identifier
+    static PDFColorProfileIdentifier createFile(Type type, QString name, QString id);
 };
 
-using PDFColorSpaceIdentifiers = std::vector<PDFColorSpaceIdentifier>;
+using PDFColorProfileIdentifiers = std::vector<PDFColorProfileIdentifier>;
 
 /// Manager, that manages current color management system and also list
 /// of usable input and output color profiles. It has color profiles
@@ -190,10 +197,13 @@ private:
 public:
     explicit PDFCMSManager(QObject* parent);
 
-    const PDFColorSpaceIdentifiers& getOutputProfiles() const;
-    const PDFColorSpaceIdentifiers& getGrayProfiles() const;
-    const PDFColorSpaceIdentifiers& getRGBProfiles() const;
-    const PDFColorSpaceIdentifiers& getCMYKProfiles() const;
+    const PDFCMSSettings& getSettings() const { return m_settings; }
+    void setSettings(const PDFCMSSettings& settings);
+
+    const PDFColorProfileIdentifiers& getOutputProfiles() const;
+    const PDFColorProfileIdentifiers& getGrayProfiles() const;
+    const PDFColorProfileIdentifiers& getRGBProfiles() const;
+    const PDFColorProfileIdentifiers& getCMYKProfiles() const;
 
     /// Returns default color management settings
     PDFCMSSettings getDefaultSettings() const;
@@ -206,18 +216,34 @@ signals:
     void colorManagementSystemChanged();
 
 private:
-    PDFColorSpaceIdentifiers getOutputProfilesImpl() const;
-    PDFColorSpaceIdentifiers getGrayProfilesImpl() const;
-    PDFColorSpaceIdentifiers getRGBProfilesImpl() const;
-    PDFColorSpaceIdentifiers getCMYKProfilesImpl() const;
+    /// This function returns external profiles. It is not protected by mutex,
+    /// so it is not thread-safe. For this reason, it is not in public
+    /// interface.
+    const PDFColorProfileIdentifiers& getExternalProfiles() const;
+
+    PDFColorProfileIdentifiers getOutputProfilesImpl() const;
+    PDFColorProfileIdentifiers getGrayProfilesImpl() const;
+    PDFColorProfileIdentifiers getRGBProfilesImpl() const;
+    PDFColorProfileIdentifiers getCMYKProfilesImpl() const;
+    PDFColorProfileIdentifiers getExternalProfilesImpl() const;
+
+    /// Returns filtered list of external profiles (list are filtered by type,
+    /// so, for example, only CMYK profiles are returned)
+    /// \param type Type of profile
+    PDFColorProfileIdentifiers getFilteredExternalProfiles(PDFColorProfileIdentifier::Type type) const;
+
+    /// Gets list of color profiles from external directory
+    /// \param profileDirectory Directory with profiles
+    PDFColorProfileIdentifiers getExternalColorProfiles(QString profileDirectory) const;
 
     PDFCMSSettings m_settings;
 
     mutable QMutex m_mutex;
-    mutable PDFCachedItem<PDFColorSpaceIdentifiers> m_outputProfiles;
-    mutable PDFCachedItem<PDFColorSpaceIdentifiers> m_grayProfiles;
-    mutable PDFCachedItem<PDFColorSpaceIdentifiers> m_RGBProfiles;
-    mutable PDFCachedItem<PDFColorSpaceIdentifiers> m_CMYKProfiles;
+    mutable PDFCachedItem<PDFColorProfileIdentifiers> m_outputProfiles;
+    mutable PDFCachedItem<PDFColorProfileIdentifiers> m_grayProfiles;
+    mutable PDFCachedItem<PDFColorProfileIdentifiers> m_RGBProfiles;
+    mutable PDFCachedItem<PDFColorProfileIdentifiers> m_CMYKProfiles;
+    mutable PDFCachedItem<PDFColorProfileIdentifiers> m_externalProfiles;
 };
 
 }   // namespace pdf
