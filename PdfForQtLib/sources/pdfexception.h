@@ -87,6 +87,12 @@ public:
     /// \param type Error type
     /// \param message Error message
     virtual void reportRenderError(RenderErrorType type, QString message) = 0;
+
+    /// Reports render error, but only once - if same error was already reported,
+    /// then no new error is reported.
+    /// \param type Error type
+    /// \param message Error message
+    virtual void reportRenderErrorOnce(RenderErrorType type, QString message) = 0;
 };
 
 }   // namespace pdf

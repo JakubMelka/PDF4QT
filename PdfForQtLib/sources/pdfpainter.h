@@ -40,6 +40,7 @@ public:
                             const PDFPage* page,
                             const PDFDocument* document,
                             const PDFFontCache* fontCache,
+                            const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
                             QMatrix pagePointToDevicePointMatrix,
                             const PDFMeshQualitySettings& meshQualitySettings);
@@ -107,6 +108,7 @@ public:
     /// \param page Page, which will be drawn
     /// \param document Document owning the page
     /// \param fontCache Font cache
+    /// \param cms Color management system
     /// \param optionalContentActivity Activity of optional content
     /// \param meshQualitySettings Mesh quality settings
     explicit PDFPainter(QPainter* painter,
@@ -115,6 +117,7 @@ public:
                         const PDFPage* page,
                         const PDFDocument* document,
                         const PDFFontCache* fontCache,
+                        const PDFCMS* cms,
                         const PDFOptionalContentActivity* optionalContentActivity,
                         const PDFMeshQualitySettings& meshQualitySettings);
     virtual ~PDFPainter() override;
@@ -290,9 +293,10 @@ public:
                                                 const PDFPage* page,
                                                 const PDFDocument* document,
                                                 const PDFFontCache* fontCache,
+                                                const PDFCMS* cms,
                                                 const PDFOptionalContentActivity* optionalContentActivity,
                                                 const PDFMeshQualitySettings& meshQualitySettings) :
-        BaseClass(features, page, document, fontCache, optionalContentActivity, QMatrix(), meshQualitySettings),
+        BaseClass(features, page, document, fontCache, cms, optionalContentActivity, QMatrix(), meshQualitySettings),
         m_precompiledPage(precompiledPage)
     {
 

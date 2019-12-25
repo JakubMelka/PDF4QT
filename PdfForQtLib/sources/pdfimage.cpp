@@ -725,12 +725,12 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
     return image;
 }
 
-QImage PDFImage::getImage() const
+QImage PDFImage::getImage(const PDFCMS* cms, PDFRenderErrorReporter* reporter) const
 {
     const bool isImageMask = m_imageData.getMaskingType() == PDFImageData::MaskingType::ImageMask;
     if (m_colorSpace && !isImageMask)
     {
-        return m_colorSpace->getImage(m_imageData, m_softMask);
+        return m_colorSpace->getImage(m_imageData, m_softMask, cms, m_renderingIntent, reporter);
     }
     else if (isImageMask)
     {

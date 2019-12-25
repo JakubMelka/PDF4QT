@@ -28,6 +28,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFCMSManager;
 class PDFDrawWidget;
 class PDFDrawWidgetProxy;
 
@@ -48,9 +49,10 @@ class PDFFORQTLIBSHARED_EXPORT PDFWidget : public QWidget
 
 public:
     /// Constructs new PDFWidget.
+    /// \param cmsManager Color management system manager
     /// \param engine Rendering engine type
     /// \param samplesCount Samples count for rendering engine MSAA antialiasing
-    explicit PDFWidget(RendererEngine engine, int samplesCount, QWidget* parent);
+    explicit PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int samplesCount, QWidget* parent);
     virtual ~PDFWidget() override;
 
     using PageRenderingErrors = std::map<PDFInteger, QList<PDFRenderError>>;
@@ -74,6 +76,7 @@ public:
     /// \param instancedFontCacheLimit Instanced font cache limit [-]
     void updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit);
 
+    const PDFCMSManager* getCMSManager() const { return m_cmsManager; }
     IDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
     QScrollBar* getVerticalScrollbar() const { return m_verticalScrollBar; }
@@ -91,6 +94,7 @@ private:
 
     IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
 
+    const PDFCMSManager* m_cmsManager;
     IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;

@@ -72,6 +72,11 @@ bool PDFCMSGeneric::isCompatible(const PDFCMSSettings& settings) const
     return settings.system == PDFCMSSettings::System::Generic;
 }
 
+QColor PDFCMSGeneric::getPaperColor() const
+{
+    return QColor(Qt::white);
+}
+
 QColor PDFCMSGeneric::getColorFromDeviceGray(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_UNUSED(color);
@@ -96,7 +101,7 @@ QColor PDFCMSGeneric::getColorFromDeviceCMYK(const PDFColor& color, RenderingInt
     return QColor();
 }
 
-QColor PDFCMSGeneric::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+QColor PDFCMSGeneric::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_UNUSED(color);
     Q_UNUSED(intent);
@@ -111,6 +116,12 @@ PDFCMSManager::PDFCMSManager(QObject* parent) :
 
 }
 
+PDFCMSPointer PDFCMSManager::getCurrentCMS() const
+{
+    QMutexLocker lock(&m_mutex);
+    return m_CMS.get(this, &PDFCMSManager::getCurrentCMSImpl);
+}
+
 void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
 {
     if (m_settings != settings)
@@ -120,6 +131,7 @@ void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
         {
             QMutexLocker lock(&m_mutex);
             m_settings = settings;
+            m_CMS.dirty();
             m_outputProfiles.dirty();
             m_grayProfiles.dirty();
             m_RGBProfiles.dirty();
@@ -206,6 +218,11 @@ QString PDFCMSManager::getSystemName(PDFCMSSettings::System system)
     }
 
     return QString();
+}
+
+PDFCMSPointer PDFCMSManager::getCurrentCMSImpl() const
+{
+    return PDFCMSPointer(new PDFCMSGeneric());
 }
 
 PDFColorProfileIdentifiers PDFCMSManager::getOutputProfilesImpl() const

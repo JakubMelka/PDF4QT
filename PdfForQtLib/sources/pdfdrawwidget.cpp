@@ -28,8 +28,9 @@
 namespace pdf
 {
 
-PDFWidget::PDFWidget(RendererEngine engine, int samplesCount, QWidget* parent) :
+PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int samplesCount, QWidget* parent) :
     QWidget(parent),
+    m_cmsManager(cmsManager),
     m_drawWidget(nullptr),
     m_horizontalScrollBar(nullptr),
     m_verticalScrollBar(nullptr),

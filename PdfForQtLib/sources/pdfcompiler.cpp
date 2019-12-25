@@ -16,6 +16,7 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfcompiler.h"
+#include "pdfcms.h"
 #include "pdfdrawspacecontroller.h"
 
 #include <QtConcurrent/QtConcurrent>
@@ -112,7 +113,8 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
         auto compilePage = [this, pageIndex]() -> PDFPrecompiledPage
         {
             PDFPrecompiledPage compiledPage;
-            PDFRenderer renderer(m_proxy->getDocument(), m_proxy->getFontCache(), m_proxy->getOptionalContentActivity(), m_proxy->getFeatures(), m_proxy->getMeshQualitySettings());
+            PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
+            PDFRenderer renderer(m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), m_proxy->getFeatures(), m_proxy->getMeshQualitySettings());
             renderer.compile(&compiledPage, pageIndex);
             return compiledPage;
         };

@@ -34,6 +34,7 @@ namespace pdf
 {
 class PDFWidget;
 class IDrawWidget;
+class PDFCMSManager;
 class PDFAsynchronousPageCompiler;
 
 /// This class controls draw space - page layout. Pages are divided into blocks
@@ -272,6 +273,7 @@ public:
     PDFRenderer::Features getFeatures() const;
     const PDFMeshQualitySettings& getMeshQualitySettings() const { return m_meshQualitySettings; }
     PDFAsynchronousPageCompiler* getCompiler() const { return m_compiler; }
+    const PDFCMSManager* getCMSManager() const;
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);
@@ -324,6 +326,7 @@ private:
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
 
+    void onColorManagementSystemChanged();
     void onHorizontalScrollbarValueChanged(int value);
     void onVerticalScrollbarValueChanged(int value);
 

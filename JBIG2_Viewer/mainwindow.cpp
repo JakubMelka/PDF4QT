@@ -113,3 +113,9 @@ void MainWindow::on_actionAdd_JBIG2_image_triggered()
         }
     }
 }
+
+void MainWindow::reportRenderErrorOnce(pdf::RenderErrorType type, QString message)
+{
+    Q_UNUSED(type);
+    QMessageBox::critical(this, tr("Error"), message);
+}

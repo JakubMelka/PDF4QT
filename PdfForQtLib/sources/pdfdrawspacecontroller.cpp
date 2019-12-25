@@ -22,6 +22,7 @@
 #include "pdfpainter.h"
 #include "pdfcompiler.h"
 #include "pdfconstants.h"
+#include "pdfcms.h"
 
 #include <QPainter>
 
@@ -429,6 +430,7 @@ void PDFDrawWidgetProxy::init(PDFWidget* widget)
     connect(m_horizontalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged);
     connect(m_verticalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onVerticalScrollbarValueChanged);
     connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFDrawWidgetProxy::repaintNeeded);
+    connect(getCMSManager(), &PDFCMSManager::colorManagementSystemChanged, this, &PDFDrawWidgetProxy::onColorManagementSystemChanged);
 
     // We must update the draw space - widget has been set
     update();
@@ -595,6 +597,9 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 {
     painter->fillRect(rect, Qt::lightGray);
 
+    // Use current paper color (it can be a bit different from white)
+    QColor paperColor = getCMSManager()->getCurrentCMS()->getPaperColor();
+
     // Iterate trough pages and display them on the painter device
     for (const LayoutItem& item : m_layout.items)
     {
@@ -604,8 +609,8 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
         QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
         if (placedRect.intersects(rect))
         {
-            // Clear the page space by white color
-            painter->fillRect(placedRect, Qt::white);
+            // Clear the page space by paper color
+            painter->fillRect(placedRect, paperColor);
 
             const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, true);
             if (compiledPage && compiledPage->isValid())
@@ -1072,6 +1077,11 @@ PDFRenderer::Features PDFDrawWidgetProxy::getFeatures() const
     return m_features;
 }
 
+const PDFCMSManager* PDFDrawWidgetProxy::getCMSManager() const
+{
+    return m_widget->getCMSManager();
+}
+
 void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
 {
     if (m_features != features)
@@ -1114,6 +1124,12 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
         m_compiler->start();
         emit pageImageChanged(true, { });
     }
+}
+
+void PDFDrawWidgetProxy::onColorManagementSystemChanged()
+{
+    m_compiler->reset();
+    emit pageImageChanged(true, { });
 }
 
 }   // namespace pdf

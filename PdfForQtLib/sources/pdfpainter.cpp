@@ -27,10 +27,11 @@ PDFPainterBase::PDFPainterBase(PDFRenderer::Features features,
                                const PDFPage* page,
                                const PDFDocument* document,
                                const PDFFontCache* fontCache,
+                               const PDFCMS* cms,
                                const PDFOptionalContentActivity* optionalContentActivity,
                                QMatrix pagePointToDevicePointMatrix,
                                const PDFMeshQualitySettings& meshQualitySettings) :
-    BaseClass(page, document, fontCache, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+    BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
     m_features(features)
 {
 
@@ -233,9 +234,10 @@ PDFPainter::PDFPainter(QPainter* painter,
                        const PDFPage* page,
                        const PDFDocument* document,
                        const PDFFontCache* fontCache,
+                       const PDFCMS* cms,
                        const PDFOptionalContentActivity* optionalContentActivity,
                        const PDFMeshQualitySettings& meshQualitySettings) :
-    BaseClass(features, page, document, fontCache, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+    BaseClass(features, page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
     m_painter(painter)
 {
     Q_ASSERT(painter);

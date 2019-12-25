@@ -183,12 +183,14 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
                                                  const PDFDocument* document,
                                                  const PDFFontCache* fontCache,
+                                                 const PDFCMS* CMS,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
                                                  QMatrix pagePointToDevicePointMatrix,
                                                  const PDFMeshQualitySettings& meshQualitySettings) :
     m_page(page),
     m_document(document),
     m_fontCache(fontCache),
+    m_CMS(CMS),
     m_optionalContentActivity(optionalContentActivity),
     m_colorSpaceDictionary(nullptr),
     m_fontDictionary(nullptr),
@@ -244,9 +246,9 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     }
 
     m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
-    m_graphicState.setStrokeColor(m_deviceGrayColorSpace->getDefaultColor());
+    m_graphicState.setStrokeColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
     m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
-    m_graphicState.setFillColor(m_deviceGrayColorSpace->getDefaultColor());
+    m_graphicState.setFillColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
     m_graphicState.setStateFlags(PDFPageContentProcessorState::StateAll);
     updateGraphicState();
 
@@ -674,7 +676,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
                     settings.initResolution();
 
-                    PDFMesh mesh = shadingPattern->createMesh(settings);
+                    PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
 
                     // Now, merge the current path to the mesh clipping path
                     QPainterPath boundingPath = mesh.getBoundingPath();
@@ -763,7 +765,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                     settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
                     settings.initResolution();
 
-                    PDFMesh mesh = shadingPattern->createMesh(settings);
+                    PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
 
                     // We must stroke the path.
                     QPainterPathStroker stroker;
@@ -856,7 +858,7 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
         m_graphicState.setStrokeColorSpace(uncoloredPatternColorSpace);
         m_graphicState.setFillColorSpace(uncoloredPatternColorSpace);
 
-        QColor color = uncoloredPatternColorSpace->getCheckedColor(uncoloredPatternColor);
+        QColor color = uncoloredPatternColorSpace->getCheckedColor(uncoloredPatternColor, m_CMS, m_graphicState.getRenderingIntent(), this);
         m_graphicState.setStrokeColor(color);
         m_graphicState.setFillColor(color);
     }
@@ -866,7 +868,7 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
         m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
         m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
 
-        QColor color = m_deviceGrayColorSpace->getDefaultColor();
+        QColor color = m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this);
         m_graphicState.setStrokeColor(color);
         m_graphicState.setFillColor(color);
     }
@@ -2085,7 +2087,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
     {
         // We must also set default color (it can depend on the color space)
         m_graphicState.setStrokeColorSpace(colorSpace);
-        m_graphicState.setStrokeColor(colorSpace->getDefaultColor());
+        m_graphicState.setStrokeColor(colorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
         updateGraphicState();
         checkStrokingColor();
     }
@@ -2108,7 +2110,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
     {
         // We must also set default color (it can depend on the color space)
         m_graphicState.setFillColorSpace(colorSpace);
-        m_graphicState.setFillColor(colorSpace->getDefaultColor());
+        m_graphicState.setFillColor(colorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
         updateGraphicState();
         checkFillingColor();
     }
@@ -2137,7 +2139,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColor()
         {
             color.push_back(readOperand<PDFReal>(i));
         }
-        m_graphicState.setStrokeColor(colorSpace->getColor(color));
+        m_graphicState.setStrokeColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this));
         updateGraphicState();
         checkStrokingColor();
     }
@@ -2177,7 +2179,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorN()
             if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
             {
                 // Create the pattern
-                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name));
+                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name), m_CMS, m_graphicState.getRenderingIntent(), this);
                 m_graphicState.setStrokeColorSpace(PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern), qMove(uncoloredColorSpace), qMove(uncoloredPatternColor))));
                 updateGraphicState();
                 return;
@@ -2215,7 +2217,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColor()
         {
             color.push_back(readOperand<PDFReal>(i));
         }
-        m_graphicState.setFillColor(colorSpace->getColor(color));
+        m_graphicState.setFillColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this));
         updateGraphicState();
         checkFillingColor();
     }
@@ -2255,7 +2257,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorN()
             if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
             {
                 // Create the pattern
-                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name));
+                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name), m_CMS, m_graphicState.getRenderingIntent(), this);
                 m_graphicState.setFillColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern), qMove(uncoloredColorSpace), qMove(uncoloredPatternColor))));
                 updateGraphicState();
                 return;
@@ -2628,7 +2630,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading '%1' not found.").arg(QString::fromLatin1(name.name)));
     }
 
-    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_shadingDictionary->get(name.name), QMatrix(), PDFObject(), true);
+    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_shadingDictionary->get(name.name), QMatrix(), PDFObject(), m_CMS, m_graphicState.getRenderingIntent(), this, true);
 
     // We will do a trick: we will set current fill color space, and then paint
     // bounding rectangle in the color pattern.
@@ -2664,7 +2666,7 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
     }
 
     PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), false, m_graphicState.getRenderingIntent(), this);
-    QImage image = pdfImage.getImage();
+    QImage image = pdfImage.getImage(m_CMS, this);
 
     if (image.format() == QImage::Format_Alpha8)
     {

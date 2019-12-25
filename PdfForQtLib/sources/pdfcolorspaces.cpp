@@ -21,20 +21,30 @@
 #include "pdfexception.h"
 #include "pdfutils.h"
 #include "pdfpattern.h"
+#include "pdfcms.h"
 
 namespace pdf
 {
 
-QColor PDFDeviceGrayColorSpace::getDefaultColor() const
+QColor PDFDeviceGrayColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    return QColor(Qt::black);
+    return getColor(PDFColor(0.0f), cms, intent, reporter);
 }
 
-QColor PDFDeviceGrayColorSpace::getColor(const PDFColor& color) const
+QColor PDFDeviceGrayColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
+    Q_ASSERT(cms);
     Q_ASSERT(color.size() == getColorComponentCount());
 
     PDFColorComponent component = clip01(color[0]);
+
+    // If color management system handles the color transformation, then use it,
+    // otherwise fall back to the generic case.
+    QColor cmsColor = cms->getColorFromDeviceGray(color, intent, reporter);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
 
     QColor result(QColor::Rgb);
     result.setRgbF(component, component, component, 1.0);
@@ -46,16 +56,29 @@ size_t PDFDeviceGrayColorSpace::getColorComponentCount() const
     return 1;
 }
 
-QColor PDFDeviceRGBColorSpace::getDefaultColor() const
+QColor PDFDeviceRGBColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    return QColor(Qt::black);
+    return getColor(PDFColor(0.0f, 0.0f, 0.0f), cms, intent, reporter);
 }
 
-QColor PDFDeviceRGBColorSpace::getColor(const PDFColor& color) const
+QColor PDFDeviceRGBColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
-    return fromRGB01({ color[0], color[1], color[2] });
+    PDFColorComponent r = clip01(color[0]);
+    PDFColorComponent g = clip01(color[1]);
+    PDFColorComponent b = clip01(color[2]);
+
+    PDFColor clippedColor(r, g, b);
+    QColor cmsColor = cms->getColorFromDeviceRGB(clippedColor, intent, reporter);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
+
+    QColor result(QColor::Rgb);
+    result.setRgbF(r, g, b, 1.0);
+    return result;
 }
 
 size_t PDFDeviceRGBColorSpace::getColorComponentCount() const
@@ -63,12 +86,12 @@ size_t PDFDeviceRGBColorSpace::getColorComponentCount() const
     return 3;
 }
 
-QColor PDFDeviceCMYKColorSpace::getDefaultColor() const
+QColor PDFDeviceCMYKColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    return QColor(Qt::black);
+    return getColor(PDFColor(0.0f, 0.0f, 0.0f, 1.0f), cms, intent, reporter);
 }
 
-QColor PDFDeviceCMYKColorSpace::getColor(const PDFColor& color) const
+QColor PDFDeviceCMYKColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
@@ -76,6 +99,13 @@ QColor PDFDeviceCMYKColorSpace::getColor(const PDFColor& color) const
     PDFColorComponent m = clip01(color[1]);
     PDFColorComponent y = clip01(color[2]);
     PDFColorComponent k = clip01(color[3]);
+
+    PDFColor clippedColor(c, m, y, k);
+    QColor cmsColor = cms->getColorFromDeviceCMYK(clippedColor, intent, reporter);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
 
     QColor result(QColor::Cmyk);
     result.setCmykF(c, m, y, k, 1.0);
@@ -87,7 +117,11 @@ size_t PDFDeviceCMYKColorSpace::getColorComponentCount() const
     return 4;
 }
 
-QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFImageData& softMask) const
+QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
+                                       const PDFImageData& softMask,
+                                       const PDFCMS* cms,
+                                       RenderingIntent intent,
+                                       PDFRenderErrorReporter* reporter) const
 {
     if (imageData.isValid())
     {
@@ -139,7 +173,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFI
                             }
                         }
 
-                        QColor transformedColor = getColor(color);
+                        QColor transformedColor = getColor(color, cms, intent, reporter);
                         QRgb rgb = transformedColor.rgb();
 
                         *outputLine++ = qRed(rgb);
@@ -206,7 +240,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFI
                             }
                         }
 
-                        QColor transformedColor = getColor(color);
+                        QColor transformedColor = getColor(color, cms, intent, reporter);
                         QRgb rgb = transformedColor.rgb();
 
                         *outputLine++ = qRed(rgb);
@@ -264,7 +298,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFI
                         {
                             PDFBitReader::Value value = reader.read();
 
-                            // Interpolate value, if it is not empty
+                            // Interpolate value, if decode is not empty
                             if (!decode.empty())
                             {
                                 color[k] = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
@@ -282,7 +316,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFI
                             }
                         }
 
-                        QColor transformedColor = getColor(color);
+                        QColor transformedColor = getColor(color, cms, intent, reporter);
                         QRgb rgb = transformedColor.rgb();
 
                         *outputLine++ = qRed(rgb);
@@ -305,14 +339,14 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData, const PDFI
     return QImage();
 }
 
-QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color) const
+QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     if (getColorComponentCount() != color.size())
     {
         throw PDFException(PDFTranslationContext::tr("Invalid number of color components. Expected number is %1, actual number is %2.").arg(static_cast<int>(getColorComponentCount())).arg(static_cast<int>(color.size())));
     }
 
-    return getColor(color);
+    return getColor(color, cms, intent, reporter);
 }
 
 QImage PDFAbstractColorSpace::createAlphaMask(const PDFImageData& softMask)
@@ -609,7 +643,7 @@ PDFColor3 PDFAbstractColorSpace::convertXYZtoRGB(const PDFColor3& xyzColor)
 }
 
 
-QColor PDFXYZColorSpace::getDefaultColor() const
+QColor PDFXYZColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFColor color;
     const size_t componentCount = getColorComponentCount();
@@ -617,7 +651,7 @@ QColor PDFXYZColorSpace::getDefaultColor() const
     {
         color.push_back(0.0f);
     }
-    return getColor(color);
+    return getColor(color, cms, intent, reporter);
 }
 
 PDFXYZColorSpace::PDFXYZColorSpace(PDFColor3 whitePoint) :
@@ -639,12 +673,20 @@ PDFCalGrayColorSpace::PDFCalGrayColorSpace(PDFColor3 whitePoint, PDFColor3 black
 
 }
 
-QColor PDFCalGrayColorSpace::getColor(const PDFColor& color) const
+QColor PDFCalGrayColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
     const PDFColorComponent A = clip01(color[0]);
     const PDFColorComponent xyzColor = std::powf(A, m_gamma);
+
+    PDFColor3 xyzColorCMS = { xyzColor, xyzColor, xyzColor };
+    QColor cmsColor = cms->getColorFromXYZ(m_whitePoint, xyzColorCMS, intent, reporter);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
+
     const PDFColor3 xyzColorMultipliedByWhitePoint = colorMultiplyByFactor(m_whitePoint, xyzColor);
     const PDFColor3 rgb = convertXYZtoRGB(xyzColorMultipliedByWhitePoint);
     const PDFColor3 calibratedRGB = colorMultiplyByFactors(rgb, m_correctionCoefficients);
@@ -680,13 +722,20 @@ PDFCalRGBColorSpace::PDFCalRGBColorSpace(PDFColor3 whitePoint, PDFColor3 blackPo
 
 }
 
-QColor PDFCalRGBColorSpace::getColor(const PDFColor& color) const
+QColor PDFCalRGBColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
     const PDFColor3 ABC = clip01(PDFColor3{ color[0], color[1], color[2] });
     const PDFColor3 ABCwithGamma = colorPowerByFactors(ABC, m_gamma);
     const PDFColor3 XYZ = m_matrix * ABCwithGamma;
+
+    QColor cmsColor = cms->getColorFromXYZ(m_whitePoint, XYZ, intent, reporter);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
+
     const PDFColor3 rgb = convertXYZtoRGB(XYZ);
     const PDFColor3 calibratedRGB = colorMultiplyByFactors(rgb, m_correctionCoefficients);
     return fromRGB01(calibratedRGB);
@@ -732,7 +781,7 @@ PDFLabColorSpace::PDFLabColorSpace(PDFColor3 whitePoint,
 
 }
 
-QColor PDFLabColorSpace::getColor(const PDFColor& color) const
+QColor PDFLabColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
@@ -764,6 +813,12 @@ QColor PDFLabColorSpace::getColor(const PDFColor& color) const
     const PDFColorComponent gM = g(M);
     const PDFColorComponent gN = g(N);
     const PDFColor3 gLMN = { gL, gM, gN };
+
+    QColor cmsColor = cms->getColorFromXYZ(m_whitePoint, gLMN, intent, reporter);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
 
     const PDFColor3 XYZ = colorMultiplyByFactors(m_whitePoint, gLMN);
     const PDFColor3 rgb = convertXYZtoRGB(XYZ);
@@ -802,7 +857,7 @@ PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColor
 
 }
 
-QColor PDFICCBasedColorSpace::getDefaultColor() const
+QColor PDFICCBasedColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFColor color;
     const size_t componentCount = getColorComponentCount();
@@ -810,10 +865,10 @@ QColor PDFICCBasedColorSpace::getDefaultColor() const
     {
         color.push_back(0.0f);
     }
-    return getColor(color);
+    return getColor(color, cms, intent, reporter);
 }
 
-QColor PDFICCBasedColorSpace::getColor(const PDFColor& color) const
+QColor PDFICCBasedColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_ASSERT(color.size() == getColorComponentCount());
 
@@ -828,7 +883,7 @@ QColor PDFICCBasedColorSpace::getColor(const PDFColor& color) const
         clippedColor[i] = qBound(m_range[imin], clippedColor[i], m_range[imax]);
     }
 
-    return m_alternateColorSpace->getColor(clippedColor);
+    return m_alternateColorSpace->getColor(clippedColor, cms, intent, reporter);
 }
 
 size_t PDFICCBasedColorSpace::getColorComponentCount() const
@@ -914,12 +969,12 @@ PDFIndexedColorSpace::PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, 
 
 }
 
-QColor PDFIndexedColorSpace::getDefaultColor() const
+QColor PDFIndexedColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    return getColor(PDFColor(0.0f));
+    return getColor(PDFColor(0.0f), cms, intent, reporter);
 }
 
-QColor PDFIndexedColorSpace::getColor(const PDFColor& color) const
+QColor PDFIndexedColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     // Indexed color space value must have exactly one component!
     Q_ASSERT(color.size() == 1);
@@ -941,7 +996,7 @@ QColor PDFIndexedColorSpace::getColor(const PDFColor& color) const
         decodedColor.push_back(component);
     }
 
-    return m_baseColorSpace->getColor(decodedColor);
+    return m_baseColorSpace->getColor(decodedColor, cms, intent, reporter);
 }
 
 size_t PDFIndexedColorSpace::getColorComponentCount() const
@@ -949,7 +1004,11 @@ size_t PDFIndexedColorSpace::getColorComponentCount() const
     return 1;
 }
 
-QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData, const PDFImageData& softMask) const
+QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
+                                      const PDFImageData& softMask,
+                                      const PDFCMS* cms,
+                                      RenderingIntent intent,
+                                      PDFRenderErrorReporter* reporter) const
 {
     if (imageData.isValid())
     {
@@ -983,7 +1042,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData, const PDFIm
                         PDFBitReader::Value index = reader.read();
                         color[0] = index;
 
-                        QColor transformedColor = getColor(color);
+                        QColor transformedColor = getColor(color, cms, intent, reporter);
                         QRgb rgb = transformedColor.rgb();
 
                         *outputLine++ = qRed(rgb);
@@ -1031,7 +1090,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData, const PDFIm
                         PDFBitReader::Value index = reader.read();
                         color[0] = index;
 
-                        QColor transformedColor = getColor(color);
+                        QColor transformedColor = getColor(color, cms, intent, reporter);
                         QRgb rgb = transformedColor.rgb();
 
                         *outputLine++ = qRed(rgb);
@@ -1104,12 +1163,12 @@ PDFSeparationColorSpace::PDFSeparationColorSpace(QByteArray&& colorName, PDFColo
 
 }
 
-QColor PDFSeparationColorSpace::getDefaultColor() const
+QColor PDFSeparationColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    return getColor(PDFColor(0.0f));
+    return getColor(PDFColor(0.0f), cms, intent, reporter);
 }
 
-QColor PDFSeparationColorSpace::getColor(const PDFColor& color) const
+QColor PDFSeparationColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     // Separation color space value must have exactly one component!
     Q_ASSERT(color.size() == 1);
@@ -1126,7 +1185,7 @@ QColor PDFSeparationColorSpace::getColor(const PDFColor& color) const
     {
         PDFColor color;
         std::for_each(outputColor.cbegin(), outputColor.cend(), [&color](double value) { color.push_back(static_cast<float>(value)); });
-        return m_alternateColorSpace->getColor(color);
+        return m_alternateColorSpace->getColor(color, cms, intent, reporter);
     }
     else
     {
@@ -1179,14 +1238,22 @@ const unsigned char* PDFImageData::getRow(unsigned int rowIndex) const
     return data + (rowIndex * m_stride);
 }
 
-QColor PDFPatternColorSpace::getDefaultColor() const
+QColor PDFPatternColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
+    Q_UNUSED(cms);
+    Q_UNUSED(intent);
+    Q_UNUSED(reporter);
+
     return QColor(Qt::transparent);
 }
 
-QColor PDFPatternColorSpace::getColor(const PDFColor& color) const
+QColor PDFPatternColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     Q_UNUSED(color);
+    Q_UNUSED(cms);
+    Q_UNUSED(intent);
+    Q_UNUSED(reporter);
+
     throw PDFException(PDFTranslationContext::tr("Pattern doesn't have defined uniform color."));
 }
 
@@ -1213,14 +1280,14 @@ PDFDeviceNColorSpace::PDFDeviceNColorSpace(PDFDeviceNColorSpace::Type type,
 
 }
 
-QColor PDFDeviceNColorSpace::getDefaultColor() const
+QColor PDFDeviceNColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFColor color;
     color.resize(getColorComponentCount());
-    return getColor(color);
+    return getColor(color, cms, intent, reporter);
 }
 
-QColor PDFDeviceNColorSpace::getColor(const PDFColor& color) const
+QColor PDFDeviceNColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     // Input values
     std::vector<double> inputColor(color.size(), 0.0);
@@ -1238,7 +1305,7 @@ QColor PDFDeviceNColorSpace::getColor(const PDFColor& color) const
     {
         PDFColor color;
         std::for_each(outputColor.cbegin(), outputColor.cend(), [&color](double value) { color.push_back(static_cast<float>(value)); });
-        return m_alternateColorSpace->getColor(color);
+        return m_alternateColorSpace->getColor(color, cms, intent, reporter);
     }
     else
     {

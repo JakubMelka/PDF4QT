@@ -18,12 +18,11 @@ public:
     virtual ~MainWindow() override;
 
     virtual void reportRenderError(pdf::RenderErrorType type, QString message) override;
+    virtual void reportRenderErrorOnce(pdf::RenderErrorType type, QString message) override;
 
 private slots:
     void on_actionAddImage_triggered();
-
     void on_actionClear_triggered();
-
     void on_actionAdd_JBIG2_image_triggered();
 
 private:

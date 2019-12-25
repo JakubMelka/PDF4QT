@@ -36,6 +36,7 @@
 
 namespace pdf
 {
+class PDFCMS;
 class PDFMesh;
 class PDFTilingPattern;
 class PDFOptionalContentActivity;
@@ -49,6 +50,7 @@ public:
     explicit PDFPageContentProcessor(const PDFPage* page,
                                      const PDFDocument* document,
                                      const PDFFontCache* fontCache,
+                                     const PDFCMS* CMS,
                                      const PDFOptionalContentActivity* optionalContentActivity,
                                      QMatrix pagePointToDevicePointMatrix,
                                      const PDFMeshQualitySettings& meshQualitySettings);
@@ -170,7 +172,7 @@ public:
 
     /// Reports render error, but only once - if same error was already reported,
     /// then no new error is reported.
-    void reportRenderErrorOnce(RenderErrorType type, QString message);
+    virtual void reportRenderErrorOnce(RenderErrorType type, QString message) override;
 
 protected:
 
@@ -686,7 +688,7 @@ private:
         const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
         if (operandCount == colorSpaceComponentCount)
         {
-            return colorSpace->getColor(PDFColor(static_cast<PDFColorComponent>(operands)...));
+            return colorSpace->getColor(PDFColor(static_cast<PDFColorComponent>(operands)...), m_CMS, m_graphicState.getRenderingIntent(), this);
         }
         else
         {
@@ -843,6 +845,7 @@ private:
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFCMS* m_CMS;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFDictionary* m_colorSpaceDictionary;
     const PDFDictionary* m_fontDictionary;

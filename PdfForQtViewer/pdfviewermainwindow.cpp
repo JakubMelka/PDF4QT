@@ -155,7 +155,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
     readSettings();
 
-    m_pdfWidget = new pdf::PDFWidget(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, this);
+    m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, this);
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());

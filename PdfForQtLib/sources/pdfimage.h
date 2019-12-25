@@ -49,7 +49,7 @@ public:
                                 PDFRenderErrorReporter* errorReporter);
 
     /// Returns image transformed from image data and color space
-    QImage getImage() const;
+    QImage getImage(const PDFCMS* cms, PDFRenderErrorReporter* reporter) const;
 
     /// Returns rendering intent of the image
     RenderingIntent getRenderingIntent() const { return m_renderingIntent; }

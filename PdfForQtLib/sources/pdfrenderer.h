@@ -31,6 +31,7 @@ class QOpenGLFramebufferObject;
 
 namespace pdf
 {
+class PDFCMS;
 class PDFFontCache;
 class PDFPrecompiledPage;
 class PDFOptionalContentActivity;
@@ -52,7 +53,12 @@ public:
 
     Q_DECLARE_FLAGS(Features, Feature)
 
-    explicit PDFRenderer(const PDFDocument* document, const PDFFontCache* fontCache, const PDFOptionalContentActivity* optionalContentActivity, Features features, const PDFMeshQualitySettings& meshQualitySettings);
+    explicit PDFRenderer(const PDFDocument* document,
+                         const PDFFontCache* fontCache,
+                         const PDFCMS* cms,
+                         const PDFOptionalContentActivity* optionalContentActivity,
+                         Features features,
+                         const PDFMeshQualitySettings& meshQualitySettings);
 
     /// Paints desired page onto the painter. Page is painted in the rectangle using best-fit method.
     /// If the page doesn't exist, then error is returned. No exception is thrown. Rendering errors
@@ -86,6 +92,7 @@ public:
 private:
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFCMS* m_cms;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     Features m_features;
     PDFMeshQualitySettings m_meshQualitySettings;

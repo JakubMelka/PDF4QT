@@ -43,7 +43,12 @@ ShadingType PDFAxialShading::getShadingType() const
     return ShadingType::Axial;
 }
 
-PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFObject& object)
+PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionary,
+                                        const PDFDocument* document,
+                                        const PDFObject& object,
+                                        const PDFCMS* cms,
+                                        RenderingIntent intent,
+                                        PDFRenderErrorReporter* reporter)
 {
     const PDFObject& dereferencedObject = document->getObject(object);
     const PDFDictionary* patternDictionary = nullptr;
@@ -112,7 +117,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
             {
                 PDFObject patternGraphicState = document->getObject(patternDictionary->get("ExtGState"));
                 QMatrix matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QMatrix());
-                return createShadingPattern(colorSpaceDictionary, document, patternDictionary->get("Shading"), matrix, patternGraphicState, false);
+                return createShadingPattern(colorSpaceDictionary, document, patternDictionary->get("Shading"), matrix, patternGraphicState, cms, intent, reporter, false);
             }
 
             default:
@@ -131,6 +136,9 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                                                const PDFObject& shadingObject,
                                                const QMatrix& matrix,
                                                const PDFObject& patternGraphicState,
+                                               const PDFCMS* cms,
+                                               RenderingIntent intent,
+                                               PDFRenderErrorReporter* reporter,
                                                bool ignoreBackgroundColor)
 {
     const PDFObject& dereferencedShadingObject = document->getObject(shadingObject);
@@ -167,7 +175,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
         std::vector<PDFReal> backgroundColorValues = loader.readNumberArrayFromDictionary(shadingDictionary, "Background");
         if (!backgroundColorValues.empty())
         {
-            backgroundColor = colorSpace->getCheckedColor(PDFAbstractColorSpace::convertToColor(backgroundColorValues));
+            backgroundColor = colorSpace->getCheckedColor(PDFAbstractColorSpace::convertToColor(backgroundColorValues), cms, intent, reporter);
         }
     }
     QRectF boundingBox = loader.readRectangle(shadingDictionary->get("BBox"), QRectF());
@@ -474,7 +482,7 @@ ShadingType PDFFunctionShading::getShadingType() const
     return ShadingType::Function;
 }
 
-PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -724,7 +732,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
                     }
                 }
 
-                return m_colorSpace->getColor(PDFAbstractColorSpace::convertToColor(colorBuffer));
+                return m_colorSpace->getColor(PDFAbstractColorSpace::convertToColor(colorBuffer), cms, intent, reporter);
             };
 
             PDFMesh::Triangle triangle1;
@@ -777,7 +785,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings) c
     return mesh;
 }
 
-PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -957,7 +965,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings) cons
             uint32_t bottomRight = mesh.addVertex(QPointF(item.first, yb));
 
             PDFColor mixedColor = PDFAbstractColorSpace::mixColors(previousColor, item.second, 0.5);
-            QColor color = m_colorSpace->getColor(mixedColor);
+            QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter);
             mesh.addQuad(topLeft, topRight, bottomRight, bottomLeft, color.rgb());
 
             topLeft = topRight;
@@ -1110,7 +1118,7 @@ ShadingType PDFRadialShading::getShadingType() const
     return ShadingType::Radial;
 }
 
-PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -1373,7 +1381,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings) con
                 uint32_t v3 = mesh.addVertex(p3);
                 uint32_t v4 = mesh.addVertex(p4);
 
-                QColor color = m_colorSpace->getColor(mixedColor);
+                QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter);
                 mesh.addQuad(v1, v2, v3, v4, color.rgb());
 
                 angle0 = angle1;
@@ -1400,7 +1408,7 @@ ShadingType PDFFreeFormGouradTriangleShading::getShadingType() const
     return ShadingType::FreeFormGouradTriangle;
 }
 
-PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -1477,13 +1485,13 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     const VertexData* vc = nullptr;
     const VertexData* vd = nullptr;
 
-    auto addTriangle = [this, &settings, &mesh, &vertices](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    auto addTriangle = [this, &settings, &mesh, &vertices, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
     {
         const uint32_t via = va->index;
         const uint32_t vib = vb->index;
         const uint32_t vic = vc->index;
 
-        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color);
+        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter);
     };
 
     for (size_t i = 0; i < vertexCount;)
@@ -1549,7 +1557,7 @@ ShadingType PDFLatticeFormGouradTriangleShading::getShadingType() const
     return ShadingType::LatticeFormGouradTriangle;
 }
 
-PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -1638,8 +1646,8 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
             const VertexData& vertexBottomRight = vertices[vBottomRight];
             const VertexData& vertexBottomLeft = vertices[vBottomLeft];
 
-            addSubdividedTriangles(settings, mesh, vertexTopLeft.index, vertexTopRight.index, vertexBottomRight.index, vertexTopLeft.color, vertexTopRight.color, vertexBottomRight.color);
-            addSubdividedTriangles(settings, mesh, vertexBottomRight.index, vertexBottomLeft.index, vertexTopLeft.index, vertexBottomRight.color, vertexBottomLeft.color, vertexTopLeft.color);
+            addSubdividedTriangles(settings, mesh, vertexTopLeft.index, vertexTopRight.index, vertexBottomRight.index, vertexTopLeft.color, vertexTopRight.color, vertexBottomRight.color, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, vertexBottomRight.index, vertexBottomLeft.index, vertexTopLeft.index, vertexBottomRight.color, vertexBottomLeft.color, vertexTopLeft.color, cms, intent, reporter);
         }
     }
 
@@ -1689,8 +1697,9 @@ PDFColor PDFType4567Shading::getColor(PDFColor colorOrFunctionParameter) const
 }
 
 void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& settings,
-                                                      PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3,
-                                                      PDFColor c1, PDFColor c2, PDFColor c3) const
+                                                PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3,
+                                                PDFColor c1, PDFColor c2, PDFColor c3,
+                                                const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     // First, verify, if we can subdivide the triangle
     QLineF v12(mesh.getVertex(v1), mesh.getVertex(v2));
@@ -1718,8 +1727,8 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             PDFColor cx = PDFAbstractColorSpace::mixColors(c2, c3, 0.5);
             const uint32_t vx = mesh.addVertex(x);
 
-            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx);
-            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx);
+            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx, cms, intent, reporter);
         }
         else if (length13 == maxLength)
         {
@@ -1729,8 +1738,8 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             PDFColor cx = PDFAbstractColorSpace::mixColors(c1, c3, 0.5);
             const uint32_t vx = mesh.addVertex(x);
 
-            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx);
-            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx);
+            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx, cms, intent, reporter);
         }
         else
         {
@@ -1742,8 +1751,8 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             PDFColor cx = PDFAbstractColorSpace::mixColors(c1, c2, 0.5);
             const uint32_t vx = mesh.addVertex(x);
 
-            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx);
-            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx);
+            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx, cms, intent, reporter);
         }
     }
     else
@@ -1760,7 +1769,7 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             color[i] = (c1[i] + c2[i] + c3[i]) * coefficient;
         }
         Q_ASSERT(colorComponents == m_colorSpace->getColorComponentCount());
-        QColor transformedColor = m_colorSpace->getColor(color);
+        QColor transformedColor = m_colorSpace->getColor(color, cms, intent, reporter);
 
         PDFMesh::Triangle triangle;
         triangle.v1 = v1;
@@ -1940,7 +1949,7 @@ ShadingType PDFTensorProductPatchShading::getShadingType() const
     return ShadingType::TensorProductPatchMesh;
 }
 
-PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -2159,7 +2168,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
         }
     }
 
-    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches);
+    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches, cms, intent, reporter);
     return mesh;
 }
 
@@ -2204,7 +2213,12 @@ struct PDFTensorProductPatchShadingBase::Triangle
     }
 };
 
-void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch) const
+void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
+                                                const PDFMeshQualitySettings& settings,
+                                                const PDFTensorPatch& patch,
+                                                const PDFCMS* cms,
+                                                RenderingIntent intent,
+                                                PDFRenderErrorReporter* reporter) const
 {
     // We implement algorithm similar to Ruppert's algorithm (see https://en.wikipedia.org/wiki/Ruppert%27s_algorithm), but
     // we do not need a mesh for FEM calculation, so we do not care about quality of the triangles (we can have triangles with
@@ -2367,7 +2381,7 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh, const PDFMeshQual
 
         QPointF center = triangle.getCenter();
         PDFColor color = getColorForUV(center.x(), center.y());
-        QRgb rgbColor = m_colorSpace->getColor(color).rgb();
+        QRgb rgbColor = m_colorSpace->getColor(color, cms, intent, reporter).rgb();
 
         PDFMesh::Triangle meshTriangle;
         meshTriangle.v1 = static_cast<uint32_t>(vertexIndex++);
@@ -2383,11 +2397,14 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh, const PDFMeshQual
 void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 const QMatrix& patternSpaceToDeviceSpaceMatrix,
                                                 const PDFMeshQualitySettings& settings,
-                                                const PDFTensorPatches& patches) const
+                                                const PDFTensorPatches& patches,
+                                                const PDFCMS* cms,
+                                                RenderingIntent intent,
+                                                PDFRenderErrorReporter* reporter) const
 {
     for (const auto& patch : patches)
     {
-        fillMesh(mesh, settings, patch);
+        fillMesh(mesh, settings, patch, cms, intent, reporter);
     }
 
     // Create bounding path
@@ -2423,7 +2440,7 @@ ShadingType PDFCoonsPatchShading::getShadingType() const
     return ShadingType::CoonsPatchMesh;
 }
 
-PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings) const
+PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFMesh mesh;
 
@@ -2617,7 +2634,7 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings)
         }
     }
 
-    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches);
+    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches, cms, intent, reporter);
     return mesh;
 }
 

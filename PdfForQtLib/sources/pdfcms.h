@@ -24,6 +24,7 @@
 #include "pdfutils.h"
 
 #include <QMutex>
+#include <QSharedPointer>
 
 #include <compare>
 
@@ -83,6 +84,9 @@ public:
     /// by newly created one, according these settings.
     virtual bool isCompatible(const PDFCMSSettings& settings) const = 0;
 
+    /// Returns color of the white paper
+    virtual QColor getPaperColor() const = 0;
+
     /// Converts color in Device Gray color space to the target device
     /// color space. If error occurs, then invalid color is returned.
     /// Caller then should handle this - try to convert color as accurate
@@ -118,8 +122,10 @@ public:
     /// \param Three color channel value (X,Y,Z channel)
     /// \param intent Rendering intent
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const = 0;
+    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const = 0;
 };
+
+using PDFCMSPointer = QSharedPointer<PDFCMS>;
 
 class PDFCMSGeneric : public PDFCMS
 {
@@ -127,10 +133,11 @@ public:
     explicit inline PDFCMSGeneric() = default;
 
     virtual bool isCompatible(const PDFCMSSettings& settings) const override;
+    virtual QColor getPaperColor() const override;
     virtual QColor getColorFromDeviceGray(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColorFromDeviceRGB(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColorFromDeviceCMYK(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
-    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 };
 
 struct PDFColorProfileIdentifier
@@ -197,6 +204,10 @@ private:
 public:
     explicit PDFCMSManager(QObject* parent);
 
+    /// Returns current CMS. This function possibly creates CMS,
+    /// of no CMS is found.
+    PDFCMSPointer getCurrentCMS() const;
+
     const PDFCMSSettings& getSettings() const { return m_settings; }
     void setSettings(const PDFCMSSettings& settings);
 
@@ -216,6 +227,9 @@ signals:
     void colorManagementSystemChanged();
 
 private:
+    /// Creates new CMS based on current settings
+    PDFCMSPointer getCurrentCMSImpl() const;
+
     /// This function returns external profiles. It is not protected by mutex,
     /// so it is not thread-safe. For this reason, it is not in public
     /// interface.
@@ -239,6 +253,7 @@ private:
     PDFCMSSettings m_settings;
 
     mutable QMutex m_mutex;
+    mutable PDFCachedItem<PDFCMSPointer> m_CMS;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_outputProfiles;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_grayProfiles;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_RGBProfiles;

@@ -174,7 +174,15 @@ public:
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document, owning the pdf object
     /// \param object Object defining the pattern
-    static PDFPatternPtr createPattern(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFObject& object);
+    /// \param cms Color management system
+    /// \param intent Rendering intent
+    /// \param reporter Error reporter
+    static PDFPatternPtr createPattern(const PDFDictionary* colorSpaceDictionary,
+                                       const PDFDocument* document,
+                                       const PDFObject& object,
+                                       const PDFCMS* cms,
+                                       RenderingIntent intent,
+                                       PDFRenderErrorReporter* reporter);
 
     /// Create shading pattern from the object. If error occurs, exception is thrown
     /// \param colorSpaceDictionary Color space dictionary
@@ -182,12 +190,18 @@ public:
     /// \param object Object defining the shading
     /// \param matrix Matrix converting reference coordinate system to the device coordinate system
     /// \param patternGraphicState Pattern graphic state
+    /// \param cms Color management system
+    /// \param intent Rendering intent
+    /// \param reporter Error reporter
     /// \param ignoreBackgroundColor If set, then ignores background color, even if it is present
     static PDFPatternPtr createShadingPattern(const PDFDictionary* colorSpaceDictionary,
                                               const PDFDocument* document,
                                               const PDFObject& shadingObject,
                                               const QMatrix& matrix,
                                               const PDFObject& patternGraphicState,
+                                              const PDFCMS* cms,
+                                              RenderingIntent intent,
+                                              PDFRenderErrorReporter* reporter,
                                               bool ignoreBackgroundColor);
 
 protected:
@@ -262,7 +276,10 @@ public:
     /// coordinate system. You must transform the mesh, if you want to
     /// use it in another coordinate system.
     /// \param settings Meshing settings
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const = 0;
+    /// \param cms Color management system
+    /// \param intent Rendering intent
+    /// \param reporter Error reporter
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const = 0;
 
     /// Returns patterns graphic state. This state must be applied before
     /// the shading pattern is painted to the target device.
@@ -313,7 +330,7 @@ public:
     explicit PDFFunctionShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
@@ -329,7 +346,7 @@ public:
     explicit PDFAxialShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
@@ -341,7 +358,7 @@ public:
     explicit PDFRadialShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
@@ -361,7 +378,17 @@ protected:
     /// Returns color for given color or function parameter
     PDFColor getColor(PDFColor colorOrFunctionParameter) const;
 
-    void addSubdividedTriangles(const PDFMeshQualitySettings& settings, PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3, PDFColor c1, PDFColor c2, PDFColor c3) const;
+    void addSubdividedTriangles(const PDFMeshQualitySettings& settings,
+                                PDFMesh& mesh,
+                                uint32_t v1,
+                                uint32_t v2,
+                                uint32_t v3,
+                                PDFColor c1,
+                                PDFColor c2,
+                                PDFColor c3,
+                                const PDFCMS* cms,
+                                RenderingIntent intent,
+                                PDFRenderErrorReporter* reporter) const;
 
     uint8_t m_bitsPerCoordinate = 0;
     uint8_t m_bitsPerComponent = 0;
@@ -387,7 +414,7 @@ public:
     explicit PDFFreeFormGouradTriangleShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
@@ -399,7 +426,7 @@ public:
     explicit PDFLatticeFormGouradTriangleShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
@@ -531,8 +558,8 @@ public:
 protected:
     struct Triangle;
 
-    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch) const;
-    void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches) const;
+    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const;
+    void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const;
     static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
 
 private:
@@ -545,7 +572,7 @@ public:
     explicit PDFCoonsPatchShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
@@ -557,7 +584,7 @@ public:
     explicit PDFTensorProductPatchShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
 private:
     friend class PDFPattern;
