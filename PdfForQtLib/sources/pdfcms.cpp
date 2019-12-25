@@ -110,6 +110,14 @@ QColor PDFCMSGeneric::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColo
     return QColor();
 }
 
+QColor PDFCMSGeneric::getColorFromICC(const PDFColor& color, const QByteArray& iccID, const QByteArray& iccData) const
+{
+    Q_UNUSED(color);
+    Q_UNUSED(iccID);
+    Q_UNUSED(iccData);
+    return QColor();
+}
+
 PDFCMSManager::PDFCMSManager(QObject* parent) :
     BaseClass(parent)
 {

@@ -123,6 +123,12 @@ public:
     /// \param intent Rendering intent
     /// \param reporter Render error reporter (used, when color transform fails)
     virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const = 0;
+
+    /// Computes color from ICC color profile
+    /// \param color Input color
+    /// \param iccID Unique ICC profile identifier
+    /// \param iccData Color profile data
+    virtual QColor getColorFromICC(const PDFColor& color, const QByteArray& iccID, const QByteArray& iccData) const = 0;
 };
 
 using PDFCMSPointer = QSharedPointer<PDFCMS>;
@@ -138,6 +144,7 @@ public:
     virtual QColor getColorFromDeviceRGB(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColorFromDeviceCMYK(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual QColor getColorFromICC(const PDFColor& color, const QByteArray& iccID, const QByteArray& iccData) const override;
 };
 
 struct PDFColorProfileIdentifier

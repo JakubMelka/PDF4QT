@@ -510,7 +510,7 @@ private:
     using Ranges = std::array<PDFColorComponent, MAX_COLOR_COMPONENTS * 2>;
 
 public:
-    explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range);
+    explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData);
     virtual ~PDFICCBasedColorSpace() = default;
 
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
@@ -527,6 +527,8 @@ public:
 private:
     PDFColorSpacePointer m_alternateColorSpace;
     Ranges m_range;
+    QByteArray m_iccProfileData;
+    QByteArray m_iccProfileDataChecksum;
 };
 
 class PDFIndexedColorSpace : public PDFAbstractColorSpace

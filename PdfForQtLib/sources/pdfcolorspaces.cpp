@@ -23,6 +23,8 @@
 #include "pdfpattern.h"
 #include "pdfcms.h"
 
+#include <QCryptographicHash>
+
 namespace pdf
 {
 
@@ -850,11 +852,13 @@ PDFColorSpacePointer PDFLabColorSpace::createLabColorSpace(const PDFDocument* do
     return PDFColorSpacePointer(new PDFLabColorSpace(whitePoint, blackPoint, minMax[0], minMax[1], minMax[2], minMax[3]));
 }
 
-PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range) :
+PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData) :
     m_alternateColorSpace(qMove(alternateColorSpace)),
-    m_range(range)
+    m_range(range),
+    m_iccProfileData(qMove(iccProfileData))
 {
-
+    // Compute checksum
+    m_iccProfileDataChecksum = QCryptographicHash::hash(m_iccProfileData, QCryptographicHash::Md5);
 }
 
 QColor PDFICCBasedColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
@@ -883,6 +887,12 @@ QColor PDFICCBasedColorSpace::getColor(const PDFColor& color, const PDFCMS* cms,
         clippedColor[i] = qBound(m_range[imin], clippedColor[i], m_range[imax]);
     }
 
+    QColor cmsColor = cms->getColorFromICC(clippedColor, m_iccProfileDataChecksum, m_iccProfileData);
+    if (cmsColor.isValid())
+    {
+        return cmsColor;
+    }
+
     return m_alternateColorSpace->getColor(clippedColor, cms, intent, reporter);
 }
 
@@ -898,6 +908,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
 {
     // First, try to load alternate color space, if it is present
     const PDFDictionary* dictionary = stream->getDictionary();
+    QByteArray iccProfileData = document->getDecodedStream(stream);
 
     PDFDocumentDataLoaderDecorator loader(document);
     PDFColorSpacePointer alternateColorSpace;
@@ -958,7 +969,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     auto itEnd = std::next(itStart, rangeSize);
     loader.readNumberArrayFromDictionary(dictionary, ICCBASED_RANGE, itStart, itEnd);
 
-    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges));
+    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(iccProfileData)));
 }
 
 PDFIndexedColorSpace::PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue) :
