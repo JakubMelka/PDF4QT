@@ -887,7 +887,7 @@ QColor PDFICCBasedColorSpace::getColor(const PDFColor& color, const PDFCMS* cms,
         clippedColor[i] = qBound(m_range[imin], clippedColor[i], m_range[imax]);
     }
 
-    QColor cmsColor = cms->getColorFromICC(clippedColor, m_iccProfileDataChecksum, m_iccProfileData);
+    QColor cmsColor = cms->getColorFromICC(clippedColor, intent, m_iccProfileDataChecksum, m_iccProfileData, reporter);
     if (cmsColor.isValid())
     {
         return cmsColor;

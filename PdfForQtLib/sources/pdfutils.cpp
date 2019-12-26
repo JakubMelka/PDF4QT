@@ -24,6 +24,11 @@
 #include <openjpeg.h>
 #include <openssl/opensslv.h>
 
+#pragma warning(push)
+#pragma warning(disable:5033)
+#include <lcms2.h>
+#pragma warning(pop)
+
 namespace pdf
 {
 
@@ -259,6 +264,16 @@ std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
     opensslInfo.version = OPENSSL_VERSION_TEXT;
     opensslInfo.url = tr("https://www.openssl.org/");
     result.emplace_back(qMove(opensslInfo));
+
+    // LittleCMS 2.x
+    const int lcmsMajor = LCMS_VERSION / 1000;
+    const int lcmsMinor = (LCMS_VERSION % 1000) / 10;
+    PDFDependentLibraryInfo lcms2Info;
+    lcms2Info.library = tr("LittleCMS");
+    lcms2Info.license = tr("2-clause MIT license");
+    lcms2Info.version = tr("%1.%2").arg(lcmsMajor).arg(lcmsMinor);;
+    lcms2Info.url = tr("http://www.littlecms.com/");
+    result.emplace_back(qMove(lcms2Info));
 
     return result;
 }
