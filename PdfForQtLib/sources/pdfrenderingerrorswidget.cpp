@@ -41,7 +41,6 @@ PDFRenderingErrorsWidget::PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* p
     const PDFWidget::PageRenderingErrors* pageRenderingErrors = pdfWidget->getPageRenderingErrors();
     for (const auto& pageRenderingError : *pageRenderingErrors)
     {
-        // TODO: udelat realna cisla stranek
         const PDFInteger pageIndex = pageRenderingError.first;
         QTreeWidgetItem* root = new QTreeWidgetItem(ui->renderErrorsTreeWidget, QStringList() << QString::number(pageIndex + 1) << QString() << QString());
 

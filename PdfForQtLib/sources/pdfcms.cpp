@@ -18,14 +18,466 @@
 #include "pdfcms.h"
 
 #include <QApplication>
+#include <QReadWriteLock>
 
 #pragma warning(push)
 #pragma warning(disable:5033)
 #include <lcms2.h>
 #pragma warning(pop)
 
+#include <unordered_map>
+
 namespace pdf
 {
+
+class PDFLittleCMS : public PDFCMS
+{
+public:
+    explicit PDFLittleCMS(const PDFCMSManager* manager, const PDFCMSSettings& settings);
+    virtual ~PDFLittleCMS() override;
+
+    virtual bool isCompatible(const PDFCMSSettings& settings) const override;
+    virtual QColor getPaperColor() const override;
+    virtual QColor getColorFromDeviceGray(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual QColor getColorFromDeviceRGB(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual QColor getColorFromDeviceCMYK(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual QColor getColorFromICC(const PDFColor& color, const QByteArray& iccID, const QByteArray& iccData) const override;
+
+private:
+    void init();
+
+    enum Profile
+    {
+        Output,
+        Gray,
+        RGB,
+        CMYK,
+        XYZ,
+        ProfileCount
+    };
+
+    /// Creates a profile using provided id and a list of profile descriptors.
+    /// If profile can't be created, then null handle is returned.
+    /// \param id Id of color profile
+    /// \param profileDescriptors Profile descriptor list
+    cmsHPROFILE createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors) const;
+
+    /// Gets transform from cache. If transform doesn't exist, then it is created.
+    /// \param profile Color profile
+    /// \param intent Rendering intent
+    cmsHTRANSFORM getTransform(Profile profile, RenderingIntent intent) const;
+
+    /// Returns transformation flags accordint to the current settings
+    cmsUInt32Number getTransformationFlags() const;
+
+    /// Calculates effective rendering intent. If rendering intent is auto,
+    /// then \p intent is used, otherwise intent is overriden.
+    RenderingIntent getEffectiveRenderingIntent(RenderingIntent intent) const;
+
+    /// Gets transform from cache key.
+    /// \param profile Color profile
+    /// \param intent Rendering intent
+    static constexpr int getCacheKey(Profile profile, RenderingIntent intent) { return int(intent) * ProfileCount + profile; }
+
+    /// Returns little CMS rendering intent
+    /// \param intent Rendering intent
+    static cmsUInt32Number getLittleCMSRenderingIntent(RenderingIntent intent);
+
+    /// Returns little CMS data format for profile
+    /// \param profile Color profile handle
+    static cmsUInt32Number getProfileDataFormat(cmsHPROFILE profile);
+
+    /// Returns color from output color. Clamps invalid rgb output values to range [0.0, 1.0].
+    /// \param color01 Rgb color (range 0-1 is assumed).
+    static QColor getColorFromOutputColor(std::array<float, 3> color01);
+
+    const PDFCMSManager* m_manager;
+    PDFCMSSettings m_settings;
+    QColor m_paperColor;
+    std::array<cmsHPROFILE, ProfileCount> m_profiles;
+
+    mutable QReadWriteLock m_transformationCacheLock;
+    mutable std::unordered_map<int, cmsHTRANSFORM> m_transformationCache;
+};
+
+PDFLittleCMS::PDFLittleCMS(const PDFCMSManager* manager, const PDFCMSSettings& settings) :
+    m_manager(manager),
+    m_settings(settings),
+    m_paperColor(Qt::white),
+    m_profiles()
+{
+    init();
+}
+
+PDFLittleCMS::~PDFLittleCMS()
+{
+    for (const auto& transformItem : m_transformationCache)
+    {
+        cmsHTRANSFORM transform = transformItem.second;
+        if (transform)
+        {
+            cmsDeleteTransform(transform);
+        }
+    }
+
+    for (cmsHPROFILE profile : m_profiles)
+    {
+        if (profile)
+        {
+            cmsCloseProfile(profile);
+        }
+    }
+}
+
+bool PDFLittleCMS::isCompatible(const PDFCMSSettings& settings) const
+{
+    return m_settings == settings;
+}
+
+QColor PDFLittleCMS::getPaperColor() const
+{
+    return m_paperColor;
+}
+
+QColor PDFLittleCMS::getColorFromDeviceGray(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    cmsHTRANSFORM transform = getTransform(Gray, getEffectiveRenderingIntent(intent));
+
+    if (!transform)
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from gray to output device using CMS failed."));
+        return QColor();
+    }
+
+    if (cmsGetTransformInputFormat(transform) == TYPE_GRAY_FLT && color.size() == 1)
+    {
+        Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_FLT);
+
+        const float grayColor = color[0];
+        std::array<float, 3> rgbOutputColor = { };
+        cmsDoTransform(transform, &grayColor, rgbOutputColor.data(), 1);
+        return getColorFromOutputColor(rgbOutputColor);
+    }
+    else
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from gray to output device using CMS failed - invalid data format."));
+    }
+
+    return QColor();
+}
+
+QColor PDFLittleCMS::getColorFromDeviceRGB(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    cmsHTRANSFORM transform = getTransform(RGB, getEffectiveRenderingIntent(intent));
+
+    if (!transform)
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from RGB to output device using CMS failed."));
+        return QColor();
+    }
+
+    if (cmsGetTransformInputFormat(transform) == TYPE_RGB_FLT && color.size() == 3)
+    {
+        Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_FLT);
+
+        std::array<float, 3> rgbInputColor = { color[0], color[1], color[2] };
+        std::array<float, 3> rgbOutputColor = { };
+        cmsDoTransform(transform, rgbInputColor.data(), rgbOutputColor.data(), 1);
+        return getColorFromOutputColor(rgbOutputColor);
+    }
+    else
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from RGB to output device using CMS failed - invalid data format."));
+    }
+
+    return QColor();
+}
+
+QColor PDFLittleCMS::getColorFromDeviceCMYK(const PDFColor& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    cmsHTRANSFORM transform = getTransform(CMYK, getEffectiveRenderingIntent(intent));
+
+    if (!transform)
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from CMYK to output device using CMS failed."));
+        return QColor();
+    }
+
+    if (cmsGetTransformInputFormat(transform) == TYPE_CMYK_FLT && color.size() == 4)
+    {
+        Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_FLT);
+
+        std::array<float, 4> cmykInputColor = { color[0] * 100.0f, color[1] * 100.0f, color[2] * 100.0f, color[3] * 100.0f };
+        std::array<float, 3> rgbOutputColor = { };
+        cmsDoTransform(transform, cmykInputColor.data(), rgbOutputColor.data(), 1);
+        return getColorFromOutputColor(rgbOutputColor);
+    }
+    else
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from CMYK to output device using CMS failed - invalid data format."));
+    }
+
+    return QColor();
+}
+
+QColor PDFLittleCMS::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    cmsHTRANSFORM transform = getTransform(XYZ, getEffectiveRenderingIntent(intent));
+
+    if (!transform)
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from XYZ to output device using CMS failed."));
+        return QColor();
+    }
+
+    if (cmsGetTransformInputFormat(transform) == TYPE_XYZ_FLT && color.size() == 3)
+    {
+        Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_FLT);
+
+        const cmsCIEXYZ* d50WhitePoint = cmsD50_XYZ();
+        std::array<float, 3> xyzInputColor = { color[0] / whitePoint[0] * float(d50WhitePoint->X), color[1] / whitePoint[1] * float(d50WhitePoint->Y), color[2] / whitePoint[2] * float(d50WhitePoint->Z) };
+        std::array<float, 3> rgbOutputColor = { };
+        cmsDoTransform(transform, xyzInputColor.data(), rgbOutputColor.data(), 1);
+        return getColorFromOutputColor(rgbOutputColor);
+    }
+    else
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Conversion from XYZ to output device using CMS failed - invalid data format."));
+    }
+
+    return QColor();
+}
+
+QColor PDFLittleCMS::getColorFromICC(const PDFColor& color, const QByteArray& iccID, const QByteArray& iccData) const
+{
+    // TODO: Dodelat ICC profily
+    return QColor();
+}
+
+void PDFLittleCMS::init()
+{
+    // Jakub Melka: initialize all color profiles
+    m_profiles[Output] = createProfile(m_settings.outputCS, m_manager->getOutputProfiles());
+    m_profiles[Gray] = createProfile(m_settings.deviceGray, m_manager->getGrayProfiles());
+    m_profiles[RGB] = createProfile(m_settings.deviceRGB, m_manager->getRGBProfiles());
+    m_profiles[CMYK] = createProfile(m_settings.deviceCMYK, m_manager->getCMYKProfiles());
+    m_profiles[XYZ] = cmsCreateXYZProfile();
+
+    if (m_settings.isWhitePaperColorTransformed)
+    {
+        m_paperColor = getColorFromDeviceRGB(PDFColor(1.0f, 1.0f, 1.0f), RenderingIntent::AbsoluteColorimetric, nullptr);
+
+        // We must check color of the paper, it can be invalid, if error occurs...
+        if (!m_paperColor.isValid())
+        {
+            m_paperColor = QColor(Qt::white);
+        }
+    }
+
+    // 64 should be enough, because we can have 4 input color spaces (gray, RGB, CMYK and XYZ),
+    // and 4 rendering intents. We have 4 * 4 = 16 input tables, so 64 will suffice enough
+    // (because we then have 25% load factor).
+    m_transformationCache.reserve(64);
+}
+
+cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors) const
+{
+    auto it = std::find_if(profileDescriptors.cbegin(), profileDescriptors.cend(), [&id](const PDFColorProfileIdentifier& identifier) { return identifier.id == id; });
+    if (it != profileDescriptors.cend())
+    {
+        const PDFColorProfileIdentifier& identifier = *it;
+        switch (identifier.type)
+        {
+            case PDFColorProfileIdentifier::Type::Gray:
+            {
+                cmsCIExyY whitePoint{ };
+                if (cmsWhitePointFromTemp(&whitePoint, identifier.temperature))
+                {
+                    cmsToneCurve* gammaCurve = cmsBuildGamma(cmsContext(), identifier.gamma);
+                    cmsHPROFILE profile = cmsCreateGrayProfile(&whitePoint, gammaCurve);
+                    cmsFreeToneCurve(gammaCurve);
+                    return profile;
+                }
+                break;
+            }
+
+            case PDFColorProfileIdentifier::Type::sRGB:
+                return cmsCreate_sRGBProfile();
+
+            case PDFColorProfileIdentifier::Type::RGB:
+            {
+                cmsCIExyY whitePoint{ };
+                if (cmsWhitePointFromTemp(&whitePoint, identifier.temperature))
+                {
+                    cmsCIExyYTRIPLE primaries;
+                    primaries.Red = { identifier.primaryR.x(), identifier.primaryR.y(), 1.0 };
+                    primaries.Green = { identifier.primaryG.x(), identifier.primaryG.y(), 1.0 };
+                    primaries.Blue = { identifier.primaryB.x(), identifier.primaryB.y(), 1.0 };
+                    cmsToneCurve* gammaCurve = cmsBuildGamma(cmsContext(), identifier.gamma);
+                    cmsToneCurve* toneCurves[3] = { gammaCurve, cmsDupToneCurve(gammaCurve), cmsDupToneCurve(gammaCurve) };
+                    cmsHPROFILE profile = cmsCreateRGBProfile(&whitePoint, &primaries, toneCurves);
+                    cmsFreeToneCurveTriple(toneCurves);
+                    return profile;
+                }
+                break;
+            }
+            case PDFColorProfileIdentifier::Type::FileGray:
+            case PDFColorProfileIdentifier::Type::FileRGB:
+            case PDFColorProfileIdentifier::Type::FileCMYK:
+            {
+                QFile file(identifier.id);
+                if (file.open(QFile::ReadOnly))
+                {
+                    QByteArray fileContent = file.readAll();
+                    file.close();
+
+                    return cmsOpenProfileFromMem(fileContent.data(), fileContent.size());
+                }
+
+                break;
+            }
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    return cmsHPROFILE();
+}
+
+cmsHTRANSFORM PDFLittleCMS::getTransform(Profile profile, RenderingIntent intent) const
+{
+    const int key = getCacheKey(profile, intent);
+
+    QReadLocker lock(&m_transformationCacheLock);
+    auto it = m_transformationCache.find(key);
+    if (it == m_transformationCache.cend())
+    {
+        lock.unlock();
+        QWriteLocker writeLock(&m_transformationCacheLock);
+
+        // Now, we have locked cache for writing. We must find out,
+        // if some other thread doesn't created the transformation already.
+        it = m_transformationCache.find(key);
+        if (it == m_transformationCache.cend())
+        {
+            cmsHTRANSFORM transform = cmsHTRANSFORM();
+            cmsHPROFILE input = m_profiles[profile];
+            cmsHPROFILE output = m_profiles[Output];
+
+            if (input && output)
+            {
+                transform = cmsCreateTransform(input, getProfileDataFormat(input), output, TYPE_RGB_FLT, getLittleCMSRenderingIntent(intent), getTransformationFlags());
+            }
+
+            it = m_transformationCache.insert(std::make_pair(key, transform)).first;
+        }
+
+        // We must return it here to avoid race condition (after current block,
+        // lock is not locked, because we unlocked lock for reading).
+        return it->second;
+    }
+
+    return it->second;
+}
+
+cmsUInt32Number PDFLittleCMS::getTransformationFlags() const
+{
+    cmsUInt32Number flags = cmsFLAGS_NOCACHE;
+
+    if (m_settings.isBlackPointCompensationActive)
+    {
+        flags |= cmsFLAGS_BLACKPOINTCOMPENSATION;
+    }
+
+    switch (m_settings.accuracy)
+    {
+        case PDFCMSSettings::Accuracy::Low:
+            flags |= cmsFLAGS_LOWRESPRECALC;
+            break;
+
+        case PDFCMSSettings::Accuracy::Medium:
+            break;
+
+        case PDFCMSSettings::Accuracy::High:
+            flags |= cmsFLAGS_HIGHRESPRECALC;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return flags;
+}
+
+RenderingIntent PDFLittleCMS::getEffectiveRenderingIntent(RenderingIntent intent) const
+{
+    if (m_settings.intent != RenderingIntent::Auto)
+    {
+        return m_settings.intent;
+    }
+
+    return intent;
+}
+
+cmsUInt32Number PDFLittleCMS::getLittleCMSRenderingIntent(RenderingIntent intent)
+{
+    switch (intent)
+    {
+        case RenderingIntent::Perceptual:
+            return INTENT_PERCEPTUAL;
+
+        case RenderingIntent::AbsoluteColorimetric:
+            return INTENT_ABSOLUTE_COLORIMETRIC;
+
+        case RenderingIntent::RelativeColorimetric:
+            return INTENT_RELATIVE_COLORIMETRIC;
+
+        case RenderingIntent::Saturation:
+            return INTENT_SATURATION;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return INTENT_PERCEPTUAL;
+}
+
+cmsUInt32Number PDFLittleCMS::getProfileDataFormat(cmsHPROFILE profile)
+{
+    cmsColorSpaceSignature signature = cmsGetColorSpace(profile);
+    switch (signature)
+    {
+        case cmsSigGrayData:
+            return TYPE_GRAY_FLT;
+
+        case cmsSigRgbData:
+            return TYPE_RGB_FLT;
+
+        case cmsSigCmykData:
+            return TYPE_CMYK_FLT;
+
+        case cmsSigXYZData:
+            return TYPE_XYZ_FLT;
+
+        default:
+            break;
+    }
+
+    Q_ASSERT(false);
+    return 0;
+}
+
+QColor PDFLittleCMS::getColorFromOutputColor(std::array<float, 3> color01)
+{
+    QColor color(QColor::Rgb);
+    color.setRgbF(qBound(0.0f, color01[0], 1.0f), qBound(0.0f, color01[1], 1.0f), qBound(0.0f, color01[2], 1.0f));
+    return color;
+}
 
 QString getInfoFromProfile(cmsHPROFILE profile, cmsInfoType infoType)
 {
@@ -119,7 +571,8 @@ QColor PDFCMSGeneric::getColorFromICC(const PDFColor& color, const QByteArray& i
 }
 
 PDFCMSManager::PDFCMSManager(QObject* parent) :
-    BaseClass(parent)
+    BaseClass(parent),
+    m_mutex(QMutex::Recursive)
 {
 
 }
@@ -230,6 +683,19 @@ QString PDFCMSManager::getSystemName(PDFCMSSettings::System system)
 
 PDFCMSPointer PDFCMSManager::getCurrentCMSImpl() const
 {
+    switch (m_settings.system)
+    {
+        case PDFCMSSettings::System::Generic:
+            return PDFCMSPointer(new PDFCMSGeneric());
+
+        case PDFCMSSettings::System::LittleCMS2:
+            return PDFCMSPointer(new PDFLittleCMS(this, m_settings));
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
     return PDFCMSPointer(new PDFCMSGeneric());
 }
 

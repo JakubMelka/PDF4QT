@@ -28,7 +28,6 @@ PDFAsynchronousPageCompiler::PDFAsynchronousPageCompiler(PDFDrawWidgetProxy* pro
     BaseClass(proxy),
     m_proxy(proxy)
 {
-    // TODO: Create setting for this
     m_cache.setMaxCost(128 * 1024 * 1024);
 }
 
