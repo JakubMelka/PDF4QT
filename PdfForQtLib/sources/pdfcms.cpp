@@ -309,12 +309,15 @@ QColor PDFLittleCMS::getColorFromICC(const PDFColor& color, RenderingIntent rend
     }
 
     std::array<float, 4> inputBuffer = { };
-    const cmsUInt32Number channels = T_CHANNELS(cmsGetTransformInputFormat(transform));
+    const cmsUInt32Number format = cmsGetTransformInputFormat(transform);
+    const cmsUInt32Number channels = T_CHANNELS(format);
+    const cmsUInt32Number colorSpace = T_COLORSPACE(format);
+    const bool isCMYK = colorSpace == PT_CMYK;
     if (channels == color.size() && channels <= inputBuffer.size())
     {
         for (size_t i = 0; i < color.size(); ++i)
         {
-            inputBuffer[i] = color[i];
+            inputBuffer[i] = isCMYK ? color[i] * 100.0 : color[i];
         }
 
         std::array<float, 3> rgbOutputColor = { };

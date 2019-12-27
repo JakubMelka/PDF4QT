@@ -1785,6 +1785,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
                     {
                         unicodeValue = (unicodeValue << 8) + static_cast<unsigned char>(byteArray[i]);
                     }
+                    return unicodeValue;
                 }
             }
 
