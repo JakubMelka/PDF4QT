@@ -447,6 +447,11 @@ void PDFPrecompiledPageGenerator::setCompositionMode(QPainter::CompositionMode m
     m_precompiledPage->addSetCompositionMode(mode);
 }
 
+void PDFPrecompiledPageGenerator::performOutputCharacter(const PDFTextCharacterInfo& info)
+{
+    m_precompiledPage->addCharacter(info);
+}
+
 void PDFPrecompiledPage::draw(QPainter* painter, const QRectF& cropBox, const QMatrix& pagePointToDevicePointMatrix, PDFRenderer::Features features) const
 {
     Q_ASSERT(painter);
@@ -600,6 +605,16 @@ void PDFPrecompiledPage::addSetCompositionMode(QPainter::CompositionMode composi
     m_compositionModes.push_back(compositionMode);
 }
 
+void PDFPrecompiledPage::addCharacter(const PDFTextCharacterInfo& info)
+{
+    m_textLayout.addCharacter(info);
+}
+
+void PDFPrecompiledPage::createTextLayout()
+{
+    m_textLayout.perform();
+}
+
 void PDFPrecompiledPage::optimize()
 {
     m_instructions.shrink_to_fit();
@@ -609,6 +624,7 @@ void PDFPrecompiledPage::optimize()
     m_meshes.shrink_to_fit();
     m_matrices.shrink_to_fit();
     m_compositionModes.shrink_to_fit();
+    m_textLayout.optimize();
 }
 
 void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> errors)
@@ -651,6 +667,8 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     {
         m_memoryConsumptionEstimate += data.mesh.getMemoryConsumptionEstimate();
     }
+
+    m_memoryConsumptionEstimate += m_textLayout.getMemoryConsumptionEstimate();
 }
 
 }   // namespace pdf

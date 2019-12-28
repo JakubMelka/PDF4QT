@@ -55,6 +55,7 @@ SOURCES += \
     sources/pdfpattern.cpp \
     sources/pdfprogress.cpp \
     sources/pdfsecurityhandler.cpp \
+    sources/pdftextlayout.cpp \
     sources/pdfutils.cpp \
     sources/pdfxreftable.cpp \
     sources/pdfvisitor.cpp \
@@ -98,6 +99,7 @@ HEADERS += \
     sources/pdfpattern.h \
     sources/pdfprogress.h \
     sources/pdfsecurityhandler.h \
+    sources/pdftextlayout.h \
     sources/pdfxreftable.h \
     sources/pdfflatmap.h \
     sources/pdfvisitor.h \

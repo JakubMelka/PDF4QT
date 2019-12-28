@@ -387,6 +387,11 @@ void PDFPageContentProcessor::performEndTransparencyGroup(ProcessOrder order, co
     Q_UNUSED(transparencyGroup);
 }
 
+void PDFPageContentProcessor::performOutputCharacter(const PDFTextCharacterInfo& info)
+{
+    Q_UNUSED(info);
+}
+
 bool PDFPageContentProcessor::isContentSuppressed() const
 {
     return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
@@ -2893,13 +2898,26 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                         if (!glyphPath.isEmpty())
                         {
                             QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
+                            QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
                             QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
                             processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
+
+                            if (!item.character.isNull() && !item.character.isSpace())
+                            {
+                                // Output character
+                                PDFTextCharacterInfo info;
+                                info.character = item.character;
+                                info.isVerticalWritingSystem = !isHorizontalWritingSystem;
+                                info.advance = item.advance;
+                                info.fontSize = fontSize;
+                                info.outline = glyphPath;
+                                info.matrix = toDeviceSpaceTransform;
+                                performOutputCharacter(info);
+                            }
 
                             if (clipped)
                             {
                                 // Clipping is enabled, we must transform to the device coordinates
-                                QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
                                 m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(glyphPath));
                             }
                         }
@@ -2970,6 +2988,18 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     updateGraphicState();
 
                     processContent(*item.characterContentStream);
+
+                    if (!item.character.isNull() && !item.character.isSpace())
+                    {
+                        // Output character
+                        PDFTextCharacterInfo info;
+                        info.character = item.character;
+                        info.isVerticalWritingSystem = !isHorizontalWritingSystem;
+                        info.advance = item.advance;
+                        info.fontSize = fontSize;
+                        info.matrix = worldMatrix;
+                        performOutputCharacter(info);
+                    }
                 }
 
                 textMatrix.translate(displacementX, 0.0);

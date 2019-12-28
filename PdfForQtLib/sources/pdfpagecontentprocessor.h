@@ -25,6 +25,7 @@
 #include "pdfutils.h"
 #include "pdfmeshqualitysettings.h"
 #include "pdfblendfunction.h"
+#include "pdftextlayout.h"
 
 #include <QMatrix>
 #include <QPainterPath>
@@ -488,6 +489,9 @@ protected:
     /// \param Order, in which is function called (before/after setting new transparency group)
     /// \param transparencyGroup Transparency group
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
+
+    /// Implement to react on character printing
+    virtual void performOutputCharacter(const PDFTextCharacterInfo& info);
 
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }

@@ -22,6 +22,7 @@
 #include "pdfpattern.h"
 #include "pdfrenderer.h"
 #include "pdfpagecontentprocessor.h"
+#include "pdftextlayout.h"
 
 #include <QPen>
 #include <QBrush>
@@ -191,6 +192,10 @@ public:
     void addRestoreGraphicState() { m_instructions.emplace_back(InstructionType::RestoreGraphicState, 0); }
     void addSetWorldMatrix(const QMatrix& matrix);
     void addSetCompositionMode(QPainter::CompositionMode compositionMode);
+    void addCharacter(const PDFTextCharacterInfo& info);
+
+    /// Creates text layout for the page
+    void createTextLayout();
 
     /// Optimizes page memory allocation to contain less space
     void optimize();
@@ -279,6 +284,7 @@ private:
     std::vector<QMatrix> m_matrices;
     std::vector<QPainter::CompositionMode> m_compositionModes;
     QList<PDFRenderError> m_errors;
+    PDFTextLayout m_textLayout;
 };
 
 /// Processor, which processes PDF's page commands and writes them to the precompiled page.
@@ -311,6 +317,7 @@ protected:
     virtual void performRestoreGraphicState(ProcessOrder order) override;
     virtual void setWorldMatrix(const QMatrix& matrix) override;
     virtual void setCompositionMode(QPainter::CompositionMode mode) override;
+    virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
 
 private:
     PDFPrecompiledPage* m_precompiledPage;

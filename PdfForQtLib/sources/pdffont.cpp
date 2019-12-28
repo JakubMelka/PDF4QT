@@ -397,7 +397,7 @@ private:
     struct Glyph
     {
         QPainterPath glyph;
-        PDFReal advance;
+        PDFReal advance = 0.0;
     };
 
     static int outlineMoveTo(const FT_Vector* to, void* user);

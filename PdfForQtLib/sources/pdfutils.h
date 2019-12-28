@@ -362,6 +362,51 @@ public:
     static std::vector<PDFDependentLibraryInfo> getLibraryInfo();
 };
 
+/// Union-find algorithm, which uses path compression optimization. It can run in time
+/// O(n + f * (1 + log(n)/log(2 + f/n)), where n is number of unions (resp. size of the
+/// array) and f is number of find operations.
+template<typename T>
+class PDFUnionFindAlgorithm
+{
+public:
+    explicit PDFUnionFindAlgorithm(T size)
+    {
+        m_indices.resize(size, T(0));
+        std::iota(m_indices.begin(), m_indices.end(), 0);
+    }
+
+    T find(T index)
+    {
+        // Use path compression optimization. We assume we will not
+        // have long paths, so we will use simple recursion and
+        // not while cycle.
+        if (m_indices[index] != index)
+        {
+            m_indices[index] = find(m_indices[index]);
+        }
+
+        return m_indices[index];
+    }
+
+    void unify(T x, T y)
+    {
+        T xRoot = find(x);
+        T yRoot = find(y);
+
+        if (xRoot < yRoot)
+        {
+            m_indices[yRoot] = xRoot;
+        }
+        else if (xRoot > yRoot)
+        {
+            m_indices[xRoot] = yRoot;
+        }
+    }
+
+private:
+    std::vector<T> m_indices;
+};
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H
