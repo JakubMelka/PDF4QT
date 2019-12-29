@@ -173,6 +173,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
     ui->actionRenderOptionSmoothPictures->setData(pdf::PDFRenderer::SmoothImages);
     ui->actionRenderOptionIgnoreOptionalContentSettings->setData(pdf::PDFRenderer::IgnoreOptionalContent);
+    ui->actionShow_Text_Blocks->setData(pdf::PDFRenderer::DebugTextBlocks);
+    ui->actionShow_Text_Lines->setData(pdf::PDFRenderer::DebugTextLines);
 
     for (QAction* action : getRenderingOptionActions())
     {
@@ -869,7 +871,12 @@ void PDFViewerMainWindow::setPageLayout(pdf::PageLayout pageLayout)
 
 std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
 {
-    return { ui->actionRenderOptionAntialiasing, ui->actionRenderOptionTextAntialiasing, ui->actionRenderOptionSmoothPictures, ui->actionRenderOptionIgnoreOptionalContentSettings };
+    return { ui->actionRenderOptionAntialiasing,
+             ui->actionRenderOptionTextAntialiasing,
+             ui->actionRenderOptionSmoothPictures,
+             ui->actionRenderOptionIgnoreOptionalContentSettings,
+             ui->actionShow_Text_Blocks,
+             ui->actionShow_Text_Lines };
 }
 
 QList<QAction*> PDFViewerMainWindow::getActions() const

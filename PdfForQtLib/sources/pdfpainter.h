@@ -217,6 +217,9 @@ public:
     /// Returns memory consumption estimate
     qint64 getMemoryConsumptionEstimate() const { return m_memoryConsumptionEstimate; }
 
+    /// Returns text layout of the page
+    const PDFTextLayout& getTextLayout() const { return m_textLayout; }
+
 private:
     struct PathPaintData
     {

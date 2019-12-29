@@ -85,9 +85,7 @@ private slots:
     void on_actionFitPage_triggered();
     void on_actionFitWidth_triggered();
     void on_actionFitHeight_triggered();
-
     void on_actionProperties_triggered();
-
     void on_actionSend_by_E_Mail_triggered();
 
 private:

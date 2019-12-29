@@ -21,6 +21,7 @@
 
 #include "pdfglobal.h"
 
+#include <QRectF>
 #include <QByteArray>
 #include <QDataStream>
 
@@ -406,6 +407,27 @@ public:
 private:
     std::vector<T> m_indices;
 };
+
+template<typename T>
+constexpr bool isIntervalOverlap(T x1_min, T x1_max, T x2_min, T x2_max)
+{
+    // We have two situations, where intervals doesn't overlap:
+    //    1)  |--------|        |---------|
+    //       x1_min   x1_max   x2_min    x2_max
+    //    2)  |--------|        |---------|
+    //       x2_min   x2_max   x1_min    x1_max
+    if (x1_max < x2_min || x2_max < x1_min)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+constexpr bool isRectangleHorizontallyOverlapped(const QRectF& r1, const QRectF& r2)
+{
+    return isIntervalOverlap(r1.left(), r1.right(), r2.left(), r2.right());
+}
 
 }   // namespace pdf
 

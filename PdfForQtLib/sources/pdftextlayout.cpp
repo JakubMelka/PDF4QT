@@ -261,7 +261,7 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
         QRectF aBB = blocks[aIndex].getBoundingBox().boundingRect();
         QRectF bBB = blocks[bIndex].getBoundingBox().boundingRect();
 
-        const bool isOverlappedOnHorizontalAxis = (aBB.right() < bBB.left() && aBB.left() < bBB.right()) || (bBB.right() < aBB.left() && bBB.left() < aBB.right());
+        const bool isOverlappedOnHorizontalAxis = isRectangleHorizontallyOverlapped(aBB, bBB);
         const bool isAoverB = aBB.bottom() > bBB.top();
         return isOverlappedOnHorizontalAxis && isAoverB;
     };
@@ -284,8 +284,8 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
                 QRectF cBB = blocks[i].getBoundingBox().boundingRect();
                 if (cBB.top() >= abBB.top() && cBB.bottom() <= abBB.bottom())
                 {
-                    const bool isAOverlappedOnHorizontalAxis = (aBB.right() < cBB.left() && aBB.left() < cBB.right()) || (cBB.right() < aBB.left() && cBB.left() < aBB.right());
-                    const bool isBOverlappedOnHorizontalAxis = (cBB.right() < bBB.left() && cBB.left() < bBB.right()) || (bBB.right() < cBB.left() && bBB.left() < cBB.right());
+                    const bool isAOverlappedOnHorizontalAxis = isRectangleHorizontallyOverlapped(aBB, cBB);
+                    const bool isBOverlappedOnHorizontalAxis = isRectangleHorizontallyOverlapped(bBB, cBB);
                     if (isAOverlappedOnHorizontalAxis && isBOverlappedOnHorizontalAxis)
                     {
                         return false;
@@ -310,7 +310,7 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
         workBlocks.insert(workBlocks.end(), i);
         for (size_t j = 0; j < blocks.size(); ++j)
         {
-            if (isBeforeByRule1(j, i) || isBeforeByRule2(j, i))
+            if (i != j && (isBeforeByRule1(j, i) || isBeforeByRule2(j, i)))
             {
                 orderingEdges[i].insert(j);
             }
@@ -361,11 +361,13 @@ PDFTextLine::PDFTextLine(TextCharacters characters) :
         boundingBox = boundingBox.united(character.boundingBox.boundingRect());
     }
     m_boundingBox.addRect(boundingBox);
+    m_topLeft = boundingBox.topLeft();
 }
 
 void PDFTextLine::applyTransform(const QMatrix& matrix)
 {
     m_boundingBox = matrix.map(m_boundingBox);
+    m_topLeft = matrix.map(m_topLeft);
     for (TextCharacter& character : m_characters)
     {
         character.applyTransform(matrix);
@@ -383,7 +385,7 @@ PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
         const PDFReal xR = br.x();
         const PDFReal yL = qRound(bl.y() * 100.0);
         const PDFReal yR = qRound(br.y() * 100.0);
-        return std::tie(yL, xL) < std::tie(yR, xR);
+        return std::tie(-yL, xL) < std::tie(-yR, xR);
     };
     std::sort(m_lines.begin(), m_lines.end(), sortFunction);
 
@@ -393,11 +395,13 @@ PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
         boundingBox = boundingBox.united(line.getBoundingBox().boundingRect());
     }
     m_boundingBox.addRect(boundingBox);
+    m_topLeft = boundingBox.topLeft();
 }
 
 void PDFTextBlock::applyTransform(const QMatrix& matrix)
 {
     m_boundingBox = matrix.map(m_boundingBox);
+    m_topLeft = matrix.map(m_topLeft);
     for (PDFTextLine& textLine : m_lines)
     {
         textLine.applyTransform(matrix);

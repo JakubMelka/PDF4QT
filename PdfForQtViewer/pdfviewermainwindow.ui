@@ -89,11 +89,19 @@
     </property>
     <addaction name="actionAbout"/>
    </widget>
+   <widget class="QMenu" name="menuDeveloper">
+    <property name="title">
+     <string>Developer</string>
+    </property>
+    <addaction name="actionShow_Text_Blocks"/>
+    <addaction name="actionShow_Text_Lines"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
    <addaction name="menuGoTo"/>
    <addaction name="menuTools"/>
    <addaction name="menuHelp"/>
+   <addaction name="menuDeveloper"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -314,6 +322,22 @@
    </property>
    <property name="text">
     <string>Send by E-Mail</string>
+   </property>
+  </action>
+  <action name="actionShow_Text_Blocks">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Text Blocks</string>
+   </property>
+  </action>
+  <action name="actionShow_Text_Lines">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Text Lines</string>
    </property>
   </action>
  </widget>

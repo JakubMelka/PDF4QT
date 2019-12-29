@@ -104,12 +104,14 @@ public:
 
     const TextCharacters& getCharacters() const { return m_characters; }
     const QPainterPath& getBoundingBox() const { return m_boundingBox; }
+    const QPointF& getTopLeft() const { return m_topLeft; }
 
     void applyTransform(const QMatrix& matrix);
 
 private:
     TextCharacters m_characters;
     QPainterPath m_boundingBox;
+    QPointF m_topLeft;
 };
 
 using PDFTextLines = std::vector<PDFTextLine>;
@@ -122,12 +124,14 @@ public:
 
     const PDFTextLines& getLines() const { return m_lines; }
     const QPainterPath& getBoundingBox() const { return m_boundingBox; }
+    const QPointF& getTopLeft() const { return m_topLeft; }
 
     void applyTransform(const QMatrix& matrix);
 
 private:
     PDFTextLines m_lines;
     QPainterPath m_boundingBox;
+    QPointF m_topLeft;
 };
 
 using PDFTextBlocks = std::vector<PDFTextBlock>;
@@ -150,6 +154,9 @@ public:
 
     /// Returns estimate of number of bytes, which this mesh occupies in memory
     qint64 getMemoryConsumptionEstimate() const;
+
+    /// Returns recognized text blocks
+    const PDFTextBlocks& getTextBlocks() const { return m_blocks; }
 
 private:
     /// Makes layout for particular angle

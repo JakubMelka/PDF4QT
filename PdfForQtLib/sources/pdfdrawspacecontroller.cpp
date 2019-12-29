@@ -25,6 +25,7 @@
 #include "pdfcms.h"
 
 #include <QPainter>
+#include <QFontMetrics>
 
 namespace pdf
 {
@@ -621,6 +622,55 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, placedRect);
                 compiledPage->draw(painter, page->getCropBox(), matrix, m_features);
+
+                // Draw text blocks/text lines, if it is enabled
+                if (m_features.testFlag(PDFRenderer::DebugTextBlocks))
+                {
+                    const PDFTextLayout& layout = compiledPage->getTextLayout();
+                    const PDFTextBlocks& textBlocks = layout.getTextBlocks();
+
+                    painter->save();
+                    painter->setFont(m_widget->font());
+                    painter->setPen(Qt::red);
+                    painter->setBrush(QColor(255, 0, 0, 128));
+
+                    QFontMetricsF fontMetrics(painter->font(), painter->device());
+                    int blockIndex = 1;
+                    for (const PDFTextBlock& block : textBlocks)
+                    {
+                        QString blockNumber = QString::number(blockIndex++);
+
+                        painter->drawPath(matrix.map(block.getBoundingBox()));
+                        painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.width(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
+                    }
+
+                    painter->restore();
+                }
+                if (m_features.testFlag(PDFRenderer::DebugTextLines))
+                {
+                    const PDFTextLayout& layout = compiledPage->getTextLayout();
+                    const PDFTextBlocks& textBlocks = layout.getTextBlocks();
+
+                    painter->save();
+                    painter->setFont(m_widget->font());
+                    painter->setPen(Qt::green);
+                    painter->setBrush(QColor(0, 255, 0, 128));
+
+                    QFontMetricsF fontMetrics(painter->font(), painter->device());
+                    int lineIndex = 1;
+                    for (const PDFTextBlock& block : textBlocks)
+                    {
+                        for (const PDFTextLine& line : block.getLines())
+                        {
+                            QString lineNumber = QString::number(lineIndex++);
+
+                            painter->drawPath(matrix.map(line.getBoundingBox()));
+                            painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.width(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
+                        }
+                    }
+
+                    painter->restore();
+                }
 
                 const qint64 drawTimeNS = timer.nsecsElapsed();
 

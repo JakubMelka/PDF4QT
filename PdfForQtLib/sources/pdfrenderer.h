@@ -49,6 +49,8 @@ public:
         IgnoreOptionalContent   = 0x0008,   ///< Ignore optional content (so all is drawn ignoring settings of optional content)
         ClipToCropBox           = 0x0010,   ///< Clip page content to crop box (items outside crop box will not be visible)
         DisplayTimes            = 0x0020,   ///< Display page compile/draw time
+        DebugTextBlocks         = 0x0040,   ///< Debug text block layout algorithm
+        DebugTextLines          = 0x0080,   ///< Debug text line layout algorithm
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
