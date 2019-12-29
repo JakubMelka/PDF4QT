@@ -75,6 +75,14 @@ qint64 PDFTextLayout::getMemoryConsumptionEstimate() const
     return estimate;
 }
 
+struct NearestCharacterInfo
+{
+    size_t index = std::numeric_limits<size_t>::max();
+    PDFReal distance = std::numeric_limits<PDFReal>::infinity();
+
+    inline bool operator<(const NearestCharacterInfo& other) const { return distance < other.distance; }
+};
+
 void PDFTextLayout::performDoLayout(PDFReal angle)
 {
     // We will implement variation of 'docstrum' algorithm, we have divided characters by angles,
@@ -97,19 +105,11 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     applyTransform(characters, angleMatrix);
 
     // Step 2) - find k-nearest characters
-    struct NearestCharacterInfo
-    {
-        size_t index = std::numeric_limits<size_t>::max();
-        PDFReal distance = std::numeric_limits<PDFReal>::infinity();
-
-        inline bool operator<(const NearestCharacterInfo& other) const { return distance < other.distance; }
-    };
-
     const size_t characterCount = characters.size();
     const size_t bucketSize = m_settings.samples + 1;
     std::vector<NearestCharacterInfo> nearestCharacters(bucketSize * characters.size(), NearestCharacterInfo());
 
-    auto findNearestCharacters = [&](size_t currentCharacterIndex)
+    auto findNearestCharacters = [this, bucketSize, characterCount, &characters, &nearestCharacters](size_t currentCharacterIndex)
     {
         // It will be iterator to the start of the nearest neighbour sequence
         auto it = std::next(nearestCharacters.begin(), currentCharacterIndex * bucketSize);
@@ -129,8 +129,29 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
 
             // Now, use insert sort to sort the array of samples + 1 elements (#samples elements
             // are sorted, we use only insert sort on the last element).
-            auto itInsert = std::upper_bound(it, itLast, *itLast);
-            std::rotate(itInsert, itLast, itLast + 1);
+            auto itLeft = std::prev(itLast);
+            auto itRight = itLast;
+            while (true)
+            {
+                if (*itRight < *itLeft)
+                {
+                    std::swap(*itRight, *itLeft);
+                    itRight = itLeft;
+
+                    if (itLeft == it)
+                    {
+                        // We have reached the end
+                        break;
+                    }
+
+                    --itLeft;
+                }
+                else
+                {
+                    // We have proper order, break the cycle
+                    break;
+                }
+            }
         }
     };
 
@@ -222,8 +243,95 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
         blocks.emplace_back(qMove(item.second));
     }
 
-    // Transform blocks back to original coordinate system
-    volatile int i = 0;
+    // 5) Sort block by topological ordering. We will use approache described in paper
+    // "High Performance Document Layout Analysis", T.M. Breuel, 2003, where are described
+    // two rules, which are used to determine block precedence.
+    //
+    // Rule 1: a<b, if:
+    //    - blocks a,b have overlap in x-axis
+    //    - block a is above block b
+    //
+    // Rule 2: a<b, if:
+    //    - block a is entirely on left side of block b
+    //    - there doesn't exist block c, which is between a,b in y-axis
+    //      and moreover, overlaps both a and b in x-axis.
+
+    auto isBeforeByRule1 = [&blocks](const size_t aIndex, const size_t bIndex)
+    {
+        QRectF aBB = blocks[aIndex].getBoundingBox().boundingRect();
+        QRectF bBB = blocks[bIndex].getBoundingBox().boundingRect();
+
+        const bool isOverlappedOnHorizontalAxis = (aBB.right() < bBB.left() && aBB.left() < bBB.right()) || (bBB.right() < aBB.left() && bBB.left() < aBB.right());
+        const bool isAoverB = aBB.bottom() > bBB.top();
+        return isOverlappedOnHorizontalAxis && isAoverB;
+    };
+    auto isBeforeByRule2 = [&blocks](const size_t aIndex, const size_t bIndex)
+    {
+        QRectF aBB = blocks[aIndex].getBoundingBox().boundingRect();
+        QRectF bBB = blocks[bIndex].getBoundingBox().boundingRect();
+        QRectF abBB = aBB.united(bBB);
+
+        if (aBB.right() < bBB.left())
+        {
+            // Check, if 'c' block doesn't exist
+            for (size_t i = 0, count = blocks.size(); i < count; ++i)
+            {
+                if (i == aIndex || i == bIndex)
+                {
+                    continue;
+                }
+
+                QRectF cBB = blocks[i].getBoundingBox().boundingRect();
+                if (cBB.top() >= abBB.top() && cBB.bottom() <= abBB.bottom())
+                {
+                    const bool isAOverlappedOnHorizontalAxis = (aBB.right() < cBB.left() && aBB.left() < cBB.right()) || (cBB.right() < aBB.left() && cBB.left() < aBB.right());
+                    const bool isBOverlappedOnHorizontalAxis = (cBB.right() < bBB.left() && cBB.left() < bBB.right()) || (bBB.right() < cBB.left() && bBB.left() < cBB.right());
+                    if (isAOverlappedOnHorizontalAxis && isBOverlappedOnHorizontalAxis)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    };
+
+    // Order blocks using topological sort (https://en.wikipedia.org/wiki/Topological_sorting,
+    // Kahn's algorithm is used)
+    std::set<size_t> workBlocks;
+    std::vector<size_t> ordering;
+    std::vector<std::set<size_t>> orderingEdges(blocks.size(), std::set<size_t>());
+    ordering.reserve(blocks.size());
+    for (size_t i = 0; i < blocks.size(); ++i)
+    {
+        workBlocks.insert(workBlocks.end(), i);
+        for (size_t j = 0; j < blocks.size(); ++j)
+        {
+            if (isBeforeByRule1(j, i) || isBeforeByRule2(j, i))
+            {
+                orderingEdges[i].insert(j);
+            }
+        }
+    }
+
+    // Topological sort
+    QMatrix invertedAngleMatrix = angleMatrix.inverted();
+    while (!workBlocks.empty())
+    {
+        auto it = std::min_element(workBlocks.begin(), workBlocks.end(), [&orderingEdges](const size_t l, const size_t r) { return orderingEdges[l].size() < orderingEdges[r].size(); });
+        ordering.push_back(*it);
+        for (std::set<size_t>& edges : orderingEdges)
+        {
+            edges.erase(*it);
+        }
+
+        blocks[*it].applyTransform(invertedAngleMatrix);
+        m_blocks.emplace_back(qMove(blocks[*it]));
+        workBlocks.erase(it);
+    }
 }
 
 TextCharacters PDFTextLayout::getCharactersForAngle(PDFReal angle) const
@@ -255,6 +363,15 @@ PDFTextLine::PDFTextLine(TextCharacters characters) :
     m_boundingBox.addRect(boundingBox);
 }
 
+void PDFTextLine::applyTransform(const QMatrix& matrix)
+{
+    m_boundingBox = matrix.map(m_boundingBox);
+    for (TextCharacter& character : m_characters)
+    {
+        character.applyTransform(matrix);
+    }
+}
+
 PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
     m_lines(qMove(textLines))
 {
@@ -276,6 +393,21 @@ PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
         boundingBox = boundingBox.united(line.getBoundingBox().boundingRect());
     }
     m_boundingBox.addRect(boundingBox);
+}
+
+void PDFTextBlock::applyTransform(const QMatrix& matrix)
+{
+    m_boundingBox = matrix.map(m_boundingBox);
+    for (PDFTextLine& textLine : m_lines)
+    {
+        textLine.applyTransform(matrix);
+    }
+}
+
+void TextCharacter::applyTransform(const QMatrix& matrix)
+{
+    position = matrix.map(position);
+    boundingBox = matrix.map(boundingBox);
 }
 
 }   // namespace pdf

@@ -87,6 +87,8 @@ struct TextCharacter
     PDFReal fontSize = 0.0;
     PDFReal advance = 0.0;
     QPainterPath boundingBox;
+
+    void applyTransform(const QMatrix& matrix);
 };
 
 using TextCharacters = std::vector<TextCharacter>;
@@ -103,6 +105,8 @@ public:
     const TextCharacters& getCharacters() const { return m_characters; }
     const QPainterPath& getBoundingBox() const { return m_boundingBox; }
 
+    void applyTransform(const QMatrix& matrix);
+
 private:
     TextCharacters m_characters;
     QPainterPath m_boundingBox;
@@ -118,6 +122,8 @@ public:
 
     const PDFTextLines& getLines() const { return m_lines; }
     const QPainterPath& getBoundingBox() const { return m_boundingBox; }
+
+    void applyTransform(const QMatrix& matrix);
 
 private:
     PDFTextLines m_lines;
@@ -146,7 +152,6 @@ public:
     qint64 getMemoryConsumptionEstimate() const;
 
 private:
-
     /// Makes layout for particular angle
     void performDoLayout(PDFReal angle);
 
@@ -163,6 +168,7 @@ private:
     TextCharacters m_characters;
     std::set<PDFReal> m_angles;
     PDFTextLayoutSettings m_settings;
+    PDFTextBlocks m_blocks;
 };
 
 }   // namespace pdf
