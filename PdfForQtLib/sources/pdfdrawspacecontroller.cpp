@@ -626,7 +626,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 // Draw text blocks/text lines, if it is enabled
                 if (m_features.testFlag(PDFRenderer::DebugTextBlocks))
                 {
-                    const PDFTextLayout& layout = compiledPage->getTextLayout();
+                    PDFTextLayout layout = m_compiler->getTextLayout(item.pageIndex);
                     const PDFTextBlocks& textBlocks = layout.getTextBlocks();
 
                     painter->save();
@@ -648,7 +648,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 }
                 if (m_features.testFlag(PDFRenderer::DebugTextLines))
                 {
-                    const PDFTextLayout& layout = compiledPage->getTextLayout();
+                    PDFTextLayout layout = m_compiler->getTextLayout(item.pageIndex);
                     const PDFTextBlocks& textBlocks = layout.getTextBlocks();
 
                     painter->save();

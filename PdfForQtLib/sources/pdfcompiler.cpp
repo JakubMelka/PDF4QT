@@ -21,6 +21,8 @@
 
 #include <QtConcurrent/QtConcurrent>
 
+#include <execution>
+
 namespace pdf
 {
 
@@ -72,6 +74,7 @@ void PDFAsynchronousPageCompiler::stop()
             }
             m_tasks.clear();
             m_cache.clear();
+            m_textLayouts.dirty();
 
             m_state = State::Inactive;
             break;
@@ -129,6 +132,17 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
     return page;
 }
 
+PDFTextLayout PDFAsynchronousPageCompiler::getTextLayout(PDFInteger pageIndex)
+{
+    if (m_state != State::Active || !m_proxy->getDocument())
+    {
+        // Engine is not active, always return empty layout
+        return PDFTextLayout();
+    }
+
+    return m_textLayouts.get(this, &PDFAsynchronousPageCompiler::getTextLayoutsImpl).getTextLayout(pageIndex);
+}
+
 void PDFAsynchronousPageCompiler::onPageCompiled()
 {
     std::vector<PDFInteger> compiledPages;
@@ -175,6 +189,117 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
         Q_ASSERT(std::is_sorted(compiledPages.cbegin(), compiledPages.cend()));
         emit pageImageChanged(false, compiledPages);
     }
+}
+
+class PDFTextLayoutGenerator : public PDFPageContentProcessor
+{
+    using BaseClass = PDFPageContentProcessor;
+
+public:
+    explicit PDFTextLayoutGenerator(PDFRenderer::Features features,
+                                    const PDFPage* page,
+                                    const PDFDocument* document,
+                                    const PDFFontCache* fontCache,
+                                    const PDFCMS* cms,
+                                    const PDFOptionalContentActivity* optionalContentActivity,
+                                    QMatrix pagePointToDevicePointMatrix,
+                                    const PDFMeshQualitySettings& meshQualitySettings) :
+        BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+        m_features(features)
+    {
+
+    }
+
+    /// Creates text layout from the text
+    PDFTextLayout createTextLayout();
+
+protected:
+    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
+    virtual bool isContentKindSuppressed(ContentKind kind) const override;
+    virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
+
+private:
+    PDFRenderer::Features m_features;
+    PDFTextLayout m_textLayout;
+};
+
+PDFTextLayout PDFTextLayoutGenerator::createTextLayout()
+{
+    m_textLayout.perform();
+    m_textLayout.optimize();
+    return qMove(m_textLayout);
+}
+
+bool PDFTextLayoutGenerator::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
+{
+    if (m_features.testFlag(PDFRenderer::IgnoreOptionalContent))
+    {
+        return false;
+    }
+
+    return PDFPageContentProcessor::isContentSuppressedByOC(ocgOrOcmd);
+}
+
+bool PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) const
+{
+    switch (kind)
+    {
+        case ContentKind::Shapes:
+        case ContentKind::Text:
+        case ContentKind::Images:
+        case ContentKind::Shading:
+            return true;
+
+        case ContentKind::Tiling:
+            return false; // Tiling can have text
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    return false;
+}
+
+void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& info)
+{
+    m_textLayout.addCharacter(info);
+}
+
+PDFTextLayoutStorage PDFAsynchronousPageCompiler::getTextLayoutsImpl()
+{
+    m_proxy->getFontCache()->setCacheShrinkEnabled(false);
+    const PDFCatalog* catalog = m_proxy->getDocument()->getCatalog();
+
+    PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
+    PDFTextLayoutStorage result(catalog->getPageCount());
+    QMutex mutex;
+    auto generateTextLayout = [this, &result, &mutex, &cms, catalog](PDFInteger pageIndex)
+    {
+        if (!catalog->getPage(pageIndex))
+        {
+            // Invalid page index
+            result.setTextLayout(pageIndex, PDFTextLayout(), &mutex);
+            return;
+        }
+
+        const PDFPage* page = catalog->getPage(pageIndex);
+        Q_ASSERT(page);
+
+        PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QMatrix(), m_proxy->getMeshQualitySettings());
+        generator.processContents();
+        result.setTextLayout(pageIndex, generator.createTextLayout(), &mutex);
+    };
+
+    auto pageRange = PDFIntegerRange<PDFInteger>(0, catalog->getPageCount());
+    std::for_each(std::execution::parallel_policy(), pageRange.begin(), pageRange.end(), generateTextLayout);
+
+    // We allow font cache shrinking, when we aren't doing something in parallel.
+    m_proxy->getFontCache()->setCacheShrinkEnabled(m_tasks.empty());
+
+    return result;
 }
 
 }   // namespace pdf

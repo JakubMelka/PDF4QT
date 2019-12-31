@@ -392,6 +392,12 @@ void PDFPageContentProcessor::performOutputCharacter(const PDFTextCharacterInfo&
     Q_UNUSED(info);
 }
 
+bool PDFPageContentProcessor::isContentKindSuppressed(PDFPageContentProcessor::ContentKind kind) const
+{
+    Q_UNUSED(kind);
+    return false;
+}
+
 bool PDFPageContentProcessor::isContentSuppressed() const
 {
     return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
@@ -630,7 +636,7 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix,
 
 void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
-    if (isContentSuppressed())
+    if (isContentSuppressed() || (text && isContentKindSuppressed(ContentKind::Text)) || (!text && isContentKindSuppressed(ContentKind::Shapes)))
     {
         // Content is suppressed, do not paint anything
         return;
@@ -651,51 +657,59 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
             {
                 case PatternType::Tiling:
                 {
-                    const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
-                    processTillingPatternPainting(tilingPattern, path, patternColorSpace->getUncoloredPatternColorSpace(), patternColorSpace->getUncoloredPatternColor());
+                    if (!isContentKindSuppressed(ContentKind::Tiling))
+                    {
+                        // Tiling is enabled
+                        const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
+                        processTillingPatternPainting(tilingPattern, path, patternColorSpace->getUncoloredPatternColorSpace(), patternColorSpace->getUncoloredPatternColor());
+                    }
                     break;
                 }
 
                 case PatternType::Shading:
                 {
-                    PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
-                    const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
-
-                    // Apply pattern graphic state
-                    const PDFObject& patternGraphicState = m_document->getObject(shadingPattern->getPatternGraphicState());
-                    if (!patternGraphicState.isNull())
+                    if (!isContentKindSuppressed(ContentKind::Shading))
                     {
-                        if (patternGraphicState.isDictionary())
+                        // Shading is enabled
+                        PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
+                        const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
+
+                        // Apply pattern graphic state
+                        const PDFObject& patternGraphicState = m_document->getObject(shadingPattern->getPatternGraphicState());
+                        if (!patternGraphicState.isNull())
                         {
-                            processApplyGraphicState(patternGraphicState.getDictionary());
+                            if (patternGraphicState.isDictionary())
+                            {
+                                processApplyGraphicState(patternGraphicState.getDictionary());
+                            }
+                            else
+                            {
+                                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading pattern graphic state is invalid."));
+                            }
+                        }
+
+                        // We must create a mesh and then draw pattern
+                        PDFMeshQualitySettings settings = m_meshQualitySettings;
+                        settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+                        settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                        settings.initResolution();
+
+                        PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
+
+                        // Now, merge the current path to the mesh clipping path
+                        QPainterPath boundingPath = mesh.getBoundingPath();
+                        if (boundingPath.isEmpty())
+                        {
+                            boundingPath = getCurrentWorldMatrix().map(path);
                         }
                         else
                         {
-                            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading pattern graphic state is invalid."));
+                            boundingPath = boundingPath.intersected(path);
                         }
+                        mesh.setBoundingPath(boundingPath);
+
+                        performMeshPainting(mesh);
                     }
-
-                    // We must create a mesh and then draw pattern
-                    PDFMeshQualitySettings settings = m_meshQualitySettings;
-                    settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-                    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-                    settings.initResolution();
-
-                    PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
-
-                    // Now, merge the current path to the mesh clipping path
-                    QPainterPath boundingPath = mesh.getBoundingPath();
-                    if (boundingPath.isEmpty())
-                    {
-                        boundingPath = getCurrentWorldMatrix().map(path);
-                    }
-                    else
-                    {
-                        boundingPath = boundingPath.intersected(path);
-                    }
-                    mesh.setBoundingPath(boundingPath);
-
-                    performMeshPainting(mesh);
                     break;
                 }
 
@@ -725,80 +739,88 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
             {
                 case PatternType::Tiling:
                 {
-                    const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
-
-                    // We must stroke the path.
-                    QPainterPathStroker stroker;
-                    stroker.setCapStyle(m_graphicState.getLineCapStyle());
-                    stroker.setWidth(m_graphicState.getLineWidth());
-                    stroker.setMiterLimit(m_graphicState.getMitterLimit());
-                    stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
-
-                    const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
-                    if (!lineDashPattern.isSolid())
+                    if (!isContentKindSuppressed(ContentKind::Tiling))
                     {
-                        stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
-                        stroker.setDashOffset(lineDashPattern.getDashOffset());
+                        // Tiling is enabled
+                        const PDFTilingPattern* tilingPattern = pattern->getTilingPattern();
+
+                        // We must stroke the path.
+                        QPainterPathStroker stroker;
+                        stroker.setCapStyle(m_graphicState.getLineCapStyle());
+                        stroker.setWidth(m_graphicState.getLineWidth());
+                        stroker.setMiterLimit(m_graphicState.getMitterLimit());
+                        stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
+
+                        const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
+                        if (!lineDashPattern.isSolid())
+                        {
+                            stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                            stroker.setDashOffset(lineDashPattern.getDashOffset());
+                        }
+                        QPainterPath strokedPath = stroker.createStroke(path);
+                        processTillingPatternPainting(tilingPattern, strokedPath, patternColorSpace->getUncoloredPatternColorSpace(), patternColorSpace->getUncoloredPatternColor());
                     }
-                    QPainterPath strokedPath = stroker.createStroke(path);
-                    processTillingPatternPainting(tilingPattern, strokedPath, patternColorSpace->getUncoloredPatternColorSpace(), patternColorSpace->getUncoloredPatternColor());
                     break;
                 }
 
                 case PatternType::Shading:
                 {
-                    PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
-                    const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
-
-                    // Apply pattern graphic state
-                    const PDFObject& patternGraphicState = m_document->getObject(shadingPattern->getPatternGraphicState());
-                    if (!patternGraphicState.isNull())
+                    if (!isContentKindSuppressed(ContentKind::Shading))
                     {
-                        if (patternGraphicState.isDictionary())
+                        // Shading is enabled
+                        PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
+                        const PDFShadingPattern* shadingPattern = pattern->getShadingPattern();
+
+                        // Apply pattern graphic state
+                        const PDFObject& patternGraphicState = m_document->getObject(shadingPattern->getPatternGraphicState());
+                        if (!patternGraphicState.isNull())
                         {
-                            processApplyGraphicState(patternGraphicState.getDictionary());
+                            if (patternGraphicState.isDictionary())
+                            {
+                                processApplyGraphicState(patternGraphicState.getDictionary());
+                            }
+                            else
+                            {
+                                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading pattern graphic state is invalid."));
+                            }
+                        }
+
+                        // We must create a mesh and then draw pattern
+                        PDFMeshQualitySettings settings = m_meshQualitySettings;
+                        settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+                        settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+                        settings.initResolution();
+
+                        PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
+
+                        // We must stroke the path.
+                        QPainterPathStroker stroker;
+                        stroker.setCapStyle(m_graphicState.getLineCapStyle());
+                        stroker.setWidth(m_graphicState.getLineWidth());
+                        stroker.setMiterLimit(m_graphicState.getMitterLimit());
+                        stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
+
+                        const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
+                        if (!lineDashPattern.isSolid())
+                        {
+                            stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                            stroker.setDashOffset(lineDashPattern.getDashOffset());
+                        }
+                        QPainterPath strokedPath = stroker.createStroke(path);
+
+                        QPainterPath boundingPath = mesh.getBoundingPath();
+                        if (boundingPath.isEmpty())
+                        {
+                            boundingPath = getCurrentWorldMatrix().map(strokedPath);
                         }
                         else
                         {
-                            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading pattern graphic state is invalid."));
+                            boundingPath = boundingPath.intersected(strokedPath);
                         }
+                        mesh.setBoundingPath(boundingPath);
+
+                        performMeshPainting(mesh);
                     }
-
-                    // We must create a mesh and then draw pattern
-                    PDFMeshQualitySettings settings = m_meshQualitySettings;
-                    settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
-                    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
-                    settings.initResolution();
-
-                    PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
-
-                    // We must stroke the path.
-                    QPainterPathStroker stroker;
-                    stroker.setCapStyle(m_graphicState.getLineCapStyle());
-                    stroker.setWidth(m_graphicState.getLineWidth());
-                    stroker.setMiterLimit(m_graphicState.getMitterLimit());
-                    stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
-
-                    const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
-                    if (!lineDashPattern.isSolid())
-                    {
-                        stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
-                        stroker.setDashOffset(lineDashPattern.getDashOffset());
-                    }
-                    QPainterPath strokedPath = stroker.createStroke(path);
-
-                    QPainterPath boundingPath = mesh.getBoundingPath();
-                    if (boundingPath.isEmpty())
-                    {
-                        boundingPath = getCurrentWorldMatrix().map(strokedPath);
-                    }
-                    else
-                    {
-                        boundingPath = boundingPath.intersected(strokedPath);
-                    }
-                    mesh.setBoundingPath(boundingPath);
-
-                    performMeshPainting(mesh);
                     break;
                 }
 
@@ -2626,6 +2648,12 @@ void PDFPageContentProcessor::operatorTextSetSpacingAndShowText(PDFReal t_w, PDF
 
 void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor::PDFOperandName name)
 {
+    if (isContentKindSuppressed(ContentKind::Shading))
+    {
+        // Images are suppressed
+        return;
+    }
+
     QMatrix matrix = getCurrentWorldMatrix();
     PDFPageContentProcessorStateGuard guard(this);
     PDFTemporaryValueChange guard2(&m_patternBaseMatrix, matrix);
@@ -2654,6 +2682,12 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
 
 void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 {
+    if (isContentKindSuppressed(ContentKind::Images))
+    {
+        // Images are suppressed
+        return;
+    }
+
     PDFColorSpacePointer colorSpace;
 
     const PDFDictionary* streamDictionary = stream->getDictionary();

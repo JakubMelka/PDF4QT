@@ -20,6 +20,7 @@
 
 #include "pdfrenderer.h"
 #include "pdfpainter.h"
+#include "pdftextlayout.h"
 
 #include <QCache>
 #include <QFuture>
@@ -72,12 +73,20 @@ public:
     /// \param compile Compile the page, if it is not found in the cache
     const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
 
+    /// Returns text layout of the page. If page index is invalid,
+    /// then empty text layout is returned.
+    /// \param pageIndex Page index
+    PDFTextLayout getTextLayout(PDFInteger pageIndex);
+
 signals:
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
     void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
 
 private:
     void onPageCompiled();
+
+    /// Returns text layouts for all pages
+    PDFTextLayoutStorage getTextLayoutsImpl();
 
     struct CompileTask
     {
@@ -89,6 +98,7 @@ private:
     State m_state = State::Inactive;
     QCache<PDFInteger, PDFPrecompiledPage> m_cache;
     std::map<PDFInteger, CompileTask> m_tasks;
+    PDFCachedItem<PDFTextLayoutStorage> m_textLayouts;
 };
 
 }   // namespace pdf

@@ -145,7 +145,6 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
     PDFPrecompiledPageGenerator generator(precompiledPage, m_features, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     QList<PDFRenderError> errors = generator.processContents();
     precompiledPage->optimize();
-    precompiledPage->createTextLayout();
     precompiledPage->finalize(timer.nsecsElapsed(), qMove(errors));
     timer.invalidate();
 }

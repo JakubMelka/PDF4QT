@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 
+#include <QDataStream>
 #include <QPainterPath>
 
 #include <set>
@@ -75,6 +76,9 @@ struct PDFTextLayoutSettings
 
     /// Minimal horizontal overlap for two lines considered to be in one block
     PDFReal blockOverlapSensitivity = 0.3;
+
+    friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayoutSettings& settings);
+    friend QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings);
 };
 
 /// Represents character in device space coordinates. All values (dimensions,
@@ -89,6 +93,9 @@ struct TextCharacter
     QPainterPath boundingBox;
 
     void applyTransform(const QMatrix& matrix);
+
+    friend QDataStream& operator<<(QDataStream& stream, const TextCharacter& character);
+    friend QDataStream& operator>>(QDataStream& stream, TextCharacter& character);
 };
 
 using TextCharacters = std::vector<TextCharacter>;
@@ -97,6 +104,8 @@ using TextCharacters = std::vector<TextCharacter>;
 class PDFTextLine
 {
 public:
+    explicit inline PDFTextLine() = default;
+
     /// Construct new line from characters. Characters are sorted in x-coordinate
     /// and bounding box is computed.
     /// \param characters
@@ -107,6 +116,9 @@ public:
     const QPointF& getTopLeft() const { return m_topLeft; }
 
     void applyTransform(const QMatrix& matrix);
+
+    friend QDataStream& operator<<(QDataStream& stream, const PDFTextLine& line);
+    friend QDataStream& operator>>(QDataStream& stream, PDFTextLine& line);
 
 private:
     TextCharacters m_characters;
@@ -120,6 +132,7 @@ using PDFTextLines = std::vector<PDFTextLine>;
 class PDFTextBlock
 {
 public:
+    explicit inline PDFTextBlock() = default;
     explicit inline PDFTextBlock(PDFTextLines textLines);
 
     const PDFTextLines& getLines() const { return m_lines; }
@@ -127,6 +140,9 @@ public:
     const QPointF& getTopLeft() const { return m_topLeft; }
 
     void applyTransform(const QMatrix& matrix);
+
+    friend QDataStream& operator<<(QDataStream& stream, const PDFTextBlock& block);
+    friend QDataStream& operator>>(QDataStream& stream, PDFTextBlock& block);
 
 private:
     PDFTextLines m_lines;
@@ -158,6 +174,9 @@ public:
     /// Returns recognized text blocks
     const PDFTextBlocks& getTextBlocks() const { return m_blocks; }
 
+    friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout);
+    friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);
+
 private:
     /// Makes layout for particular angle
     void performDoLayout(PDFReal angle);
@@ -176,6 +195,38 @@ private:
     std::set<PDFReal> m_angles;
     PDFTextLayoutSettings m_settings;
     PDFTextBlocks m_blocks;
+};
+
+/// Storage for text layouts. For reading and writing, this object is thread safe.
+/// For writing, mutex is used to synchronize asynchronous writes, for reading
+/// no mutex is used at all. For this reason, both reading/writing at the same time
+/// is prohibited, it is not thread safe.
+class PDFTextLayoutStorage
+{
+public:
+    explicit inline PDFTextLayoutStorage() = default;
+    explicit inline PDFTextLayoutStorage(PDFInteger pageCount) :
+        m_offsets(pageCount, 0)
+    {
+
+    }
+
+    /// Returns text layout for particular page. If page index is invalid,
+    /// then empty text layout is returned. Function is not thread safe, if
+    /// function \p setTextLayout is called from another thread.
+    /// \param pageIndex Page index
+    PDFTextLayout getTextLayout(PDFInteger pageIndex) const;
+
+    /// Sets text layout to the particular index. Index must be valid and from
+    /// range 0 to \p pageCount - 1. Function is not thread safe.
+    /// \param pageIndex Page index
+    /// \param layout Text layout
+    /// \param mutex Mutex for locking (calls of setTextLayout from multiple threads)
+    void setTextLayout(PDFInteger pageIndex, const PDFTextLayout& layout, QMutex* mutex);
+
+private:
+    std::vector<int> m_offsets;
+    QByteArray m_textLayouts;
 };
 
 }   // namespace pdf

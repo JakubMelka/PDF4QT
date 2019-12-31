@@ -493,6 +493,19 @@ protected:
     /// Implement to react on character printing
     virtual void performOutputCharacter(const PDFTextCharacterInfo& info);
 
+    enum class ContentKind
+    {
+        Shapes,     ///< General shapes (they can be also shaded / tiled)
+        Text,       ///< Text outlines (they can be also shaded / tiled)
+        Images,     ///< Images
+        Shading,    ///< Shading
+        Tiling,     ///< Tiling
+    };
+
+    /// Override this function to disable particular content type (for example
+    /// shading, images, ...)
+    virtual bool isContentKindSuppressed(ContentKind kind) const;
+
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
 

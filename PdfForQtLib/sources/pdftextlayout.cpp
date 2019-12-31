@@ -23,6 +23,55 @@
 namespace pdf
 {
 
+template<typename T>
+QDataStream& operator>>(QDataStream& stream, std::vector<T>& vector)
+{
+    std::vector<T>::size_type size = 0;
+    stream >> size;
+    vector.resize(size);
+    for (T& item : vector)
+    {
+        stream >> item;
+    }
+    return stream;
+}
+
+template<typename T>
+QDataStream& operator<<(QDataStream& stream, const std::vector<T>& vector)
+{
+    stream << vector.size();
+    for (const T& item : vector)
+    {
+        stream << item;
+    }
+    return stream;
+}
+
+template<typename T>
+QDataStream& operator>>(QDataStream& stream, std::set<T>& set)
+{
+    std::set<T>::size_type size = 0;
+    stream >> size;
+    for (size_t i = 0; i < size; ++i)
+    {
+        T item;
+        stream >> item;
+        set.insert(set.end(), qMove(item));
+    }
+    return stream;
+}
+
+template<typename T>
+QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
+{
+    stream << set.size();
+    for (const T& item : set)
+    {
+        stream << item;
+    }
+    return stream;
+}
+
 PDFTextLayout::PDFTextLayout()
 {
 
@@ -73,6 +122,24 @@ qint64 PDFTextLayout::getMemoryConsumptionEstimate() const
     estimate += sizeof(decltype(m_characters)::value_type) * m_characters.capacity();
     estimate += sizeof(decltype(m_angles)::value_type) * m_angles.size();
     return estimate;
+}
+
+QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout)
+{
+    stream >> layout.m_characters;
+    stream >> layout.m_angles;
+    stream >> layout.m_settings;
+    stream >> layout.m_blocks;
+    return stream;
+}
+
+QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout)
+{
+    stream << layout.m_characters;
+    stream << layout.m_angles;
+    stream << layout.m_settings;
+    stream << layout.m_blocks;
+    return stream;
 }
 
 struct NearestCharacterInfo
@@ -374,6 +441,22 @@ void PDFTextLine::applyTransform(const QMatrix& matrix)
     }
 }
 
+QDataStream& operator>>(QDataStream& stream, PDFTextLine& line)
+{
+    stream >> line.m_characters;
+    stream >> line.m_boundingBox;
+    stream >> line.m_topLeft;
+    return stream;
+}
+
+QDataStream& operator<<(QDataStream& stream, const PDFTextLine& line)
+{
+    stream << line.m_characters;
+    stream << line.m_boundingBox;
+    stream << line.m_topLeft;
+    return stream;
+}
+
 PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
     m_lines(qMove(textLines))
 {
@@ -408,10 +491,106 @@ void PDFTextBlock::applyTransform(const QMatrix& matrix)
     }
 }
 
+QDataStream& operator>>(QDataStream& stream, PDFTextBlock& block)
+{
+    stream >> block.m_lines;
+    stream >> block.m_boundingBox;
+    stream >> block.m_topLeft;
+    return stream;
+}
+
+QDataStream& operator<<(QDataStream& stream, const PDFTextBlock& block)
+{
+    stream << block.m_lines;
+    stream << block.m_boundingBox;
+    stream << block.m_topLeft;
+    return stream;
+}
+
 void TextCharacter::applyTransform(const QMatrix& matrix)
 {
     position = matrix.map(position);
     boundingBox = matrix.map(boundingBox);
+}
+
+QDataStream& operator<<(QDataStream& stream, const TextCharacter& character)
+{
+    stream << character.character;
+    stream << character.position;
+    stream << character.angle;
+    stream << character.fontSize;
+    stream << character.advance;
+    stream << character.boundingBox;
+    return stream;
+}
+
+QDataStream& operator>>(QDataStream& stream, TextCharacter& character)
+{
+    stream >> character.character;
+    stream >> character.position;
+    stream >> character.angle;
+    stream >> character.fontSize;
+    stream >> character.advance;
+    stream >> character.boundingBox;
+    return stream;
+}
+
+PDFTextLayout PDFTextLayoutStorage::getTextLayout(PDFInteger pageIndex) const
+{
+    PDFTextLayout result;
+
+    if (pageIndex >= 0 && pageIndex < static_cast<PDFInteger>(m_offsets.size()))
+    {
+        QDataStream layoutStream(const_cast<QByteArray*>(&m_textLayouts), QIODevice::ReadOnly);
+        layoutStream.skipRawData(m_offsets[pageIndex]);
+
+        QByteArray buffer;
+        layoutStream >> buffer;
+        buffer = qUncompress(buffer);
+
+        QDataStream stream(&buffer, QIODevice::ReadOnly);
+        stream >> result;
+    }
+
+    return result;
+}
+
+void PDFTextLayoutStorage::setTextLayout(PDFInteger pageIndex, const PDFTextLayout& layout, QMutex* mutex)
+{
+    QByteArray result;
+    {
+        QDataStream stream(&result, QIODevice::WriteOnly);
+        stream << layout;
+    }
+    result = qCompress(result, 9);
+
+    QMutexLocker lock(mutex);
+    m_offsets[pageIndex] = m_textLayouts.size();
+
+    QDataStream layoutStream(&m_textLayouts, QIODevice::Append | QIODevice::WriteOnly);
+    layoutStream << result;
+}
+
+QDataStream& operator<<(QDataStream& stream, const PDFTextLayoutSettings& settings)
+{
+    stream << settings.samples;
+    stream << settings.distanceSensitivity;
+    stream << settings.charactersOnLineSensitivity;
+    stream << settings.fontSensitivity;
+    stream << settings.blockVerticalSensitivity;
+    stream << settings.blockOverlapSensitivity;
+    return stream;
+}
+
+QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings)
+{
+    stream >> settings.samples;
+    stream >> settings.distanceSensitivity;
+    stream >> settings.charactersOnLineSensitivity;
+    stream >> settings.fontSensitivity;
+    stream >> settings.blockVerticalSensitivity;
+    stream >> settings.blockOverlapSensitivity;
+    return stream;
 }
 
 }   // namespace pdf
