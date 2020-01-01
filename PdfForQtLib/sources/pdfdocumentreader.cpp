@@ -269,7 +269,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         };
 
         // Now, we are ready to scan all objects
-        progressStart(occupiedEntries.size());
+        progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Reading contents of document..."));
         std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
         progressFinish();
 
@@ -369,7 +369,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                 objects[entry.reference.objectNumber].object = securityHandler->decryptObject(objects[entry.reference.objectNumber].object, entry.reference);
             };
 
-            progressStart(occupiedEntries.size());
+            progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Decrypting encrypted contents of document..."));
             std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
             progressFinish();
         }
@@ -529,11 +529,15 @@ int PDFDocumentReader::findFromEnd(const char* what, const QByteArray& byteArray
     return FIND_NOT_FOUND_RESULT;
 }
 
-void PDFDocumentReader::progressStart(size_t stepCount)
+void PDFDocumentReader::progressStart(size_t stepCount, QString text)
 {
     if (m_progress)
     {
-        m_progress->start(stepCount);
+        ProgressStartupInfo info;
+        info.showDialog = !text.isEmpty();
+        info.text = qMove(text);
+
+        m_progress->start(stepCount, qMove(info));
     }
 }
 

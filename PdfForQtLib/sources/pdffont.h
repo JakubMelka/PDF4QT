@@ -27,6 +27,7 @@
 #include <QSharedPointer>
 #include <QTreeWidgetItem>
 
+#include <set>
 #include <unordered_map>
 
 class QPainterPath;
@@ -388,7 +389,6 @@ class PDFFontCache
 {
 public:
     inline explicit PDFFontCache(size_t fontCacheLimit, size_t realizedFontCacheLimit) :
-        m_fontCacheShrinkEnabled(true),
         m_fontCacheLimit(fontCacheLimit),
         m_realizedFontCacheLimit(realizedFontCacheLimit),
         m_document(nullptr)
@@ -414,7 +414,12 @@ public:
 
     /// Sets or unsets font shrinking (i.e. font can be deleted from the cache). In multithreading environment,
     /// font deletion is not thread safe. For this reason, disable font deletion by calling this function.
-    void setCacheShrinkEnabled(bool enabled);
+    /// First parameter, \p source determines which object enables cache shrinking (so some objects can
+    /// enable shrinking, while some objects will disable it). Only if all objects enables cache shrinking,
+    /// then cache can shrink.
+    /// \param source Source object
+    /// \param enabled Enable or disable cache shrinking
+    void setCacheShrinkEnabled(void* source, bool enabled);
 
     /// Set font cache limits
     void setCacheLimits(int fontCacheLimit, int instancedFontCacheLimit);
@@ -423,13 +428,13 @@ public:
     void shrink();
 
 private:
-    bool m_fontCacheShrinkEnabled;
     size_t m_fontCacheLimit;
     size_t m_realizedFontCacheLimit;
     mutable QMutex m_mutex;
     const PDFDocument* m_document;
     mutable std::map<PDFObjectReference, PDFFontPointer> m_fontCache;
     mutable std::map<std::pair<PDFFontPointer, PDFReal>, PDFRealizedFontPointer> m_realizedFontCache;
+    mutable std::set<void*> m_fontCacheShrinkDisabledObjects;
 };
 
 /// Performs mapping from CID to GID (even identity mapping, if byte array is empty)

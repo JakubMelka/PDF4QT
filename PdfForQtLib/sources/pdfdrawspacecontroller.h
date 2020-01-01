@@ -32,10 +32,12 @@ class QScrollBar;
 
 namespace pdf
 {
+class PDFProgress;
 class PDFWidget;
 class IDrawWidget;
 class PDFCMSManager;
 class PDFAsynchronousPageCompiler;
+class PDFAsynchronousTextLayoutCompiler;
 
 /// This class controls draw space - page layout. Pages are divided into blocks
 /// each block can contain one or multiple pages. Units are in milimeters.
@@ -274,6 +276,8 @@ public:
     const PDFMeshQualitySettings& getMeshQualitySettings() const { return m_meshQualitySettings; }
     PDFAsynchronousPageCompiler* getCompiler() const { return m_compiler; }
     const PDFCMSManager* getCMSManager() const;
+    PDFProgress* getProgress() const { return m_progress; }
+    void setProgress(PDFProgress* progress) { m_progress = progress; }
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);
@@ -326,6 +330,7 @@ private:
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
 
+    void onTextLayoutChanged();
     void onColorManagementSystemChanged();
     void onHorizontalScrollbarValueChanged(int value);
     void onVerticalScrollbarValueChanged(int value);
@@ -408,8 +413,14 @@ private:
     /// Page compiler
     PDFAsynchronousPageCompiler* m_compiler;
 
+    /// Text layout compiler
+    PDFAsynchronousTextLayoutCompiler* m_textLayoutCompiler;
+
     /// Page image rasterizer for thumbnails
     PDFRasterizer* m_rasterizer;
+
+    /// Progress
+    PDFProgress* m_progress;
 };
 
 }   // namespace pdf

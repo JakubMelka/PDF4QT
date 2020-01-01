@@ -59,6 +59,11 @@ void PDFDrawSpaceController::setDocument(const PDFDocument* document, const PDFO
     }
 }
 
+void PDFDrawSpaceController::onOptionalContentGroupStateChanged()
+{
+    emit pageImageChanged(true, { });
+}
+
 void PDFDrawSpaceController::setPageLayout(PageLayout pageLayout)
 {
     if (m_pageLayoutMode != pageLayout)
@@ -136,11 +141,6 @@ QSizeF PDFDrawSpaceController::getReferenceBoundingBox() const
     }
 
     return rect.size();
-}
-
-void PDFDrawSpaceController::onOptionalContentGroupStateChanged()
-{
-    emit pageImageChanged(true, { });
 }
 
 void PDFDrawSpaceController::recalculate()
@@ -400,7 +400,9 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_verticalScrollbar(nullptr),
     m_features(PDFRenderer::getDefaultFeatures()),
     m_compiler(new PDFAsynchronousPageCompiler(this)),
-    m_rasterizer(new PDFRasterizer(this))
+    m_textLayoutCompiler(new PDFAsynchronousTextLayoutCompiler(this)),
+    m_rasterizer(new PDFRasterizer(this)),
+    m_progress(nullptr)
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
@@ -408,6 +410,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     connect(m_controller, &PDFDrawSpaceController::pageImageChanged, this, &PDFDrawWidgetProxy::pageImageChanged);
     connect(m_compiler, &PDFAsynchronousPageCompiler::renderingError, this, &PDFDrawWidgetProxy::renderingError);
     connect(m_compiler, &PDFAsynchronousPageCompiler::pageImageChanged, this, &PDFDrawWidgetProxy::pageImageChanged);
+    connect(m_textLayoutCompiler, &PDFAsynchronousTextLayoutCompiler::textLayoutChanged, this, &PDFDrawWidgetProxy::onTextLayoutChanged);
 }
 
 PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
@@ -418,8 +421,10 @@ PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 void PDFDrawWidgetProxy::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
 {
     m_compiler->stop();
+    m_textLayoutCompiler->stop();
     m_controller->setDocument(document, optionalContentActivity);
     m_compiler->start();
+    m_textLayoutCompiler->start();
 }
 
 void PDFDrawWidgetProxy::init(PDFWidget* widget)
@@ -626,7 +631,8 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 // Draw text blocks/text lines, if it is enabled
                 if (m_features.testFlag(PDFRenderer::DebugTextBlocks))
                 {
-                    PDFTextLayout layout = m_compiler->getTextLayout(item.pageIndex);
+                    m_textLayoutCompiler->makeTextLayout();
+                    PDFTextLayout layout = m_textLayoutCompiler->getTextLayout(item.pageIndex);
                     const PDFTextBlocks& textBlocks = layout.getTextBlocks();
 
                     painter->save();
@@ -648,7 +654,8 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 }
                 if (m_features.testFlag(PDFRenderer::DebugTextLines))
                 {
-                    PDFTextLayout layout = m_compiler->getTextLayout(item.pageIndex);
+                    m_textLayoutCompiler->makeTextLayout();
+                    PDFTextLayout layout = m_textLayoutCompiler->getTextLayout(item.pageIndex);
                     const PDFTextBlocks& textBlocks = layout.getTextBlocks();
 
                     painter->save();
@@ -989,6 +996,11 @@ QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
                   rect.height() * m_deviceSpaceUnitToPixel);
 }
 
+void PDFDrawWidgetProxy::onTextLayoutChanged()
+{
+    emit repaintNeeded();
+}
+
 bool PDFDrawWidgetProxy::isBlockMode() const
 {
     switch (m_controller->getPageLayout())
@@ -1137,8 +1149,10 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
     if (m_features != features)
     {
         m_compiler->stop();
+        m_textLayoutCompiler->stop();
         m_features = features;
         m_compiler->start();
+        m_textLayoutCompiler->start();
         emit pageImageChanged(true, { });
     }
 }

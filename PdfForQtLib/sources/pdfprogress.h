@@ -27,19 +27,25 @@
 namespace pdf
 {
 
+struct ProgressStartupInfo
+{
+    bool showDialog = false;
+    QString text;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFProgress : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit PDFProgress(QObject* parent) : QObject(parent) { }
+    explicit PDFProgress(QObject* parent);
 
-    void start(size_t stepCount);
+    void start(size_t stepCount, ProgressStartupInfo startupInfo);
     void step();
     void finish();
 
 signals:
-    void progressStarted();
+    void progressStarted(ProgressStartupInfo info);
     void progressStep(int percentage);
     void progressFinished();
 
@@ -48,6 +54,8 @@ private:
     std::atomic<size_t> m_stepCount = 0;
     std::atomic<int> m_percentage = 0;
 };
+
+Q_DECLARE_METATYPE(ProgressStartupInfo)
 
 }   // namespace pdf
 

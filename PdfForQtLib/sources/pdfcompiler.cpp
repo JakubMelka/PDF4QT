@@ -18,6 +18,7 @@
 #include "pdfcompiler.h"
 #include "pdfcms.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfprogress.h"
 
 #include <QtConcurrent/QtConcurrent>
 
@@ -74,7 +75,6 @@ void PDFAsynchronousPageCompiler::stop()
             }
             m_tasks.clear();
             m_cache.clear();
-            m_textLayouts.dirty();
 
             m_state = State::Inactive;
             break;
@@ -121,7 +121,7 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
             return compiledPage;
         };
 
-        m_proxy->getFontCache()->setCacheShrinkEnabled(false);
+        m_proxy->getFontCache()->setCacheShrinkEnabled(this, false);
         CompileTask& task = m_tasks[pageIndex];
         task.taskFuture = QtConcurrent::run(compilePage);
         task.taskWatcher = new QFutureWatcher<PDFPrecompiledPage>(this);
@@ -130,17 +130,6 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
     }
 
     return page;
-}
-
-PDFTextLayout PDFAsynchronousPageCompiler::getTextLayout(PDFInteger pageIndex)
-{
-    if (m_state != State::Active || !m_proxy->getDocument())
-    {
-        // Engine is not active, always return empty layout
-        return PDFTextLayout();
-    }
-
-    return m_textLayouts.get(this, &PDFAsynchronousPageCompiler::getTextLayoutsImpl).getTextLayout(pageIndex);
 }
 
 void PDFAsynchronousPageCompiler::onPageCompiled()
@@ -182,7 +171,7 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
     }
 
     // We allow font cache shrinking, when we aren't doing something in parallel.
-    m_proxy->getFontCache()->setCacheShrinkEnabled(m_tasks.empty());
+    m_proxy->getFontCache()->setCacheShrinkEnabled(this, m_tasks.empty());
 
     if (!compiledPages.empty())
     {
@@ -268,38 +257,152 @@ void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& 
     m_textLayout.addCharacter(info);
 }
 
-PDFTextLayoutStorage PDFAsynchronousPageCompiler::getTextLayoutsImpl()
+PDFAsynchronousTextLayoutCompiler::PDFAsynchronousTextLayoutCompiler(PDFDrawWidgetProxy* proxy) :
+    BaseClass(proxy),
+    m_proxy(proxy)
 {
-    m_proxy->getFontCache()->setCacheShrinkEnabled(false);
-    const PDFCatalog* catalog = m_proxy->getDocument()->getCatalog();
+    connect(&m_textLayoutCompileFutureWatcher, &QFutureWatcher<PDFTextLayoutStorage>::finished, this, &PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated);
+}
 
-    PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
-    PDFTextLayoutStorage result(catalog->getPageCount());
-    QMutex mutex;
-    auto generateTextLayout = [this, &result, &mutex, &cms, catalog](PDFInteger pageIndex)
+void PDFAsynchronousTextLayoutCompiler::start()
+{
+    switch (m_state)
     {
-        if (!catalog->getPage(pageIndex))
+        case State::Inactive:
         {
-            // Invalid page index
-            result.setTextLayout(pageIndex, PDFTextLayout(), &mutex);
-            return;
+            m_state = State::Active;
+            break;
         }
 
-        const PDFPage* page = catalog->getPage(pageIndex);
-        Q_ASSERT(page);
+        case State::Active:
+            break; // We have nothing to do...
 
-        PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QMatrix(), m_proxy->getMeshQualitySettings());
-        generator.processContents();
-        result.setTextLayout(pageIndex, generator.createTextLayout(), &mutex);
+        case State::Stopping:
+        {
+            // We shouldn't call this function while stopping!
+            Q_ASSERT(false);
+            break;
+        }
+    }
+}
+
+void PDFAsynchronousTextLayoutCompiler::stop()
+{
+    switch (m_state)
+    {
+        case State::Inactive:
+            break; // We have nothing to do...
+
+        case State::Active:
+        {
+            // Stop the engine
+            m_state = State::Stopping;
+            m_textLayoutCompileFutureWatcher.waitForFinished();
+            m_textLayouts = std::nullopt;
+            m_state = State::Inactive;
+            break;
+        }
+
+        case State::Stopping:
+        {
+            // We shouldn't call this function while stopping!
+            Q_ASSERT(false);
+            break;
+        }
+    }
+}
+
+void PDFAsynchronousTextLayoutCompiler::reset()
+{
+    stop();
+    start();
+}
+
+PDFTextLayout PDFAsynchronousTextLayoutCompiler::getTextLayout(PDFInteger pageIndex)
+{
+    if (m_state != State::Active || !m_proxy->getDocument())
+    {
+        // Engine is not active, always return empty layout
+        return PDFTextLayout();
+    }
+
+    if (m_textLayouts)
+    {
+        return m_textLayouts->getTextLayout(pageIndex);
+    }
+
+    return PDFTextLayout();
+}
+
+void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
+{
+    if (m_state != State::Active || !m_proxy->getDocument())
+    {
+        // Engine is not active, do not calculate layout
+        return;
+    }
+
+    if (m_textLayouts.has_value())
+    {
+        // Value is computed already
+        return;
+    }
+
+    if (m_textLayoutCompileFuture.isRunning())
+    {
+        // Text layout is already being processed
+        return;
+    }
+
+    ProgressStartupInfo info;
+    info.showDialog = true;
+    info.text = tr("Generating text layouts for pages...");
+
+    m_proxy->getFontCache()->setCacheShrinkEnabled(this, false);
+    const PDFCatalog* catalog = m_proxy->getDocument()->getCatalog();
+    m_proxy->getProgress()->start(catalog->getPageCount(), qMove(info));
+
+    PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
+
+    auto createTextLayout = [this, cms, catalog]() -> PDFTextLayoutStorage
+    {
+        PDFTextLayoutStorage result(catalog->getPageCount());
+        QMutex mutex;
+        auto generateTextLayout = [this, &result, &mutex, cms, catalog](PDFInteger pageIndex)
+        {
+            if (!catalog->getPage(pageIndex))
+            {
+                // Invalid page index
+                result.setTextLayout(pageIndex, PDFTextLayout(), &mutex);
+                return;
+            }
+
+            const PDFPage* page = catalog->getPage(pageIndex);
+            Q_ASSERT(page);
+
+            PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QMatrix(), m_proxy->getMeshQualitySettings());
+            generator.processContents();
+            result.setTextLayout(pageIndex, generator.createTextLayout(), &mutex);
+            m_proxy->getProgress()->step();
+        };
+
+        auto pageRange = PDFIntegerRange<PDFInteger>(0, catalog->getPageCount());
+        std::for_each(std::execution::parallel_policy(), pageRange.begin(), pageRange.end(), generateTextLayout);
+        return result;
     };
 
-    auto pageRange = PDFIntegerRange<PDFInteger>(0, catalog->getPageCount());
-    std::for_each(std::execution::parallel_policy(), pageRange.begin(), pageRange.end(), generateTextLayout);
+    Q_ASSERT(!m_textLayoutCompileFuture.isRunning());
+    m_textLayoutCompileFuture = QtConcurrent::run(createTextLayout);
+    m_textLayoutCompileFutureWatcher.setFuture(m_textLayoutCompileFuture);
+}
 
-    // We allow font cache shrinking, when we aren't doing something in parallel.
-    m_proxy->getFontCache()->setCacheShrinkEnabled(m_tasks.empty());
+void PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated()
+{
+    m_proxy->getFontCache()->setCacheShrinkEnabled(this, true);
+    m_proxy->getProgress()->finish();
 
-    return result;
+    m_textLayouts = m_textLayoutCompileFuture.result();
+    emit textLayoutChanged();
 }
 
 }   // namespace pdf

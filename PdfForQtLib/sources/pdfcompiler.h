@@ -73,20 +73,12 @@ public:
     /// \param compile Compile the page, if it is not found in the cache
     const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
 
-    /// Returns text layout of the page. If page index is invalid,
-    /// then empty text layout is returned.
-    /// \param pageIndex Page index
-    PDFTextLayout getTextLayout(PDFInteger pageIndex);
-
 signals:
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
     void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
 
 private:
     void onPageCompiled();
-
-    /// Returns text layouts for all pages
-    PDFTextLayoutStorage getTextLayoutsImpl();
 
     struct CompileTask
     {
@@ -98,7 +90,57 @@ private:
     State m_state = State::Inactive;
     QCache<PDFInteger, PDFPrecompiledPage> m_cache;
     std::map<PDFInteger, CompileTask> m_tasks;
-    PDFCachedItem<PDFTextLayoutStorage> m_textLayouts;
+};
+
+class PDFAsynchronousTextLayoutCompiler : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFAsynchronousTextLayoutCompiler(PDFDrawWidgetProxy* proxy);
+
+    /// Starts the engine. Call this function only if the engine
+    /// is stopped.
+    void start();
+
+    /// Stops the engine and all underlying asynchronous tasks. Also
+    /// clears the cache. Call this function only if engine is active.
+    void stop();
+
+    /// Resets the engine - calls stop and then calls start.
+    void reset();
+
+    enum class State
+    {
+        Inactive,
+        Active,
+        Stopping
+    };
+
+    /// Returns text layout of the page. If page index is invalid,
+    /// then empty text layout is returned.
+    /// \param pageIndex Page index
+    PDFTextLayout getTextLayout(PDFInteger pageIndex);
+
+    /// Create text layout for the document. Function is asynchronous,
+    /// it returns immediately. After text layout is created, signal
+    /// \p textLayoutChanged is emitted.
+    void makeTextLayout();
+
+signals:
+    void textLayoutChanged();
+
+private:
+    void onTextLayoutCreated();
+
+    PDFDrawWidgetProxy* m_proxy;
+    State m_state = State::Inactive;
+    std::optional<PDFTextLayoutStorage> m_textLayouts;
+    QFuture<PDFTextLayoutStorage> m_textLayoutCompileFuture;
+    QFutureWatcher<PDFTextLayoutStorage> m_textLayoutCompileFutureWatcher;
 };
 
 }   // namespace pdf

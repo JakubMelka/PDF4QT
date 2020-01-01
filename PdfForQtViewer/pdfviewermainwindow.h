@@ -33,6 +33,7 @@
 #include <QWinTaskbarButton>
 #include <QWinTaskbarProgress>
 #include <QFutureWatcher>
+#include <QProgressDialog>
 
 class QLabel;
 class QSpinBox;
@@ -99,7 +100,7 @@ private:
     void onPageZoomSpinboxEditingFinished();
     void onActionTriggered(const pdf::PDFAction* action);
 
-    void onProgressStarted();
+    void onProgressStarted(pdf::ProgressStartupInfo info);
     void onProgressStep(int percentage);
     void onProgressFinished();
 
@@ -156,6 +157,9 @@ private:
 
     QFuture<AsyncReadingResult> m_future;
     QFutureWatcher<AsyncReadingResult> m_futureWatcher;
+
+    QProgressDialog* m_progressDialog;
+    bool m_isBusy;
 };
 
 }   // namespace pdfviewer

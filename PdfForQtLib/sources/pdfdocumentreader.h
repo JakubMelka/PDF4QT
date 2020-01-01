@@ -87,7 +87,7 @@ private:
     /// \returns Position of string, or FIND_NOT_FOUND_RESULT
     int findFromEnd(const char* what, const QByteArray& byteArray, int limit);
 
-    void progressStart(size_t stepCount);
+    void progressStart(size_t stepCount, QString text);
     void progressStep();
     void progressFinish();
 

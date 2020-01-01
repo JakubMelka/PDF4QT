@@ -1610,7 +1610,7 @@ PDFFontPointer PDFFontCache::getFont(const PDFObject& fontObject) const
             // We must create the font
             PDFFontPointer font = PDFFont::createFont(fontObject, m_document);
 
-            if (m_fontCacheShrinkEnabled && m_fontCache.size() >= m_fontCacheLimit)
+            if (m_fontCacheShrinkDisabledObjects.empty() && m_fontCache.size() >= m_fontCacheLimit)
             {
                 // We have exceeded the cache limit. Clear the cache.
                 m_fontCache.clear();
@@ -1638,7 +1638,7 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
         // We must create the realized font
         PDFRealizedFontPointer realizedFont = PDFRealizedFont::createRealizedFont(font, size, reporter);
 
-        if (m_fontCacheShrinkEnabled && m_realizedFontCache.size() >= m_realizedFontCacheLimit)
+        if (m_fontCacheShrinkDisabledObjects.empty() && m_realizedFontCache.size() >= m_realizedFontCacheLimit)
         {
             m_realizedFontCache.clear();
         }
@@ -1649,12 +1649,18 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
     return it->second;
 }
 
-void PDFFontCache::setCacheShrinkEnabled(bool enabled)
+void PDFFontCache::setCacheShrinkEnabled(void* source, bool enabled)
 {
-    if (m_fontCacheShrinkEnabled != enabled)
+    QMutexLocker lock(&m_mutex);
+    if (enabled)
     {
-        m_fontCacheShrinkEnabled = enabled;
+        m_fontCacheShrinkDisabledObjects.erase(source);
+        lock.unlock();
         shrink();
+    }
+    else
+    {
+        m_fontCacheShrinkDisabledObjects.insert(source);
     }
 }
 
@@ -1670,9 +1676,9 @@ void PDFFontCache::setCacheLimits(int fontCacheLimit, int instancedFontCacheLimi
 
 void PDFFontCache::shrink()
 {
-    if (m_fontCacheShrinkEnabled)
+    QMutexLocker lock(&m_mutex);
+    if (m_fontCacheShrinkDisabledObjects.empty())
     {
-        QMutexLocker lock(&m_mutex);
         if (m_fontCache.size() >= m_fontCacheLimit)
         {
             m_fontCache.clear();

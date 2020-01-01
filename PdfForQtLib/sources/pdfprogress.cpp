@@ -20,7 +20,13 @@
 namespace pdf
 {
 
-void PDFProgress::start(size_t stepCount)
+PDFProgress::PDFProgress(QObject* parent) :
+    QObject(parent)
+{
+    qRegisterMetaType<pdf::ProgressStartupInfo>();
+}
+
+void PDFProgress::start(size_t stepCount, ProgressStartupInfo startupInfo)
 {
     Q_ASSERT(stepCount > 0);
 
@@ -28,7 +34,7 @@ void PDFProgress::start(size_t stepCount)
     m_stepCount = stepCount;
     m_percentage = 0;
 
-    emit progressStarted();
+    emit progressStarted(qMove(startupInfo));
 }
 
 void PDFProgress::step()

@@ -73,7 +73,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_isLoadingUI(false),
     m_progress(new pdf::PDFProgress(this)),
     m_taskbarButton(new QWinTaskbarButton(this)),
-    m_progressTaskbarIndicator(nullptr)
+    m_progressTaskbarIndicator(nullptr),
+    m_progressDialog(nullptr),
+    m_isBusy(false)
 {
     ui->setupUi(this);
 
@@ -159,6 +161,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     setCentralWidget(m_pdfWidget);
     setFocusProxy(m_pdfWidget);
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
+    m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
 
     m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
@@ -507,21 +510,46 @@ void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
     }
 }
 
-void PDFViewerMainWindow::onProgressStarted()
+void PDFViewerMainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
 {
+    Q_ASSERT(!m_progressDialog);
+    if (info.showDialog)
+    {
+        m_progressDialog = new QProgressDialog(info.text, QString(), 0, 100, this);
+        m_progressDialog->setWindowModality(Qt::WindowModal);
+        m_progressDialog->setCancelButton(nullptr);
+    }
+
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
+    m_isBusy = true;
+
+    updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::onProgressStep(int percentage)
 {
+    if (m_progressDialog)
+    {
+        m_progressDialog->setValue(percentage);
+    }
+
     m_progressTaskbarIndicator->setValue(percentage);
 }
 
 void PDFViewerMainWindow::onProgressFinished()
 {
+    if (m_progressDialog)
+    {
+        m_progressDialog->hide();
+        m_progressDialog->deleteLater();
+        m_progressDialog = nullptr;
+    }
     m_progressTaskbarIndicator->hide();
+    m_isBusy = false;
+
+    updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::readSettings()
@@ -697,19 +725,20 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
 
 void PDFViewerMainWindow::updateActionsAvailability()
 {
-    const bool isReading = m_futureWatcher.isRunning();
+    const bool isBusy = m_futureWatcher.isRunning() || m_isBusy;
     const bool hasDocument = m_pdfDocument;
-    const bool hasValidDocument = !isReading && hasDocument;
+    const bool hasValidDocument = !isBusy && hasDocument;
 
-    ui->actionOpen->setEnabled(!isReading);
+    ui->actionOpen->setEnabled(!isBusy);
     ui->actionClose->setEnabled(hasValidDocument);
-    ui->actionQuit->setEnabled(!isReading);
-    ui->actionOptions->setEnabled(!isReading);
-    ui->actionAbout->setEnabled(!isReading);
+    ui->actionQuit->setEnabled(!isBusy);
+    ui->actionOptions->setEnabled(!isBusy);
+    ui->actionAbout->setEnabled(!isBusy);
     ui->actionFitPage->setEnabled(hasValidDocument);
     ui->actionFitWidth->setEnabled(hasValidDocument);
     ui->actionFitHeight->setEnabled(hasValidDocument);
     ui->actionRendering_Errors->setEnabled(hasValidDocument);
+    setEnabled(!isBusy);
 }
 
 void PDFViewerMainWindow::onViewerSettingsChanged()
