@@ -174,41 +174,60 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                 const unsigned int imageWidth = imageData.getWidth();
                 const unsigned int imageHeight = imageData.getHeight();
-                //for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+
+                QMutex exceptionMutex;
+                std::optional<PDFException> exception;
+
                 auto transformPixelLine = [&](unsigned int i)
                 {
-                    PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
-                    reader.seek(i * imageData.getStride());
-
-                    const double max = reader.max();
-                    const double coefficient = 1.0 / max;
-                    unsigned char* outputLine = image.scanLine(i);
-
-                    std::vector<float> inputColors(imageWidth * componentCount, 0.0f);
-                    auto itInputColor = inputColors.begin();
-                    for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                    try
                     {
-                        for (unsigned int k = 0; k < componentCount; ++k)
-                        {
-                            PDFReal value = reader.read();
+                        PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+                        reader.seek(i * imageData.getStride());
 
-                            // Interpolate value, if it is not empty
-                            if (!decode.empty())
+                        const double max = reader.max();
+                        const double coefficient = 1.0 / max;
+                        unsigned char* outputLine = image.scanLine(i);
+
+                        std::vector<float> inputColors(imageWidth * componentCount, 0.0f);
+                        auto itInputColor = inputColors.begin();
+                        for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                        {
+                            for (unsigned int k = 0; k < componentCount; ++k)
                             {
-                                *itInputColor++ = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
-                            }
-                            else
-                            {
-                                *itInputColor++ = value * coefficient;
+                                PDFReal value = reader.read();
+
+                                // Interpolate value, if it is not empty
+                                if (!decode.empty())
+                                {
+                                    *itInputColor++ = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                                }
+                                else
+                                {
+                                    *itInputColor++ = value * coefficient;
+                                }
                             }
                         }
-                    }
 
-                    fillRGBBuffer(inputColors, outputLine, intent, cms, reporter);
+                        fillRGBBuffer(inputColors, outputLine, intent, cms, reporter);
+                    }
+                    catch (PDFException lineException)
+                    {
+                        QMutexLocker lock(&exceptionMutex);
+                        if (!exception)
+                        {
+                            exception = lineException;
+                        }
+                    }
                 };
 
                 auto range = PDFIntegerRange<unsigned int>(0, imageHeight);
                 std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), transformPixelLine);
+
+                if (exception)
+                {
+                    throw *exception;
+                }
 
                 return image;
             }

@@ -538,10 +538,17 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 }
                 else
                 {
-                    reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for composite font character with cid '%1' not found.").arg(cid));
+                    if (cid > 0)
+                    {
+                        // Character with CID == 0 is treated as default whitespace, it hasn't glyph
+                        reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for composite font character with cid '%1' not found.").arg(cid));
+                    }
+
                     if (glyphWidth > 0)
                     {
-                        textSequence.items.emplace_back(nullptr, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER);
+                        // We do not multiply advance with font size and FONT_WIDTH_MULTIPLIER, because in the code,
+                        // "advance" is treated as in font space.
+                        textSequence.items.emplace_back(nullptr, QChar(), -glyphWidth);
                     }
                 }
             }
