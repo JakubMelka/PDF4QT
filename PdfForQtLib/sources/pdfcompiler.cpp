@@ -254,12 +254,16 @@ bool PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) const
 
 void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& info)
 {
-    m_textLayout.addCharacter(info);
+    if (!isContentSuppressed())
+    {
+        m_textLayout.addCharacter(info);
+    }
 }
 
 PDFAsynchronousTextLayoutCompiler::PDFAsynchronousTextLayoutCompiler(PDFDrawWidgetProxy* proxy) :
     BaseClass(proxy),
-    m_proxy(proxy)
+    m_proxy(proxy),
+    m_isRunning(false)
 {
     connect(&m_textLayoutCompileFutureWatcher, &QFutureWatcher<PDFTextLayoutStorage>::finished, this, &PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated);
 }
@@ -348,15 +352,19 @@ void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
         return;
     }
 
-    if (m_textLayoutCompileFuture.isRunning())
+    if (m_isRunning)
     {
         // Text layout is already being processed
         return;
     }
 
+    // Jakub Melka: Mark, that we are running (test for future is not enough,
+    // because future can finish before this function exits, for example)
+    m_isRunning = true;
+
     ProgressStartupInfo info;
     info.showDialog = true;
-    info.text = tr("Generating text layouts for pages...");
+    info.text = tr("Indexing document contents...");
 
     m_proxy->getFontCache()->setCacheShrinkEnabled(this, false);
     const PDFCatalog* catalog = m_proxy->getDocument()->getCatalog();
@@ -402,6 +410,7 @@ void PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated()
     m_proxy->getProgress()->finish();
 
     m_textLayouts = m_textLayoutCompileFuture.result();
+    m_isRunning = false;
     emit textLayoutChanged();
 }
 

@@ -138,6 +138,7 @@ private:
 
     PDFDrawWidgetProxy* m_proxy;
     State m_state = State::Inactive;
+    bool m_isRunning;
     std::optional<PDFTextLayoutStorage> m_textLayouts;
     QFuture<PDFTextLayoutStorage> m_textLayoutCompileFuture;
     QFutureWatcher<PDFTextLayoutStorage> m_textLayoutCompileFutureWatcher;

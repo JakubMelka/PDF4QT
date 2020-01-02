@@ -54,14 +54,8 @@ void PDFDrawSpaceController::setDocument(const PDFDocument* document, const PDFO
         m_document = document;
         m_fontCache.setDocument(document);
         m_optionalContentActivity = optionalContentActivity;
-        connect(m_optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawSpaceController::onOptionalContentGroupStateChanged);
         recalculate();
     }
-}
-
-void PDFDrawSpaceController::onOptionalContentGroupStateChanged()
-{
-    emit pageImageChanged(true, { });
 }
 
 void PDFDrawSpaceController::setPageLayout(PageLayout pageLayout)
@@ -423,6 +417,7 @@ void PDFDrawWidgetProxy::setDocument(const PDFDocument* document, const PDFOptio
     m_compiler->stop();
     m_textLayoutCompiler->stop();
     m_controller->setDocument(document, optionalContentActivity);
+    connect(optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawWidgetProxy::onOptionalContentGroupStateChanged);
     m_compiler->start();
     m_textLayoutCompiler->start();
 }
@@ -1193,6 +1188,13 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
 void PDFDrawWidgetProxy::onColorManagementSystemChanged()
 {
     m_compiler->reset();
+    emit pageImageChanged(true, { });
+}
+
+void PDFDrawWidgetProxy::onOptionalContentGroupStateChanged()
+{
+    m_compiler->reset();
+    m_textLayoutCompiler->reset();
     emit pageImageChanged(true, { });
 }
 

@@ -123,8 +123,6 @@ signals:
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 
 private:
-    void onOptionalContentGroupStateChanged();
-
     /// Recalculates the draw space. Preserves setted page rotation.
     void recalculate();
 
@@ -331,6 +329,7 @@ private:
     QRectF fromDeviceSpace(const QRectF& rect) const;
 
     void onTextLayoutChanged();
+    void onOptionalContentGroupStateChanged();
     void onColorManagementSystemChanged();
     void onHorizontalScrollbarValueChanged(int value);
     void onVerticalScrollbarValueChanged(int value);
