@@ -1,4 +1,4 @@
-//    Copyright (C) 2019 Jakub Melka
+//    Copyright (C) 2019-2020 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -591,6 +591,172 @@ QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings)
     stream >> settings.blockVerticalSensitivity;
     stream >> settings.blockOverlapSensitivity;
     return stream;
+}
+
+PDFTextSelection::PDFTextSelection(PDFTextSelectionItems&& items) :
+    m_items(qMove(items))
+{
+
+}
+
+PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSensitivity) const
+{
+    PDFFindResults results;
+
+    int index = m_text.indexOf(text, 0, caseSensitivity);
+    while (index != -1)
+    {
+        PDFFindResult result;
+        result.matched = text;
+        result.textSelectionItems = getTextSelectionItems(index, text.length());
+        result.context = getContext(index, text.length());
+
+        if (!result.textSelectionItems.empty())
+        {
+            results.emplace_back(qMove(result));
+        }
+
+        index = m_text.indexOf(text, index + 1, caseSensitivity);
+    }
+
+    return results;
+}
+
+void PDFTextFlow::merge(const PDFTextFlow& next)
+{
+    m_text += next.m_text;
+    m_characterPointers.insert(m_characterPointers.end(), next.m_characterPointers.cbegin(), next.m_characterPointers.cend());
+}
+
+PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags flags, PDFInteger pageIndex)
+{
+    PDFTextFlows result;
+
+    if (!flags.testFlag(SeparateBlocks))
+    {
+        result.emplace_back();
+    }
+
+    QString lineBreak(" ");
+    if (flags.testFlag(AddLineBreaks))
+    {
+#if defined(Q_OS_WIN)
+        lineBreak = QString("\r\n");
+#elif defined(Q_OS_UNIX)
+        linebreak = QString("\n");
+#elif defined(Q_OS_MAC)
+        lineBreak = QString("\r");
+#else
+        static_assert(false, "Fix this code!");
+#endif
+    }
+
+    size_t textBlockIndex = 0;
+    for (const PDFTextBlock& textBlock : layout.getTextBlocks())
+    {
+        PDFTextFlow currentFlow;
+
+        size_t textLineIndex = 0;
+        for (const PDFTextLine& textLine : textBlock.getLines())
+        {
+            const TextCharacters& characters = textLine.getCharacters();
+            for (size_t i = 0, characterCount = characters.size(); i < characterCount; ++i)
+            {
+                const TextCharacter& currentCharacter = characters[i];
+                if (i > 0 && !currentCharacter.character.isSpace())
+                {
+                    // Jakub Melka: try to guess space between letters
+                    const TextCharacter& previousCharacter = characters[i - 1];
+                    if (!previousCharacter.character.isSpace() && QLineF(previousCharacter.position, currentCharacter.position).length() > previousCharacter.advance * 1.1)
+                    {
+                        currentFlow.m_text += QChar(' ');
+                        currentFlow.m_characterPointers.emplace_back();
+                    }
+                }
+
+                currentFlow.m_text += currentCharacter.character;
+
+                PDFCharacterPointer pointer;
+                pointer.pageIndex = pageIndex;
+                pointer.blockIndex = textBlockIndex;
+                pointer.lineIndex = textLineIndex;
+                pointer.characterIndex = i;
+                currentFlow.m_characterPointers.emplace_back(qMove(pointer));
+            }
+
+            // Remove soft hyphen, if it is enabled
+            if (flags.testFlag(RemoveSoftHyphen) && !characters.empty() && currentFlow.m_text.back() == QChar(QChar::SoftHyphen))
+            {
+                currentFlow.m_text.chop(1);
+                currentFlow.m_characterPointers.pop_back();
+
+                if (!flags.testFlag(AddLineBreaks))
+                {
+                    // Do not add single empty space - because soft hypen probably breaks a word
+                    ++textLineIndex;
+                    continue;
+                }
+            }
+
+            // Add line break
+            currentFlow.m_text += lineBreak;
+            currentFlow.m_characterPointers.insert(currentFlow.m_characterPointers.end(), lineBreak.length(), PDFCharacterPointer());
+
+            ++textLineIndex;
+        }
+
+        // If we are producing separate blocks, then make flow for each
+        // text block, otherwise join flows.
+        if (flags.testFlag(SeparateBlocks))
+        {
+            result.emplace_back(qMove(currentFlow));
+        }
+        else
+        {
+            result.back().merge(currentFlow);
+        }
+
+        ++textBlockIndex;
+    }
+
+    return result;
+}
+
+PDFTextSelectionItems PDFTextFlow::getTextSelectionItems(size_t index, size_t length) const
+{
+    PDFTextSelectionItems items;
+
+    auto it = std::next(m_characterPointers.cbegin(), index);
+    auto itEnd = std::next(m_characterPointers.cbegin(), index + length);
+    s
+
+    return items;
+}
+
+QString PDFTextFlow::getContext(size_t index, size_t length) const
+{
+    Q_ASSERT(length > 0);
+
+    while (index > 0 && m_characterPointers[index - 1].hasSameLine(m_characterPointers[index]))
+    {
+        --index;
+        ++length;
+    }
+
+    size_t currentEnd = index + length - 1;
+    size_t last = m_characterPointers.size() - 1;
+    while (currentEnd < last && m_characterPointers[currentEnd].hasSameLine(m_characterPointers[currentEnd + 1]))
+    {
+        ++currentEnd;
+        ++length;
+    }
+
+    return m_text.mid(int(index), int(length));
+}
+
+bool PDFCharacterPointer::hasSameLine(const PDFCharacterPointer& other) const
+{
+    return pageIndex == other.pageIndex && blockIndex == other.blockIndex && lineIndex == other.lineIndex;
 }
 
 }   // namespace pdf

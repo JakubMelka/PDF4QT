@@ -1,4 +1,4 @@
-//    Copyright (C) 2019 Jakub Melka
+//    Copyright (C) 2019-2020 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -24,9 +24,11 @@
 #include <QPainterPath>
 
 #include <set>
+#include <compare>
 
 namespace pdf
 {
+class PDFTextLayout;
 
 struct PDFTextCharacterInfo
 {
@@ -151,6 +153,100 @@ private:
 };
 
 using PDFTextBlocks = std::vector<PDFTextBlock>;
+
+/// Character pointer points to some character in text layout.
+/// It also has page index to decide, which page the pointer points to.
+struct PDFCharacterPointer
+{
+    auto operator<=>(const PDFCharacterPointer&) const = default;
+
+    /// Returns true, if character pointer is valid and points to the correct location
+    bool isValid() const { return pageIndex > -1; }
+
+    /// Returns true, if character belongs to same line
+    bool hasSameLine(const PDFCharacterPointer& other) const;
+
+    int pageIndex = -1;
+    size_t blockIndex = 0;
+    size_t lineIndex = 0;
+    size_t characterIndex = 0;
+};
+
+using PDFTextSelectionItem = std::pair<PDFCharacterPointer, PDFCharacterPointer>;
+using PDFTextSelectionItems = std::vector<PDFTextSelectionItem>;
+
+/// Text selection, can be used across multiple pages.
+class PDFTextSelection
+{
+public:
+    explicit PDFTextSelection(PDFTextSelectionItems&& items);
+
+private:
+    PDFTextSelectionItems m_items;
+};
+
+struct PDFFindResult
+{
+    /// Matched string during search
+    QString matched;
+
+    /// Context (text before and after match)
+    QString context;
+
+    /// Matched selection (can be multiple items, if selection
+    /// is spanned between multiple blocks)
+    PDFTextSelectionItems textSelectionItems;
+};
+using PDFFindResults = std::vector<PDFFindResult>;
+
+class PDFTextFlow;
+using PDFTextFlows = std::vector<PDFTextFlow>;
+
+/// This class represents a portion of continuous text on the page. It can
+/// consists of multiple blocks (which follow reading order).
+class PDFTextFlow
+{
+public:
+
+    enum FlowFlag
+    {
+        None                = 0x0000,
+        SeparateBlocks      = 0x0001, ///< Create flow for each block
+        RemoveSoftHyphen    = 0x0002, ///< Removes 'soft hyphen' unicode character from end-of-line (character 0x00AD)
+        AddLineBreaks       = 0x0004, ///< Add line break characters to the end of line
+    };
+    Q_DECLARE_FLAGS(FlowFlags, FlowFlag)
+
+    /// Finds simple text in current text flow. All text occurences are returned.
+    /// \param text Text to be found
+    /// \param caseSensitivity Case sensitivity
+    PDFFindResults find(const QString& text, Qt::CaseSensitivity caseSensitivity) const;
+
+    /// Merge data from \p next flow (i.e. connect two consecutive flows)
+    void merge(const PDFTextFlow& next);
+
+    /// Creates text flows from text layout, according to creation flags.
+    /// \param layout Layout, from which is text flow created
+    /// \param flags Flow creation flags
+    /// \param pageIndex Page index
+    static PDFTextFlows createTextFlows(const PDFTextLayout& layout, FlowFlags flags, PDFInteger pageIndex);
+
+private:
+    /// Returns text selection from index and length. Returned text selection can also
+    /// be empty (for example, if only single space character is selected, which has
+    /// no counterpart in real text)
+    /// \param index Index of text selection subrange
+    /// \param length Length of text selection
+    PDFTextSelectionItems getTextSelectionItems(size_t index, size_t length) const;
+
+    /// Returns context for text selection (or empty string, if text selection is empty)
+    /// \param index Index of text selection subrange
+    /// \param length Length of text selection
+    QString getContext(size_t index, size_t length) const;
+
+    QString m_text;
+    std::vector<PDFCharacterPointer> m_characterPointers;
+};
 
 /// Text layout of single page. Can handle various fonts, various angles of lines
 /// and vertically oriented text. It performs the "docstrum" algorithm.

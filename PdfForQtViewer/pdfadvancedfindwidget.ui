@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PDFAdvancedFindWidget</class>
+ <widget class="QWidget" name="PDFAdvancedFindWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>881</width>
+    <height>457</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="searchTab">
+      <attribute name="title">
+       <string>Search for</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="searchTabLayout">
+       <item>
+        <widget class="QGroupBox" name="searchForGroupBox">
+         <property name="title">
+          <string>Search Settings</string>
+         </property>
+         <layout class="QGridLayout" name="searchSettingsGroupBoxLayout" columnstretch="0,1,0">
+          <item row="0" column="0">
+           <widget class="QLabel" name="searchLabel">
+            <property name="text">
+             <string>Search for:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1" colspan="2">
+           <widget class="QLineEdit" name="searchPhraseEdit"/>
+          </item>
+          <item row="4" column="2">
+           <widget class="QPushButton" name="searchButton">
+            <property name="text">
+             <string>Search</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1" colspan="2">
+           <widget class="QCheckBox" name="caseSensitiveCheckBox">
+            <property name="text">
+             <string>Case sensitive</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1" colspan="2">
+           <widget class="QCheckBox" name="wholeWordsOnlyCheckBox">
+            <property name="text">
+             <string>Whole words only</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1" colspan="2">
+           <widget class="QCheckBox" name="regularExpressionsCheckbox">
+            <property name="text">
+             <string>Use regular expressions</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="regularExpressionSettingsGroupBox">
+         <property name="title">
+          <string>Regular Expression Settings</string>
+         </property>
+         <layout class="QVBoxLayout" name="regularExpressionSettingsGroupBoxLayout">
+          <item>
+           <widget class="QCheckBox" name="dotMatchesEverythingCheckBox">
+            <property name="text">
+             <string>Dot matches everything (including newline characters)</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="multilineMatchingCheckBox">
+            <property name="text">
+             <string>Multiline matching (enables search using '^' and '$' to mark line beginnings/endings)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="resultsTab">
+      <attribute name="title">
+       <string>Results</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <widget class="QTreeWidget" name="treeWidget">
+         <column>
+          <property name="text">
+           <string notr="true">1</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

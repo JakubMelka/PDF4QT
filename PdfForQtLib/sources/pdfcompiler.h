@@ -92,7 +92,7 @@ private:
     std::map<PDFInteger, CompileTask> m_tasks;
 };
 
-class PDFAsynchronousTextLayoutCompiler : public QObject
+class PDFFORQTLIBSHARED_EXPORT PDFAsynchronousTextLayoutCompiler : public QObject
 {
     Q_OBJECT
 
@@ -129,6 +129,9 @@ public:
     /// it returns immediately. After text layout is created, signal
     /// \p textLayoutChanged is emitted.
     void makeTextLayout();
+
+    /// Returns true, if text layout is ready
+    bool isTextLayoutReady() const { return m_textLayouts.has_value(); }
 
 signals:
     void textLayoutChanged();

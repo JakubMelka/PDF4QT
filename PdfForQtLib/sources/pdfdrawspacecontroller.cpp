@@ -994,6 +994,7 @@ QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
 void PDFDrawWidgetProxy::onTextLayoutChanged()
 {
     emit repaintNeeded();
+    emit textLayoutChanged();
 }
 
 bool PDFDrawWidgetProxy::isBlockMode() const

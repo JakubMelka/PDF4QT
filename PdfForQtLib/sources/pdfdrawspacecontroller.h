@@ -276,6 +276,7 @@ public:
     const PDFCMSManager* getCMSManager() const;
     PDFProgress* getProgress() const { return m_progress; }
     void setProgress(PDFProgress* progress) { m_progress = progress; }
+    PDFAsynchronousTextLayoutCompiler* getTextLayoutCompiler() const { return m_textLayoutCompiler; }
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);
@@ -291,6 +292,7 @@ signals:
     void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void repaintNeeded();
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
+    void textLayoutChanged();
 
 private:
     struct LayoutItem

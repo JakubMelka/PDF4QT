@@ -1,4 +1,4 @@
-//    Copyright (C) 2019 Jakub Melka
+//    Copyright (C) 2019-2020 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -56,6 +56,7 @@ class PDFOptionalContentTreeItemModel;
 namespace pdfviewer
 {
 class PDFSidebarWidget;
+class PDFAdvancedFindWidget;
 
 class PDFViewerMainWindow : public QMainWindow
 {
@@ -145,6 +146,8 @@ private:
     QString m_currentFile;
     PDFSidebarWidget* m_sidebarWidget;
     QDockWidget* m_sidebarDockWidget;
+    PDFAdvancedFindWidget* m_advancedFindWidget;
+    QDockWidget* m_advancedFindDockWidget;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     QSpinBox* m_pageNumberSpinBox;
     QLabel* m_pageNumberLabel;

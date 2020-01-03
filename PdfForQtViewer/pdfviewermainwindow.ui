@@ -96,7 +96,14 @@
     <addaction name="actionShow_Text_Blocks"/>
     <addaction name="actionShow_Text_Lines"/>
    </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionFind"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
    <addaction name="menuView"/>
    <addaction name="menuGoTo"/>
    <addaction name="menuTools"/>
@@ -338,6 +345,11 @@
    </property>
    <property name="text">
     <string>Show Text Lines</string>
+   </property>
+  </action>
+  <action name="actionFind">
+   <property name="text">
+    <string>Find</string>
    </property>
   </action>
  </widget>

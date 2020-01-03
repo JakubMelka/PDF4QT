@@ -1,4 +1,4 @@
-//    Copyright (C) 2019 Jakub Melka
+//    Copyright (C) 2019-2020 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -20,6 +20,7 @@
 
 #include "pdfaboutdialog.h"
 #include "pdfsidebarwidget.h"
+#include "pdfadvancedfindwidget.h"
 #include "pdfviewersettingsdialog.h"
 #include "pdfdocumentpropertiesdialog.h"
 
@@ -65,7 +66,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_CMSManager(new pdf::PDFCMSManager(this)),
     m_settings(new PDFViewerSettings(this)),
     m_pdfWidget(nullptr),
+    m_sidebarWidget(nullptr),
     m_sidebarDockWidget(nullptr),
+    m_advancedFindWidget(nullptr),
+    m_advancedFindDockWidget(nullptr),
     m_optionalContentActivity(nullptr),
     m_pageNumberSpinBox(nullptr),
     m_pageNumberLabel(nullptr),
@@ -88,6 +92,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionQuit->setShortcut(QKeySequence::Quit);
     ui->actionZoom_In->setShortcut(QKeySequence::ZoomIn);
     ui->actionZoom_Out->setShortcut(QKeySequence::ZoomOut);
+    ui->actionFind->setShortcut(QKeySequence::Find);
 
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
@@ -171,6 +176,19 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
     m_sidebarDockWidget->hide();
     connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
+
+    m_advancedFindWidget = new PDFAdvancedFindWidget(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_advancedFindDockWidget = new QDockWidget(tr("Advanced find"), this);
+    m_advancedFindDockWidget->setObjectName("AdvancedFind");
+    m_advancedFindDockWidget->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
+    m_advancedFindDockWidget->setWidget(m_advancedFindWidget);
+    addDockWidget(Qt::BottomDockWidgetArea, m_advancedFindDockWidget);
+    m_advancedFindDockWidget->hide();
+    QAction* toggleAdvancedFindAction = m_advancedFindDockWidget->toggleViewAction();
+    toggleAdvancedFindAction->setObjectName("actionAdvancedFind");
+    toggleAdvancedFindAction->setText(tr("Advanced Find"));
+    toggleAdvancedFindAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
+    ui->menuEdit->insertAction(nullptr, toggleAdvancedFindAction);
 
     ui->actionRenderOptionAntialiasing->setData(pdf::PDFRenderer::Antialiasing);
     ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
@@ -858,6 +876,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
 
     m_pdfWidget->setDocument(document, m_optionalContentActivity);
     m_sidebarWidget->setDocument(document, m_optionalContentActivity);
+    m_advancedFindWidget->setDocument(document);
 
     if (m_sidebarWidget->isEmpty())
     {
@@ -866,6 +885,11 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
     else
     {
         m_sidebarDockWidget->show();
+    }
+
+    if (!document)
+    {
+        m_advancedFindDockWidget->hide();
     }
 
     updateTitle();
