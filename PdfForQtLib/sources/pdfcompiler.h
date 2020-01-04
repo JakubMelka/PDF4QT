@@ -133,6 +133,9 @@ public:
     /// Returns true, if text layout is ready
     bool isTextLayoutReady() const { return m_textLayouts.has_value(); }
 
+    /// Returns text layout storage (if it is ready), or nullptr
+    const PDFTextLayoutStorage* getTextLayoutStorage() const { return isTextLayoutReady() ? &m_textLayouts.value() : nullptr; }
+
 signals:
     void textLayoutChanged();
 

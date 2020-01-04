@@ -30,27 +30,13 @@
           <string>Search Settings</string>
          </property>
          <layout class="QGridLayout" name="searchSettingsGroupBoxLayout" columnstretch="0,1,0">
-          <item row="0" column="0">
-           <widget class="QLabel" name="searchLabel">
-            <property name="text">
-             <string>Search for:</string>
-            </property>
-           </widget>
-          </item>
           <item row="0" column="1" colspan="2">
            <widget class="QLineEdit" name="searchPhraseEdit"/>
           </item>
-          <item row="4" column="2">
-           <widget class="QPushButton" name="searchButton">
+          <item row="3" column="1" colspan="2">
+           <widget class="QCheckBox" name="regularExpressionsCheckbox">
             <property name="text">
-             <string>Search</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1" colspan="2">
-           <widget class="QCheckBox" name="caseSensitiveCheckBox">
-            <property name="text">
-             <string>Case sensitive</string>
+             <string>Use regular expressions</string>
             </property>
            </widget>
           </item>
@@ -61,10 +47,31 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="1" colspan="2">
-           <widget class="QCheckBox" name="regularExpressionsCheckbox">
+          <item row="0" column="0">
+           <widget class="QLabel" name="searchLabel">
             <property name="text">
-             <string>Use regular expressions</string>
+             <string>Search for:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1" colspan="2">
+           <widget class="QCheckBox" name="caseSensitiveCheckBox">
+            <property name="text">
+             <string>Case sensitive</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QCheckBox" name="removeSoftHyphenCheckBox">
+            <property name="text">
+             <string>Remove soft hyphen at end of line</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QPushButton" name="searchButton">
+            <property name="text">
+             <string>Search</string>
             </property>
            </widget>
           </item>
@@ -118,12 +125,28 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
-        <widget class="QTreeWidget" name="treeWidget">
-         <column>
-          <property name="text">
-           <string notr="true">1</string>
-          </property>
-         </column>
+        <widget class="QTableWidget" name="resultsTableWidget">
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <property name="sortingEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="columnCount">
+          <number>3</number>
+         </property>
+         <attribute name="horizontalHeaderStretchLastSection">
+          <bool>true</bool>
+         </attribute>
+         <column/>
+         <column/>
+         <column/>
         </widget>
        </item>
       </layout>

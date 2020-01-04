@@ -571,6 +571,64 @@ void PDFTextLayoutStorage::setTextLayout(PDFInteger pageIndex, const PDFTextLayo
     layoutStream << result;
 }
 
+PDFFindResults PDFTextLayoutStorage::find(const QString& text, Qt::CaseSensitivity caseSensitivity, PDFTextFlow::FlowFlags flowFlags) const
+{
+    PDFFindResults results;
+
+    QMutex resultsMutex;
+    auto findImpl = [this, flowFlags, caseSensitivity, &results, &resultsMutex, &text](size_t pageIndex)
+    {
+        PDFTextLayout textLayout = getTextLayout(pageIndex);
+        PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, flowFlags, pageIndex);
+        for (const PDFTextFlow& textFlow : textFlows)
+        {
+            PDFFindResults flowResults = textFlow.find(text, caseSensitivity);
+
+            // Jakub Melka: Do not lock mutex, if we didn't find anything. In that case, just skip to next flow.
+            if (!flowResults.empty())
+            {
+                QMutexLocker lock(&resultsMutex);
+                results.insert(results.end(), flowResults.begin(), flowResults.end());
+            }
+        }
+    };
+
+    auto range = PDFIntegerRange<size_t>(0, m_offsets.size());
+    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), findImpl);
+
+    std::sort(results.begin(), results.end());
+    return results;
+}
+
+PDFFindResults PDFTextLayoutStorage::find(const QRegularExpression& expression, PDFTextFlow::FlowFlags flowFlags) const
+{
+    PDFFindResults results;
+
+    QMutex resultsMutex;
+    auto findImpl = [this, flowFlags, &results, &resultsMutex, &expression](size_t pageIndex)
+    {
+        PDFTextLayout textLayout = getTextLayout(pageIndex);
+        PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, flowFlags, pageIndex);
+        for (const PDFTextFlow& textFlow : textFlows)
+        {
+            PDFFindResults flowResults = textFlow.find(expression);
+
+            // Jakub Melka: Do not lock mutex, if we didn't find anything. In that case, just skip to next flow.
+            if (!flowResults.empty())
+            {
+                QMutexLocker lock(&resultsMutex);
+                results.insert(results.end(), flowResults.begin(), flowResults.end());
+            }
+        }
+    };
+
+    auto range = PDFIntegerRange<size_t>(0, m_offsets.size());
+    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), findImpl);
+
+    std::sort(results.begin(), results.end());
+    return results;
+}
+
 QDataStream& operator<<(QDataStream& stream, const PDFTextLayoutSettings& settings)
 {
     stream << settings.samples;
@@ -617,6 +675,33 @@ PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSe
         }
 
         index = m_text.indexOf(text, index + 1, caseSensitivity);
+    }
+
+    return results;
+}
+
+PDFFindResults PDFTextFlow::find(const QRegularExpression& expression) const
+{
+    PDFFindResults results;
+
+    QRegularExpressionMatchIterator iterator = expression.globalMatch(m_text, 0, QRegularExpression::NormalMatch, QRegularExpression::NoMatchOption);
+    while (iterator.hasNext())
+    {
+        QRegularExpressionMatch match = iterator.next();
+
+        Q_ASSERT(match.hasMatch());
+        const int index = match.capturedStart();
+        const int length = match.capturedLength();
+
+        PDFFindResult result;
+        result.matched = match.captured();
+        result.textSelectionItems = getTextSelectionItems(index, length);
+        result.context = getContext(index, length);
+
+        if (!result.textSelectionItems.empty())
+        {
+            results.emplace_back(qMove(result));
+        }
     }
 
     return results;
@@ -728,8 +813,25 @@ PDFTextSelectionItems PDFTextFlow::getTextSelectionItems(size_t index, size_t le
 
     auto it = std::next(m_characterPointers.cbegin(), index);
     auto itEnd = std::next(m_characterPointers.cbegin(), index + length);
-    s
+    while (it != itEnd)
+    {
+        // Skip invalid items, find first valid
+        if (!it->isValid())
+        {
+            ++it;
+            continue;
+        }
 
+        auto itSelectionStart = it;
+        while (it != itEnd && it->isValid() && it->hasSameBlock(*itSelectionStart))
+        {
+            ++it;
+        }
+        auto itSelectionEnd = std::prev(it);
+        items.emplace_back(*itSelectionStart, *itSelectionEnd);
+    }
+
+    std::sort(items.begin(), items.end());
     return items;
 }
 
@@ -754,9 +856,22 @@ QString PDFTextFlow::getContext(size_t index, size_t length) const
     return m_text.mid(int(index), int(length));
 }
 
+bool PDFCharacterPointer::hasSameBlock(const PDFCharacterPointer& other) const
+{
+    return pageIndex == other.pageIndex && blockIndex == other.blockIndex;
+}
+
 bool PDFCharacterPointer::hasSameLine(const PDFCharacterPointer& other) const
 {
-    return pageIndex == other.pageIndex && blockIndex == other.blockIndex && lineIndex == other.lineIndex;
+    return hasSameBlock(other) && lineIndex == other.lineIndex;
+}
+
+bool PDFFindResult::operator<(const PDFFindResult& other) const
+{
+    Q_ASSERT(!textSelectionItems.empty());
+    Q_ASSERT(!other.textSelectionItems.empty());
+
+    return textSelectionItems.front() < other.textSelectionItems.front();
 }
 
 }   // namespace pdf

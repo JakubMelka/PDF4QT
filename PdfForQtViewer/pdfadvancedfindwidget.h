@@ -19,6 +19,7 @@
 #define PDFADVANCEDFINDWIDGET_H
 
 #include "pdfglobal.h"
+#include "pdftextlayout.h"
 
 #include <QWidget>
 
@@ -51,6 +52,7 @@ private slots:
 
 private:
     void updateUI();
+    void updateResultsUI();
     void performSearch();
 
     struct SearchParameters
@@ -62,6 +64,7 @@ private:
         bool isDotMatchingEverything = false;
         bool isMultiline = false;
         bool isSearchFinished = false;
+        bool isSoftHyphenRemoved = false;
     };
 
     Ui::PDFAdvancedFindWidget* ui;
@@ -69,6 +72,7 @@ private:
     pdf::PDFDrawWidgetProxy* m_proxy;
     const pdf::PDFDocument* m_document;
     SearchParameters m_parameters;
+    pdf::PDFFindResults m_findResults;
 };
 
 }   // namespace pdfviewer

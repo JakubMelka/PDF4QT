@@ -35,6 +35,8 @@ PDFAdvancedFindWidget::PDFAdvancedFindWidget(pdf::PDFDrawWidgetProxy* proxy, QWi
 {
     ui->setupUi(this);
 
+    ui->resultsTableWidget->setHorizontalHeaderLabels({ tr("Page No."), tr("Phrase"), tr("Context") });
+
     connect(ui->regularExpressionsCheckbox, &QCheckBox::clicked, this, &PDFAdvancedFindWidget::updateUI);
     connect(m_proxy, &pdf::PDFDrawWidgetProxy::textLayoutChanged, this, &PDFAdvancedFindWidget::performSearch);
     updateUI();
@@ -62,6 +64,7 @@ void PDFAdvancedFindWidget::on_searchButton_clicked()
     m_parameters.isRegularExpression = ui->regularExpressionsCheckbox->isChecked();
     m_parameters.isDotMatchingEverything = ui->dotMatchesEverythingCheckBox->isChecked();
     m_parameters.isMultiline = ui->multilineMatchingCheckBox->isChecked();
+    m_parameters.isSoftHyphenRemoved = ui->removeSoftHyphenCheckBox->isChecked();
     m_parameters.isSearchFinished = m_parameters.phrase.isEmpty();
 
     if (m_parameters.isSearchFinished)
@@ -85,6 +88,9 @@ void PDFAdvancedFindWidget::on_searchButton_clicked()
         }
     }
 
+    m_findResults.clear();
+    updateResultsUI();
+
     pdf::PDFAsynchronousTextLayoutCompiler* compiler = m_proxy->getTextLayoutCompiler();
     if (compiler->isTextLayoutReady())
     {
@@ -104,6 +110,25 @@ void PDFAdvancedFindWidget::updateUI()
     ui->regularExpressionSettingsGroupBox->setEnabled(enableRegularExpressionUI);
 }
 
+void PDFAdvancedFindWidget::updateResultsUI()
+{
+    ui->tabWidget->setTabText(ui->tabWidget->indexOf(ui->resultsTab), !m_findResults.empty() ? tr("Results (%1)").arg(m_findResults.size()) : tr("Results"));
+    ui->resultsTableWidget->setRowCount(static_cast<int>(m_findResults.size()));
+
+    for (int i = 0, rowCount = int(m_findResults.size()); i < rowCount; ++i)
+    {
+        const pdf::PDFFindResult& findResult = m_findResults[i];
+        ui->resultsTableWidget->setItem(i, 0, new QTableWidgetItem(QString::number(findResult.textSelectionItems.front().first.pageIndex + 1)));
+        ui->resultsTableWidget->setItem(i, 1, new QTableWidgetItem(findResult.matched));
+        ui->resultsTableWidget->setItem(i, 2, new QTableWidgetItem(findResult.context));
+    }
+
+    if (!m_findResults.empty())
+    {
+        ui->tabWidget->setCurrentWidget(ui->resultsTab);
+    }
+}
+
 void PDFAdvancedFindWidget::performSearch()
 {
     if (m_parameters.isSearchFinished)
@@ -120,7 +145,62 @@ void PDFAdvancedFindWidget::performSearch()
         return;
     }
 
+    // Prepare string to search
+    bool useRegularExpression = m_parameters.isRegularExpression;
+    QString expression = m_parameters.phrase;
 
+    if (m_parameters.isWholeWordsOnly)
+    {
+        if (useRegularExpression)
+        {
+            expression = QString("\\b%1\\b").arg(expression);
+        }
+        else
+        {
+            expression = QString("\\b%1\\b").arg(QRegularExpression::escape(expression));
+        }
+        useRegularExpression = true;
+    }
+
+    pdf::PDFTextFlow::FlowFlags flowFlags = pdf::PDFTextFlow::SeparateBlocks;
+    if (m_parameters.isSoftHyphenRemoved)
+    {
+        flowFlags |= pdf::PDFTextFlow::RemoveSoftHyphen;
+    }
+    if (m_parameters.isRegularExpression)
+    {
+        flowFlags |= pdf::PDFTextFlow::AddLineBreaks;
+    }
+
+    const pdf::PDFTextLayoutStorage* textLayoutStorage = compiler->getTextLayoutStorage();
+    if (!useRegularExpression)
+    {
+        // Use simple text search
+        Qt::CaseSensitivity caseSensitivity = m_parameters.isCaseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
+        m_findResults = textLayoutStorage->find(expression, caseSensitivity, flowFlags);
+    }
+    else
+    {
+        // Use regular expression search
+        QRegularExpression::PatternOptions patternOptions = QRegularExpression::UseUnicodePropertiesOption | QRegularExpression::OptimizeOnFirstUsageOption;
+        if (!m_parameters.isCaseSensitive)
+        {
+            patternOptions |= QRegularExpression::CaseInsensitiveOption;
+        }
+        if (m_parameters.isDotMatchingEverything)
+        {
+            patternOptions |= QRegularExpression::DotMatchesEverythingOption;
+        }
+        if (m_parameters.isMultiline)
+        {
+            patternOptions |= QRegularExpression::MultilineOption;
+        }
+
+        QRegularExpression regularExpression(expression, patternOptions);
+        m_findResults = textLayoutStorage->find(regularExpression, flowFlags);
+    }
+
+    updateResultsUI();
 }
 
 }   // namespace pdfviewer

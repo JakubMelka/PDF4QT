@@ -163,6 +163,9 @@ struct PDFCharacterPointer
     /// Returns true, if character pointer is valid and points to the correct location
     bool isValid() const { return pageIndex > -1; }
 
+    /// Returns true, if character belongs to same block
+    bool hasSameBlock(const PDFCharacterPointer& other) const;
+
     /// Returns true, if character belongs to same line
     bool hasSameLine(const PDFCharacterPointer& other) const;
 
@@ -187,6 +190,8 @@ private:
 
 struct PDFFindResult
 {
+    bool operator<(const PDFFindResult& other) const;
+
     /// Matched string during search
     QString matched;
 
@@ -221,6 +226,10 @@ public:
     /// \param text Text to be found
     /// \param caseSensitivity Case sensitivity
     PDFFindResults find(const QString& text, Qt::CaseSensitivity caseSensitivity) const;
+
+    /// Finds regular expression matches in current text flow. All text occurences are returned.
+    /// \param expression Regular expression to be matched
+    PDFFindResults find(const QRegularExpression& expression) const;
 
     /// Merge data from \p next flow (i.e. connect two consecutive flows)
     void merge(const PDFTextFlow& next);
@@ -297,7 +306,7 @@ private:
 /// For writing, mutex is used to synchronize asynchronous writes, for reading
 /// no mutex is used at all. For this reason, both reading/writing at the same time
 /// is prohibited, it is not thread safe.
-class PDFTextLayoutStorage
+class PDFFORQTLIBSHARED_EXPORT PDFTextLayoutStorage
 {
 public:
     explicit inline PDFTextLayoutStorage() = default;
@@ -319,6 +328,17 @@ public:
     /// \param layout Text layout
     /// \param mutex Mutex for locking (calls of setTextLayout from multiple threads)
     void setTextLayout(PDFInteger pageIndex, const PDFTextLayout& layout, QMutex* mutex);
+
+    /// Finds simple text in all pages. All text occurences are returned.
+    /// \param text Text to be found
+    /// \param caseSensitivity Case sensitivity
+    /// \param flowFlags Text flow flags
+    PDFFindResults find(const QString& text, Qt::CaseSensitivity caseSensitivity, PDFTextFlow::FlowFlags flowFlags) const;
+
+    /// Finds regular expression matches in current text flow. All text occurences are returned.
+    /// \param expression Regular expression to be matched
+    /// \param flowFlags Text flow flags
+    PDFFindResults find(const QRegularExpression& expression, PDFTextFlow::FlowFlags flowFlags) const;
 
 private:
     std::vector<int> m_offsets;
