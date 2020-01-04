@@ -839,7 +839,8 @@ QString PDFTextFlow::getContext(size_t index, size_t length) const
 {
     Q_ASSERT(length > 0);
 
-    while (index > 0 && m_characterPointers[index - 1].hasSameLine(m_characterPointers[index]))
+    const PDFCharacterPointer& frontComparatorItem = m_characterPointers[index];
+    while (index > 0 && (m_characterPointers[index - 1].hasSameLine(frontComparatorItem) || !m_characterPointers[index - 1].isValid()))
     {
         --index;
         ++length;
@@ -847,13 +848,14 @@ QString PDFTextFlow::getContext(size_t index, size_t length) const
 
     size_t currentEnd = index + length - 1;
     size_t last = m_characterPointers.size() - 1;
-    while (currentEnd < last && m_characterPointers[currentEnd].hasSameLine(m_characterPointers[currentEnd + 1]))
+    const PDFCharacterPointer& backComparatorItem = m_characterPointers[currentEnd];
+    while (currentEnd < last && (m_characterPointers[currentEnd + 1].hasSameLine(backComparatorItem) || !m_characterPointers[currentEnd + 1].isValid()))
     {
         ++currentEnd;
         ++length;
     }
 
-    return m_text.mid(int(index), int(length));
+    return m_text.mid(int(index), int(length)).trimmed();
 }
 
 bool PDFCharacterPointer::hasSameBlock(const PDFCharacterPointer& other) const
