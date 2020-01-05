@@ -39,6 +39,7 @@ PDFAdvancedFindWidget::PDFAdvancedFindWidget(pdf::PDFDrawWidgetProxy* proxy, QWi
 
     connect(ui->regularExpressionsCheckbox, &QCheckBox::clicked, this, &PDFAdvancedFindWidget::updateUI);
     connect(m_proxy, &pdf::PDFDrawWidgetProxy::textLayoutChanged, this, &PDFAdvancedFindWidget::performSearch);
+    connect(ui->resultsTableWidget, &QTableWidget::cellDoubleClicked, this, &PDFAdvancedFindWidget::onResultItemDoubleClicked);
     updateUI();
 }
 
@@ -52,7 +53,9 @@ void PDFAdvancedFindWidget::setDocument(const pdf::PDFDocument* document)
     if (m_document != document)
     {
         m_document = document;
+        m_findResults.clear();
         updateUI();
+        updateResultsUI();
     }
 }
 
@@ -99,6 +102,18 @@ void PDFAdvancedFindWidget::on_searchButton_clicked()
     else
     {
         compiler->makeTextLayout();
+    }
+}
+
+void PDFAdvancedFindWidget::onResultItemDoubleClicked(int row, int column)
+{
+    Q_UNUSED(column);
+
+    if (row >= 0 && row < m_findResults.size())
+    {
+        const pdf::PDFFindResult& findResult = m_findResults[row];
+        const pdf::PDFInteger pageIndex = findResult.textSelectionItems.front().first.pageIndex;
+        m_proxy->goToPage(pageIndex);
     }
 }
 

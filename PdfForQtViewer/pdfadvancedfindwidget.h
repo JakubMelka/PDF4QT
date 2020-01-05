@@ -49,6 +49,7 @@ public:
 
 private slots:
     void on_searchButton_clicked();
+    void onResultItemDoubleClicked(int row, int column);
 
 private:
     void updateUI();

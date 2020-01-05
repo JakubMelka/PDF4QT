@@ -651,10 +651,14 @@ QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings)
     return stream;
 }
 
-PDFTextSelection::PDFTextSelection(PDFTextSelectionItems&& items) :
-    m_items(qMove(items))
+void PDFTextSelection::addItems(const PDFTextSelectionItems& items, QColor color)
 {
+    std::transform(items.cbegin(), items.cend(), std::back_inserter(m_items), [color] (const auto& item) { return PDFTextSelectionColoredItem(item.first, item.second, color); });
+}
 
+void PDFTextSelection::build()
+{
+    std::sort(m_items.begin(), m_items.end());
 }
 
 PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSensitivity) const
@@ -752,7 +756,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
                 {
                     // Jakub Melka: try to guess space between letters
                     const TextCharacter& previousCharacter = characters[i - 1];
-                    if (!previousCharacter.character.isSpace() && QLineF(previousCharacter.position, currentCharacter.position).length() > previousCharacter.advance * 1.1)
+                    if (!previousCharacter.character.isSpace() && QLineF(previousCharacter.position, currentCharacter.position).length() > previousCharacter.advance * 1.2)
                     {
                         currentFlow.m_text += QChar(' ');
                         currentFlow.m_characterPointers.emplace_back();

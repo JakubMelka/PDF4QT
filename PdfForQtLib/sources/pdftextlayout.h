@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 
+#include <QColor>
 #include <QDataStream>
 #include <QPainterPath>
 
@@ -178,14 +179,43 @@ struct PDFCharacterPointer
 using PDFTextSelectionItem = std::pair<PDFCharacterPointer, PDFCharacterPointer>;
 using PDFTextSelectionItems = std::vector<PDFTextSelectionItem>;
 
-/// Text selection, can be used across multiple pages.
+struct PDFTextSelectionColoredItem
+{
+    explicit inline PDFTextSelectionColoredItem() = default;
+    explicit inline PDFTextSelectionColoredItem(PDFCharacterPointer start, PDFCharacterPointer end, QColor color) :
+        start(start),
+        end(end),
+        color(color)
+    {
+
+    }
+
+    inline bool operator<(const PDFTextSelectionColoredItem& other) const { return std::tie(start, end) < std::tie(other.start, other.end); }
+
+    PDFCharacterPointer start;
+    PDFCharacterPointer end;
+    QColor color;
+};
+using PDFTextSelectionColoredItems = std::vector<PDFTextSelectionColoredItem>;
+
+/// Text selection, can be used across multiple pages. Also defines color
+/// for each text selection.
 class PDFTextSelection
 {
 public:
-    explicit PDFTextSelection(PDFTextSelectionItems&& items);
+    explicit PDFTextSelection() = default;
+
+    /// Adds text selection items to selection
+    /// \param items Items
+    /// \param color Color for items (must include alpha channel)
+    void addItems(const PDFTextSelectionItems& items, QColor color);
+
+    /// Builds text selection, so it is prepared for rendering. Text selection,
+    /// which is not build, can't be used for rendering.
+    void build();
 
 private:
-    PDFTextSelectionItems m_items;
+    PDFTextSelectionColoredItems m_items;
 };
 
 struct PDFFindResult
