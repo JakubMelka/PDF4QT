@@ -338,6 +338,22 @@ PDFTextLayout PDFAsynchronousTextLayoutCompiler::getTextLayout(PDFInteger pageIn
     return PDFTextLayout();
 }
 
+PDFTextLayoutGetter PDFAsynchronousTextLayoutCompiler::getTextLayoutLazy(PDFInteger pageIndex)
+{
+    if (m_state != State::Active || !m_proxy->getDocument())
+    {
+        // Engine is not active, always return empty layout
+        return PDFTextLayoutGetter(nullptr, pageIndex);
+    }
+
+    if (m_textLayouts)
+    {
+        return m_textLayouts->getTextLayoutLazy(pageIndex);
+    }
+
+    return PDFTextLayoutGetter(nullptr, pageIndex);
+}
+
 void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
 {
     if (m_state != State::Active || !m_proxy->getDocument())

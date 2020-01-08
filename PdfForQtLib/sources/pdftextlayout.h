@@ -19,6 +19,7 @@
 #define PDFTEXTLAYOUT_H
 
 #include "pdfglobal.h"
+#include "pdfutils.h"
 
 #include <QColor>
 #include <QDataStream>
@@ -30,6 +31,7 @@
 namespace pdf
 {
 class PDFTextLayout;
+class PDFTextLayoutStorage;
 
 struct PDFTextCharacterInfo
 {
@@ -118,6 +120,9 @@ public:
     const QPainterPath& getBoundingBox() const { return m_boundingBox; }
     const QPointF& getTopLeft() const { return m_topLeft; }
 
+    /// Get angle inclination of block
+    PDFReal getAngle() const;
+
     void applyTransform(const QMatrix& matrix);
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLine& line);
@@ -141,6 +146,9 @@ public:
     const PDFTextLines& getLines() const { return m_lines; }
     const QPainterPath& getBoundingBox() const { return m_boundingBox; }
     const QPointF& getTopLeft() const { return m_topLeft; }
+
+    /// Get angle inclination of block
+    PDFReal getAngle() const;
 
     void applyTransform(const QMatrix& matrix);
 
@@ -205,6 +213,8 @@ class PDFTextSelection
 public:
     explicit PDFTextSelection() = default;
 
+    using iterator = PDFTextSelectionColoredItems::const_iterator;
+
     /// Adds text selection items to selection
     /// \param items Items
     /// \param color Color for items (must include alpha channel)
@@ -213,6 +223,12 @@ public:
     /// Builds text selection, so it is prepared for rendering. Text selection,
     /// which is not build, can't be used for rendering.
     void build();
+
+    /// Returns iterator to start of page range
+    iterator begin(PDFInteger pageIndex) const;
+
+    /// Returns iterator to end of page range
+    iterator end(PDFInteger pageIndex) const;
 
 private:
     PDFTextSelectionColoredItems m_items;
@@ -332,6 +348,58 @@ private:
     PDFTextBlocks m_blocks;
 };
 
+/// Lazy getter for text layouts from storage. This is used, when we do not want to
+/// get text layout each time, because it is time expensive. If text layout is not needed,
+/// then nothing happens. Text layout is returned only, if conversion operator is used.
+class PDFTextLayoutGetter
+{
+public:
+    explicit PDFTextLayoutGetter(const PDFTextLayoutStorage* storage, PDFInteger pageIndex) :
+        m_storage(storage),
+        m_pageIndex(pageIndex)
+    {
+
+    }
+
+    /// Cast operator, casts to constant reference to PDFTextLayout
+    operator const PDFTextLayout&()
+    {
+        return m_textLayout.get(this, &PDFTextLayoutGetter::getTextLayoutImpl);
+    }
+
+private:
+    PDFTextLayout getTextLayoutImpl() const;
+
+    const PDFTextLayoutStorage* m_storage;
+    PDFInteger m_pageIndex;
+    PDFCachedItem<PDFTextLayout> m_textLayout;
+};
+
+/// Paints text selection on various pages using page to device point matrix
+class PDFTextSelectionPainter
+{
+public:
+    explicit inline PDFTextSelectionPainter(const PDFTextSelection* selection) :
+        m_selection(selection)
+    {
+
+    }
+
+    /// Draws text selection on the painter, using text layout and matrix. If current text selection
+    /// doesn't contain items from active page, then text layout is not accessed.
+    /// \param painter Painter
+    /// \param pageIndex Page index
+    /// \param textLayoutGetter Text layout getter
+    /// \param matrix Matrix which translates from page space to device space
+    void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix);
+
+private:
+    static constexpr const PDFReal HEIGHT_INCREASE_FACTOR = 0.25;
+    static constexpr const PDFReal SELECTION_ALPHA = 0.25;
+
+    const PDFTextSelection* m_selection;
+};
+
 /// Storage for text layouts. For reading and writing, this object is thread safe.
 /// For writing, mutex is used to synchronize asynchronous writes, for reading
 /// no mutex is used at all. For this reason, both reading/writing at the same time
@@ -351,6 +419,12 @@ public:
     /// function \p setTextLayout is called from another thread.
     /// \param pageIndex Page index
     PDFTextLayout getTextLayout(PDFInteger pageIndex) const;
+
+    /// Returns text layout for particular page. If page index is invalid,
+    /// then empty text layout is returned. Function is not thread safe, if
+    /// function \p setTextLayout is called from another thread.
+    /// \param pageIndex Page index
+    PDFTextLayoutGetter getTextLayoutLazy(PDFInteger pageIndex) const { return PDFTextLayoutGetter(this, pageIndex); }
 
     /// Sets text layout to the particular index. Index must be valid and from
     /// range 0 to \p pageCount - 1. Function is not thread safe.

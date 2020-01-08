@@ -125,6 +125,11 @@ public:
     /// \param pageIndex Page index
     PDFTextLayout getTextLayout(PDFInteger pageIndex);
 
+    /// Returns getter for text layout of the page. If page index is invalid,
+    /// then empty text layout getter is returned.
+    /// \param pageIndex Page index
+    PDFTextLayoutGetter getTextLayoutLazy(PDFInteger pageIndex);
+
     /// Create text layout for the document. Function is asynchronous,
     /// it returns immediately. After text layout is created, signal
     /// \p textLayoutChanged is emitted.

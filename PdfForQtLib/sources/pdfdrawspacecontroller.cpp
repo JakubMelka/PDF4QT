@@ -622,12 +622,13 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, placedRect);
                 compiledPage->draw(painter, page->getCropBox(), matrix, m_features);
+                PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 // Draw text blocks/text lines, if it is enabled
                 if (m_features.testFlag(PDFRenderer::DebugTextBlocks))
                 {
                     m_textLayoutCompiler->makeTextLayout();
-                    PDFTextLayout layout = m_textLayoutCompiler->getTextLayout(item.pageIndex);
+                    const PDFTextLayout& layout = layoutGetter;
                     const PDFTextBlocks& textBlocks = layout.getTextBlocks();
 
                     painter->save();
@@ -650,7 +651,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 if (m_features.testFlag(PDFRenderer::DebugTextLines))
                 {
                     m_textLayoutCompiler->makeTextLayout();
-                    PDFTextLayout layout = m_textLayoutCompiler->getTextLayout(item.pageIndex);
+                    const PDFTextLayout& layout = layoutGetter;
                     const PDFTextBlocks& textBlocks = layout.getTextBlocks();
 
                     painter->save();

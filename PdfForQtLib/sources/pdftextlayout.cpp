@@ -18,6 +18,8 @@
 #include "pdftextlayout.h"
 #include "pdfutils.h"
 
+#include <QPainter>
+
 #include <execution>
 
 namespace pdf
@@ -431,6 +433,16 @@ PDFTextLine::PDFTextLine(TextCharacters characters) :
     m_topLeft = boundingBox.topLeft();
 }
 
+PDFReal PDFTextLine::getAngle() const
+{
+    if (!m_characters.empty())
+    {
+        return m_characters.front().angle;
+    }
+
+    return 0.0;
+}
+
 void PDFTextLine::applyTransform(const QMatrix& matrix)
 {
     m_boundingBox = matrix.map(m_boundingBox);
@@ -479,6 +491,16 @@ PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
     }
     m_boundingBox.addRect(boundingBox);
     m_topLeft = boundingBox.topLeft();
+}
+
+PDFReal PDFTextBlock::getAngle() const
+{
+    if (!m_lines.empty())
+    {
+        return m_lines.front().getAngle();
+    }
+
+    return 0.0;
 }
 
 void PDFTextBlock::applyTransform(const QMatrix& matrix)
@@ -659,6 +681,40 @@ void PDFTextSelection::addItems(const PDFTextSelectionItems& items, QColor color
 void PDFTextSelection::build()
 {
     std::sort(m_items.begin(), m_items.end());
+}
+
+PDFTextSelection::iterator PDFTextSelection::begin(PDFInteger pageIndex) const
+{
+    Q_ASSERT(std::is_sorted(m_items.cbegin(), m_items.end()));
+
+    PDFCharacterPointer pointer;
+    pointer.pageIndex = pageIndex;
+    pointer.blockIndex = 0;
+    pointer.lineIndex = 0;
+    pointer.characterIndex = 0;
+
+    PDFTextSelectionColoredItem item;
+    item.start = pointer;
+    item.end = pointer;
+
+    return std::lower_bound(m_items.cbegin(), m_items.end(), item);
+}
+
+PDFTextSelection::iterator PDFTextSelection::end(PDFInteger pageIndex) const
+{
+    Q_ASSERT(std::is_sorted(m_items.cbegin(), m_items.end()));
+
+    PDFCharacterPointer pointer;
+    pointer.pageIndex = pageIndex;
+    pointer.blockIndex = std::numeric_limits<decltype(pointer.blockIndex)>::max();
+    pointer.lineIndex = std::numeric_limits<decltype(pointer.lineIndex)>::max();
+    pointer.characterIndex = std::numeric_limits<decltype(pointer.characterIndex)>::max();
+
+    PDFTextSelectionColoredItem item;
+    item.start = pointer;
+    item.end = pointer;
+
+    return std::upper_bound(m_items.cbegin(), m_items.end(), item);
 }
 
 PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSensitivity) const
@@ -878,6 +934,123 @@ bool PDFFindResult::operator<(const PDFFindResult& other) const
     Q_ASSERT(!other.textSelectionItems.empty());
 
     return textSelectionItems.front() < other.textSelectionItems.front();
+}
+
+PDFTextLayout PDFTextLayoutGetter::getTextLayoutImpl() const
+{
+    return m_storage ? m_storage->getTextLayout(m_pageIndex) : PDFTextLayout();
+}
+
+void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix)
+{
+    Q_ASSERT(painter);
+
+    auto it = m_selection->begin(pageIndex);
+    auto itEnd = m_selection->end(pageIndex);
+
+    if (it == itEnd)
+    {
+        // Jakub Melka: no text is selected on current page; do nothing
+        return;
+    }
+
+    painter->save();
+
+    const PDFTextLayout& layout = textLayoutGetter;
+    const PDFTextBlocks& blocks = layout.getTextBlocks();
+    for (; it != itEnd; ++it)
+    {
+        const PDFTextSelectionColoredItem& item = *it;
+        const PDFCharacterPointer& start = item.start;
+        const PDFCharacterPointer& end = item.end;
+
+        Q_ASSERT(start.pageIndex == end.pageIndex);
+        Q_ASSERT(start.blockIndex == end.blockIndex);
+
+        if (start.blockIndex >= blocks.size())
+        {
+            // Selection is invalid, do nothing
+            continue;
+        }
+
+        PDFTextBlock block = blocks[start.blockIndex];
+
+        // Fix angle of block, so we will get correct selection rectangles (parallel to lines)
+        QMatrix angleMatrix;
+        angleMatrix.rotate(block.getAngle());
+        block.applyTransform(angleMatrix);
+
+        QPainterPath path;
+
+        const size_t lineStart = start.lineIndex;
+        const size_t lineEnd = end.lineIndex;
+        Q_ASSERT(lineEnd >= lineStart);
+
+        const PDFTextLines& lines = block.getLines();
+        for (size_t lineIndex = lineStart; lineIndex <= lineEnd; ++lineIndex)
+        {
+            if (lineIndex >= lines.size())
+            {
+                // Selection is invalid, do nothing
+                continue;
+            }
+
+            const PDFTextLine& line = lines[lineIndex];
+            const TextCharacters& characters = line.getCharacters();
+
+            if (characters.empty())
+            {
+                // Selection is invalid, do nothing
+                continue;
+            }
+
+            // First determine, which characters will be selected
+            size_t characterStart = 0;
+            size_t characterEnd = characters.size() - 1;
+
+            if (lineIndex == lineStart)
+            {
+                characterStart = start.characterIndex;
+            }
+            if (lineIndex == lineEnd)
+            {
+                characterEnd = end.characterIndex;
+            }
+
+            // Validate indices, then calculate bounding box
+            if (!(characterStart <= characterEnd && characterEnd < characters.size()))
+            {
+                continue;
+            }
+
+            QRectF boundingBox;
+            for (size_t i = characterStart; i <= characterEnd; ++i)
+            {
+                boundingBox = boundingBox.united(characters[i].boundingBox.boundingRect());
+            }
+
+            if (boundingBox.isValid())
+            {
+                // Enlarge height by some percent
+                PDFReal heightAdvance = boundingBox.height() * HEIGHT_INCREASE_FACTOR * 0.5;
+                boundingBox.adjust(0, -heightAdvance, 0, heightAdvance);
+                path.addRect(boundingBox);
+            }
+        }
+
+        QMatrix transformMatrix = angleMatrix.inverted() * matrix;
+        path = transformMatrix.map(path);
+
+        QColor penColor = item.color;
+        QColor brushColor = item.color;
+        brushColor.setAlphaF(SELECTION_ALPHA);
+
+        painter->setPen(penColor);
+        painter->setBrush(QBrush(brushColor, Qt::SolidPattern));
+        painter->drawPath(path);
+    }
+
+    painter->restore();
 }
 
 }   // namespace pdf
