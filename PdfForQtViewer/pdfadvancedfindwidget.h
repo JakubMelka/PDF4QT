@@ -19,6 +19,7 @@
 #define PDFADVANCEDFINDWIDGET_H
 
 #include "pdfglobal.h"
+#include "pdfdrawspacecontroller.h"
 #include "pdftextlayout.h"
 
 #include <QWidget>
@@ -37,24 +38,43 @@ class PDFDrawWidgetProxy;
 namespace pdfviewer
 {
 
-class PDFAdvancedFindWidget : public QWidget
+class PDFAdvancedFindWidget : public QWidget, public pdf::IDocumentDrawInterface
 {
     Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
 
 public:
     explicit PDFAdvancedFindWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* parent = nullptr);
     virtual ~PDFAdvancedFindWidget() override;
 
+    virtual void drawPage(QPainter* painter,
+                          pdf::PDFInteger pageIndex,
+                          const pdf::PDFPrecompiledPage* compiledPage,
+                          pdf::PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix) const override;
+
     void setDocument(const pdf::PDFDocument* document);
+
+protected:
+    virtual void showEvent(QShowEvent* event) override;
+    virtual void hideEvent(QHideEvent* event) override;
 
 private slots:
     void on_searchButton_clicked();
+    void onSelectionChanged();
     void onResultItemDoubleClicked(int row, int column);
+
+    void on_clearButton_clicked();
 
 private:
     void updateUI();
     void updateResultsUI();
     void performSearch();
+
+    pdf::PDFTextSelection getTextSelection() const { return m_textSelection.get(this, &PDFAdvancedFindWidget::getTextSelectionImpl); }
+    pdf::PDFTextSelection getTextSelectionImpl() const;
 
     struct SearchParameters
     {
@@ -74,6 +94,7 @@ private:
     const pdf::PDFDocument* m_document;
     SearchParameters m_parameters;
     pdf::PDFFindResults m_findResults;
+    mutable pdf::PDFCachedItem<pdf::PDFTextSelection> m_textSelection;
 };
 
 }   // namespace pdfviewer

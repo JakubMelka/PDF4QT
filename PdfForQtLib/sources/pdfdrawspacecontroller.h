@@ -36,8 +36,29 @@ class PDFProgress;
 class PDFWidget;
 class IDrawWidget;
 class PDFCMSManager;
+class PDFTextLayoutGetter;
 class PDFAsynchronousPageCompiler;
 class PDFAsynchronousTextLayoutCompiler;
+
+class PDFFORQTLIBSHARED_EXPORT IDocumentDrawInterface
+{
+public:
+    explicit inline IDocumentDrawInterface() = default;
+    virtual ~IDocumentDrawInterface() = default;
+
+    /// Performs drawing of additional graphics onto the painter using precompiled page,
+    /// optionally text layout and page point to device point matrix.
+    /// \param painter Painter
+    /// \param pageIndex Page index
+    /// \param compiledPage Compiled page
+    /// \param layoutGetter Layout getter
+    /// \param pagePointToDevicePointMatrix Matrix mapping page space to device point space
+    virtual void drawPage(QPainter* painter,
+                          pdf::PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix) const;
+};
 
 /// This class controls draw space - page layout. Pages are divided into blocks
 /// each block can contain one or multiple pages. Units are in milimeters.
@@ -286,6 +307,9 @@ public:
     static constexpr PDFReal getMinZoom() { return MIN_ZOOM; }
     static constexpr PDFReal getMaxZoom() { return MAX_ZOOM; }
 
+    void registerDrawInterface(IDocumentDrawInterface* drawInterface) { m_drawInterfaces.insert(drawInterface); }
+    void unregisterDrawInterface(IDocumentDrawInterface* drawInterface) { m_drawInterfaces.erase(drawInterface); }
+
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
@@ -422,6 +446,9 @@ private:
 
     /// Progress
     PDFProgress* m_progress;
+
+    /// Additional drawing interfaces
+    std::set<IDocumentDrawInterface*> m_drawInterfaces;
 };
 
 }   // namespace pdf

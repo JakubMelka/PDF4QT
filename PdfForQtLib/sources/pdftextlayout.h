@@ -208,7 +208,7 @@ using PDFTextSelectionColoredItems = std::vector<PDFTextSelectionColoredItem>;
 
 /// Text selection, can be used across multiple pages. Also defines color
 /// for each text selection.
-class PDFTextSelection
+class PDFFORQTLIBSHARED_EXPORT PDFTextSelection
 {
 public:
     explicit PDFTextSelection() = default;
@@ -376,7 +376,7 @@ private:
 };
 
 /// Paints text selection on various pages using page to device point matrix
-class PDFTextSelectionPainter
+class PDFFORQTLIBSHARED_EXPORT PDFTextSelectionPainter
 {
 public:
     explicit inline PDFTextSelectionPainter(const PDFTextSelection* selection) :
@@ -394,7 +394,7 @@ public:
     void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix);
 
 private:
-    static constexpr const PDFReal HEIGHT_INCREASE_FACTOR = 0.25;
+    static constexpr const PDFReal HEIGHT_INCREASE_FACTOR = 0.40;
     static constexpr const PDFReal SELECTION_ALPHA = 0.25;
 
     const PDFTextSelection* m_selection;

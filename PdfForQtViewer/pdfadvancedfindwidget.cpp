@@ -40,6 +40,7 @@ PDFAdvancedFindWidget::PDFAdvancedFindWidget(pdf::PDFDrawWidgetProxy* proxy, QWi
     connect(ui->regularExpressionsCheckbox, &QCheckBox::clicked, this, &PDFAdvancedFindWidget::updateUI);
     connect(m_proxy, &pdf::PDFDrawWidgetProxy::textLayoutChanged, this, &PDFAdvancedFindWidget::performSearch);
     connect(ui->resultsTableWidget, &QTableWidget::cellDoubleClicked, this, &PDFAdvancedFindWidget::onResultItemDoubleClicked);
+    connect(ui->resultsTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFAdvancedFindWidget::onSelectionChanged);
     updateUI();
 }
 
@@ -105,6 +106,19 @@ void PDFAdvancedFindWidget::on_searchButton_clicked()
     }
 }
 
+void PDFAdvancedFindWidget::on_clearButton_clicked()
+{
+    m_parameters = SearchParameters();
+    m_findResults.clear();
+    updateResultsUI();
+}
+
+void PDFAdvancedFindWidget::onSelectionChanged()
+{
+    m_textSelection.dirty();
+    m_proxy->repaintNeeded();
+}
+
 void PDFAdvancedFindWidget::onResultItemDoubleClicked(int row, int column)
 {
     Q_UNUSED(column);
@@ -142,6 +156,19 @@ void PDFAdvancedFindWidget::updateResultsUI()
     {
         ui->tabWidget->setCurrentWidget(ui->resultsTab);
     }
+}
+
+void PDFAdvancedFindWidget::drawPage(QPainter* painter,
+                                     pdf::PDFInteger pageIndex,
+                                     const pdf::PDFPrecompiledPage* compiledPage,
+                                     pdf::PDFTextLayoutGetter& layoutGetter,
+                                     const QMatrix& pagePointToDevicePointMatrix) const
+{
+    Q_UNUSED(compiledPage);
+
+    const pdf::PDFTextSelection& textSelection = getTextSelection();
+    pdf::PDFTextSelectionPainter textSelectionPainter(&textSelection);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
 }
 
 void PDFAdvancedFindWidget::performSearch()
@@ -215,7 +242,47 @@ void PDFAdvancedFindWidget::performSearch()
         m_findResults = textLayoutStorage->find(regularExpression, flowFlags);
     }
 
+    m_textSelection.dirty();
+    m_proxy->repaintNeeded();
+
     updateResultsUI();
+}
+
+pdf::PDFTextSelection PDFAdvancedFindWidget::getTextSelectionImpl() const
+{
+    pdf::PDFTextSelection result;
+
+    std::vector<size_t> selectedRowIndices;
+    QModelIndexList selectedRows = ui->resultsTableWidget->selectionModel()->selectedRows();
+    std::transform(selectedRows.cbegin(), selectedRows.cend(), std::back_inserter(selectedRowIndices), [] (const QModelIndex& index) { return index.row(); });
+    std::sort(selectedRowIndices.begin(), selectedRowIndices.end());
+
+    for (size_t i = 0; i < m_findResults.size(); ++i)
+    {
+        const pdf::PDFFindResult& findResult = m_findResults[i];
+
+        QColor color(Qt::blue);
+        if (std::binary_search(selectedRowIndices.cbegin(), selectedRowIndices.cend(), i))
+        {
+            color = QColor(Qt::yellow);
+        }
+
+        result.addItems(findResult.textSelectionItems, color);
+    }
+
+    return result;
+}
+
+void PDFAdvancedFindWidget::showEvent(QShowEvent* event)
+{
+    BaseClass::showEvent(event);
+    m_proxy->registerDrawInterface(this);
+}
+
+void PDFAdvancedFindWidget::hideEvent(QHideEvent* event)
+{
+    m_proxy->unregisterDrawInterface(this);
+    BaseClass::hideEvent(event);
 }
 
 }   // namespace pdfviewer

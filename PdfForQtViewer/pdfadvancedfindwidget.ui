@@ -29,35 +29,18 @@
          <property name="title">
           <string>Search Settings</string>
          </property>
-         <layout class="QGridLayout" name="searchSettingsGroupBoxLayout" columnstretch="0,1,0">
-          <item row="0" column="1" colspan="2">
-           <widget class="QLineEdit" name="searchPhraseEdit"/>
-          </item>
-          <item row="3" column="1" colspan="2">
-           <widget class="QCheckBox" name="regularExpressionsCheckbox">
+         <layout class="QGridLayout" name="searchSettingsGroupBoxLayout" columnstretch="0,1,0,0">
+          <item row="5" column="3">
+           <widget class="QPushButton" name="searchButton">
             <property name="text">
-             <string>Use regular expressions</string>
+             <string>Search</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="1" colspan="2">
+          <item row="2" column="1" colspan="3">
            <widget class="QCheckBox" name="wholeWordsOnlyCheckBox">
             <property name="text">
              <string>Whole words only</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="searchLabel">
-            <property name="text">
-             <string>Search for:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1" colspan="2">
-           <widget class="QCheckBox" name="caseSensitiveCheckBox">
-            <property name="text">
-             <string>Case sensitive</string>
             </property>
            </widget>
           </item>
@@ -68,10 +51,34 @@
             </property>
            </widget>
           </item>
-          <item row="5" column="2">
-           <widget class="QPushButton" name="searchButton">
+          <item row="0" column="0">
+           <widget class="QLabel" name="searchLabel">
             <property name="text">
-             <string>Search</string>
+             <string>Search for:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1" colspan="3">
+           <widget class="QCheckBox" name="caseSensitiveCheckBox">
+            <property name="text">
+             <string>Case sensitive</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1" colspan="3">
+           <widget class="QLineEdit" name="searchPhraseEdit"/>
+          </item>
+          <item row="3" column="1" colspan="3">
+           <widget class="QCheckBox" name="regularExpressionsCheckbox">
+            <property name="text">
+             <string>Use regular expressions</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QPushButton" name="clearButton">
+            <property name="text">
+             <string>Clear</string>
             </property>
            </widget>
           </item>

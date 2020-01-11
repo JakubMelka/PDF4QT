@@ -675,6 +675,13 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                     painter->restore();
                 }
 
+                for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                {
+                    painter->save();
+                    drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix);
+                    painter->restore();
+                }
+
                 const qint64 drawTimeNS = timer.nsecsElapsed();
 
                 // Draw rendering times
@@ -1198,6 +1205,19 @@ void PDFDrawWidgetProxy::onOptionalContentGroupStateChanged()
     m_compiler->reset();
     m_textLayoutCompiler->reset();
     emit pageImageChanged(true, { });
+}
+
+void IDocumentDrawInterface::drawPage(QPainter* painter,
+                                      PDFInteger pageIndex,
+                                      const PDFPrecompiledPage* compiledPage,
+                                      PDFTextLayoutGetter& layoutGetter,
+                                      const QMatrix& pagePointToDevicePointMatrix) const
+{
+    Q_UNUSED(painter);
+    Q_UNUSED(pageIndex);
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(pagePointToDevicePointMatrix);
 }
 
 }   // namespace pdf

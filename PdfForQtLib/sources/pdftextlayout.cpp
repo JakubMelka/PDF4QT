@@ -1041,7 +1041,7 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
         QMatrix transformMatrix = angleMatrix.inverted() * matrix;
         path = transformMatrix.map(path);
 
-        QColor penColor = item.color;
+        QColor penColor = item.color.darker();
         QColor brushColor = item.color;
         brushColor.setAlphaF(SELECTION_ALPHA);
 
