@@ -25,6 +25,7 @@
 #include "pdfviewersettings.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentpropertiesdialog.h"
+#include "pdfwidgettool.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -163,6 +164,8 @@ private:
 
     QProgressDialog* m_progressDialog;
     bool m_isBusy;
+
+    pdf::PDFToolManager* m_toolManager;
 };
 
 }   // namespace pdfviewer

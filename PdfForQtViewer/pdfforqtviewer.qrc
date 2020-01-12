@@ -27,5 +27,9 @@
         <file>resources/info.svg</file>
         <file>resources/send-mail.svg</file>
         <file>resources/cms.svg</file>
+        <file>resources/find.svg</file>
+        <file>resources/find-advanced.svg</file>
+        <file>resources/find-next.svg</file>
+        <file>resources/find-previous.svg</file>
     </qresource>
 </RCC>

@@ -101,6 +101,8 @@
      <string>Edit</string>
     </property>
     <addaction name="actionFind"/>
+    <addaction name="actionFindPrevious"/>
+    <addaction name="actionFindNext"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -348,8 +350,30 @@
    </property>
   </action>
   <action name="actionFind">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/find.svg</normaloff>:/resources/find.svg</iconset>
+   </property>
    <property name="text">
     <string>Find</string>
+   </property>
+  </action>
+  <action name="actionFindPrevious">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/find-previous.svg</normaloff>:/resources/find-previous.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Find Previous</string>
+   </property>
+  </action>
+  <action name="actionFindNext">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/find-next.svg</normaloff>:/resources/find-next.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Find Next</string>
    </property>
   </action>
  </widget>

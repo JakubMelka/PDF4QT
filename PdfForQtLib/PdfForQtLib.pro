@@ -57,6 +57,7 @@ SOURCES += \
     sources/pdfsecurityhandler.cpp \
     sources/pdftextlayout.cpp \
     sources/pdfutils.cpp \
+    sources/pdfwidgettool.cpp \
     sources/pdfxreftable.cpp \
     sources/pdfvisitor.cpp \
     sources/pdfencoding.cpp \
@@ -100,6 +101,7 @@ HEADERS += \
     sources/pdfprogress.h \
     sources/pdfsecurityhandler.h \
     sources/pdftextlayout.h \
+    sources/pdfwidgettool.h \
     sources/pdfxreftable.h \
     sources/pdfflatmap.h \
     sources/pdfvisitor.h \

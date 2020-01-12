@@ -35,6 +35,7 @@ namespace pdf
 class PDFProgress;
 class PDFWidget;
 class IDrawWidget;
+class PDFWidgetTool;
 class PDFCMSManager;
 class PDFTextLayoutGetter;
 class PDFAsynchronousPageCompiler;
@@ -298,6 +299,7 @@ public:
     PDFProgress* getProgress() const { return m_progress; }
     void setProgress(PDFProgress* progress) { m_progress = progress; }
     PDFAsynchronousTextLayoutCompiler* getTextLayoutCompiler() const { return m_textLayoutCompiler; }
+    PDFWidget* getWidget() const { return m_widget; }
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);

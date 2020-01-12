@@ -93,6 +93,7 @@ void PDFAdvancedFindWidget::on_searchButton_clicked()
     }
 
     m_findResults.clear();
+    m_textSelection.dirty();
     updateResultsUI();
 
     pdf::PDFAsynchronousTextLayoutCompiler* compiler = m_proxy->getTextLayoutCompiler();
@@ -173,7 +174,7 @@ void PDFAdvancedFindWidget::drawPage(QPainter* painter,
 
 void PDFAdvancedFindWidget::performSearch()
 {
-    if (m_parameters.isSearchFinished)
+    if (m_parameters.isSearchFinished || m_parameters.phrase.isEmpty())
     {
         return;
     }
@@ -269,6 +270,7 @@ pdf::PDFTextSelection PDFAdvancedFindWidget::getTextSelectionImpl() const
 
         result.addItems(findResult.textSelectionItems, color);
     }
+    result.build();
 
     return result;
 }

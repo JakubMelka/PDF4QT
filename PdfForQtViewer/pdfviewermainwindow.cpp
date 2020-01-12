@@ -79,7 +79,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
     m_progressDialog(nullptr),
-    m_isBusy(false)
+    m_isBusy(false),
+    m_toolManager(nullptr)
 {
     ui->setupUi(this);
 
@@ -93,6 +94,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionZoom_In->setShortcut(QKeySequence::ZoomIn);
     ui->actionZoom_Out->setShortcut(QKeySequence::ZoomOut);
     ui->actionFind->setShortcut(QKeySequence::Find);
+    ui->actionFindPrevious->setShortcut(QKeySequence::FindPrevious);
+    ui->actionFindNext->setShortcut(QKeySequence::FindNext);
 
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
@@ -188,6 +191,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     toggleAdvancedFindAction->setObjectName("actionAdvancedFind");
     toggleAdvancedFindAction->setText(tr("Advanced Find"));
     toggleAdvancedFindAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
+    toggleAdvancedFindAction->setIcon(QIcon(":/resources/find-advanced.svg"));
     ui->menuEdit->insertAction(nullptr, toggleAdvancedFindAction);
 
     ui->actionRenderOptionAntialiasing->setData(pdf::PDFRenderer::Antialiasing);
@@ -206,6 +210,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->menuView->addAction(m_sidebarDockWidget->toggleViewAction());
     m_sidebarDockWidget->toggleViewAction()->setObjectName("actionSidebar");
 
+    // Initialize tools
+    m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), ui->actionFindPrevious, ui->actionFindNext, this, this);
+
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
@@ -215,6 +222,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
     connect(&m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
     connect(this, &PDFViewerMainWindow::queryPasswordRequest, this, &PDFViewerMainWindow::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
+    connect(ui->actionFind, &QAction::triggered, this, [this] { m_toolManager->getFindTextTool()->setActive(true); });
 
     readActionSettings();
     updatePageLayoutActions();
@@ -756,6 +764,7 @@ void PDFViewerMainWindow::updateActionsAvailability()
     ui->actionFitWidth->setEnabled(hasValidDocument);
     ui->actionFitHeight->setEnabled(hasValidDocument);
     ui->actionRendering_Errors->setEnabled(hasValidDocument);
+    ui->actionFind->setEnabled(hasValidDocument);
     setEnabled(!isBusy);
 }
 
@@ -857,6 +866,7 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
         case pdf::PDFDocumentReader::Result::Cancelled:
             break; // Do nothing, user cancelled the document reading
     }
+    updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
@@ -874,6 +884,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
         m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
     }
 
+    m_toolManager->setDocument(document);
     m_pdfWidget->setDocument(document, m_optionalContentActivity);
     m_sidebarWidget->setDocument(document, m_optionalContentActivity);
     m_advancedFindWidget->setDocument(document);
