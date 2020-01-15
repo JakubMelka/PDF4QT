@@ -161,6 +161,9 @@ void PDFFindTextTool::setActiveImpl(bool active)
         m_previousButton = new QPushButton(tr("Previous"), m_dialog);
         m_nextButton = new QPushButton(tr("Next"), m_dialog);
 
+        m_previousButton->setDefault(false);
+        m_nextButton->setDefault(false);
+
         connect(m_previousButton, &QPushButton::clicked, m_prevAction, &QAction::trigger);
         connect(m_nextButton, &QPushButton::clicked, m_nextAction, &QAction::trigger);
         connect(m_findTextEdit, &QLineEdit::editingFinished, this, &PDFFindTextTool::onSearchText);
@@ -200,6 +203,11 @@ void PDFFindTextTool::setActiveImpl(bool active)
 
 void PDFFindTextTool::onSearchText()
 {
+    if (!isActive())
+    {
+        return;
+    }
+
     m_parameters.phrase = m_findTextEdit->text();
     m_parameters.isCaseSensitive = m_caseSensitiveCheckBox->isChecked();
     m_parameters.isWholeWordsOnly = m_wholeWordsCheckBox->isChecked();
