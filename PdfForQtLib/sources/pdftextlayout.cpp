@@ -25,6 +25,228 @@
 namespace pdf
 {
 
+/// Spatial 2D index for indexing of text characters. It is a R-tree like structure,
+/// build over an array of text characters. Array is modified (structure is build over
+/// array).
+class PDFTextCharacterSpatialIndex
+{
+public:
+    explicit PDFTextCharacterSpatialIndex(TextCharacters* characters, size_t leafSize) :
+        m_characters(characters),
+        m_leafSize(leafSize),
+        m_epsilon(0.0)
+    {
+        m_nodes.reserve(2 * characters->size() / leafSize);
+
+        // Calculate epsilon from the bounding box. We must use epsilon to avoid empty
+        // rectangles, which can occur, if text is on a single line.
+        QRectF boundingBox = getBoundingBox(characters->begin(), characters->end());
+        if (boundingBox.isValid())
+        {
+            qreal edge = qMax(boundingBox.width(), boundingBox.height());
+            m_epsilon = edge * 0.001;
+        }
+        else
+        {
+            m_epsilon = 0.01;
+        }
+
+        build(characters->begin(), characters->end());
+    }
+
+    using Iterator = TextCharacters::iterator;
+
+    /// Builds structure over range of iterators. Array is build in O(n * log^2 (n)) time.
+    /// Index to internal nodes array is returned.
+    /// \param it1 Start iterator
+    /// \param it2 End iterator
+    size_t build(Iterator it1, Iterator it2);
+
+    /// Returns bounding box of character positions over given iterator range.
+    /// If iterator range is empty, then empty bounding box is returned.
+    /// \param it1 Start iterator
+    /// \param it2 End iterator
+    QRectF getBoundingBox(Iterator it1, Iterator it2) const;
+
+    /// Performs query on structure - finds all characters, which are in given
+    /// rectangle, and returns intersection size. If \p result parameter is set
+    /// to valid pointer, all intersected  characters are inserted into the result
+    /// array.
+    /// \param rect Query rectangle
+    /// \param result Result of query (can be nullptr)
+    /// \returns Size of intersection
+    size_t query(const QRectF& rect, TextCharacters* result) const;
+
+    /// Finds character array, which contains at least \p minimalSize characters,
+    /// with some extra characters, which must be filtered out.
+    /// \param minimalSize Minimal size
+    /// \param sample Sample character
+    /// \param result Result
+    void queryNearestEstimate(size_t minimalSize, const TextCharacter& sample, TextCharacters* result) const;
+
+private:
+    size_t queryImpl(size_t nodeIndex, const QRectF& rect, TextCharacters* result) const;
+
+    struct Node
+    {
+        bool isLeaf = false;
+        size_t index1 = 0;
+        size_t index2 = 0;
+        QRectF boundingBox;
+    };
+
+    using Nodes = std::vector<Node>;
+
+    TextCharacters* m_characters;
+    Nodes m_nodes;
+    size_t m_leafSize;
+    qreal m_epsilon;
+};
+
+size_t PDFTextCharacterSpatialIndex::build(Iterator it1, Iterator it2)
+{
+    size_t nodeIndex = m_nodes.size();
+
+    if (size_t(std::distance(it1, it2)) < m_leafSize)
+    {
+        // Create leaf node
+        Node node;
+        node.isLeaf = true;
+        node.index1 = std::distance(m_characters->begin(), it1);
+        node.index2 = std::distance(m_characters->begin(), it2);
+        node.boundingBox = getBoundingBox(it1, it2);
+        m_nodes.push_back(qMove(node));
+    }
+    else
+    {
+        // Jakub Melka: split array of nodes into half, using larger side.
+        // It is like in R-tree structure.
+        m_nodes.push_back(Node());
+
+        QRectF boundingBox = getBoundingBox(it1, it2);
+        if (boundingBox.width() > boundingBox.height())
+        {
+            // Split using x-axis
+            std::sort(it1, it2, [](const TextCharacter& l, const TextCharacter& r) { return l.position.x() < r.position.x(); });
+        }
+        else
+        {
+            // Split using y-axis
+            std::sort(it1, it2, [](const TextCharacter& l, const TextCharacter& r) { return l.position.y() < r.position.y(); });
+        }
+
+        const size_t distance = std::distance(it1, it2);
+        Iterator itMid = std::next(it1, distance / 2);
+
+        const size_t index1 = build(it1, itMid);
+        const size_t index2 = build(itMid, it2);
+
+        Node& node = m_nodes[nodeIndex];
+        node.isLeaf = false;
+        node.index1 = index1;
+        node.index2 = index2;
+        node.boundingBox = boundingBox;
+    }
+
+    return nodeIndex;
+}
+
+QRectF PDFTextCharacterSpatialIndex::getBoundingBox(Iterator it1, Iterator it2) const
+{
+    if (it1 != it2)
+    {
+        qreal x_min = qInf();
+        qreal x_max = -qInf();
+        qreal y_min = qInf();
+        qreal y_max = -qInf();
+
+        for (Iterator it = it1; it != it2; ++it)
+        {
+            const TextCharacter& character = *it;
+            x_min = qMin(x_min, character.position.x() - m_epsilon);
+            x_max = qMax(x_max, character.position.x() + m_epsilon);
+            y_min = qMin(y_min, character.position.y() - m_epsilon);
+            y_max = qMax(y_max, character.position.y() + m_epsilon);
+        }
+
+        return QRectF(x_min, y_min, x_max - x_min, y_max - y_min);
+    }
+
+    return QRectF();
+}
+
+size_t PDFTextCharacterSpatialIndex::query(const QRectF& rect, TextCharacters* result) const
+{
+    if (!m_nodes.empty())
+    {
+        return queryImpl(0, rect, result);
+    }
+
+    return 0;
+}
+
+void PDFTextCharacterSpatialIndex::queryNearestEstimate(size_t minimalSize, const TextCharacter& sample, TextCharacters* result) const
+{
+    if (m_characters->size() <= minimalSize)
+    {
+        *result = *m_characters;
+    }
+    else
+    {
+        // Query result
+        qreal querySizeEstimate = qMax(qMax(m_nodes[0].boundingBox.width(), m_nodes[0].boundingBox.height()) * 0.01, sample.advance * minimalSize * 0.5);
+
+        QRectF rect(sample.position, QSizeF(querySizeEstimate, querySizeEstimate));
+        rect.translate(-querySizeEstimate * 0.5, -querySizeEstimate * 0.5);
+
+        while (query(rect, nullptr) < minimalSize)
+        {
+            qreal expansion = rect.width() * 0.5;
+            rect.adjust(-expansion, -expansion, expansion, expansion);
+        }
+
+        qreal expansion = rect.width() * (qSqrt(2.0) - 1.0);
+        rect.adjust(-expansion, -expansion, expansion, expansion);
+        query(rect, result);
+    }
+}
+
+size_t PDFTextCharacterSpatialIndex::queryImpl(size_t nodeIndex, const QRectF& rect, TextCharacters* result) const
+{
+    const Node& node = m_nodes[nodeIndex];
+
+    if (!node.boundingBox.intersects(rect))
+    {
+        // Node is not intersected, just return
+        return 0;
+    }
+
+    if (!node.isLeaf)
+    {
+        return queryImpl(node.index1, rect, result) + queryImpl(node.index2, rect, result);
+    }
+    else
+    {
+        // Jakub Melka: it is a leaf...
+        auto isInside = [&rect](const TextCharacter& character)
+        {
+            return rect.contains(character.position);
+        };
+
+        auto itStart = std::next(m_characters->begin(), node.index1);
+        auto itEnd = std::next(m_characters->begin(), node.index2);
+
+        if (result)
+        {
+            const size_t oldSize = result->size();
+            std::copy_if(itStart, itEnd, std::back_inserter(*result), isInside);
+            return result->size() - oldSize;
+        }
+
+        return std::count_if(itStart, itEnd, isInside);
+    }
+}
+
 template<typename T>
 QDataStream& operator>>(QDataStream& stream, std::vector<T>& vector)
 {
@@ -173,12 +395,19 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     angleMatrix.rotate(angle);
     applyTransform(characters, angleMatrix);
 
+    // Create spatial index
+    PDFTextCharacterSpatialIndex spatialIndex(&characters, 16);
+    for (size_t i = 0, count = characters.size(); i < count; ++i)
+    {
+        characters[i].index = i;
+    }
+
     // Step 2) - find k-nearest characters
     const size_t characterCount = characters.size();
     const size_t bucketSize = m_settings.samples + 1;
     std::vector<NearestCharacterInfo> nearestCharacters(bucketSize * characters.size(), NearestCharacterInfo());
 
-    auto findNearestCharacters = [this, bucketSize, characterCount, &characters, &nearestCharacters](size_t currentCharacterIndex)
+    auto findNearestCharacters = [this, bucketSize, &characters, &spatialIndex, &nearestCharacters](size_t currentCharacterIndex)
     {
         // It will be iterator to the start of the nearest neighbour sequence
         auto it = std::next(nearestCharacters.begin(), currentCharacterIndex * bucketSize);
@@ -186,15 +415,17 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
         NearestCharacterInfo& insertInfo = *itLast;
         QPointF currentPoint = characters[currentCharacterIndex].position;
 
-        for (size_t i = 0; i < characterCount; ++i)
+        TextCharacters nearestPointSamples;
+        spatialIndex.queryNearestEstimate(m_settings.samples, characters[currentCharacterIndex], &nearestPointSamples);
+        for (size_t i = 0, count = nearestPointSamples.size(); i < count; ++i)
         {
-            if (i == currentCharacterIndex)
+            if (nearestPointSamples[i].index == currentCharacterIndex)
             {
                 continue;
             }
 
-            insertInfo.index = i;
-            insertInfo.distance = QLineF(currentPoint, characters[i].position).length();
+            insertInfo.index = nearestPointSamples[i].index;
+            insertInfo.distance = QLineF(currentPoint, nearestPointSamples[i].position).length();
 
             // Now, use insert sort to sort the array of samples + 1 elements (#samples elements
             // are sorted, we use only insert sort on the last element).

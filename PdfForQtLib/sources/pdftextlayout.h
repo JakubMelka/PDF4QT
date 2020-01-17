@@ -97,6 +97,8 @@ struct TextCharacter
     PDFReal advance = 0.0;
     QPainterPath boundingBox;
 
+    size_t index = 0; // Just temporary index, it is not serialized, just for text layout algorithm
+
     void applyTransform(const QMatrix& matrix);
 
     friend QDataStream& operator<<(QDataStream& stream, const TextCharacter& character);
