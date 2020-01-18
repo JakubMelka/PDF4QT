@@ -72,6 +72,9 @@ protected:
     /// Returns, if feature is turned on
     bool hasFeature(PDFRenderer::Feature feature) const { return m_features.testFlag(feature); }
 
+    /// Is transparency group active?
+    bool isTransparencyGroupActive() const { return !m_transparencyGroupDataStack.empty(); }
+
 private:
     /// Returns current pen (implementation)
     QPen getCurrentPenImpl() const;

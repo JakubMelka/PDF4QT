@@ -413,6 +413,27 @@ void PDFPrecompiledPageGenerator::performImagePainting(const QImage& image)
         return;
     }
 
+    if (isTransparencyGroupActive())
+    {
+        PDFReal alpha = getEffectiveFillingAlpha();
+        if (alpha != 1.0)
+        {
+            // Try to approximate transparency group using alpha channel
+            QImage imageWithAlpha = image;
+            QImage alphaChannel = imageWithAlpha.convertToFormat(QImage::Format_Alpha8);
+            uchar* bits = alphaChannel.bits();
+
+            for (qsizetype i = 0, sizeInBytes = alphaChannel.sizeInBytes(); i < sizeInBytes; ++i)
+            {
+                bits[i] *= alpha;
+            }
+
+            imageWithAlpha.setAlphaChannel(alphaChannel);
+            m_precompiledPage->addImage(imageWithAlpha);
+            return;
+        }
+    }
+
     m_precompiledPage->addImage(image);
 }
 

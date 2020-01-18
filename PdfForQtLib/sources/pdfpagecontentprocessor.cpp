@@ -2741,28 +2741,28 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
 
     if (m_xobjectDictionary)
     {
-        // According to the specification, XObjects are skipped entirely, as no operator was invoked.
-        if (m_xobjectDictionary->hasKey("OC"))
-        {
-            const PDFObject& object = m_xobjectDictionary->get("OC");
-            if (object.isReference())
-            {
-                if (isContentSuppressedByOC(object.getReference()))
-                {
-                    return;
-                }
-            }
-            else
-            {
-                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Reference to optional content expected."));
-            }
-        }
-
         const PDFObject& object = m_document->getObject(m_xobjectDictionary->get(name.name));
         if (object.isStream())
         {
             const PDFStream* stream = object.getStream();
             const PDFDictionary* streamDictionary = stream->getDictionary();
+
+            // According to the specification, XObjects are skipped entirely, as no operator was invoked.
+            if (streamDictionary->hasKey("OC"))
+            {
+                const PDFObject& object = streamDictionary->get("OC");
+                if (object.isReference())
+                {
+                    if (isContentSuppressedByOC(object.getReference()))
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Reference to optional content expected."));
+                }
+            }
 
             PDFDocumentDataLoaderDecorator loader(m_document);
             QByteArray subtype = loader.readNameFromDictionary(streamDictionary, "Subtype");

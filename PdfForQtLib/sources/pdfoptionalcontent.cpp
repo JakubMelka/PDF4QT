@@ -516,7 +516,17 @@ PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(co
         {
             // First, scan all optional content groups
             PDFDocumentDataLoaderDecorator loader(document);
-            std::vector<PDFObjectReference> ocgs = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
+            std::vector<PDFObjectReference> ocgs;
+
+            PDFObject singleOCG = dictionary->get("OCGs");
+            if (singleOCG.isReference())
+            {
+                ocgs = { singleOCG.getReference() };
+            }
+            else
+            {
+                ocgs = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
+            }
 
             if (!ocgs.empty())
             {
