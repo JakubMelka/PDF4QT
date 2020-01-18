@@ -22,6 +22,7 @@
 #include "pdfexception.h"
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QFile>
 
@@ -270,7 +271,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
         // Now, we are ready to scan all objects
         progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Reading contents of document..."));
-        std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
         progressFinish();
 
         if (m_result != Result::OK)
@@ -370,7 +371,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             };
 
             progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Decrypting encrypted contents of document..."));
-            std::for_each(std::execution::parallel_policy(), occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
+            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
             progressFinish();
         }
 
@@ -478,7 +479,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         };
 
         // Now, we are ready to scan all object streams
-        std::for_each(std::execution::parallel_policy(), objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
 
         PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), std::move(securityHandler));
         return PDFDocument(std::move(storage), m_version);

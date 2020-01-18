@@ -20,6 +20,7 @@
 
 #include "pdfrenderer.h"
 #include "pdfcms.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QObject>
 
@@ -55,6 +56,7 @@ public:
         pdf::PDFReal m_colorTolerance;
         bool m_allowLaunchApplications;
         bool m_allowLaunchURI;
+        pdf::PDFExecutionPolicy::Strategy m_multithreadingStrategy = pdf::PDFExecutionPolicy::Strategy::PageMultithreaded;
 
         // Cache settings
         int m_compiledPageCacheLimit;
@@ -100,6 +102,8 @@ public:
 
     const pdf::PDFCMSSettings& getColorManagementSystemSettings() const { return m_colorManagementSystemSettings; }
     void setColorManagementSystemSettings(const pdf::PDFCMSSettings& settings) { m_colorManagementSystemSettings = settings; }
+
+    pdf::PDFExecutionPolicy::Strategy getMultithreadingStrategy() const { return m_settings.m_multithreadingStrategy; }
 
 signals:
     void settingsChanged();

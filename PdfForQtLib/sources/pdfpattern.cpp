@@ -20,6 +20,7 @@
 #include "pdfexception.h"
 #include "pdfutils.h"
 #include "pdfcolorspaces.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QPainter>
 
@@ -618,7 +619,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
             }
         };
 
-        std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), setColor);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.cbegin(), indices.cend(), setColor);
 
         if (!functionError)
         {
@@ -664,7 +665,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
                 }
             }
         };
-        std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), validateMesh);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.cbegin(), indices.cend(), validateMesh);
         if (!isMeshOK && resolution != settings.minimalMeshResolution)
         {
             continue;
@@ -750,7 +751,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
             triangles[triangleIndex1] = triangle1;
             triangles[triangleIndex2] = triangle2;
         };
-        std::for_each(std::execution::parallel_policy(), indices.cbegin(), indices.cend(), generateTriangle);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.cbegin(), indices.cend(), generateTriangle);
         mesh.setTriangles(qMove(triangles));
 
         if (!functionError)
@@ -1475,7 +1476,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     };
 
     PDFIntegerRange indices(size_t(0), vertexCount);
-    std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), readVertex);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.begin(), indices.end(), readVertex);
     mesh.setVertices(qMove(meshVertices));
 
     vertices.front().flags = 0;
@@ -1624,7 +1625,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     };
 
     PDFIntegerRange indices(size_t(0), vertexCount);
-    std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), readVertex);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.begin(), indices.end(), readVertex);
     mesh.setVertices(qMove(meshVertices));
 
     auto getVertexIndex = [columnCount](size_t row, size_t column) -> size_t
@@ -2253,7 +2254,7 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
         PDFReal previousCurvature = maximalCurvature;
         while (previousCurvature < curvature && !maximalCurvature.compare_exchange_weak(previousCurvature, curvature)) { }
     };
-    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), updateCurvature);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), updateCurvature);
 
     auto getColorForUV = [&](PDFReal u, PDFReal v)
     {
@@ -2364,7 +2365,7 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
         QPointF rightCenter = right.getCenter();
         return std::pair(leftCenter.y(), leftCenter.x()) < std::pair(rightCenter.y(), rightCenter.x());
     };
-    std::sort(std::execution::parallel_policy(), finishedTriangles.begin(), finishedTriangles.end(), comparator);
+    PDFExecutionPolicy::sort(PDFExecutionPolicy::Scope::Content, finishedTriangles.begin(), finishedTriangles.end(), comparator);
 
     std::vector<QPointF> vertices;
     std::vector<PDFMesh::Triangle> triangles;

@@ -20,6 +20,7 @@
 #include "pdfexception.h"
 #include "pdfimage.h"
 #include "pdfpattern.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QPainterPathStroker>
 
@@ -209,6 +210,8 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     Q_ASSERT(page);
     Q_ASSERT(document);
 
+    PDFExecutionPolicy::startProcessingContentStream();
+
     QPainterPath pageRectPath;
     pageRectPath.addRect(m_page->getRotatedMediaBox());
     m_pageBoundingRectDeviceSpace = pagePointToDevicePointMatrix.map(pageRectPath).boundingRect();
@@ -218,7 +221,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
 
 PDFPageContentProcessor::~PDFPageContentProcessor()
 {
-
+    PDFExecutionPolicy::endProcessingContentStream();
 }
 
 QList<PDFRenderError> PDFPageContentProcessor::processContents()

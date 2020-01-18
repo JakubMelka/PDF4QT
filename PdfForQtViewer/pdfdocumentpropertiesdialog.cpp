@@ -23,6 +23,7 @@
 #include "pdffont.h"
 #include "pdfutils.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QLocale>
 #include <QPageSize>
@@ -369,7 +370,7 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
         };
 
         pdf::PDFIntegerRange<pdf::PDFInteger> indices(pdf::PDFInteger(0), pageCount);
-        std::for_each(std::execution::parallel_policy(), indices.begin(), indices.end(), processPage);
+        pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, indices.begin(), indices.end(), processPage);
     };
     m_future = QtConcurrent::run(createFontInfo);
     connect(&m_futureWatcher, &QFutureWatcher<void>::finished, this, &PDFDocumentPropertiesDialog::onFontsFinished);

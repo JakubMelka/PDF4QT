@@ -59,6 +59,10 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
         ui->multisampleAntialiasingSamplesCountComboBox->addItem(QString::number(i), i);
     }
 
+    ui->multithreadingComboBox->addItem(tr("Single thread"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::SingleThreaded));
+    ui->multithreadingComboBox->addItem(tr("Multithreading (load balanced)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded));
+    ui->multithreadingComboBox->addItem(tr("Multithreading (maximum threads)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded));
+
     // Load CMS data
     ui->cmsTypeComboBox->addItem(pdf::PDFCMSManager::getSystemName(pdf::PDFCMSSettings::System::Generic), int(pdf::PDFCMSSettings::System::Generic));
     ui->cmsTypeComboBox->addItem(pdf::PDFCMSManager::getSystemName(pdf::PDFCMSSettings::System::LittleCMS2), int(pdf::PDFCMSSettings::System::LittleCMS2));
@@ -200,6 +204,7 @@ void PDFViewerSettingsDialog::loadData()
         ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
     }
     ui->prefetchPagesCheckBox->setChecked(m_settings.m_prefetchPages);
+    ui->multithreadingComboBox->setCurrentIndex(ui->multithreadingComboBox->findData(static_cast<int>(m_settings.m_multithreadingStrategy)));
 
     // Rendering
     ui->antialiasingCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::Antialiasing));
@@ -396,6 +401,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->cmsProfileDirectoryEdit)
     {
         m_cmsSettings.profileDirectory = ui->cmsProfileDirectoryEdit->text();
+    }
+    else if (sender == ui->multithreadingComboBox)
+    {
+        m_settings.m_multithreadingStrategy = static_cast<pdf::PDFExecutionPolicy::Strategy>(ui->multithreadingComboBox->currentData().toInt());
     }
 
     loadData();

@@ -19,6 +19,7 @@
 #include "pdfcms.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfprogress.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QtConcurrent/QtConcurrent>
 
@@ -411,7 +412,7 @@ void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
         };
 
         auto pageRange = PDFIntegerRange<PDFInteger>(0, catalog->getPageCount());
-        std::for_each(std::execution::parallel_policy(), pageRange.begin(), pageRange.end(), generateTextLayout);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageRange.begin(), pageRange.end(), generateTextLayout);
         return result;
     };
 

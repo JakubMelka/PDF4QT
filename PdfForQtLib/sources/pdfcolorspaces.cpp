@@ -22,6 +22,7 @@
 #include "pdfutils.h"
 #include "pdfpattern.h"
 #include "pdfcms.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QCryptographicHash>
 
@@ -222,7 +223,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                 };
 
                 auto range = PDFIntegerRange<unsigned int>(0, imageHeight);
-                std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), transformPixelLine);
+                PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), transformPixelLine);
 
                 if (exception)
                 {

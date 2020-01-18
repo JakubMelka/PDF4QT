@@ -53,6 +53,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_instancedFontCacheLimit = settings.value("instancedFontCacheLimit", defaultSettings.m_instancedFontCacheLimit).toInt();
     m_settings.m_allowLaunchApplications = settings.value("allowLaunchApplications", defaultSettings.m_allowLaunchApplications).toBool();
     m_settings.m_allowLaunchURI = settings.value("allowLaunchURI", defaultSettings.m_allowLaunchURI).toBool();
+    m_settings.m_multithreadingStrategy = static_cast<pdf::PDFExecutionPolicy::Strategy>(settings.value("mutlithreadingStrategy", static_cast<int>(defaultSettings.m_multithreadingStrategy)).toInt());
     settings.endGroup();
 
     settings.beginGroup("ColorManagementSystemSettings");
@@ -89,6 +90,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("instancedFontCacheLimit", m_settings.m_instancedFontCacheLimit);
     settings.setValue("allowLaunchApplications", m_settings.m_allowLaunchApplications);
     settings.setValue("allowLaunchURI", m_settings.m_allowLaunchURI);
+    settings.setValue("mutlithreadingStrategy", static_cast<int>(m_settings.m_multithreadingStrategy));
     settings.endGroup();
 
     settings.beginGroup("ColorManagementSystemSettings");
@@ -202,7 +204,8 @@ PDFViewerSettings::Settings::Settings() :
     m_compiledPageCacheLimit(128 * 1024),
     m_thumbnailsCacheLimit(PIXMAP_CACHE_LIMIT),
     m_fontCacheLimit(pdf::DEFAULT_FONT_CACHE_LIMIT),
-    m_instancedFontCacheLimit(pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT)
+    m_instancedFontCacheLimit(pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT),
+    m_multithreadingStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded)
 {
 
 }

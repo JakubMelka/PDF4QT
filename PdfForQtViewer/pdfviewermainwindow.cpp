@@ -34,6 +34,7 @@
 #include "pdfitemmodels.h"
 #include "pdfutils.h"
 #include "pdfsendmail.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -776,6 +777,7 @@ void PDFViewerMainWindow::onViewerSettingsChanged()
     m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setMinimalMeshResolutionRatio(m_settings->getMinimalMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setColorTolerance(m_settings->getColorTolerance());
+    pdf::PDFExecutionPolicy::setStrategy(m_settings->getMultithreadingStrategy());
 
     updateRenderingOptionActions();
 }

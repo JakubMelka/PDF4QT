@@ -17,6 +17,7 @@
 
 #include "pdftextlayout.h"
 #include "pdfutils.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QPainter>
 
@@ -456,7 +457,7 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     };
 
     auto range = PDFIntegerRange<size_t>(0, characterCount);
-    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), findNearestCharacters);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), findNearestCharacters);
 
     // Step 3) - detect lines
     PDFUnionFindAlgorithm<size_t> textLinesUF(characterCount);
@@ -847,7 +848,7 @@ PDFFindResults PDFTextLayoutStorage::find(const QString& text, Qt::CaseSensitivi
     };
 
     auto range = PDFIntegerRange<size_t>(0, m_offsets.size());
-    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), findImpl);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, range.begin(), range.end(), findImpl);
 
     std::sort(results.begin(), results.end());
     return results;
@@ -876,7 +877,7 @@ PDFFindResults PDFTextLayoutStorage::find(const QRegularExpression& expression, 
     };
 
     auto range = PDFIntegerRange<size_t>(0, m_offsets.size());
-    std::for_each(std::execution::parallel_policy(), range.begin(), range.end(), findImpl);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, range.begin(), range.end(), findImpl);
 
     std::sort(results.begin(), results.end());
     return results;
