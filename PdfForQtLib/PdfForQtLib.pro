@@ -227,3 +227,11 @@ qt_libraries.files =    $$[QT_INSTALL_BINS]/Qt?Widgets$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?Svg$${SUFFIX}.dll
 qt_libraries.path = $$DESTDIR/install
 INSTALLS += qt_libraries
+
+qt_plugin_platform.files = $$[QT_INSTALL_PLUGINS]/platforms/qwindows$${SUFFIX}.dll
+qt_plugin_platform.path = $$DESTDIR/install/platforms
+INSTALLS += qt_plugin_platform
+
+qt_plugin_iconengine.files = $$[QT_INSTALL_PLUGINS]/iconengines/qsvgicon$${SUFFIX}.dll
+qt_plugin_iconengine.path = $$DESTDIR/install/iconengines
+INSTALLS += qt_plugin_iconengine

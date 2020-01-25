@@ -18,6 +18,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfcompiler.h"
+#include "pdfwidgettool.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -31,6 +32,7 @@ namespace pdf
 PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int samplesCount, QWidget* parent) :
     QWidget(parent),
     m_cmsManager(cmsManager),
+    m_toolManager(nullptr),
     m_drawWidget(nullptr),
     m_horizontalScrollBar(nullptr),
     m_verticalScrollBar(nullptr),
@@ -177,6 +179,7 @@ PDFDrawWidgetBase<BaseWidget>::PDFDrawWidgetBase(PDFWidget* widget, QWidget* par
     m_mouseOperation(MouseOperation::None)
 {
     this->setFocusPolicy(Qt::StrongFocus);
+    this->setMouseTracking(true);
 }
 
 template<typename BaseWidget>
@@ -216,10 +219,21 @@ void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePos
 template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
 {
-    QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
     event->ignore();
 
+    // Try to pass event to tool manager
+    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    {
+        toolManager->keyPressEvent(this, event);
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
     // Vertical navigation
+    QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
     if (verticalScrollbar->isVisible())
     {
         constexpr std::pair<QKeySequence::StandardKey, PDFDrawWidgetProxy::Operation> keyToOperations[] =
@@ -241,24 +255,52 @@ void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
             }
         }
     }
+
+    updateCursor();
 }
 
 template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
 {
+    event->ignore();
+
+    // Try to pass event to tool manager
+    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    {
+        toolManager->mousePressEvent(this, event);
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
     if (event->button() == Qt::LeftButton)
     {
         m_mouseOperation = MouseOperation::Translate;
         m_lastMousePosition = event->pos();
-        setCursor(Qt::ClosedHandCursor);
     }
 
+    updateCursor();
     event->accept();
 }
 
 template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
 {
+    event->ignore();
+
+    // Try to pass event to tool manager
+    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    {
+        toolManager->mouseReleaseEvent(this, event);
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
     performMouseOperation(event->pos());
 
     switch (m_mouseOperation)
@@ -269,7 +311,6 @@ void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
         case MouseOperation::Translate:
         {
             m_mouseOperation = MouseOperation::None;
-            unsetCursor();
             break;
         }
 
@@ -277,19 +318,83 @@ void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
             Q_ASSERT(false);
     }
 
+    updateCursor();
     event->accept();
 }
 
 template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::mouseMoveEvent(QMouseEvent* event)
 {
+    event->ignore();
+
+    // Try to pass event to tool manager
+    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    {
+        toolManager->mouseMoveEvent(this, event);
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
     performMouseOperation(event->pos());
+    updateCursor();
     event->accept();
+}
+
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::updateCursor()
+{
+    std::optional<QCursor> cursor;
+    if (PDFToolManager* toolManager = m_widget->getToolManager())
+    {
+        cursor = toolManager->getCursor();
+    }
+
+    if (!cursor)
+    {
+        switch (m_mouseOperation)
+        {
+            case MouseOperation::None:
+                cursor = QCursor(Qt::OpenHandCursor);
+                break;
+
+            case MouseOperation::Translate:
+                cursor = QCursor(Qt::ClosedHandCursor);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    if (cursor)
+    {
+        this->setCursor(*cursor);
+    }
+    else
+    {
+        this->unsetCursor();
+    }
 }
 
 template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
 {
+    event->ignore();
+
+    // Try to pass event to tool manager
+    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    {
+        toolManager->wheelEvent(this, event);
+        if (event->isAccepted())
+        {
+            return;
+        }
+    }
+
     Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
 
     PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();

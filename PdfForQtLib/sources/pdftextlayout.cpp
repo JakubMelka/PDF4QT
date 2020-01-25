@@ -349,6 +349,19 @@ qint64 PDFTextLayout::getMemoryConsumptionEstimate() const
     return estimate;
 }
 
+bool PDFTextLayout::isHoveringOverTextBlock(const QPointF& point) const
+{
+    for (const PDFTextBlock& block : m_blocks)
+    {
+        if (block.getBoundingBox().contains(point))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout)
 {
     stream >> layout.m_characters;

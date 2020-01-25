@@ -31,5 +31,6 @@
         <file>resources/find-advanced.svg</file>
         <file>resources/find-next.svg</file>
         <file>resources/find-previous.svg</file>
+        <file>resources/select-text.svg</file>
     </qresource>
 </RCC>

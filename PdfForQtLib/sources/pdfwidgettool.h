@@ -22,6 +22,7 @@
 #include "pdftextlayout.h"
 
 #include <QDialog>
+#include <QCursor>
 
 class QCheckBox;
 
@@ -40,6 +41,7 @@ private:
 
 public:
     explicit PDFWidgetTool(PDFDrawWidgetProxy* proxy, QObject* parent);
+    explicit PDFWidgetTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
     virtual ~PDFWidgetTool();
 
     virtual void drawPage(QPainter* painter,
@@ -61,24 +63,62 @@ public:
     /// Returns true, if tool is active
     bool isActive() const { return m_active; }
 
+    /// Returns action for activating/deactivating this tool
+    QAction* getAction() const { return m_action; }
+
+    /// Handles key press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
+
+    /// Handles mouse press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse release event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse move event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse wheel event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event);
+
+    /// Returns actual cursor defined by the tool. Cursor can be undefined,
+    /// in this case, optional will be set to nullopt.
+    const std::optional<QCursor>& getCursor() const { return m_cursor; }
+
 signals:
     void toolActivityChanged(bool active);
 
 protected:
     virtual void setActiveImpl(bool active);
+    virtual void updateActions();
 
     PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
+
+    inline void setCursor(QCursor cursor) { m_cursor = qMove(cursor); }
+    inline void unsetCursor() { m_cursor = std::nullopt; }
 
 private:
     bool m_active;
     const PDFDocument* m_document;
+    QAction* m_action;
     PDFDrawWidgetProxy* m_proxy;
     std::vector<PDFWidgetTool*> m_toolStack;
+    std::optional<QCursor> m_cursor;
 };
 
 /// Simple tool for find text in PDF document. It is much simpler than advanced
 /// search and can't search using regular expressions.
-class PDFFORQTLIBSHARED_EXPORT PDFFindTextTool : public PDFWidgetTool
+class PDFFindTextTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -102,6 +142,7 @@ public:
 
 protected:
     virtual void setActiveImpl(bool active) override;
+    virtual void updateActions() override;
 
 private:
     void onSearchText();
@@ -109,7 +150,6 @@ private:
     void onActionNext();
 
     void performSearch();
-    void updateActions();
     void updateResultsUI();
     void updateTitle();
     void clearResults();
@@ -142,6 +182,45 @@ private:
     mutable pdf::PDFCachedItem<pdf::PDFTextSelection> m_textSelection;
 };
 
+/// Tool for selection of text in document
+class PDFSelectTextTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    /// Construct new text selection tool
+    /// \param proxy Draw widget proxy
+    /// \param parent Parent object
+    explicit PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action, QAction* selectAllAction,QAction* deselectAction, QObject* parent);
+
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+protected:
+    virtual void setActiveImpl(bool active) override;
+    virtual void updateActions() override;
+
+private:
+    void updateCursor();
+    void setSelection(pdf::PDFTextSelection&& textSelection);
+
+    struct SelectionInfo
+    {
+        PDFInteger pageIndex = -1;
+        QPointF selectionStartPoint;
+    };
+
+    QAction* m_selectAllAction;
+    QAction* m_deselectAction;
+    pdf::PDFTextSelection m_textSelection;
+    SelectionInfo m_selectionInfo;
+    bool m_isCursorOverText;
+};
+
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
@@ -153,13 +232,21 @@ private:
     using BaseClass = QObject;
 
 public:
+    struct Actions
+    {
+        QAction* findPrevAction = nullptr;  ///< Action for navigating to previous result
+        QAction* findNextAction = nullptr;  ///< Action for navigating to next result
+        QAction* selectTextToolAction = nullptr;
+        QAction* selectAllAction = nullptr;
+        QAction* deselectAction = nullptr;
+    };
+
     /// Construct new text search tool
     /// \param proxy Draw widget proxy
-    /// \param prevAction Action for navigating to previous result
-    /// \param nextAction Action for navigating to next result
+    /// \param actions Actions
     /// \param parent Parent object
     /// \param parentDialog Paret dialog for tool dialog
-    explicit PDFToolManager(PDFDrawWidgetProxy* proxy, QAction* findPreviousAction, QAction* findNextAction, QObject* parent, QWidget* parentDialog);
+    explicit PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObject* parent, QWidget* parentDialog);
 
     /// Sets document
     /// \param document Document
@@ -168,8 +255,12 @@ public:
     enum PredefinedTools
     {
         FindTextTool,
+        SelectTextTool,
         ToolEnd
     };
+
+    /// Sets active tool
+    void setActiveTool(PDFWidgetTool* tool);
 
     /// Returns first active tool from tool set. If no tool is active,
     /// then nullptr is returned.
@@ -178,9 +269,41 @@ public:
     /// Returns find text tool
     PDFFindTextTool* getFindTextTool() const;
 
+    /// Handles key press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+
+    /// Handles mouse press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void mousePressEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse release event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse move event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse wheel event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void wheelEvent(QWidget* widget, QWheelEvent* event);
+
+    /// Returns actual cursor defined by the tool. Cursor can be undefined,
+    /// in this case, optional will be set to nullopt.
+    const std::optional<QCursor>& getCursor() const;
+
 private:
+    void onToolActionTriggered(bool checked);
+
     std::set<PDFWidgetTool*> m_tools;
     std::array<PDFWidgetTool*, ToolEnd> m_predefinedTools;
+    std::map<QAction*, PDFWidgetTool*> m_actionsToTools;
 };
 
 }   // namespace pdf

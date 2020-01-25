@@ -103,6 +103,11 @@
     <addaction name="actionFind"/>
     <addaction name="actionFindPrevious"/>
     <addaction name="actionFindNext"/>
+    <addaction name="separator"/>
+    <addaction name="actionSelectText"/>
+    <addaction name="actionSelectTextAll"/>
+    <addaction name="actionDeselectText"/>
+    <addaction name="separator"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -374,6 +379,28 @@
    </property>
    <property name="text">
     <string>Find Next</string>
+   </property>
+  </action>
+  <action name="actionSelectText">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/select-text.svg</normaloff>:/resources/select-text.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select text</string>
+   </property>
+  </action>
+  <action name="actionSelectTextAll">
+   <property name="text">
+    <string>Select All</string>
+   </property>
+  </action>
+  <action name="actionDeselectText">
+   <property name="text">
+    <string>Deselect</string>
    </property>
   </action>
  </widget>

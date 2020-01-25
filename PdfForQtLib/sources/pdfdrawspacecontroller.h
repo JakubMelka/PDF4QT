@@ -35,7 +35,6 @@ namespace pdf
 class PDFProgress;
 class PDFWidget;
 class IDrawWidget;
-class PDFWidgetTool;
 class PDFCMSManager;
 class PDFTextLayoutGetter;
 class PDFAsynchronousPageCompiler;
@@ -268,6 +267,13 @@ public:
     /// Returns pages, which are intersecting rectangle (even partially)
     /// \param rect Rectangle to test
     std::vector<PDFInteger> getPagesIntersectingRect(QRect rect) const;
+
+    /// Returns page, under which is point. If no page is under the point,
+    /// then -1 is returned. Point is in widget coordinates. If \p pagePoint
+    /// is not nullptr, then point in page coordinate space is set here.
+    /// \param point Point
+    /// \param pagePoint Point in page coordinate system
+    PDFInteger getPageUnderPoint(QPoint point, QPointF* pagePoint) const;
 
     /// Returns bounding box of pages, which are intersecting rectangle (even partially)
     /// \param rect Rectangle to test

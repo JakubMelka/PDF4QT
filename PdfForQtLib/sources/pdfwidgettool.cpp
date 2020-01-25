@@ -25,6 +25,9 @@
 #include <QLineEdit>
 #include <QGridLayout>
 #include <QPushButton>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
 
 namespace pdf
 {
@@ -33,6 +36,17 @@ PDFWidgetTool::PDFWidgetTool(PDFDrawWidgetProxy* proxy, QObject* parent) :
     BaseClass(parent),
     m_active(false),
     m_document(nullptr),
+    m_action(nullptr),
+    m_proxy(proxy)
+{
+
+}
+
+PDFWidgetTool::PDFWidgetTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+    BaseClass(parent),
+    m_active(false),
+    m_document(nullptr),
+    m_action(action),
     m_proxy(proxy)
 {
 
@@ -62,6 +76,7 @@ void PDFWidgetTool::setDocument(const PDFDocument* document)
         // We must turn off the tool, if we are changing the document
         setActive(false);
         m_document = document;
+        updateActions();
     }
 }
 
@@ -81,15 +96,55 @@ void PDFWidgetTool::setActive(bool active)
         }
 
         setActiveImpl(active);
+        updateActions();
 
         m_proxy->repaintNeeded();
         emit toolActivityChanged(active);
     }
 }
 
+void PDFWidgetTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetTool::wheelEvent(QWidget* widget, QWheelEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
 void PDFWidgetTool::setActiveImpl(bool active)
 {
     Q_UNUSED(active);
+}
+
+void PDFWidgetTool::updateActions()
+{
+    if (m_action)
+    {
+        m_action->setChecked(isActive());
+        m_action->setEnabled(m_document);
+    }
 }
 
 PDFFindTextTool::PDFFindTextTool(PDFDrawWidgetProxy* proxy, QAction* prevAction, QAction* nextAction, QObject* parent, QWidget* parentDialog) :
@@ -143,7 +198,7 @@ void PDFFindTextTool::setActiveImpl(bool active)
         getProxy()->getTextLayoutCompiler()->makeTextLayout();
 
         // Create dialog
-        m_dialog = new QDialog(m_parentDialog, Qt::Tool);
+        m_dialog = new QDialog(m_parentDialog, Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
         m_dialog->setWindowTitle(tr("Find"));
 
         QGridLayout* layout = new QGridLayout(m_dialog);
@@ -163,6 +218,9 @@ void PDFFindTextTool::setActiveImpl(bool active)
 
         m_previousButton->setDefault(false);
         m_nextButton->setDefault(false);
+
+        m_previousButton->setShortcut(m_prevAction->shortcut());
+        m_nextButton->setShortcut(m_nextAction->shortcut());
 
         connect(m_previousButton, &QPushButton::clicked, m_prevAction, &QAction::trigger);
         connect(m_nextButton, &QPushButton::clicked, m_nextAction, &QAction::trigger);
@@ -184,6 +242,8 @@ void PDFFindTextTool::setActiveImpl(bool active)
 
         m_dialog->show();
         m_dialog->move(topRightParent - QPoint(m_dialog->width() * 1.1, 0));
+        m_dialog->setFocus();
+        m_findTextEdit->setFocus();
         connect(m_dialog, &QDialog::rejected, this, [this] { setActive(false); });
     }
     else
@@ -329,6 +389,8 @@ void PDFFindTextTool::performSearch()
 
 void PDFFindTextTool::updateActions()
 {
+    BaseClass::updateActions();
+
     const bool isActive = this->isActive();
     const bool hasResults = !m_findResults.empty();
     const bool enablePrevious = isActive && hasResults;
@@ -384,15 +446,161 @@ PDFTextSelection PDFFindTextTool::getTextSelectionImpl() const
     return result;
 }
 
-PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, QAction* findPreviousAction, QAction* findNextAction, QObject* parent, QWidget* parentDialog) :
+PDFSelectTextTool::PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action, QAction* selectAllAction, QAction* deselectAction, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_selectAllAction(selectAllAction),
+    m_deselectAction(deselectAction),
+    m_isCursorOverText(false)
+{
+    updateActions();
+}
+
+void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1)
+        {
+            m_selectionInfo.pageIndex = pageIndex;
+            m_selectionInfo.selectionStartPoint = pagePoint;
+            event->accept();
+        }
+        else
+        {
+            m_selectionInfo = SelectionInfo();
+        }
+
+        setSelection(pdf::PDFTextSelection());
+        updateCursor();
+    }
+}
+
+void PDFSelectTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        if (m_selectionInfo.pageIndex != -1)
+        {
+            QPointF pagePoint;
+            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+
+            if (m_selectionInfo.pageIndex == pageIndex)
+            {
+                // Jakub Melka: handle the selection
+            }
+            else
+            {
+                setSelection(pdf::PDFTextSelection());
+            }
+
+            m_selectionInfo = SelectionInfo();
+            event->accept();
+            updateCursor();
+        }
+    }
+}
+
+void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    QPointF pagePoint;
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+    m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        if (m_selectionInfo.pageIndex != -1)
+        {
+            if (m_selectionInfo.pageIndex == pageIndex)
+            {
+                // Jakub Melka: handle the selection
+            }
+            else
+            {
+                setSelection(pdf::PDFTextSelection());
+            }
+
+            event->accept();
+        }
+    }
+
+    updateCursor();
+}
+
+void PDFSelectTextTool::setActiveImpl(bool active)
+{
+    if (active)
+    {
+        pdf::PDFAsynchronousTextLayoutCompiler* compiler = getProxy()->getTextLayoutCompiler();
+        if (!compiler->isTextLayoutReady())
+        {
+            compiler->makeTextLayout();
+        }
+    }
+    else
+    {
+        // Just clear the text selection
+        setSelection(PDFTextSelection());
+    }
+}
+
+void PDFSelectTextTool::updateActions()
+{
+    BaseClass::updateActions();
+
+    m_selectAllAction->setEnabled(isActive());
+    m_deselectAction->setEnabled(isActive() && !m_textSelection.isEmpty());
+}
+
+void PDFSelectTextTool::updateCursor()
+{
+    if (isActive())
+    {
+        if (m_isCursorOverText)
+        {
+            setCursor(QCursor(Qt::IBeamCursor));
+        }
+        else
+        {
+            setCursor(QCursor(Qt::ArrowCursor));
+        }
+    }
+}
+
+void PDFSelectTextTool::setSelection(PDFTextSelection&& textSelection)
+{
+    if (m_textSelection != textSelection)
+    {
+        m_textSelection = qMove(textSelection);
+        getProxy()->repaintNeeded();
+        updateActions();
+    }
+}
+
+PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObject* parent, QWidget* parentDialog) :
     BaseClass(parent),
     m_predefinedTools()
 {
-    m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, findPreviousAction, findNextAction, this, parentDialog);
+    m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
+    m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.selectAllAction, actions.deselectAction, this);
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
         m_tools.insert(tool);
+
+        if (QAction* action = tool->getAction())
+        {
+            m_actionsToTools[action] = tool;
+            connect(action, &QAction::triggered, this, &PDFToolManager::onToolActionTriggered);
+        }
     }
 }
 
@@ -401,6 +609,22 @@ void PDFToolManager::setDocument(const PDFDocument* document)
     for (PDFWidgetTool* tool : m_tools)
     {
         tool->setDocument(document);
+    }
+}
+
+void PDFToolManager::setActiveTool(PDFWidgetTool* tool)
+{
+    PDFWidgetTool* activeTool = getActiveTool();
+    if (activeTool && activeTool != tool)
+    {
+        activeTool->setActive(false);
+    }
+
+    Q_ASSERT(!getActiveTool());
+
+    if (tool)
+    {
+        tool->setActive(true);
     }
 }
 
@@ -421,5 +645,89 @@ PDFFindTextTool* PDFToolManager::getFindTextTool() const
 {
     return qobject_cast<PDFFindTextTool*>(m_predefinedTools[FindTextTool]);
 }
+
+void PDFToolManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    event->ignore();
+
+    // Escape key cancels current tool
+    PDFWidgetTool* activeTool = getActiveTool();
+    if (event->key() == Qt::Key_Escape && activeTool)
+    {
+        activeTool->setActive(false);
+        event->accept();
+        return;
+    }
+
+    if (activeTool)
+    {
+        activeTool->keyPressEvent(widget, event);
+    }
+}
+
+void PDFToolManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->mousePressEvent(widget, event);
+    }
+}
+
+void PDFToolManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->mouseReleaseEvent(widget, event);
+    }
+}
+
+void PDFToolManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->mouseMoveEvent(widget, event);
+    }
+}
+
+void PDFToolManager::wheelEvent(QWidget* widget, QWheelEvent* event)
+{
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->wheelEvent(widget, event);
+    }
+}
+
+const std::optional<QCursor>& PDFToolManager::getCursor() const
+{
+    if (PDFWidgetTool* tool = getActiveTool())
+    {
+        return tool->getCursor();
+    }
+
+    static const std::optional<QCursor> dummy;
+    return dummy;
+}
+
+void PDFToolManager::onToolActionTriggered(bool checked)
+{
+    PDFWidgetTool* tool = m_actionsToTools.at(qobject_cast<QAction*>(sender()));
+    if (checked)
+    {
+        setActiveTool(tool);
+    }
+    else
+    {
+        tool->setActive(false);
+    }
+}
+
 
 }   // namespace pdf

@@ -200,6 +200,9 @@ struct PDFTextSelectionColoredItem
 
     }
 
+    bool operator==(const PDFTextSelectionColoredItem&) const = default;
+    bool operator!=(const PDFTextSelectionColoredItem&) const = default;
+
     inline bool operator<(const PDFTextSelectionColoredItem& other) const { return std::tie(start, end) < std::tie(other.start, other.end); }
 
     PDFCharacterPointer start;
@@ -217,6 +220,9 @@ public:
 
     using iterator = PDFTextSelectionColoredItems::const_iterator;
 
+    bool operator==(const PDFTextSelection&) const = default;
+    bool operator!=(const PDFTextSelection&) const = default;
+
     /// Adds text selection items to selection
     /// \param items Items
     /// \param color Color for items (must include alpha channel)
@@ -231,6 +237,9 @@ public:
 
     /// Returns iterator to end of page range
     iterator end(PDFInteger pageIndex) const;
+
+    /// Returns true, if text selection is empty
+    bool isEmpty() const { return m_items.empty(); }
 
 private:
     PDFTextSelectionColoredItems m_items;
@@ -326,6 +335,9 @@ public:
 
     /// Returns recognized text blocks
     const PDFTextBlocks& getTextBlocks() const { return m_blocks; }
+
+    /// Returns true, if given point is pointing to some text block
+    bool isHoveringOverTextBlock(const QPointF& point) const;
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);

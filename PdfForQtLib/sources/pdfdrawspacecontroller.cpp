@@ -784,6 +784,31 @@ std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect)
     return pages;
 }
 
+PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoint) const
+{
+    // Iterate trough pages, place them and test, if they intersects with rectangle
+    for (const LayoutItem& item : m_layout.items)
+    {
+        // The offsets m_horizontalOffset and m_verticalOffset are offsets to the
+        // topleft point of the block. But block maybe doesn't start at (0, 0),
+        // so we must also use translation from the block beginning.
+        QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+        if (placedRect.contains(point))
+        {
+            if (pagePoint)
+            {
+                const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
+                QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, placedRect).inverted();
+                *pagePoint = matrix.map(point);
+            }
+
+            return item.pageIndex;
+        }
+    }
+
+    return -1;
+}
+
 QRect PDFDrawWidgetProxy::getPagesIntersectingRectBoundingBox(QRect rect) const
 {
     QRect resultRect;

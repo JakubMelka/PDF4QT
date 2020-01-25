@@ -40,6 +40,11 @@ public:
     /// \param widget Widget to be scaled
     /// \param unscaledSize Unscaled size of the widget
     static void scaleWidget(QWidget* widget, QSize unscaledSize);
+
+    /// Scales size based on DPI
+    /// \param widget Widget, from which we get DPI
+    /// \param unscaledSize Unscaled size
+    static QSize scaleDPI(QWidget* widget, QSize unscaledSize);
 };
 
 } // namespace pdfviewer

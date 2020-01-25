@@ -35,6 +35,7 @@
 #include "pdfutils.h"
 #include "pdfsendmail.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfwidgetutils.h"
 
 #include <QSettings>
 #include <QFileDialog>
@@ -85,6 +86,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 {
     ui->setupUi(this);
 
+    // Initialize toolbar icon size
+    QSize iconSize = PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
+    ui->mainToolBar->setIconSize(iconSize);
+
     // Initialize task bar progress
     m_progressTaskbarIndicator = m_taskbarButton->progress();
 
@@ -97,6 +102,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionFind->setShortcut(QKeySequence::Find);
     ui->actionFindPrevious->setShortcut(QKeySequence::FindPrevious);
     ui->actionFindNext->setShortcut(QKeySequence::FindNext);
+    ui->actionSelectTextAll->setShortcut(QKeySequence::SelectAll);
+    ui->actionDeselectText->setShortcut(QKeySequence::Deselect);
 
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
@@ -160,6 +167,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addAction(ui->actionFitPage);
     ui->mainToolBar->addAction(ui->actionFitWidth);
     ui->mainToolBar->addAction(ui->actionFitHeight);
+    ui->mainToolBar->addSeparator();
+
+    // Tools
+    ui->mainToolBar->addAction(ui->actionSelectText);
 
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
     connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
@@ -212,7 +223,14 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_sidebarDockWidget->toggleViewAction()->setObjectName("actionSidebar");
 
     // Initialize tools
-    m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), ui->actionFindPrevious, ui->actionFindNext, this, this);
+    pdf::PDFToolManager::Actions actions;
+    actions.findPrevAction = ui->actionFindPrevious;
+    actions.findNextAction = ui->actionFindNext;
+    actions.selectTextToolAction = ui->actionSelectText;
+    actions.selectAllAction = ui->actionSelectTextAll;
+    actions.deselectAction = ui->actionDeselectText;
+    m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), actions, this, this);
+    m_pdfWidget->setToolManager(m_toolManager);
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
@@ -223,7 +241,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
     connect(&m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
     connect(this, &PDFViewerMainWindow::queryPasswordRequest, this, &PDFViewerMainWindow::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
-    connect(ui->actionFind, &QAction::triggered, this, [this] { m_toolManager->getFindTextTool()->setActive(true); });
+    connect(ui->actionFind, &QAction::triggered, this, [this] { m_toolManager->setActiveTool(m_toolManager->getFindTextTool()); });
 
     readActionSettings();
     updatePageLayoutActions();

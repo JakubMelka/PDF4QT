@@ -29,6 +29,7 @@ namespace pdf
 {
 class PDFDocument;
 class PDFCMSManager;
+class PDFToolManager;
 class PDFDrawWidget;
 class PDFDrawWidgetProxy;
 
@@ -77,12 +78,15 @@ public:
     void updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit);
 
     const PDFCMSManager* getCMSManager() const { return m_cmsManager; }
+    PDFToolManager* getToolManager() const { return m_toolManager; }
     IDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
     QScrollBar* getVerticalScrollbar() const { return m_verticalScrollBar; }
     PDFDrawWidgetProxy* getDrawWidgetProxy() const { return m_proxy; }
     const PageRenderingErrors* getPageRenderingErrors() const { return &m_pageRenderingErrors; }
     int getPageRenderingErrorCount() const;
+
+    void setToolManager(PDFToolManager* toolManager) { m_toolManager = toolManager; }
 
 signals:
     void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
@@ -95,6 +99,7 @@ private:
     IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
 
     const PDFCMSManager* m_cmsManager;
+    PDFToolManager* m_toolManager;
     IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;
@@ -125,6 +130,8 @@ protected:
     PDFWidget* getPDFWidget() const { return m_widget; }
 
 private:
+    void updateCursor();
+
     enum class MouseOperation
     {
         None,

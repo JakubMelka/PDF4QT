@@ -63,4 +63,17 @@ void PDFWidgetUtils::scaleWidget(QWidget* widget, QSize unscaledSize)
     widget->resize(width, height);
 }
 
+QSize PDFWidgetUtils::scaleDPI(QWidget* widget, QSize unscaledSize)
+{
+    const double logicalDPI_x = widget->logicalDpiX();
+    const double logicalDPI_y = widget->logicalDpiY();
+    const double defaultDPI_x = qt_default_dpi_x();
+    const double defaultDPI_y = qt_default_dpi_y();
+
+    const int width = (logicalDPI_x / defaultDPI_x) * unscaledSize.width();
+    const int height = (logicalDPI_y / defaultDPI_y) * unscaledSize.height();
+
+    return QSize(width, height);
+}
+
 } // namespace pdfviewer
