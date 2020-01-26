@@ -82,6 +82,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_progressTaskbarIndicator(nullptr),
     m_progressDialog(nullptr),
     m_isBusy(false),
+    m_isChangingProgressStep(false),
     m_toolManager(nullptr)
 {
     ui->setupUi(this);
@@ -104,6 +105,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionFindNext->setShortcut(QKeySequence::FindNext);
     ui->actionSelectTextAll->setShortcut(QKeySequence::SelectAll);
     ui->actionDeselectText->setShortcut(QKeySequence::Deselect);
+    ui->actionCopyText->setShortcut(QKeySequence::Copy);
 
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
@@ -229,6 +231,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     actions.selectTextToolAction = ui->actionSelectText;
     actions.selectAllAction = ui->actionSelectTextAll;
     actions.deselectAction = ui->actionDeselectText;
+    actions.copyTextAction = ui->actionCopyText;
     m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), actions, this, this);
     m_pdfWidget->setToolManager(m_toolManager);
 
@@ -575,6 +578,13 @@ void PDFViewerMainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
 
 void PDFViewerMainWindow::onProgressStep(int percentage)
 {
+    if (m_isChangingProgressStep)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange guard(&m_isChangingProgressStep, true);
+
     if (m_progressDialog)
     {
         m_progressDialog->setValue(percentage);

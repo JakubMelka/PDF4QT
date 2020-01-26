@@ -180,7 +180,7 @@ struct PDFCharacterPointer
     /// Returns true, if character belongs to same line
     bool hasSameLine(const PDFCharacterPointer& other) const;
 
-    int pageIndex = -1;
+    PDFInteger pageIndex = -1;
     size_t blockIndex = 0;
     size_t lineIndex = 0;
     size_t characterIndex = 0;
@@ -324,7 +324,7 @@ public:
     /// Adds character to the layout
     void addCharacter(const PDFTextCharacterInfo& info);
 
-    /// Perorms text layout algorithm
+    /// Performs text layout algorithm
     void perform();
 
     /// Optimizes layout memory allocation to contain less space
@@ -338,6 +338,14 @@ public:
 
     /// Returns true, if given point is pointing to some text block
     bool isHoveringOverTextBlock(const QPointF& point) const;
+
+    /// Creates text selection. This function needs to modify the layout contents,
+    /// so do not use this function from multiple threads (it is not thread-safe).
+    /// Text selection is created from rectangle using two points.
+    /// \param pageIndex Page index
+    /// \param point1 First point
+    /// \param point2 Second point
+    PDFTextSelection createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2);
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);
@@ -354,7 +362,7 @@ private:
     /// Applies transform to text characters (positions and bounding boxes)
     /// \param characters Characters
     /// \param matrix Transform matrix
-    void applyTransform(TextCharacters& characters, const QMatrix& matrix);
+    static void applyTransform(TextCharacters& characters, const QMatrix& matrix);
 
     TextCharacters m_characters;
     std::set<PDFReal> m_angles;
@@ -457,6 +465,9 @@ public:
     /// \param expression Regular expression to be matched
     /// \param flowFlags Text flow flags
     PDFFindResults find(const QRegularExpression& expression, PDFTextFlow::FlowFlags flowFlags) const;
+
+    /// Returns number of pages
+    size_t getCount() const { return m_offsets.size(); }
 
 private:
     std::vector<int> m_offsets;

@@ -105,6 +105,7 @@
     <addaction name="actionFindNext"/>
     <addaction name="separator"/>
     <addaction name="actionSelectText"/>
+    <addaction name="actionCopyText"/>
     <addaction name="actionSelectTextAll"/>
     <addaction name="actionDeselectText"/>
     <addaction name="separator"/>
@@ -401,6 +402,11 @@
   <action name="actionDeselectText">
    <property name="text">
     <string>Deselect</string>
+   </property>
+  </action>
+  <action name="actionCopyText">
+   <property name="text">
+    <string>Copy text</string>
    </property>
   </action>
  </widget>

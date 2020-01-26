@@ -362,6 +362,127 @@ bool PDFTextLayout::isHoveringOverTextBlock(const QPointF& point) const
     return false;
 }
 
+PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2)
+{
+    PDFTextSelection selection;
+
+    // Jakub Melka: We must treat each block in its own coordinate system. Because texts can
+    // have different angles, we will treat each block separately.
+
+    size_t blockId = 0;
+    for (PDFTextBlock& block : m_blocks)
+    {
+        QMatrix angleMatrix;
+        angleMatrix.rotate(block.getAngle());
+        block.applyTransform(angleMatrix);
+
+        QPointF pointA = angleMatrix.map(point1);
+        QPointF pointB = angleMatrix.map(point2);
+
+        const qreal xMin = qMin(pointA.x(), pointB.x());
+        const qreal yMin = qMin(pointA.y(), pointB.y());
+        const qreal xMax = qMax(pointA.x(), pointB.x());
+        const qreal yMax = qMax(pointA.y(), pointB.y());
+
+        QRectF rect(xMin, yMin, xMax - xMin, yMax - yMin);
+        QPainterPath rectPath;
+        rectPath.addRect(rect);
+        QPainterPath intersectionPath = block.getBoundingBox().intersected(rectPath);
+        if (!intersectionPath.isEmpty())
+        {
+            QRectF intersectionRect = intersectionPath.boundingRect();
+            Q_ASSERT(intersectionRect.isValid());
+
+            const PDFTextLines& lines = block.getLines();
+            auto itLineA = std::find_if(lines.cbegin(), lines.cend(), [pointA](const PDFTextLine& line) { return line.getBoundingBox().contains(pointA); });
+            auto itLineB = std::find_if(lines.cbegin(), lines.cend(), [pointB](const PDFTextLine& line) { return line.getBoundingBox().contains(pointB); });
+            if (itLineA == itLineB && itLineA != lines.cend())
+            {
+                // Both points are in the same line. We consider point with lesser
+                // horizontal coordinate as start selection point, and point with greater
+                // horizontal coordinate as end selection point.
+                if (pointA.x() > pointB.x())
+                {
+                    std::swap(pointA, pointB);
+                }
+            }
+            else
+            {
+                // Otherwise points are not in the same line. Then start point will be
+                // point top of the second point. Bottom point will mark end of selection.
+                if (pointA.y() > pointB.y())
+                {
+                    std::swap(pointA, pointB);
+                }
+            }
+
+            // Now, we have pointA as start point and pointB as end point. We must found
+            // nearest character to the right of point A, and nearest character to the
+            // left of point B (with respect to point A/B).
+
+            qreal maxDistanceA = std::numeric_limits<qreal>::infinity();
+            qreal maxDistanceB = std::numeric_limits<qreal>::infinity();
+
+            PDFCharacterPointer ptrA;
+            PDFCharacterPointer ptrB;
+
+            for (size_t lineId = 0, linesCount = lines.size(); lineId < linesCount; ++lineId)
+            {
+                const PDFTextLine& line = lines[lineId];
+                const TextCharacters& characters = line.getCharacters();
+                for (size_t characterId = 0, characterCount = characters.size(); characterId < characterCount; ++characterId)
+                {
+                    const TextCharacter& character = characters[characterId];
+                    QPointF characterCenter = character.boundingBox.boundingRect().center();
+
+                    qreal distanceA = QLineF(pointA, characterCenter).length();
+                    qreal distanceB = QLineF(pointB, characterCenter).length();
+
+                    if (distanceA < maxDistanceA && characterCenter.x() > pointA.x())
+                    {
+                        maxDistanceA = distanceA;
+                        ptrA.pageIndex = pageIndex;
+                        ptrA.blockIndex = blockId;
+                        ptrA.lineIndex = lineId;
+                        ptrA.characterIndex = characterId;
+                    }
+
+                    if (distanceB < maxDistanceB && characterCenter.x() < pointB.x())
+                    {
+                        maxDistanceB = distanceB;
+                        ptrB.pageIndex = pageIndex;
+                        ptrB.blockIndex = blockId;
+                        ptrB.lineIndex = lineId;
+                        ptrB.characterIndex = characterId;
+                    }
+                }
+            }
+
+            // If we have filled the pointers, add them to the selection
+            if (ptrA.isValid() && ptrB.isValid())
+            {
+                if (ptrA < ptrB)
+                {
+                    selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, Qt::yellow);
+                }
+                else
+                {
+                    selection.addItems({ PDFTextSelectionItem(ptrB, ptrA) }, Qt::yellow);
+                }
+            }
+        }
+
+        // Increment block index
+        ++blockId;
+
+        // Apply backward transformation to restore original coordinate system
+        block.applyTransform(angleMatrix.inverted());
+    }
+
+    selection.build();
+    return selection;
+}
+
 QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout)
 {
     stream >> layout.m_characters;

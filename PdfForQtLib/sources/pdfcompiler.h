@@ -130,6 +130,10 @@ public:
     /// \param pageIndex Page index
     PDFTextLayoutGetter getTextLayoutLazy(PDFInteger pageIndex);
 
+    /// Select all texts on all pages using \p color color.
+    /// \param color Color to be used for text selection
+    PDFTextSelection getTextSelectionAll(QColor color) const;
+
     /// Create text layout for the document. Function is asynchronous,
     /// it returns immediately. After text layout is created, signal
     /// \p textLayoutChanged is emitted.

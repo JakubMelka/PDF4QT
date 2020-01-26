@@ -355,6 +355,58 @@ PDFTextLayoutGetter PDFAsynchronousTextLayoutCompiler::getTextLayoutLazy(PDFInte
     return PDFTextLayoutGetter(nullptr, pageIndex);
 }
 
+PDFTextSelection PDFAsynchronousTextLayoutCompiler::getTextSelectionAll(QColor color) const
+{
+    PDFTextSelection result;
+
+    if (m_textLayouts)
+    {
+        const PDFTextLayoutStorage& textLayouts = *m_textLayouts;
+
+        QMutex mutex;
+        PDFIntegerRange<size_t> pageRange(0, textLayouts.getCount());
+        auto selectPageText = [this, &mutex, &textLayouts, &result, color](PDFInteger pageIndex)
+        {
+            PDFTextLayout textLayout = textLayouts.getTextLayout(pageIndex);
+            PDFTextSelectionItems items;
+
+            const PDFTextBlocks& blocks = textLayout.getTextBlocks();
+            for (size_t blockId = 0, blockCount = blocks.size(); blockId < blockCount; ++blockId)
+            {
+                const PDFTextBlock& block = blocks[blockId];
+                const PDFTextLines& lines = block.getLines();
+
+                if (!lines.empty())
+                {
+                    const PDFTextLine& lastLine = lines.back();
+                    Q_ASSERT(!lastLine.getCharacters().empty());
+
+                    PDFCharacterPointer ptrStart;
+                    ptrStart.pageIndex = pageIndex;
+                    ptrStart.blockIndex = blockId;
+                    ptrStart.lineIndex = 0;
+                    ptrStart.characterIndex = 0;
+
+                    PDFCharacterPointer ptrEnd;
+                    ptrEnd.pageIndex = pageIndex;
+                    ptrEnd.blockIndex = blockId;
+                    ptrEnd.lineIndex = lines.size() - 1;
+                    ptrEnd.characterIndex = lastLine.getCharacters().size() - 1;
+
+                    items.emplace_back(ptrStart, ptrEnd);
+                }
+            }
+
+            QMutexLocker lock(&mutex);
+            result.addItems(qMove(items), color);
+        };
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageRange.begin(), pageRange.end(), selectPageText);
+    }
+
+    result.build();
+    return result;
+}
+
 void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
 {
     if (m_state != State::Active || !m_proxy->getDocument())

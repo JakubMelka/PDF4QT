@@ -446,13 +446,30 @@ PDFTextSelection PDFFindTextTool::getTextSelectionImpl() const
     return result;
 }
 
-PDFSelectTextTool::PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action, QAction* selectAllAction, QAction* deselectAction, QObject* parent) :
+PDFSelectTextTool::PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action, QAction* copyTextAction, QAction* selectAllAction, QAction* deselectAction, QObject* parent) :
     BaseClass(proxy, action, parent),
+    m_copyTextAction(copyTextAction),
     m_selectAllAction(selectAllAction),
     m_deselectAction(deselectAction),
     m_isCursorOverText(false)
 {
+    connect(copyTextAction, &QAction::triggered, this, &PDFSelectTextTool::onActionCopyText);
+    connect(selectAllAction, &QAction::triggered, this, &PDFSelectTextTool::onActionSelectAll);
+    connect(deselectAction, &QAction::triggered, this, &PDFSelectTextTool::onActionDeselect);
+
     updateActions();
+}
+
+void PDFSelectTextTool::drawPage(QPainter* painter,
+                                 PDFInteger pageIndex,
+                                 const PDFPrecompiledPage* compiledPage,
+                                 PDFTextLayoutGetter& layoutGetter,
+                                 const QMatrix& pagePointToDevicePointMatrix) const
+{
+    Q_UNUSED(compiledPage);
+
+    pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
 }
 
 void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -493,6 +510,8 @@ void PDFSelectTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
             if (m_selectionInfo.pageIndex == pageIndex)
             {
                 // Jakub Melka: handle the selection
+                PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
             }
             else
             {
@@ -510,26 +529,29 @@ void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
 
+    // We must make text layout. This is fast, because text layout is being
+    // created only, if it doesn't exist. This function is also called only,
+    // if tool is active.
+    getProxy()->getTextLayoutCompiler()->makeTextLayout();
+
     QPointF pagePoint;
     const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
     PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
     m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
 
-    if (event->button() == Qt::LeftButton)
+    if (m_selectionInfo.pageIndex != -1)
     {
-        if (m_selectionInfo.pageIndex != -1)
+        if (m_selectionInfo.pageIndex == pageIndex)
         {
-            if (m_selectionInfo.pageIndex == pageIndex)
-            {
-                // Jakub Melka: handle the selection
-            }
-            else
-            {
-                setSelection(pdf::PDFTextSelection());
-            }
-
-            event->accept();
+            // Jakub Melka: handle the selection
+            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
         }
+        else
+        {
+            setSelection(pdf::PDFTextSelection());
+        }
+
+        event->accept();
     }
 
     updateCursor();
@@ -556,8 +578,11 @@ void PDFSelectTextTool::updateActions()
 {
     BaseClass::updateActions();
 
-    m_selectAllAction->setEnabled(isActive());
-    m_deselectAction->setEnabled(isActive() && !m_textSelection.isEmpty());
+    const bool isActive = this->isActive();
+    const bool hasSelection = !m_textSelection.isEmpty();
+    m_selectAllAction->setEnabled(isActive);
+    m_deselectAction->setEnabled(isActive && hasSelection);
+    m_copyTextAction->setEnabled(isActive && hasSelection);
 }
 
 void PDFSelectTextTool::updateCursor()
@@ -572,6 +597,27 @@ void PDFSelectTextTool::updateCursor()
         {
             setCursor(QCursor(Qt::ArrowCursor));
         }
+    }
+}
+
+void PDFSelectTextTool::onActionCopyText()
+{
+
+}
+
+void PDFSelectTextTool::onActionSelectAll()
+{
+    if (isActive())
+    {
+        setSelection(getProxy()->getTextLayoutCompiler()->getTextSelectionAll(Qt::yellow));
+    }
+}
+
+void PDFSelectTextTool::onActionDeselect()
+{
+    if (isActive())
+    {
+        setSelection(pdf::PDFTextSelection());
     }
 }
 
@@ -590,7 +636,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     m_predefinedTools()
 {
     m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
-    m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.selectAllAction, actions.deselectAction, this);
+    m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {

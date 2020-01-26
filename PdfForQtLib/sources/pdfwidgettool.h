@@ -193,8 +193,18 @@ private:
 public:
     /// Construct new text selection tool
     /// \param proxy Draw widget proxy
+    /// \param action Tool activation action
+    /// \param copyTextAction Copy text action
+    /// \param selectAllAction Select all text action
+    /// \param deselectAction Deselect text action
     /// \param parent Parent object
-    explicit PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action, QAction* selectAllAction,QAction* deselectAction, QObject* parent);
+    explicit PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action, QAction* copyTextAction, QAction* selectAllAction, QAction* deselectAction, QObject* parent);
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix) const override;
 
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
@@ -206,6 +216,9 @@ protected:
 
 private:
     void updateCursor();
+    void onActionCopyText();
+    void onActionSelectAll();
+    void onActionDeselect();
     void setSelection(pdf::PDFTextSelection&& textSelection);
 
     struct SelectionInfo
@@ -214,6 +227,7 @@ private:
         QPointF selectionStartPoint;
     };
 
+    QAction* m_copyTextAction;
     QAction* m_selectAllAction;
     QAction* m_deselectAction;
     pdf::PDFTextSelection m_textSelection;
@@ -239,6 +253,7 @@ public:
         QAction* selectTextToolAction = nullptr;
         QAction* selectAllAction = nullptr;
         QAction* deselectAction = nullptr;
+        QAction* copyTextAction = nullptr;
     };
 
     /// Construct new text search tool

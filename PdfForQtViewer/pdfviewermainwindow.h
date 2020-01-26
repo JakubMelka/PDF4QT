@@ -164,6 +164,7 @@ private:
 
     QProgressDialog* m_progressDialog;
     bool m_isBusy;
+    bool m_isChangingProgressStep;
 
     pdf::PDFToolManager* m_toolManager;
 };
