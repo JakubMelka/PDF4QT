@@ -28,6 +28,8 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QClipboard>
+#include <QApplication>
 
 namespace pdf
 {
@@ -602,7 +604,32 @@ void PDFSelectTextTool::updateCursor()
 
 void PDFSelectTextTool::onActionCopyText()
 {
+    if (isActive())
+    {
+        // Jakub Melka: we must obey document permissions
+        if (getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::CopyContent))
+        {
+            QStringList result;
 
+            auto it = m_textSelection.begin();
+            auto itEnd = m_textSelection.nextPageRange(it);
+            while (it != m_textSelection.end())
+            {
+                const PDFInteger pageIndex = it->start.pageIndex;
+                PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+                result << textLayout.getTextFromSelection(it, itEnd, pageIndex);
+
+                it = itEnd;
+                itEnd = m_textSelection.nextPageRange(it);
+            }
+
+            QString text = result.join("\n\n");
+            if (!text.isEmpty())
+            {
+                QApplication::clipboard()->setText(text, QClipboard::Clipboard);
+            }
+        }
+    }
 }
 
 void PDFSelectTextTool::onActionSelectAll()

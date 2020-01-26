@@ -483,6 +483,33 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
     return selection;
 }
 
+QString PDFTextLayout::getTextFromSelection(PDFTextSelection::iterator itBegin, PDFTextSelection::iterator itEnd, PDFInteger pageIndex) const
+{
+    QStringList text;
+
+    if (itBegin != itEnd)
+    {
+        PDFTextFlows flows = PDFTextFlow::createTextFlows(*this, PDFTextFlow::RemoveSoftHyphen, pageIndex);
+        Q_ASSERT(flows.size() < 2);
+
+        if (!flows.empty())
+        {
+            const PDFTextFlow& textFlow = flows.front();
+            for (auto it = itBegin; it != itEnd; ++it)
+            {
+                text << textFlow.getText(it->start, it->end);
+            }
+        }
+    }
+
+    return text.join("\n");
+}
+
+QString PDFTextLayout::getTextFromSelection(const PDFTextSelection& selection, PDFInteger pageIndex) const
+{
+    return getTextFromSelection(selection.begin(pageIndex), selection.end(pageIndex), pageIndex);
+}
+
 QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout)
 {
     stream >> layout.m_characters;
@@ -1083,6 +1110,17 @@ PDFTextSelection::iterator PDFTextSelection::end(PDFInteger pageIndex) const
     return std::upper_bound(m_items.cbegin(), m_items.end(), item);
 }
 
+PDFTextSelection::iterator PDFTextSelection::nextPageRange(iterator currentPageRange) const
+{
+    auto it = currentPageRange;
+    while (it != m_items.cend() && it->start.pageIndex == currentPageRange->start.pageIndex)
+    {
+        ++it;
+    }
+
+    return it;
+}
+
 PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSensitivity) const
 {
     PDFFindResults results;
@@ -1131,6 +1169,21 @@ PDFFindResults PDFTextFlow::find(const QRegularExpression& expression) const
     }
 
     return results;
+}
+
+QString PDFTextFlow::getText(const PDFCharacterPointer& begin, const PDFCharacterPointer& end) const
+{
+    auto it = std::find(m_characterPointers.cbegin(), m_characterPointers.cend(), begin);
+    auto itEnd = std::find(m_characterPointers.cbegin(), m_characterPointers.cend(), end);
+
+    const std::size_t startIndex = std::distance(m_characterPointers.cbegin(), it);
+    const std::size_t endIndex = std::distance(m_characterPointers.cbegin(), itEnd);
+    if (startIndex <= endIndex)
+    {
+        return m_text.mid(int(startIndex), int(endIndex - startIndex + 1));
+    }
+
+    return QString();
 }
 
 void PDFTextFlow::merge(const PDFTextFlow& next)

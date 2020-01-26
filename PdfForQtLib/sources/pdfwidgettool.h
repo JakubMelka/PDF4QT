@@ -102,6 +102,7 @@ protected:
     virtual void setActiveImpl(bool active);
     virtual void updateActions();
 
+    const PDFDocument* getDocument() const { return m_document; }
     PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
 
     inline void setCursor(QCursor cursor) { m_cursor = qMove(cursor); }

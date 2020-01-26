@@ -238,8 +238,14 @@ public:
     /// Returns iterator to end of page range
     iterator end(PDFInteger pageIndex) const;
 
+    /// Returns iterator to next page range
+    iterator nextPageRange(iterator currentPageRange) const;
+
     /// Returns true, if text selection is empty
     bool isEmpty() const { return m_items.empty(); }
+
+    iterator begin() const { return m_items.cbegin(); }
+    iterator end() const { return m_items.cend(); }
 
 private:
     PDFTextSelectionColoredItems m_items;
@@ -287,6 +293,11 @@ public:
     /// Finds regular expression matches in current text flow. All text occurences are returned.
     /// \param expression Regular expression to be matched
     PDFFindResults find(const QRegularExpression& expression) const;
+
+    /// Returns text form character pointers
+    /// \param begin Begin character
+    /// \param end End character
+    QString getText(const PDFCharacterPointer& begin, const PDFCharacterPointer& end) const;
 
     /// Merge data from \p next flow (i.e. connect two consecutive flows)
     void merge(const PDFTextFlow& next);
@@ -346,6 +357,17 @@ public:
     /// \param point1 First point
     /// \param point2 Second point
     PDFTextSelection createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2);
+
+    /// Returns string from text selection
+    /// \param itBegin Iterator (begin range)
+    /// \param itEnd Iterator (end range)
+    /// \param pageIndex Index of the page
+    QString getTextFromSelection(PDFTextSelection::iterator itBegin, PDFTextSelection::iterator itEnd, PDFInteger pageIndex) const;
+
+    /// Returns string from text selection
+    /// \param selection Text selection
+    /// \param pageIndex Index of the page
+    QString getTextFromSelection(const PDFTextSelection& selection, PDFInteger pageIndex) const;
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);
