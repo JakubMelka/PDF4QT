@@ -143,6 +143,9 @@ public:
     /// Returns estimate of number of bytes, which this mesh occupies in memory
     qint64 getMemoryConsumptionEstimate() const;
 
+    /// Invert colors
+    void invertColors();
+
 private:
     std::vector<QPointF> m_vertices;
     std::vector<Triangle> m_triangles;

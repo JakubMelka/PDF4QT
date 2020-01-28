@@ -17,6 +17,7 @@
 
 #include "pdfpainter.h"
 #include "pdfpattern.h"
+#include "pdfcms.h"
 
 #include <QPainter>
 
@@ -389,6 +390,20 @@ void PDFPainter::setCompositionMode(QPainter::CompositionMode mode)
     m_painter->setCompositionMode(mode);
 }
 
+PDFPrecompiledPageGenerator::PDFPrecompiledPageGenerator(PDFPrecompiledPage* precompiledPage,
+                                                         PDFRenderer::Features features,
+                                                         const PDFPage* page,
+                                                         const PDFDocument* document,
+                                                         const PDFFontCache* fontCache,
+                                                         const PDFCMS* cms,
+                                                         const PDFOptionalContentActivity* optionalContentActivity,
+                                                         const PDFMeshQualitySettings& meshQualitySettings) :
+    BaseClass(features, page, document, fontCache, cms, optionalContentActivity, QMatrix(), meshQualitySettings),
+    m_precompiledPage(precompiledPage)
+{
+    m_precompiledPage->setPaperColor(cms->getPaperColor());
+}
+
 void PDFPrecompiledPageGenerator::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
     Q_ASSERT(stroke || fill);
@@ -630,6 +645,38 @@ void PDFPrecompiledPage::optimize()
     m_meshes.shrink_to_fit();
     m_matrices.shrink_to_fit();
     m_compositionModes.shrink_to_fit();
+}
+
+void PDFPrecompiledPage::invertColors()
+{
+    // Jakub Melka: we must invert colors in following areas:
+    //     - painter paths
+    //     - images
+    //     - meshes
+
+    for (PathPaintData& pathData : m_paths)
+    {
+        if (pathData.pen.style() != Qt::NoPen)
+        {
+            pathData.pen.setColor(invertColor(pathData.pen.color()));
+        }
+        if (pathData.brush.style() == Qt::SolidPattern)
+        {
+            pathData.brush.setColor(invertColor(pathData.brush.color()));
+        }
+    }
+
+    for (ImageData& imageData : m_images)
+    {
+        imageData.image.invertPixels(QImage::InvertRgb);
+    }
+
+    for (MeshPaintData& meshPaintData : m_meshes)
+    {
+        meshPaintData.mesh.invertColors();
+    }
+
+    m_paperColor = invertColor(m_paperColor);
 }
 
 void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> errors)

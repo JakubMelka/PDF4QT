@@ -144,6 +144,12 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
 
     PDFPrecompiledPageGenerator generator(precompiledPage, m_features, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     QList<PDFRenderError> errors = generator.processContents();
+
+    if (m_features.testFlag(InvertColors))
+    {
+        precompiledPage->invertColors();
+    }
+
     precompiledPage->optimize();
     precompiledPage->finalize(timer.nsecsElapsed(), qMove(errors));
     timer.invalidate();
@@ -214,7 +220,7 @@ QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* comp
                 {
                     QOpenGLPaintDevice device(size);
                     QPainter painter(&device);
-                    painter.fillRect(QRect(QPoint(0, 0), size), Qt::white);
+                    painter.fillRect(QRect(QPoint(0, 0), size), compiledPage->getPaperColor());
                     compiledPage->draw(&painter, page->getCropBox(), matrix, features);
                 }
 

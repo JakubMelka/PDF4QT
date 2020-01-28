@@ -22,6 +22,7 @@
 #include "pdfglobal.h"
 
 #include <QRectF>
+#include <QColor>
 #include <QByteArray>
 #include <QDataStream>
 
@@ -427,6 +428,21 @@ constexpr bool isIntervalOverlap(T x1_min, T x1_max, T x2_min, T x2_max)
 constexpr bool isRectangleHorizontallyOverlapped(const QRectF& r1, const QRectF& r2)
 {
     return isIntervalOverlap(r1.left(), r1.right(), r2.left(), r2.right());
+}
+
+inline QColor invertColor(QColor color)
+{
+    qreal r = 0.0;
+    qreal g = 0.0;
+    qreal b = 0.0;
+    qreal a = 0.0;
+
+    color.getRgbF(&r, &g, &b, &a);
+
+    r = 1.0 - r;
+    g = 1.0 - g;
+    b = 1.0 - b;
+    return QColor::fromRgbF(r, g, b, a);
 }
 
 }   // namespace pdf

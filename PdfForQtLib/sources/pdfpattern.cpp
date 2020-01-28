@@ -1106,6 +1106,16 @@ qint64 PDFMesh::getMemoryConsumptionEstimate() const
     return memoryConsumption;
 }
 
+void PDFMesh::invertColors()
+{
+    for (Triangle& triangle : m_triangles)
+    {
+        triangle.color = 0x00FFFFFF - triangle.color;
+    }
+
+    m_backgroundColor = invertColor(m_backgroundColor);
+}
+
 void PDFMeshQualitySettings::initResolution()
 {
     Q_ASSERT(deviceSpaceMeshingArea.isValid());

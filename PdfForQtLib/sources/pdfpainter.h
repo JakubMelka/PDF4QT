@@ -199,6 +199,9 @@ public:
     /// Optimizes page memory allocation to contain less space
     void optimize();
 
+    /// Inverts all colors
+    void invertColors();
+
     /// Finalizes precompiled page
     /// \param compilingTimeNS Compiling time in nanoseconds
     /// \param errors List of rendering errors
@@ -215,6 +218,10 @@ public:
 
     /// Returns memory consumption estimate
     qint64 getMemoryConsumptionEstimate() const { return m_memoryConsumptionEstimate; }
+
+    /// Returns paper color
+    QColor getPaperColor() const { return m_paperColor; }
+    void setPaperColor(QColor paperColor) { m_paperColor = paperColor; }
 
 private:
     struct PathPaintData
@@ -275,6 +282,7 @@ private:
 
     qint64 m_compilingTimeNS = 0;
     qint64 m_memoryConsumptionEstimate = 0;
+    QColor m_paperColor = QColor(Qt::white);
     std::vector<Instruction> m_instructions;
     std::vector<PathPaintData> m_paths;
     std::vector<ClipData> m_clips;
@@ -287,7 +295,7 @@ private:
 
 /// Processor, which processes PDF's page commands and writes them to the precompiled page.
 /// Precompiled page then can be used to execute these commands on QPainter.
-class PDFPrecompiledPageGenerator : public PDFPainterBase
+class PDFFORQTLIBSHARED_EXPORT PDFPrecompiledPageGenerator : public PDFPainterBase
 {
     using BaseClass = PDFPainterBase;
 
@@ -299,12 +307,7 @@ public:
                                                 const PDFFontCache* fontCache,
                                                 const PDFCMS* cms,
                                                 const PDFOptionalContentActivity* optionalContentActivity,
-                                                const PDFMeshQualitySettings& meshQualitySettings) :
-        BaseClass(features, page, document, fontCache, cms, optionalContentActivity, QMatrix(), meshQualitySettings),
-        m_precompiledPage(precompiledPage)
-    {
-
-    }
+                                                const PDFMeshQualitySettings& meshQualitySettings);
 
 protected:
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;

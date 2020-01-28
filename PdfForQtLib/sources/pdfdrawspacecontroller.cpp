@@ -600,6 +600,10 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 
     // Use current paper color (it can be a bit different from white)
     QColor paperColor = getCMSManager()->getCurrentCMS()->getPaperColor();
+    if (m_features.testFlag(PDFRenderer::InvertColors))
+    {
+        paperColor = invertColor(paperColor);
+    }
 
     // Iterate trough pages and display them on the painter device
     for (const LayoutItem& item : m_layout.items)
