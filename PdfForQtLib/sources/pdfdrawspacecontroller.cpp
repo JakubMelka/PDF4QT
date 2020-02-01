@@ -37,6 +37,7 @@ PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     m_pageLayoutMode(PageLayout::OneColumn),
     m_verticalSpacingMM(5.0),
     m_horizontalSpacingMM(1.0),
+    m_pageRotation(PageRotation::None),
     m_fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT)
 {
 
@@ -137,6 +138,15 @@ QSizeF PDFDrawSpaceController::getReferenceBoundingBox() const
     return rect.size();
 }
 
+void PDFDrawSpaceController::setPageRotation(PageRotation pageRotation)
+{
+    if (m_pageRotation != pageRotation)
+    {
+        m_pageRotation = pageRotation;
+        recalculate();
+    }
+}
+
 void PDFDrawSpaceController::recalculate()
 {
     if (!m_document)
@@ -148,19 +158,6 @@ void PDFDrawSpaceController::recalculate()
     const PDFCatalog* catalog = m_document->getCatalog();
     size_t pageCount = catalog->getPageCount();
 
-    // First, preserve page rotations. We assume the count of pages is the same as the document.
-    // Document should not be changed while viewing. If a new document is setted, then the draw
-    // space is cleared first.
-    std::vector<PageRotation> pageRotation(pageCount, PageRotation::None);
-    for (size_t i = 0; i < pageCount; ++i)
-    {
-        pageRotation[i] = catalog->getPage(i)->getPageRotation();
-    }
-    for (const LayoutItem& layoutItem : m_layoutItems)
-    {
-        pageRotation[layoutItem.pageIndex] = layoutItem.pageRotation;
-    }
-
     // Clear the old draw space
     clear(false);
 
@@ -168,26 +165,26 @@ void PDFDrawSpaceController::recalculate()
 
     // Places the pages on the left/right sides. Pages can be nullptr, but not both of them.
     // Updates bounding rectangle.
-    auto placePagesLeftRight = [this, catalog, &pageRotation](PDFInteger blockIndex, size_t leftIndex, size_t rightIndex, PDFReal& yPos, QRectF& boundingRect)
+    auto placePagesLeftRight = [this, catalog](PDFInteger blockIndex, size_t leftIndex, size_t rightIndex, PDFReal& yPos, QRectF& boundingRect)
     {
         PDFReal yPosAdvance = 0.0;
 
         if (leftIndex != INVALID_PAGE_INDEX)
         {
-            QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(leftIndex)->getMediaBoxMM(), pageRotation[leftIndex]).size();
+            QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(leftIndex)->getRotatedMediaBoxMM(), m_pageRotation).size();
             PDFReal xPos = -pageSize.width() - m_horizontalSpacingMM * 0.5;
             QRectF rect(xPos, yPos, pageSize.width(), pageSize.height());
-            m_layoutItems.emplace_back(blockIndex, leftIndex, pageRotation[leftIndex], rect);
+            m_layoutItems.emplace_back(blockIndex, leftIndex, rect);
             yPosAdvance = qMax(yPosAdvance, pageSize.height());
             boundingRect = boundingRect.united(rect);
         }
 
         if (rightIndex != INVALID_PAGE_INDEX)
         {
-            QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(rightIndex)->getMediaBoxMM(), pageRotation[rightIndex]).size();
+            QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(rightIndex)->getRotatedMediaBoxMM(), m_pageRotation).size();
             PDFReal xPos = m_horizontalSpacingMM * 0.5;
             QRectF rect(xPos, yPos, pageSize.width(), pageSize.height());
-            m_layoutItems.emplace_back(blockIndex, rightIndex, pageRotation[rightIndex], rect);
+            m_layoutItems.emplace_back(blockIndex, rightIndex, rect);
             yPosAdvance = qMax(yPosAdvance, pageSize.height());
             boundingRect = boundingRect.united(rect);
         }
@@ -247,9 +244,9 @@ void PDFDrawSpaceController::recalculate()
 
             for (size_t i = 0; i < pageCount; ++i)
             {
-                QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(i)->getMediaBoxMM(), pageRotation[i]).size();
+                QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(i)->getRotatedMediaBoxMM(), m_pageRotation).size();
                 QRectF rect(-pageSize.width() * 0.5, -pageSize.height() * 0.5, pageSize.width(), pageSize.height());
-                m_layoutItems.emplace_back(i, i, pageRotation[i], rect);
+                m_layoutItems.emplace_back(i, i, rect);
                 m_blockItems.emplace_back(rect);
             }
 
@@ -268,9 +265,9 @@ void PDFDrawSpaceController::recalculate()
             for (size_t i = 0; i < pageCount; ++i)
             {
                 // Top of current page is at yPos.
-                QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(i)->getMediaBoxMM(), pageRotation[i]).size();
+                QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(i)->getRotatedMediaBoxMM(), m_pageRotation).size();
                 QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
-                m_layoutItems.emplace_back(0, i, pageRotation[i], rect);
+                m_layoutItems.emplace_back(0, i, rect);
                 yPos += pageSize.height() + m_verticalSpacingMM;
                 boundingRectangle = boundingRectangle.united(rect);
             }
@@ -491,7 +488,7 @@ void PDFDrawWidgetProxy::update()
         m_layout.items.reserve(items.size());
         for (const PDFDrawSpaceController::LayoutItem& item : items)
         {
-            m_layout.items.emplace_back(item.pageIndex, item.pageRotation, fromDeviceSpace(item.pageRectMM).toRect());
+            m_layout.items.emplace_back(item.pageIndex, fromDeviceSpace(item.pageRectMM).toRect());
         }
 
         m_layout.blockRect = fromDeviceSpace(rectangle).toRect();
@@ -594,6 +591,59 @@ void PDFDrawWidgetProxy::update()
     emit drawSpaceChanged();
 }
 
+QMatrix PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
+{
+    QMatrix matrix;
+
+    // We want to create transformation from unrotated rectangle
+    // to rotated page rectangle.
+
+    QRectF unrotatedRectangle = rectangle;
+    switch (m_controller->getPageRotation())
+    {
+        case PageRotation::None:
+            break;
+
+        case PageRotation::Rotate180:
+        {
+            matrix.translate(0, rectangle.top() + rectangle.bottom());
+            matrix.scale(1.0, -1.0);
+            Q_ASSERT(qFuzzyCompare(matrix.map(rectangle.topLeft()).y(), rectangle.bottom()));
+            Q_ASSERT(qFuzzyCompare(matrix.map(rectangle.bottomLeft()).y(), rectangle.top()));
+            break;
+        }
+
+        case PageRotation::Rotate90:
+        {
+            unrotatedRectangle = rectangle.transposed();
+            matrix.translate(rectangle.left(), rectangle.top());
+            matrix.rotate(90);
+            matrix.translate(-rectangle.left(), -rectangle.top());
+            matrix.translate(0, -unrotatedRectangle.height());
+            break;
+        }
+
+        case PageRotation::Rotate270:
+        {
+            unrotatedRectangle = rectangle.transposed();
+            matrix.translate(rectangle.left(), rectangle.top());
+            matrix.rotate(90);
+            matrix.translate(-rectangle.left(), -rectangle.top());
+            matrix.translate(0, -unrotatedRectangle.height());
+            matrix.translate(0.0, unrotatedRectangle.top() + unrotatedRectangle.bottom());
+            matrix.scale(1.0, -1.0);
+            matrix.translate(unrotatedRectangle.left() + unrotatedRectangle.right(), 0.0);
+            matrix.scale(-1.0, 1.0);
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return PDFRenderer::createPagePointToDevicePointMatrix(page, unrotatedRectangle) * matrix;
+}
+
 void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 {
     painter->fillRect(rect, Qt::lightGray);
@@ -624,7 +674,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 timer.start();
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, placedRect);
+                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect);
                 compiledPage->draw(painter, page->getCropBox(), matrix, m_features);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
@@ -802,7 +852,7 @@ PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoin
             if (pagePoint)
             {
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, placedRect).inverted();
+                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect).inverted();
                 *pagePoint = matrix.map(point);
             }
 
@@ -918,6 +968,18 @@ void PDFDrawWidgetProxy::performOperation(Operation operation)
         case ZoomFitHeight:
         {
             zoom(getZoomHint(ZoomHint::FitHeight));
+            break;
+        }
+
+        case RotateRight:
+        {
+            m_controller->setPageRotation(getPageRotationRotatedRight(m_controller->getPageRotation()));
+            break;
+        }
+
+        case RotateLeft:
+        {
+            m_controller->setPageRotation(getPageRotationRotatedLeft(m_controller->getPageRotation()));
             break;
         }
 

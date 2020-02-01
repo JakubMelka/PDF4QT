@@ -97,15 +97,14 @@ public:
     /// page and page rectangle, in which the page is contained.
     struct LayoutItem
     {
-        constexpr inline explicit LayoutItem() : blockIndex(-1), pageIndex(-1), pageRotation(PageRotation::None) { }
-        constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, PageRotation rotation, const QRectF& pageRectMM) :
-            blockIndex(blockIndex), pageIndex(pageIndex), pageRotation(rotation), pageRectMM(pageRectMM) { }
+        constexpr inline explicit LayoutItem() : blockIndex(-1), pageIndex(-1) { }
+        constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, const QRectF& pageRectMM) :
+            blockIndex(blockIndex), pageIndex(pageIndex), pageRectMM(pageRectMM) { }
 
         bool isValid() const { return pageIndex != -1; }
 
         PDFInteger blockIndex;
         PDFInteger pageIndex;
-        PageRotation pageRotation;
         QRectF pageRectMM;
     };
 
@@ -138,6 +137,12 @@ public:
     /// any page on the screen will fit this bounding box, regardless of mode (single/two columns, etc.).
     QSizeF getReferenceBoundingBox() const;
 
+    /// Returns page rotation
+    PageRotation getPageRotation() const { return m_pageRotation; }
+
+    /// Sets page rotation
+    void setPageRotation(PageRotation pageRotation);
+
 signals:
     void drawSpaceChanged();
     void repaintNeeded();
@@ -169,6 +174,7 @@ private:
     BlockItems m_blockItems;
     PDFReal m_verticalSpacingMM;
     PDFReal m_horizontalSpacingMM;
+    PageRotation m_pageRotation;
 
     /// Font cache
     PDFFontCache m_fontCache;
@@ -196,6 +202,12 @@ public:
     /// Updates the draw space area
     void update();
 
+    /// Creates page point to device point matrix for the given rectangle. It creates transformation
+    /// from page's media box to the target rectangle.
+    /// \param page Page, for which we want to create matrix
+    /// \param rectangle Page rectangle, to which is page media box transformed
+    QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const;
+
     /// Draws the actually visible pages on the painter using the rectangle.
     /// Rectangle is space in the widget, which is used for painting the PDF.
     /// \param painter Painter to paint the PDF pages
@@ -220,7 +232,9 @@ public:
         NavigateNextPage,
         NavigatePreviousPage,
         NavigateNextStep,
-        NavigatePreviousStep
+        NavigatePreviousStep,
+        RotateRight,
+        RotateLeft
     };
 
     /// Performs the desired operation (for example navigation).
@@ -329,13 +343,12 @@ signals:
 private:
     struct LayoutItem
     {
-        constexpr inline explicit LayoutItem() : pageIndex(-1), pageRotation(PageRotation::None) { }
-        constexpr inline explicit LayoutItem(PDFInteger pageIndex, PageRotation rotation, const QRect& pageRect) :
-            pageIndex(pageIndex), pageRotation(rotation), pageRect(pageRect) { }
+        constexpr inline explicit LayoutItem() : pageIndex(-1) { }
+        constexpr inline explicit LayoutItem(PDFInteger pageIndex, const QRect& pageRect) :
+            pageIndex(pageIndex), pageRect(pageRect) { }
 
 
         PDFInteger pageIndex;
-        PageRotation pageRotation;
         QRect pageRect;
     };
 

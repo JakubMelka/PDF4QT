@@ -33,5 +33,7 @@
         <file>resources/find-previous.svg</file>
         <file>resources/select-text.svg</file>
         <file>resources/ui.svg</file>
+        <file>resources/rotate-left.svg</file>
+        <file>resources/rotate-right.svg</file>
     </qresource>
 </RCC>

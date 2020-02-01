@@ -107,6 +107,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionSelectTextAll->setShortcut(QKeySequence::SelectAll);
     ui->actionDeselectText->setShortcut(QKeySequence::Deselect);
     ui->actionCopyText->setShortcut(QKeySequence::Copy);
+    ui->actionRotateRight->setShortcut(QKeySequence("Ctrl+Shift++"));
+    ui->actionRotateLeft->setShortcut(QKeySequence("Ctrl+Shift+-"));
 
     for (QAction* action : m_recentFileManager->getActions())
     {
@@ -1144,6 +1146,16 @@ void PDFViewerMainWindow::on_actionSend_by_E_Mail_triggered()
     {
         QMessageBox::critical(this, tr("Error"), tr("Error while starting email client occured!"));
     }
+}
+
+void PDFViewerMainWindow::on_actionRotateRight_triggered()
+{
+    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateRight);
+}
+
+void PDFViewerMainWindow::on_actionRotateLeft_triggered()
+{
+    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateLeft);
 }
 
 }   // namespace pdfviewer

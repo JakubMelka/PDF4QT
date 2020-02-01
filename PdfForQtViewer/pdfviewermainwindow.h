@@ -92,6 +92,10 @@ private slots:
     void on_actionProperties_triggered();
     void on_actionSend_by_E_Mail_triggered();
 
+    void on_actionRotateRight_triggered();
+
+    void on_actionRotateLeft_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();

@@ -39,6 +39,40 @@ enum class PageRotation
     Rotate270
 };
 
+constexpr PageRotation getPageRotationRotatedRight(PageRotation rotation)
+{
+    switch (rotation)
+    {
+        case PageRotation::None:
+            return PageRotation::Rotate90;
+        case PageRotation::Rotate90:
+            return PageRotation::Rotate180;
+        case PageRotation::Rotate180:
+            return PageRotation::Rotate270;
+        case PageRotation::Rotate270:
+            return PageRotation::None;
+    }
+
+    return PageRotation::None;
+}
+
+constexpr PageRotation getPageRotationRotatedLeft(PageRotation rotation)
+{
+    switch (rotation)
+    {
+        case PageRotation::None:
+            return PageRotation::Rotate270;
+        case PageRotation::Rotate90:
+            return PageRotation::None;
+        case PageRotation::Rotate180:
+            return PageRotation::Rotate90;
+        case PageRotation::Rotate270:
+            return PageRotation::Rotate180;
+    }
+
+    return PageRotation::None;
+}
+
 /// This class represents attributes, which are inheritable. Also allows merging from
 /// parents.
 class PDFPageInheritableAttributes
@@ -97,6 +131,7 @@ public:
     inline PDFObjectReference getPageReference() const { return m_pageReference; }
 
     QRectF getRotatedMediaBox() const;
+    QRectF getRotatedMediaBoxMM() const;
     QRectF getRotatedCropBox() const;
 
     static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);

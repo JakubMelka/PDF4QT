@@ -68,6 +68,9 @@
     <addaction name="menuPage_Layout"/>
     <addaction name="menuRendering_Options"/>
     <addaction name="separator"/>
+    <addaction name="actionRotateRight"/>
+    <addaction name="actionRotateLeft"/>
+    <addaction name="separator"/>
     <addaction name="actionZoom_In"/>
     <addaction name="actionZoom_Out"/>
     <addaction name="separator"/>
@@ -417,6 +420,24 @@
    </property>
    <property name="text">
     <string>Invert Colors</string>
+   </property>
+  </action>
+  <action name="actionRotateRight">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/rotate-right.svg</normaloff>:/resources/rotate-right.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Rotate Right</string>
+   </property>
+  </action>
+  <action name="actionRotateLeft">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/rotate-left.svg</normaloff>:/resources/rotate-left.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Rotate Left</string>
    </property>
   </action>
  </widget>
