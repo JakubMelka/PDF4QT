@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfutils.h"
+#include "pdfrecentfilemanager.h"
 
 #include <QAction>
 #include <QLineEdit>
@@ -32,12 +33,14 @@ namespace pdfviewer
 
 PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings,
                                                  const pdf::PDFCMSSettings& cmsSettings,
+                                                 const OtherSettings& otherSettings,
                                                  QList<QAction*> actions,
                                                  pdf::PDFCMSManager* cmsManager, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::PDFViewerSettingsDialog),
     m_settings(settings),
     m_cmsSettings(cmsSettings),
+    m_otherSettings(otherSettings),
     m_actions(),
     m_isLoadingData(false)
 {
@@ -50,6 +53,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/shortcuts.svg"), tr("Shortcuts"), ui->optionsPagesWidget, ShortcutSettings);
     new QListWidgetItem(QIcon(":/resources/cms.svg"), tr("Colors"), ui->optionsPagesWidget, ColorManagementSystemSettings);
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
+    new QListWidgetItem(QIcon(":/resources/ui.svg"), tr("UI"), ui->optionsPagesWidget, UISettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
@@ -62,6 +66,9 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->multithreadingComboBox->addItem(tr("Single thread"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::SingleThreaded));
     ui->multithreadingComboBox->addItem(tr("Multithreading (load balanced)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded));
     ui->multithreadingComboBox->addItem(tr("Multithreading (maximum threads)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded));
+
+    ui->maximumRecentFileCountEdit->setMinimum(PDFRecentFileManager::getMinimumRecentFiles());
+    ui->maximumRecentFileCountEdit->setMaximum(PDFRecentFileManager::getMaximumRecentFiles());
 
     // Load CMS data
     ui->cmsTypeComboBox->addItem(pdf::PDFCMSManager::getSystemName(pdf::PDFCMSSettings::System::Generic), int(pdf::PDFCMSSettings::System::Generic));
@@ -168,6 +175,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
             ui->stackedWidget->setCurrentWidget(ui->securityPage);
             break;
 
+        case UISettings:
+            ui->stackedWidget->setCurrentWidget(ui->uiPage);
+            break;
+
         default:
             Q_ASSERT(false);
             break;
@@ -228,6 +239,9 @@ void PDFViewerSettingsDialog::loadData()
     // Security
     ui->allowLaunchCheckBox->setChecked(m_settings.m_allowLaunchApplications);
     ui->allowRunURICheckBox->setChecked(m_settings.m_allowLaunchURI);
+
+    // UI
+    ui->maximumRecentFileCountEdit->setValue(m_otherSettings.maximumRecentFileCount);
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -405,6 +419,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->multithreadingComboBox)
     {
         m_settings.m_multithreadingStrategy = static_cast<pdf::PDFExecutionPolicy::Strategy>(ui->multithreadingComboBox->currentData().toInt());
+    }
+    else if (sender == ui->maximumRecentFileCountEdit)
+    {
+        m_otherSettings.maximumRecentFileCount = ui->maximumRecentFileCountEdit->value();
     }
 
     loadData();

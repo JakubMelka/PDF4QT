@@ -26,6 +26,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfwidgettool.h"
+#include "pdfrecentfilemanager.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -141,6 +142,7 @@ private:
 
     Ui::PDFViewerMainWindow* ui;
     pdf::PDFCMSManager* m_CMSManager;
+    PDFRecentFileManager* m_recentFileManager;
     PDFViewerSettings* m_settings;
     pdf::PDFWidget* m_pdfWidget;
     QSharedPointer<pdf::PDFDocument> m_pdfDocument;

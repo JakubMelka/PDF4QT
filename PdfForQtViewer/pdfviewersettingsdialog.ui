@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>0</number>
+        <number>7</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -816,6 +816,68 @@
                <size>
                 <width>20</width>
                 <height>74</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="uiPage">
+        <layout class="QVBoxLayout" name="uiPageLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="uiGroupBox">
+           <property name="title">
+            <string>UI Settings</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_4">
+            <item>
+             <layout class="QGridLayout" name="uiGroupBoxLayout">
+              <item row="0" column="0">
+               <widget class="QLabel" name="maximumRecentFileCountLabel">
+                <property name="text">
+                 <string>Maximum count of recent files</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="uiInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum count of recent files controls, how much of recent files will be displayed in menu. When document is opened, then document is addet to the top of recent file list, and recent file list is truncated from bottom, if number of recent files is greater, than maximum.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="uiGroupBoxSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>402</height>
                </size>
               </property>
              </spacer>

@@ -66,6 +66,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::PDFViewerMainWindow),
     m_CMSManager(new pdf::PDFCMSManager(this)),
+    m_recentFileManager(new PDFRecentFileManager(this)),
     m_settings(new PDFViewerSettings(this)),
     m_pdfWidget(nullptr),
     m_sidebarWidget(nullptr),
@@ -107,9 +108,16 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionDeselectText->setShortcut(QKeySequence::Deselect);
     ui->actionCopyText->setShortcut(QKeySequence::Copy);
 
+    for (QAction* action : m_recentFileManager->getActions())
+    {
+        ui->menuFile->insertAction(ui->actionQuit, action);
+    }
+    ui->menuFile->insertSeparator(ui->actionQuit);
+
     connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
     connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);
+    connect(m_recentFileManager, &PDFRecentFileManager::fileOpenRequest, this, &PDFViewerMainWindow::openDocument);
 
     auto createGoToAction = [this](QMenu* menu, QString name, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation, QString iconPath)
     {
@@ -651,6 +659,12 @@ void PDFViewerMainWindow::readActionSettings()
         }
     }
     settings.endGroup();
+
+    // Load recent files
+    settings.beginGroup("RecentFiles");
+    m_recentFileManager->setRecentFilesLimit(settings.value("MaximumRecentFilesCount", PDFRecentFileManager::getDefaultRecentFiles()).toInt());
+    m_recentFileManager->setRecentFiles(settings.value("RecentFileList", QStringList()).toStringList());
+    settings.endGroup();
 }
 
 void PDFViewerMainWindow::writeSettings()
@@ -672,6 +686,12 @@ void PDFViewerMainWindow::writeSettings()
             settings.setValue(name, accelerator);
         }
     }
+    settings.endGroup();
+
+    // Save recent files
+    settings.beginGroup("RecentFiles");
+    settings.setValue("MaximumRecentFilesCount", m_recentFileManager->getRecentFilesLimit());
+    settings.setValue("RecentFileList", m_recentFileManager->getRecentFiles());
     settings.endGroup();
 }
 
@@ -881,6 +901,9 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             m_settings->setDirectory(fileInfo.dir().absolutePath());
             m_currentFile = fileInfo.fileName();
 
+            // We add file to recent files only, if we have successfully read the document
+            m_recentFileManager->addRecentFile(m_fileInfo.originalFileName);
+
             m_pdfDocument = result.document;
             setDocument(m_pdfDocument.data());
 
@@ -1080,12 +1103,16 @@ void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
 
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
-    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(), getActions(), m_CMSManager, this);
+    PDFViewerSettingsDialog::OtherSettings otherSettings;
+    otherSettings.maximumRecentFileCount = m_recentFileManager->getRecentFilesLimit();
+
+    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(), otherSettings, getActions(), m_CMSManager, this);
     if (dialog.exec() == QDialog::Accepted)
     {
         m_settings->setSettings(dialog.getSettings());
         m_settings->setColorManagementSystemSettings(dialog.getCMSSettings());
         m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
+        m_recentFileManager->setRecentFilesLimit(dialog.getOtherSettings().maximumRecentFileCount);
     }
 }
 
