@@ -31,6 +31,7 @@
     <addaction name="actionClose"/>
     <addaction name="separator"/>
     <addaction name="actionSend_by_E_Mail"/>
+    <addaction name="actionPrint"/>
     <addaction name="separator"/>
     <addaction name="actionProperties"/>
     <addaction name="separator"/>
@@ -438,6 +439,15 @@
    </property>
    <property name="text">
     <string>Rotate Left</string>
+   </property>
+  </action>
+  <action name="actionPrint">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/print.svg</normaloff>:/resources/print.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Print</string>
    </property>
   </action>
  </widget>

@@ -37,7 +37,7 @@ class PDFPrecompiledPage;
 class PDFOptionalContentActivity;
 
 /// Renders the PDF page on the painter, or onto an image.
-class PDFRenderer
+class PDFFORQTLIBSHARED_EXPORT PDFRenderer
 {
 public:
 

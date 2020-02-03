@@ -37,6 +37,7 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfwidgetutils.h"
 
+#include <QPainter>
 #include <QSettings>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -53,6 +54,8 @@
 #include <QLabel>
 #include <QDoubleSpinBox>
 #include <QDesktopServices>
+#include <QtPrintSupport/QPrinter>
+#include <QtPrintSupport/QPrintDialog>
 #include <QtConcurrent/QtConcurrent>
 
 #ifdef Q_OS_WIN
@@ -109,6 +112,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionCopyText->setShortcut(QKeySequence::Copy);
     ui->actionRotateRight->setShortcut(QKeySequence("Ctrl+Shift++"));
     ui->actionRotateLeft->setShortcut(QKeySequence("Ctrl+Shift+-"));
+    ui->actionPrint->setShortcut(QKeySequence::Print);
 
     for (QAction* action : m_recentFileManager->getActions())
     {
@@ -806,6 +810,14 @@ void PDFViewerMainWindow::updateActionsAvailability()
     const bool isBusy = m_futureWatcher.isRunning() || m_isBusy;
     const bool hasDocument = m_pdfDocument;
     const bool hasValidDocument = !isBusy && hasDocument;
+    bool canPrint = false;
+    if (m_pdfDocument)
+    {
+        const pdf::PDFObjectStorage& storage = m_pdfDocument->getStorage();
+        const pdf::PDFSecurityHandler* securityHandler = storage.getSecurityHandler();
+        canPrint = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintLowResolution) ||
+                   securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution);
+    }
 
     ui->actionOpen->setEnabled(!isBusy);
     ui->actionClose->setEnabled(hasValidDocument);
@@ -817,6 +829,7 @@ void PDFViewerMainWindow::updateActionsAvailability()
     ui->actionFitHeight->setEnabled(hasValidDocument);
     ui->actionRendering_Errors->setEnabled(hasValidDocument);
     ui->actionFind->setEnabled(hasValidDocument);
+    ui->actionPrint->setEnabled(hasValidDocument && canPrint);
     setEnabled(!isBusy);
 }
 
@@ -1158,4 +1171,109 @@ void PDFViewerMainWindow::on_actionRotateLeft_triggered()
     m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateLeft);
 }
 
+void PDFViewerMainWindow::on_actionPrint_triggered()
+{
+    // Are we allowed to print in high resolution? If yes, then print in high resolution,
+    // otherwise print in low resolution. If this action is triggered, then print operation
+    // should be allowed (at least print in low resolution).
+    const pdf::PDFObjectStorage& storage = m_pdfDocument->getStorage();
+    const pdf::PDFSecurityHandler* securityHandler = storage.getSecurityHandler();
+    QPrinter::PrinterMode printerMode = QPrinter::HighResolution;
+    if (!securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution))
+    {
+        printerMode = QPrinter::ScreenResolution;
+    }
+
+    // Run print dialog
+    QPrinter printer(printerMode);
+    QPrintDialog printDialog(&printer, this);
+    printDialog.setOptions(QPrintDialog::PrintPageRange | QPrintDialog::PrintShowPageSize | QPrintDialog::PrintCollateCopies | QPrintDialog::PrintSelection);
+    printDialog.setOption(QPrintDialog::PrintCurrentPage, m_pdfWidget->getDrawWidget()->getCurrentPages().size() == 1);
+    printDialog.setMinMax(1, int(m_pdfDocument->getCatalog()->getPageCount()));
+    if (printDialog.exec() == QPrintDialog::Accepted)
+    {
+        std::vector<pdf::PDFInteger> pageIndices;
+        switch (printDialog.printRange())
+        {
+            case QAbstractPrintDialog::AllPages:
+            {
+                pageIndices.resize(m_pdfDocument->getCatalog()->getPageCount(), 0);
+                std::iota(pageIndices.begin(), pageIndices.end(), 0);
+                break;
+            }
+
+            case QAbstractPrintDialog::Selection:
+            case QAbstractPrintDialog::CurrentPage:
+            {
+                pageIndices = m_pdfWidget->getDrawWidget()->getCurrentPages();
+                break;
+            }
+
+            case QAbstractPrintDialog::PageRange:
+            {
+                const pdf::PDFInteger fromPage = printDialog.fromPage();
+                const pdf::PDFInteger toPage = printDialog.toPage();
+                const pdf::PDFInteger pageCount = toPage - fromPage + 1;
+                if (pageCount > 0)
+                {
+                    pageIndices.resize(pageCount, 0);
+                    std::iota(pageIndices.begin(), pageIndices.end(), fromPage - 1);
+                }
+                break;
+            }
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        if (pageIndices.empty())
+        {
+            // Nothing to be printed
+            return;
+        }
+
+        pdf::ProgressStartupInfo info;
+        info.showDialog = true;
+        info.text = tr("Printing document");
+        m_progress->start(pageIndices.size(), qMove(info));
+        printer.setFullPage(true);
+        QPainter painter(&printer);
+
+        const pdf::PDFCatalog* catalog = m_pdfDocument->getCatalog();
+        pdf::PDFDrawWidgetProxy* proxy = m_pdfWidget->getDrawWidgetProxy();
+        pdf::PDFOptionalContentActivity optionalContentActivity(m_pdfDocument.data(), pdf::OCUsage::Print, nullptr);
+        pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
+        pdf::PDFRenderer renderer(m_pdfDocument.get(), proxy->getFontCache(), cms.data(), &optionalContentActivity, proxy->getFeatures(), proxy->getMeshQualitySettings());
+
+        const pdf::PDFInteger lastPage = pageIndices.back();
+        for (const pdf::PDFInteger pageIndex : pageIndices)
+        {
+            const pdf::PDFPage* page = catalog->getPage(pageIndex);
+            Q_ASSERT(page);
+
+            QRectF mediaBox = page->getRotatedMediaBox();
+            QRectF paperRect = printer.paperRect();
+            QSizeF scaledSize = mediaBox.size().scaled(paperRect.size(), Qt::KeepAspectRatio);
+            mediaBox.setSize(scaledSize);
+            mediaBox.moveCenter(paperRect.center());
+
+            renderer.render(&painter, mediaBox, pageIndex);
+            m_progress->step();
+
+            if (pageIndex != lastPage)
+            {
+                if (!printer.newPage())
+                {
+                    break;
+                }
+            }
+        }
+
+        painter.end();
+        m_progress->finish();
+    }
+}
+
 }   // namespace pdfviewer
+

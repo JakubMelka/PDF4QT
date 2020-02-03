@@ -35,5 +35,6 @@
         <file>resources/ui.svg</file>
         <file>resources/rotate-left.svg</file>
         <file>resources/rotate-right.svg</file>
+        <file>resources/print.svg</file>
     </qresource>
 </RCC>

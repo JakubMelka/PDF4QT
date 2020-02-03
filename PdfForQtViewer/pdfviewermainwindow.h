@@ -96,6 +96,8 @@ private slots:
 
     void on_actionRotateLeft_triggered();
 
+    void on_actionPrint_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
