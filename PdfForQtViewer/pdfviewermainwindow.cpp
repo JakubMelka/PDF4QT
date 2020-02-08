@@ -23,6 +23,7 @@
 #include "pdfadvancedfindwidget.h"
 #include "pdfviewersettingsdialog.h"
 #include "pdfdocumentpropertiesdialog.h"
+#include "pdfrendertoimagesdialog.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
@@ -830,6 +831,7 @@ void PDFViewerMainWindow::updateActionsAvailability()
     ui->actionRendering_Errors->setEnabled(hasValidDocument);
     ui->actionFind->setEnabled(hasValidDocument);
     ui->actionPrint->setEnabled(hasValidDocument && canPrint);
+    ui->actionRender_to_Images->setEnabled(hasValidDocument && canPrint);
     setEnabled(!isBusy);
 }
 
@@ -1275,5 +1277,13 @@ void PDFViewerMainWindow::on_actionPrint_triggered()
     }
 }
 
-}   // namespace pdfviewer
+void PDFViewerMainWindow::on_actionRender_to_Images_triggered()
+{
+    PDFRenderToImagesDialog dialog(this);
+    if (dialog.exec() == QDialog::Accepted)
+    {
 
+    }
+}
+
+}   // namespace pdfviewer

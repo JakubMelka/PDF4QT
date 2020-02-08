@@ -336,4 +336,203 @@ void PDFRasterizer::releaseOpenGL()
     }
 }
 
+PDFImageWriterSettings::PDFImageWriterSettings()
+{
+    m_formats = QImageWriter::supportedImageFormats();
+    selectFormat(m_formats.front());
+}
+
+void PDFImageWriterSettings::selectFormat(const QByteArray& format)
+{
+    if (m_currentFormat != format)
+    {
+        m_currentFormat = format;
+
+        QImageWriter writer;
+        writer.setFormat(format);
+
+        m_compression = 0;
+        m_quality = 0;
+        m_gamma = 0;
+        m_optimizedWrite = false;
+        m_progressiveScanWrite = false;
+        m_subtypes = writer.supportedSubTypes();
+        m_currentSubtype = !m_subtypes.isEmpty() ? m_subtypes.front() : QByteArray();
+
+        // Jakub Melka: init default values based on image handler. Unfortunately,
+        // image writer doesn't give us access to these values, so they are hardcoded.
+        if (format == "jpeg" || format == "jpg")
+        {
+            m_quality = 75;
+            m_optimizedWrite = false;
+            m_progressiveScanWrite = false;
+        }
+        else if (format == "png")
+        {
+            m_compression = 50;
+            m_quality = 50;
+            m_gamma = 0;
+        }
+        else if (format == "tif" || format == "tiff")
+        {
+            m_compression = 1;
+        }
+        else if (format == "webp")
+        {
+            m_quality = 75;
+        }
+
+        m_supportedOptions.clear();
+        for (QImageIOHandler::ImageOption imageOption : { QImageIOHandler::CompressionRatio, QImageIOHandler::Quality,
+                                                          QImageIOHandler::Gamma, QImageIOHandler::OptimizedWrite,
+                                                          QImageIOHandler::ProgressiveScanWrite, QImageIOHandler::SupportedSubTypes })
+        {
+            if (writer.supportsOption(imageOption))
+            {
+                m_supportedOptions.insert(imageOption);
+            }
+        }
+    }
+}
+
+int PDFImageWriterSettings::getCompression() const
+{
+    return m_compression;
+}
+
+void PDFImageWriterSettings::setCompression(int compression)
+{
+    m_compression = compression;
+}
+
+int PDFImageWriterSettings::getQuality() const
+{
+    return m_quality;
+}
+
+void PDFImageWriterSettings::setQuality(int quality)
+{
+    m_quality = quality;
+}
+
+float PDFImageWriterSettings::getGamma() const
+{
+    return m_gamma;
+}
+
+void PDFImageWriterSettings::setGamma(float gamma)
+{
+    m_gamma = gamma;
+}
+
+bool PDFImageWriterSettings::hasOptimizedWrite() const
+{
+    return m_optimizedWrite;
+}
+
+void PDFImageWriterSettings::setOptimizedWrite(bool optimizedWrite)
+{
+    m_optimizedWrite = optimizedWrite;
+}
+
+bool PDFImageWriterSettings::hasProgressiveScanWrite() const
+{
+    return m_progressiveScanWrite;
+}
+
+void PDFImageWriterSettings::setProgressiveScanWrite(bool progressiveScanWrite)
+{
+    m_progressiveScanWrite = progressiveScanWrite;
+}
+
+QByteArray PDFImageWriterSettings::getCurrentFormat() const
+{
+    return m_currentFormat;
+}
+
+QByteArray PDFImageWriterSettings::getCurrentSubtype() const
+{
+    return m_currentSubtype;
+}
+
+void PDFImageWriterSettings::setCurrentSubtype(const QByteArray& currentSubtype)
+{
+    m_currentSubtype = currentSubtype;
+}
+
+PDFPageImageExportSettings::PDFPageImageExportSettings()
+{
+    m_fileTemplate = PDFTranslationContext::tr("Image_%");
+}
+
+PDFPageImageExportSettings::ResolutionMode PDFPageImageExportSettings::getResolutionMode() const
+{
+    return m_resolutionMode;
+}
+
+void PDFPageImageExportSettings::setResolutionMode(ResolutionMode resolution)
+{
+    m_resolutionMode = resolution;
+}
+
+PDFPageImageExportSettings::PageSelectionMode PDFPageImageExportSettings::getPageSelectionMode() const
+{
+    return m_pageSelectionMode;
+}
+
+void PDFPageImageExportSettings::setPageSelectionMode(PageSelectionMode pageSelectionMode)
+{
+    m_pageSelectionMode = pageSelectionMode;
+}
+
+QString PDFPageImageExportSettings::getDirectory() const
+{
+    return m_directory;
+}
+
+void PDFPageImageExportSettings::setDirectory(const QString& directory)
+{
+    m_directory = directory;
+}
+
+QString PDFPageImageExportSettings::getFileTemplate() const
+{
+    return m_fileTemplate;
+}
+
+void PDFPageImageExportSettings::setFileTemplate(const QString& fileTemplate)
+{
+    m_fileTemplate = fileTemplate;
+}
+
+QString PDFPageImageExportSettings::getPageSelection() const
+{
+    return m_pageSelection;
+}
+
+void PDFPageImageExportSettings::setPageSelection(const QString& pageSelection)
+{
+    m_pageSelection = pageSelection;
+}
+
+int PDFPageImageExportSettings::getDpiResolution() const
+{
+    return m_dpiResolution;
+}
+
+void PDFPageImageExportSettings::setDpiResolution(int dpiResolution)
+{
+    m_dpiResolution = dpiResolution;
+}
+
+int PDFPageImageExportSettings::getPixelResolution() const
+{
+    return m_pixelResolution;
+}
+
+void PDFPageImageExportSettings::setPixelResolution(int pixelResolution)
+{
+    m_pixelResolution = pixelResolution;
+}
+
 }   // namespace pdf

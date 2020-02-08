@@ -32,6 +32,7 @@
     <addaction name="separator"/>
     <addaction name="actionSend_by_E_Mail"/>
     <addaction name="actionPrint"/>
+    <addaction name="actionRender_to_Images"/>
     <addaction name="separator"/>
     <addaction name="actionProperties"/>
     <addaction name="separator"/>
@@ -448,6 +449,11 @@
    </property>
    <property name="text">
     <string>Print</string>
+   </property>
+  </action>
+  <action name="actionRender_to_Images">
+   <property name="text">
+    <string>Render to Images</string>
    </property>
   </action>
  </widget>

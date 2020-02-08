@@ -22,6 +22,7 @@
 #include "pdfexception.h"
 #include "pdfmeshqualitysettings.h"
 
+#include <QImageWriter>
 #include <QSurfaceFormat>
 
 class QPainter;
@@ -152,6 +153,107 @@ private:
     QOffscreenSurface* m_surface;
     QOpenGLContext* m_context;
     QOpenGLFramebufferObject* m_fbo;
+};
+
+/// Settings object for image writer
+class PDFFORQTLIBSHARED_EXPORT PDFImageWriterSettings
+{
+public:
+    explicit PDFImageWriterSettings();
+
+    /// Returns true, if image option is supported
+    bool isOptionSupported(QImageIOHandler::ImageOption option) const { return m_supportedOptions.count(option); }
+
+    /// Returns a list of available image formats
+    const QList<QByteArray>& getFormats() const { return m_formats; }
+
+    /// Returns a list of available subtypes
+    const QList<QByteArray>& getSubtypes() const { return m_subtypes; }
+
+    /// Selects image format (and initializes default values)
+    void selectFormat(const QByteArray& format);
+
+    int getCompression() const;
+    void setCompression(int compression);
+
+    int getQuality() const;
+    void setQuality(int quality);
+
+    float getGamma() const;
+    void setGamma(float gamma);
+
+    bool hasOptimizedWrite() const;
+    void setOptimizedWrite(bool optimizedWrite);
+
+    bool hasProgressiveScanWrite() const;
+    void setProgressiveScanWrite(bool progressiveScanWrite);
+
+    QByteArray getCurrentFormat() const;
+
+    QByteArray getCurrentSubtype() const;
+    void setCurrentSubtype(const QByteArray& currentSubtype);
+
+private:
+    int m_compression = 9;
+    int m_quality = 100;
+    float m_gamma = 1.0;
+    bool m_optimizedWrite = false;
+    bool m_progressiveScanWrite = false;
+    QByteArray m_currentFormat;
+    QByteArray m_currentSubtype;
+    std::set<QImageIOHandler::ImageOption> m_supportedOptions;
+
+    QList<QByteArray> m_formats;
+    QList<QByteArray> m_subtypes;
+};
+
+/// This class is for setup of page image exporter
+class PDFFORQTLIBSHARED_EXPORT PDFPageImageExportSettings
+{
+public:
+    explicit PDFPageImageExportSettings();
+
+    enum class PageSelectionMode
+    {
+        All,
+        Selection
+    };
+
+    enum class ResolutionMode
+    {
+        DPI,
+        Pixels
+    };
+
+    ResolutionMode getResolutionMode() const;
+    void setResolutionMode(ResolutionMode resolution);
+
+    PageSelectionMode getPageSelectionMode() const;
+    void setPageSelectionMode(PageSelectionMode pageSelectionMode);
+
+    QString getDirectory() const;
+    void setDirectory(const QString& directory);
+
+    QString getFileTemplate() const;
+    void setFileTemplate(const QString& fileTemplate);
+
+    QString getPageSelection() const;
+    void setPageSelection(const QString& pageSelection);
+
+    int getDpiResolution() const;
+    void setDpiResolution(int dpiResolution);
+
+    int getPixelResolution() const;
+    void setPixelResolution(int pixelResolution);
+
+private:
+    ResolutionMode m_resolutionMode = ResolutionMode::DPI;
+    PageSelectionMode m_pageSelectionMode = PageSelectionMode::All;
+    QString m_directory;
+    QString m_fileTemplate;
+    QString m_pageSelection;
+    int m_dpiResolution = 300;
+    int m_pixelResolution = 100;
 };
 
 }   // namespace pdf
