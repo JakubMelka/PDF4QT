@@ -737,7 +737,7 @@ std::vector<PDFInteger> PDFPageImageExportSettings::getPages() const
                     case 1:
                     {
                         const QString& numberString = numbers.front();
-                        result.push_back(numberString.toLongLong(&ok));
+                        result.push_back(numberString.toLongLong(&ok) - 1);
                         break;
                     }
 
@@ -747,9 +747,9 @@ std::vector<PDFInteger> PDFPageImageExportSettings::getPages() const
                         bool ok2 = false;
                         const QString& lowString = numbers.front();
                         const QString& highString = numbers.back();
-                        const PDFInteger low = lowString.toLongLong(&ok1);
-                        const PDFInteger high = highString.toLongLong(&ok2);
-                        ok = ok1 && ok2 && low <= high;
+                        const PDFInteger low = lowString.toLongLong(&ok1) - 1;
+                        const PDFInteger high = highString.toLongLong(&ok2) - 1;
+                        ok = ok1 && ok2 && low <= high && low >= 0;
                         if (ok)
                         {
                             const PDFInteger count = high - low + 1;
@@ -790,6 +790,22 @@ std::vector<PDFInteger> PDFPageImageExportSettings::getPages() const
     }
 
     return result;
+}
+
+QString PDFPageImageExportSettings::getOutputFileName(PDFInteger pageIndex, const QByteArray& outputFormat)
+{
+    QString fileName = m_fileTemplate;
+    fileName.replace('%', QString::number(pageIndex + 1));
+
+    QFileInfo fileInfo(fileName);
+    if (fileInfo.suffix() != outputFormat)
+    {
+        fileName = QString("%1.%2").arg(fileName, QString::fromLatin1(outputFormat));
+    }
+
+    // Add directory
+    QString fileNameWithDirectory = QString("%1/%2").arg(m_directory, fileName);
+    return QDir::toNativeSeparators(fileNameWithDirectory);
 }
 
 PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,

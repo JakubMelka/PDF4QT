@@ -333,6 +333,9 @@ public:
     /// Returns list of selected pages
     std::vector<PDFInteger> getPages() const;
 
+    /// Returns output file name for given page
+    QString getOutputFileName(PDFInteger pageIndex, const QByteArray& outputFormat);
+
     static constexpr int getMinDPIResolution() { return 72; }
     static constexpr int getMaxDPIResolution() { return 6000; }
 

@@ -18,9 +18,11 @@
 #ifndef PDFRENDERTOIMAGESDIALOG_H
 #define PDFRENDERTOIMAGESDIALOG_H
 
+#include "pdfcms.h"
 #include "pdfrenderer.h"
 
 #include <QDialog>
+#include <QFutureWatcher>
 
 class QAbstractButton;
 
@@ -75,6 +77,7 @@ private:
     void onOptimizedWriteChanged(bool value);
     void onProgressiveScanWriteChanged(bool value);
     void onRenderError(pdf::PDFRenderError error);
+    void onRenderingFinished();
 
     Ui::PDFRenderToImagesDialog* ui;
     const pdf::PDFDocument* m_document;
@@ -83,6 +86,12 @@ private:
     pdf::PDFImageWriterSettings m_imageWriterSettings;
     pdf::PDFPageImageExportSettings m_imageExportSettings;
     bool m_isLoadingData;
+    QFutureWatcher<void> m_watcher;
+
+    std::vector<pdf::PDFInteger> m_pageIndices;
+    pdf::PDFOptionalContentActivity* m_optionalContentActivity;
+    pdf::PDFCMSPointer m_cms;
+    pdf::PDFRasterizerPool* m_rasterizerPool;
 };
 
 }   // namespace pdfviewer
