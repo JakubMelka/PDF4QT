@@ -48,6 +48,8 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* documen
 {
     ui->setupUi(this);
 
+    qRegisterMetaType<pdf::PDFRenderError>("PDFRenderError");
+
     // Load image formats
     for (const QByteArray& format : m_imageWriterSettings.getFormats())
     {

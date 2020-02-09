@@ -96,4 +96,6 @@ private:
 
 }   // namespace pdfviewer
 
+Q_DECLARE_METATYPE(pdf::PDFRenderError)
+
 #endif // PDFRENDERTOIMAGESDIALOG_H

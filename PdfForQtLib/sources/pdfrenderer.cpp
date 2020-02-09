@@ -219,7 +219,10 @@ QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* comp
             Q_ASSERT(m_fbo);
             if (m_fbo->isValid() && m_fbo->bind())
             {
-                // Now, we have bind the buffer.
+                // Now, we have bind the buffer. Due to bug in Qt's OpenGL drawing subsystem,
+                // we must render it two times, otherwise painter paths will be sometimes
+                // replaced by filled rectangles.
+                for (int i = 0; i < 2; ++i)
                 {
                     QOpenGLPaintDevice device(size);
                     QPainter painter(&device);
