@@ -1279,11 +1279,8 @@ void PDFViewerMainWindow::on_actionPrint_triggered()
 
 void PDFViewerMainWindow::on_actionRender_to_Images_triggered()
 {
-    PDFRenderToImagesDialog dialog(this);
-    if (dialog.exec() == QDialog::Accepted)
-    {
-
-    }
+    PDFRenderToImagesDialog dialog(m_pdfDocument.data(), m_pdfWidget->getDrawWidgetProxy(), m_progress, this);
+    dialog.exec();
 }
 
 }   // namespace pdfviewer

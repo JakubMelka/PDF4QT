@@ -393,7 +393,8 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_compiler(new PDFAsynchronousPageCompiler(this)),
     m_textLayoutCompiler(new PDFAsynchronousTextLayoutCompiler(this)),
     m_rasterizer(new PDFRasterizer(this)),
-    m_progress(nullptr)
+    m_progress(nullptr),
+    m_useOpenGL(false)
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
@@ -1117,6 +1118,8 @@ bool PDFDrawWidgetProxy::isBlockMode() const
 
 void PDFDrawWidgetProxy::updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
 {
+    m_useOpenGL = useOpenGL;
+    m_surfaceFormat = surfaceFormat;
     m_rasterizer->reset(useOpenGL, surfaceFormat);
 }
 

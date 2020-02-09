@@ -18,7 +18,10 @@
 #include "pdfrenderer.h"
 #include "pdfpainter.h"
 #include "pdfdocument.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfprogress.h"
 
+#include <QDir>
 #include <QElapsedTimer>
 #include <QOpenGLContext>
 #include <QOffscreenSurface>
@@ -336,10 +339,120 @@ void PDFRasterizer::releaseOpenGL()
     }
 }
 
+PDFRasterizer* PDFRasterizerPool::acquire()
+{
+    m_semaphore.acquire();
+
+    QMutexLocker guard(&m_mutex);
+    Q_ASSERT(!m_rasterizers.empty());
+    PDFRasterizer* rasterizer = m_rasterizers.back();
+    m_rasterizers.pop_back();
+    return rasterizer;
+}
+
+void PDFRasterizerPool::release(pdf::PDFRasterizer* rasterizer)
+{
+    QMutexLocker guard(&m_mutex);
+    Q_ASSERT(std::find(m_rasterizers.cbegin(), m_rasterizers.cend(), rasterizer) == m_rasterizers.cend());
+    m_rasterizers.push_back(rasterizer);
+
+    // Jakub Melka: we must release it at the end, to ensure rasterizer is in the array before
+    // semaphore is released, to avoid race condition.
+    m_semaphore.release();
+}
+
+void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
+                               const PDFRasterizerPool::PageImageSizeGetter& imageSizeGetter,
+                               const PDFRasterizerPool::ProcessImageMethod& processImage,
+                               PDFProgress* progress)
+{
+    if (pageIndices.empty())
+    {
+        return;
+    }
+
+    Q_ASSERT(imageSizeGetter);
+    Q_ASSERT(processImage);
+
+    QElapsedTimer timer;
+    timer.start();
+
+    emit renderError(PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Start at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
+
+    if (progress)
+    {
+        ProgressStartupInfo info;
+        info.showDialog = true;
+        info.text = PDFTranslationContext::tr("Rendering document into images.");
+        progress->start(pageIndices.size(), qMove(info));
+    }
+    auto processPage = [this, progress, &imageSizeGetter, &processImage](const PDFInteger pageIndex)
+    {
+        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+
+        if (!page)
+        {
+            if (progress)
+            {
+                progress->step();
+            }
+            emit renderError(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
+            return;
+        }
+
+        // Precompile the page
+        PDFPrecompiledPage precompiledPage;
+        PDFRenderer renderer(m_document, m_fontCache, m_cms, m_optionalContentActivity, m_features, m_meshQualitySettings);
+        renderer.compile(&precompiledPage, pageIndex);
+
+        for (const PDFRenderError error : precompiledPage.getErrors())
+        {
+            emit renderError(PDFRenderError(error.type, PDFTranslationContext::tr("Page %1: %2").arg(pageIndex + 1).arg(error.message)));
+        }
+
+        // Render page to image
+        PDFRasterizer* rasterizer = acquire();
+        QImage image = rasterizer->render(page, &precompiledPage, imageSizeGetter(page), m_features);
+        release(rasterizer);
+
+        // Now, process the image
+        processImage(pageIndex, qMove(image));
+
+        if (progress)
+        {
+            progress->step();
+        }
+    };
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.cbegin(), pageIndices.cend(), processPage);
+
+    if (progress)
+    {
+        progress->finish();
+    }
+
+    emit renderError(PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Finished at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
+    emit renderError(PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("%1 miliseconds elapsed to render %2 pages...").arg(timer.nsecsElapsed() / 1000000).arg(pageIndices.size())));
+}
+
+int PDFRasterizerPool::getDefaultRasterizerCount()
+{
+    int hint = QThread::idealThreadCount() / 2;
+    return qBound(1, hint, 16);
+}
+
 PDFImageWriterSettings::PDFImageWriterSettings()
 {
     m_formats = QImageWriter::supportedImageFormats();
-    selectFormat(m_formats.front());
+
+    constexpr const char* DEFAULT_FORMAT = "png";
+    if (m_formats.count(DEFAULT_FORMAT))
+    {
+        selectFormat(DEFAULT_FORMAT);
+    }
+    else
+    {
+        selectFormat(m_formats.front());
+    }
 }
 
 void PDFImageWriterSettings::selectFormat(const QByteArray& format)
@@ -460,7 +573,8 @@ void PDFImageWriterSettings::setCurrentSubtype(const QByteArray& currentSubtype)
     m_currentSubtype = currentSubtype;
 }
 
-PDFPageImageExportSettings::PDFPageImageExportSettings()
+PDFPageImageExportSettings::PDFPageImageExportSettings(const PDFDocument* document) :
+    m_document(document)
 {
     m_fileTemplate = PDFTranslationContext::tr("Image_%");
 }
@@ -533,6 +647,176 @@ int PDFPageImageExportSettings::getPixelResolution() const
 void PDFPageImageExportSettings::setPixelResolution(int pixelResolution)
 {
     m_pixelResolution = pixelResolution;
+}
+
+bool PDFPageImageExportSettings::validate(QString* errorMessagePtr)
+{
+    QString dummy;
+    QString& errorMessage = errorMessagePtr ? *errorMessagePtr : dummy;
+
+    if (m_directory.isEmpty())
+    {
+        errorMessage = PDFTranslationContext::tr("Target directory is empty.");
+        return false;
+    }
+
+    // Check, if target directory exists
+    QDir directory(m_directory);
+    if (!directory.exists())
+    {
+        errorMessage = PDFTranslationContext::tr("Target directory '%1' doesn't exist.").arg(m_directory);
+        return false;
+    }
+
+    if (m_fileTemplate.isEmpty())
+    {
+        errorMessage = PDFTranslationContext::tr("File template is empty.");
+        return false;
+    }
+
+    if (!m_fileTemplate.contains("%"))
+    {
+        errorMessage = PDFTranslationContext::tr("File template must contain character '%' for page number.");
+        return false;
+    }
+
+    // Check page selection
+    if (m_pageSelectionMode == PageSelectionMode::Selection)
+    {
+        std::vector<PDFInteger> pages = getPages();
+        if (pages.empty())
+        {
+            errorMessage = PDFTranslationContext::tr("Page list is invalid. It should have form such as '1-12,17,24,27-29'.");
+            return false;
+        }
+
+        if (pages.back() >= PDFInteger(m_document->getCatalog()->getPageCount()))
+        {
+            errorMessage = PDFTranslationContext::tr("Page list contains page, which is not in the document (%1).").arg(pages.back());
+            return false;
+        }
+    }
+
+    if (m_resolutionMode == ResolutionMode::DPI && (m_dpiResolution < getMinDPIResolution() || m_dpiResolution > getMaxDPIResolution()))
+    {
+        errorMessage = PDFTranslationContext::tr("DPI resolution should be in range %1 to %2.").arg(getMinDPIResolution()).arg(getMaxDPIResolution());
+        return false;
+    }
+
+    if (m_resolutionMode == ResolutionMode::Pixels && (m_pixelResolution < getMinPixelResolution() || m_pixelResolution > getMaxPixelResolution()))
+    {
+        errorMessage = PDFTranslationContext::tr("Pixel resolution should be in range %1 to %2.").arg(getMinPixelResolution()).arg(getMaxPixelResolution());
+        return false;
+    }
+
+    return true;
+}
+
+std::vector<PDFInteger> PDFPageImageExportSettings::getPages() const
+{
+    std::vector<PDFInteger> result;
+
+    switch (m_pageSelectionMode)
+    {
+        case PageSelectionMode::All:
+        {
+            result.resize(m_document->getCatalog()->getPageCount(), 0);
+            std::iota(result.begin(), result.end(), 0);
+            break;
+        }
+
+        case PageSelectionMode::Selection:
+        {
+            bool ok = false;
+            QStringList parts = m_pageSelection.split(QChar(','), Qt::SkipEmptyParts, Qt::CaseSensitive);
+            for (const QString& part : parts)
+            {
+                QStringList numbers = part.split(QChar('-'), Qt::KeepEmptyParts, Qt::CaseSensitive);
+                switch (numbers.size())
+                {
+                    case 1:
+                    {
+                        const QString& numberString = numbers.front();
+                        result.push_back(numberString.toLongLong(&ok));
+                        break;
+                    }
+
+                    case 2:
+                    {
+                        bool ok1 = false;
+                        bool ok2 = false;
+                        const QString& lowString = numbers.front();
+                        const QString& highString = numbers.back();
+                        const PDFInteger low = lowString.toLongLong(&ok1);
+                        const PDFInteger high = highString.toLongLong(&ok2);
+                        ok = ok1 && ok2 && low <= high;
+                        if (ok)
+                        {
+                            const PDFInteger count = high - low + 1;
+                            result.resize(result.size() + count, 0);
+                            std::iota(std::prev(result.end(), count), result.end(), low);
+                        }
+                        break;
+                    }
+
+                    default:
+                    {
+                        ok = true;
+                        break;
+                    }
+                }
+
+                // If error is detected, do not continue in parsing
+                if (!ok)
+                {
+                    break;
+                }
+
+                // We must remove duplicate pages
+                qSort(result);
+                result.erase(std::unique(result.begin(), result.end()), result.end());
+            }
+
+            if (!ok)
+            {
+                result.clear();
+            }
+
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return result;
+}
+
+PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
+                                     const PDFFontCache* fontCache,
+                                     const PDFCMS* cms,
+                                     const PDFOptionalContentActivity* optionalContentActivity,
+                                     PDFRenderer::Features features,
+                                     const PDFMeshQualitySettings& meshQualitySettings,
+                                     int rasterizerCount,
+                                     bool useOpenGL,
+                                     const QSurfaceFormat& surfaceFormat,
+                                     QObject* parent) :
+    BaseClass(parent),
+    m_document(document),
+    m_fontCache(fontCache),
+    m_cms(cms),
+    m_optionalContentActivity(optionalContentActivity),
+    m_features(features),
+    m_meshQualitySettings(meshQualitySettings),
+    m_semaphore(rasterizerCount)
+{
+    m_rasterizers.reserve(rasterizerCount);
+    for (int i = 0; i < rasterizerCount; ++i)
+    {
+        m_rasterizers.push_back(new PDFRasterizer(this));
+        m_rasterizers.back()->reset(useOpenGL, surfaceFormat);
+    }
 }
 
 }   // namespace pdf

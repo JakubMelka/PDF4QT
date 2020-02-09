@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2020 Jakub Melka
+﻿//    Copyright (C) 2019-2020 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -22,6 +22,8 @@
 #include "pdfexception.h"
 #include "pdfmeshqualitysettings.h"
 
+#include <QMutex>
+#include <QSemaphore>
 #include <QImageWriter>
 #include <QSurfaceFormat>
 
@@ -33,6 +35,7 @@ class QOpenGLFramebufferObject;
 namespace pdf
 {
 class PDFCMS;
+class PDFProgress;
 class PDFFontCache;
 class PDFPrecompiledPage;
 class PDFOptionalContentActivity;
@@ -105,6 +108,7 @@ private:
 /// Renders PDF pages to bitmap images (QImage). It can use OpenGL for painting,
 /// if it is enabled, if this is the case, offscreen rendering to framebuffer
 /// is used.
+/// \note Construct this object only in main GUI thread
 class PDFRasterizer : public QObject
 {
     Q_OBJECT
@@ -114,7 +118,7 @@ private:
 
 public:
     explicit PDFRasterizer(QObject* parent);
-    ~PDFRasterizer();
+    virtual ~PDFRasterizer() override;
 
     /// Resets the renderer. This function must be called from main GUI thread,
     /// it cannot be called from deferred threads, because it can create hidden
@@ -153,6 +157,83 @@ private:
     QOffscreenSurface* m_surface;
     QOpenGLContext* m_context;
     QOpenGLFramebufferObject* m_fbo;
+};
+
+/// Pool of page image renderers. It can use predefined number of renderers to
+/// render page images asynchronously. You can use this object in two ways -
+/// first one is as standard object pool, second one is to directly render
+/// page images asynchronously.
+class PDFFORQTLIBSHARED_EXPORT PDFRasterizerPool : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+
+    using PageImageSizeGetter = std::function<QSize(const PDFPage*)>;
+    using ProcessImageMethod = std::function<void(PDFInteger, QImage&&)>;
+
+    /// Creates new rasterizer pool
+    /// \param document Document
+    /// \param fontCache Font cache
+    /// \param cms Color management system
+    /// \param optionalContentActivity Optional content activity
+    /// \param features Renderer features
+    /// \param meshQualitySettings Mesh quality settings
+    /// \param rasterizerCount Number of rasterizers
+    /// \param useOpenGL Use OpenGL for rendering?
+    /// \param surfaceFormat Surface format
+    /// \param parent Parent object
+    explicit PDFRasterizerPool(const PDFDocument* document,
+                               const PDFFontCache* fontCache,
+                               const PDFCMS* cms,
+                               const PDFOptionalContentActivity* optionalContentActivity,
+                               PDFRenderer::Features features,
+                               const PDFMeshQualitySettings& meshQualitySettings,
+                               int rasterizerCount,
+                               bool useOpenGL,
+                               const QSurfaceFormat& surfaceFormat,
+                               QObject* parent);
+
+    /// Acquire rasterizer. This function is thread safe.
+    PDFRasterizer* acquire();
+
+    /// Return back (release) rasterizer into rasterizer pool
+    /// This function is thread safe.
+    /// \param rasterizer Rasterizer
+    void release(PDFRasterizer* rasterizer);
+
+    /// Renders pages asynchronously to images, using given page indices,
+    /// function which returns rendered size and process image function,
+    /// which processes rendered images.
+    /// \param pageIndices Page indices for rendered pages
+    /// \param imageSizeGetter Getter, which computes image size from page index
+    /// \param processImage Method, which processes rendered page images
+    /// \param progress Progress indicator
+    void render(const std::vector<PDFInteger>& pageIndices,
+                const PageImageSizeGetter& imageSizeGetter,
+                const ProcessImageMethod& processImage,
+                PDFProgress* progress);
+
+    /// Returns default rasterizer count
+    static int getDefaultRasterizerCount();
+
+signals:
+    void renderError(PDFRenderError error);
+
+private:
+    const PDFDocument* m_document;
+    const PDFFontCache* m_fontCache;
+    const PDFCMS* m_cms;
+    const PDFOptionalContentActivity* m_optionalContentActivity;
+    PDFRenderer::Features m_features;
+    const PDFMeshQualitySettings& m_meshQualitySettings;
+
+    QSemaphore m_semaphore;
+    QMutex m_mutex;
+    std::vector<PDFRasterizer*> m_rasterizers;
 };
 
 /// Settings object for image writer
@@ -211,7 +292,7 @@ private:
 class PDFFORQTLIBSHARED_EXPORT PDFPageImageExportSettings
 {
 public:
-    explicit PDFPageImageExportSettings();
+    explicit PDFPageImageExportSettings(const PDFDocument* document);
 
     enum class PageSelectionMode
     {
@@ -246,7 +327,20 @@ public:
     int getPixelResolution() const;
     void setPixelResolution(int pixelResolution);
 
+    /// Validates the settings, if they can be used for image generation
+    bool validate(QString* errorMessagePtr);
+
+    /// Returns list of selected pages
+    std::vector<PDFInteger> getPages() const;
+
+    static constexpr int getMinDPIResolution() { return 72; }
+    static constexpr int getMaxDPIResolution() { return 6000; }
+
+    static constexpr int getMinPixelResolution() { return 100; }
+    static constexpr int getMaxPixelResolution() { return 16384; }
+
 private:
+    const PDFDocument* m_document;
     ResolutionMode m_resolutionMode = ResolutionMode::DPI;
     PageSelectionMode m_pageSelectionMode = PageSelectionMode::All;
     QString m_directory;

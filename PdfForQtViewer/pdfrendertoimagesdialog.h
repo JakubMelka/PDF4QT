@@ -22,9 +22,17 @@
 
 #include <QDialog>
 
+class QAbstractButton;
+
 namespace Ui
 {
 class PDFRenderToImagesDialog;
+}
+
+namespace pdf
+{
+class PDFProgress;
+class PDFDrawWidgetProxy;
 }
 
 namespace pdfviewer
@@ -35,11 +43,15 @@ class PDFRenderToImagesDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PDFRenderToImagesDialog(QWidget* parent);
+    explicit PDFRenderToImagesDialog(const pdf::PDFDocument* document,
+                                     pdf::PDFDrawWidgetProxy* proxy,
+                                     pdf::PDFProgress* progress,
+                                     QWidget* parent);
     virtual ~PDFRenderToImagesDialog() override;
 
 private slots:
     void on_selectDirectoryButton_clicked();
+    void on_buttonBox_clicked(QAbstractButton* button);
 
 private:
     /// Loads image writer settings to the ui
@@ -62,8 +74,12 @@ private:
     void onGammaChanged(double value);
     void onOptimizedWriteChanged(bool value);
     void onProgressiveScanWriteChanged(bool value);
+    void onRenderError(pdf::PDFRenderError error);
 
     Ui::PDFRenderToImagesDialog* ui;
+    const pdf::PDFDocument* m_document;
+    pdf::PDFDrawWidgetProxy* m_proxy;
+    pdf::PDFProgress* m_progress;
     pdf::PDFImageWriterSettings m_imageWriterSettings;
     pdf::PDFPageImageExportSettings m_imageExportSettings;
     bool m_isLoadingData;

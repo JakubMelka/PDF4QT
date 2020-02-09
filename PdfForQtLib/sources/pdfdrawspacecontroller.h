@@ -320,6 +320,8 @@ public:
     void setProgress(PDFProgress* progress) { m_progress = progress; }
     PDFAsynchronousTextLayoutCompiler* getTextLayoutCompiler() const { return m_textLayoutCompiler; }
     PDFWidget* getWidget() const { return m_widget; }
+    bool isUsingOpenGL() const { return m_useOpenGL; }
+    const QSurfaceFormat& getSurfaceFormat() const { return m_surfaceFormat; }
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);
@@ -470,6 +472,12 @@ private:
 
     /// Additional drawing interfaces
     std::set<IDocumentDrawInterface*> m_drawInterfaces;
+
+    /// Use OpenGL for rendering?
+    bool m_useOpenGL;
+
+    /// Surface format for OpenGL
+    QSurfaceFormat m_surfaceFormat;
 };
 
 }   // namespace pdf

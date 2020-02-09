@@ -18,17 +18,29 @@
 #include "pdfrendertoimagesdialog.h"
 #include "ui_pdfrendertoimagesdialog.h"
 
+#include "pdfcms.h"
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
+#include "pdfoptionalcontent.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QFileDialog>
+#include <QMessageBox>
+#include <QPushButton>
 
 namespace pdfviewer
 {
 
-PDFRenderToImagesDialog::PDFRenderToImagesDialog(QWidget* parent) :
+PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* document,
+                                                 pdf::PDFDrawWidgetProxy* proxy,
+                                                 pdf::PDFProgress* progress,
+                                                 QWidget* parent) :
     QDialog(parent),
     ui(new Ui::PDFRenderToImagesDialog),
+    m_document(document),
+    m_proxy(proxy),
+    m_progress(progress),
+    m_imageExportSettings(document),
     m_isLoadingData(false)
 {
     ui->setupUi(this);
@@ -55,6 +67,9 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(QWidget* parent) :
     connect(ui->gammaEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFRenderToImagesDialog::onGammaChanged);
     connect(ui->optimizedWriteCheckBox, &QCheckBox::clicked, this, &PDFRenderToImagesDialog::onOptimizedWriteChanged);
     connect(ui->progressiveScanWriteCheckBox, &QCheckBox::clicked, this, &PDFRenderToImagesDialog::onProgressiveScanWriteChanged);
+
+    ui->resolutionDPIEdit->setRange(pdf::PDFPageImageExportSettings::getMinDPIResolution(), pdf::PDFPageImageExportSettings::getMaxDPIResolution());
+    ui->resolutionPixelsEdit->setRange(pdf::PDFPageImageExportSettings::getMinPixelResolution(), pdf::PDFPageImageExportSettings::getMaxPixelResolution());
 
     loadImageWriterSettings();
     loadImageExportSettings();
@@ -219,6 +234,11 @@ void PDFRenderToImagesDialog::onProgressiveScanWriteChanged(bool value)
     m_imageWriterSettings.setProgressiveScanWrite(value);
 }
 
+void PDFRenderToImagesDialog::onRenderError(pdf::PDFRenderError error)
+{
+    ui->progressMessagesEdit->setPlainText(QString("%1\n%2").arg(ui->progressMessagesEdit->toPlainText()).arg(error.message));
+}
+
 void PDFRenderToImagesDialog::on_selectDirectoryButton_clicked()
 {
     QString directory = QFileDialog::getExistingDirectory(this, tr("Select output directory"), ui->directoryEdit->text());
@@ -228,6 +248,67 @@ void PDFRenderToImagesDialog::on_selectDirectoryButton_clicked()
     }
 }
 
+void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
+{
+    if (button == ui->buttonBox->button(QDialogButtonBox::Apply))
+    {
+        QString message;
+        if (m_imageExportSettings.validate(&message))
+        {
+            // We are ready to render the document
+            std::vector<pdf::PDFInteger> pageIndices = m_imageExportSettings.getPages();
+
+            pdf::PDFOptionalContentActivity optionalContentActivity(m_document, pdf::OCUsage::Export, nullptr);
+            pdf::PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
+            pdf::PDFRasterizerPool rasterizerPool(m_document, m_proxy->getFontCache(), cms.data(),
+                                                  &optionalContentActivity, m_proxy->getFeatures(), m_proxy->getMeshQualitySettings(),
+                                                  pdf::PDFRasterizerPool::getDefaultRasterizerCount(), m_proxy->isUsingOpenGL(), m_proxy->getSurfaceFormat(), this);
+            connect(&rasterizerPool, &pdf::PDFRasterizerPool::renderError, this, &PDFRenderToImagesDialog::onRenderError);
+
+            auto imageSizeGetter = [this](const pdf::PDFPage* page) -> QSize
+            {
+                Q_ASSERT(page);
+
+                switch (m_imageExportSettings.getResolutionMode())
+                {
+                    case pdf::PDFPageImageExportSettings::ResolutionMode::DPI:
+                    {
+                        QSizeF size = page->getRotatedMediaBox().size() * m_imageExportSettings.getDpiResolution();
+                        return size.toSize();
+                    }
+
+                    case pdf::PDFPageImageExportSettings::ResolutionMode::Pixels:
+                    {
+                        int pixelResolution = m_imageExportSettings.getPixelResolution();
+                        QSizeF size = page->getRotatedMediaBox().size().scaled(pixelResolution, pixelResolution, Qt::KeepAspectRatio);
+                        return size.toSize();
+                    }
+
+                    default:
+                    {
+                        Q_ASSERT(false);
+                        break;
+                    }
+                }
+
+                return QSize();
+            };
+
+            auto processImage = [](const pdf::PDFInteger pageIndex, QImage&& image)
+            {
+                Q_UNUSED(pageIndex);
+                Q_UNUSED(image);
+            };
+
+            setEnabled(false);
+            rasterizerPool.render(pageIndices, imageSizeGetter, processImage, m_progress);
+            setEnabled(true);
+        }
+        else
+        {
+            QMessageBox::critical(this, tr("Error"), message);
+        }
+    }
+}
+
 }   // namespace pdfviewer
-
-
