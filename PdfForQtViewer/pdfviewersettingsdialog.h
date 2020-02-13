@@ -69,7 +69,8 @@ public:
         ShortcutSettings,
         ColorManagementSystemSettings,
         SecuritySettings,
-        UISettings
+        UISettings,
+        SpeechSettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }
@@ -78,7 +79,6 @@ public:
 
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
-
     void on_cmsProfileDirectoryButton_clicked();
 
 private:
@@ -88,12 +88,16 @@ private:
     void loadActionShortcutsTable();
     bool saveActionShortcutsTable();
 
+    void setSpeechEngine(const QString& engine);
+
     Ui::PDFViewerSettingsDialog* ui;
     PDFViewerSettings::Settings m_settings;
     pdf::PDFCMSSettings m_cmsSettings;
     OtherSettings m_otherSettings;
     QList<QAction*> m_actions;
     bool m_isLoadingData;
+    QStringList m_textToSpeechEngines;
+    QString m_currentSpeechEngine;
 };
 
 }   // namespace pdfviewer

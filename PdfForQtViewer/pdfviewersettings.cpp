@@ -69,6 +69,15 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_colorManagementSystemSettings.profileDirectory = settings.value("profileDirectory", defaultCMSSettings.profileDirectory).toString();
     settings.endGroup();
 
+    settings.beginGroup("SpeechSettings");
+    m_settings.m_speechEngine = settings.value("speechEngine", defaultSettings.m_speechEngine).toString();
+    m_settings.m_speechLocale = settings.value("speechLocale", defaultSettings.m_speechLocale).toString();
+    m_settings.m_speechVoice = settings.value("speechVoice", defaultSettings.m_speechVoice).toString();
+    m_settings.m_speechRate = settings.value("speechRate", defaultSettings.m_speechRate).toDouble();
+    m_settings.m_speechPitch = settings.value("speechPitch", defaultSettings.m_speechPitch).toDouble();
+    m_settings.m_speechVolume = settings.value("speechVolume", defaultSettings.m_speechVolume).toDouble();
+    settings.endGroup();
+
     emit settingsChanged();
 }
 
@@ -104,6 +113,15 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("deviceRGB", m_colorManagementSystemSettings.deviceRGB);
     settings.setValue("deviceCMYK", m_colorManagementSystemSettings.deviceCMYK);
     settings.setValue("profileDirectory", m_colorManagementSystemSettings.profileDirectory);
+    settings.endGroup();
+
+    settings.beginGroup("SpeechSettings");
+    settings.setValue("speechEngine", m_settings.m_speechEngine);
+    settings.setValue("speechLocale", m_settings.m_speechLocale);
+    settings.setValue("speechVoice", m_settings.m_speechVoice);
+    settings.setValue("speechRate", m_settings.m_speechRate);
+    settings.setValue("speechPitch", m_settings.m_speechPitch);
+    settings.setValue("speechVolume", m_settings.m_speechVolume);
     settings.endGroup();
 }
 
@@ -205,7 +223,10 @@ PDFViewerSettings::Settings::Settings() :
     m_thumbnailsCacheLimit(PIXMAP_CACHE_LIMIT),
     m_fontCacheLimit(pdf::DEFAULT_FONT_CACHE_LIMIT),
     m_instancedFontCacheLimit(pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT),
-    m_multithreadingStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded)
+    m_multithreadingStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded),
+    m_speechRate(0.0),
+    m_speechPitch(0.0),
+    m_speechVolume(1.0)
 {
 
 }

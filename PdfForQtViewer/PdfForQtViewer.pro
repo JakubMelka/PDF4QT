@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui winextras printsupport
+QT       += core gui winextras printsupport texttospeech
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 

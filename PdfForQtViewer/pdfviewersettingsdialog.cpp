@@ -27,6 +27,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QListWidgetItem>
+#include <QTextToSpeech>
 
 namespace pdfviewer
 {
@@ -46,6 +47,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
 {
     ui->setupUi(this);
 
+    m_textToSpeechEngines = QTextToSpeech::availableEngines();
+
     new QListWidgetItem(QIcon(":/resources/engine.svg"), tr("Engine"), ui->optionsPagesWidget, EngineSettings);
     new QListWidgetItem(QIcon(":/resources/rendering.svg"), tr("Rendering"), ui->optionsPagesWidget, RenderingSettings);
     new QListWidgetItem(QIcon(":/resources/shading.svg"), tr("Shading"), ui->optionsPagesWidget, ShadingSettings);
@@ -54,6 +57,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/cms.svg"), tr("Colors"), ui->optionsPagesWidget, ColorManagementSystemSettings);
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
     new QListWidgetItem(QIcon(":/resources/ui.svg"), tr("UI"), ui->optionsPagesWidget, UISettings);
+    new QListWidgetItem(QIcon(":/resources/speech.svg"), tr("Speech"), ui->optionsPagesWidget, SpeechSettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
@@ -130,6 +134,12 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
         }
     }
 
+    // Text to speech
+    for (const QString& engine : m_textToSpeechEngines)
+    {
+        ui->speechEnginesComboBox->addItem(engine, engine);
+    }
+
     ui->optionsPagesWidget->setCurrentRow(0);
     adjustSize();
     loadData();
@@ -177,6 +187,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case UISettings:
             ui->stackedWidget->setCurrentWidget(ui->uiPage);
+            break;
+
+        case SpeechSettings:
+            ui->stackedWidget->setCurrentWidget(ui->speechPage);
             break;
 
         default:
@@ -289,6 +303,16 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsProfileDirectoryEdit->setEnabled(false);
         ui->cmsProfileDirectoryEdit->setText(QString());
     }
+
+    // Text-to-speech
+    ui->speechEnginesComboBox->setCurrentIndex(ui->speechEnginesComboBox->findData(m_settings.m_speechEngine));
+    QString speechEngine = ui->speechEnginesComboBox->currentData().toString();
+    setSpeechEngine(speechEngine);
+    ui->speechLocaleComboBox->setCurrentIndex(ui->speechLocaleComboBox->findData(m_settings.m_speechLocale));
+    ui->speechVoiceComboBox->setCurrentIndex(ui->speechVoiceComboBox->findData(m_settings.m_speechVoice));
+    ui->speechRateEdit->setValue(m_settings.m_speechRate);
+    ui->speechPitchEdit->setValue(m_settings.m_speechPitch);
+    ui->speechVolumeEdit->setValue(m_settings.m_speechVolume);
 }
 
 void PDFViewerSettingsDialog::saveData()
@@ -424,8 +448,36 @@ void PDFViewerSettingsDialog::saveData()
     {
         m_otherSettings.maximumRecentFileCount = ui->maximumRecentFileCountEdit->value();
     }
+    else if (sender == ui->speechEnginesComboBox)
+    {
+        m_settings.m_speechEngine = ui->speechEnginesComboBox->currentData().toString();
+    }
+    else if (sender == ui->speechLocaleComboBox)
+    {
+        m_settings.m_speechLocale = ui->speechLocaleComboBox->currentData().toString();
+    }
+    else if (sender == ui->speechVoiceComboBox)
+    {
+        m_settings.m_speechVoice = ui->speechVoiceComboBox->currentData().toString();
+    }
+    else if (sender == ui->speechRateEdit)
+    {
+        m_settings.m_speechRate = ui->speechRateEdit->value();
+    }
+    else if (sender == ui->speechPitchEdit)
+    {
+        m_settings.m_speechPitch = ui->speechPitchEdit->value();
+    }
+    else if (sender == ui->speechVolumeEdit)
+    {
+        m_settings.m_speechVolume = ui->speechVolumeEdit->value();
+    }
 
-    loadData();
+    const bool loadData = !qobject_cast<const QDoubleSpinBox*>(sender) && !qobject_cast<const QSpinBox*>(sender);
+    if (loadData)
+    {
+        this->loadData();
+    }
 }
 
 void PDFViewerSettingsDialog::loadActionShortcutsTable()
@@ -478,6 +530,35 @@ bool PDFViewerSettingsDialog::saveActionShortcutsTable()
     }
 
     return true;
+}
+
+void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine)
+{
+    if (m_currentSpeechEngine == engine)
+    {
+        return;
+    }
+
+    m_currentSpeechEngine = engine;
+    QTextToSpeech textToSpeech(engine, nullptr);
+
+    QVector<QLocale> locales = textToSpeech.availableLocales();
+    ui->speechLocaleComboBox->setUpdatesEnabled(false);
+    ui->speechLocaleComboBox->clear();
+    for (const QLocale& locale : locales)
+    {
+        ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeCountryName()), locale.name());
+    }
+    ui->speechLocaleComboBox->setUpdatesEnabled(true);
+
+    QVector<QVoice> voices = textToSpeech.availableVoices();
+    ui->speechVoiceComboBox->setUpdatesEnabled(false);
+    ui->speechVoiceComboBox->clear();
+    for (const QVoice& voice : voices)
+    {
+        ui->speechVoiceComboBox->addItem(QString("%1 (%2, %3)").arg(voice.name(), QVoice::genderName(voice.gender()), QVoice::ageName(voice.age())), voice.name());
+    }
+    ui->speechVoiceComboBox->setUpdatesEnabled(true);
 }
 
 void PDFViewerSettingsDialog::accept()

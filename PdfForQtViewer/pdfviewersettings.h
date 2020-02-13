@@ -63,6 +63,14 @@ public:
         int m_thumbnailsCacheLimit;
         int m_fontCacheLimit;
         int m_instancedFontCacheLimit;
+
+        // Speech settings
+        QString m_speechEngine;
+        QString m_speechLocale;
+        QString m_speechVoice;
+        double m_speechRate;
+        double m_speechPitch;
+        double m_speechVolume;
     };
 
     const Settings& getSettings() const { return m_settings; }
