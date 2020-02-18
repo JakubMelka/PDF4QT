@@ -225,7 +225,8 @@ qt_libraries.files =    $$[QT_INSTALL_BINS]/Qt?Widgets$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?Core$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?WinExtras$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?Svg$${SUFFIX}.dll \
-                        $$[QT_INSTALL_BINS]/Qt?PrintSupport$${SUFFIX}.dll
+                        $$[QT_INSTALL_BINS]/Qt?PrintSupport$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?TextToSpeech$${SUFFIX}.dll
 qt_libraries.path = $$DESTDIR/install
 INSTALLS += qt_libraries
 
@@ -240,3 +241,8 @@ INSTALLS += qt_plugin_iconengine
 qt_plugin_printsupport.files = $$[QT_INSTALL_PLUGINS]/printsupport/windowsprintersupport$${SUFFIX}.dll
 qt_plugin_printsupport.path = $$DESTDIR/install/printsupport
 INSTALLS += qt_plugin_printsupport
+
+qt_plugin_texttospeech.files = $$[QT_INSTALL_PLUGINS]/texttospeech/qtexttospeech_sapi$${SUFFIX}.dll
+qt_plugin_texttospeech.path = $$DESTDIR/install/texttospeech
+INSTALLS += qt_plugin_texttospeech
+

@@ -445,6 +445,32 @@ inline QColor invertColor(QColor color)
     return QColor::fromRgbF(r, g, b, a);
 }
 
+/// Performs linear interpolation of interval [x1, x2] to interval [y1, y2],
+/// using formula y = y1 + (x - x1) * (y2 - y1) / (x2 - x1), transformed
+/// to formula y = k * x + q, where q = y1 - x1 * k and
+/// k = (y2 - y1) / (x2 - x1).
+template<typename T>
+class PDFLinearInterpolation
+{
+public:
+    constexpr inline PDFLinearInterpolation(T x1, T x2, T y1, T y2) :
+        m_k((y2 - y1) / (x2 - x1)),
+        m_q(y1 - x1 * m_k)
+    {
+
+    }
+
+    /// Maps value from x interval to y interval
+    constexpr inline T operator()(T x) const
+    {
+        return m_k * x + m_q;
+    }
+
+private:
+    T m_k;
+    T m_q;
+};
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H

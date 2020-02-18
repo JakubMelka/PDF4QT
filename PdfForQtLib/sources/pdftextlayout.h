@@ -272,7 +272,7 @@ using PDFTextFlows = std::vector<PDFTextFlow>;
 
 /// This class represents a portion of continuous text on the page. It can
 /// consists of multiple blocks (which follow reading order).
-class PDFTextFlow
+class PDFFORQTLIBSHARED_EXPORT PDFTextFlow
 {
 public:
 
@@ -293,6 +293,9 @@ public:
     /// Finds regular expression matches in current text flow. All text occurences are returned.
     /// \param expression Regular expression to be matched
     PDFFindResults find(const QRegularExpression& expression) const;
+
+    /// Returns whole text for this text flow
+    QString getText() const { return m_text; }
 
     /// Returns text form character pointers
     /// \param begin Begin character
@@ -327,7 +330,7 @@ private:
 
 /// Text layout of single page. Can handle various fonts, various angles of lines
 /// and vertically oriented text. It performs the "docstrum" algorithm.
-class PDFTextLayout
+class PDFFORQTLIBSHARED_EXPORT PDFTextLayout
 {
 public:
     explicit PDFTextLayout();
@@ -497,5 +500,7 @@ private:
 };
 
 }   // namespace pdf
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(pdf::PDFTextFlow::FlowFlags)
 
 #endif // PDFTEXTLAYOUT_H

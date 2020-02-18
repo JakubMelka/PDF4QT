@@ -45,13 +45,14 @@ class PDFOptionalContentTreeItemModel;
 
 namespace pdfviewer
 {
+class PDFTextToSpeech;
 
 class PDFSidebarWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* parent = nullptr);
+    explicit PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpeech* textToSpeech, QWidget* parent);
     virtual ~PDFSidebarWidget() override;
 
     virtual void paintEvent(QPaintEvent* event) override;
@@ -64,6 +65,7 @@ public:
         Thumbnails,
         OptionalContent,
         Attachments,
+        Speech,
         _END
     };
 
@@ -105,6 +107,7 @@ private:
 
     Ui::PDFSidebarWidget* ui;
     pdf::PDFDrawWidgetProxy* m_proxy;
+    PDFTextToSpeech* m_textToSpeech;
     pdf::PDFOutlineTreeItemModel* m_outlineTreeModel;
     pdf::PDFThumbnailsItemModel* m_thumbnailsModel;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;

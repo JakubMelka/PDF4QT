@@ -19,6 +19,7 @@
 #include "ui_pdfsidebarwidget.h"
 
 #include "pdfwidgetutils.h"
+#include "pdftexttospeech.h"
 
 #include "pdfdocument.h"
 #include "pdfitemmodels.h"
@@ -40,12 +41,14 @@ constexpr const char* STYLESHEET =
         "QPushButton:disabled { background-color: #404040; color: #000000; }"
         "QPushButton:checked { background-color: #808080; color: #FFFFFF; }"
         "QWidget#thumbnailsToolbarWidget { background-color: #F0F0F0 }"
+        "QWidget#speechPage { background-color: #F0F0F0 }"
         "QWidget#PDFSidebarWidget { background-color: #404040; background: green;}";
 
-PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* parent) :
+PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpeech* textToSpeech, QWidget* parent) :
     QWidget(parent),
     ui(new Ui::PDFSidebarWidget),
     m_proxy(proxy),
+    m_textToSpeech(textToSpeech),
     m_outlineTreeModel(nullptr),
     m_thumbnailsModel(nullptr),
     m_optionalContentTreeModel(nullptr),
@@ -93,6 +96,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* pare
     m_pageInfo[Bookmarks] = { ui->bookmarksButton, ui->bookmarksPage };
     m_pageInfo[Thumbnails] = { ui->thumbnailsButton, ui->thumbnailsPage };
     m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
+    m_pageInfo[Speech] = { ui->speechButton, ui->speechPage };
 
     for (const auto& pageInfo : m_pageInfo)
     {
@@ -101,6 +105,10 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* pare
             connect(pageInfo.second.button, &QPushButton::clicked, this, &PDFSidebarWidget::onPageButtonClicked);
         }
     }
+
+    m_textToSpeech->initializeUI(ui->speechLocaleComboBox, ui->speechVoiceComboBox,
+                                 ui->speechRateEdit, ui->speechPitchEdit, ui->speechVolumeEdit,
+                                 ui->speechPlayButton, ui->speechPauseButton, ui->speechStopButton, ui->speechSynchronizeButton);
 
     selectPage(Invalid);
     updateButtons();
@@ -219,6 +227,9 @@ bool PDFSidebarWidget::isEmpty(Page page) const
 
         case Attachments:
             return m_attachmentsTreeModel->isEmpty();
+
+        case Speech:
+            return !m_textToSpeech->isValid();
 
         default:
             Q_ASSERT(false);

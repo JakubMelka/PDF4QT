@@ -88,7 +88,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_progressDialog(nullptr),
     m_isBusy(false),
     m_isChangingProgressStep(false),
-    m_toolManager(nullptr)
+    m_toolManager(nullptr),
+    m_textToSpeech(new PDFTextToSpeech(this))
 {
     ui->setupUi(this);
 
@@ -199,8 +200,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     setFocusProxy(m_pdfWidget);
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
+    m_textToSpeech->setProxy(m_pdfWidget->getDrawWidgetProxy());
 
-    m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), m_textToSpeech, this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
@@ -208,6 +210,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
     m_sidebarDockWidget->hide();
     connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
+    m_textToSpeech->setSettings(m_settings);
 
     m_advancedFindWidget = new PDFAdvancedFindWidget(m_pdfWidget->getDrawWidgetProxy(), this);
     m_advancedFindDockWidget = new QDockWidget(tr("Advanced find"), this);
@@ -648,6 +651,7 @@ void PDFViewerMainWindow::readSettings()
 
     m_settings->readSettings(settings, m_CMSManager->getDefaultSettings());
     m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
+    m_textToSpeech->setSettings(m_settings);
 }
 
 void PDFViewerMainWindow::readActionSettings()
@@ -956,6 +960,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
     }
 
     m_toolManager->setDocument(document);
+    m_textToSpeech->setDocument(document);
     m_pdfWidget->setDocument(document, m_optionalContentActivity);
     m_sidebarWidget->setDocument(document, m_optionalContentActivity);
     m_advancedFindWidget->setDocument(document);
@@ -1130,6 +1135,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
         m_settings->setColorManagementSystemSettings(dialog.getCMSSettings());
         m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
         m_recentFileManager->setRecentFilesLimit(dialog.getOtherSettings().maximumRecentFileCount);
+        m_textToSpeech->setSettings(m_settings);
     }
 }
 

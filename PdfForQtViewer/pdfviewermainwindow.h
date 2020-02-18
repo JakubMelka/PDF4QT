@@ -27,6 +27,7 @@
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfwidgettool.h"
 #include "pdfrecentfilemanager.h"
+#include "pdftexttospeech.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -177,6 +178,7 @@ private:
     bool m_isChangingProgressStep;
 
     pdf::PDFToolManager* m_toolManager;
+    PDFTextToSpeech* m_textToSpeech;
 };
 
 }   // namespace pdfviewer

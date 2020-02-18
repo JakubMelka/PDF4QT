@@ -37,5 +37,8 @@
         <file>resources/rotate-right.svg</file>
         <file>resources/print.svg</file>
         <file>resources/speech.svg</file>
+        <file>resources/pause.svg</file>
+        <file>resources/play.svg</file>
+        <file>resources/stop.svg</file>
     </qresource>
 </RCC>
