@@ -148,8 +148,8 @@ void PDFTextToSpeech::setProxy(const pdf::PDFDrawWidgetProxy* proxy)
 void PDFTextToSpeech::initializeUI(QComboBox* speechLocaleComboBox,
                                    QComboBox* speechVoiceComboBox,
                                    QSlider* speechRateEdit,
-                                   QSlider* speechVolumeEdit,
                                    QSlider* speechPitchEdit,
+                                   QSlider* speechVolumeEdit,
                                    QToolButton* speechPlayButton,
                                    QToolButton* speechPauseButton,
                                    QToolButton* speechStopButton,
@@ -477,6 +477,9 @@ void PDFTextToSpeech::updateToNextPage(pdf::PDFInteger pageIndex)
 
     pdf::PDFAsynchronousTextLayoutCompiler* compiler = m_proxy->getTextLayoutCompiler();
     Q_ASSERT(compiler->isTextLayoutReady());
+
+    m_currentTextLayout = pdf::PDFTextLayout();
+    m_textFlows.clear();
 
     // Find first nonempty page
     while (m_currentPage < pageCount)
