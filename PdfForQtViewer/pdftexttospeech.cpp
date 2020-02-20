@@ -21,10 +21,12 @@
 #include "pdfcompiler.h"
 #include "pdfdrawwidget.h"
 
+#include <QLabel>
 #include <QAction>
 #include <QSlider>
 #include <QComboBox>
 #include <QToolButton>
+#include <QTextBrowser>
 #include <QTextToSpeech>
 
 namespace pdfviewer
@@ -45,7 +47,11 @@ PDFTextToSpeech::PDFTextToSpeech(QObject* parent) :
     m_speechPlayButton(nullptr),
     m_speechPauseButton(nullptr),
     m_speechStopButton(nullptr),
-    m_speechSynchronizeButton(nullptr)
+    m_speechSynchronizeButton(nullptr),
+    m_speechRateValueLabel(nullptr),
+    m_speechPitchValueLabel(nullptr),
+    m_speechVolumeValueLabel(nullptr),
+    m_speechActualTextBrowser(nullptr)
 {
 
 }
@@ -138,7 +144,7 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
     updateUI();
 }
 
-void PDFTextToSpeech::setProxy(const pdf::PDFDrawWidgetProxy* proxy)
+void PDFTextToSpeech::setProxy(pdf::PDFDrawWidgetProxy* proxy)
 {
     m_proxy = proxy;
     pdf::PDFAsynchronousTextLayoutCompiler* compiler = m_proxy->getTextLayoutCompiler();
@@ -153,7 +159,11 @@ void PDFTextToSpeech::initializeUI(QComboBox* speechLocaleComboBox,
                                    QToolButton* speechPlayButton,
                                    QToolButton* speechPauseButton,
                                    QToolButton* speechStopButton,
-                                   QToolButton* speechSynchronizeButton)
+                                   QToolButton* speechSynchronizeButton,
+                                   QLabel* speechRateValueLabel,
+                                   QLabel* speechPitchValueLabel,
+                                   QLabel* speechVolumeValueLabel,
+                                   QTextBrowser* speechActualTextBrowser)
 {
     Q_ASSERT(speechLocaleComboBox);
     Q_ASSERT(speechVoiceComboBox);
@@ -174,6 +184,10 @@ void PDFTextToSpeech::initializeUI(QComboBox* speechLocaleComboBox,
     m_speechPauseButton = speechPauseButton;
     m_speechStopButton = speechStopButton;
     m_speechSynchronizeButton = speechSynchronizeButton;
+    m_speechRateValueLabel = speechRateValueLabel;
+    m_speechPitchValueLabel = speechPitchValueLabel;
+    m_speechVolumeValueLabel = speechVolumeValueLabel;
+    m_speechActualTextBrowser = speechActualTextBrowser;
 
     connect(m_speechLocaleComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFTextToSpeech::onLocaleChanged);
     connect(m_speechVoiceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFTextToSpeech::onVoiceChanged);
@@ -303,18 +317,21 @@ void PDFTextToSpeech::setRate(const double rate)
 {
     pdf::PDFLinearInterpolation<double> interpolation(-1.0, 1.0, m_speechRateEdit->minimum(), m_speechRateEdit->maximum());
     m_speechRateEdit->setValue(qRound(interpolation(rate)));
+    onRateChanged(m_speechRateEdit->value());
 }
 
 void PDFTextToSpeech::setPitch(const double pitch)
 {
     pdf::PDFLinearInterpolation<double> interpolation(-1.0, 1.0, m_speechPitchEdit->minimum(), m_speechPitchEdit->maximum());
     m_speechPitchEdit->setValue(qRound(interpolation(pitch)));
+    onPitchChanged(m_speechPitchEdit->value());
 }
 
 void PDFTextToSpeech::setVolume(const double volume)
 {
     pdf::PDFLinearInterpolation<double> interpolation(0.0, 1.0, m_speechVolumeEdit->minimum(), m_speechVolumeEdit->maximum());
     m_speechVolumeEdit->setValue(qRound(interpolation(volume)));
+    onVolumeChanged(m_speechVolumeEdit->value());
 }
 
 void PDFTextToSpeech::onLocaleChanged()
@@ -345,7 +362,9 @@ void PDFTextToSpeech::onRateChanged(int rate)
     if (m_textToSpeech)
     {
         pdf::PDFLinearInterpolation<double> interpolation(m_speechRateEdit->minimum(), m_speechRateEdit->maximum(), -1.0, 1.0);
-        m_textToSpeech->setRate(interpolation(rate));
+        double value = interpolation(rate);
+        m_textToSpeech->setRate(value);
+        m_speechRateValueLabel->setText(QString::number(value, 'f', 2));
     }
 }
 
@@ -354,7 +373,9 @@ void PDFTextToSpeech::onPitchChanged(int pitch)
     if (m_textToSpeech)
     {
         pdf::PDFLinearInterpolation<double> interpolation(m_speechPitchEdit->minimum(), m_speechPitchEdit->maximum(), -1.0, 1.0);
-        m_textToSpeech->setPitch(interpolation(pitch));
+        double value = interpolation(pitch);
+        m_textToSpeech->setPitch(pitch);
+        m_speechPitchValueLabel->setText(QString::number(value, 'f', 2));
     }
 }
 
@@ -363,7 +384,9 @@ void PDFTextToSpeech::onVolumeChanged(int volume)
     if (m_textToSpeech)
     {
         pdf::PDFLinearInterpolation<double> interpolation(m_speechVolumeEdit->minimum(), m_speechVolumeEdit->maximum(), 0.0, 1.0);
-        m_textToSpeech->setVolume(interpolation(volume));
+        double value = interpolation(volume);
+        m_textToSpeech->setVolume(value);
+        m_speechVolumeValueLabel->setText(QString::number(value, 'f', 2));
     }
 }
 
@@ -375,7 +398,10 @@ void PDFTextToSpeech::onPlayClicked()
         {
             m_textToSpeech->resume();
             m_state = Playing;
-            updatePlay();
+            if (m_textToSpeech->state() == QTextToSpeech::Ready)
+            {
+                updatePlay();
+            }
             break;
         }
 
@@ -452,6 +478,7 @@ void PDFTextToSpeech::updatePlay()
             const pdf::PDFTextFlow& textFlow = m_textFlows[m_currentTextFlowIndex];
             QString text = textFlow.getText();
             m_textToSpeech->say(text);
+            m_speechActualTextBrowser->setText(text);
         }
         else
         {
@@ -480,6 +507,7 @@ void PDFTextToSpeech::updateToNextPage(pdf::PDFInteger pageIndex)
 
     m_currentTextLayout = pdf::PDFTextLayout();
     m_textFlows.clear();
+    m_speechActualTextBrowser->clear();
 
     // Find first nonempty page
     while (m_currentPage < pageCount)
@@ -493,6 +521,11 @@ void PDFTextToSpeech::updateToNextPage(pdf::PDFInteger pageIndex)
         }
 
         ++m_currentPage;
+    }
+
+    if (m_currentPage < pageCount && m_speechSynchronizeButton->isChecked())
+    {
+        m_proxy->goToPage(m_currentPage);
     }
 
     m_currentTextFlowIndex = 0;

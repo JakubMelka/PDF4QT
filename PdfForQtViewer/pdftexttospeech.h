@@ -23,9 +23,11 @@
 
 #include <QObject>
 
+class QLabel;
 class QSlider;
 class QComboBox;
 class QToolButton;
+class QTextBrowser;
 class QTextToSpeech;
 
 namespace pdf
@@ -70,7 +72,7 @@ public:
     void setSettings(const PDFViewerSettings* viewerSettings);
 
     /// Set draw proxy
-    void setProxy(const pdf::PDFDrawWidgetProxy* proxy);
+    void setProxy(pdf::PDFDrawWidgetProxy* proxy);
 
     /// Initialize the ui, which is used
     void initializeUI(QComboBox* speechLocaleComboBox,
@@ -81,7 +83,11 @@ public:
                       QToolButton* speechPlayButton,
                       QToolButton* speechPauseButton,
                       QToolButton* speechStopButton,
-                      QToolButton* speechSynchronizeButton);
+                      QToolButton* speechSynchronizeButton,
+                      QLabel* speechRateValueLabel,
+                      QLabel* speechPitchValueLabel,
+                      QLabel* speechVolumeValueLabel,
+                      QTextBrowser* speechActualTextBrowser);
 
 private:
     /// Updates UI controls depending on the state
@@ -111,7 +117,7 @@ private:
 
     QTextToSpeech* m_textToSpeech;
     const pdf::PDFDocument* m_document;
-    const pdf::PDFDrawWidgetProxy* m_proxy;
+    pdf::PDFDrawWidgetProxy* m_proxy;
     State m_state;
     bool m_initialized;
 
@@ -124,6 +130,10 @@ private:
     QToolButton* m_speechPauseButton;
     QToolButton* m_speechStopButton;
     QToolButton* m_speechSynchronizeButton;
+    QLabel* m_speechRateValueLabel;
+    QLabel* m_speechPitchValueLabel;
+    QLabel* m_speechVolumeValueLabel;
+    QTextBrowser* m_speechActualTextBrowser;
 
     pdf::PDFTextLayout m_currentTextLayout; ///< Text layout for actual page
     pdf::PDFTextFlows m_textFlows; ///< Text flows for actual page

@@ -108,7 +108,9 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpee
 
     m_textToSpeech->initializeUI(ui->speechLocaleComboBox, ui->speechVoiceComboBox,
                                  ui->speechRateEdit, ui->speechPitchEdit, ui->speechVolumeEdit,
-                                 ui->speechPlayButton, ui->speechPauseButton, ui->speechStopButton, ui->speechSynchronizeButton);
+                                 ui->speechPlayButton, ui->speechPauseButton, ui->speechStopButton, ui->speechSynchronizeButton,
+                                 ui->speechRateValueLabel, ui->speechPitchValueLabel, ui->speechVolumeValueLabel,
+                                 ui->speechActualTextEdit);
 
     selectPage(Invalid);
     updateButtons();

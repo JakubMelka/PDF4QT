@@ -274,16 +274,10 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QSlider" name="speechVolumeEdit">
-           <property name="maximum">
-            <number>100</number>
-           </property>
-           <property name="value">
-            <number>100</number>
-           </property>
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+         <item row="2" column="0">
+          <widget class="QLabel" name="speechVolumeLabel">
+           <property name="text">
+            <string>Volume</string>
            </property>
           </widget>
          </item>
@@ -300,13 +294,6 @@
            </property>
           </widget>
          </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="speechRateLabel">
-           <property name="text">
-            <string>Rate</string>
-           </property>
-          </widget>
-         </item>
          <item row="1" column="0">
           <widget class="QLabel" name="speechPitchLabel">
            <property name="text">
@@ -314,12 +301,34 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="speechVolumeLabel">
-           <property name="text">
-            <string>Volume</string>
+         <item row="2" column="1">
+          <widget class="QSlider" name="speechVolumeEdit">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>100</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
            </property>
           </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="speechRateLabel">
+           <property name="text">
+            <string>Rate</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QLabel" name="speechRateValueLabel"/>
+         </item>
+         <item row="1" column="2">
+          <widget class="QLabel" name="speechPitchValueLabel"/>
+         </item>
+         <item row="2" column="2">
+          <widget class="QLabel" name="speechVolumeValueLabel"/>
          </item>
         </layout>
        </item>
@@ -368,22 +377,18 @@
             <iconset resource="pdfforqtviewer.qrc">
              <normaloff>:/resources/synchronize.svg</normaloff>:/resources/synchronize.svg</iconset>
            </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
           </widget>
          </item>
         </layout>
        </item>
        <item>
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>393</height>
-          </size>
-         </property>
-        </spacer>
+        <widget class="QTextBrowser" name="speechActualTextEdit"/>
        </item>
       </layout>
      </widget>
