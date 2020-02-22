@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>8</number>
+        <number>7</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -847,6 +847,13 @@
            <layout class="QVBoxLayout" name="verticalLayout_4">
             <item>
              <layout class="QGridLayout" name="uiGroupBoxLayout">
+              <item row="1" column="0">
+               <widget class="QLabel" name="magnifierSizeLabel">
+                <property name="text">
+                 <string>Magnifier size</string>
+                </property>
+               </widget>
+              </item>
               <item row="0" column="0">
                <widget class="QLabel" name="maximumRecentFileCountLabel">
                 <property name="text">
@@ -857,12 +864,42 @@
               <item row="0" column="1">
                <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
               </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="magnifierZoomLabel">
+                <property name="text">
+                 <string>Magnifier zoom</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="magnifierSizeEdit">
+                <property name="suffix">
+                 <string>px</string>
+                </property>
+                <property name="minimum">
+                 <number>50</number>
+                </property>
+                <property name="maximum">
+                 <number>1000</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
+                <property name="minimum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>10.000000000000000</double>
+                </property>
+               </widget>
+              </item>
              </layout>
             </item>
             <item>
              <widget class="QLabel" name="uiInfoLabel">
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum count of recent files controls, how much of recent files will be displayed in menu. When document is opened, then document is addet to the top of recent file list, and recent file list is truncated from bottom, if number of recent files is greater, than maximum.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum count of recent files controls, how much of recent files will be displayed in menu. When document is opened, then document is addet to the top of recent file list, and recent file list is truncated from bottom, if number of recent files is greater, than maximum.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings &lt;/span&gt;set the appearance of the magnifier. Magnifier tool magnifies area under the mouse cursor. You can specify how big the magnifier will be (in pixels) and how much it will zoom.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="wordWrap">
                <bool>true</bool>

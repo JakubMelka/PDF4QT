@@ -664,6 +664,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
 {
     m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
+    m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
@@ -717,6 +718,11 @@ PDFWidgetTool* PDFToolManager::getActiveTool() const
 PDFFindTextTool* PDFToolManager::getFindTextTool() const
 {
     return qobject_cast<PDFFindTextTool*>(m_predefinedTools[FindTextTool]);
+}
+
+PDFMagnifierTool* PDFToolManager::getMagnifierTool() const
+{
+    return qobject_cast<PDFMagnifierTool*>(m_predefinedTools[MagnifierTool]);
 }
 
 void PDFToolManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
@@ -802,5 +808,99 @@ void PDFToolManager::onToolActionTriggered(bool checked)
     }
 }
 
+PDFMagnifierTool::PDFMagnifierTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_magnifierSize(200),
+    m_magnifierZoom(2.0)
+{
+    setCursor(Qt::BlankCursor);
+}
+
+void PDFMagnifierTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+}
+
+void PDFMagnifierTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+}
+
+void PDFMagnifierTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+    QPoint mousePos = event->pos();
+    if (m_mousePos != mousePos)
+    {
+        m_mousePos = mousePos;
+        getProxy()->repaintNeeded();
+    }
+}
+
+void PDFMagnifierTool::drawPostRendering(QPainter* painter, QRect rect) const
+{
+    if (!m_mousePos.isNull())
+    {
+        QPainterPath path;
+        path.addEllipse(m_mousePos, m_magnifierSize, m_magnifierSize);
+
+        painter->save();
+
+        // Clip the painter path for magnifier
+        painter->setClipPath(path, Qt::IntersectClip);
+        painter->fillRect(rect, getProxy()->getPaperColor());
+
+        painter->scale(m_magnifierZoom, m_magnifierZoom);
+
+        // Jakub Melka: this must be explained. We want to display the origin (mouse position)
+        // at the same position to remain under scaling. If scale == 1, then we translate
+        // by -m_mousePos + m_mousePos = (0, 0). Otherwise we are m_mousePos / scale away
+        // from the original position. Example:
+        //      m_mousePos = (100, 100), scale = 2
+        //      we are translating by -(100, 100) + (50, 50) = -(50, 50),
+        // because origin at (100, 100) is now at position (50, 50) after scale. So, if it has to remain
+        // the same, we must translate by -(50, 50).
+        painter->translate(m_mousePos * (1.0 / m_magnifierZoom - 1.0));
+        getProxy()->drawPages(painter, rect);
+        painter->restore();
+
+        painter->setPen(Qt::black);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(path);
+    }
+}
+
+void PDFMagnifierTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        m_mousePos = QPoint();
+    }
+}
+
+PDFReal PDFMagnifierTool::getMagnifierZoom() const
+{
+    return m_magnifierZoom;
+}
+
+void PDFMagnifierTool::setMagnifierZoom(const PDFReal& magnifierZoom)
+{
+    m_magnifierZoom = magnifierZoom;
+}
+
+int PDFMagnifierTool::getMagnifierSize() const
+{
+    return m_magnifierSize;
+}
+
+void PDFMagnifierTool::setMagnifierSize(int magnifierSize)
+{
+    m_magnifierSize = magnifierSize;
+}
 
 }   // namespace pdf

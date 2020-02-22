@@ -189,6 +189,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
     // Tools
     ui->mainToolBar->addAction(ui->actionSelectText);
+    ui->mainToolBar->addAction(ui->actionMagnifier);
 
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
     connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
@@ -251,8 +252,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     actions.selectAllAction = ui->actionSelectTextAll;
     actions.deselectAction = ui->actionDeselectText;
     actions.copyTextAction = ui->actionCopyText;
+    actions.magnifierAction = ui->actionMagnifier;
     m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), actions, this, this);
     m_pdfWidget->setToolManager(m_toolManager);
+    updateMagnifierToolSettings();
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
@@ -1123,6 +1126,13 @@ void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
     renderingErrorsDialog.exec();
 }
 
+void PDFViewerMainWindow::updateMagnifierToolSettings()
+{
+    pdf::PDFMagnifierTool* magnifierTool = m_toolManager->getMagnifierTool();
+    magnifierTool->setMagnifierSize(PDFWidgetUtils::scaleDPI_x(this, m_settings->getSettings().m_magnifierSize));
+    magnifierTool->setMagnifierZoom(m_settings->getSettings().m_magnifierZoom);
+}
+
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
     PDFViewerSettingsDialog::OtherSettings otherSettings;
@@ -1136,6 +1146,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
         m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
         m_recentFileManager->setRecentFilesLimit(dialog.getOtherSettings().maximumRecentFileCount);
         m_textToSpeech->setSettings(m_settings);
+        updateMagnifierToolSettings();
     }
 }
 

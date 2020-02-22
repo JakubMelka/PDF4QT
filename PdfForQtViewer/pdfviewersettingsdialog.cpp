@@ -256,6 +256,8 @@ void PDFViewerSettingsDialog::loadData()
 
     // UI
     ui->maximumRecentFileCountEdit->setValue(m_otherSettings.maximumRecentFileCount);
+    ui->magnifierSizeEdit->setValue(m_settings.m_magnifierSize);
+    ui->magnifierZoomEdit->setValue(m_settings.m_magnifierZoom);
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -471,6 +473,14 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->speechVolumeEdit)
     {
         m_settings.m_speechVolume = ui->speechVolumeEdit->value();
+    }
+    else if (sender == ui->magnifierSizeEdit)
+    {
+        m_settings.m_magnifierSize = ui->magnifierSizeEdit->value();
+    }
+    else if (sender == ui->magnifierZoomEdit)
+    {
+        m_settings.m_magnifierZoom = ui->magnifierZoomEdit->value();
     }
 
     const bool loadData = !qobject_cast<const QDoubleSpinBox*>(sender) && !qobject_cast<const QSpinBox*>(sender);

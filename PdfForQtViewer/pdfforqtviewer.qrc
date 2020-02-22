@@ -40,5 +40,6 @@
         <file>resources/pause.svg</file>
         <file>resources/play.svg</file>
         <file>resources/stop.svg</file>
+        <file>resources/magnifier.svg</file>
     </qresource>
 </RCC>

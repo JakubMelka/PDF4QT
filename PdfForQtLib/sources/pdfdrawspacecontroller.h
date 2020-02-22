@@ -58,6 +58,11 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix) const;
+
+    /// Performs drawing of additional graphics after all pages are drawn onto the painter.
+    /// \param painter Painter
+    /// \param rect Draw rectangle (usually viewport rectangle of the pdf widget)
+    virtual void drawPostRendering(QPainter* painter, QRect rect) const;
 };
 
 /// This class controls draw space - page layout. Pages are divided into blocks
@@ -210,9 +215,18 @@ public:
 
     /// Draws the actually visible pages on the painter using the rectangle.
     /// Rectangle is space in the widget, which is used for painting the PDF.
+    /// This function is using drawPages function to draw all pages. After that,
+    /// custom drawing is performed.
+    /// \sa drawPages
     /// \param painter Painter to paint the PDF pages
     /// \param rect Rectangle in which the content is painted
     void draw(QPainter* painter, QRect rect);
+
+    /// Draws the actually visible pages on the painter using the rectangle.
+    /// Rectangle is space in the widget, which is used for painting the PDF.
+    /// \param painter Painter to paint the PDF pages
+    /// \param rect Rectangle in which the content is painted
+    void drawPages(QPainter* painter, QRect rect);
 
     /// Draws thumbnail image of the given size (so larger of the page size
     /// width or height equals to pixel size and the latter size is rescaled
@@ -334,6 +348,9 @@ public:
     void registerDrawInterface(IDocumentDrawInterface* drawInterface) { m_drawInterfaces.insert(drawInterface); }
     void unregisterDrawInterface(IDocumentDrawInterface* drawInterface) { m_drawInterfaces.erase(drawInterface); }
 
+    /// Returns current paper color
+    QColor getPaperColor();
+    
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();

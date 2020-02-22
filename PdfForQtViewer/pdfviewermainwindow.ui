@@ -86,6 +86,8 @@
     <property name="title">
      <string>Tools</string>
     </property>
+    <addaction name="actionMagnifier"/>
+    <addaction name="separator"/>
     <addaction name="actionRendering_Errors"/>
     <addaction name="separator"/>
     <addaction name="actionOptions"/>
@@ -454,6 +456,21 @@
   <action name="actionRender_to_Images">
    <property name="text">
     <string>Render to Images</string>
+   </property>
+  </action>
+  <action name="actionMagnifier">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/magnifier.svg</normaloff>:/resources/magnifier.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Magnifier</string>
+   </property>
+   <property name="toolTip">
+    <string>Magnifier Tool</string>
    </property>
   </action>
  </widget>

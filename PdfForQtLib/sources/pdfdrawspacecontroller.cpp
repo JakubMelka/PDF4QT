@@ -647,14 +647,34 @@ QMatrix PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* pa
 
 void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 {
-    painter->fillRect(rect, Qt::lightGray);
+    drawPages(painter, rect);
 
-    // Use current paper color (it can be a bit different from white)
+    for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+    {
+        painter->save();
+        drawInterface->drawPostRendering(painter, rect);
+        painter->restore();
+    }
+}
+
+QColor PDFDrawWidgetProxy::getPaperColor()
+{
     QColor paperColor = getCMSManager()->getCurrentCMS()->getPaperColor();
     if (m_features.testFlag(PDFRenderer::InvertColors))
     {
         paperColor = invertColor(paperColor);
     }
+
+    return paperColor;
+}
+
+void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect)
+{
+    painter->fillRect(rect, Qt::lightGray);
+    QMatrix baseMatrix = painter->worldMatrix();
+
+    // Use current paper color (it can be a bit different from white)
+    QColor paperColor = getPaperColor();
 
     // Iterate trough pages and display them on the painter device
     for (const LayoutItem& item : m_layout.items)
@@ -675,7 +695,7 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
                 timer.start();
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect);
+                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect) * baseMatrix;
                 compiledPage->draw(painter, page->getCropBox(), matrix, m_features);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
@@ -1312,6 +1332,12 @@ void IDocumentDrawInterface::drawPage(QPainter* painter,
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(pagePointToDevicePointMatrix);
+}
+
+void IDocumentDrawInterface::drawPostRendering(QPainter* painter, QRect rect) const
+{
+    Q_UNUSED(painter);
+    Q_UNUSED(rect);
 }
 
 }   // namespace pdf

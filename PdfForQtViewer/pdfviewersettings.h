@@ -71,6 +71,10 @@ public:
         double m_speechRate;
         double m_speechPitch;
         double m_speechVolume;
+
+        // Magnifier tool settings
+        int m_magnifierSize;
+        double m_magnifierZoom;
     };
 
     const Settings& getSettings() const { return m_settings; }

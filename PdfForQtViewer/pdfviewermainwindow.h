@@ -127,6 +127,7 @@ private:
     void updateRenderingOptionActions();
     void updateUI(bool fullUpdate);
     void updateActionsAvailability();
+    void updateMagnifierToolSettings();
 
     void onViewerSettingsChanged();
     void onRenderingOptionTriggered(bool checked);

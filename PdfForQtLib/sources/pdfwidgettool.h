@@ -236,6 +236,41 @@ private:
     bool m_isCursorOverText;
 };
 
+/// Tool to magnify specific area in the drawing widget
+class PDFFORQTLIBSHARED_EXPORT PDFMagnifierTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    /// Constructs new magnifier tool
+    /// \param proxy Draw widget proxy
+    /// \param action Tool activation action
+    /// \param parent Parent object
+    explicit PDFMagnifierTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
+
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
+
+    int getMagnifierSize() const;
+    void setMagnifierSize(int magnifierSize);
+
+    PDFReal getMagnifierZoom() const;
+    void setMagnifierZoom(const PDFReal& magnifierZoom);
+
+protected:
+    virtual void setActiveImpl(bool active) override;
+
+private:
+    QPoint m_mousePos;
+    int m_magnifierSize;
+    PDFReal m_magnifierZoom;
+};
+
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
@@ -255,6 +290,7 @@ public:
         QAction* selectAllAction = nullptr;
         QAction* deselectAction = nullptr;
         QAction* copyTextAction = nullptr;
+        QAction* magnifierAction = nullptr;
     };
 
     /// Construct new text search tool
@@ -272,6 +308,7 @@ public:
     {
         FindTextTool,
         SelectTextTool,
+        MagnifierTool,
         ToolEnd
     };
 
@@ -284,6 +321,9 @@ public:
 
     /// Returns find text tool
     PDFFindTextTool* getFindTextTool() const;
+
+    /// Returns magnifier tool
+    PDFMagnifierTool* getMagnifierTool() const;
 
     /// Handles key press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
