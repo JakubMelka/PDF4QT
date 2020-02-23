@@ -48,7 +48,7 @@ PDFAboutDialog::PDFAboutDialog(QWidget* parent) :
         ui->tableWidget->setItem(i, 3, new QTableWidgetItem(info.url));
     }
 
-    PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
+    pdf::PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
 }
 
 PDFAboutDialog::~PDFAboutDialog()

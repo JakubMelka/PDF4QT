@@ -44,8 +44,7 @@ SOURCES += \
         pdftexttospeech.cpp \
         pdfviewermainwindow.cpp \
         pdfviewersettings.cpp \
-        pdfviewersettingsdialog.cpp \
-        pdfwidgetutils.cpp
+        pdfviewersettingsdialog.cpp
 
 HEADERS += \
         pdfaboutdialog.h \
@@ -58,8 +57,7 @@ HEADERS += \
         pdftexttospeech.h \
         pdfviewermainwindow.h \
         pdfviewersettings.h \
-        pdfviewersettingsdialog.h \
-        pdfwidgetutils.h
+        pdfviewersettingsdialog.h
 
 FORMS += \
         pdfaboutdialog.ui \

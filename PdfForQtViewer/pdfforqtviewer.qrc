@@ -41,5 +41,6 @@
         <file>resources/play.svg</file>
         <file>resources/stop.svg</file>
         <file>resources/magnifier.svg</file>
+        <file>resources/screenshot-tool.svg</file>
     </qresource>
 </RCC>

@@ -402,6 +402,7 @@ PDFPrecompiledPageGenerator::PDFPrecompiledPageGenerator(PDFPrecompiledPage* pre
     m_precompiledPage(precompiledPage)
 {
     m_precompiledPage->setPaperColor(cms->getPaperColor());
+    m_precompiledPage->getSnapInfo()->addPageMediaBox(page->getRotatedMediaBox());
 }
 
 void PDFPrecompiledPageGenerator::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
@@ -427,6 +428,17 @@ void PDFPrecompiledPageGenerator::performImagePainting(const QImage& image)
         // Content is suppressed, do not paint anything
         return;
     }
+
+    // Add snap info for image to the snapper
+    QMatrix matrix = getCurrentWorldMatrix();
+    PDFSnapInfo* snapInfo = m_precompiledPage->getSnapInfo();
+    snapInfo->addImage({
+                           matrix.map(QPointF(0.0, 0.0)),
+                           matrix.map(QPointF(1.0, 0.0)),
+                           matrix.map(QPointF(1.0, 1.0)),
+                           matrix.map(QPointF(0.0, 1.0)),
+                           matrix.map(QPointF(0.5, 0.5)),
+                       });
 
     if (isTransparencyGroupActive())
     {

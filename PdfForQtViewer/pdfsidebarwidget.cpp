@@ -356,7 +356,7 @@ void PDFSidebarWidget::onOutlineItemClicked(const QModelIndex& index)
 
 void PDFSidebarWidget::onThumbnailsSizeChanged(int size)
 {
-    const int thumbnailsSize = PDFWidgetUtils::getPixelSize(this, size * 10.0);
+    const int thumbnailsSize = pdf::PDFWidgetUtils::getPixelSize(this, size * 10.0);
     Q_ASSERT(thumbnailsSize > 0);
     m_thumbnailsModel->setThumbnailsSize(thumbnailsSize);
 }

@@ -59,18 +59,6 @@ PDFWidgetTool::~PDFWidgetTool()
 
 }
 
-void PDFWidgetTool::drawPage(QPainter* painter,
-                             PDFInteger pageIndex,
-                             const PDFPrecompiledPage* compiledPage,
-                             PDFTextLayoutGetter& layoutGetter,
-                             const QMatrix& pagePointToDevicePointMatrix) const
-{
-    for (PDFWidgetTool* tool : m_toolStack)
-    {
-        tool->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix);
-    }
-}
-
 void PDFWidgetTool::setDocument(const PDFDocument* document)
 {
     if (m_document != document)
@@ -78,6 +66,12 @@ void PDFWidgetTool::setDocument(const PDFDocument* document)
         // We must turn off the tool, if we are changing the document
         setActive(false);
         m_document = document;
+
+        for (PDFWidgetTool* tool : m_toolStack)
+        {
+            tool->setDocument(document);
+        }
+
         updateActions();
     }
 }
@@ -107,37 +101,61 @@ void PDFWidgetTool::setActive(bool active)
 
 void PDFWidgetTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->keyPressEvent(widget, event);
+    }
 }
 
 void PDFWidgetTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->mousePressEvent(widget, event);
+    }
 }
 
 void PDFWidgetTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->mouseReleaseEvent(widget, event);
+    }
 }
 
 void PDFWidgetTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->mouseMoveEvent(widget, event);
+    }
 }
 
 void PDFWidgetTool::wheelEvent(QWidget* widget, QWheelEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->wheelEvent(widget, event);
+    }
+}
+
+const std::optional<QCursor>& PDFWidgetTool::getCursor() const
+{
+    // If we have active subtool, return its mouse cursor
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        return tool->getCursor();
+    }
+
+    return m_cursor;
 }
 
 void PDFWidgetTool::setActiveImpl(bool active)
 {
-    Q_UNUSED(active);
+    for (PDFWidgetTool* tool : m_toolStack)
+    {
+        tool->setActive(active);
+    }
 }
 
 void PDFWidgetTool::updateActions()
@@ -147,6 +165,26 @@ void PDFWidgetTool::updateActions()
         m_action->setChecked(isActive());
         m_action->setEnabled(m_document);
     }
+}
+
+PDFWidgetTool* PDFWidgetTool::getTopToolstackTool() const
+{
+    if (!m_toolStack.empty())
+    {
+        return m_toolStack.back();
+    }
+
+    return nullptr;
+}
+
+void PDFWidgetTool::addTool(PDFWidgetTool* tool)
+{
+    m_toolStack.push_back(tool);
+}
+
+void PDFWidgetTool::removeTool()
+{
+    m_toolStack.pop_back();
 }
 
 PDFFindTextTool::PDFFindTextTool(PDFDrawWidgetProxy* proxy, QAction* prevAction, QAction* nextAction, QObject* parent, QWidget* parentDialog) :
@@ -192,6 +230,8 @@ void PDFFindTextTool::clearResults()
 
 void PDFFindTextTool::setActiveImpl(bool active)
 {
+    BaseClass::setActiveImpl(active);
+
     if (active)
     {
         Q_ASSERT(!m_dialog);
@@ -561,6 +601,8 @@ void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
 void PDFSelectTextTool::setActiveImpl(bool active)
 {
+    BaseClass::setActiveImpl(active);
+
     if (active)
     {
         pdf::PDFAsynchronousTextLayoutCompiler* compiler = getProxy()->getTextLayoutCompiler();
@@ -665,6 +707,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
     m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
+    m_predefinedTools[ScreenshotTool] = new PDFScreenshotTool(proxy, actions.screenshotToolAction, this);
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
@@ -901,6 +944,73 @@ int PDFMagnifierTool::getMagnifierSize() const
 void PDFMagnifierTool::setMagnifierSize(int magnifierSize)
 {
     m_magnifierSize = magnifierSize;
+}
+
+PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObject* parent) :
+    BaseClass(proxy, parent),
+    m_mode(mode)
+{
+    setCursor(Qt::BlankCursor);
+}
+
+void PDFPickTool::drawPage(QPainter* painter,
+                           PDFInteger pageIndex,
+                           const PDFPrecompiledPage* compiledPage,
+                           PDFTextLayoutGetter& layoutGetter,
+                           const QMatrix& pagePointToDevicePointMatrix) const
+{
+    Q_UNUSED(layoutGetter);
+
+    m_snapper.drawSnapPoints(painter, pageIndex, compiledPage, pagePointToDevicePointMatrix);
+}
+
+void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
+{
+    QPoint hleft = m_mousePosition;
+    QPoint hright = m_mousePosition;
+    QPoint vtop = m_mousePosition;
+    QPoint vbottom = m_mousePosition;
+
+    hleft.setX(0);
+    hright.setX(rect.width());
+    vtop.setY(0);
+    vbottom.setY(rect.height());
+
+    painter->setPen(Qt::black);
+    painter->drawLine(hleft, hright);
+    painter->drawLine(vtop, vbottom);
+}
+
+void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+}
+
+void PDFPickTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+}
+
+void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+    QPoint mousePos = event->pos();
+    if (m_mousePosition != mousePos)
+    {
+        m_mousePosition = mousePos;
+        getProxy()->repaintNeeded();
+    }
+}
+
+PDFScreenshotTool::PDFScreenshotTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_pickTool(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    addTool(m_pickTool);
 }
 
 }   // namespace pdf

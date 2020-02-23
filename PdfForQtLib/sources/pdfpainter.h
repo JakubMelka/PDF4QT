@@ -23,6 +23,7 @@
 #include "pdfrenderer.h"
 #include "pdfpagecontentprocessor.h"
 #include "pdftextlayout.h"
+#include "pdfsnapper.h"
 
 #include <QPen>
 #include <QBrush>
@@ -223,6 +224,9 @@ public:
     QColor getPaperColor() const { return m_paperColor; }
     void setPaperColor(QColor paperColor) { m_paperColor = paperColor; }
 
+    PDFSnapInfo* getSnapInfo() { return &m_snapInfo; }
+    const PDFSnapInfo* getSnapInfo() const { return &m_snapInfo; }
+
 private:
     struct PathPaintData
     {
@@ -291,6 +295,7 @@ private:
     std::vector<QMatrix> m_matrices;
     std::vector<QPainter::CompositionMode> m_compositionModes;
     QList<PDFRenderError> m_errors;
+    PDFSnapInfo m_snapInfo;
 };
 
 /// Processor, which processes PDF's page commands and writes them to the precompiled page.

@@ -48,13 +48,13 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
     initializeFonts(document);
     initializeDisplayAndPrintSettings(document);
 
-    const int minimumSectionSize = PDFWidgetUtils::scaleDPI_x(this, 300);
+    const int minimumSectionSize = pdf::PDFWidgetUtils::scaleDPI_x(this, 300);
     for (QTreeWidget* widget : findChildren<QTreeWidget*>(QString(), Qt::FindChildrenRecursively))
     {
         widget->header()->setMinimumSectionSize(minimumSectionSize);
     }
 
-    PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
+    pdf::PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
 }
 
 PDFDocumentPropertiesDialog::~PDFDocumentPropertiesDialog()

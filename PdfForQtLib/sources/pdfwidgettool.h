@@ -20,6 +20,7 @@
 
 #include "pdfdrawspacecontroller.h"
 #include "pdftextlayout.h"
+#include "pdfsnapper.h"
 
 #include <QDialog>
 #include <QCursor>
@@ -43,12 +44,6 @@ public:
     explicit PDFWidgetTool(PDFDrawWidgetProxy* proxy, QObject* parent);
     explicit PDFWidgetTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
     virtual ~PDFWidgetTool();
-
-    virtual void drawPage(QPainter* painter,
-                          PDFInteger pageIndex,
-                          const PDFPrecompiledPage* compiledPage,
-                          PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const override;
 
     /// Sets document, shuts down the tool, if it is active, and document
     /// is changing.
@@ -93,7 +88,7 @@ public:
 
     /// Returns actual cursor defined by the tool. Cursor can be undefined,
     /// in this case, optional will be set to nullopt.
-    const std::optional<QCursor>& getCursor() const { return m_cursor; }
+    const std::optional<QCursor>& getCursor() const;
 
 signals:
     void toolActivityChanged(bool active);
@@ -102,11 +97,18 @@ protected:
     virtual void setActiveImpl(bool active);
     virtual void updateActions();
 
+    /// Returns currently active tool from toolstack,
+    /// or nullptr, if no active tool from toolstack exists.
+    PDFWidgetTool* getTopToolstackTool() const;
+
     const PDFDocument* getDocument() const { return m_document; }
     PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
 
     inline void setCursor(QCursor cursor) { m_cursor = qMove(cursor); }
     inline void unsetCursor() { m_cursor = std::nullopt; }
+
+    void addTool(PDFWidgetTool* tool);
+    void removeTool();
 
 private:
     bool m_active;
@@ -271,6 +273,60 @@ private:
     PDFReal m_magnifierZoom;
 };
 
+/// Tools for picking various items on page - points, rectangles, images etc.
+class PDFFORQTLIBSHARED_EXPORT PDFPickTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+
+    enum class Mode
+    {
+        Points,     ///< Pick points
+        Rectangles, ///< Pick rectangles
+        Images      ///< Pick images
+    };
+
+    /// Constructs new picking tool
+    /// \param proxy Draw widget proxy
+    /// \param mode Picking mode
+    /// \param parent Parent object
+    explicit PDFPickTool(PDFDrawWidgetProxy* proxy, Mode mode, QObject* parent);
+
+    virtual void drawPage(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QMatrix& pagePointToDevicePointMatrix) const override;
+    virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+private:
+    Mode m_mode;
+    PDFSnapper m_snapper;
+    QPoint m_mousePosition;
+};
+
+/// Tool that makes screenshot of page area and copies it to the clipboard
+class PDFFORQTLIBSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    /// Constructs new screenshot tool
+    /// \param proxy Draw widget proxy
+    /// \param action Tool activation action
+    /// \param parent Parent object
+    explicit PDFScreenshotTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
+
+private:
+    PDFPickTool* m_pickTool;
+};
+
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
@@ -291,6 +347,7 @@ public:
         QAction* deselectAction = nullptr;
         QAction* copyTextAction = nullptr;
         QAction* magnifierAction = nullptr;
+        QAction* screenshotToolAction = nullptr;
     };
 
     /// Construct new text search tool
@@ -309,6 +366,7 @@ public:
         FindTextTool,
         SelectTextTool,
         MagnifierTool,
+        ScreenshotTool,
         ToolEnd
     };
 

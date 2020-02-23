@@ -87,6 +87,7 @@
      <string>Tools</string>
     </property>
     <addaction name="actionMagnifier"/>
+    <addaction name="actionScreenshot"/>
     <addaction name="separator"/>
     <addaction name="actionRendering_Errors"/>
     <addaction name="separator"/>
@@ -471,6 +472,18 @@
    </property>
    <property name="toolTip">
     <string>Magnifier Tool</string>
+   </property>
+  </action>
+  <action name="actionScreenshot">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/screenshot-tool.svg</normaloff>:/resources/screenshot-tool.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Screenshot</string>
    </property>
   </action>
  </widget>

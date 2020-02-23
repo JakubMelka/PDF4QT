@@ -22,19 +22,20 @@
 
 #include <QWidget>
 
-namespace pdfviewer
+namespace pdf
 {
 
-class PDFWidgetUtils
+class PDFFORQTLIBSHARED_EXPORT PDFWidgetUtils
 {
 public:
     PDFWidgetUtils() = delete;
 
     /// Converts size in MM to pixel size
-    static int getPixelSize(QWidget* widget, pdf::PDFReal sizeMM);
+    static int getPixelSize(QPaintDevice* device, pdf::PDFReal sizeMM);
 
     /// Scale horizontal DPI value
-    static int scaleDPI_x(QWidget* widget, int unscaledSize);
+    /// \param device Paint device to obtain logical DPI for scaling
+    static int scaleDPI_x(QPaintDevice* device, int unscaledSize);
 
     /// Scales widget based on DPI
     /// \param widget Widget to be scaled
@@ -42,11 +43,11 @@ public:
     static void scaleWidget(QWidget* widget, QSize unscaledSize);
 
     /// Scales size based on DPI
-    /// \param widget Widget, from which we get DPI
+    /// \param device Paint device to obtain logical DPI for scaling
     /// \param unscaledSize Unscaled size
-    static QSize scaleDPI(QWidget* widget, QSize unscaledSize);
+    static QSize scaleDPI(QPaintDevice* widget, QSize unscaledSize);
 };
 
-} // namespace pdfviewer
+} // namespace pdf
 
 #endif // PDFWIDGETUTILS_H

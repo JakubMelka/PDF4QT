@@ -94,7 +94,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->setupUi(this);
 
     // Initialize toolbar icon size
-    QSize iconSize = PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
+    QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
     ui->mainToolBar->setIconSize(iconSize);
 
     // Initialize task bar progress
@@ -190,6 +190,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     // Tools
     ui->mainToolBar->addAction(ui->actionSelectText);
     ui->mainToolBar->addAction(ui->actionMagnifier);
+    ui->mainToolBar->addAction(ui->actionScreenshot);
 
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
     connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
@@ -253,6 +254,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     actions.deselectAction = ui->actionDeselectText;
     actions.copyTextAction = ui->actionCopyText;
     actions.magnifierAction = ui->actionMagnifier;
+    actions.screenshotToolAction = ui->actionScreenshot;
     m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), actions, this, this);
     m_pdfWidget->setToolManager(m_toolManager);
     updateMagnifierToolSettings();
@@ -1129,7 +1131,7 @@ void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
 void PDFViewerMainWindow::updateMagnifierToolSettings()
 {
     pdf::PDFMagnifierTool* magnifierTool = m_toolManager->getMagnifierTool();
-    magnifierTool->setMagnifierSize(PDFWidgetUtils::scaleDPI_x(this, m_settings->getSettings().m_magnifierSize));
+    magnifierTool->setMagnifierSize(pdf::PDFWidgetUtils::scaleDPI_x(this, m_settings->getSettings().m_magnifierSize));
     magnifierTool->setMagnifierZoom(m_settings->getSettings().m_magnifierZoom);
 }
 
