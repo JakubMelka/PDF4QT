@@ -296,16 +296,21 @@ public:
     /// \param parent Parent object
     explicit PDFPickTool(PDFDrawWidgetProxy* proxy, Mode mode, QObject* parent);
 
-    virtual void drawPage(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QMatrix& pagePointToDevicePointMatrix) const override;
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
+protected:
+    virtual void setActiveImpl(bool active) override;
+
 private:
+    void buildSnapPoints();
+
     Mode m_mode;
     PDFSnapper m_snapper;
     QPoint m_mousePosition;
+    std::vector<QPointF> m_pickedPoints;
 };
 
 /// Tool that makes screenshot of page area and copies it to the clipboard

@@ -18,6 +18,7 @@
 #include "pdfsnapper.h"
 #include "pdfcompiler.h"
 #include "pdfwidgetutils.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QPainter>
 
@@ -74,28 +75,25 @@ PDFSnapper::PDFSnapper()
 
 }
 
-void PDFSnapper::drawSnapPoints(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, const QMatrix& pagePointToDevicePointMatrix) const
+void PDFSnapper::drawSnapPoints(QPainter* painter) const
 {
-    if (m_currentPage != -1 && m_currentPage != pageIndex)
-    {
-        // We are drawing only snap points, which are on current page
-        return;
-    }
-
     Q_ASSERT(painter);
-    Q_ASSERT(compiledPage);
-
-    const PDFSnapInfo* snapInfo = (m_currentPage != pageIndex) ? compiledPage->getSnapInfo() : &m_currentPageSnapInfo;
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     QPen pen = painter->pen();
     pen.setCapStyle(Qt::RoundCap);
-    pen.setWidth(PDFWidgetUtils::scaleDPI_x(painter->device(), 10));
+    pen.setWidth(m_snapPointPixelSize);
 
-    for (const PDFSnapInfo::SnapPoint& snapPoint : snapInfo->getSnapPoints())
+    for (const ViewportSnapPoint& snapPoint : m_snapPoints)
     {
+        if (!isSnappingAllowed(snapPoint.pageIndex))
+        {
+            // We are drawing only snap points, which are on current page
+            continue;
+        }
+
         QColor color = pen.color();
         QColor newColor = color;
         switch (snapPoint.type)
@@ -119,11 +117,92 @@ void PDFSnapper::drawSnapPoints(QPainter* painter, PDFInteger pageIndex, const P
             painter->setPen(pen);
         }
 
-        QPoint point = pagePointToDevicePointMatrix.map(snapPoint.point).toPoint();
+        QPoint point = snapPoint.viewportPoint.toPoint();
+        painter->drawPoint(point);
+    }
+
+    if (isSnapped())
+    {
+        pen.setColor(Qt::yellow);
+        painter->setPen(pen);
+        QPoint point = m_snappedPoint->viewportPoint.toPoint();
         painter->drawPoint(point);
     }
 
     painter->restore();
+}
+
+bool PDFSnapper::isSnappingAllowed(PDFInteger pageIndex) const
+{
+    return (m_currentPage == -1) || (m_currentPage == pageIndex);
+}
+
+void PDFSnapper::updateSnappedPoint(const QPointF& mousePoint)
+{
+    m_snappedPoint = std::nullopt;
+    m_mousePoint = mousePoint;
+
+    // Iterate trough all points, check, if some satisfies condition
+    const PDFReal toleranceSquared = m_snapPointTolerance * m_snapPointTolerance;
+    for (const ViewportSnapPoint& snapPoint : m_snapPoints)
+    {
+        QPointF difference = mousePoint - snapPoint.viewportPoint;
+        PDFReal distanceSquared = QPointF::dotProduct(difference, difference);
+        if (distanceSquared < toleranceSquared && isSnappingAllowed(snapPoint.pageIndex))
+        {
+            m_snappedPoint = snapPoint;
+            return;
+        }
+    }
+}
+
+void PDFSnapper::buildSnapPoints(const PDFWidgetSnapshot& snapshot)
+{
+    // First, clear all snap points
+    m_snapPoints.clear();
+
+    // Second, create snapping points from snapshot
+    for (const PDFWidgetSnapshot::SnapshotItem& item : snapshot.items)
+    {
+        if (!item.compiledPage)
+        {
+            continue;
+        }
+
+        const PDFSnapInfo* info = item.compiledPage->getSnapInfo();
+        for (const PDFSnapInfo::SnapPoint& snapPoint : info->getSnapPoints())
+        {
+            ViewportSnapPoint viewportSnapPoint;
+            viewportSnapPoint.type = snapPoint.type;
+            viewportSnapPoint.point = snapPoint.point;
+            viewportSnapPoint.pageIndex = item.pageIndex;
+            viewportSnapPoint.viewportPoint = item.pageToDeviceMatrix.map(snapPoint.point);
+            m_snapPoints.push_back(qMove(viewportSnapPoint));
+        }
+    }
+
+    // Third, update snap shot position
+    updateSnappedPoint(m_mousePoint);
+}
+
+int PDFSnapper::getSnapPointTolerance() const
+{
+    return m_snapPointTolerance;
+}
+
+void PDFSnapper::setSnapPointTolerance(int snapPointTolerance)
+{
+    m_snapPointTolerance = snapPointTolerance;
+}
+
+QPointF PDFSnapper::getSnappedPoint() const
+{
+    if (isSnapped())
+    {
+        return m_snappedPoint->viewportPoint;
+    }
+
+    return m_mousePoint;
 }
 
 }   // namespace pdf

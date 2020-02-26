@@ -185,6 +185,21 @@ private:
     PDFFontCache m_fontCache;
 };
 
+/// Snapshot for current widget viewable items.
+struct PDFWidgetSnapshot
+{
+    struct SnapshotItem
+    {
+        PDFInteger pageIndex = -1;  ///< Index of page
+        QRectF rect;                ///< Page rectangle on viewport
+        QMatrix pageToDeviceMatrix;             ///< Transforms page coordinates to widget coordinates
+        const PDFPrecompiledPage* compiledPage = nullptr; ///< Compiled page (can be nullptr)
+    };
+
+    using SnapshotItems = std::vector<SnapshotItem>;
+    SnapshotItems items;
+};
+
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
 /// (on the controlled widget) and device space (device is draw space controller).
 class PDFFORQTLIBSHARED_EXPORT PDFDrawWidgetProxy : public QObject
@@ -350,6 +365,17 @@ public:
 
     /// Returns current paper color
     QColor getPaperColor();
+
+    /// Transforms pixels to device space
+    /// \param pixel Value in pixels
+    PDFReal transformPixelToDeviceSpace(PDFReal pixel) const { return pixel * m_pixelToDeviceSpaceUnit; }
+
+    /// Transforms value in device space to pixel value
+    /// \param deviceSpaceValue Value in device space
+    PDFReal transformDeviceSpaceToPixel(PDFReal deviceSpaceValue) const { return deviceSpaceValue * m_deviceSpaceUnitToPixel; }
+
+    /// Returns snapshot of current view area
+    PDFWidgetSnapshot getSnapshot() const;
     
 signals:
     void drawSpaceChanged();

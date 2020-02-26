@@ -21,12 +21,14 @@
 #include "pdfglobal.h"
 
 #include <array>
+#include <optional>
 
 class QPainter;
 
 namespace pdf
 {
 class PDFPrecompiledPage;
+struct PDFWidgetSnapshot;
 
 enum class SnapType
 {
@@ -90,19 +92,69 @@ class PDFSnapper
 public:
     PDFSnapper();
 
-    /// Draws snapping points onto the page
+    /// Sets snap point pixel size
+    /// \param snapPointPixelSize Snap point diameter in pixels
+    void setSnapPointPixelSize(int snapPointPixelSize) { m_snapPointPixelSize = snapPointPixelSize; }
+
+    /// Returns snap point pixel size
+    int getSnapPointPixelSize() const { return m_snapPointPixelSize; }
+
+    /// Draws snapping points onto the painter. This function needs valid snap points,
+    /// so \p m_snapPoints must be valid before this function is called.
     /// \param painter Painter
-    /// \param pageIndex Page index
-    /// \param compiledPage Compiled page
-    /// \param pagePointToDevicePointMatrix Matrix mapping page space to device point space
-    void drawSnapPoints(QPainter* painter,
-                        pdf::PDFInteger pageIndex,
-                        const PDFPrecompiledPage* compiledPage,
-                        const QMatrix& pagePointToDevicePointMatrix) const;
+    void drawSnapPoints(QPainter* painter) const;
+
+    /// Returns true, if snapping is allowed at current page
+    /// \param pageIndex Page index to be tested for allowing snapping
+    bool isSnappingAllowed(PDFInteger pageIndex) const;
+
+    /// Updates snapped point using given information. If current page is set, it means, we are
+    /// using snapping info from current page, and if we are hovering at different page,
+    /// then nothing happens. Otherwise, other page snap info is used to update snapped point.
+    /// If mouse point distance from some snap point is lesser than tolerance, then new snap is set.
+    /// \param mousePoint Mouse point in widget coordinates
+    void updateSnappedPoint(const QPointF& mousePoint);
+
+    /// Returns true, if some point of interest is snapped
+    bool isSnapped() const { return m_snappedPoint.has_value(); }
+
+    /// Builds snap points from the widget snapshot. Updates current value
+    /// of snapped point (from mouse position).
+    /// \param snapshot Widget snapshot
+    void buildSnapPoints(const PDFWidgetSnapshot& snapshot);
+
+    /// Returns current snap point tolerance (while aiming with the mouse cursor,
+    /// when mouse cursor is at most tolerance distance from some snap point,
+    /// it is snapped.
+    int getSnapPointTolerance() const;
+
+    /// Sets snap point tolerance
+    void setSnapPointTolerance(int snapPointTolerance);
+
+    /// Returns snapped position. If point at mouse cursor is not snapped, then
+    /// mouse cursor position is returned.
+    QPointF getSnappedPoint() const;
 
 private:
-    PDFSnapInfo m_currentPageSnapInfo;
+
+    struct ViewportSnapPoint : public PDFSnapInfo::SnapPoint
+    {
+        QPointF viewportPoint;
+        PDFInteger pageIndex;
+    };
+
+    struct SnappedPoint
+    {
+        PDFInteger pageIndex = -1;
+        QPointF snappedPoint;
+    };
+
+    std::vector<ViewportSnapPoint> m_snapPoints;
+    std::optional<ViewportSnapPoint> m_snappedPoint;
+    QPointF m_mousePoint;
     PDFInteger m_currentPage = -1;
+    int m_snapPointPixelSize = 0;
+    int m_snapPointTolerance = 0;
 };
 
 }   // namespace pdf

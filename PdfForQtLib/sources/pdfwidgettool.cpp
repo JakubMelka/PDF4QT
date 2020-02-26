@@ -18,6 +18,7 @@
 #include "pdfwidgettool.h"
 #include "pdfdrawwidget.h"
 #include "pdfcompiler.h"
+#include "pdfwidgetutils.h"
 
 #include <QLabel>
 #include <QAction>
@@ -951,25 +952,22 @@ PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObj
     m_mode(mode)
 {
     setCursor(Qt::BlankCursor);
-}
+    m_snapper.setSnapPointPixelSize(PDFWidgetUtils::scaleDPI_x(proxy->getWidget(), 10));
+    m_snapper.setSnapPointTolerance(m_snapper.getSnapPointPixelSize());
 
-void PDFPickTool::drawPage(QPainter* painter,
-                           PDFInteger pageIndex,
-                           const PDFPrecompiledPage* compiledPage,
-                           PDFTextLayoutGetter& layoutGetter,
-                           const QMatrix& pagePointToDevicePointMatrix) const
-{
-    Q_UNUSED(layoutGetter);
-
-    m_snapper.drawSnapPoints(painter, pageIndex, compiledPage, pagePointToDevicePointMatrix);
+    connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFPickTool::buildSnapPoints);
+    connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFPickTool::buildSnapPoints);
 }
 
 void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
 {
-    QPoint hleft = m_mousePosition;
-    QPoint hright = m_mousePosition;
-    QPoint vtop = m_mousePosition;
-    QPoint vbottom = m_mousePosition;
+    m_snapper.drawSnapPoints(painter);
+
+    QPoint snappedPoint = m_snapper.getSnappedPoint().toPoint();
+    QPoint hleft = snappedPoint;
+    QPoint hright = snappedPoint;
+    QPoint vtop = snappedPoint;
+    QPoint vbottom = snappedPoint;
 
     hleft.setX(0);
     hright.setX(rect.width());
@@ -1001,8 +999,29 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     if (m_mousePosition != mousePos)
     {
         m_mousePosition = mousePos;
+        m_snapper.updateSnappedPoint(m_mousePosition);
         getProxy()->repaintNeeded();
     }
+}
+
+void PDFPickTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active)
+    {
+        buildSnapPoints();
+    }
+}
+
+void PDFPickTool::buildSnapPoints()
+{
+    if (!isActive())
+    {
+        return;
+    }
+
+    m_snapper.buildSnapPoints(getProxy()->getSnapshot());
 }
 
 PDFScreenshotTool::PDFScreenshotTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
