@@ -196,6 +196,9 @@ struct PDFWidgetSnapshot
         const PDFPrecompiledPage* compiledPage = nullptr; ///< Compiled page (can be nullptr)
     };
 
+    bool hasPage(PDFInteger pageIndex) const { return getPageSnapshot(pageIndex) != nullptr; }
+    const SnapshotItem* getPageSnapshot(PDFInteger pageIndex) const;
+
     using SnapshotItems = std::vector<SnapshotItem>;
     SnapshotItems items;
 };

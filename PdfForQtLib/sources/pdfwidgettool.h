@@ -296,24 +296,35 @@ public:
     /// \param parent Parent object
     explicit PDFPickTool(PDFDrawWidgetProxy* proxy, Mode mode, QObject* parent);
 
+    virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix) const override;
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
+signals:
+    void pointPicked(PDFInteger pageIndex, QPointF pagePoint);
+    void rectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
+
 protected:
     virtual void setActiveImpl(bool active) override;
 
 private:
+    void resetTool();
     void buildSnapPoints();
 
     Mode m_mode;
     PDFSnapper m_snapper;
     QPoint m_mousePosition;
+    PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
 };
 
-/// Tool that makes screenshot of page area and copies it to the clipboard
+/// Tool that makes screenshot of page area and copies it to the clipboard,
+/// using current client area to determine image size.
 class PDFFORQTLIBSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
 {
     Q_OBJECT
@@ -329,6 +340,8 @@ public:
     explicit PDFScreenshotTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
 
 private:
+    void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
+
     PDFPickTool* m_pickTool;
 };
 

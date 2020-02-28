@@ -179,6 +179,41 @@ void PDFSnapper::buildSnapPoints(const PDFWidgetSnapshot& snapshot)
             viewportSnapPoint.viewportPoint = item.pageToDeviceMatrix.map(snapPoint.point);
             m_snapPoints.push_back(qMove(viewportSnapPoint));
         }
+
+        // Fill line projections snap points
+        if (m_currentPage == item.pageIndex && m_referencePoint.has_value())
+        {
+            QPointF referencePoint = *m_referencePoint;
+            for (const QLineF& line : info->getLines())
+            {
+                // Project point onto line.
+                const qreal lineLength = line.length();
+                QPointF vector = referencePoint - line.p1();
+                QPointF tangentVector = (line.p2() - line.p1()) / lineLength;
+                const qreal absoluteParameter = QPointF::dotProduct(vector, tangentVector);
+                if (absoluteParameter >= 0 && absoluteParameter <= lineLength)
+                {
+                    QPointF projectedSnapPoint = line.pointAt(absoluteParameter / lineLength);
+                    const PDFReal tolerance = lineLength * 0.01;
+                    const PDFReal squaredTolerance = tolerance * tolerance;
+
+                    // Test, if projected snap point is not already present in snap points
+                    auto testSamePoints = [projectedSnapPoint, squaredTolerance](const ViewportSnapPoint& testedSnapPoint)
+                    {
+                        return isFuzzyComparedPointsSame(projectedSnapPoint, testedSnapPoint.point, squaredTolerance);
+                    };
+                    if (m_snapPoints.cend() == std::find_if(m_snapPoints.cbegin(), m_snapPoints.cend(), testSamePoints))
+                    {
+                        ViewportSnapPoint viewportSnapPoint;
+                        viewportSnapPoint.type = SnapType::GeneratedLineProjection;
+                        viewportSnapPoint.point = projectedSnapPoint;
+                        viewportSnapPoint.pageIndex = item.pageIndex;
+                        viewportSnapPoint.viewportPoint = item.pageToDeviceMatrix.map(projectedSnapPoint);
+                        m_snapPoints.push_back(qMove(viewportSnapPoint));
+                    }
+                }
+            }
+        }
     }
 
     // Third, update snap shot position
@@ -203,6 +238,18 @@ QPointF PDFSnapper::getSnappedPoint() const
     }
 
     return m_mousePoint;
+}
+
+void PDFSnapper::setReferencePoint(PDFInteger pageIndex, QPointF pagePoint)
+{
+    m_currentPage = pageIndex;
+    m_referencePoint = pagePoint;
+}
+
+void PDFSnapper::clearReferencePoint()
+{
+    m_currentPage = -1;
+    m_referencePoint = std::nullopt;
 }
 
 }   // namespace pdf

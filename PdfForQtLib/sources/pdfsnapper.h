@@ -81,6 +81,9 @@ public:
     /// Returns snap points
     const std::vector<SnapPoint>& getSnapPoints() const { return m_snapPoints; }
 
+    /// Returns lines
+    const std::vector<QLineF>& getLines() const { return m_snapLines; }
+
 private:
     std::vector<SnapPoint> m_snapPoints;
     std::vector<QLineF> m_snapLines;
@@ -135,6 +138,14 @@ public:
     /// mouse cursor position is returned.
     QPointF getSnappedPoint() const;
 
+    /// Sets current page index and reference point
+    /// \param pageIndex Page index
+    /// \param pagePoint Page point
+    void setReferencePoint(PDFInteger pageIndex, QPointF pagePoint);
+
+    /// Resets reference point (and current page)
+    void clearReferencePoint();
+
 private:
 
     struct ViewportSnapPoint : public PDFSnapInfo::SnapPoint
@@ -152,6 +163,7 @@ private:
     std::vector<ViewportSnapPoint> m_snapPoints;
     std::optional<ViewportSnapPoint> m_snappedPoint;
     QPointF m_mousePoint;
+    std::optional<QPointF> m_referencePoint;
     PDFInteger m_currentPage = -1;
     int m_snapPointPixelSize = 0;
     int m_snapPointTolerance = 0;

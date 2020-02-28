@@ -471,6 +471,18 @@ private:
     T m_q;
 };
 
+/// Fuzzy compares two points, with given tolerance (so, if points are at lower distance
+/// from each other than squared tolerance, they are considered as same and function returns true).
+/// \param p1 First point
+/// \param p2 Second point
+/// \param squaredTolerance Squared tolerance
+static inline bool isFuzzyComparedPointsSame(const QPointF& p1, const QPointF& p2, PDFReal squaredTolerance)
+{
+    QPointF dp = p2 - p1;
+    const qreal squaredDistance = QPointF::dotProduct(dp, dp);
+    return squaredDistance < squaredTolerance;
+}
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H
