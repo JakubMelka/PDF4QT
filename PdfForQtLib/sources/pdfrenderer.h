@@ -56,6 +56,7 @@ public:
         DebugTextBlocks         = 0x0040,   ///< Debug text block layout algorithm
         DebugTextLines          = 0x0080,   ///< Debug text line layout algorithm
         InvertColors            = 0x0100,   ///< Invert colors
+        DenyExtraGraphics       = 0x0200,   ///< Do not display additional graphics, for example from tools
     };
 
     Q_DECLARE_FLAGS(Features, Feature)

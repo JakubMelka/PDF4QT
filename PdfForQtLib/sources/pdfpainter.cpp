@@ -501,6 +501,7 @@ void PDFPrecompiledPage::draw(QPainter* painter, const QRectF& cropBox, const QM
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
 
     painter->save();
+    painter->setWorldMatrix(QMatrix());
 
     if (features.testFlag(PDFRenderer::ClipToCropBox))
     {

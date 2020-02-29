@@ -238,6 +238,14 @@ qt_plugin_platform.files = $$[QT_INSTALL_PLUGINS]/platforms/qwindows$${SUFFIX}.d
 qt_plugin_platform.path = $$DESTDIR/install/platforms
 INSTALLS += qt_plugin_platform
 
+qt_plugin_style.files = $$[QT_INSTALL_PLUGINS]/styles/qwindowsvistastyle$${SUFFIX}.dll
+qt_plugin_style.path = $$DESTDIR/install/styles
+INSTALLS += qt_plugin_style
+
+qt_plugin_imageformat.files = $$[QT_INSTALL_PLUGINS]/imageformats/q*$${SUFFIX}.dll
+qt_plugin_imageformat.path = $$DESTDIR/install/imageformats
+INSTALLS += qt_plugin_imageformat
+
 qt_plugin_iconengine.files = $$[QT_INSTALL_PLUGINS]/iconengines/qsvgicon$${SUFFIX}.dll
 qt_plugin_iconengine.path = $$DESTDIR/install/iconengines
 INSTALLS += qt_plugin_iconengine

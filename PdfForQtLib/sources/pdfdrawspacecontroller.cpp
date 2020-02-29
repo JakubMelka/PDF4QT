@@ -647,7 +647,7 @@ QMatrix PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* pa
 
 void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 {
-    drawPages(painter, rect);
+    drawPages(painter, rect, m_features);
 
     for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
     {
@@ -668,7 +668,7 @@ QColor PDFDrawWidgetProxy::getPaperColor()
     return paperColor;
 }
 
-void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect)
+void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features)
 {
     painter->fillRect(rect, Qt::lightGray);
     QMatrix baseMatrix = painter->worldMatrix();
@@ -696,11 +696,11 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect)
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix, m_features);
+                compiledPage->draw(painter, page->getCropBox(), matrix, features);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 // Draw text blocks/text lines, if it is enabled
-                if (m_features.testFlag(PDFRenderer::DebugTextBlocks))
+                if (features.testFlag(PDFRenderer::DebugTextBlocks))
                 {
                     m_textLayoutCompiler->makeTextLayout();
                     const PDFTextLayout& layout = layoutGetter;
@@ -723,7 +723,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect)
 
                     painter->restore();
                 }
-                if (m_features.testFlag(PDFRenderer::DebugTextLines))
+                if (features.testFlag(PDFRenderer::DebugTextLines))
                 {
                     m_textLayoutCompiler->makeTextLayout();
                     const PDFTextLayout& layout = layoutGetter;
@@ -750,17 +750,20 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect)
                     painter->restore();
                 }
 
-                for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                if (!features.testFlag(PDFRenderer::DenyExtraGraphics))
                 {
-                    painter->save();
-                    drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix);
-                    painter->restore();
+                    for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                    {
+                        painter->save();
+                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix);
+                        painter->restore();
+                    }
                 }
 
                 const qint64 drawTimeNS = timer.nsecsElapsed();
 
                 // Draw rendering times
-                if (m_features.testFlag(PDFRenderer::DisplayTimes))
+                if (features.testFlag(PDFRenderer::DisplayTimes))
                 {
                     QFont font = m_widget->font();
                     font.setPointSize(12);
@@ -868,6 +871,7 @@ PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoin
         // topleft point of the block. But block maybe doesn't start at (0, 0),
         // so we must also use translation from the block beginning.
         QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+        placedRect.adjust(0, 0, 1, 1);
         if (placedRect.contains(point))
         {
             if (pagePoint)

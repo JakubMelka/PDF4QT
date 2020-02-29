@@ -908,7 +908,7 @@ void PDFMagnifierTool::drawPostRendering(QPainter* painter, QRect rect) const
         // because origin at (100, 100) is now at position (50, 50) after scale. So, if it has to remain
         // the same, we must translate by -(50, 50).
         painter->translate(m_mousePos * (1.0 / m_magnifierZoom - 1.0));
-        getProxy()->drawPages(painter, rect);
+        getProxy()->drawPages(painter, rect, getProxy()->getFeatures());
         painter->restore();
 
         painter->setPen(Qt::black);
@@ -1135,7 +1135,7 @@ void PDFScreenshotTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRecta
             {
                 QPainter painter(&image);
                 painter.translate(-selectedRectangle.topLeft());
-                getProxy()->drawPages(&painter, getProxy()->getWidget()->rect());
+                getProxy()->drawPages(&painter, getProxy()->getWidget()->rect(), getProxy()->getFeatures() | PDFRenderer::DenyExtraGraphics);
             }
 
             QApplication::clipboard()->setImage(image, QClipboard::Clipboard);

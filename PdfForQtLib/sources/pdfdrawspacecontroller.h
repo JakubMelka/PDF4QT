@@ -244,7 +244,8 @@ public:
     /// Rectangle is space in the widget, which is used for painting the PDF.
     /// \param painter Painter to paint the PDF pages
     /// \param rect Rectangle in which the content is painted
-    void drawPages(QPainter* painter, QRect rect);
+    /// \param features Rendering features
+    void drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features);
 
     /// Draws thumbnail image of the given size (so larger of the page size
     /// width or height equals to pixel size and the latter size is rescaled
