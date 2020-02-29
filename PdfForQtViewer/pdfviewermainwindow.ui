@@ -88,6 +88,7 @@
     </property>
     <addaction name="actionMagnifier"/>
     <addaction name="actionScreenshot"/>
+    <addaction name="actionExtractImage"/>
     <addaction name="separator"/>
     <addaction name="actionRendering_Errors"/>
     <addaction name="separator"/>
@@ -484,6 +485,18 @@
    </property>
    <property name="text">
     <string>Screenshot</string>
+   </property>
+  </action>
+  <action name="actionExtractImage">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/extract-image.svg</normaloff>:/resources/extract-image.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Extract Image</string>
    </property>
   </action>
  </widget>

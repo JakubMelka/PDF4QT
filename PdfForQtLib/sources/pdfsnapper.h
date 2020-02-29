@@ -20,6 +20,9 @@
 
 #include "pdfglobal.h"
 
+#include <QImage>
+#include <QPainterPath>
+
 #include <array>
 #include <optional>
 
@@ -63,6 +66,12 @@ public:
         QPointF point;
     };
 
+    struct SnapImage
+    {
+        QPainterPath imagePath;
+        QImage image;
+    };
+
     /// Adds page media box. Media box must be in page coordinates.
     /// \param mediaBox Media box
     void addPageMediaBox(const QRectF& mediaBox);
@@ -71,7 +80,8 @@ public:
     /// points are defined - four corners and center.
     /// \param points Four corner points in clockwise order, fifth point is center,
     ///        all in page coordinates.
-    void addImage(const std::array<QPointF, 5>& points);
+    /// \param image Image
+    void addImage(const std::array<QPointF, 5>& points, const QImage& image);
 
     /// Adds line and line center points
     /// \param start Start point of line, in page coordinates
@@ -84,9 +94,14 @@ public:
     /// Returns lines
     const std::vector<QLineF>& getLines() const { return m_snapLines; }
 
+    /// Returns snap images (together with painter path in page coordinates,
+    /// in which image is painted).
+    const std::vector<SnapImage>& getSnapImages() const { return m_snapImages; }
+
 private:
     std::vector<SnapPoint> m_snapPoints;
     std::vector<QLineF> m_snapLines;
+    std::vector<SnapImage> m_snapImages;
 };
 
 /// Snap engine, which handles snapping of points on the page.
@@ -94,6 +109,18 @@ class PDFSnapper
 {
 public:
     PDFSnapper();
+
+    struct ViewportSnapPoint : public PDFSnapInfo::SnapPoint
+    {
+        QPointF viewportPoint;
+        PDFInteger pageIndex;
+    };
+
+    struct ViewportSnapImage : public PDFSnapInfo::SnapImage
+    {
+        PDFInteger pageIndex;
+        QPainterPath viewportPath;
+    };
 
     /// Sets snap point pixel size
     /// \param snapPointPixelSize Snap point diameter in pixels
@@ -111,7 +138,7 @@ public:
     /// \param pageIndex Page index to be tested for allowing snapping
     bool isSnappingAllowed(PDFInteger pageIndex) const;
 
-    /// Updates snapped point using given information. If current page is set, it means, we are
+    /// Updates snapped point/image using given information. If current page is set, it means, we are
     /// using snapping info from current page, and if we are hovering at different page,
     /// then nothing happens. Otherwise, other page snap info is used to update snapped point.
     /// If mouse point distance from some snap point is lesser than tolerance, then new snap is set.
@@ -126,6 +153,10 @@ public:
     /// \param snapshot Widget snapshot
     void buildSnapPoints(const PDFWidgetSnapshot& snapshot);
 
+    /// Builds snap images from the widget snapshot.
+    /// \param snapshot Widget snapshot
+    void buildSnapImages(const PDFWidgetSnapshot& snapshot);
+
     /// Returns current snap point tolerance (while aiming with the mouse cursor,
     /// when mouse cursor is at most tolerance distance from some snap point,
     /// it is snapped.
@@ -138,6 +169,10 @@ public:
     /// mouse cursor position is returned.
     QPointF getSnappedPoint() const;
 
+    /// Returns snapped image. If no image is present at mouse cursor, then
+    /// nullptr is returned.
+    const ViewportSnapImage* getSnappedImage() const;
+
     /// Sets current page index and reference point
     /// \param pageIndex Page index
     /// \param pagePoint Page point
@@ -146,14 +181,10 @@ public:
     /// Resets reference point (and current page)
     void clearReferencePoint();
 
+    /// Clears all snapped data, including snap points, images and referenced data.
+    void clear();
+
 private:
-
-    struct ViewportSnapPoint : public PDFSnapInfo::SnapPoint
-    {
-        QPointF viewportPoint;
-        PDFInteger pageIndex;
-    };
-
     struct SnappedPoint
     {
         PDFInteger pageIndex = -1;
@@ -161,7 +192,9 @@ private:
     };
 
     std::vector<ViewportSnapPoint> m_snapPoints;
+    std::vector<ViewportSnapImage> m_snapImages;
     std::optional<ViewportSnapPoint> m_snappedPoint;
+    std::optional<ViewportSnapImage> m_snappedImage;
     QPointF m_mousePoint;
     std::optional<QPointF> m_referencePoint;
     PDFInteger m_currentPage = -1;

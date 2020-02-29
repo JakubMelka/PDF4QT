@@ -42,5 +42,6 @@
         <file>resources/stop.svg</file>
         <file>resources/magnifier.svg</file>
         <file>resources/screenshot-tool.svg</file>
+        <file>resources/extract-image.svg</file>
     </qresource>
 </RCC>

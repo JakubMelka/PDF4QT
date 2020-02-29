@@ -438,7 +438,7 @@ void PDFPrecompiledPageGenerator::performImagePainting(const QImage& image)
                            matrix.map(QPointF(1.0, 1.0)),
                            matrix.map(QPointF(0.0, 1.0)),
                            matrix.map(QPointF(0.5, 0.5)),
-                       });
+                       }, image);
 
     if (isTransparencyGroupActive())
     {

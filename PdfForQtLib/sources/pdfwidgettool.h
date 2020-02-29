@@ -308,13 +308,14 @@ public:
 signals:
     void pointPicked(PDFInteger pageIndex, QPointF pagePoint);
     void rectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
+    void imagePicked(const QImage& image);
 
 protected:
     virtual void setActiveImpl(bool active) override;
 
 private:
     void resetTool();
-    void buildSnapPoints();
+    void buildSnapData();
 
     Mode m_mode;
     PDFSnapper m_snapper;
@@ -345,6 +346,31 @@ private:
     PDFPickTool* m_pickTool;
 };
 
+/// Tool that extracts image from page and copies it to the clipboard,
+/// using image original size (not zoomed size from widget area)
+class PDFFORQTLIBSHARED_EXPORT PDFExtractImageTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    /// Constructs new extract image tool
+    /// \param proxy Draw widget proxy
+    /// \param action Tool activation action
+    /// \param parent Parent object
+    explicit PDFExtractImageTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
+
+protected:
+    virtual void updateActions() override;
+
+private:
+    void onImagePicked(const QImage& image);
+
+    PDFPickTool* m_pickTool;
+};
+
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
@@ -366,6 +392,7 @@ public:
         QAction* copyTextAction = nullptr;
         QAction* magnifierAction = nullptr;
         QAction* screenshotToolAction = nullptr;
+        QAction* extractImageAction = nullptr;
     };
 
     /// Construct new text search tool
@@ -385,6 +412,7 @@ public:
         SelectTextTool,
         MagnifierTool,
         ScreenshotTool,
+        ExtractImageTool,
         ToolEnd
     };
 

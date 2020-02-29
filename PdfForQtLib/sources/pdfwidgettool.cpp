@@ -709,6 +709,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
     m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
     m_predefinedTools[ScreenshotTool] = new PDFScreenshotTool(proxy, actions.screenshotToolAction, this);
+    m_predefinedTools[ExtractImageTool] = new PDFExtractImageTool(proxy, actions.extractImageAction, this);
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
@@ -952,12 +953,12 @@ PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObj
     m_mode(mode),
     m_pageIndex(-1)
 {
-    setCursor(Qt::BlankCursor);
+    setCursor((m_mode == Mode::Images) ? Qt::CrossCursor : Qt::BlankCursor);
     m_snapper.setSnapPointPixelSize(PDFWidgetUtils::scaleDPI_x(proxy->getWidget(), 10));
     m_snapper.setSnapPointTolerance(m_snapper.getSnapPointPixelSize());
 
-    connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFPickTool::buildSnapPoints);
-    connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFPickTool::buildSnapPoints);
+    connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFPickTool::buildSnapData);
+    connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFPickTool::buildSnapData);
 }
 
 void PDFPickTool::drawPage(QPainter* painter,
@@ -988,26 +989,37 @@ void PDFPickTool::drawPage(QPainter* painter,
             painter->fillRect(selectionRectangle, selectionColor);
         }
     }
+
+    if (m_mode == Mode::Images && m_snapper.getSnappedImage())
+    {
+        const PDFSnapper::ViewportSnapImage* snappedImage = m_snapper.getSnappedImage();
+        QColor selectionColor(Qt::blue);
+        selectionColor.setAlphaF(0.25);
+        painter->fillPath(snappedImage->viewportPath, selectionColor);
+    }
 }
 
 void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
 {
-    m_snapper.drawSnapPoints(painter);
+    if (m_mode != Mode::Images)
+    {
+        m_snapper.drawSnapPoints(painter);
 
-    QPoint snappedPoint = m_snapper.getSnappedPoint().toPoint();
-    QPoint hleft = snappedPoint;
-    QPoint hright = snappedPoint;
-    QPoint vtop = snappedPoint;
-    QPoint vbottom = snappedPoint;
+        QPoint snappedPoint = m_snapper.getSnappedPoint().toPoint();
+        QPoint hleft = snappedPoint;
+        QPoint hright = snappedPoint;
+        QPoint vtop = snappedPoint;
+        QPoint vbottom = snappedPoint;
 
-    hleft.setX(0);
-    hright.setX(rect.width());
-    vtop.setY(0);
-    vbottom.setY(rect.height());
+        hleft.setX(0);
+        hright.setX(rect.width());
+        vtop.setY(0);
+        vbottom.setY(rect.height());
 
-    painter->setPen(Qt::black);
-    painter->drawLine(hleft, hright);
-    painter->drawLine(vtop, vbottom);
+        painter->setPen(Qt::black);
+        painter->drawLine(hleft, hright);
+        painter->drawLine(vtop, vbottom);
+    }
 }
 
 void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -1017,41 +1029,52 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 
     if (event->button() == Qt::LeftButton)
     {
-        // Try to perform pick
-        QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint().toPoint(), &pagePoint);
-        if (pageIndex != -1 &&    // We have picked some point on page
-            (m_pageIndex == -1 || m_pageIndex == pageIndex)) // We are under current page
+        if (m_mode != Mode::Images)
         {
-            m_pageIndex = pageIndex;
-            m_pickedPoints.push_back(pagePoint);
-            m_snapper.setReferencePoint(pageIndex, pagePoint);
-
-            // Emit signal about picked point
-            emit pointPicked(pageIndex, pagePoint);
-
-            if (m_mode == Mode::Rectangles && m_pickedPoints.size() == 2)
+            // Try to perform pick point
+            QPointF pagePoint;
+            PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint().toPoint(), &pagePoint);
+            if (pageIndex != -1 &&    // We have picked some point on page
+                    (m_pageIndex == -1 || m_pageIndex == pageIndex)) // We are under current page
             {
-                QPointF first = m_pickedPoints.front();
-                QPointF second = m_pickedPoints.back();
+                m_pageIndex = pageIndex;
+                m_pickedPoints.push_back(pagePoint);
+                m_snapper.setReferencePoint(pageIndex, pagePoint);
 
-                const qreal xMin = qMin(first.x(), second.x());
-                const qreal xMax = qMax(first.x(), second.x());
-                const qreal yMin = qMin(first.y(), second.y());
-                const qreal yMax = qMax(first.y(), second.y());
+                // Emit signal about picked point
+                emit pointPicked(pageIndex, pagePoint);
 
-                QRectF pageRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
-                emit rectanglePicked(pageIndex, pageRectangle);
+                if (m_mode == Mode::Rectangles && m_pickedPoints.size() == 2)
+                {
+                    QPointF first = m_pickedPoints.front();
+                    QPointF second = m_pickedPoints.back();
 
-                // We must reset tool, to pick next rectangle
-                resetTool();
+                    const qreal xMin = qMin(first.x(), second.x());
+                    const qreal xMax = qMax(first.x(), second.x());
+                    const qreal yMin = qMin(first.y(), second.y());
+                    const qreal yMax = qMax(first.y(), second.y());
+
+                    QRectF pageRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
+                    emit rectanglePicked(pageIndex, pageRectangle);
+
+                    // We must reset tool, to pick next rectangle
+                    resetTool();
+                }
+
+                buildSnapData();
+                getProxy()->repaintNeeded();
             }
-
-            buildSnapPoints();
-            getProxy()->repaintNeeded();
+        }
+        else
+        {
+            // Try to perform pick image
+            if (const PDFSnapper::ViewportSnapImage* snappedImage = m_snapper.getSnappedImage())
+            {
+                emit imagePicked(snappedImage->image);
+            }
         }
     }
-    else if (event->button() == Qt::RightButton)
+    else if (event->button() == Qt::RightButton && m_mode != Mode::Images)
     {
         // Reset tool to enable new picking (right button means reset the tool)
         resetTool();
@@ -1083,13 +1106,14 @@ void PDFPickTool::setActiveImpl(bool active)
 
     if (active)
     {
-        buildSnapPoints();
+        buildSnapData();
     }
     else
     {
         // Reset tool to reinitialize it for future use. If tool
         // is activated, then it should be in initial state.
         resetTool();
+        m_snapper.clear();
     }
 }
 
@@ -1099,18 +1123,27 @@ void PDFPickTool::resetTool()
     m_pageIndex = -1;
     m_snapper.clearReferencePoint();
 
-    buildSnapPoints();
+    buildSnapData();
     getProxy()->repaintNeeded();
 }
 
-void PDFPickTool::buildSnapPoints()
+void PDFPickTool::buildSnapData()
 {
     if (!isActive())
     {
         return;
     }
 
-    m_snapper.buildSnapPoints(getProxy()->getSnapshot());
+    if (m_mode == Mode::Images)
+    {
+        // Snap images
+        m_snapper.buildSnapImages(getProxy()->getSnapshot());
+    }
+    else
+    {
+        // Snap points
+        m_snapper.buildSnapPoints(getProxy()->getSnapshot());
+    }
 }
 
 PDFScreenshotTool::PDFScreenshotTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
@@ -1140,6 +1173,35 @@ void PDFScreenshotTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRecta
 
             QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
         }
+    }
+}
+
+PDFExtractImageTool::PDFExtractImageTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_pickTool(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Images, this);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::imagePicked, this, &PDFExtractImageTool::onImagePicked);
+}
+
+void PDFExtractImageTool::updateActions()
+{
+    // Jakub Melka: We do not call base class implementation here, because
+    // we must verify we have right to extract content (this tool extracts content)
+
+    if (QAction* action = getAction())
+    {
+        action->setChecked(isActive());
+        action->setEnabled(getDocument() && getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::CopyContent));
+    }
+}
+
+void PDFExtractImageTool::onImagePicked(const QImage& image)
+{
+    if (!image.isNull())
+    {
+        QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
     }
 }
 

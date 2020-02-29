@@ -191,6 +191,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addAction(ui->actionSelectText);
     ui->mainToolBar->addAction(ui->actionMagnifier);
     ui->mainToolBar->addAction(ui->actionScreenshot);
+    ui->mainToolBar->addAction(ui->actionExtractImage);
 
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
     connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
@@ -255,6 +256,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     actions.copyTextAction = ui->actionCopyText;
     actions.magnifierAction = ui->actionMagnifier;
     actions.screenshotToolAction = ui->actionScreenshot;
+    actions.extractImageAction = ui->actionExtractImage;
     m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), actions, this, this);
     m_pdfWidget->setToolManager(m_toolManager);
     updateMagnifierToolSettings();

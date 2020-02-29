@@ -47,7 +47,7 @@ void PDFSnapInfo::addPageMediaBox(const QRectF& mediaBox)
     addLine(tl, bl);
 }
 
-void PDFSnapInfo::addImage(const std::array<QPointF, 5>& points)
+void PDFSnapInfo::addImage(const std::array<QPointF, 5>& points, const QImage& image)
 {
     m_snapPoints.insert(m_snapPoints.cend(), {
                             SnapPoint(SnapType::ImageCorner, points[0]),
@@ -61,6 +61,15 @@ void PDFSnapInfo::addImage(const std::array<QPointF, 5>& points)
     {
         addLine(points[i], points[(i + 1) % 4]);
     }
+
+    SnapImage snapImage;
+    snapImage.imagePath.moveTo(points[0]);
+    snapImage.imagePath.lineTo(points[1]);
+    snapImage.imagePath.lineTo(points[2]);
+    snapImage.imagePath.lineTo(points[3]);
+    snapImage.imagePath.lineTo(points[0]);
+    snapImage.image = image;
+    m_snapImages.emplace_back(qMove(snapImage));
 }
 
 void PDFSnapInfo::addLine(const QPointF& start, const QPointF& end)
@@ -140,6 +149,7 @@ bool PDFSnapper::isSnappingAllowed(PDFInteger pageIndex) const
 void PDFSnapper::updateSnappedPoint(const QPointF& mousePoint)
 {
     m_snappedPoint = std::nullopt;
+    m_snappedImage = std::nullopt;
     m_mousePoint = mousePoint;
 
     // Iterate trough all points, check, if some satisfies condition
@@ -151,7 +161,17 @@ void PDFSnapper::updateSnappedPoint(const QPointF& mousePoint)
         if (distanceSquared < toleranceSquared && isSnappingAllowed(snapPoint.pageIndex))
         {
             m_snappedPoint = snapPoint;
-            return;
+            break;
+        }
+    }
+
+    // Iterate trough all images, check, if some is under mouse cursor
+    for (const ViewportSnapImage& snapImage : m_snapImages)
+    {
+        if (snapImage.viewportPath.contains(mousePoint))
+        {
+            m_snappedImage = snapImage;
+            break;
         }
     }
 }
@@ -220,6 +240,32 @@ void PDFSnapper::buildSnapPoints(const PDFWidgetSnapshot& snapshot)
     updateSnappedPoint(m_mousePoint);
 }
 
+void PDFSnapper::buildSnapImages(const PDFWidgetSnapshot& snapshot)
+{
+    // First, clear all snap images
+    m_snapImages.clear();
+
+    // Second, create snapping points from snapshot
+    for (const PDFWidgetSnapshot::SnapshotItem& item : snapshot.items)
+    {
+        if (!item.compiledPage)
+        {
+            continue;
+        }
+
+        const PDFSnapInfo* info = item.compiledPage->getSnapInfo();
+        for (const PDFSnapInfo::SnapImage& snapImage : info->getSnapImages())
+        {
+            ViewportSnapImage viewportSnapImage;
+            viewportSnapImage.image = snapImage.image;
+            viewportSnapImage.imagePath = snapImage.imagePath;
+            viewportSnapImage.pageIndex = item.pageIndex;
+            viewportSnapImage.viewportPath = item.pageToDeviceMatrix.map(snapImage.imagePath);
+            m_snapImages.emplace_back(qMove(viewportSnapImage));
+        }
+    }
+}
+
 int PDFSnapper::getSnapPointTolerance() const
 {
     return m_snapPointTolerance;
@@ -240,6 +286,16 @@ QPointF PDFSnapper::getSnappedPoint() const
     return m_mousePoint;
 }
 
+const PDFSnapper::ViewportSnapImage* PDFSnapper::getSnappedImage() const
+{
+    if (m_snappedImage.has_value())
+    {
+        return &*m_snappedImage;
+    }
+
+    return nullptr;
+}
+
 void PDFSnapper::setReferencePoint(PDFInteger pageIndex, QPointF pagePoint)
 {
     m_currentPage = pageIndex;
@@ -250,6 +306,17 @@ void PDFSnapper::clearReferencePoint()
 {
     m_currentPage = -1;
     m_referencePoint = std::nullopt;
+}
+
+void PDFSnapper::clear()
+{
+    clearReferencePoint();
+
+    m_snapPoints.clear();
+    m_snapImages.clear();
+    m_snappedPoint = std::nullopt;
+    m_snappedImage = std::nullopt;
+    m_mousePoint = QPointF();
 }
 
 }   // namespace pdf
