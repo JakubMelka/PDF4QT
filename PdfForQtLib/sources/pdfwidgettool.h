@@ -91,7 +91,16 @@ public:
     const std::optional<QCursor>& getCursor() const;
 
 signals:
+    /// Informs about tool activity changed (if tool is enabled or disabled)
+    /// \param active Is tool active?
     void toolActivityChanged(bool active);
+
+    /// This is signal is set, when we want to display information message
+    /// to the user, with timeout in miliseconds, after which message
+    /// dissappears.
+    /// \param text Text, which should be displayed to the user
+    /// \param timeout Timeout in miliseconds
+    void messageDisplayRequest(const QString& text, int timeout);
 
 protected:
     virtual void setActiveImpl(bool active);
@@ -457,6 +466,14 @@ public:
     /// Returns actual cursor defined by the tool. Cursor can be undefined,
     /// in this case, optional will be set to nullopt.
     const std::optional<QCursor>& getCursor() const;
+
+signals:
+    /// This is signal is set, when we want to display information message
+    /// to the user, with timeout in miliseconds, after which message
+    /// dissappears.
+    /// \param text Text, which should be displayed to the user
+    /// \param timeout Timeout in miliseconds
+    void messageDisplayRequest(const QString& text, int timeout);
 
 private:
     void onToolActionTriggered(bool checked);

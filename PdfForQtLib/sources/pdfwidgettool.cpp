@@ -714,6 +714,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
         m_tools.insert(tool);
+        connect(tool, &PDFWidgetTool::messageDisplayRequest, this, &PDFToolManager::messageDisplayRequest);
 
         if (QAction* action = tool->getAction())
         {
@@ -1172,6 +1173,7 @@ void PDFScreenshotTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRecta
             }
 
             QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
+            emit messageDisplayRequest(tr("Page contents of size %1 x %2 pixels were copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
         }
     }
 }
@@ -1202,6 +1204,7 @@ void PDFExtractImageTool::onImagePicked(const QImage& image)
     if (!image.isNull())
     {
         QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
+        emit messageDisplayRequest(tr("Image of size %1 x %2 pixels was copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
     }
 }
 
