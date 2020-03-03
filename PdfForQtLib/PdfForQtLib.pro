@@ -37,6 +37,7 @@ DESTDIR = $$OUT_PWD/..
 
 SOURCES += \
     sources/pdfaction.cpp \
+    sources/pdfannotation.cpp \
     sources/pdfblendfunction.cpp \
     sources/pdfccittfaxdecoder.cpp \
     sources/pdfcms.cpp \
@@ -81,6 +82,7 @@ SOURCES += \
 
 HEADERS += \
     sources/pdfaction.h \
+    sources/pdfannotation.h \
     sources/pdfblendfunction.h \
     sources/pdfccittfaxdecoder.h \
     sources/pdfcms.h \
