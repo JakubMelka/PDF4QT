@@ -20,6 +20,11 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfaction.h"
+
+#include <QPainterPath>
+
+#include <array>
 
 namespace pdf
 {
@@ -53,6 +58,20 @@ enum class AnnotationType
     TrapNet,
     Watermark,
     _3D
+};
+
+enum class AnnotationLineEnding
+{
+    None,
+    Square,
+    Circle,
+    Diamond,
+    OpenArrow,
+    ClosedArrow,
+    Butt,
+    ROpenArrow,
+    RClosedArrow,
+    Slash
 };
 
 /// Represents annotation's border. Two main definition exists, one is older,
@@ -171,6 +190,76 @@ private:
     std::map<Key, PDFObject> m_appearanceStreams;
 };
 
+/// Represents annotation's active region, it is used also to
+/// determine underline lines.
+class PDFAnnotationQuadrilaterals
+{
+public:
+    inline explicit PDFAnnotationQuadrilaterals() = default;
+    inline explicit PDFAnnotationQuadrilaterals(QPainterPath&& path, std::vector<QLineF>&& underLines) :
+        m_path(qMove(path)),
+        m_underLines(qMove(underLines))
+    {
+
+    }
+
+    const QPainterPath& getPath() const { return m_path; }
+    const std::vector<QLineF>& getUnderlines() const { return m_underLines; }
+
+private:
+    QPainterPath m_path;
+    std::vector<QLineF> m_underLines;
+};
+
+/// Represents callout line (line from annotation to some point)
+class PDFAnnotationCalloutLine
+{
+public:
+
+    enum class Type
+    {
+        Invalid,
+        StartEnd,
+        StartKneeEnd
+    };
+
+    inline explicit PDFAnnotationCalloutLine() = default;
+    inline explicit PDFAnnotationCalloutLine(QPointF start, QPointF end) :
+        m_type(Type::StartEnd),
+        m_points({start, end})
+    {
+
+    }
+
+    inline explicit PDFAnnotationCalloutLine(QPointF start, QPointF knee, QPointF end) :
+        m_type(Type::StartKneeEnd),
+        m_points({start, knee, end})
+    {
+
+    }
+
+    /// Parses annotation callout line from the object. If object is invalid, then
+    /// invalid callout line is constructed.
+    /// \param document Document
+    /// \param object Appearance streams object
+    static PDFAnnotationCalloutLine parse(const PDFDocument* document, PDFObject object);
+
+    bool isValid() const { return m_type != Type::Invalid; }
+    Type getType() const { return m_type; }
+
+    QPointF getPoint(int index) const { return m_points.at(index); }
+
+private:
+    Type m_type = Type::Invalid;
+    std::array<QPointF, 3> m_points;
+};
+
+class PDFAnnotation;
+class PDFMarkupAnnotation;
+class PDFTextAnnotation;
+
+using PDFAnnotationPtr = QSharedPointer<PDFAnnotation>;
+
 /// Base class for all annotation types. Represents PDF annotation object.
 /// Annotations are various enhancements to pages graphical representation,
 /// such as graphics, text, highlight or multimedia content, such as sounds,
@@ -195,8 +284,44 @@ public:
         ToggleNoView    = 0x0100, ///< If set, invert the interpretation of NoView flag
         LockedContents  = 0x0200, ///< Do not allow to modify contents of the annotation
     };
+    Q_DECLARE_FLAGS(Flags, Flag)
 
     virtual AnnotationType getType() const = 0;
+
+    virtual PDFMarkupAnnotation* asMarkupAnnotation() { return nullptr; }
+    virtual const PDFMarkupAnnotation* asMarkupAnnotation() const { return nullptr; }
+
+    const QRectF& getRectangle() const { return m_rectangle; }
+    const QString& getContents() const { return m_contents; }
+    PDFObjectReference getPageReference() const { return m_pageReference; }
+    const QString& getName() const { return m_name; }
+    const QDateTime& getLastModifiedDateTime() const { return m_lastModified; }
+    const QString& getLastModifiedString() const { return m_lastModifiedString; }
+    Flags getFlags() const { return m_flags; }
+    const PDFAppeareanceStreams& getAppearanceStreams() const { return m_appearanceStreams; }
+    const QByteArray& getAppearanceState() const { return m_appearanceState; }
+    const PDFAnnotationBorder& getBorder() const { return m_annotationBorder; }
+    const std::vector<PDFReal>& getColor() const { return m_color; }
+    PDFInteger getStructuralParent() const { return m_structParent; }
+    PDFObjectReference getOptionalContent() const { return m_optionalContentReference; }
+
+    /// Parses annotation from the object. If error occurs, then nullptr is returned.
+    /// \param document Document
+    /// \param object Annotation object
+    static PDFAnnotationPtr parse(const PDFDocument* document, PDFObject object);
+
+    /// Parses quadrilaterals and fills them in the painter path. If no quadrilaterals are defined,
+    /// then annotation rectangle is used. If annotation rectangle is also invalid,
+    /// then empty painter path is used.
+    /// \param document Document
+    /// \param quadrilateralsObject Object with quadrilaterals definition
+    /// \param annotationRect Annotation rectangle
+    static PDFAnnotationQuadrilaterals parseQuadrilaterals(const PDFDocument* document, PDFObject quadrilateralsObject, const QRectF annotationRect);
+
+    /// Converts name to line ending. If appropriate line ending for name is not found,
+    /// then None line ending is returned.
+    /// \param name Name of the line ending
+    static AnnotationLineEnding convertNameToLineEnding(const QByteArray& name);
 
 private:
     QRectF m_rectangle; ///< Annotation rectangle, in page coordinates, "Rect" entry
@@ -205,12 +330,212 @@ private:
     QString m_name; ///< Unique name (in page context) for the annotation, "NM" entry
     QDateTime m_lastModified; ///< Date and time, when annotation was last modified, "M" entry
     QString m_lastModifiedString; ///< Date and time, in text format
+    Flags m_flags; ///< Annotation flags
     PDFAppeareanceStreams m_appearanceStreams; ///< Appearance streams, "AP" entry
     QByteArray m_appearanceState; ///< Appearance state, "AS" entry
     PDFAnnotationBorder m_annotationBorder; ///< Annotation border, "Border" entry
     std::vector<PDFReal> m_color; ///< Color (for example, title bar of popup window), "C" entry
     PDFInteger m_structParent; ///< Structural parent identifier, "StructParent" entry
     PDFObjectReference m_optionalContentReference; ///< Reference to optional content, "OC" entry
+};
+
+/// Markup annotation object, used to mark up contents of PDF documents. Markup annotations
+/// can have various types, as free text (just text displayed on page), annotations with popup
+/// windows, and special annotations, such as multimedia annotations.
+class PDFMarkupAnnotation : public PDFAnnotation
+{
+public:
+    explicit inline PDFMarkupAnnotation() = default;
+
+    virtual PDFMarkupAnnotation* asMarkupAnnotation() override { return this; }
+    virtual const PDFMarkupAnnotation* asMarkupAnnotation() const override { return this; }
+
+    enum class ReplyType
+    {
+        Reply,
+        Group
+    };
+
+    const QString& getWindowTitle() const { return m_windowTitle; }
+    PDFObjectReference getPopupAnnotation() const { return m_popupAnnotation; }
+    PDFReal getOpacity() const { return m_opacity; }
+    const QString& getRichTextString() const { return m_richTextString; }
+    const QDateTime& getCreationDate() const { return m_creationDate; }
+    PDFObjectReference getInReplyTo() const { return m_inReplyTo; }
+    const QString& getSubject() const { return m_subject; }
+    ReplyType getReplyType() const { return m_replyType; }
+    const QByteArray& getIntent() const { return m_intent; }
+    const PDFObject& getExternalData() const { return m_externalData; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QString m_windowTitle;
+    PDFObjectReference m_popupAnnotation;
+    PDFReal m_opacity = 1.0;
+    QString m_richTextString;
+    QDateTime m_creationDate;
+    PDFObjectReference m_inReplyTo;
+    QString m_subject;
+    ReplyType m_replyType = ReplyType::Reply;
+    QByteArray m_intent;
+    PDFObject m_externalData;
+};
+
+/// Text annotation represents note attached to a specific point in the PDF
+/// document. It appears as icon, and it is not zoomed, or rotated (behaves
+/// as if flag NoZoom and NoRotate were set). When this annotation is opened,
+/// it displays popup window containing the text of the note, font and size
+/// is implementation dependent by viewer application.
+class PDFTextAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFTextAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Text; }
+
+    bool isOpen() const { return m_open; }
+    const QByteArray& getIconName() const { return m_iconName; }
+    const QString& getState() const { return m_state; }
+    const QString& getStateModel() const { return m_stateModel; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    bool m_open = false;
+    QByteArray m_iconName;
+    QString m_state;
+    QString m_stateModel;
+};
+
+/// Link annotation represents hypertext link to a destination to elsewhere
+/// in the document, or action to be performed.
+class PDFLinkAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFLinkAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Link; }
+
+    enum class HighlightMode
+    {
+        None,
+        Invert,
+        Outline,
+        Push
+    };
+
+    const PDFAction* getAction() const { return m_action.data(); }
+    HighlightMode getHighlightMode() const { return m_highlightMode; }
+    const PDFAction* getURIAction() const { return m_previousAction.data(); }
+    const PDFAnnotationQuadrilaterals& getActivationRegion() const { return m_activationRegion; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    PDFActionPtr m_action;
+    HighlightMode m_highlightMode = HighlightMode::Invert;
+    PDFActionPtr m_previousAction;
+    PDFAnnotationQuadrilaterals m_activationRegion;
+};
+
+/// Free text annotation displays text directly on the page. Free text doesn't have
+/// open/close state, text is always visible.
+class PDFFreeTextAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFFreeTextAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::FreeText; }
+
+    enum class Justification
+    {
+        Left,
+        Centered,
+        Right
+    };
+
+    enum class Intent
+    {
+        None,
+        Callout,
+        TypeWriter
+    };
+
+    const QByteArray& getDefaultAppearance() const { return m_defaultAppearance; }
+    Justification getJustification() const { return m_justification; }
+    const QString& getDefaultStyle() const { return m_defaultStyleString; }
+    const PDFAnnotationCalloutLine& getCalloutLine() const { return m_calloutLine; }
+    Intent getIntent() const { return m_intent; }
+    const QRectF& getTextRectangle() const { return m_textRectangle; }
+    const PDFAnnotationBorderEffect& getBorderEffect() const { return m_effect; }
+    AnnotationLineEnding getStartLineEnding() const { return m_startLineEnding; }
+    AnnotationLineEnding getEndLineEnding() const { return m_endLineEnding; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QByteArray m_defaultAppearance;
+    Justification m_justification = Justification::Left;
+    QString m_defaultStyleString;
+    PDFAnnotationCalloutLine m_calloutLine;
+    Intent m_intent = Intent::None;
+    QRectF m_textRectangle;
+    PDFAnnotationBorderEffect m_effect;
+    AnnotationLineEnding m_startLineEnding = AnnotationLineEnding::None;
+    AnnotationLineEnding m_endLineEnding = AnnotationLineEnding::None;
+};
+
+/// Line annotation, draws straight line on the page (in most simple form), or
+/// it can display, for example, dimensions with perpendicular lines at the line
+/// endings. Caption text can also be displayed.
+class PDFLineAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFLineAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Line; }
+
+    enum class Intent
+    {
+        Arrow,
+        Dimension
+    };
+
+    enum class CaptionPosition
+    {
+        Inline,
+        Top
+    };
+
+    const QLineF& getLine() const { return m_line; }
+    AnnotationLineEnding getStartLineEnding() const { return m_startLineEnding; }
+    AnnotationLineEnding getEndLineEnding() const { return m_endLineEnding; }
+    const std::vector<PDFReal>& getInteriorColor() const { return m_interiorColor; }
+    PDFReal getLeaderLineLength() const { return m_leaderLineLength; }
+    PDFReal getLeaderLineExtension() const { return m_leaderLineExtension; }
+    PDFReal getLeaderLineOffset() const { return m_leaderLineOffset; }
+    bool isCaptionRendered() const { return m_captionRendered; }
+    Intent getIntent() const { return m_intent; }
+    CaptionPosition getCaptionPosition() const { return m_captionPosition; }
+    const PDFObject& getMeasureDictionary() const { return m_measureDictionary; }
+    const QPointF& getCaptionOffset() const { return m_captionOffset; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QLineF m_line;
+    AnnotationLineEnding m_startLineEnding = AnnotationLineEnding::None;
+    AnnotationLineEnding m_endLineEnding = AnnotationLineEnding::None;
+    std::vector<PDFReal> m_interiorColor;
+    PDFReal m_leaderLineLength = 0.0;
+    PDFReal m_leaderLineExtension = 0.0;
+    PDFReal m_leaderLineOffset = 0.0;
+    bool m_captionRendered = false;
+    Intent m_intent = Intent::Arrow;
+    CaptionPosition m_captionPosition = CaptionPosition::Inline;
+    PDFObject m_measureDictionary;
+    QPointF m_captionOffset;
 };
 
 }   // namespace pdf

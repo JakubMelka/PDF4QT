@@ -248,7 +248,12 @@ public:
     /// \param object Object containing array of numbers
     std::vector<PDFInteger> readIntegerArray(const PDFObject& object) const;
 
-    /// Reads reference array from dictionary. Reads all values. If error occurs,
+    /// Reads reference from dictionary. If error occurs, then invalid reference is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    PDFObjectReference readReferenceFromDictionary(const PDFDictionary* dictionary, const char* key) const;
+
+    /// Reads reference array. Reads all values. If error occurs,
     /// then empty array is returned.
     /// \param object Object containing array of references
     std::vector<PDFObjectReference> readReferenceArray(const PDFObject& object) const;

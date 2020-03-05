@@ -481,6 +481,18 @@ std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const P
     return std::vector<PDFInteger>();
 }
 
+PDFObjectReference PDFDocumentDataLoaderDecorator::readReferenceFromDictionary(const PDFDictionary* dictionary, const char* key) const
+{
+    const PDFObject& object = dictionary->get(key);
+
+    if (object.isReference())
+    {
+        return object.getReference();
+    }
+
+    return PDFObjectReference();
+}
+
 std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArray(const PDFObject& object) const
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
