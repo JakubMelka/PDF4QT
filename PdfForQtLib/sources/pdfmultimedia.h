@@ -532,6 +532,82 @@ private:
     PDFObject m_streamObject;
 };
 
+/// Movie object, see chapter 9.3 in PDF 1.7 reference
+class PDFMovie
+{
+public:
+    explicit inline PDFMovie() = default;
+
+    const PDFFileSpecification* getMovieFileSpecification() const { return &m_movieFile; }
+    QSize getWindowSize() const { return m_windowSize; }
+    PDFInteger getRotationAngle() const { return m_rotationAngle; }
+    bool isPosterVisible() const { return m_showPoster; }
+    const PDFObject& getPosterObject() const { return m_poster; }
+
+    /// Creates a new movie from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFMovie parse(const PDFDocument* document, PDFObject object);
+
+private:
+    PDFFileSpecification m_movieFile;
+    QSize m_windowSize;
+    PDFInteger m_rotationAngle = 0;
+    bool m_showPoster = false;
+    PDFObject m_poster;
+};
+
+/// Movie activation object, see table 9.31 in PDF 1.7 reference
+class PDFMovieActivation
+{
+public:
+    explicit inline PDFMovieActivation() = default;
+
+    struct MovieTime
+    {
+        PDFInteger value = 0;
+        std::optional<PDFInteger> unitsPerSecond;
+    };
+
+    enum class Mode
+    {
+        Once,
+        Open,
+        Repeat,
+        Palindrome
+    };
+
+    MovieTime getStartTime() const { return m_start; }
+    MovieTime getDuration() const { return m_duration; }
+    PDFReal getRate() const { return m_rate; }
+    PDFReal getVolume() const { return m_volume; }
+    bool isShowControls() const { return m_showControls; }
+    bool isSynchronous() const { return m_synchronous; }
+    Mode getMode() const { return m_mode; }
+    bool hasScale() const { return m_scaleDenominator != 0; }
+    PDFInteger getScaleNumerator() const { return m_scaleNumerator; }
+    PDFInteger getScaleDenominator() const { return m_scaleDenominator; }
+    QPointF getRelativeWindowPosition() const { return m_relativeWindowPosition; }
+
+    /// Creates a new moview from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFMovieActivation parse(const PDFDocument* document, PDFObject object);
+
+private:
+    static MovieTime parseMovieTime(const PDFDocument* document, PDFObject object);
+    static PDFInteger parseMovieTimeFromString(const QByteArray& string);
+
+    MovieTime m_start;
+    MovieTime m_duration;
+    PDFReal m_rate = 1.0;
+    PDFReal m_volume = 1.0;
+    bool m_showControls = false;
+    bool m_synchronous = false;
+    Mode m_mode = Mode::Once;
+    PDFInteger m_scaleNumerator = 0;
+    PDFInteger m_scaleDenominator = 0;
+    QPointF m_relativeWindowPosition;
+};
+
 }   // namespace pdf
 
 #endif // PDFMULTIMEDIA_H

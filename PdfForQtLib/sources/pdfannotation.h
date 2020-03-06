@@ -1,4 +1,4 @@
-//    Copyright (C) 2020 Jakub Melka
+﻿//    Copyright (C) 2020 Jakub Melka
 //
 //    This file is part of PdfForQt.
 //
@@ -21,6 +21,8 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 #include "pdfaction.h"
+#include "pdffile.h"
+#include "pdfmultimedia.h"
 
 #include <QPainterPath>
 
@@ -51,7 +53,7 @@ enum class AnnotationType
     Popup,
     FileAttachment,
     Sound,
-    Moview,
+    Movie,
     Widget,
     Screen,
     PrinterMark,
@@ -241,7 +243,7 @@ public:
     /// Parses annotation callout line from the object. If object is invalid, then
     /// invalid callout line is constructed.
     /// \param document Document
-    /// \param object Appearance streams object
+    /// \param object Callout line object
     static PDFAnnotationCalloutLine parse(const PDFDocument* document, PDFObject object);
 
     bool isValid() const { return m_type != Type::Invalid; }
@@ -252,6 +254,128 @@ public:
 private:
     Type m_type = Type::Invalid;
     std::array<QPointF, 3> m_points;
+};
+
+/// Information about annotation icon fitting (in the widget)
+class PDFAnnotationIconFitInfo
+{
+public:
+    inline explicit PDFAnnotationIconFitInfo() = default;
+
+    enum class ScaleCondition
+    {
+        Always,
+        ScaleBigger,
+        ScaleSmaller,
+        Never
+    };
+
+    enum class ScaleType
+    {
+        Anamorphic,  ///< Do not keep aspect ratio, fit whole annotation rectangle
+        Proportional ///< Keep aspect ratio, annotation rectangle may not be filled fully with icon
+    };
+
+    /// Parses annotation appearance icon fit info from the object. If object is invalid, then
+    /// default appearance icon fit info is constructed.
+    /// \param document Document
+    /// \param object Appearance icon fit info object
+    static PDFAnnotationIconFitInfo parse(const PDFDocument* document, PDFObject object);
+
+private:
+    ScaleCondition m_scaleCondition = ScaleCondition::Always;
+    ScaleType m_scaleType = ScaleType::Proportional;
+    QPointF m_relativeProportionalPosition = QPointF(0.5, 0.5);
+    bool m_fullBox = false;
+};
+
+/// Additional appearance characteristics used for constructing of appearance
+/// stream to display annotation on the screen (or just paint it).
+class PDFAnnotationAppearanceCharacteristics
+{
+public:
+    inline explicit PDFAnnotationAppearanceCharacteristics() = default;
+
+    enum class PushButtonMode
+    {
+        NoIcon,
+        NoCaption,
+        IconWithCaptionBelow,
+        IconWithCaptionAbove,
+        IconWithCaptionRight,
+        IconWithCaptionLeft,
+        IconWithCaptionOverlaid
+    };
+
+    /// Number of degrees by which the widget annotation is rotated
+    /// counterclockwise relative to the page.
+    PDFInteger getRotation() const { return m_rotation; }
+    const std::vector<PDFReal>& getBorderColor() const { return m_borderColor; }
+    const std::vector<PDFReal>& getBackgroundColor() const { return m_backgroundColor; }
+    const QString& getNormalCaption() const { return m_normalCaption; }
+    const QString& getRolloverCaption() const { return m_rolloverCaption; }
+    const QString& getDownCaption() const { return m_downCaption; }
+    const PDFObject& getNormalIcon() const { return m_normalIcon; }
+    const PDFObject& getRolloverIcon() const { return m_rolloverIcon; }
+    const PDFObject& getDownIcon() const { return m_downIcon; }
+    const PDFAnnotationIconFitInfo& getIconFit() const { return m_iconFit; }
+    PushButtonMode getPushButtonMode() const { return m_pushButtonMode; }
+
+    /// Parses annotation appearance characteristics from the object. If object is invalid, then
+    /// default appearance characteristics is constructed.
+    /// \param document Document
+    /// \param object Appearance characteristics object
+    static PDFAnnotationAppearanceCharacteristics parse(const PDFDocument* document, PDFObject object);
+
+private:
+    PDFInteger m_rotation = 0;
+    std::vector<PDFReal> m_borderColor;
+    std::vector<PDFReal> m_backgroundColor;
+    QString m_normalCaption;
+    QString m_rolloverCaption;
+    QString m_downCaption;
+    PDFObject m_normalIcon;
+    PDFObject m_rolloverIcon;
+    PDFObject m_downIcon;
+    PDFAnnotationIconFitInfo m_iconFit;
+    PushButtonMode m_pushButtonMode = PushButtonMode::NoIcon;
+};
+
+/// Storage for annotation additional actions
+class PDFAnnotationAdditionalActions
+{
+public:
+
+    enum Action
+    {
+        CursorEnter,
+        CursorLeave,
+        MousePressed,
+        MouseReleased,
+        FocusIn,
+        FocusOut,
+        PageOpened,
+        PageClosed,
+        PageShow,
+        PageHide,
+        End
+    };
+
+    inline explicit PDFAnnotationAdditionalActions() = default;
+
+    /// Returns action for given type. If action is invalid,
+    /// or not present, nullptr is returned.
+    /// \param action Action type
+    const PDFAction* getAction(Action action) const { return m_actions.at(action).get(); }
+
+    /// Parses annotation additional actions from the object. If object is invalid, then
+    /// empty additional actions is constructed.
+    /// \param document Document
+    /// \param object Additional actions object
+    static PDFAnnotationAdditionalActions parse(const PDFDocument* document, PDFObject object);
+
+private:
+    std::array<PDFActionPtr, End> m_actions;
 };
 
 class PDFAnnotation;
@@ -536,6 +660,365 @@ private:
     CaptionPosition m_captionPosition = CaptionPosition::Inline;
     PDFObject m_measureDictionary;
     QPointF m_captionOffset;
+};
+
+/// Simple geometry annotation.
+/// Square and circle annotations displays rectangle or ellipse on the page.
+/// Name is a bit strange (because rectangle may not be a square or circle is not ellipse),
+/// but it is defined in PDF specification, so we will use these terms.
+class PDFSimpleGeometryAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFSimpleGeometryAnnotation(AnnotationType type) :
+        m_type(type)
+    {
+
+    }
+
+    virtual AnnotationType getType() const override { return m_type; }
+
+    const std::vector<PDFReal>& getInteriorColor() const { return m_interiorColor; }
+    const PDFAnnotationBorderEffect& getBorderEffect() const { return m_effect; }
+    const QRectF& getGeometryRectangle() const { return m_geometryRectangle; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    AnnotationType m_type;
+    std::vector<PDFReal> m_interiorColor;
+    PDFAnnotationBorderEffect m_effect;
+    QRectF m_geometryRectangle;
+};
+
+/// Polygonal geometry, consists of polygon or polyline geometry. Polygon annotation
+/// displays closed polygon (potentially filled), polyline annotation displays
+/// polyline, which is not closed.
+class PDFPolygonalGeometryAnnotation : public PDFMarkupAnnotation
+{
+public:
+    enum class Intent
+    {
+        None,
+        Cloud,
+        Dimension
+    };
+
+    inline explicit PDFPolygonalGeometryAnnotation(AnnotationType type) :
+        m_type(type),
+        m_intent(Intent::None)
+    {
+
+    }
+
+    virtual AnnotationType getType() const override { return m_type; }
+
+    const std::vector<QPointF>& getVertices() const { return m_vertices; }
+    AnnotationLineEnding getStartLineEnding() const { return m_startLineEnding; }
+    AnnotationLineEnding getEndLineEnding() const { return m_endLineEnding; }
+    const std::vector<PDFReal>& getInteriorColor() const { return m_interiorColor; }
+    const PDFAnnotationBorderEffect& getBorderEffect() const { return m_effect; }
+    Intent getIntent() const { return m_intent; }
+    const PDFObject& getMeasure() const { return m_measure; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    AnnotationType m_type;
+    std::vector<QPointF> m_vertices;
+    AnnotationLineEnding m_startLineEnding = AnnotationLineEnding::None;
+    AnnotationLineEnding m_endLineEnding = AnnotationLineEnding::None;
+    std::vector<PDFReal> m_interiorColor;
+    PDFAnnotationBorderEffect m_effect;
+    Intent m_intent;
+    PDFObject m_measure;
+};
+
+/// Annotation for text highlighting. Can highlight, underline, strikeout,
+/// or squiggly underline the text.
+class PDFHighlightAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFHighlightAnnotation(AnnotationType type) :
+        m_type(type)
+    {
+
+    }
+
+    virtual AnnotationType getType() const override { return m_type; }
+
+    const PDFAnnotationQuadrilaterals& getHiglightArea() const { return m_highlightArea; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    AnnotationType m_type;
+    PDFAnnotationQuadrilaterals m_highlightArea;
+};
+
+/// Annotation for visual symbol that indicates presence of text edits.
+class PDFCaretAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFCaretAnnotation() = default;
+
+    enum class Symbol
+    {
+        None,
+        Paragraph
+    };
+
+    virtual AnnotationType getType() const override { return AnnotationType::Caret; }
+
+    const QRectF& getCaretRectangle() const { return m_caretRectangle; }
+    Symbol getSymbol() const { return m_symbol; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QRectF m_caretRectangle;
+    Symbol m_symbol = Symbol::None;
+};
+
+/// Annotation for stamps. Displays text or graphics intended to look
+/// as if they were stamped on the paper.
+class PDFStampAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFStampAnnotation() = default;
+
+    enum class Stamp
+    {
+        Approved,
+        AsIs,
+        Confidential,
+        Departmental,
+        Draft,
+        Experimental,
+        Expired,
+        Final,
+        ForComment,
+        ForPublicRelease,
+        NotApproved,
+        NotForPublicRelease,
+        Sold,
+        TopSecret
+    };
+
+    virtual AnnotationType getType() const override { return AnnotationType::Stamp; }
+
+    Stamp getStamp() const { return m_stamp; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    Stamp m_stamp = Stamp::Draft;
+};
+
+/// Ink annotation. Represents a path composed of disjoint polygons.
+class PDFInkAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFInkAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Ink; }
+
+    const QPainterPath& getInkPath() const { return m_inkPath; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QPainterPath m_inkPath;
+};
+
+/// Popup annotation. Displays text in popup window for markup annotations.
+/// This annotation contains field to associated annotation, for which
+/// is window displayed, and window state (open/closed).
+class PDFPopupAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFPopupAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Popup; }
+
+    bool isOpened() const { return m_opened; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    bool m_opened = false;
+};
+
+/// File attachment annotation contains reference to (embedded or external) file.
+/// So it is a link to specified file. Activating annotation enables user to view
+/// or store attached file in the filesystem.
+class PDFFileAttachmentAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFFileAttachmentAnnotation() = default;
+
+    enum class Icon
+    {
+        Graph,
+        Paperclip,
+        PushPin,
+        Tag
+    };
+
+    virtual AnnotationType getType() const override { return AnnotationType::FileAttachment; }
+
+    const PDFFileSpecification& getFileSpecification() const { return m_fileSpecification; }
+    Icon getIcon() const { return m_icon; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    PDFFileSpecification m_fileSpecification;
+    Icon m_icon = Icon::PushPin;
+};
+
+/// Sound annotation contains sound, which is played, when
+/// annotation is activated.
+class PDFSoundAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFSoundAnnotation() = default;
+
+    enum class Icon
+    {
+        Speaker,
+        Microphone
+    };
+
+    virtual AnnotationType getType() const override { return AnnotationType::Sound; }
+
+    const PDFSound& getSound() const { return m_sound; }
+    Icon getIcon() const { return m_icon; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    PDFSound m_sound;
+    Icon m_icon = Icon::Speaker;
+};
+
+/// Movie annotation contains movie or sound, which is played, when
+/// annotation is activated.
+class PDFMovieAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFMovieAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Movie; }
+
+    const QString& getMovieTitle() const { return m_movieTitle; }
+    bool isMovieToBePlayed() const { return m_playMovie; }
+    const PDFMovie& getMovie() const { return m_movie; }
+    const PDFMovieActivation& getMovieActivation() const { return m_movieActivation; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QString m_movieTitle;
+    bool m_playMovie = true;
+    PDFMovie m_movie;
+    PDFMovieActivation m_movieActivation;
+};
+
+/// Screen action represents area of page in which is media played.
+/// See also Rendition actions and their relationship to this annotation.
+class PDFScreenAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFScreenAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Screen; }
+
+    const QString& getScreenTitle() const { return m_screenTitle; }
+    const PDFAnnotationAppearanceCharacteristics& getAppearanceCharacteristics() const { return m_appearanceCharacteristics; }
+    const PDFAction* getAction() const { return m_action.get(); }
+    const PDFAnnotationAdditionalActions& getAdditionalActions() const { return m_additionalActions; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QString m_screenTitle;
+    PDFAnnotationAppearanceCharacteristics m_appearanceCharacteristics;
+    PDFActionPtr m_action;
+    PDFAnnotationAdditionalActions m_additionalActions;
+};
+
+/// Widget annotation represents form fileds for interactive forms.
+/// Annotation's dictionary is merged with form field dictionary,
+/// it can be done, because dictionaries doesn't overlap.
+class PDFWidgetAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFWidgetAnnotation() = default;
+
+    enum class HighlightMode
+    {
+        None,
+        Invert,
+        Outline,
+        Push,
+        Toggle
+    };
+
+    virtual AnnotationType getType() const override { return AnnotationType::Widget; }
+
+    HighlightMode getHighlightMode() const { return m_highlightMode; }
+    const PDFAnnotationAppearanceCharacteristics& getAppearanceCharacteristics() const { return m_appearanceCharacteristics; }
+    const PDFAction* getAction() const { return m_action.get(); }
+    const PDFAnnotationAdditionalActions& getAdditionalActions() const { return m_additionalActions; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    HighlightMode m_highlightMode = HighlightMode::Invert;
+    PDFAnnotationAppearanceCharacteristics m_appearanceCharacteristics;
+    PDFActionPtr m_action;
+    PDFAnnotationAdditionalActions m_additionalActions;
+};
+
+/// Printer mark annotation represents graphics symbol, mark, or other
+/// graphic feature to assist printing production.
+class PDFPrinterMarkAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFPrinterMarkAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::PrinterMark; }
+};
+
+/// Trapping characteristics for the page
+class PDFTrapNetworkAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFTrapNetworkAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::TrapNet; }
+};
+
+/// Watermark annotation represents watermark displayed on the page,
+/// for example, if it is printed. Watermarks are displayed at fixed
+/// position and size on the page.
+class PDFWatermarkAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFWatermarkAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Watermark; }
+
+    const QMatrix& getMatrix() const { return m_matrix; }
+    PDFReal getRelativeHorizontalOffset() const { return m_relativeHorizontalOffset; }
+    PDFReal getRelativeVerticalOffset() const { return m_relativeVerticalOffset; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+
+    QMatrix m_matrix;
+    PDFReal m_relativeHorizontalOffset = 0.0;
+    PDFReal m_relativeVerticalOffset = 0.0;
 };
 
 }   // namespace pdf

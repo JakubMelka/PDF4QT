@@ -18,6 +18,8 @@
 #include "pdfmultimedia.h"
 #include "pdfdocument.h"
 
+#include <QtEndian>
+
 namespace pdf
 {
 
@@ -535,6 +537,129 @@ PDFMediaScreenParameters PDFMediaScreenParameters::parse(const PDFDocument* docu
     }
 
     return PDFMediaScreenParameters();
+}
+
+PDFMovie PDFMovie::parse(const PDFDocument* document, PDFObject object)
+{
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        PDFMovie result;
+
+        PDFDocumentDataLoaderDecorator loader(document);
+        result.m_movieFile = PDFFileSpecification::parse(document, dictionary->get("F"));
+        std::vector<PDFInteger> windowSizeArray = loader.readIntegerArrayFromDictionary(dictionary, "Aspect");
+        if (windowSizeArray.size() == 2)
+        {
+            result.m_windowSize = QSize(windowSizeArray[0], windowSizeArray[1]);
+        }
+        result.m_rotationAngle = loader.readIntegerFromDictionary(dictionary, "Rotate", 0);
+
+        PDFObject posterObject = document->getObject(dictionary->get("Poster"));
+        if (posterObject.isBool())
+        {
+            result.m_showPoster = posterObject.getBool();
+        }
+        else if (posterObject.isStream())
+        {
+            result.m_showPoster = true;
+            result.m_poster = posterObject;
+        }
+
+        return result;
+    }
+
+    return PDFMovie();
+}
+
+PDFMovieActivation PDFMovieActivation::parse(const PDFDocument* document, PDFObject object)
+{
+    PDFMovieActivation result;
+
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(document);
+
+        constexpr const std::array<std::pair<const char*, Mode>, 4> modes = {
+            std::pair<const char*, Mode>{ "Once", Mode::Once },
+            std::pair<const char*, Mode>{ "Open", Mode::Open },
+            std::pair<const char*, Mode>{ "Repeat", Mode::Repeat },
+            std::pair<const char*, Mode>{ "Palindrome", Mode::Palindrome }
+        };
+
+        std::vector<PDFInteger> scale = loader.readIntegerArrayFromDictionary(dictionary, "FWScale");
+        if (scale.size() != 2)
+        {
+            scale.resize(2, 0);
+        }
+        std::vector<PDFReal> relativePosition = loader.readNumberArrayFromDictionary(dictionary, "FWPosition");
+        if (relativePosition.size() != 2)
+        {
+            relativePosition.resize(2, 0.5);
+        }
+
+        result.m_start = parseMovieTime(document, dictionary->get("Start"));
+        result.m_duration = parseMovieTime(document, dictionary->get("Duration"));
+        result.m_rate = loader.readNumberFromDictionary(dictionary, "Rate", 1.0);
+        result.m_volume = loader.readNumberFromDictionary(dictionary, "Volume", 1.0);
+        result.m_showControls = loader.readBooleanFromDictionary(dictionary, "ShowControls", false);
+        result.m_synchronous = loader.readBooleanFromDictionary(dictionary, "Synchronous", false);
+        result.m_mode = loader.readEnumByName(dictionary->get("Mode"), modes.cbegin(), modes.cend(), Mode::Once);
+        result.m_scaleNumerator = scale[0];
+        result.m_scaleDenominator = scale[1];
+        result.m_relativeWindowPosition = QPointF(relativePosition[0], relativePosition[1]);
+    }
+
+    return result;
+}
+
+PDFMovieActivation::MovieTime PDFMovieActivation::parseMovieTime(const PDFDocument* document, PDFObject object)
+{
+    MovieTime result;
+
+    object = document->getObject(object);
+    if (object.isInt())
+    {
+        result.value = object.getInteger();
+    }
+    else if (object.isString())
+    {
+        result.value = parseMovieTimeFromString(object.getString());
+    }
+    else if (object.isArray())
+    {
+        const PDFArray* objectArray = object.getArray();
+        if (objectArray->getCount() == 2)
+        {
+            PDFDocumentDataLoaderDecorator loader(document);
+            result.unitsPerSecond = loader.readInteger(objectArray->getItem(1), 0);
+
+            object = document->getObject(objectArray->getItem(0));
+            if (object.isInt())
+            {
+                result.value = object.getInteger();
+            }
+            else if (object.isString())
+            {
+                result.value = parseMovieTimeFromString(object.getString());
+            }
+        }
+    }
+
+    return result;
+}
+
+PDFInteger PDFMovieActivation::parseMovieTimeFromString(const QByteArray& string)
+{
+    // According to the specification, the string contains 64-bit signed integer,
+    // in big-endian format.
+    if (string.size() == sizeof(quint64))
+    {
+        quint64 result = reinterpret_cast<quint64>(string.data());
+        qFromBigEndian<decltype(result)>(&result, qsizetype(sizeof(decltype(result))), &result);
+        return static_cast<PDFInteger>(result);
+    }
+
+    return 0;
 }
 
 }   // namespace pdf

@@ -268,6 +268,258 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
             lineAnnotation->m_captionOffset == QPointF(captionOffset[0], captionOffset[1]);
         }
     }
+    else if (subtype == "Square" || subtype == "Circle")
+    {
+        PDFSimpleGeometryAnnotation* annotation = new PDFSimpleGeometryAnnotation((subtype == "Square") ? AnnotationType::Square : AnnotationType::Circle);
+        result.reset(annotation);
+
+        annotation->m_interiorColor = loader.readNumberArrayFromDictionary(dictionary, "IC");
+        annotation->m_effect = PDFAnnotationBorderEffect::parse(document, dictionary->get("BE"));
+
+        std::vector<PDFReal> differenceRectangle = loader.readNumberArrayFromDictionary(dictionary, "RD");
+        if (differenceRectangle.size() == 4)
+        {
+            annotation->m_geometryRectangle = annotationsRectangle.adjusted(differenceRectangle[0], differenceRectangle[1], -differenceRectangle[2], -differenceRectangle[3]);
+            if (!annotation->m_geometryRectangle.isValid())
+            {
+                annotation->m_geometryRectangle = QRectF();
+            }
+        }
+    }
+    else if (subtype == "Polygon" || subtype == "PolyLine")
+    {
+        PDFPolygonalGeometryAnnotation* annotation = new PDFPolygonalGeometryAnnotation((subtype == "Polygon") ? AnnotationType::Polygon : AnnotationType::Polyline);
+        result.reset(annotation);
+
+        std::vector<PDFReal> vertices = loader.readNumberArrayFromDictionary(dictionary, "Vertices");
+        const size_t count = vertices.size() / 2;
+        annotation->m_vertices.reserve(count);
+        for (size_t i = 0; i < count; ++i)
+        {
+            annotation->m_vertices.emplace_back(vertices[2 * i], vertices[2 * i + 1]);
+        }
+
+        std::vector<QByteArray> lineEndings = loader.readNameArrayFromDictionary(dictionary, "LE");
+        if (lineEndings.size() == 2)
+        {
+            annotation->m_startLineEnding = convertNameToLineEnding(lineEndings[0]);
+            annotation->m_endLineEnding = convertNameToLineEnding(lineEndings[1]);
+        }
+
+        annotation->m_interiorColor = loader.readNumberArrayFromDictionary(dictionary, "IC");
+        annotation->m_effect = PDFAnnotationBorderEffect::parse(document, dictionary->get("BE"));
+
+        constexpr const std::array<std::pair<const char*, PDFPolygonalGeometryAnnotation::Intent>, 3> intents = {
+            std::pair<const char*, PDFPolygonalGeometryAnnotation::Intent>{ "PolygonCloud", PDFPolygonalGeometryAnnotation::Intent::Cloud },
+            std::pair<const char*, PDFPolygonalGeometryAnnotation::Intent>{ "PolyLineDimension", PDFPolygonalGeometryAnnotation::Intent::Dimension },
+            std::pair<const char*, PDFPolygonalGeometryAnnotation::Intent>{ "PolygonDimension", PDFPolygonalGeometryAnnotation::Intent::Dimension }
+        };
+
+        annotation->m_intent = loader.readEnumByName(dictionary->get("IT"), intents.begin(), intents.end(), PDFPolygonalGeometryAnnotation::Intent::None);
+        annotation->m_measure = document->getObject(dictionary->get("Measure"));
+    }
+    else if (subtype == "Highlight" ||
+             subtype == "Underline" ||
+             subtype == "Squiggly" ||
+             subtype == "StrikeOut")
+    {
+        AnnotationType type = AnnotationType::Highlight;
+        if (subtype == "Underline")
+        {
+            type = AnnotationType::Underline;
+        }
+        else if (subtype == "Squiggly")
+        {
+            type = AnnotationType::Squiggly;
+        }
+        else if (subtype == "StrikeOut")
+        {
+            type = AnnotationType::StrikeOut;
+        }
+
+        PDFHighlightAnnotation* annotation = new PDFHighlightAnnotation(type);
+        result.reset(annotation);
+
+        annotation->m_highlightArea = parseQuadrilaterals(document, dictionary->get("QuadPoints"), annotationsRectangle);
+    }
+    else if (subtype == "Caret")
+    {
+        PDFCaretAnnotation* annotation = new PDFCaretAnnotation();
+        result.reset(annotation);
+
+        std::vector<PDFReal> differenceRectangle = loader.readNumberArrayFromDictionary(dictionary, "RD");
+        if (differenceRectangle.size() == 4)
+        {
+            annotation->m_caretRectangle = annotationsRectangle.adjusted(differenceRectangle[0], differenceRectangle[1], -differenceRectangle[2], -differenceRectangle[3]);
+            if (!annotation->m_caretRectangle.isValid())
+            {
+                annotation->m_caretRectangle = QRectF();
+            }
+        }
+
+        annotation->m_symbol = (loader.readNameFromDictionary(dictionary, "Sy") == "P") ? PDFCaretAnnotation::Symbol::Paragraph : PDFCaretAnnotation::Symbol::None;
+    }
+    else if (subtype == "Stamp")
+    {
+        PDFStampAnnotation* annotation = new PDFStampAnnotation();
+        result.reset(annotation);
+
+        constexpr const std::array<std::pair<const char*, PDFStampAnnotation::Stamp>, 14> stamps = {
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Approved", PDFStampAnnotation::Stamp::Approved },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "AsIs", PDFStampAnnotation::Stamp::AsIs },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Confidential", PDFStampAnnotation::Stamp::Confidential },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Departmental", PDFStampAnnotation::Stamp::Departmental },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Draft", PDFStampAnnotation::Stamp::Draft },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Experimental", PDFStampAnnotation::Stamp::Experimental },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Expired", PDFStampAnnotation::Stamp::Expired },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Final", PDFStampAnnotation::Stamp::Final },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "ForComment", PDFStampAnnotation::Stamp::ForComment },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "ForPublicRelease", PDFStampAnnotation::Stamp::ForPublicRelease },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "NotApproved", PDFStampAnnotation::Stamp::NotApproved },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "NotForPublicRelease", PDFStampAnnotation::Stamp::NotForPublicRelease },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Sold", PDFStampAnnotation::Stamp::Sold },
+            std::pair<const char*, PDFStampAnnotation::Stamp>{ "TopSecret", PDFStampAnnotation::Stamp::TopSecret }
+        };
+
+        annotation->m_stamp = loader.readEnumByName(dictionary->get("Name"), stamps.begin(), stamps.end(), PDFStampAnnotation::Stamp::Draft);
+    }
+    else if (subtype == "Ink")
+    {
+        PDFInkAnnotation* annotation = new PDFInkAnnotation();
+        result.reset(annotation);
+
+        PDFObject inkList = document->getObject(dictionary->get("InkList"));
+        if (inkList.isArray())
+        {
+            const PDFArray* inkListArray = inkList.getArray();
+            for (size_t i = 0, count = inkListArray->getCount(); i < count; ++i)
+            {
+                std::vector<PDFReal> points = loader.readNumberArray(inkListArray->getItem(i));
+                const size_t pointCount = points.size() / 2;
+
+                for (size_t j = 0; j < pointCount; ++j)
+                {
+                    QPointF point(points[j * 2], points[j * 2 + 1]);
+
+                    if (j == 0)
+                    {
+                        annotation->m_inkPath.moveTo(point);
+                    }
+                    else
+                    {
+                        annotation->m_inkPath.lineTo(point);
+                    }
+                }
+                annotation->m_inkPath.closeSubpath();
+            }
+        }
+    }
+    else if (subtype == "Popup")
+    {
+        PDFPopupAnnotation* annotation = new PDFPopupAnnotation();
+        result.reset(annotation);
+
+        annotation->m_opened = loader.readBooleanFromDictionary(dictionary, "Open", false);
+    }
+    else if (subtype == "FileAttachment")
+    {
+        PDFFileAttachmentAnnotation* annotation = new PDFFileAttachmentAnnotation();
+        result.reset(annotation);
+
+        annotation->m_fileSpecification = PDFFileSpecification::parse(document, dictionary->get("FS"));
+
+        constexpr const std::array<std::pair<const char*, PDFFileAttachmentAnnotation::Icon>, 4> icons = {
+            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Graph", PDFFileAttachmentAnnotation::Icon::Graph },
+            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Paperclip", PDFFileAttachmentAnnotation::Icon::Paperclip },
+            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "PushPin", PDFFileAttachmentAnnotation::Icon::PushPin },
+            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Tag", PDFFileAttachmentAnnotation::Icon::Tag }
+        };
+
+        annotation->m_icon = loader.readEnumByName(dictionary->get("Name"), icons.begin(), icons.end(), PDFFileAttachmentAnnotation::Icon::PushPin);
+    }
+    else if (subtype == "Sound")
+    {
+        PDFSoundAnnotation* annotation = new PDFSoundAnnotation();
+        result.reset(annotation);
+
+        annotation->m_sound = PDFSound::parse(document, dictionary->get("Sound"));
+
+        constexpr const std::array<std::pair<const char*, PDFSoundAnnotation::Icon>, 2> icons = {
+            std::pair<const char*, PDFSoundAnnotation::Icon>{ "Speaker", PDFSoundAnnotation::Icon::Speaker },
+            std::pair<const char*, PDFSoundAnnotation::Icon>{ "Mic", PDFSoundAnnotation::Icon::Microphone }
+        };
+
+        annotation->m_icon = loader.readEnumByName(dictionary->get("Name"), icons.begin(), icons.end(), PDFSoundAnnotation::Icon::Speaker);
+    }
+    else if (subtype == "Movie")
+    {
+        PDFMovieAnnotation* annotation = new PDFMovieAnnotation();
+        result.reset(annotation);
+
+        annotation->m_movieTitle = loader.readStringFromDictionary(dictionary, "T");
+        annotation->m_movie = PDFMovie::parse(document, dictionary->get("Movie"));
+
+        PDFObject activation = document->getObject(dictionary->get("A"));
+        if (activation.isBool())
+        {
+            annotation->m_playMovie = activation.getBool();
+        }
+        else if (activation.isDictionary())
+        {
+            annotation->m_playMovie = true;
+            annotation->m_movieActivation = PDFMovieActivation::parse(document, activation);
+        }
+    }
+    else if (subtype == "Screen")
+    {
+        PDFScreenAnnotation* annotation = new PDFScreenAnnotation();
+        result.reset(annotation);
+
+        annotation->m_screenTitle = loader.readTextStringFromDictionary(dictionary, "T", QString());
+        annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(document, dictionary->get("MK"));
+        annotation->m_action = PDFAction::parse(document, dictionary->get("A"));
+        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(document, dictionary->get("AA"));
+    }
+    else if (subtype == "Widget")
+    {
+        PDFWidgetAnnotation* annotation = new PDFWidgetAnnotation();
+        result.reset(annotation);
+
+        constexpr const std::array<std::pair<const char*, PDFWidgetAnnotation::HighlightMode>, 5> highlightModes = {
+            std::pair<const char*, PDFWidgetAnnotation::HighlightMode>{ "N", PDFWidgetAnnotation::HighlightMode::None },
+            std::pair<const char*, PDFWidgetAnnotation::HighlightMode>{ "I", PDFWidgetAnnotation::HighlightMode::Invert },
+            std::pair<const char*, PDFWidgetAnnotation::HighlightMode>{ "O", PDFWidgetAnnotation::HighlightMode::Outline },
+            std::pair<const char*, PDFWidgetAnnotation::HighlightMode>{ "P", PDFWidgetAnnotation::HighlightMode::Push },
+            std::pair<const char*, PDFWidgetAnnotation::HighlightMode>{ "T", PDFWidgetAnnotation::HighlightMode::Toggle }
+        };
+
+        annotation->m_highlightMode = loader.readEnumByName(dictionary->get("H"), highlightModes.begin(), highlightModes.end(), PDFWidgetAnnotation::HighlightMode::Invert);
+        annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(document, dictionary->get("MK"));
+        annotation->m_action = PDFAction::parse(document, dictionary->get("A"));
+        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(document, dictionary->get("AA"));
+    }
+    else if (subtype == "PrinterMark")
+    {
+        PDFPrinterMarkAnnotation* annotation = new PDFPrinterMarkAnnotation();
+        result.reset(annotation);
+    }
+    else if (subtype == "TrapNet")
+    {
+        PDFTrapNetworkAnnotation* annotation = new PDFTrapNetworkAnnotation();
+        result.reset(annotation);
+    }
+    else if (subtype == "Watermark")
+    {
+        PDFWatermarkAnnotation* annotation = new PDFWatermarkAnnotation();
+        result.reset(annotation);
+
+        if (const PDFDictionary* fixedPrintDictionary = document->getDictionaryFromObject(dictionary->get("FixedPrint")))
+        {
+            annotation->m_matrix = loader.readMatrixFromDictionary(fixedPrintDictionary, "Matrix", QMatrix());
+            annotation->m_relativeHorizontalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "H", 0.0);
+            annotation->m_relativeVerticalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "V", 0.0);
+        }
+    }
 
     if (!result)
     {
@@ -399,6 +651,85 @@ PDFAnnotationCalloutLine PDFAnnotationCalloutLine::parse(const PDFDocument* docu
     }
 
     return PDFAnnotationCalloutLine();
+}
+
+PDFAnnotationAppearanceCharacteristics PDFAnnotationAppearanceCharacteristics::parse(const PDFDocument* document, PDFObject object)
+{
+    PDFAnnotationAppearanceCharacteristics result;
+
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(document);
+
+        result.m_rotation = loader.readIntegerFromDictionary(dictionary, "R", 0);
+        result.m_borderColor = loader.readNumberArrayFromDictionary(dictionary, "BC");
+        result.m_backgroundColor = loader.readNumberArrayFromDictionary(dictionary, "BG");
+        result.m_normalCaption = loader.readTextStringFromDictionary(dictionary, "CA", QString());
+        result.m_rolloverCaption = loader.readTextStringFromDictionary(dictionary, "RC", QString());
+        result.m_downCaption = loader.readTextStringFromDictionary(dictionary, "AC", QString());
+        result.m_normalIcon = document->getObject(dictionary->get("I"));
+        result.m_rolloverIcon = document->getObject(dictionary->get("RI"));
+        result.m_downIcon = document->getObject(dictionary->get("IX"));
+        result.m_iconFit = PDFAnnotationIconFitInfo::parse(document, dictionary->get("IF"));
+        result.m_pushButtonMode = static_cast<PushButtonMode>(loader.readIntegerFromDictionary(dictionary, "TP", PDFInteger(PDFAnnotationAppearanceCharacteristics::PushButtonMode::NoIcon)));
+    }
+    return result;
+}
+
+PDFAnnotationIconFitInfo PDFAnnotationIconFitInfo::parse(const PDFDocument* document, PDFObject object)
+{
+    PDFAnnotationIconFitInfo info;
+
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(document);
+
+        constexpr const std::array<std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>, 4> scaleConditions = {
+            std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>{ "A", PDFAnnotationIconFitInfo::ScaleCondition::Always },
+            std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>{ "B", PDFAnnotationIconFitInfo::ScaleCondition::ScaleBigger },
+            std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>{ "S", PDFAnnotationIconFitInfo::ScaleCondition::ScaleSmaller },
+            std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>{ "N", PDFAnnotationIconFitInfo::ScaleCondition::Never }
+        };
+
+        constexpr const std::array<std::pair<const char*, PDFAnnotationIconFitInfo::ScaleType>, 2> scaleTypes = {
+            std::pair<const char*, PDFAnnotationIconFitInfo::ScaleType>{ "A", PDFAnnotationIconFitInfo::ScaleType::Anamorphic },
+            std::pair<const char*, PDFAnnotationIconFitInfo::ScaleType>{ "P", PDFAnnotationIconFitInfo::ScaleType::Proportional }
+        };
+
+        std::vector<PDFReal> point = loader.readNumberArrayFromDictionary(dictionary, "A");
+        if (point.size() != 2)
+        {
+            point.resize(2, 0.5);
+        }
+
+        info.m_scaleCondition = loader.readEnumByName(dictionary->get("SW"), scaleConditions.begin(), scaleConditions.end(), PDFAnnotationIconFitInfo::ScaleCondition::Always);
+        info.m_scaleType = loader.readEnumByName(dictionary->get("S"), scaleTypes.begin(), scaleTypes.end(), PDFAnnotationIconFitInfo::ScaleType::Proportional);
+        info.m_relativeProportionalPosition = QPointF(point[0], point[1]);
+        info.m_fullBox = loader.readBooleanFromDictionary(dictionary, "FB", false);
+    }
+
+    return info;
+}
+
+PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFDocument* document, PDFObject object)
+{
+    PDFAnnotationAdditionalActions result;
+
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        result.m_actions[CursorEnter] = PDFAction::parse(document, dictionary->get("E"));
+        result.m_actions[CursorLeave] = PDFAction::parse(document, dictionary->get("X"));
+        result.m_actions[MousePressed] = PDFAction::parse(document, dictionary->get("D"));
+        result.m_actions[MouseReleased] = PDFAction::parse(document, dictionary->get("U"));
+        result.m_actions[FocusIn] = PDFAction::parse(document, dictionary->get("Fo"));
+        result.m_actions[FocusOut] = PDFAction::parse(document, dictionary->get("Bl"));
+        result.m_actions[PageOpened] = PDFAction::parse(document, dictionary->get("PO"));
+        result.m_actions[PageClosed] = PDFAction::parse(document, dictionary->get("PC"));
+        result.m_actions[PageShow] = PDFAction::parse(document, dictionary->get("PV"));
+        result.m_actions[PageHide] = PDFAction::parse(document, dictionary->get("PI"));
+    }
+
+    return result;
 }
 
 }   // namespace pdf
