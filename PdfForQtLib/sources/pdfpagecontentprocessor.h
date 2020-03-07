@@ -175,6 +175,22 @@ public:
     /// then no new error is reported.
     virtual void reportRenderErrorOnce(RenderErrorType type, QString message) override;
 
+    /// Processes form (XObject of type form)
+    /// \param Matrix Transformation matrix from form coordinate system to page coordinate system
+    /// \param boundingBox Bounding box, to which is drawed content clipped
+    /// \param resources Resources, assigned to the form
+    /// \param transparencyGroup Transparency group object
+    /// \param content Content stream of the form
+    void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const PDFObject& transparencyGroup, const QByteArray& content);
+
+    /// Initialize stream processor for processing content streams. For example,
+    /// graphic state is initialized to default, and default color spaces are initialized.
+    void initializeProcessor();
+
+    /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
+    /// or true, if it is suppressed.
+    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
+
 protected:
 
     class PDFLineDashPattern
@@ -528,10 +544,6 @@ protected:
     /// Returns page bounding rectangle in device space
     const QRectF& getPageBoundingRectDeviceSpace() const { return m_pageBoundingRectDeviceSpace; }
 
-    /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
-    /// or true, if it is suppressed.
-    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
-
 private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
@@ -544,14 +556,6 @@ private:
 
     /// Processes single command
     void processCommand(const QByteArray& command);
-
-    /// Processes form (XObject of type form)
-    /// \param Matrix Transformation matrix from form coordinate system to page coordinate system
-    /// \param boundingBox Bounding box, to which is drawed content clipped
-    /// \param resources Resources, assigned to the form
-    /// \param transparencyGroup Transparency group object
-    /// \param content Content stream of the form
-    void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const PDFObject& transparencyGroup, const QByteArray& content);
 
     /// Performs path painting
     /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)

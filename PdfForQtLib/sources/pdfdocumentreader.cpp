@@ -466,7 +466,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
                     }
                     else
                     {
-                        throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                        // Silently ignore this error. It is not critical, so, maybe this object will be null.
                     }
                 }
             }

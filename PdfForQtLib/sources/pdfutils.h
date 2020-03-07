@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <iterator>
+#include <functional>
 
 namespace pdf
 {
@@ -70,6 +71,19 @@ public:
         if (m_dirty)
         {
             m_object = (holder->*function)();
+            m_dirty = false;
+        }
+
+        return m_object;
+    }
+
+    /// Returns the cached object. If object is dirty, then cached object is refreshed.
+    /// \param function Refresh function
+    inline const T& get(const std::function<T(void)>& function)
+    {
+        if (m_dirty)
+        {
+            m_object = function();
             m_dirty = false;
         }
 

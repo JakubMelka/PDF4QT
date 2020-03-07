@@ -419,7 +419,7 @@ public:
     /// then cache can shrink.
     /// \param source Source object
     /// \param enabled Enable or disable cache shrinking
-    void setCacheShrinkEnabled(void* source, bool enabled);
+    void setCacheShrinkEnabled(const void* source, bool enabled);
 
     /// Set font cache limits
     void setCacheLimits(int fontCacheLimit, int instancedFontCacheLimit);
@@ -434,7 +434,7 @@ private:
     const PDFDocument* m_document;
     mutable std::map<PDFObjectReference, PDFFontPointer> m_fontCache;
     mutable std::map<std::pair<PDFFontPointer, PDFReal>, PDFRealizedFontPointer> m_realizedFontCache;
-    mutable std::set<void*> m_fontCacheShrinkDisabledObjects;
+    mutable std::set<const void*> m_fontCacheShrinkDisabledObjects;
 };
 
 /// Performs mapping from CID to GID (even identity mapping, if byte array is empty)

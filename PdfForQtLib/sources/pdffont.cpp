@@ -1656,7 +1656,7 @@ PDFRealizedFontPointer PDFFontCache::getRealizedFont(const PDFFontPointer& font,
     return it->second;
 }
 
-void PDFFontCache::setCacheShrinkEnabled(void* source, bool enabled)
+void PDFFontCache::setCacheShrinkEnabled(const void* source, bool enabled)
 {
     QMutexLocker lock(&m_mutex);
     if (enabled)

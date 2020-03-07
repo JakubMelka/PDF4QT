@@ -87,6 +87,7 @@ HEADERS += \
     sources/pdfccittfaxdecoder.h \
     sources/pdfcms.h \
     sources/pdfcompiler.h \
+    sources/pdfdocumentdrawinterface.h \
     sources/pdfexecutionpolicy.h \
     sources/pdffile.h \
     sources/pdfitemmodels.h \

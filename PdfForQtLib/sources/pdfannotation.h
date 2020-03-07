@@ -18,11 +18,12 @@
 #ifndef PDFANNOTATION_H
 #define PDFANNOTATION_H
 
-#include "pdfglobal.h"
+#include "pdfutils.h"
 #include "pdfobject.h"
 #include "pdfaction.h"
 #include "pdffile.h"
 #include "pdfmultimedia.h"
+#include "pdfdocumentdrawinterface.h"
 
 #include <QPainterPath>
 
@@ -31,6 +32,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFDrawWidgetProxy;
 
 enum class AnnotationType
 {
@@ -1019,6 +1021,59 @@ private:
     QMatrix m_matrix;
     PDFReal m_relativeHorizontalOffset = 0.0;
     PDFReal m_relativeVerticalOffset = 0.0;
+};
+
+/// Annotation manager manages annotations for document's pages. Each page
+/// can have multiple annotations, and this object caches them. Also,
+/// this object builds annotation's appearance streams, if necessary.
+/// This object is not thread safe, functions can't be called from another
+/// thread.
+class PDFFORQTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
+    virtual ~PDFAnnotationManager() override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix) const override;
+
+    void setDocument(const PDFDocument* document);
+
+private:
+    struct PageAnnotation
+    {
+        PDFAppeareanceStreams::Appearance appearance = PDFAppeareanceStreams::Appearance::Normal;
+        PDFCachedItem<PDFObject> appearanceStream;
+        PDFAnnotationPtr annotation;
+    };
+
+    struct PageAnnotations
+    {
+        bool isEmpty() const { return annotations.empty(); }
+
+        std::vector<PageAnnotation> annotations;
+    };
+
+    /// Returns current appearance stream for given page annotation
+    /// \param pageAnnotation Page annotation
+    PDFObject getAppearanceStream(PageAnnotation& pageAnnotation) const;
+
+    /// Returns reference to page annotation for given page index.
+    /// This function requires, that pointer to m_document is valid.
+    /// \param pageIndex Page index (must point to valid page)
+    PageAnnotations& getPageAnnotations(PDFInteger pageIndex) const;
+
+    const PDFDocument* m_document;
+    PDFDrawWidgetProxy* m_proxy;
+    mutable std::map<PDFInteger, PageAnnotations> m_pageAnnotations;
 };
 
 }   // namespace pdf

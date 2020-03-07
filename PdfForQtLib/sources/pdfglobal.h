@@ -86,6 +86,8 @@ struct PDFObjectReference
     {
         return std::tie(objectNumber, generation) < std::tie(other.objectNumber, other.generation);
     }
+
+    constexpr bool isValid() const { return objectNumber > 0; }
 };
 
 /// Represents version identification

@@ -134,6 +134,8 @@ public:
     QRectF getRotatedMediaBoxMM() const;
     QRectF getRotatedCropBox() const;
 
+    inline const std::vector<PDFObjectReference>& getAnnotations() const { return m_annots; }
+
     static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);
 
 private:
@@ -158,6 +160,7 @@ private:
     PDFObject m_resources;
     PDFObject m_contents;
     PDFObjectReference m_pageReference;
+    std::vector<PDFObjectReference> m_annots;
 };
 
 }   // namespace pdf

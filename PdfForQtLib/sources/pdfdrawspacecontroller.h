@@ -22,6 +22,7 @@
 #include "pdfdocument.h"
 #include "pdfrenderer.h"
 #include "pdffont.h"
+#include "pdfdocumentdrawinterface.h"
 
 #include <QRectF>
 #include <QObject>
@@ -39,31 +40,6 @@ class PDFCMSManager;
 class PDFTextLayoutGetter;
 class PDFAsynchronousPageCompiler;
 class PDFAsynchronousTextLayoutCompiler;
-
-class PDFFORQTLIBSHARED_EXPORT IDocumentDrawInterface
-{
-public:
-    explicit inline IDocumentDrawInterface() = default;
-    virtual ~IDocumentDrawInterface() = default;
-
-    /// Performs drawing of additional graphics onto the painter using precompiled page,
-    /// optionally text layout and page point to device point matrix.
-    /// \param painter Painter
-    /// \param pageIndex Page index
-    /// \param compiledPage Compiled page
-    /// \param layoutGetter Layout getter
-    /// \param pagePointToDevicePointMatrix Matrix mapping page space to device point space
-    virtual void drawPage(QPainter* painter,
-                          pdf::PDFInteger pageIndex,
-                          const PDFPrecompiledPage* compiledPage,
-                          PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const;
-
-    /// Performs drawing of additional graphics after all pages are drawn onto the painter.
-    /// \param painter Painter
-    /// \param rect Draw rectangle (usually viewport rectangle of the pdf widget)
-    virtual void drawPostRendering(QPainter* painter, QRect rect) const;
-};
 
 /// This class controls draw space - page layout. Pages are divided into blocks
 /// each block can contain one or multiple pages. Units are in milimeters.

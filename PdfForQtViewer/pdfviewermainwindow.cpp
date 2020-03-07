@@ -89,6 +89,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_isBusy(false),
     m_isChangingProgressStep(false),
     m_toolManager(nullptr),
+    m_annotationManager(nullptr),
     m_textToSpeech(new PDFTextToSpeech(this))
 {
     ui->setupUi(this);
@@ -262,6 +263,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     updateMagnifierToolSettings();
     connect(m_toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
 
+    m_annotationManager = new pdf::PDFAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
+
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
@@ -282,6 +285,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
 {
+    delete m_annotationManager;
+    m_annotationManager = nullptr;
+
     delete ui;
 }
 
@@ -967,6 +973,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
         m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
     }
 
+    m_annotationManager->setDocument(document);
     m_toolManager->setDocument(document);
     m_textToSpeech->setDocument(document);
     m_pdfWidget->setDocument(document, m_optionalContentActivity);

@@ -18,6 +18,9 @@
 #include "pdfannotation.h"
 #include "pdfdocument.h"
 #include "pdfencoding.h"
+#include "pdfpainter.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfcms.h"
 
 namespace pdf
 {
@@ -98,8 +101,10 @@ PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFDocument* document, 
 
     auto processSubdicitonary = [&result, document](Appearance appearance, PDFObject subdictionaryObject)
     {
-        if (const PDFDictionary* subdictionary = document->getDictionaryFromObject(subdictionaryObject))
+        subdictionaryObject = document->getObject(subdictionaryObject);
+        if (subdictionaryObject.isDictionary())
         {
+            const PDFDictionary* subdictionary = document->getDictionaryFromObject(subdictionaryObject);
             for (size_t i = 0; i < subdictionary->getCount(); ++i)
             {
                 result.m_appearanceStreams[std::make_pair(appearance, subdictionary->getKey(i))] = subdictionary->getValue(i);
@@ -730,6 +735,188 @@ PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFDo
     }
 
     return result;
+}
+
+PDFAnnotationManager::PDFAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
+    BaseClass(parent),
+    m_document(nullptr),
+    m_proxy(proxy)
+{
+    Q_ASSERT(proxy);
+    m_proxy->registerDrawInterface(this);
+}
+
+PDFAnnotationManager::~PDFAnnotationManager()
+{
+    m_proxy->unregisterDrawInterface(this);
+}
+
+void PDFAnnotationManager::drawPage(QPainter* painter,
+                                    PDFInteger pageIndex,
+                                    const PDFPrecompiledPage* compiledPage,
+                                    PDFTextLayoutGetter& layoutGetter,
+                                    const QMatrix& pagePointToDevicePointMatrix) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+
+    PageAnnotations& annotations = getPageAnnotations(pageIndex);
+    if (!annotations.isEmpty())
+    {
+        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+        Q_ASSERT(page);
+
+        const PDFRenderer::Features features = m_proxy->getFeatures();
+        PDFFontCache* fontCache = m_proxy->getFontCache();
+        const PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
+        const PDFOptionalContentActivity* optionalActivity = m_proxy->getOptionalContentActivity();
+        const PDFMeshQualitySettings& meshQualitySettings = m_proxy->getMeshQualitySettings();
+        fontCache->setCacheShrinkEnabled(this, false);
+
+        for (PageAnnotation& annotation : annotations.annotations)
+        {
+            PDFObject appearanceStreamObject = m_document->getObject(getAppearanceStream(annotation));
+            if (!appearanceStreamObject.isStream())
+            {
+                // Object is not valid appearance stream
+                continue;
+            }
+
+            PDFDocumentDataLoaderDecorator loader(m_document);
+            const PDFStream* formStream = appearanceStreamObject.getStream();
+            const PDFDictionary* formDictionary = formStream->getDictionary();
+
+            QRectF annotationRectangle = annotation.annotation->getRectangle();
+            QRectF formBoundingBox = loader.readRectangle(formDictionary->get("BBox"), QRectF());
+            QMatrix formMatrix = loader.readMatrixFromDictionary(formDictionary, "Matrix", QMatrix());
+            QByteArray content = m_document->getDecodedStream(formStream);
+            PDFObject resources = m_document->getObject(formDictionary->get("Resources"));
+            PDFObject transparencyGroup = m_document->getObject(formDictionary->get("Group"));
+
+            if (formBoundingBox.isEmpty() || annotationRectangle.isEmpty())
+            {
+                // Form bounding box is empty
+                continue;
+            }
+
+            // "Unrotate" user coordinate space, if NoRotate flag is set
+            QMatrix userSpaceToDeviceSpace = pagePointToDevicePointMatrix;
+            if (annotation.annotation->getFlags().testFlag(PDFAnnotation::NoRotate))
+            {
+                PDFReal rotationAngle = 0.0;
+                switch (page->getPageRotation())
+                {
+                    case PageRotation::None:
+                        break;
+
+                    case PageRotation::Rotate90:
+                        rotationAngle = -90.0;
+                        break;
+
+                    case PageRotation::Rotate180:
+                        rotationAngle = -180.0;
+                        break;
+
+                    case PageRotation::Rotate270:
+                        rotationAngle = -270.0;
+                        break;
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+
+                QMatrix rotationMatrix;
+                rotationMatrix.rotate(-rotationAngle);
+                QPointF topLeft = annotationRectangle.bottomLeft(); // Do not forget, that y is upward instead of Qt
+                QPointF difference = topLeft - rotationMatrix.map(topLeft);
+
+                QMatrix finalMatrix;
+                finalMatrix.translate(difference.x(), difference.y());
+                finalMatrix.rotate(-rotationAngle);
+                userSpaceToDeviceSpace = finalMatrix * userSpaceToDeviceSpace;
+            }
+
+            // Jakub Melka: perform algorithm 8.1, defined in PDF 1.7 reference,
+            // chapter 8.4.4 Appearance streams.
+
+            // Step 1) - calculate transformed appearance box
+            QRectF transformedAppearanceBox = formMatrix.mapRect(formBoundingBox);
+
+            // Step 2) - calculate matrix A, which maps from form space to annotation space
+            //           Matrix A transforms from form space to transformed appearance box space
+            const PDFReal scaleX = transformedAppearanceBox.width() / formBoundingBox.width();
+            const PDFReal scaleY = transformedAppearanceBox.height() / formBoundingBox.height();
+            const PDFReal translateX = annotationRectangle.left() - formBoundingBox.left() * scaleX;
+            const PDFReal translateY = annotationRectangle.bottom() - formBoundingBox.bottom() * scaleY;
+            QMatrix A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
+
+            // Step 3) - compute final matrix AA
+            QMatrix AA = formMatrix * A;
+
+            PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, fontCache, cms.get(), optionalActivity, meshQualitySettings);
+            pdfPainter.initializeProcessor();
+
+            // Jakub Melka: we must check, that we do not display annotation disabled by optional content
+            PDFObjectReference oc = annotation.annotation->getOptionalContent();
+            if (!oc.isValid() || !pdfPainter.isContentSuppressedByOC(oc))
+            {
+                pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
+            }
+        }
+
+        fontCache->setCacheShrinkEnabled(this, true);
+    }
+}
+
+void PDFAnnotationManager::setDocument(const PDFDocument* document)
+{
+    if (m_document != document)
+    {
+        m_document = document;
+        m_pageAnnotations.clear();
+    }
+}
+
+PDFObject PDFAnnotationManager::getAppearanceStream(PageAnnotation& pageAnnotation) const
+{
+    auto getAppearanceStream = [&pageAnnotation] (void) -> PDFObject
+    {
+        return pageAnnotation.annotation->getAppearanceStreams().getAppearance(pageAnnotation.appearance, pageAnnotation.annotation->getAppearanceState());
+    };
+    return pageAnnotation.appearanceStream.get(getAppearanceStream);
+}
+
+PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(PDFInteger pageIndex) const
+{
+    Q_ASSERT(m_document);
+
+    auto it = m_pageAnnotations.find(pageIndex);
+    if (it == m_pageAnnotations.cend())
+    {
+        // Create page annotations
+        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+        Q_ASSERT(page);
+
+        PageAnnotations annotations;
+
+        const std::vector<PDFObjectReference>& pageAnnotations = page->getAnnotations();
+        annotations.annotations.reserve(pageAnnotations.size());
+        for (PDFObjectReference annotationReference : pageAnnotations)
+        {
+            PDFAnnotationPtr annotationPtr = PDFAnnotation::parse(m_document, m_document->getObjectByReference(annotationReference));
+            if (annotationPtr)
+            {
+                PageAnnotation annotation;
+                annotation.annotation = qMove(annotationPtr);
+                annotations.annotations.emplace_back(qMove(annotation));
+            }
+        }
+
+        it = m_pageAnnotations.insert(std::make_pair(pageIndex, qMove(annotations))).first;
+    }
+
+    return it->second;
 }
 
 }   // namespace pdf

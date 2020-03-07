@@ -28,6 +28,7 @@
 #include "pdfwidgettool.h"
 #include "pdfrecentfilemanager.h"
 #include "pdftexttospeech.h"
+#include "pdfannotation.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -179,6 +180,7 @@ private:
     bool m_isChangingProgressStep;
 
     pdf::PDFToolManager* m_toolManager;
+    pdf::PDFAnnotationManager* m_annotationManager;
     PDFTextToSpeech* m_textToSpeech;
 };
 

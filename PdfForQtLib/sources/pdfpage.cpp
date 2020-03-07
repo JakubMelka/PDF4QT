@@ -220,6 +220,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                 page.m_trimBox = loader.readRectangle(dictionary->get("TrimBox"), page.getCropBox());
                 page.m_artBox = loader.readRectangle(dictionary->get("ArtBox"), page.getCropBox());
                 page.m_contents = document->getObject(dictionary->get("Contents"));
+                page.m_annots = loader.readReferenceArrayFromDictionary(dictionary, "Annots");
 
                 pages.emplace_back(std::move(page));
             }

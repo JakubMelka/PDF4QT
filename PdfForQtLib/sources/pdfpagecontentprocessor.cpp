@@ -224,10 +224,8 @@ PDFPageContentProcessor::~PDFPageContentProcessor()
     PDFExecutionPolicy::endProcessingContentStream();
 }
 
-QList<PDFRenderError> PDFPageContentProcessor::processContents()
+void PDFPageContentProcessor::initializeProcessor()
 {
-    const PDFObject& contents = m_page->getContents();
-
     // Clear the old errors
     m_errorList.clear();
 
@@ -254,6 +252,14 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     m_graphicState.setFillColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
     m_graphicState.setStateFlags(PDFPageContentProcessorState::StateAll);
     updateGraphicState();
+}
+
+QList<PDFRenderError> PDFPageContentProcessor::processContents()
+{
+    const PDFObject& contents = m_page->getContents();
+
+    // Initialize stream processor
+    initializeProcessor();
 
     if (contents.isArray())
     {
