@@ -50,6 +50,13 @@ int PDFWidgetUtils::scaleDPI_x(QPaintDevice* device, int unscaledSize)
     return (logicalDPI_x / defaultDPI_x) * unscaledSize;
 }
 
+PDFReal PDFWidgetUtils::scaleDPI_x(QPaintDevice* device, PDFReal unscaledSize)
+{
+    const double logicalDPI_x = device->logicalDpiX();
+    const double defaultDPI_x = qt_default_dpi_x();
+    return (logicalDPI_x / defaultDPI_x) * unscaledSize;
+}
+
 void PDFWidgetUtils::scaleWidget(QWidget* widget, QSize unscaledSize)
 {
     const double logicalDPI_x = widget->logicalDpiX();

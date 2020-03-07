@@ -1036,6 +1036,13 @@ private:
     using BaseClass = QObject;
 
 public:
+
+    enum class Target
+    {
+        View,
+        Print
+    };
+
     explicit PDFAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
     virtual ~PDFAnnotationManager() override;
 
@@ -1046,6 +1053,9 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix) const override;
 
     void setDocument(const PDFDocument* document);
+
+    Target getTarget() const;
+    void setTarget(Target target);
 
 private:
     struct PageAnnotation
@@ -1074,6 +1084,7 @@ private:
     const PDFDocument* m_document;
     PDFDrawWidgetProxy* m_proxy;
     mutable std::map<PDFInteger, PageAnnotations> m_pageAnnotations;
+    Target m_target = Target::View;
 };
 
 }   // namespace pdf

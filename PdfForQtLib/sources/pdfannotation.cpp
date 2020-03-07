@@ -21,6 +21,7 @@
 #include "pdfpainter.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfcms.h"
+#include "pdfwidgetutils.h"
 
 namespace pdf
 {
@@ -766,7 +767,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
         const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
         Q_ASSERT(page);
 
-        const PDFRenderer::Features features = m_proxy->getFeatures();
+        PDFRenderer::Features features = m_proxy->getFeatures();
         PDFFontCache* fontCache = m_proxy->getFontCache();
         const PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
         const PDFOptionalContentActivity* optionalActivity = m_proxy->getOptionalContentActivity();
@@ -775,6 +776,14 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
 
         for (PageAnnotation& annotation : annotations.annotations)
         {
+            const PDFAnnotation::Flags annotationFlags = annotation.annotation->getFlags();
+            if (annotationFlags.testFlag(PDFAnnotation::Hidden) || // Annotation is completely hidden
+                (m_target == Target::Print && !annotationFlags.testFlag(PDFAnnotation::Print)) || // Target is print and annotation is marked as not printed
+                (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView))) // Target is view, and annotation is disabled for screen
+            {
+                continue;
+            }
+
             PDFObject appearanceStreamObject = m_document->getObject(getAppearanceStream(annotation));
             if (!appearanceStreamObject.isStream())
             {
@@ -801,7 +810,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
 
             // "Unrotate" user coordinate space, if NoRotate flag is set
             QMatrix userSpaceToDeviceSpace = pagePointToDevicePointMatrix;
-            if (annotation.annotation->getFlags().testFlag(PDFAnnotation::NoRotate))
+            if (annotationFlags.testFlag(PDFAnnotation::NoRotate))
             {
                 PDFReal rotationAngle = 0.0;
                 switch (page->getPageRotation())
@@ -837,6 +846,23 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 userSpaceToDeviceSpace = finalMatrix * userSpaceToDeviceSpace;
             }
 
+            if (annotationFlags.testFlag(PDFAnnotation::NoZoom))
+            {
+                // Jakub Melka: we must adjust annotation rectangle to disable zoom. We calculate
+                // inverse zoom as square root of absolute value of determinant of scale matrix.
+                // Determinant corresponds approximately to zoom squared, and if we will have
+                // unrotated matrix, and both axes are scaled by same value, then determinant will
+                // be exactly zoom squared. Also, we will adjust to target device logical DPI,
+                // if we, for example are using 4K, or 8K monitors.
+                qreal zoom = 1.0 / qSqrt(qAbs(pagePointToDevicePointMatrix.determinant()));
+                zoom = PDFWidgetUtils::scaleDPI_x(painter->device(), zoom);
+
+                QRectF unzoomedRect(annotationRectangle.bottomLeft(), annotationRectangle.size() * zoom);
+                unzoomedRect.translate(0, -unzoomedRect.height());
+                annotationRectangle = unzoomedRect;
+                features.setFlag(PDFRenderer::ClipToCropBox, false);
+            }
+
             // Jakub Melka: perform algorithm 8.1, defined in PDF 1.7 reference,
             // chapter 8.4.4 Appearance streams.
 
@@ -844,11 +870,12 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
             QRectF transformedAppearanceBox = formMatrix.mapRect(formBoundingBox);
 
             // Step 2) - calculate matrix A, which maps from form space to annotation space
-            //           Matrix A transforms from form space to transformed appearance box space
-            const PDFReal scaleX = transformedAppearanceBox.width() / formBoundingBox.width();
-            const PDFReal scaleY = transformedAppearanceBox.height() / formBoundingBox.height();
-            const PDFReal translateX = annotationRectangle.left() - formBoundingBox.left() * scaleX;
-            const PDFReal translateY = annotationRectangle.bottom() - formBoundingBox.bottom() * scaleY;
+            //           Matrix A transforms from transformed appearance box space to the
+            //           annotation rectangle.
+            const PDFReal scaleX = annotationRectangle.width() / transformedAppearanceBox.width();
+            const PDFReal scaleY = annotationRectangle.height() / transformedAppearanceBox.height();
+            const PDFReal translateX = annotationRectangle.left() - transformedAppearanceBox.left() * scaleX;
+            const PDFReal translateY = annotationRectangle.bottom() - transformedAppearanceBox.bottom() * scaleY;
             QMatrix A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
 
             // Step 3) - compute final matrix AA
@@ -917,6 +944,16 @@ PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(
     }
 
     return it->second;
+}
+
+PDFAnnotationManager::Target PDFAnnotationManager::getTarget() const
+{
+    return m_target;
+}
+
+void PDFAnnotationManager::setTarget(Target target)
+{
+    m_target = target;
 }
 
 }   // namespace pdf
