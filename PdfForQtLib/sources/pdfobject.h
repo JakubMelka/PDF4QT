@@ -55,7 +55,7 @@ public:
 class PDFFORQTLIBSHARED_EXPORT PDFObject
 {
 public:
-    enum class Type
+    enum class Type : uint8_t
     {
         // Simple PDF objects
         Null,

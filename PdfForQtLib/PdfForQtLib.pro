@@ -42,6 +42,7 @@ SOURCES += \
     sources/pdfccittfaxdecoder.cpp \
     sources/pdfcms.cpp \
     sources/pdfcompiler.cpp \
+    sources/pdfdocumentbuilder.cpp \
     sources/pdfexecutionpolicy.cpp \
     sources/pdffile.cpp \
     sources/pdfitemmodels.cpp \
@@ -87,6 +88,7 @@ HEADERS += \
     sources/pdfccittfaxdecoder.h \
     sources/pdfcms.h \
     sources/pdfcompiler.h \
+    sources/pdfdocumentbuilder.h \
     sources/pdfdocumentdrawinterface.h \
     sources/pdfexecutionpolicy.h \
     sources/pdffile.h \
