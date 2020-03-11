@@ -18,6 +18,7 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
+    CodeGenerator \
     JBIG2_Viewer \
     PdfForQtLib \
     UnitTests \
