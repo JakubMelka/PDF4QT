@@ -19,43 +19,18 @@
      <layout class="QVBoxLayout" name="generatedFunctionsVerticalLayout">
       <item>
        <widget class="QTreeWidget" name="generatedFunctionsTreeWidget">
+        <property name="uniformRowHeights">
+         <bool>true</bool>
+        </property>
+        <attribute name="headerVisible">
+         <bool>false</bool>
+        </attribute>
         <column>
          <property name="text">
           <string notr="true">1</string>
          </property>
         </column>
        </widget>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="generatedFunctionsMoveButtonsSpacer">
-        <item>
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item>
-         <widget class="QPushButton" name="functionMoveUpButton">
-          <property name="text">
-           <string>Up</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="functionMoveDownButton">
-          <property name="text">
-           <string>Down</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
@@ -104,10 +79,72 @@
         <property name="title">
          <string>Parameters</string>
         </property>
+        <layout class="QGridLayout" name="parametersGroupBoxLayout" columnstretch="0,0,0,0">
+         <item row="3" column="0">
+          <widget class="QLabel" name="parameterDataTypeLabel">
+           <property name="text">
+            <string>Data type</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QLineEdit" name="parameterValueEdit"/>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="parameterItemTypeCombo"/>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="parameterNameEdit"/>
+         </item>
+         <item row="1" column="3" rowspan="4">
+          <widget class="QTextBrowser" name="descriptionEdit">
+           <property name="acceptRichText">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="parameterValueLabel">
+           <property name="text">
+            <string>Value</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="parameterItemTypeLabel">
+           <property name="text">
+            <string>Item type</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="parameterNameLabel">
+           <property name="text">
+            <string>Name</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="3">
+          <widget class="QLabel" name="descriptionLabel">
+           <property name="text">
+            <string>Text description</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QComboBox" name="parameterDataTypeCombo"/>
+         </item>
+        </layout>
        </widget>
       </item>
       <item>
-       <widget class="QTreeView" name="treeView"/>
+       <widget class="QTreeWidget" name="parameterTreeWidget">
+        <column>
+         <property name="text">
+          <string notr="true">1</string>
+         </property>
+        </column>
+       </widget>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -125,30 +162,37 @@
          </spacer>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_6">
+         <widget class="QPushButton" name="itemDeleteButton">
           <property name="text">
-           <string>PushButton</string>
+           <string>Delete</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_5">
+         <widget class="QPushButton" name="itemUpButton">
           <property name="text">
-           <string>PushButton</string>
+           <string>Up</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_8">
+         <widget class="QPushButton" name="itemDownButton">
           <property name="text">
-           <string>PushButton</string>
+           <string>Down</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_7">
+         <widget class="QPushButton" name="itemNewChildButton">
           <property name="text">
-           <string>PushButton</string>
+           <string>New Child</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="itemNewSiblingButton">
+          <property name="text">
+           <string>New Sibling</string>
           </property>
          </widget>
         </item>

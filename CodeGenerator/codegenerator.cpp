@@ -44,6 +44,19 @@ GeneratedFunction* GeneratedCodeStorage::addFunction(const QString& name)
     return function;
 }
 
+GeneratedFunction* GeneratedCodeStorage::addFunction(GeneratedFunction* function)
+{
+    function->setParent(this);
+    m_functions.append(function);
+    return function;
+}
+
+void GeneratedCodeStorage::removeFunction(GeneratedFunction* function)
+{
+    function->deleteLater();
+    m_functions.removeOne(function);
+}
+
 QObject* Serializer::load(const QDomElement& element, QObject* parent)
 {
     QString className = element.attribute("class");
@@ -81,7 +94,13 @@ QObject* Serializer::load(const QDomElement& element, QObject* parent)
                 if (!propertyElement.isNull())
                 {
                     // Deserialize the element
-                    if (property.userType() == qMetaTypeId<QObjectList>())
+                    if (property.isEnumType())
+                    {
+                        QMetaEnum metaEnum = property.enumerator();
+                        Q_ASSERT(metaEnum.isValid());
+                        property.write(deserializedObject, metaEnum.keyToValue(propertyElement.text().toLatin1().data()));
+                    }
+                    else if (property.userType() == qMetaTypeId<QObjectList>())
                     {
                         QObjectList objectList;
                         QDomNodeList children = propertyElement.childNodes();
@@ -135,7 +154,13 @@ void Serializer::store(QObject* object, QDomElement& element)
                 propertyElement.setAttribute("name", property.name());
 
                 QVariant value = property.read(object);
-                if (value.canConvert<QObjectList>())
+                if (property.isEnumType())
+                {
+                    QMetaEnum metaEnum = property.enumerator();
+                    Q_ASSERT(metaEnum.isValid());
+                    propertyElement.appendChild(propertyElement.ownerDocument().createTextNode(metaEnum.valueToKey(value.toInt())));
+                }
+                else if (value.canConvert<QObjectList>())
                 {
                     QObjectList objectList = value.value<QObjectList>();
                     for (QObject* currentObject : objectList)
@@ -152,6 +177,15 @@ void Serializer::store(QObject* object, QDomElement& element)
             }
         }
     }
+}
+
+QObject* Serializer::clone(QObject* object, QObject* parent)
+{
+    QDomDocument document;
+    QDomElement rootElement = document.createElement("root");
+    document.appendChild(rootElement);
+    Serializer::store(object, rootElement);
+    return Serializer::load(rootElement, parent);
 }
 
 CodeGenerator::CodeGenerator(QObject* parent) :
@@ -229,6 +263,511 @@ QString GeneratedFunction::getFunctionDescription() const
 void GeneratedFunction::setFunctionDescription(const QString& functionDescription)
 {
     m_functionDescription = functionDescription;
+}
+
+GeneratedFunction* GeneratedFunction::clone(QObject* parent)
+{
+    return qobject_cast<GeneratedFunction*>(Serializer::clone(this, parent));
+}
+
+bool GeneratedFunction::hasField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+        case FieldType::ItemType:
+        case FieldType::DataType:
+        case FieldType::Description:
+            return true;
+
+        case FieldType::Value:
+            return false;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+QVariant GeneratedFunction::readField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            return m_functionName;
+        case FieldType::ItemType:
+            return int(m_functionType);
+        case FieldType::DataType:
+            return int(m_returnType);
+        case FieldType::Description:
+            return m_functionDescription;
+
+        case FieldType::Value:
+        default:
+            break;
+    }
+
+    return QVariant();
+}
+
+void GeneratedFunction::writeField(GeneratedBase::FieldType fieldType, QVariant value)
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            m_functionName = value.toString();
+            break;
+        case FieldType::ItemType:
+            m_functionType = static_cast<FunctionType>(value.toInt());
+            break;
+        case FieldType::DataType:
+            m_returnType = static_cast<DataType>(value.toInt());
+            break;
+        case FieldType::Description:
+            m_functionDescription = value.toString();
+            break;
+
+        case FieldType::Value:
+        default:
+            break;
+    }
+}
+
+void GeneratedFunction::fillComboBox(QComboBox* comboBox, GeneratedBase::FieldType fieldType)
+{
+    switch (fieldType)
+    {
+        case FieldType::ItemType:
+            Serializer::fillComboBox(comboBox, m_functionType);
+            break;
+        case FieldType::DataType:
+            Serializer::fillComboBox(comboBox, m_returnType);
+            break;
+
+        default:
+            break;
+    }
+}
+
+bool GeneratedFunction::canHaveSubitems() const
+{
+    return true;
+}
+
+GeneratedFunction::DataType GeneratedFunction::getReturnType() const
+{
+    return m_returnType;
+}
+
+void GeneratedFunction::setReturnType(DataType returnType)
+{
+    m_returnType = returnType;
+}
+
+GeneratedAction::GeneratedAction(QObject* parent) :
+    BaseClass(parent),
+    m_actionType(CreateObject)
+{
+
+}
+
+bool GeneratedAction::hasField(FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            return m_actionType == CreateObject;
+        case FieldType::ItemType:
+            return true;
+        case FieldType::DataType:
+            return hasField(FieldType::Name) && !m_variableName.isEmpty();
+        case FieldType::Description:
+            return m_actionType == Code;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+QVariant GeneratedAction::readField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            return m_variableName;
+        case FieldType::ItemType:
+            return int(m_actionType);
+        case FieldType::DataType:
+            return int(m_variableType);
+        case FieldType::Description:
+            return m_code;
+
+        default:
+            break;
+    }
+
+    return QVariant();
+}
+
+void GeneratedAction::writeField(GeneratedBase::FieldType fieldType, QVariant value)
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            m_variableName = value.toString();
+            break;
+        case FieldType::ItemType:
+            m_actionType = static_cast<ActionType>(value.toInt());
+            break;
+        case FieldType::DataType:
+            m_variableType = static_cast<DataType>(value.toInt());
+            break;
+        case FieldType::Description:
+            m_code = value.toString();
+            break;
+
+        default:
+            break;
+    }
+}
+
+void GeneratedAction::fillComboBox(QComboBox* comboBox, FieldType fieldType)
+{
+    switch (fieldType)
+    {
+        case FieldType::ItemType:
+            Serializer::fillComboBox(comboBox, m_actionType);
+            break;
+        case FieldType::DataType:
+            Serializer::fillComboBox(comboBox, m_variableType);
+            break;
+
+        default:
+            break;
+    }
+}
+
+bool GeneratedAction::canHaveSubitems() const
+{
+    switch (m_actionType)
+    {
+        case Parameters:
+        case CreateObject:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+GeneratedAction::ActionType GeneratedAction::getActionType() const
+{
+    return m_actionType;
+}
+
+void GeneratedAction::setActionType(ActionType actionType)
+{
+    m_actionType = actionType;
+
+    if (!canHaveSubitems())
+    {
+        clearItems();
+    }
+}
+
+QString GeneratedAction::getVariableName() const
+{
+    return m_variableName;
+}
+
+void GeneratedAction::setVariableName(const QString& variableName)
+{
+    m_variableName = variableName;
+}
+
+GeneratedAction::DataType GeneratedAction::getVariableType() const
+{
+    return m_variableType;
+}
+
+void GeneratedAction::setVariableType(DataType variableType)
+{
+    m_variableType = variableType;
+}
+
+QString GeneratedAction::getCode() const
+{
+    return m_code;
+}
+
+void GeneratedAction::setCode(const QString& code)
+{
+    m_code = code;
+}
+
+QObjectList GeneratedBase::getItems() const
+{
+    return m_items;
+}
+
+void GeneratedBase::setItems(const QObjectList& items)
+{
+    m_items = items;
+}
+
+void GeneratedBase::addItem(QObject* object)
+{
+    object->setParent(this);
+    m_items.append(object);
+}
+
+void GeneratedBase::removeItem(QObject* object)
+{
+    object->deleteLater();
+    m_items.removeAll(object);
+}
+
+void GeneratedBase::clearItems()
+{
+    qDeleteAll(m_items);
+    m_items.clear();
+}
+
+GeneratedPDFObject::GeneratedPDFObject(QObject* parent) :
+    BaseClass(parent)
+{
+
+}
+
+bool GeneratedPDFObject::hasField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            return m_objectType == DictionaryItemSimple || m_objectType == DictionaryItemComplex;
+        case FieldType::ItemType:
+            return true;
+        case FieldType::Value:
+            return m_objectType == Object || m_objectType == ArraySimple || m_objectType == DictionaryItemSimple;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+QVariant GeneratedPDFObject::readField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            return m_dictionaryItemName;
+        case FieldType::ItemType:
+            return int(m_objectType);
+        case FieldType::Value:
+            return m_value;
+
+        default:
+            break;
+    }
+
+    return QVariant();
+}
+
+void GeneratedPDFObject::writeField(GeneratedBase::FieldType fieldType, QVariant value)
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            m_dictionaryItemName = value.toString();
+            break;
+        case FieldType::ItemType:
+            m_objectType = static_cast<ObjectType>(value.toInt());
+            break;
+        case FieldType::Value:
+            m_value = value.toString();
+            break;
+
+        default:
+            break;
+    }
+}
+
+void GeneratedPDFObject::fillComboBox(QComboBox* comboBox, GeneratedBase::FieldType fieldType)
+{
+    switch (fieldType)
+    {
+        case FieldType::ItemType:
+            Serializer::fillComboBox(comboBox, m_objectType);
+            break;
+
+        default:
+            break;
+    }
+}
+
+bool GeneratedPDFObject::canHaveSubitems() const
+{
+    switch (m_objectType)
+    {
+        case ArrayComplex:
+        case Dictionary:
+        case DictionaryItemComplex:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+QString GeneratedPDFObject::getValue() const
+{
+    return m_value;
+}
+
+void GeneratedPDFObject::setValue(const QString& value)
+{
+    m_value = value;
+}
+
+GeneratedPDFObject::ObjectType GeneratedPDFObject::getObjectType() const
+{
+    return m_objectType;
+}
+
+void GeneratedPDFObject::setObjectType(ObjectType objectType)
+{
+    m_objectType = objectType;
+
+    if (!canHaveSubitems())
+    {
+        clearItems();
+    }
+}
+
+QString GeneratedPDFObject::getDictionaryItemName() const
+{
+    return m_dictionaryItemName;
+}
+
+void GeneratedPDFObject::setDictionaryItemName(const QString& dictionaryItemName)
+{
+    m_dictionaryItemName = dictionaryItemName;
+}
+
+GeneratedParameter::GeneratedParameter(QObject* parent) :
+    BaseClass(parent)
+{
+
+}
+
+bool GeneratedParameter::hasField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+        case FieldType::DataType:
+        case FieldType::Description:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+QVariant GeneratedParameter::readField(GeneratedBase::FieldType fieldType) const
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            return m_parameterName;
+        case FieldType::DataType:
+            return m_parameterDataType;
+        case FieldType::Description:
+            return m_parameterDescription;
+
+        default:
+            break;
+    }
+
+    return QVariant();
+}
+
+void GeneratedParameter::writeField(GeneratedBase::FieldType fieldType, QVariant value)
+{
+    switch (fieldType)
+    {
+        case FieldType::Name:
+            m_parameterName = value.toString();
+            break;
+        case FieldType::DataType:
+            m_parameterDataType = static_cast<DataType>(value.toInt());
+            break;
+        case FieldType::Description:
+            m_parameterDescription = value.toString();
+            break;
+
+        default:
+            break;
+    }
+}
+
+void GeneratedParameter::fillComboBox(QComboBox* comboBox, GeneratedBase::FieldType fieldType)
+{
+    switch (fieldType)
+    {
+        case FieldType::DataType:
+            Serializer::fillComboBox(comboBox, m_parameterDataType);
+            break;
+
+        default:
+            break;
+    }
+}
+
+bool GeneratedParameter::canHaveSubitems() const
+{
+    return false;
+}
+
+QString GeneratedParameter::getParameterName() const
+{
+    return m_parameterName;
+}
+
+void GeneratedParameter::setParameterName(const QString& parameterName)
+{
+    m_parameterName = parameterName;
+}
+
+GeneratedParameter::DataType GeneratedParameter::getParameterDataType() const
+{
+    return m_parameterDataType;
+}
+
+void GeneratedParameter::setParameterDataType(const DataType& parameterDataType)
+{
+    m_parameterDataType = parameterDataType;
+}
+
+QString GeneratedParameter::getParameterDescription() const
+{
+    return m_parameterDescription;
+}
+
+void GeneratedParameter::setParameterDescription(const QString& parameterDescription)
+{
+    m_parameterDescription = parameterDescription;
 }
 
 }

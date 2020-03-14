@@ -25,11 +25,14 @@
 #include <QTextStream>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QInputDialog>
 
 GeneratorMainWindow::GeneratorMainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::GeneratorMainWindow),
-    m_generator(new codegen::CodeGenerator(this))
+    m_generator(new codegen::CodeGenerator(this)),
+    m_currentFunction(nullptr),
+    m_isLoadingData(false)
 {
     ui->setupUi(this);
 
@@ -41,10 +44,10 @@ GeneratorMainWindow::GeneratorMainWindow(QWidget *parent) :
     {
         load(m_defaultFileName);
     }
+    connect(ui->generatedFunctionsTreeWidget, &QTreeWidget::currentItemChanged, this, &GeneratorMainWindow::onCurrentItemChanged);
 
-    // Temporary - to delete:
-    m_generator->addFunction("createAnnotationWatermark");
-    m_generator->addFunction("createAnnotationFreeText");
+    setWindowState(Qt::WindowMaximized);
+    updateFunctionListUI();
 }
 
 GeneratorMainWindow::~GeneratorMainWindow()
@@ -71,6 +74,84 @@ void GeneratorMainWindow::saveSettings()
 {
     QSettings settings("MelkaJ");
     settings.setValue("fileName", m_defaultFileName);
+}
+
+void GeneratorMainWindow::updateFunctionListUI()
+{
+    BoolGuard guard(m_isLoadingData);
+
+    ui->generatedFunctionsTreeWidget->setUpdatesEnabled(false);
+    ui->generatedFunctionsTreeWidget->clear();
+    m_mapFunctionToWidgetItem.clear();
+
+    // First, create roots
+    std::map<codegen::GeneratedFunction::FunctionType, QTreeWidgetItem*> mapFunctionTypeToRoot;
+    for (QObject* functionObject : m_generator->getFunctions())
+    {
+        codegen::GeneratedFunction* function = qobject_cast<codegen::GeneratedFunction*>(functionObject);
+        Q_ASSERT(function);
+
+        if (!mapFunctionTypeToRoot.count(function->getFunctionType()))
+        {
+            QTreeWidgetItem* subroot = new QTreeWidgetItem(ui->generatedFunctionsTreeWidget, QStringList(function->getFunctionTypeString()));
+            subroot->setFlags(Qt::ItemIsEnabled);
+            mapFunctionTypeToRoot[function->getFunctionType()] = subroot;
+        }
+    }
+    ui->generatedFunctionsTreeWidget->sortByColumn(0, Qt::AscendingOrder);
+
+    for (QObject* functionObject : m_generator->getFunctions())
+    {
+        codegen::GeneratedFunction* function = qobject_cast<codegen::GeneratedFunction*>(functionObject);
+        Q_ASSERT(function);
+
+        QTreeWidgetItem* functionItem = new QTreeWidgetItem(mapFunctionTypeToRoot[function->getFunctionType()], QStringList(function->getFunctionName()));
+        functionItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        functionItem->setData(0, Qt::UserRole, QVariant::fromValue(function));
+        m_mapFunctionToWidgetItem[function] = functionItem;
+    }
+
+    ui->generatedFunctionsTreeWidget->expandAll();
+    ui->generatedFunctionsTreeWidget->setUpdatesEnabled(true);
+
+    // Select current function
+    auto it = m_mapFunctionToWidgetItem.find(m_currentFunction);
+    if (it != m_mapFunctionToWidgetItem.cend())
+    {
+        ui->generatedFunctionsTreeWidget->setCurrentItem(it->second, 0, QItemSelectionModel::SelectCurrent);
+    }
+
+    m_isLoadingData = false;
+}
+
+void GeneratorMainWindow::setCurrentFunction(codegen::GeneratedFunction* currentFunction)
+{
+    BoolGuard guard(m_isLoadingData);
+
+    if (m_currentFunction != currentFunction)
+    {
+        m_currentFunction = currentFunction;
+
+        // Select current function
+        auto it = m_mapFunctionToWidgetItem.find(m_currentFunction);
+        if (it != m_mapFunctionToWidgetItem.cend())
+        {
+            ui->generatedFunctionsTreeWidget->setCurrentItem(it->second, 0, QItemSelectionModel::SelectCurrent);
+        }
+    }
+}
+
+void GeneratorMainWindow::onCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous)
+{
+    Q_UNUSED(previous);
+
+    if (m_isLoadingData)
+    {
+        return;
+    }
+
+    codegen::GeneratedFunction* function = current->data(0, Qt::UserRole).value<codegen::GeneratedFunction*>();
+    setCurrentFunction(function);
 }
 
 void GeneratorMainWindow::loadSettings()
@@ -130,5 +211,37 @@ void GeneratorMainWindow::on_actionSave_triggered()
     else
     {
         on_actionSaveAs_triggered();
+    }
+}
+
+void GeneratorMainWindow::on_newFunctionButton_clicked()
+{
+    QString functionName = QInputDialog::getText(this, tr("Create function"), tr("Enter function name"));
+    if (!functionName.isEmpty())
+    {
+        codegen::GeneratedFunction* generatedFunction = m_generator->addFunction(functionName);
+        updateFunctionListUI();
+        setCurrentFunction(generatedFunction);
+    }
+}
+
+void GeneratorMainWindow::on_cloneFunctionButton_clicked()
+{
+    if (m_currentFunction)
+    {
+        codegen::GeneratedFunction* generatedFunction = m_generator->addFunction(m_currentFunction->clone(nullptr));
+        updateFunctionListUI();
+        setCurrentFunction(generatedFunction);
+    }
+}
+
+void GeneratorMainWindow::on_removeFunctionButton_clicked()
+{
+    if (m_currentFunction)
+    {
+        codegen::GeneratedFunction* functionToDelete = m_currentFunction;
+        setCurrentFunction(nullptr);
+        m_generator->removeFunction(functionToDelete);
+        updateFunctionListUI();
     }
 }

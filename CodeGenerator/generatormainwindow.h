@@ -20,15 +20,38 @@
 
 #include <QMainWindow>
 
+class QTreeWidgetItem;
+
 namespace codegen
 {
 class CodeGenerator;
+class GeneratedFunction;
 }
 
 namespace Ui
 {
 class GeneratorMainWindow;
 }
+
+class BoolGuard
+{
+public:
+    explicit inline BoolGuard(bool& value) :
+        m_oldValue(value),
+        m_value(&value)
+    {
+        *m_value = true;
+    }
+
+    inline ~BoolGuard()
+    {
+        *m_value = m_oldValue;
+    }
+
+private:
+    bool m_oldValue;
+    bool* m_value;
+};
 
 class GeneratorMainWindow : public QMainWindow
 {
@@ -44,16 +67,25 @@ public:
 private slots:
     void on_actionLoad_triggered();
     void on_actionSaveAs_triggered();
-
     void on_actionSave_triggered();
+    void on_newFunctionButton_clicked();
+    void on_cloneFunctionButton_clicked();
+    void on_removeFunctionButton_clicked();
 
 private:
     void loadSettings();
     void saveSettings();
 
+    void updateFunctionListUI();
+    void setCurrentFunction(codegen::GeneratedFunction* currentFunction);
+    void onCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous);
+
     Ui::GeneratorMainWindow* ui;
     codegen::CodeGenerator* m_generator;
+    codegen::GeneratedFunction* m_currentFunction;
     QString m_defaultFileName;
+    std::map<codegen::GeneratedFunction*, QTreeWidgetItem*> m_mapFunctionToWidgetItem;
+    bool m_isLoadingData;
 };
 
 #endif // GENERATORMAINWINDOW_H
