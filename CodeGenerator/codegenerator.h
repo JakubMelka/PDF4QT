@@ -142,6 +142,22 @@ public:
     virtual void writeField(FieldType fieldType, QVariant value) = 0;
     virtual void fillComboBox(QComboBox* comboBox, FieldType fieldType) = 0;
     virtual bool canHaveSubitems() const = 0;
+    virtual QStringList getCaptions() const = 0;
+    virtual GeneratedBase* appendItem() = 0;
+
+    enum class Operation
+    {
+        Delete,
+        MoveUp,
+        MoveDown,
+        NewSibling,
+        NewChild
+    };
+
+    GeneratedBase* getParent() { return qobject_cast<GeneratedBase*>(parent()); }
+    const GeneratedBase* getParent() const { return qobject_cast<const GeneratedBase*>(parent()); }
+    bool canPerformOperation(Operation operation) const;
+    void performOperation(Operation operation);
 
     QObjectList getItems() const;
     void setItems(const QObjectList& items);
@@ -171,6 +187,8 @@ public:
     virtual void writeField(FieldType fieldType, QVariant value) override;
     virtual void fillComboBox(QComboBox* comboBox, FieldType fieldType) override;
     virtual bool canHaveSubitems() const override;
+    virtual QStringList getCaptions() const override;
+    virtual GeneratedBase* appendItem() override;
 
     QString getParameterName() const;
     void setParameterName(const QString& parameterName);
@@ -217,6 +235,8 @@ public:
     virtual void writeField(FieldType fieldType, QVariant value) override;
     virtual void fillComboBox(QComboBox* comboBox, FieldType fieldType) override;
     virtual bool canHaveSubitems() const override;
+    virtual QStringList getCaptions() const override;
+    virtual GeneratedBase* appendItem() override;
 
     QString getValue() const;
     void setValue(const QString& value);
@@ -261,6 +281,8 @@ public:
     virtual void writeField(FieldType fieldType, QVariant value) override;
     virtual void fillComboBox(QComboBox* comboBox, FieldType fieldType) override;
     virtual bool canHaveSubitems() const override;
+    virtual QStringList getCaptions() const override;
+    virtual GeneratedBase* appendItem() override;
 
     ActionType getActionType() const;
     void setActionType(ActionType actionType);
@@ -310,6 +332,8 @@ public:
     virtual void writeField(FieldType fieldType, QVariant value) override;
     virtual void fillComboBox(QComboBox* comboBox, FieldType fieldType) override;
     virtual bool canHaveSubitems() const override;
+    virtual QStringList getCaptions() const override;
+    virtual GeneratedBase* appendItem() override;
 
     QString getFunctionTypeString() const;
     void setFunctionTypeString(const QString& string);

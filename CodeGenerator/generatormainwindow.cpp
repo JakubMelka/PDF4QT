@@ -32,9 +32,12 @@ GeneratorMainWindow::GeneratorMainWindow(QWidget *parent) :
     ui(new Ui::GeneratorMainWindow),
     m_generator(new codegen::CodeGenerator(this)),
     m_currentFunction(nullptr),
+    m_currentSettings(nullptr),
     m_isLoadingData(false)
 {
     ui->setupUi(this);
+
+    ui->parameterTreeWidget->header()->setMinimumSectionSize(200);
 
     m_generator->initialize();
 
@@ -45,6 +48,12 @@ GeneratorMainWindow::GeneratorMainWindow(QWidget *parent) :
         load(m_defaultFileName);
     }
     connect(ui->generatedFunctionsTreeWidget, &QTreeWidget::currentItemChanged, this, &GeneratorMainWindow::onCurrentItemChanged);
+    connect(ui->parameterTreeWidget, &QTreeWidget::currentItemChanged, this, &GeneratorMainWindow::onParameterTreeCurrentItemChanged);
+    connect(ui->parameterNameEdit, &QLineEdit::editingFinished, this, &GeneratorMainWindow::saveGeneratedSettings);
+    connect(ui->parameterItemTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GeneratorMainWindow::saveGeneratedSettings);
+    connect(ui->parameterDataTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GeneratorMainWindow::saveGeneratedSettings);
+    connect(ui->parameterValueEdit, &QLineEdit::editingFinished, this, &GeneratorMainWindow::saveGeneratedSettings);
+    connect(ui->parameterDescriptionEdit, &QTextBrowser::textChanged, this, &GeneratorMainWindow::saveGeneratedSettings);
 
     setWindowState(Qt::WindowMaximized);
     updateFunctionListUI();
@@ -74,6 +83,117 @@ void GeneratorMainWindow::saveSettings()
 {
     QSettings settings("MelkaJ");
     settings.setValue("fileName", m_defaultFileName);
+}
+
+void GeneratorMainWindow::loadGeneratedSettings()
+{
+    BoolGuard guard(m_isLoadingData);
+
+    const bool hasName = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::Name);
+    const bool hasItemType = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::ItemType);
+    const bool hasDataType = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::DataType);
+    const bool hasValue = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::Value);
+    const bool hasDescription = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::Description);
+
+    ui->parameterNameEdit->setEnabled(hasName);
+    ui->parameterItemTypeCombo->setEnabled(hasItemType);
+    ui->parameterDataTypeCombo->setEnabled(hasDataType);
+    ui->parameterValueEdit->setEnabled(hasValue);
+    ui->parameterDescriptionEdit->setEnabled(hasDescription);
+
+    if (hasName)
+    {
+        ui->parameterNameEdit->setText(m_currentSettings->readField(codegen::GeneratedBase::FieldType::Name).toString());
+    }
+    else
+    {
+        ui->parameterNameEdit->clear();
+    }
+
+    if (hasItemType)
+    {
+        m_currentSettings->fillComboBox(ui->parameterItemTypeCombo, codegen::GeneratedBase::FieldType::ItemType);
+    }
+    else
+    {
+        ui->parameterItemTypeCombo->clear();
+    }
+
+    if (hasDataType)
+    {
+        m_currentSettings->fillComboBox(ui->parameterDataTypeCombo, codegen::GeneratedBase::FieldType::DataType);
+    }
+    else
+    {
+        ui->parameterDataTypeCombo->clear();
+    }
+
+    if (hasValue)
+    {
+        ui->parameterValueEdit->setText(m_currentSettings->readField(codegen::GeneratedBase::FieldType::Value).toString());
+    }
+    else
+    {
+        ui->parameterValueEdit->clear();
+    }
+
+    if (hasDescription)
+    {
+        ui->parameterDescriptionEdit->setText(m_currentSettings->readField(codegen::GeneratedBase::FieldType::Description).toString());
+    }
+    else
+    {
+        ui->parameterDescriptionEdit->clear();
+    }
+
+    ui->itemDeleteButton->setEnabled(m_currentSettings && m_currentSettings->canPerformOperation(codegen::GeneratedBase::Operation::Delete));
+    ui->itemUpButton->setEnabled(m_currentSettings && m_currentSettings->canPerformOperation(codegen::GeneratedBase::Operation::MoveUp));
+    ui->itemDownButton->setEnabled(m_currentSettings && m_currentSettings->canPerformOperation(codegen::GeneratedBase::Operation::MoveDown));
+    ui->itemNewSiblingButton->setEnabled(m_currentSettings && m_currentSettings->canPerformOperation(codegen::GeneratedBase::Operation::NewSibling));
+    ui->itemNewChildButton->setEnabled(m_currentSettings && m_currentSettings->canPerformOperation(codegen::GeneratedBase::Operation::NewChild));
+}
+
+void GeneratorMainWindow::saveGeneratedSettings()
+{
+    if (m_isLoadingData || !m_currentSettings)
+    {
+        return;
+    }
+
+    const bool hasName = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::Name);
+    const bool hasItemType = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::ItemType);
+    const bool hasDataType = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::DataType);
+    const bool hasValue = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::Value);
+    const bool hasDescription = m_currentSettings && m_currentSettings->hasField(codegen::GeneratedBase::FieldType::Description);
+
+    m_currentSettings->writeField(codegen::GeneratedBase::FieldType::Name, hasName ? ui->parameterNameEdit->text() : QVariant());
+    m_currentSettings->writeField(codegen::GeneratedBase::FieldType::ItemType, hasItemType ? ui->parameterItemTypeCombo->currentData() : QVariant());
+    m_currentSettings->writeField(codegen::GeneratedBase::FieldType::DataType, hasDataType ? ui->parameterDataTypeCombo->currentData() : QVariant());
+    m_currentSettings->writeField(codegen::GeneratedBase::FieldType::Value, hasValue ? ui->parameterValueEdit->text() : QVariant());
+    m_currentSettings->writeField(codegen::GeneratedBase::FieldType::Description, hasDescription ? ui->parameterDescriptionEdit->toPlainText() : QVariant());
+
+    if (sender() != ui->parameterDescriptionEdit)
+    {
+        loadGeneratedSettings();
+
+        // Update the captions
+        std::function<void(QTreeWidgetItem*)> updateFunction = [&](QTreeWidgetItem* item)
+        {
+            const codegen::GeneratedBase* generatedBase = item->data(0, Qt::UserRole).value<codegen::GeneratedBase*>();
+            QStringList captions = generatedBase->getCaptions();
+
+            for (int i = 0; i < captions.size(); ++i)
+            {
+                item->setText(i, captions[i]);
+            }
+
+            for (int i = 0; i < item->childCount(); ++i)
+            {
+                updateFunction(item->child(i));
+            }
+        };
+        updateFunction(ui->parameterTreeWidget->topLevelItem(0));
+    }
 }
 
 void GeneratorMainWindow::updateFunctionListUI()
@@ -120,16 +240,61 @@ void GeneratorMainWindow::updateFunctionListUI()
     {
         ui->generatedFunctionsTreeWidget->setCurrentItem(it->second, 0, QItemSelectionModel::SelectCurrent);
     }
+}
 
-    m_isLoadingData = false;
+void GeneratorMainWindow::updateGeneratedSettingsTree()
+{
+    BoolGuard guard(m_isLoadingData);
+
+    ui->parameterTreeWidget->setUpdatesEnabled(false);
+    ui->parameterTreeWidget->clear();
+
+    QTreeWidgetItem* selected = nullptr;
+    std::function<void(codegen::GeneratedBase*, QTreeWidgetItem*)> createTree = [this, &selected, &createTree](codegen::GeneratedBase* generatedItem, QTreeWidgetItem* parent)
+    {
+        QTreeWidgetItem* item = nullptr;
+        if (parent)
+        {
+            item = new QTreeWidgetItem(parent, generatedItem->getCaptions());
+        }
+        else
+        {
+            item = new QTreeWidgetItem(ui->parameterTreeWidget, generatedItem->getCaptions());
+        }
+
+        item->setData(0, Qt::UserRole, QVariant::fromValue(generatedItem));
+
+        if (generatedItem == m_currentSettings)
+        {
+            selected = item;
+        }
+
+        for (QObject* object : generatedItem->getItems())
+        {
+            createTree(qobject_cast<codegen::GeneratedBase*>(object), item);
+        }
+    };
+
+    if (m_currentFunction)
+    {
+        createTree(m_currentFunction, nullptr);
+    }
+
+    ui->parameterTreeWidget->expandAll();
+    ui->parameterTreeWidget->resizeColumnToContents(0);
+    ui->parameterTreeWidget->setUpdatesEnabled(true);
+
+    if (selected)
+    {
+        ui->parameterTreeWidget->setCurrentItem(selected, 0, QItemSelectionModel::SelectCurrent);
+    }
 }
 
 void GeneratorMainWindow::setCurrentFunction(codegen::GeneratedFunction* currentFunction)
 {
-    BoolGuard guard(m_isLoadingData);
-
     if (m_currentFunction != currentFunction)
     {
+        BoolGuard guard(m_isLoadingData);
         m_currentFunction = currentFunction;
 
         // Select current function
@@ -137,7 +302,20 @@ void GeneratorMainWindow::setCurrentFunction(codegen::GeneratedFunction* current
         if (it != m_mapFunctionToWidgetItem.cend())
         {
             ui->generatedFunctionsTreeWidget->setCurrentItem(it->second, 0, QItemSelectionModel::SelectCurrent);
+            ui->generatedFunctionsTreeWidget->setFocus();
+            setCurrentSettings(m_currentFunction);
+            updateGeneratedSettingsTree();
         }
+    }
+}
+
+void GeneratorMainWindow::setCurrentSettings(codegen::GeneratedBase* currentSettings)
+{
+    if (m_currentSettings != currentSettings)
+    {
+        BoolGuard guard(m_isLoadingData);
+        m_currentSettings = currentSettings;
+        loadGeneratedSettings();
     }
 }
 
@@ -152,6 +330,19 @@ void GeneratorMainWindow::onCurrentItemChanged(QTreeWidgetItem* current, QTreeWi
 
     codegen::GeneratedFunction* function = current->data(0, Qt::UserRole).value<codegen::GeneratedFunction*>();
     setCurrentFunction(function);
+}
+
+void GeneratorMainWindow::onParameterTreeCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous)
+{
+    Q_UNUSED(previous);
+
+    if (m_isLoadingData)
+    {
+        return;
+    }
+
+    codegen::GeneratedBase* baseObject = current->data(0, Qt::UserRole).value<codegen::GeneratedBase*>();
+    setCurrentSettings(baseObject);
 }
 
 void GeneratorMainWindow::loadSettings()
@@ -243,5 +434,55 @@ void GeneratorMainWindow::on_removeFunctionButton_clicked()
         setCurrentFunction(nullptr);
         m_generator->removeFunction(functionToDelete);
         updateFunctionListUI();
+    }
+}
+
+void GeneratorMainWindow::on_itemDeleteButton_clicked()
+{
+    if (m_currentSettings)
+    {
+        m_currentSettings->performOperation(codegen::GeneratedBase::Operation::Delete);
+        setCurrentSettings(m_currentFunction);
+        updateGeneratedSettingsTree();
+    }
+}
+
+void GeneratorMainWindow::on_itemUpButton_clicked()
+{
+    if (m_currentSettings)
+    {
+        m_currentSettings->performOperation(codegen::GeneratedBase::Operation::MoveUp);
+        updateGeneratedSettingsTree();
+        loadGeneratedSettings();
+    }
+}
+
+void GeneratorMainWindow::on_itemDownButton_clicked()
+{
+    if (m_currentSettings)
+    {
+        m_currentSettings->performOperation(codegen::GeneratedBase::Operation::MoveDown);
+        updateGeneratedSettingsTree();
+        loadGeneratedSettings();
+    }
+}
+
+void GeneratorMainWindow::on_itemNewChildButton_clicked()
+{
+    if (m_currentSettings)
+    {
+        m_currentSettings->performOperation(codegen::GeneratedBase::Operation::NewChild);
+        updateGeneratedSettingsTree();
+        loadGeneratedSettings();
+    }
+}
+
+void GeneratorMainWindow::on_itemNewSiblingButton_clicked()
+{
+    if (m_currentSettings)
+    {
+        m_currentSettings->performOperation(codegen::GeneratedBase::Operation::NewSibling);
+        updateGeneratedSettingsTree();
+        loadGeneratedSettings();
     }
 }

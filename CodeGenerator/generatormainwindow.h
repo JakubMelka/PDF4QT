@@ -26,6 +26,7 @@ namespace codegen
 {
 class CodeGenerator;
 class GeneratedFunction;
+class GeneratedBase;
 }
 
 namespace Ui
@@ -71,18 +72,30 @@ private slots:
     void on_newFunctionButton_clicked();
     void on_cloneFunctionButton_clicked();
     void on_removeFunctionButton_clicked();
+    void on_itemDeleteButton_clicked();
+    void on_itemUpButton_clicked();
+    void on_itemDownButton_clicked();
+    void on_itemNewChildButton_clicked();
+    void on_itemNewSiblingButton_clicked();
 
 private:
     void loadSettings();
     void saveSettings();
 
+    void loadGeneratedSettings();
+    void saveGeneratedSettings();
+
     void updateFunctionListUI();
+    void updateGeneratedSettingsTree();
     void setCurrentFunction(codegen::GeneratedFunction* currentFunction);
+    void setCurrentSettings(codegen::GeneratedBase* currentSettings);
     void onCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous);
+    void onParameterTreeCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous);
 
     Ui::GeneratorMainWindow* ui;
     codegen::CodeGenerator* m_generator;
     codegen::GeneratedFunction* m_currentFunction;
+    codegen::GeneratedBase* m_currentSettings;
     QString m_defaultFileName;
     std::map<codegen::GeneratedFunction*, QTreeWidgetItem*> m_mapFunctionToWidgetItem;
     bool m_isLoadingData;

@@ -97,9 +97,12 @@
           <widget class="QLineEdit" name="parameterNameEdit"/>
          </item>
          <item row="1" column="3" rowspan="4">
-          <widget class="QTextBrowser" name="descriptionEdit">
+          <widget class="QTextBrowser" name="parameterDescriptionEdit">
            <property name="acceptRichText">
             <bool>false</bool>
+           </property>
+           <property name="textInteractionFlags">
+            <set>Qt::LinksAccessibleByKeyboard|Qt::LinksAccessibleByMouse|Qt::TextBrowserInteraction|Qt::TextEditable|Qt::TextSelectableByMouse</set>
            </property>
           </widget>
          </item>
@@ -127,7 +130,7 @@
          <item row="0" column="3">
           <widget class="QLabel" name="descriptionLabel">
            <property name="text">
-            <string>Text description</string>
+            <string>Text description / C++ code</string>
            </property>
           </widget>
          </item>
@@ -139,9 +142,20 @@
       </item>
       <item>
        <widget class="QTreeWidget" name="parameterTreeWidget">
+        <property name="columnCount">
+         <number>2</number>
+        </property>
+        <attribute name="headerVisible">
+         <bool>false</bool>
+        </attribute>
         <column>
          <property name="text">
           <string notr="true">1</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string notr="true">2</string>
          </property>
         </column>
        </widget>

@@ -193,6 +193,10 @@ CodeGenerator::CodeGenerator(QObject* parent) :
 {
     qRegisterMetaType<GeneratedCodeStorage*>("codegen::GeneratedCodeStorage");
     qRegisterMetaType<GeneratedFunction*>("codegen::GeneratedFunction");
+    qRegisterMetaType<GeneratedBase*>("codegen::GeneratedBase");
+    qRegisterMetaType<GeneratedParameter*>("codegen::GeneratedParameter");
+    qRegisterMetaType<GeneratedPDFObject*>("codegen::GeneratedPDFObject");
+    qRegisterMetaType<GeneratedAction*>("codegen::GeneratedAction");
     qRegisterMetaType<QObjectList>("QObjectList");
 }
 
@@ -355,6 +359,20 @@ bool GeneratedFunction::canHaveSubitems() const
     return true;
 }
 
+QStringList GeneratedFunction::getCaptions() const
+{
+    return QStringList() << QString("Function") << QString("%1 %2(...)").arg(Serializer::convertEnumToString(m_returnType), m_functionName);
+}
+
+GeneratedBase* GeneratedFunction::appendItem()
+{
+    Q_ASSERT(canHaveSubitems());
+
+    GeneratedBase* newItem = new GeneratedAction(this);
+    addItem(newItem);
+    return newItem;
+}
+
 GeneratedFunction::DataType GeneratedFunction::getReturnType() const
 {
     return m_returnType;
@@ -465,6 +483,30 @@ bool GeneratedAction::canHaveSubitems() const
     return false;
 }
 
+QStringList GeneratedAction::getCaptions() const
+{
+    return QStringList() << QString("Action %1").arg(Serializer::convertEnumToString(m_actionType)) << (!m_variableName.isEmpty() ? QString("%1 %2").arg(Serializer::convertEnumToString(m_variableType), m_variableName) : QString());
+}
+
+GeneratedBase* GeneratedAction::appendItem()
+{
+    Q_ASSERT(canHaveSubitems());
+    GeneratedBase* newItem = nullptr;
+    switch (m_actionType)
+    {
+        case Parameters:
+            newItem = new GeneratedParameter(this);
+            break;
+
+        default:
+            newItem = new GeneratedPDFObject(this);
+            break;
+    }
+
+    addItem(newItem);
+    return newItem;
+}
+
 GeneratedAction::ActionType GeneratedAction::getActionType() const
 {
     return m_actionType;
@@ -508,6 +550,105 @@ QString GeneratedAction::getCode() const
 void GeneratedAction::setCode(const QString& code)
 {
     m_code = code;
+}
+
+bool GeneratedBase::canPerformOperation(Operation operation) const
+{
+    const bool isFunction = qobject_cast<const GeneratedFunction*>(this) != nullptr;
+    switch (operation)
+    {
+        case Operation::Delete:
+            return !isFunction;
+
+        case Operation::MoveUp:
+        {
+            if (const GeneratedBase* parentBase = getParent())
+            {
+                QObjectList items = parentBase->getItems();
+                return items.indexOf(const_cast<codegen::GeneratedBase*>(this)) > 0;
+            }
+
+            break;
+        }
+
+        case Operation::MoveDown:
+        {
+            if (const GeneratedBase* parentBase = getParent())
+            {
+                QObjectList items = parentBase->getItems();
+                return items.indexOf(const_cast<codegen::GeneratedBase*>(this)) < items.size() - 1;
+            }
+
+            break;
+        }
+
+        case Operation::NewSibling:
+            return !isFunction;
+
+        case Operation::NewChild:
+            return canHaveSubitems();
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+void GeneratedBase::performOperation(GeneratedBase::Operation operation)
+{
+    switch (operation)
+    {
+        case Operation::Delete:
+        {
+            getParent()->removeItem(this);
+            break;
+        }
+
+        case Operation::MoveUp:
+        {
+            GeneratedBase* parentItem = getParent();
+            QObjectList items = parentItem->getItems();
+            const int index = items.indexOf(this);
+            items.removeAll(const_cast<codegen::GeneratedBase*>(this));
+            items.insert(index - 1, this);
+            parentItem->setItems(qMove(items));
+            break;
+        }
+
+        case Operation::MoveDown:
+        {
+            GeneratedBase* parentItem = getParent();
+            QObjectList items = parentItem->getItems();
+            const int index = items.indexOf(this);
+            items.removeAll(const_cast<codegen::GeneratedBase*>(this));
+            items.insert(index + 1, this);
+            parentItem->setItems(qMove(items));
+            break;
+        }
+
+        case Operation::NewSibling:
+        {
+            GeneratedBase* parentItem = getParent();
+            if (GeneratedBase* createdItem = parentItem->appendItem())
+            {
+                QObjectList items = parentItem->getItems();
+                items.removeAll(createdItem);
+                items.insert(items.indexOf(const_cast<codegen::GeneratedBase*>(this)), createdItem);
+                parentItem->setItems(qMove(items));
+            }
+            break;
+        }
+
+        case Operation::NewChild:
+        {
+            appendItem();
+            break;
+        }
+
+        default:
+            break;
+    }
 }
 
 QObjectList GeneratedBase::getItems() const
@@ -628,6 +769,46 @@ bool GeneratedPDFObject::canHaveSubitems() const
     return false;
 }
 
+QStringList GeneratedPDFObject::getCaptions() const
+{
+    QString name;
+    switch (m_objectType)
+    {
+        case Object:
+            name = tr("Object");
+            break;
+        case ArraySimple:
+            name = tr("Array (simple)");
+            break;
+        case ArrayComplex:
+            name = tr("Array (complex)");
+            break;
+        case Dictionary:
+            name = tr("Dictionary");
+            break;
+        case DictionaryItemSimple:
+            name = tr("Item (simple), name = '%1'").arg(m_dictionaryItemName);
+            break;
+        case DictionaryItemComplex:
+            name = tr("Item (complex), name = '%1'").arg(m_dictionaryItemName);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QStringList() << name << m_value;
+}
+
+GeneratedBase* GeneratedPDFObject::appendItem()
+{
+    Q_ASSERT(canHaveSubitems());
+    GeneratedBase* newItem = new GeneratedPDFObject(this);
+    addItem(newItem);
+    return newItem;
+}
+
 QString GeneratedPDFObject::getValue() const
 {
     return m_value;
@@ -738,6 +919,16 @@ void GeneratedParameter::fillComboBox(QComboBox* comboBox, GeneratedBase::FieldT
 bool GeneratedParameter::canHaveSubitems() const
 {
     return false;
+}
+
+QStringList GeneratedParameter::getCaptions() const
+{
+    return QStringList() << QString("%1 %2").arg(Serializer::convertEnumToString(m_parameterDataType)).arg(m_parameterName) << m_parameterDescription;
+}
+
+GeneratedBase* GeneratedParameter::appendItem()
+{
+    return nullptr;
 }
 
 QString GeneratedParameter::getParameterName() const
