@@ -646,7 +646,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
                 {
                     if (std::fabs(sourceColorBuffer[colorComponentIndex + i] - sourceColorBuffer[colorOtherComponentIndex + i]) > settings.tolerance)
                     {
-                        isMeshOK.store(std::memory_order_relaxed);
+                        isMeshOK.store(false, std::memory_order_relaxed);
                         return;
                     }
                 }
@@ -659,7 +659,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
                 {
                     if (std::fabs(sourceColorBuffer[colorComponentIndex + i] - sourceColorBuffer[colorOtherComponentIndex + i]) > settings.tolerance)
                     {
-                        isMeshOK.store(std::memory_order_relaxed);
+                        isMeshOK.store(false, std::memory_order_relaxed);
                         return;
                     }
                 }

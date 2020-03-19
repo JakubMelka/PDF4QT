@@ -634,7 +634,7 @@ void GeneratedBase::performOperation(GeneratedBase::Operation operation)
             {
                 QObjectList items = parentItem->getItems();
                 items.removeAll(createdItem);
-                items.insert(items.indexOf(const_cast<codegen::GeneratedBase*>(this)), createdItem);
+                items.insert(items.indexOf(const_cast<codegen::GeneratedBase*>(this)) + 1, createdItem);
                 parentItem->setItems(qMove(items));
             }
             break;

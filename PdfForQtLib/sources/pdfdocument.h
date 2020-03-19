@@ -31,6 +31,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFDocumentBuilder;
 
 /// Storage for objects. This class is not thread safe for writing (calling non-const functions). Caller must ensure
 /// locking, if this object is used from multiple threads. Calling const functions should be thread safe.
@@ -76,6 +77,12 @@ public:
 
     /// Returns security handler associated with these objects
     const PDFSecurityHandler* getSecurityHandler() const { return m_securityHandler.data(); }
+
+    /// Adds a new object to the object list. This function
+    /// is not thread safe, do not call it from multiple threads.
+    /// \param object Object to be added
+    /// \returns Reference to new object
+    PDFObjectReference addObject(PDFObject object);
 
 private:
     PDFObjects m_objects;
@@ -372,6 +379,7 @@ public:
 
 private:
     friend class PDFDocumentReader;
+    friend class PDFDocumentBuilder;
 
     explicit PDFDocument(PDFObjectStorage&& storage, PDFVersion version) :
         m_pdfObjectStorage(std::move(storage))

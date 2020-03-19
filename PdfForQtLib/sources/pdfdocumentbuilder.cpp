@@ -62,6 +62,15 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObject PDFObjectFactory::takeObject()
+{
+    Q_ASSERT(m_items.size() == 1);
+    Q_ASSERT(m_items.back().type == ItemType::Object);
+    PDFObject result = qMove(std::get<PDFObject>(m_items.back().object));
+    m_items.clear();
+    return result;
+}
+
 void PDFObjectFactory::addObject(PDFObject object)
 {
     if (m_items.empty())
@@ -126,5 +135,27 @@ PDFObjectFactory& PDFObjectFactory::operator<<(PDFObjectReference value)
     addObject(PDFObject::createReference(value));
     return *this;
 }
+
+PDFDocumentBuilder::PDFDocumentBuilder() :
+    m_version(1, 7)
+{
+
+}
+
+PDFDocumentBuilder::PDFDocumentBuilder(const PDFDocument* document) :
+    m_storage(document->getStorage()),
+    m_version(document->getInfo()->version)
+{
+
+}
+
+PDFDocument PDFDocumentBuilder::build() const
+{
+    return PDFDocument(PDFObjectStorage(m_storage), m_version);
+}
+
+/* START GENERATED CODE */
+
+/* END GENERATED CODE */
 
 }   // namespace pdf

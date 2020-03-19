@@ -17,10 +17,12 @@
 
 #include "generatormainwindow.h"
 
+#include <QHash>
 #include <QApplication>
 
 int main(int argc, char *argv[])
 {
+    qSetGlobalQHashSeed(0);
     QApplication a(argc, argv);
     GeneratorMainWindow w;
     w.show();

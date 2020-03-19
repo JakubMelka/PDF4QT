@@ -19,6 +19,7 @@
 #define PDFDOCUMENTBUILDER_H
 
 #include "pdfobject.h"
+#include "pdfdocument.h"
 
 namespace pdf
 {
@@ -62,6 +63,8 @@ public:
 
         return *this;
     }
+
+    PDFObject takeObject();
 
 private:
     void addObject(PDFObject object);
@@ -111,7 +114,18 @@ private:
 class PDFDocumentBuilder
 {
 public:
-    PDFDocumentBuilder();
+    explicit PDFDocumentBuilder();
+    explicit PDFDocumentBuilder(const PDFDocument* document);
+
+    PDFDocument build() const;
+
+    /* START GENERATED CODE */
+
+    /* END GENERATED CODE */
+
+private:
+    PDFObjectStorage m_storage;
+    PDFVersion m_version;
 };
 
 }   // namespace pdf

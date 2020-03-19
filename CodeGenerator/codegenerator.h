@@ -128,9 +128,11 @@ public:
         _PDFInteger,
         _PDFReal,
         _PDFObjectReference,
+        _PDFObject,
         _QString,
         _QPointF,
         _QRectF,
+        _QColor,
         _QVariant
     };
     Q_ENUM(DataType)

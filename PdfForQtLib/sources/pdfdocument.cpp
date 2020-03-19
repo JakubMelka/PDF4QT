@@ -225,6 +225,13 @@ const PDFObject& PDFObjectStorage::getObject(PDFObjectReference reference) const
     }
 }
 
+PDFObjectReference PDFObjectStorage::addObject(PDFObject object)
+{
+    PDFObjectReference reference(m_objects.size(), 0);
+    m_objects.emplace_back(0, qMove(object));
+    return reference;
+}
+
 QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);
