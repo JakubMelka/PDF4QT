@@ -29,6 +29,15 @@
 namespace codegen
 {
 
+struct CodeGeneratorParameters
+{
+    bool header = false;
+    int indent = 0;
+    QString className;
+    bool isFirstItem = false;
+    bool isLastItem = false;
+};
+
 class Serializer
 {
 public:
@@ -97,6 +106,8 @@ public:
     GeneratedFunction* addFunction(GeneratedFunction* function);
     void removeFunction(GeneratedFunction* function);
 
+    void generateCode(QTextStream& stream, CodeGeneratorParameters& parameters) const;
+
 private:
     QObjectList m_functions;
 };
@@ -147,6 +158,15 @@ public:
     virtual QStringList getCaptions() const = 0;
     virtual GeneratedBase* appendItem() = 0;
 
+    enum class Pass
+    {
+        Enter,
+        Leave
+    };
+
+    void generateSourceCode(QTextStream& stream, CodeGeneratorParameters& parameters) const;
+    void applyFunctor(std::function<void(const GeneratedBase*, Pass)>& functor) const;
+
     enum class Operation
     {
         Delete,
@@ -166,6 +186,13 @@ public:
     void addItem(QObject* object);
     void removeItem(QObject* object);
     void clearItems();
+
+protected:
+    virtual void generateSourceCodeImpl(QTextStream& stream, CodeGeneratorParameters& parameters, Pass pass) const;
+
+    QString getCppType(DataType type) const;
+    QStringList getFormattedTextWithLayout(QString firstPrefix, QString prefix, QString text, int indent) const;
+    QStringList getFormattedTextBlock(QString firstPrefix, QString prefix, QStringList texts, int indent) const;
 
 private:
     QObjectList m_items;
@@ -249,6 +276,9 @@ public:
     QString getDictionaryItemName() const;
     void setDictionaryItemName(const QString& dictionaryItemName);
 
+protected:
+    virtual void generateSourceCodeImpl(QTextStream& stream, CodeGeneratorParameters& parameters, Pass pass) const override;
+
 private:
     QString m_dictionaryItemName;
     ObjectType m_objectType = Object;
@@ -297,6 +327,9 @@ public:
 
     QString getCode() const;
     void setCode(const QString& code);
+
+protected:
+    virtual void generateSourceCodeImpl(QTextStream& stream, CodeGeneratorParameters& parameters, Pass pass) const override;
 
 private:
     ActionType m_actionType;
@@ -355,6 +388,8 @@ public:
     /// Create a clone of this function
     GeneratedFunction* clone(QObject* parent);
 
+    void generateCode(QTextStream& stream, CodeGeneratorParameters& parameters) const;
+
 private:
     FunctionType m_functionType = FunctionType::Annotations;
     QString m_functionName;
@@ -382,7 +417,12 @@ public:
     void load(const QDomDocument& document);
     void store(QDomDocument& document);
 
+    void generateCode(QString headerName, QString sourceName) const;
+
 private:
+    QString generateHeader(int indent) const;
+    QString generateSource(QString className, int indent) const;
+
     GeneratedCodeStorage* m_storage = nullptr;
 };
 

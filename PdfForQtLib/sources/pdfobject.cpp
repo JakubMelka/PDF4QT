@@ -204,6 +204,25 @@ const PDFObject& PDFDictionary::get(const char* key) const
     }
 }
 
+void PDFDictionary::setEntry(const QByteArray& key, PDFObject&& value)
+{
+    auto it = find(key);
+    if (it != m_dictionary.end())
+    {
+        it->second = qMove(value);
+    }
+    else
+    {
+        addEntry(QByteArray(key), qMove(value));
+    }
+}
+
+void PDFDictionary::removeNullObjects()
+{
+    m_dictionary.erase(std::remove_if(m_dictionary.begin(), m_dictionary.end(), [](const DictionaryEntry& entry) { return entry.second.isNull(); }), m_dictionary.end());
+    m_dictionary.shrink_to_fit();
+}
+
 void PDFDictionary::optimize()
 {
     m_dictionary.shrink_to_fit();
@@ -219,6 +238,11 @@ std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(
     return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
 }
 
+std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const QByteArray& key)
+{
+    return std::find_if(m_dictionary.begin(), m_dictionary.end(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+}
+
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const char* key) const
 {
     return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
@@ -229,6 +253,61 @@ bool PDFStream::equals(const PDFObjectContent* other) const
     Q_ASSERT(dynamic_cast<const PDFStream*>(other));
     const PDFStream* otherStream = static_cast<const PDFStream*>(other);
     return m_dictionary.equals(&otherStream->m_dictionary) && m_content == otherStream->m_content;
+}
+
+PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlags flags)
+{
+    if (left.getType() != right.getType())
+    {
+        return right;
+    }
+
+    if (left.isDictionary())
+    {
+        Q_ASSERT(right.isDictionary());
+
+        PDFDictionary targetDictionary = *left.getDictionary();
+        const PDFDictionary& sourceDictionary = *right.getDictionary();
+
+        for (size_t i = 0, count = sourceDictionary.getCount(); i < count; ++i)
+        {
+            const QByteArray& key = sourceDictionary.getKey(i);
+            PDFObject value = merge(targetDictionary.get(key), sourceDictionary.getValue(i), flags);
+            targetDictionary.setEntry(key, qMove(value));
+        }
+
+        if (flags.testFlag(RemoveNullObjects))
+        {
+            targetDictionary.removeNullObjects();
+        }
+
+        return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(targetDictionary)));
+    }
+    else if (left.isArray() && flags.testFlag(ConcatenateArrays))
+    {
+        // Concatenate arrays
+        const PDFArray* leftArray = left.getArray();
+        const PDFArray* rightArray = right.getArray();
+
+        std::vector<PDFObject> objects;
+        objects.reserve(leftArray->getCount() + rightArray->getCount());
+        for (size_t i = 0, count = leftArray->getCount(); i < count; ++i)
+        {
+            objects.emplace_back(leftArray->getItem(i));
+        }
+        for (size_t i = 0, count = rightArray->getCount(); i < count; ++i)
+        {
+            objects.emplace_back(rightArray->getItem(i));
+        }
+        return PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
+    }
+
+    return right;
+}
+
+PDFObject PDFObjectManipulator::removeNullObjects(PDFObject object)
+{
+    return merge(object, object, RemoveNullObjects);
 }
 
 }   // namespace pdf

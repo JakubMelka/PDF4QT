@@ -70,6 +70,13 @@ public:
     /// \sa convert
     static QByteArray convertToEncoding(const QString& string, Encoding encoding);
 
+    /// Verifies, if string with given unicode characters can be converted using
+    /// the specified encoding (so, all unicode characters present in the string
+    /// are also present in given encoding).
+    /// \param string String to be tested
+    /// \param encoding Encoding used in verification of conversion
+    static bool canConvertToEncoding(const QString& string, Encoding encoding);
+
     /// Convert text string to the unicode string, using either PDFDocEncoding,
     /// or UTF-16BE encoding. Please see PDF Reference 1.7, Chapter 3.8.1. If
     /// UTF-16BE encoding is used, then leading bytes should be 0xFE and 0xFF
@@ -87,6 +94,11 @@ public:
     /// is returned.
     /// \param stream Stream, from which date/time is read
     static QDateTime convertToDateTime(const QByteArray& stream);
+
+    /// Convert date/time to string according to PDF Reference 1.7, Chapter 3.8.1.
+    /// If date is invalid, empty byte array is returned.
+    /// \param dateTime Date and time to be converted
+    static QByteArray converDateTimeToString(QDateTime dateTime);
 
     /// Returns conversion table for particular encoding
     /// \param encoding Encoding

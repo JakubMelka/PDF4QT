@@ -68,7 +68,6 @@ private:
     PDFObjectReference m_reference;
 };
 
-
 void PDFDecryptObjectVisitor::visitNull()
 {
     m_objectStack.push_back(PDFObject::createNull());

@@ -77,6 +77,9 @@ private slots:
     void on_itemDownButton_clicked();
     void on_itemNewChildButton_clicked();
     void on_itemNewSiblingButton_clicked();
+    void on_actionSet_code_header_h_triggered();
+    void on_actionSet_code_source_cpp_triggered();
+    void on_actionGenerate_code_triggered();
 
 private:
     void loadSettings();
@@ -97,6 +100,8 @@ private:
     codegen::GeneratedFunction* m_currentFunction;
     codegen::GeneratedBase* m_currentSettings;
     QString m_defaultFileName;
+    QString m_headerFileName;
+    QString m_sourceFileName;
     std::map<codegen::GeneratedFunction*, QTreeWidgetItem*> m_mapFunctionToWidgetItem;
     bool m_isLoadingData;
 };

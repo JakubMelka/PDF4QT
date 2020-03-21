@@ -24,6 +24,30 @@
 namespace pdf
 {
 
+struct WrapName
+{
+    WrapName(const char* name) :
+        name(name)
+    {
+
+    }
+
+    QByteArray name;
+};
+
+struct WrapAnnotationColor
+{
+    WrapAnnotationColor(QColor color) :
+        color(color)
+    {
+
+    }
+
+    QColor color;
+};
+
+struct WrapCurrentDateTime { };
+
 /// Factory for creating various PDF objects, such as simple objects,
 /// dictionaries, arrays etc.
 class PDFObjectFactory
@@ -45,6 +69,12 @@ public:
     PDFObjectFactory& operator<<(PDFReal value);
     PDFObjectFactory& operator<<(PDFInteger value);
     PDFObjectFactory& operator<<(PDFObjectReference value);
+    PDFObjectFactory& operator<<(WrapName wrapName);
+    PDFObjectFactory& operator<<(int value);
+    PDFObjectFactory& operator<<(const QRectF& value);
+    PDFObjectFactory& operator<<(WrapCurrentDateTime);
+    PDFObjectFactory& operator<<(WrapAnnotationColor color);
+    PDFObjectFactory& operator<<(QString textString);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -119,11 +149,52 @@ public:
 
     PDFDocument build() const;
 
-    /* START GENERATED CODE */
+/* START GENERATED CODE */
 
-    /* END GENERATED CODE */
+    /// Square annotation displays rectangle (or square). When opened, they display pop-up window 
+    /// containing the text of associated note (and window title). Square border/fill color can be defined, 
+    /// along with border width.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is rectangle displayed
+    /// \param borderWidth Width of the border line of rectangle
+    /// \param fillColor Fill color of rectangle (interior color). If you do not want to have area color filled, 
+    ///        then use invalid QColor.
+    /// \param strokeColor Stroke color (color of the rectangle border). If you do not want to have a 
+    ///        border, then use invalid QColor.
+    /// \param title Title (it is displayed as title of popup window)
+    /// \param subject Subject (short description of the subject being adressed by the annotation)
+    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
+    PDFObjectReference createAnnotationSquare(PDFObjectReference page,
+                                              QRectF rectangle,
+                                              PDFReal borderWidth,
+                                              QColor fillColor,
+                                              QColor strokeColor,
+                                              QString title,
+                                              QString subject,
+                                              QString contents);
+
+
+    /// Creates a new popup annotation on the page. Popup annotation is represented usually by floating 
+    /// window, which can be opened, or closed. Popup annotation is associated with parent annotation, 
+    /// which can be usually markup annotation. Popup annotation displays parent annotation's texts, for 
+    /// example, title, comment, date etc.
+    /// \param page Page to which is annotation added
+    /// \param parentAnnotation Parent annotation (for which is popup window displayed)
+    /// \param rectangle Area on the page, where popup window appears
+    /// \param opened Is the window opened?
+    PDFObjectReference createAnnotationPopup(PDFObjectReference page,
+                                             PDFObjectReference parentAnnotation,
+                                             QRectF rectangle,
+                                             bool opened);
+
+
+/* END GENERATED CODE */
 
 private:
+    PDFObjectReference addObject(PDFObject object);
+    void mergeTo(PDFObjectReference reference, PDFObject object);
+    QRectF getPopupWindowRect(const QRectF& rectangle) const;
+
     PDFObjectStorage m_storage;
     PDFVersion m_version;
 };

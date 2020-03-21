@@ -83,6 +83,8 @@ void GeneratorMainWindow::saveSettings()
 {
     QSettings settings("MelkaJ");
     settings.setValue("fileName", m_defaultFileName);
+    settings.setValue("headerFile", m_headerFileName);
+    settings.setValue("sourceFile", m_sourceFileName);
 }
 
 void GeneratorMainWindow::loadGeneratedSettings()
@@ -349,6 +351,8 @@ void GeneratorMainWindow::loadSettings()
 {
     QSettings settings("MelkaJ");
     m_defaultFileName = settings.value("fileName").toString();
+    m_headerFileName = settings.value("headerFile", QVariant()).toString();
+    m_sourceFileName = settings.value("sourceFile", QVariant()).toString();
 }
 
 void GeneratorMainWindow::save(const QString& fileName)
@@ -484,5 +488,33 @@ void GeneratorMainWindow::on_itemNewSiblingButton_clicked()
         m_currentSettings->performOperation(codegen::GeneratedBase::Operation::NewSibling);
         updateGeneratedSettingsTree();
         loadGeneratedSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_code_header_h_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select cpp header"), QString(), "cpp header (*.h)");
+    if (!fileName.isEmpty())
+    {
+        m_headerFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_code_source_cpp_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select cpp source"), QString(), "cpp source (*.cpp)");
+    if (!fileName.isEmpty())
+    {
+        m_sourceFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionGenerate_code_triggered()
+{
+    if (m_generator)
+    {
+        m_generator->generateCode(m_headerFileName, m_sourceFileName);
     }
 }

@@ -95,6 +95,8 @@ public:
     constexpr inline PDFObject& operator=(const PDFObject&) = default;
     constexpr inline PDFObject& operator=(PDFObject&&) = default;
 
+    inline Type getType() const { return m_type; }
+
     // Test operators
     inline bool isNull() const { return m_type == Type::Null; }
     inline bool isBool() const { return m_type == Type::Bool; }
@@ -260,6 +262,12 @@ public:
     /// \param value Value
     void addEntry(QByteArray&& key, PDFObject&& value) { m_dictionary.emplace_back(std::move(key), std::move(value)); }
 
+    /// Sets entry value. If entry with given key doesn't exist,
+    /// then it is created.
+    /// \param key Key
+    /// \param value Value
+    void setEntry(const QByteArray& key, PDFObject&& value);
+
     /// Returns count of items in the dictionary
     size_t getCount() const { return m_dictionary.size(); }
 
@@ -274,6 +282,9 @@ public:
     /// \param index Zero-based index of value in the dictionary
     const PDFObject& getValue(size_t index) const { return m_dictionary[index].second; }
 
+    /// Removes null objects from dictionary
+    void removeNullObjects();
+
     /// Optimizes the dictionary for memory consumption
     virtual void optimize() override;
 
@@ -282,6 +293,11 @@ private:
     /// then end iterator is returned.
     /// \param key Key to be found
     std::vector<DictionaryEntry>::const_iterator find(const QByteArray& key) const;
+
+    /// Finds an item in the dictionary array, if the item is not in the dictionary,
+    /// then end iterator is returned.
+    /// \param key Key to be found
+    std::vector<DictionaryEntry>::iterator find(const QByteArray& key);
 
     /// Finds an item in the dictionary array, if the item is not in the dictionary,
     /// then end iterator is returned.
@@ -320,6 +336,34 @@ public:
 private:
     PDFDictionary m_dictionary;
     QByteArray m_content;
+};
+
+class PDFObjectManipulator
+{
+public:
+    explicit PDFObjectManipulator() = delete;
+
+    enum MergeFlag
+    {
+        RemoveNullObjects = 0x0001, ///< Remove null object from dictionaries
+        ConcatenateArrays = 0x0002, ///< Concatenate arrays instead of replace
+    };
+    Q_DECLARE_FLAGS(MergeFlags, MergeFlag)
+
+    /// Merges two objects. If object type is different, then object from right is used.
+    /// If both objects are dictionaries, then their content is merged, object \p right
+    /// has precedence over object \p left. If both objects are arrays, and concatenating
+    /// flag is turned on, then they are concatenated instead of replacing left array
+    /// by right array. If remove null objects flag is turend on, then null objects
+    /// are removed from dictionaries.
+    /// \param left Left, 'slave' object
+    /// \param right Right 'master' object, has priority over left
+    /// \param flags Merge flags
+    static PDFObject merge(PDFObject left, PDFObject right, MergeFlags flags);
+
+    /// Remove null objects from all dictionaries
+    /// \param object Object
+    static PDFObject removeNullObjects(PDFObject object);
 };
 
 }   // namespace pdf

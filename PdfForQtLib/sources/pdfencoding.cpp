@@ -2149,6 +2149,7 @@ QByteArray PDFEncoding::convertToEncoding(const QString& string, PDFEncoding::En
             if (unicode == (*table)[static_cast<unsigned char>(i)])
             {
                 converted = i;
+                break;
             }
         }
 
@@ -2156,6 +2157,34 @@ QByteArray PDFEncoding::convertToEncoding(const QString& string, PDFEncoding::En
     }
 
     return result;
+}
+
+bool PDFEncoding::canConvertToEncoding(const QString& string, PDFEncoding::Encoding encoding)
+{
+    const encoding::EncodingTable* table = getTableForEncoding(encoding);
+    Q_ASSERT(table);
+
+    for (QChar character : string)
+    {
+        ushort unicode = character.unicode();
+        bool converted = false;
+
+        for (int i = 0; i < table->size(); ++i)
+        {
+            if (unicode == (*table)[static_cast<unsigned char>(i)])
+            {
+                converted = true;
+                break;
+            }
+        }
+
+        if (!converted)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 QString PDFEncoding::convertTextString(const QByteArray& stream)
@@ -2257,6 +2286,13 @@ QDateTime PDFEncoding::convertToDateTime(const QByteArray& stream)
     }
 
     return QDateTime();
+}
+
+QByteArray PDFEncoding::converDateTimeToString(QDateTime dateTime)
+{
+    QDateTime utcDateTime = dateTime.toUTC();
+    QString convertedDateTime = QString("D:%1").arg(utcDateTime.toString("yyyyMMddhhmmss"));
+    return convertedDateTime.toLatin1();
 }
 
 const encoding::EncodingTable* PDFEncoding::getTableForEncoding(Encoding encoding)

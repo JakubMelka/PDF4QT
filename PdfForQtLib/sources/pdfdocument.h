@@ -84,6 +84,11 @@ public:
     /// \returns Reference to new object
     PDFObjectReference addObject(PDFObject object);
 
+    /// Sets object to object storage. Reference must exist.
+    /// \param reference Reference to object
+    /// \param object New value of object
+    void setObject(PDFObjectReference reference, PDFObject object);
+
 private:
     PDFObjects m_objects;
     PDFObject m_trailerDictionary;
