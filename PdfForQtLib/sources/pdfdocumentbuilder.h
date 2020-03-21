@@ -144,10 +144,21 @@ private:
 class PDFDocumentBuilder
 {
 public:
+    /// Creates a new blank document (with no pages)
     explicit PDFDocumentBuilder();
+
+    ///
     explicit PDFDocumentBuilder(const PDFDocument* document);
 
-    PDFDocument build() const;
+    /// Resets the object to the initial state.
+    /// \warning All data are lost
+    void reset();
+
+    /// Create a new blank document with no pages. If some document
+    /// is edited at call of this function, then it is lost.
+    void createDocument();
+
+    PDFDocument build();
 
 /* START GENERATED CODE */
 
@@ -188,12 +199,30 @@ public:
                                              bool opened);
 
 
+    /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
+    /// this function manually.
+    PDFObjectReference createCatalog();
+
+
+    /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
+    /// call this function manually.
+    /// \param catalog Reference to document catalog
+    PDFObject createTrailerDictionary(PDFObjectReference catalog);
+
+
+    /// This function is used to update trailer dictionary. Must be called each time the final document is 
+    /// being built.
+    /// \param objectCount Number of objects (including empty ones)
+    void updateTrailerDictionary(PDFInteger objectCount);
+
+
 /* END GENERATED CODE */
 
 private:
     PDFObjectReference addObject(PDFObject object);
     void mergeTo(PDFObjectReference reference, PDFObject object);
     QRectF getPopupWindowRect(const QRectF& rectangle) const;
+    QString getProducerString() const;
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;

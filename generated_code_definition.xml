@@ -184,9 +184,17 @@
           <property name="items">
             <QObject class="codegen::GeneratedPDFObject">
               <property name="objectName"></property>
-              <property name="items"/>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Popup</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">popupAnnotation</property>
+                </QObject>
+              </property>
               <property name="dictionaryItemName">Popup</property>
-              <property name="objectType">DictionaryItemSimple</property>
+              <property name="objectType">Dictionary</property>
               <property name="value">popupAnnotation</property>
             </QObject>
           </property>
@@ -315,6 +323,235 @@ return annotationObject;</property>
       <property name="functionName">createAnnotationPopup</property>
       <property name="functionDescription">Creates a new popup annotation on the page. Popup annotation is represented usually by floating window, which can be opened, or closed. Popup annotation is associated with parent annotation, which can be usually markup annotation. Popup annotation displays parent annotation's texts, for example, title, comment, date etc.</property>
       <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Catalog")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">catalogReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return catalogReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">createCatalog</property>
+      <property name="functionDescription">Creates empty catalog. This function is used, when a new document is being created. Do not call this function manually.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">catalog</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Reference to document catalog</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Size</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">1</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Root</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">catalog</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items">
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">Producer</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">getProducerString()</property>
+                        </QObject>
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">CreationDate</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">WrapCurrentDateTime()</property>
+                        </QObject>
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">ModDate</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">WrapCurrentDateTime()</property>
+                        </QObject>
+                      </property>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">Dictionary</property>
+                      <property name="value"></property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">Info</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">trailerDictionary</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return trailerDictionary;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">createTrailerDictionary</property>
+      <property name="functionDescription">This function is used to create a new trailer dictionary, when blank document is created. Do not call this function manually.</property>
+      <property name="returnType">_PDFObject</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">objectCount</property>
+              <property name="parameterType">_PDFInteger</property>
+              <property name="parameterDescription">Number of objects (including empty ones)</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Size</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">objectCount</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items">
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">Producer</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">getProducerString()</property>
+                        </QObject>
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">ModDate</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">WrapCurrentDateTime()</property>
+                        </QObject>
+                      </property>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">Dictionary</property>
+                      <property name="value"></property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">Info</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">trailerDictionary</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">m_storage.updateTrailerDictionary(qMove(trailerDictionary));</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">updateTrailerDictionary</property>
+      <property name="functionDescription">This function is used to update trailer dictionary. Must be called each time the final document is being built.</property>
+      <property name="returnType">_void</property>
     </QObject>
   </property>
 </root>

@@ -17,6 +17,7 @@
 
 #include "pdfdocumentbuilder.h"
 #include "pdfencoding.h"
+#include "pdfconstants.h"
 
 namespace pdf
 {
@@ -216,7 +217,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(PDFObjectReference value)
 PDFDocumentBuilder::PDFDocumentBuilder() :
     m_version(1, 7)
 {
-
+    createDocument();
 }
 
 PDFDocumentBuilder::PDFDocumentBuilder(const PDFDocument* document) :
@@ -226,8 +227,23 @@ PDFDocumentBuilder::PDFDocumentBuilder(const PDFDocument* document) :
 
 }
 
-PDFDocument PDFDocumentBuilder::build() const
+void PDFDocumentBuilder::reset()
 {
+    *this = PDFDocumentBuilder();
+}
+
+void PDFDocumentBuilder::createDocument()
+{
+    reset();
+
+    PDFObjectReference catalog = createCatalog();
+    PDFObject trailerDictionary = createTrailerDictionary(catalog);
+    m_storage.updateTrailerDictionary(trailerDictionary);
+}
+
+PDFDocument PDFDocumentBuilder::build()
+{
+    updateTrailerDictionary(m_storage.getObjects().size());
     return PDFDocument(PDFObjectStorage(m_storage), m_version);
 }
 
@@ -244,6 +260,11 @@ void PDFDocumentBuilder::mergeTo(PDFObjectReference reference, PDFObject object)
 QRectF PDFDocumentBuilder::getPopupWindowRect(const QRectF& rectangle) const
 {
     return rectangle.translated(rectangle.width() * 1.25, 0);
+}
+
+QString PDFDocumentBuilder::getProducerString() const
+{
+    return PDF_LIBRARY_NAME;
 }
 
 /* START GENERATED CODE */
@@ -300,13 +321,16 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
     PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
     PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(rectangle), false);
 
+    objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("Popup");
     objectBuilder << popupAnnotation;
     objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
     PDFObject updateAnnotationPopup = objectBuilder.takeObject();
     mergeTo(annotationObject, updateAnnotationPopup);
-    return PDFObjectReference();
+    return annotationObject;
 }
+
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference page,
                                                              PDFObjectReference parentAnnotation,
@@ -335,6 +359,75 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference 
     PDFObjectReference popupAnnotation = addObject(objectBuilder.takeObject());
     return popupAnnotation;
 }
+
+
+PDFObjectReference PDFDocumentBuilder::createCatalog()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Catalog");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference catalogReference = addObject(objectBuilder.takeObject());
+    return catalogReference;
+}
+
+
+PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Size");
+    objectBuilder << 1;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Root");
+    objectBuilder << catalog;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Info");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Producer");
+    objectBuilder << getProducerString();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("ModDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject trailerDictionary = objectBuilder.takeObject();
+    return trailerDictionary;
+}
+
+
+void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Size");
+    objectBuilder << objectCount;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Info");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Producer");
+    objectBuilder << getProducerString();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("ModDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject trailerDictionary = objectBuilder.takeObject();
+    m_storage.updateTrailerDictionary(qMove(trailerDictionary));
+}
+
 
 /* END GENERATED CODE */
 

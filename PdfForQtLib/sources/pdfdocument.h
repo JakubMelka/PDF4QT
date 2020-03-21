@@ -89,6 +89,12 @@ public:
     /// \param object New value of object
     void setObject(PDFObjectReference reference, PDFObject object);
 
+    /// Updates trailer dictionary. Preserves items which are not in a new
+    /// dictionary \p trailerDictionary. It merges new dictionary to the
+    /// old one.
+    /// \param trailerDictionary New trailer dictionary
+    void updateTrailerDictionary(PDFObject trailerDictionary);
+
 private:
     PDFObjects m_objects;
     PDFObject m_trailerDictionary;

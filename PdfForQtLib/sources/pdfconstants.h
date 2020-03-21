@@ -22,6 +22,9 @@
 namespace pdf
 {
 
+// Name of the library, together with version
+static constexpr const char* PDF_LIBRARY_NAME = "PdfForQt 1.0.0";
+
 // Structure file constants
 static constexpr const char* PDF_END_OF_FILE_MARK = "%%EOF";
 static constexpr const char* PDF_START_OF_XREF_MARK = "startxref";

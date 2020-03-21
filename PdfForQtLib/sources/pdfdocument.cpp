@@ -237,6 +237,11 @@ void PDFObjectStorage::setObject(PDFObjectReference reference, PDFObject object)
     m_objects[reference.objectNumber] = Entry(reference.generation, qMove(object));
 }
 
+void PDFObjectStorage::updateTrailerDictionary(PDFObject trailerDictionary)
+{
+    m_trailerDictionary = PDFObjectManipulator::merge(m_trailerDictionary, trailerDictionary, PDFObjectManipulator::RemoveNullObjects);
+}
+
 QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
 {
     const PDFObject& dereferencedObject = m_document->getObject(object);

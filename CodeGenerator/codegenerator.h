@@ -349,6 +349,7 @@ public:
 
     enum FunctionType
     {
+        Structure,
         Annotations,
         ColorSpace
     };

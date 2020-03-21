@@ -400,6 +400,11 @@ void GeneratedFunction::generateCode(QTextStream& stream, CodeGeneratorParameter
     };
     applyFunctor(gatherParameters);
 
+    if (parameterTexts.isEmpty())
+    {
+        parameterTexts << "";
+    }
+
     if (parameters.header)
     {
         // Generate header source code
