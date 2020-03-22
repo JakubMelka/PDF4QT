@@ -20,6 +20,7 @@
 
 #include "pdfobject.h"
 #include "pdfdocument.h"
+#include "pdfannotation.h"
 
 namespace pdf
 {
@@ -77,6 +78,7 @@ public:
     PDFObjectFactory& operator<<(WrapAnnotationColor color);
     PDFObjectFactory& operator<<(QString textString);
     PDFObjectFactory& operator<<(WrapEmptyArray);
+    PDFObjectFactory& operator<<(TextAnnotationIcon icon);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -242,6 +244,49 @@ public:
     /// Creates page tree root for the catalog. This function is only called when new document is being 
     /// created. Do not call this function manually.
     PDFObjectReference createCatalogPageTreeRoot();
+
+
+    /// Circle annotation displays ellipse (or circle). When opened, they display pop-up window containing 
+    /// the text of associated note (and window title). Circle border/fill color can be defined, along with 
+    /// border width.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is circle/ellipse displayed
+    /// \param borderWidth Width of the border line of circle/ellipse
+    /// \param fillColor Fill color of rectangle (interior color). If you do not want to have area color filled, 
+    ///        then use invalid QColor.
+    /// \param strokeColor Stroke color (color of the rectangle border). If you do not want to have a 
+    ///        border, then use invalid QColor.
+    /// \param title Title (it is displayed as title of popup window)
+    /// \param subject Subject (short description of the subject being adressed by the annotation)
+    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
+    PDFObjectReference createAnnotationCircle(PDFObjectReference page,
+                                              QRectF rectangle,
+                                              PDFReal borderWidth,
+                                              QColor fillColor,
+                                              QColor strokeColor,
+                                              QString title,
+                                              QString subject,
+                                              QString contents);
+
+
+    /// Creates text annotation. Text annotation is "sticky note" attached to a point in the PDF document. 
+    /// When closed, it is displayed as icon, if opened, widget appears with attached text. Text annotations 
+    /// do not scale or rotate, they appear independent of zoom/rotate. So, they behave as if flags 
+    /// NoZoom or NoRotate to the annotations are being set.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is icon displayed
+    /// \param iconType Icon type
+    /// \param title Title (it is displayed as title of popup window)
+    /// \param subject Subject (short description of the subject being adressed by the annotation)
+    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
+    /// \param open Is annotation initiali displayed as opened?
+    PDFObjectReference createAnnotationText(PDFObjectReference page,
+                                            QRectF rectangle,
+                                            TextAnnotationIcon iconType,
+                                            QString title,
+                                            QString subject,
+                                            QString contents,
+                                            bool open);
 
 
 /* END GENERATED CODE */

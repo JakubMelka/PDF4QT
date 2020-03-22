@@ -1209,7 +1209,10 @@ void GeneratedPDFObject::generateSourceCodeImpl(QTextStream& stream, CodeGenerat
             if (pass == Pass::Enter)
             {
                 stream << indent << "objectBuilder.beginArray();" << Qt::endl;
-                stream << indent << writeTo << getValue().trimmed() << ";" << Qt::endl;
+                for (const QString& arrayPart : getValue().trimmed().split(";"))
+                {
+                    stream << indent << writeTo << arrayPart << ";" << Qt::endl;
+                }
                 stream << indent << "objectBuilder.endArray();" << Qt::endl;
             }
             break;

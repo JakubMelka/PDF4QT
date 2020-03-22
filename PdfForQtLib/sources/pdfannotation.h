@@ -508,6 +508,17 @@ private:
     PDFObject m_externalData;
 };
 
+enum class TextAnnotationIcon
+{
+    Comment,
+    Help,
+    Insert,
+    Key,
+    NewParagraph,
+    Note,
+    Paragraph
+};
+
 /// Text annotation represents note attached to a specific point in the PDF
 /// document. It appears as icon, and it is not zoomed, or rotated (behaves
 /// as if flag NoZoom and NoRotate were set). When this annotation is opened,

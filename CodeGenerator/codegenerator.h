@@ -144,7 +144,8 @@ public:
         _QPointF,
         _QRectF,
         _QColor,
-        _QVariant
+        _QVariant,
+        _TextAnnotationIcon
     };
     Q_ENUM(DataType)
 

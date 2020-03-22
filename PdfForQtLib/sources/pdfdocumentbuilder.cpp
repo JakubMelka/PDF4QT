@@ -64,6 +64,61 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(TextAnnotationIcon icon)
+{
+    switch (icon)
+    {
+        case TextAnnotationIcon::Comment:
+        {
+            *this << WrapName("Comment");
+            break;
+        }
+
+        case TextAnnotationIcon::Help:
+        {
+            *this << WrapName("Help");
+            break;
+        }
+
+        case TextAnnotationIcon::Insert:
+        {
+            *this << WrapName("Insert");
+            break;
+        }
+
+        case TextAnnotationIcon::Key:
+        {
+            *this << WrapName("Key");
+            break;
+        }
+
+        case TextAnnotationIcon::NewParagraph:
+        {
+            *this << WrapName("NewParagraph");
+            break;
+        }
+
+        case TextAnnotationIcon::Note:
+        {
+            *this << WrapName("Note");
+            break;
+        }
+
+        case TextAnnotationIcon::Paragraph:
+        {
+            *this << WrapName("Paragraph");
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+        }
+    }
+
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapEmptyArray)
 {
     beginArray();
@@ -276,7 +331,9 @@ void PDFDocumentBuilder::appendTo(PDFObjectReference reference, PDFObject object
 
 QRectF PDFDocumentBuilder::getPopupWindowRect(const QRectF& rectangle) const
 {
-    return rectangle.translated(rectangle.width() * 1.25, 0);
+    QRectF rect = rectangle.translated(rectangle.width() * 1.25, 0);
+    rect.setSize(QSizeF(100, 100));
+    return rect;
 }
 
 QString PDFDocumentBuilder::getProducerString() const
@@ -375,7 +432,17 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObject updateAnnotationPopup = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder << popupAnnotation;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
     mergeTo(annotationObject, updateAnnotationPopup);
+    appendTo(page, pageAnnots);
     return annotationObject;
 }
 
@@ -529,6 +596,148 @@ PDFObjectReference PDFDocumentBuilder::createCatalogPageTreeRoot()
     objectBuilder.endDictionary();
     PDFObjectReference pageTreeRoot = addObject(objectBuilder.takeObject());
     return pageTreeRoot;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationCircle(PDFObjectReference page,
+                                                              QRectF rectangle,
+                                                              PDFReal borderWidth,
+                                                              QColor fillColor,
+                                                              QColor strokeColor,
+                                                              QString title,
+                                                              QString subject,
+                                                              QString contents)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Circle");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Border");
+    objectBuilder << std::initializer_list<PDFReal>{ 0.0, 0.0, borderWidth };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << WrapAnnotationColor(strokeColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("IC");
+    objectBuilder << WrapAnnotationColor(fillColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(rectangle), false);
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Popup");
+    objectBuilder << popupAnnotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updateAnnotationPopup = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder << popupAnnotation;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    mergeTo(annotationObject, updateAnnotationPopup);
+    appendTo(page, pageAnnots);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationText(PDFObjectReference page,
+                                                            QRectF rectangle,
+                                                            TextAnnotationIcon iconType,
+                                                            QString title,
+                                                            QString subject,
+                                                            QString contents,
+                                                            bool open)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Text");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Name");
+    objectBuilder << iconType;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Open");
+    objectBuilder << open;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(rectangle), false);
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Popup");
+    objectBuilder << popupAnnotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updateAnnotationPopup = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder << popupAnnotation;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    mergeTo(annotationObject, updateAnnotationPopup);
+    appendTo(page, pageAnnots);
+    return annotationObject;
 }
 
 
