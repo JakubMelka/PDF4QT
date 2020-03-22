@@ -15,7 +15,6 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef PDFUTILS_H
 #define PDFUTILS_H
 
@@ -496,6 +495,33 @@ static inline bool isFuzzyComparedPointsSame(const QPointF& p1, const QPointF& p
     const qreal squaredDistance = QPointF::dotProduct(dp, dp);
     return squaredDistance < squaredTolerance;
 }
+
+/// Storage for result of some operation. Stores, if operation was successful, or not and
+/// also error message, why operation has failed. Can be converted explicitly to bool.
+class PDFOperationResult
+{
+public:
+    inline PDFOperationResult(bool success) :
+        m_success(success)
+    {
+
+    }
+
+    inline PDFOperationResult(QString message) :
+        m_success(false),
+        m_errorMessage(qMove(message))
+    {
+
+    }
+
+    explicit operator bool() const { return m_success; }
+
+    const QString& getErrorMessage() const { return m_errorMessage; }
+
+private:
+    bool m_success;
+    QString m_errorMessage;
+};
 
 }   // namespace pdf
 

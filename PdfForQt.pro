@@ -20,6 +20,7 @@ TEMPLATE = subdirs
 SUBDIRS += \
     CodeGenerator \
     JBIG2_Viewer \
+    PdfExampleGenerator \
     PdfForQtLib \
     UnitTests \
     PdfForQtViewer
@@ -27,3 +28,4 @@ SUBDIRS += \
 UnitTests.depends = PdfForQtLib
 PdfForQtViewer.depends = PdfForQtLib
 JBIG2_Viewer.depends = PdfForQtLib
+PDFExampleGenerator.depends = PdfForQtLib

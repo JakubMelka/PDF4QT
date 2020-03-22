@@ -78,6 +78,9 @@ public:
     /// Returns security handler associated with these objects
     const PDFSecurityHandler* getSecurityHandler() const { return m_securityHandler.data(); }
 
+    /// Sets security handler associated with these objects
+    void setSecurityHandler(PDFSecurityHandlerPointer handler) { m_securityHandler = qMove(handler); }
+
     /// Adds a new object to the object list. This function
     /// is not thread safe, do not call it from multiple threads.
     /// \param object Object to be added

@@ -64,6 +64,13 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(WrapEmptyArray)
+{
+    beginArray();
+    endArray();
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(QString textString)
 {
     if (!PDFEncoding::canConvertToEncoding(textString, PDFEncoding::Encoding::PDFDoc))
@@ -234,11 +241,16 @@ void PDFDocumentBuilder::reset()
 
 void PDFDocumentBuilder::createDocument()
 {
-    reset();
+    if (!m_storage.getObjects().empty())
+    {
+        reset();
+    }
 
+    addObject(PDFObject::createNull());
     PDFObjectReference catalog = createCatalog();
     PDFObject trailerDictionary = createTrailerDictionary(catalog);
     m_storage.updateTrailerDictionary(trailerDictionary);
+    m_storage.setSecurityHandler(PDFSecurityHandlerPointer(new PDFNoneSecurityHandler()));
 }
 
 PDFDocument PDFDocumentBuilder::build()
@@ -257,6 +269,11 @@ void PDFDocumentBuilder::mergeTo(PDFObjectReference reference, PDFObject object)
     m_storage.setObject(reference, PDFObjectManipulator::merge(m_storage.getObject(reference), qMove(object), PDFObjectManipulator::RemoveNullObjects));
 }
 
+void PDFDocumentBuilder::appendTo(PDFObjectReference reference, PDFObject object)
+{
+    m_storage.setObject(reference, PDFObjectManipulator::merge(m_storage.getObject(reference), qMove(object), PDFObjectManipulator::ConcatenateArrays));
+}
+
 QRectF PDFDocumentBuilder::getPopupWindowRect(const QRectF& rectangle) const
 {
     return rectangle.translated(rectangle.width() * 1.25, 0);
@@ -265,6 +282,37 @@ QRectF PDFDocumentBuilder::getPopupWindowRect(const QRectF& rectangle) const
 QString PDFDocumentBuilder::getProducerString() const
 {
     return PDF_LIBRARY_NAME;
+}
+
+PDFObjectReference PDFDocumentBuilder::getPageTreeRoot() const
+{
+    if (const PDFDictionary* trailerDictionary = getDictionaryFromObject(m_storage.getTrailerDictionary()))
+    {
+        if (const PDFDictionary* catalogDictionary = getDictionaryFromObject(trailerDictionary->get("Root")))
+        {
+            PDFObject pagesRoot = catalogDictionary->get("Pages");
+            if (pagesRoot.isReference())
+            {
+                return pagesRoot.getReference();
+            }
+        }
+    }
+
+    return PDFObjectReference();
+}
+
+PDFInteger PDFDocumentBuilder::getPageTreeRootChildCount() const
+{
+    if (const PDFDictionary* pageTreeRootDictionary = getDictionaryFromObject(getObjectByReference(getPageTreeRoot())))
+    {
+        PDFObject childCountObject = getObject(pageTreeRootDictionary->get("Count"));
+        if (childCountObject.isInt())
+        {
+            return childCountObject.getInteger();
+        }
+    }
+
+    return 0;
 }
 
 /* START GENERATED CODE */
@@ -369,6 +417,9 @@ PDFObjectReference PDFDocumentBuilder::createCatalog()
     objectBuilder.beginDictionaryItem("Type");
     objectBuilder << WrapName("Catalog");
     objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Pages");
+    objectBuilder << createCatalogPageTreeRoot();
+    objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObjectReference catalogReference = addObject(objectBuilder.takeObject());
     return catalogReference;
@@ -426,6 +477,58 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     objectBuilder.endDictionary();
     PDFObject trailerDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
+}
+
+
+PDFObjectReference PDFDocumentBuilder::appendPage(QRectF mediaBox)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Page");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Parent");
+    objectBuilder << getPageTreeRoot();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionary();
+    objectBuilder.endDictionary();
+    objectBuilder.beginDictionaryItem("MediaBox");
+    objectBuilder << mediaBox;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference pageReference = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Kids");
+    objectBuilder << std::initializer_list<PDFObjectReference>{ pageReference };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Count");
+    objectBuilder << getPageTreeRootChildCount() + 1;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedTreeRoot = objectBuilder.takeObject();
+    appendTo(getPageTreeRoot(), updatedTreeRoot);
+    return pageReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createCatalogPageTreeRoot()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Pages");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Kids");
+    objectBuilder << WrapEmptyArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Count");
+    objectBuilder << 0;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference pageTreeRoot = addObject(objectBuilder.takeObject());
+    return pageTreeRoot;
 }
 
 

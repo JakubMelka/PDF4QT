@@ -47,6 +47,7 @@ struct WrapAnnotationColor
 };
 
 struct WrapCurrentDateTime { };
+struct WrapEmptyArray { };
 
 /// Factory for creating various PDF objects, such as simple objects,
 /// dictionaries, arrays etc.
@@ -75,6 +76,7 @@ public:
     PDFObjectFactory& operator<<(WrapCurrentDateTime);
     PDFObjectFactory& operator<<(WrapAnnotationColor color);
     PDFObjectFactory& operator<<(QString textString);
+    PDFObjectFactory& operator<<(WrapEmptyArray);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -141,7 +143,7 @@ private:
     std::vector<Item> m_items;
 };
 
-class PDFDocumentBuilder
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentBuilder
 {
 public:
     /// Creates a new blank document (with no pages)
@@ -158,7 +160,23 @@ public:
     /// is edited at call of this function, then it is lost.
     void createDocument();
 
+    /// Builds a new document. This function can throw exceptions,
+    /// if document being built was invalid.
     PDFDocument build();
+
+    /// If object is reference, the dereference attempt is performed
+    /// and object is returned. If it is not a reference, then self
+    /// is returned. If dereference attempt fails, then null object
+    /// is returned (no exception is thrown).
+    const PDFObject& getObject(const PDFObject& object) const;
+
+    /// Returns dictionary from an object. If object is not a dictionary,
+    /// then nullptr is returned (no exception is thrown).
+    const PDFDictionary* getDictionaryFromObject(const PDFObject& object) const;
+
+    /// Returns object by reference. If dereference attempt fails, then null object
+    /// is returned (no exception is thrown).
+    const PDFObject& getObjectByReference(PDFObjectReference reference) const;
 
 /* START GENERATED CODE */
 
@@ -216,17 +234,66 @@ public:
     void updateTrailerDictionary(PDFInteger objectCount);
 
 
+    /// Appends a new page after last page.
+    /// \param mediaBox Media box of the page (size of paper)
+    PDFObjectReference appendPage(QRectF mediaBox);
+
+
+    /// Creates page tree root for the catalog. This function is only called when new document is being 
+    /// created. Do not call this function manually.
+    PDFObjectReference createCatalogPageTreeRoot();
+
+
 /* END GENERATED CODE */
 
 private:
     PDFObjectReference addObject(PDFObject object);
     void mergeTo(PDFObjectReference reference, PDFObject object);
+    void appendTo(PDFObjectReference reference, PDFObject object);
     QRectF getPopupWindowRect(const QRectF& rectangle) const;
     QString getProducerString() const;
+    PDFObjectReference getPageTreeRoot() const;
+    PDFInteger getPageTreeRootChildCount() const;
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;
 };
+
+// Implementation
+
+inline
+const PDFObject& PDFDocumentBuilder::getObject(const PDFObject& object) const
+{
+    if (object.isReference())
+    {
+        // Try to dereference the object
+        return m_storage.getObject(object.getReference());
+    }
+
+    return object;
+}
+
+inline
+const PDFDictionary* PDFDocumentBuilder::getDictionaryFromObject(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = getObject(object);
+    if (dereferencedObject.isDictionary())
+    {
+        return dereferencedObject.getDictionary();
+    }
+    else if (dereferencedObject.isStream())
+    {
+        return dereferencedObject.getStream()->getDictionary();
+    }
+
+    return nullptr;
+}
+
+inline
+const PDFObject& PDFDocumentBuilder::getObjectByReference(PDFObjectReference reference) const
+{
+    return m_storage.getObject(reference);
+}
 
 }   // namespace pdf
 

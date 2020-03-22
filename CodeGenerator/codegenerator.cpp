@@ -251,7 +251,7 @@ void CodeGenerator::generateCode(QString headerName, QString sourceName) const
     QFile headerFile(headerName);
     if (headerFile.exists())
     {
-        if (headerFile.open(QFile::ReadOnly))
+        if (headerFile.open(QFile::ReadOnly | QFile::Text))
         {
             QString utfCode = QString::fromUtf8(headerFile.readAll());
             headerFile.close();
@@ -273,7 +273,7 @@ void CodeGenerator::generateCode(QString headerName, QString sourceName) const
     QFile sourceFile(sourceName);
     if (sourceFile.exists())
     {
-        if (sourceFile.open(QFile::ReadOnly))
+        if (sourceFile.open(QFile::ReadOnly | QFile::Text))
         {
             QString utfCode = QString::fromUtf8(sourceFile.readAll());
             sourceFile.close();
