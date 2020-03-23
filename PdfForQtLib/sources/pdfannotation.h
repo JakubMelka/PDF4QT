@@ -545,6 +545,14 @@ private:
     QString m_stateModel;
 };
 
+enum class LinkHighlightMode
+{
+    None,
+    Invert,
+    Outline,
+    Push
+};
+
 /// Link annotation represents hypertext link to a destination to elsewhere
 /// in the document, or action to be performed.
 class PDFLinkAnnotation : public PDFAnnotation
@@ -554,16 +562,8 @@ public:
 
     virtual AnnotationType getType() const override { return AnnotationType::Link; }
 
-    enum class HighlightMode
-    {
-        None,
-        Invert,
-        Outline,
-        Push
-    };
-
     const PDFAction* getAction() const { return m_action.data(); }
-    HighlightMode getHighlightMode() const { return m_highlightMode; }
+    LinkHighlightMode getHighlightMode() const { return m_highlightMode; }
     const PDFAction* getURIAction() const { return m_previousAction.data(); }
     const PDFAnnotationQuadrilaterals& getActivationRegion() const { return m_activationRegion; }
 
@@ -571,7 +571,7 @@ private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
 
     PDFActionPtr m_action;
-    HighlightMode m_highlightMode = HighlightMode::Invert;
+    LinkHighlightMode m_highlightMode = LinkHighlightMode::Invert;
     PDFActionPtr m_previousAction;
     PDFAnnotationQuadrilaterals m_activationRegion;
 };

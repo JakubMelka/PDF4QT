@@ -79,6 +79,7 @@ public:
     PDFObjectFactory& operator<<(QString textString);
     PDFObjectFactory& operator<<(WrapEmptyArray);
     PDFObjectFactory& operator<<(TextAnnotationIcon icon);
+    PDFObjectFactory& operator<<(LinkHighlightMode mode);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -182,68 +183,14 @@ public:
 
 /* START GENERATED CODE */
 
-    /// Square annotation displays rectangle (or square). When opened, they display pop-up window 
-    /// containing the text of associated note (and window title). Square border/fill color can be defined, 
-    /// along with border width.
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is rectangle displayed
-    /// \param borderWidth Width of the border line of rectangle
-    /// \param fillColor Fill color of rectangle (interior color). If you do not want to have area color filled, 
-    ///        then use invalid QColor.
-    /// \param strokeColor Stroke color (color of the rectangle border). If you do not want to have a 
-    ///        border, then use invalid QColor.
-    /// \param title Title (it is displayed as title of popup window)
-    /// \param subject Subject (short description of the subject being adressed by the annotation)
-    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
-    PDFObjectReference createAnnotationSquare(PDFObjectReference page,
-                                              QRectF rectangle,
-                                              PDFReal borderWidth,
-                                              QColor fillColor,
-                                              QColor strokeColor,
-                                              QString title,
-                                              QString subject,
-                                              QString contents);
-
-
-    /// Creates a new popup annotation on the page. Popup annotation is represented usually by floating 
-    /// window, which can be opened, or closed. Popup annotation is associated with parent annotation, 
-    /// which can be usually markup annotation. Popup annotation displays parent annotation's texts, for 
-    /// example, title, comment, date etc.
-    /// \param page Page to which is annotation added
-    /// \param parentAnnotation Parent annotation (for which is popup window displayed)
-    /// \param rectangle Area on the page, where popup window appears
-    /// \param opened Is the window opened?
-    PDFObjectReference createAnnotationPopup(PDFObjectReference page,
-                                             PDFObjectReference parentAnnotation,
-                                             QRectF rectangle,
-                                             bool opened);
-
-
-    /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
-    /// this function manually.
-    PDFObjectReference createCatalog();
-
-
-    /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
-    /// call this function manually.
-    /// \param catalog Reference to document catalog
-    PDFObject createTrailerDictionary(PDFObjectReference catalog);
-
-
-    /// This function is used to update trailer dictionary. Must be called each time the final document is 
-    /// being built.
-    /// \param objectCount Number of objects (including empty ones)
-    void updateTrailerDictionary(PDFInteger objectCount);
-
-
     /// Appends a new page after last page.
     /// \param mediaBox Media box of the page (size of paper)
     PDFObjectReference appendPage(QRectF mediaBox);
 
 
-    /// Creates page tree root for the catalog. This function is only called when new document is being 
-    /// created. Do not call this function manually.
-    PDFObjectReference createCatalogPageTreeRoot();
+    /// Creates URI action.
+    /// \param URL Target URL
+    PDFObjectReference createActionURI(QString URL);
 
 
     /// Circle annotation displays ellipse (or circle). When opened, they display pop-up window containing 
@@ -260,6 +207,69 @@ public:
     /// \param subject Subject (short description of the subject being adressed by the annotation)
     /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
     PDFObjectReference createAnnotationCircle(PDFObjectReference page,
+                                              QRectF rectangle,
+                                              PDFReal borderWidth,
+                                              QColor fillColor,
+                                              QColor strokeColor,
+                                              QString title,
+                                              QString subject,
+                                              QString contents);
+
+
+    /// Creates new link annotation. It usually represents clickable hypertext link. User can also specify 
+    /// action, which can be executed, for example, link can be also in the PDF document (link to some 
+    /// location in document).
+    /// \param page Page to which is annotation added
+    /// \param linkRectangle Link rectangle
+    /// \param action Action to be performed when user clicks on a link
+    /// \param highlightMode Highlight mode
+    PDFObjectReference createAnnotationLink(PDFObjectReference page,
+                                            QRectF linkRectangle,
+                                            PDFObjectReference action,
+                                            LinkHighlightMode highlightMode);
+
+
+    /// Creates new link annotation. It usually represents clickable hypertext link. User can also specify 
+    /// action, which can be executed, for example, link can be also in the PDF document (link to some 
+    /// location in document).
+    /// \param page Page to which is annotation added
+    /// \param linkRectangle Link rectangle
+    /// \param URL URL to be launched when user clicks on the link
+    /// \param highlightMode Highlight mode
+    PDFObjectReference createAnnotationLink(PDFObjectReference page,
+                                            QRectF linkRectangle,
+                                            QString URL,
+                                            LinkHighlightMode highlightMode);
+
+
+    /// Creates a new popup annotation on the page. Popup annotation is represented usually by floating 
+    /// window, which can be opened, or closed. Popup annotation is associated with parent annotation, 
+    /// which can be usually markup annotation. Popup annotation displays parent annotation's texts, for 
+    /// example, title, comment, date etc.
+    /// \param page Page to which is annotation added
+    /// \param parentAnnotation Parent annotation (for which is popup window displayed)
+    /// \param rectangle Area on the page, where popup window appears
+    /// \param opened Is the window opened?
+    PDFObjectReference createAnnotationPopup(PDFObjectReference page,
+                                             PDFObjectReference parentAnnotation,
+                                             QRectF rectangle,
+                                             bool opened);
+
+
+    /// Square annotation displays rectangle (or square). When opened, they display pop-up window 
+    /// containing the text of associated note (and window title). Square border/fill color can be defined, 
+    /// along with border width.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is rectangle displayed
+    /// \param borderWidth Width of the border line of rectangle
+    /// \param fillColor Fill color of rectangle (interior color). If you do not want to have area color filled, 
+    ///        then use invalid QColor.
+    /// \param strokeColor Stroke color (color of the rectangle border). If you do not want to have a 
+    ///        border, then use invalid QColor.
+    /// \param title Title (it is displayed as title of popup window)
+    /// \param subject Subject (short description of the subject being adressed by the annotation)
+    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
+    PDFObjectReference createAnnotationSquare(PDFObjectReference page,
                                               QRectF rectangle,
                                               PDFReal borderWidth,
                                               QColor fillColor,
@@ -287,6 +297,28 @@ public:
                                             QString subject,
                                             QString contents,
                                             bool open);
+
+
+    /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
+    /// this function manually.
+    PDFObjectReference createCatalog();
+
+
+    /// Creates page tree root for the catalog. This function is only called when new document is being 
+    /// created. Do not call this function manually.
+    PDFObjectReference createCatalogPageTreeRoot();
+
+
+    /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
+    /// call this function manually.
+    /// \param catalog Reference to document catalog
+    PDFObject createTrailerDictionary(PDFObjectReference catalog);
+
+
+    /// This function is used to update trailer dictionary. Must be called each time the final document is 
+    /// being built.
+    /// \param objectCount Number of objects (including empty ones)
+    void updateTrailerDictionary(PDFInteger objectCount);
 
 
 /* END GENERATED CODE */

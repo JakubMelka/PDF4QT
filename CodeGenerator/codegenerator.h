@@ -145,7 +145,8 @@ public:
         _QRectF,
         _QColor,
         _QVariant,
-        _TextAnnotationIcon
+        _TextAnnotationIcon,
+        _LinkHighlightMode
     };
     Q_ENUM(DataType)
 
@@ -352,7 +353,8 @@ public:
     {
         Structure,
         Annotations,
-        ColorSpace
+        ColorSpace,
+        Actions
     };
     Q_ENUM(FunctionType)
 

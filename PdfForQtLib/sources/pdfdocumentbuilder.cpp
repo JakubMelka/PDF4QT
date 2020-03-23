@@ -64,6 +64,42 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(LinkHighlightMode mode)
+{
+    switch (mode)
+    {
+        case LinkHighlightMode::None:
+        {
+            *this << WrapName("N");
+            break;
+        }
+
+        case LinkHighlightMode::Invert:
+        {
+            *this << WrapName("I");
+            break;
+        }
+
+        case LinkHighlightMode::Outline:
+        {
+            *this << WrapName("O");
+            break;
+        }
+
+        case LinkHighlightMode::Push:
+        {
+            *this << WrapName("P");
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(TextAnnotationIcon icon)
 {
     switch (icon)
@@ -374,7 +410,59 @@ PDFInteger PDFDocumentBuilder::getPageTreeRootChildCount() const
 
 /* START GENERATED CODE */
 
-PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference page,
+PDFObjectReference PDFDocumentBuilder::appendPage(QRectF mediaBox)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Page");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Parent");
+    objectBuilder << getPageTreeRoot();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionary();
+    objectBuilder.endDictionary();
+    objectBuilder.beginDictionaryItem("MediaBox");
+    objectBuilder << mediaBox;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference pageReference = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Kids");
+    objectBuilder << std::initializer_list<PDFObjectReference>{ pageReference };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Count");
+    objectBuilder << getPageTreeRootChildCount() + 1;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedTreeRoot = objectBuilder.takeObject();
+    appendTo(getPageTreeRoot(), updatedTreeRoot);
+    return pageReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionURI(QString URL)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("URI");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("URI");
+    objectBuilder << URL;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationCircle(PDFObjectReference page,
                                                               QRectF rectangle,
                                                               PDFReal borderWidth,
                                                               QColor fillColor,
@@ -386,8 +474,11 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subtype");
-    objectBuilder << WrapName("Square");
+    objectBuilder << WrapName("Circle");
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Rect");
     objectBuilder << rectangle;
@@ -447,6 +538,58 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference page,
+                                                            QRectF linkRectangle,
+                                                            PDFObjectReference action,
+                                                            LinkHighlightMode highlightMode)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Link");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << linkRectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("A");
+    objectBuilder << action;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("H");
+    objectBuilder << highlightMode;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationReference = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationReference;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    return annotationReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference page,
+                                                            QRectF linkRectangle,
+                                                            QString URL,
+                                                            LinkHighlightMode highlightMode)
+{
+    PDFObjectFactory objectBuilder;
+
+    return createAnnotationLink(page, linkRectangle, createActionURI(URL), highlightMode);
+}
+
+
 PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference page,
                                                              PDFObjectReference parentAnnotation,
                                                              QRectF rectangle,
@@ -455,6 +598,9 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference 
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subtype");
     objectBuilder << WrapName("Popup");
     objectBuilder.endDictionaryItem();
@@ -476,130 +622,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference 
 }
 
 
-PDFObjectReference PDFDocumentBuilder::createCatalog()
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Catalog");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Pages");
-    objectBuilder << createCatalogPageTreeRoot();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference catalogReference = addObject(objectBuilder.takeObject());
-    return catalogReference;
-}
-
-
-PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Size");
-    objectBuilder << 1;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Root");
-    objectBuilder << catalog;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Info");
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Producer");
-    objectBuilder << getProducerString();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("CreationDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("ModDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject trailerDictionary = objectBuilder.takeObject();
-    return trailerDictionary;
-}
-
-
-void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Size");
-    objectBuilder << objectCount;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Info");
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Producer");
-    objectBuilder << getProducerString();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("ModDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject trailerDictionary = objectBuilder.takeObject();
-    m_storage.updateTrailerDictionary(qMove(trailerDictionary));
-}
-
-
-PDFObjectReference PDFDocumentBuilder::appendPage(QRectF mediaBox)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Page");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Parent");
-    objectBuilder << getPageTreeRoot();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionary();
-    objectBuilder.endDictionary();
-    objectBuilder.beginDictionaryItem("MediaBox");
-    objectBuilder << mediaBox;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference pageReference = addObject(objectBuilder.takeObject());
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Kids");
-    objectBuilder << std::initializer_list<PDFObjectReference>{ pageReference };
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Count");
-    objectBuilder << getPageTreeRootChildCount() + 1;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject updatedTreeRoot = objectBuilder.takeObject();
-    appendTo(getPageTreeRoot(), updatedTreeRoot);
-    return pageReference;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createCatalogPageTreeRoot()
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Pages");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Kids");
-    objectBuilder << WrapEmptyArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Count");
-    objectBuilder << 0;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference pageTreeRoot = addObject(objectBuilder.takeObject());
-    return pageTreeRoot;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createAnnotationCircle(PDFObjectReference page,
+PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference page,
                                                               QRectF rectangle,
                                                               PDFReal borderWidth,
                                                               QColor fillColor,
@@ -611,8 +634,11 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationCircle(PDFObjectReference
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subtype");
-    objectBuilder << WrapName("Circle");
+    objectBuilder << WrapName("Square");
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Rect");
     objectBuilder << rectangle;
@@ -683,6 +709,9 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationText(PDFObjectReference p
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subtype");
     objectBuilder << WrapName("Text");
     objectBuilder.endDictionaryItem();
@@ -738,6 +767,97 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationText(PDFObjectReference p
     mergeTo(annotationObject, updateAnnotationPopup);
     appendTo(page, pageAnnots);
     return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createCatalog()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Catalog");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Pages");
+    objectBuilder << createCatalogPageTreeRoot();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference catalogReference = addObject(objectBuilder.takeObject());
+    return catalogReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createCatalogPageTreeRoot()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Pages");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Kids");
+    objectBuilder << WrapEmptyArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Count");
+    objectBuilder << 0;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference pageTreeRoot = addObject(objectBuilder.takeObject());
+    return pageTreeRoot;
+}
+
+
+PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Size");
+    objectBuilder << 1;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Root");
+    objectBuilder << catalog;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Info");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Producer");
+    objectBuilder << getProducerString();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("ModDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject trailerDictionary = objectBuilder.takeObject();
+    return trailerDictionary;
+}
+
+
+void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Size");
+    objectBuilder << objectCount;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Info");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Producer");
+    objectBuilder << getProducerString();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("ModDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject trailerDictionary = objectBuilder.takeObject();
+    m_storage.updateTrailerDictionary(qMove(trailerDictionary));
 }
 
 

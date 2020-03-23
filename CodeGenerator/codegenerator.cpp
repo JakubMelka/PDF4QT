@@ -40,6 +40,14 @@ QObjectList GeneratedCodeStorage::getFunctions() const
 void GeneratedCodeStorage::setFunctions(const QObjectList& functions)
 {
     m_functions = functions;
+
+    auto comparator = [](const QObject* left, const QObject* right)
+    {
+        const GeneratedFunction* leftFunction = qobject_cast<const GeneratedFunction*>(left);
+        const GeneratedFunction* rightFunction = qobject_cast<const GeneratedFunction*>(right);
+        return leftFunction->getFunctionName() < rightFunction->getFunctionName();
+    };
+    std::sort(m_functions.begin(), m_functions.end(), comparator);
 }
 
 GeneratedFunction* GeneratedCodeStorage::addFunction(const QString& name)

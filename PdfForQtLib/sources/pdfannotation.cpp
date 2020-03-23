@@ -197,14 +197,14 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         }
         linkAnnotation->m_previousAction = PDFAction::parse(document, dictionary->get("PA"));
 
-        constexpr const std::array<std::pair<const char*, PDFLinkAnnotation::HighlightMode>, 4> highlightMode = {
-            std::pair<const char*, PDFLinkAnnotation::HighlightMode>{ "N", PDFLinkAnnotation::HighlightMode::None },
-            std::pair<const char*, PDFLinkAnnotation::HighlightMode>{ "I", PDFLinkAnnotation::HighlightMode::Invert },
-            std::pair<const char*, PDFLinkAnnotation::HighlightMode>{ "O", PDFLinkAnnotation::HighlightMode::Outline },
-            std::pair<const char*, PDFLinkAnnotation::HighlightMode>{ "P", PDFLinkAnnotation::HighlightMode::Push }
+        constexpr const std::array<std::pair<const char*, LinkHighlightMode>, 4> highlightMode = {
+            std::pair<const char*, LinkHighlightMode>{ "N", LinkHighlightMode::None },
+            std::pair<const char*, LinkHighlightMode>{ "I", LinkHighlightMode::Invert },
+            std::pair<const char*, LinkHighlightMode>{ "O", LinkHighlightMode::Outline },
+            std::pair<const char*, LinkHighlightMode>{ "P", LinkHighlightMode::Push }
         };
 
-        linkAnnotation->m_highlightMode = loader.readEnumByName(dictionary->get("H"), highlightMode.begin(), highlightMode.end(), PDFLinkAnnotation::HighlightMode::Invert);
+        linkAnnotation->m_highlightMode = loader.readEnumByName(dictionary->get("H"), highlightMode.begin(), highlightMode.end(), LinkHighlightMode::Invert);
         linkAnnotation->m_activationRegion = parseQuadrilaterals(document, dictionary->get("QuadPoints"), annotationsRectangle);
     }
     else if (subtype == "FreeText")
