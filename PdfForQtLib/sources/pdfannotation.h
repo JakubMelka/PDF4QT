@@ -34,6 +34,8 @@ namespace pdf
 class PDFDocument;
 class PDFDrawWidgetProxy;
 
+using TextAlignment = Qt::Alignment;
+
 enum class AnnotationType
 {
     Invalid,

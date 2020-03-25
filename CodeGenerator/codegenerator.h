@@ -146,7 +146,9 @@ public:
         _QColor,
         _QVariant,
         _TextAnnotationIcon,
-        _LinkHighlightMode
+        _LinkHighlightMode,
+        _TextAlignment,
+        _AnnotationLineEnding
     };
     Q_ENUM(DataType)
 

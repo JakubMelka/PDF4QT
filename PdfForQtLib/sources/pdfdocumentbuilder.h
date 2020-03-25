@@ -47,6 +47,28 @@ struct WrapAnnotationColor
     QColor color;
 };
 
+struct WrapFreeTextAlignment
+{
+    constexpr inline WrapFreeTextAlignment(Qt::Alignment alignment) :
+        alignment(alignment)
+    {
+
+    }
+
+    Qt::Alignment alignment;
+};
+
+struct WrapString
+{
+    WrapString(const char* string) :
+        string(string)
+    {
+
+    }
+
+    QByteArray string;
+};
+
 struct WrapCurrentDateTime { };
 struct WrapEmptyArray { };
 
@@ -80,6 +102,9 @@ public:
     PDFObjectFactory& operator<<(WrapEmptyArray);
     PDFObjectFactory& operator<<(TextAnnotationIcon icon);
     PDFObjectFactory& operator<<(LinkHighlightMode mode);
+    PDFObjectFactory& operator<<(WrapFreeTextAlignment alignment);
+    PDFObjectFactory& operator<<(WrapString string);
+    PDFObjectFactory& operator<<(AnnotationLineEnding lineEnding);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -181,6 +206,9 @@ public:
     /// is returned (no exception is thrown).
     const PDFObject& getObjectByReference(PDFObjectReference reference) const;
 
+    /// Returns annotation bounding rectangle
+    std::array<PDFReal, 4> getAnnotationReductionRectangle(const QRectF& boundingRect, const QRectF& innerRect) const;
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -214,6 +242,82 @@ public:
                                               QString title,
                                               QString subject,
                                               QString contents);
+
+
+    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
+    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
+    /// the document. Free text annotation can also have callout line, with, or without a knee.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is text displayed
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents (text displayed)
+    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
+    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
+                                                QRectF rectangle,
+                                                QString title,
+                                                QString subject,
+                                                QString contents,
+                                                TextAlignment textAlignment);
+
+
+    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
+    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
+    /// the document. Free text annotation can also have callout line, with, or without a knee. Specify 
+    /// start/end point parameters of this function to get callout line.
+    /// \param page Page to which is annotation added
+    /// \param boundingRectangle Bounding rectangle of free text annotation. It must contain both 
+    ///        callout line and text rectangle.
+    /// \param textRectangle Rectangle with text, in absolute coordinates. They are then recomputed to 
+    ///        match bounding rectangle.
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents (text displayed)
+    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
+    /// \param startPoint Start point of callout line
+    /// \param endPoint End point of callout line
+    /// \param startLineType Line ending at the start point
+    /// \param endLineType Line ending at the end point
+    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
+                                                QRectF boundingRectangle,
+                                                QRectF textRectangle,
+                                                QString title,
+                                                QString subject,
+                                                QString contents,
+                                                TextAlignment textAlignment,
+                                                QPointF startPoint,
+                                                QPointF endPoint,
+                                                AnnotationLineEnding startLineType,
+                                                AnnotationLineEnding endLineType);
+
+
+    /// Line annotation represents straight line, or some more advanced graphics, such as dimension with 
+    /// text. Line annotations are markup annotations, so they can have popup window. Line endings can 
+    /// be specified.
+    /// \param page Page to which is annotation added
+    /// \param boundingRect Line annotation bounding rectangle
+    /// \param startPoint Line start
+    /// \param endPoint Line end
+    /// \param lineWidth Line width
+    /// \param fillColor Fill color of line parts (for example, filled line endings)
+    /// \param strokeColor Line stroke color
+    /// \param title Title (it is displayed as title of popup window)
+    /// \param subject Subject (short description of the subject being adressed by the annotation)
+    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
+    /// \param startLineType Start line ending type
+    /// \param endLineType End line ending type
+    PDFObjectReference createAnnotationLine(PDFObjectReference page,
+                                            QRectF boundingRect,
+                                            QPointF startPoint,
+                                            QPointF endPoint,
+                                            PDFReal lineWidth,
+                                            QColor fillColor,
+                                            QColor strokeColor,
+                                            QString title,
+                                            QString subject,
+                                            QString contents,
+                                            AnnotationLineEnding startLineType,
+                                            AnnotationLineEnding endLineType);
 
 
     /// Creates new link annotation. It usually represents clickable hypertext link. User can also specify 
@@ -289,7 +393,7 @@ public:
     /// \param title Title (it is displayed as title of popup window)
     /// \param subject Subject (short description of the subject being adressed by the annotation)
     /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
-    /// \param open Is annotation initiali displayed as opened?
+    /// \param open Is annotation initially displayed as opened?
     PDFObjectReference createAnnotationText(PDFObjectReference page,
                                             QRectF rectangle,
                                             TextAnnotationIcon iconType,

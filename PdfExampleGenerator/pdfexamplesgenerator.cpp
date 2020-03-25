@@ -46,6 +46,59 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     builder.createAnnotationLink(page2, QRectF(50,  250, 200, 50), "www.seznam.cz", pdf::LinkHighlightMode::Outline);
     builder.createAnnotationLink(page2, QRectF(50,  350, 200, 50), "www.seznam.cz", pdf::LinkHighlightMode::Push);
 
+    pdf::PDFObjectReference page3 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationFreeText(page3, QRectF(50,  50, 100, 50), "Title", "Subject", "Toto je dolni text", Qt::AlignLeft);
+    builder.createAnnotationFreeText(page3, QRectF(50,  150, 100, 50), "Title", "Subject", "Toto je stredni text", Qt::AlignCenter);
+    builder.createAnnotationFreeText(page3, QRectF(50,  250, 100, 50), "Title", "Subject", "Toto je horni text", Qt::AlignRight);
+    builder.createAnnotationFreeText(page3, QRectF(250,  50, 100, 50), QRectF(300, 50, 50, 50), "Title", "Subject", "Toto je dolni text", Qt::AlignLeft, QPointF(250, 50), QPointF(300, 100), pdf::AnnotationLineEnding::OpenArrow, pdf::AnnotationLineEnding::ClosedArrow);
+    builder.createAnnotationFreeText(page3, QRectF(250,  150, 100, 50), QRectF(50, 50, 50, 50), "Title", "Subject", "Toto je stredni text", Qt::AlignCenter, QPointF(250, 150), QPointF(300, 200), pdf::AnnotationLineEnding::OpenArrow, pdf::AnnotationLineEnding::ClosedArrow);
+    builder.createAnnotationFreeText(page3, QRectF(250,  250, 100, 50), QRectF(0, 50, 50, 50), "Title", "Subject", "Toto je horni text", Qt::AlignRight, QPointF(250, 250), QPointF(300, 300), pdf::AnnotationLineEnding::OpenArrow, pdf::AnnotationLineEnding::ClosedArrow);
+
+    pdf::PDFObjectReference page4 = builder.appendPage(QRectF(0, 0, 400, 400));
+    std::vector<QRectF> lineRects;
+    QRectF baseRect = QRectF(0, 0, 100, 50);
+    qreal spaceCoef = 1.2;
+    int lineRows = 400 / (baseRect.height() * spaceCoef);
+    int lineCols = 400 / (baseRect.width() * spaceCoef);
+    int lineNumber = 0;
+    constexpr pdf::AnnotationLineEnding lineEndings[] =
+    {
+        pdf::AnnotationLineEnding::None,
+        pdf::AnnotationLineEnding::Square,
+        pdf::AnnotationLineEnding::Circle,
+        pdf::AnnotationLineEnding::Diamond,
+        pdf::AnnotationLineEnding::OpenArrow,
+        pdf::AnnotationLineEnding::ClosedArrow,
+        pdf::AnnotationLineEnding::Butt,
+        pdf::AnnotationLineEnding::ROpenArrow,
+        pdf::AnnotationLineEnding::RClosedArrow,
+        pdf::AnnotationLineEnding::Slash
+    };
+    for (int i = 0; i < lineCols; ++i)
+    {
+        for (int j = 0; j < lineRows; ++j)
+        {
+            QRectF rect = baseRect.translated(i * baseRect.width() * spaceCoef, j * baseRect.height() * spaceCoef);
+
+            QPointF start;
+            QPointF end;
+            if (lineNumber % 2 == 0)
+            {
+                start = rect.topLeft();
+                end = rect.bottomRight();
+            }
+            else
+            {
+                start = rect.bottomLeft();
+                end = rect.topRight();
+            }
+
+            pdf::AnnotationLineEnding lineEnding = lineEndings[lineNumber % std::size(lineEndings)];
+            builder.createAnnotationLine(page4, rect, start, end, 2.0, Qt::yellow, Qt::green, "Title", "Subject", "Contents", lineEnding, lineEnding);
+            ++lineNumber;
+        }
+    }
+
     pdf::PDFObjectReference page5 = builder.appendPage(QRectF(0, 0, 400, 400));
     builder.createAnnotationSquare(page5, QRectF(50, 50, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
     builder.createAnnotationSquare(page5, QRectF(50, 150, 50, 50), 3.0, QColor(), Qt::red, "Title2", "Subject2", "Contents - red boundary");
