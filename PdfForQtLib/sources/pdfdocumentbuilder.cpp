@@ -64,6 +64,13 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(const QPointF& point)
+{
+    *this << point.x();
+    *this << point.y();
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationLineEnding lineEnding)
 {
     switch (lineEnding)
@@ -858,6 +865,120 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLine(PDFObjectReference p
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createAnnotationLine(PDFObjectReference page,
+                                                            QRectF boundingRect,
+                                                            QPointF startPoint,
+                                                            QPointF endPoint,
+                                                            PDFReal lineWidth,
+                                                            QColor fillColor,
+                                                            QColor strokeColor,
+                                                            QString title,
+                                                            QString subject,
+                                                            QString contents,
+                                                            AnnotationLineEnding startLineType,
+                                                            AnnotationLineEnding endLineType,
+                                                            PDFReal leaderLineLength,
+                                                            PDFReal leaderLineOffset,
+                                                            PDFReal leaderLineExtension,
+                                                            bool displayContents,
+                                                            bool displayedContentsTopAlign)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Line");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << boundingRect;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("L");
+    objectBuilder.beginArray();
+    objectBuilder << startPoint.x();
+    objectBuilder << startPoint.y();
+    objectBuilder << endPoint.x();
+    objectBuilder << endPoint.y();
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("LE");
+    objectBuilder.beginArray();
+    objectBuilder << startLineType;
+    objectBuilder << endLineType;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Border");
+    objectBuilder << std::initializer_list<PDFReal>{ 0.0, 0.0, lineWidth };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << WrapAnnotationColor(strokeColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("IC");
+    objectBuilder << WrapAnnotationColor(fillColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("LL");
+    objectBuilder << leaderLineLength;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("LLO");
+    objectBuilder << leaderLineOffset;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("LLE");
+    objectBuilder << leaderLineExtension;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Cap");
+    objectBuilder << displayContents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CP");
+    objectBuilder << (displayedContentsTopAlign ? WrapName("Top") : WrapName("Inline"));
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(boundingRect), false);
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Popup");
+    objectBuilder << popupAnnotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updateAnnotationPopup = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder << popupAnnotation;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    mergeTo(annotationObject, updateAnnotationPopup);
+    appendTo(page, pageAnnots);
+    return annotationObject;
+}
+
+
 PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference page,
                                                             QRectF linkRectangle,
                                                             PDFObjectReference action,
@@ -907,6 +1028,172 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference p
     PDFObjectFactory objectBuilder;
 
     return createAnnotationLink(page, linkRectangle, createActionURI(URL), highlightMode);
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationPolygon(PDFObjectReference page,
+                                                               QPolygonF polygon,
+                                                               PDFReal borderWidth,
+                                                               QColor fillColor,
+                                                               QColor strokeColor,
+                                                               QString title,
+                                                               QString subject,
+                                                               QString contents)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Polygon");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << polygon.boundingRect();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Vertices");
+    objectBuilder << polygon;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Border");
+    objectBuilder << std::initializer_list<PDFReal>{ 0.0, 0.0, borderWidth };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << WrapAnnotationColor(strokeColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("IC");
+    objectBuilder << WrapAnnotationColor(fillColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(polygon.boundingRect()), false);
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Popup");
+    objectBuilder << popupAnnotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updateAnnotationPopup = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder << popupAnnotation;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    mergeTo(annotationObject, updateAnnotationPopup);
+    appendTo(page, pageAnnots);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationPolyline(PDFObjectReference page,
+                                                                QPolygonF polyline,
+                                                                PDFReal borderWidth,
+                                                                QColor fillColor,
+                                                                QColor strokeColor,
+                                                                QString title,
+                                                                QString subject,
+                                                                QString contents,
+                                                                AnnotationLineEnding startLineType,
+                                                                AnnotationLineEnding endLineType)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("PolyLine");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << polyline.boundingRect();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Vertices");
+    objectBuilder << polyline;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Border");
+    objectBuilder << std::initializer_list<PDFReal>{ 0.0, 0.0, borderWidth };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << WrapAnnotationColor(strokeColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("IC");
+    objectBuilder << WrapAnnotationColor(fillColor);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("");
+    objectBuilder.beginArray();
+    objectBuilder << startLineType;
+    objectBuilder << endLineType;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(polyline.boundingRect()), false);
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Popup");
+    objectBuilder << popupAnnotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updateAnnotationPopup = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder << popupAnnotation;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    mergeTo(annotationObject, updateAnnotationPopup);
+    appendTo(page, pageAnnots);
+    return annotationObject;
 }
 
 

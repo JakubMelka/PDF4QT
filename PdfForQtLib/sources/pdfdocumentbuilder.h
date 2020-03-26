@@ -105,6 +105,7 @@ public:
     PDFObjectFactory& operator<<(WrapFreeTextAlignment alignment);
     PDFObjectFactory& operator<<(WrapString string);
     PDFObjectFactory& operator<<(AnnotationLineEnding lineEnding);
+    PDFObjectFactory& operator<<(const QPointF& point);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -320,6 +321,50 @@ public:
                                             AnnotationLineEnding endLineType);
 
 
+    /// Line annotation represents straight line, or some more advanced graphics, such as dimension with 
+    /// text. Line annotations are markup annotations, so they can have popup window. Line endings can 
+    /// be specified.
+    /// \param page Page to which is annotation added
+    /// \param boundingRect Line annotation bounding rectangle
+    /// \param startPoint Line start
+    /// \param endPoint Line end
+    /// \param lineWidth Line width
+    /// \param fillColor Fill color of line parts (for example, filled line endings)
+    /// \param strokeColor Line stroke color
+    /// \param title Title (it is displayed as title of popup window)
+    /// \param subject Subject (short description of the subject being adressed by the annotation)
+    /// \param contents Contents (text displayed, for example, in the marked annotation dialog)
+    /// \param startLineType Start line ending type
+    /// \param endLineType End line ending type
+    /// \param leaderLineLength Length of the leader line. Leader line extends from each endpoint of 
+    ///        the line perpendicular to the line itself. Value can be either positive, negative or zero. If 
+    ///        positive, then extension is in plane that is above the annotation line (in clockwise order), 
+    ///        if negative, then it is below the annotation line.
+    /// \param leaderLineOffset Length of leader line offset, which is the amount of empty space 
+    ///        between the endpoints of the annotation and beginning of leader lines
+    /// \param leaderLineExtension Length of leader line extension, which extends leader lines in 180° 
+    ///        direction from leader lines (so leader lines continues above drawn line)
+    /// \param displayContents Display contents of the annotation as text along the line
+    /// \param displayedContentsTopAlign Displayed contents appear above the line, instead inline.
+    PDFObjectReference createAnnotationLine(PDFObjectReference page,
+                                            QRectF boundingRect,
+                                            QPointF startPoint,
+                                            QPointF endPoint,
+                                            PDFReal lineWidth,
+                                            QColor fillColor,
+                                            QColor strokeColor,
+                                            QString title,
+                                            QString subject,
+                                            QString contents,
+                                            AnnotationLineEnding startLineType,
+                                            AnnotationLineEnding endLineType,
+                                            PDFReal leaderLineLength,
+                                            PDFReal leaderLineOffset,
+                                            PDFReal leaderLineExtension,
+                                            bool displayContents,
+                                            bool displayedContentsTopAlign);
+
+
     /// Creates new link annotation. It usually represents clickable hypertext link. User can also specify 
     /// action, which can be executed, for example, link can be also in the PDF document (link to some 
     /// location in document).
@@ -344,6 +389,50 @@ public:
                                             QRectF linkRectangle,
                                             QString URL,
                                             LinkHighlightMode highlightMode);
+
+
+    /// Polygon annotation. When opened, they display pop-up window containing the text of associated 
+    /// note (and window title). Polygon border/fill color can be defined, along with border width.
+    /// \param page Page to which is annotation added
+    /// \param polygon Polygon
+    /// \param borderWidth Border line width
+    /// \param fillColor Fill color
+    /// \param strokeColor Stroke color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationPolygon(PDFObjectReference page,
+                                               QPolygonF polygon,
+                                               PDFReal borderWidth,
+                                               QColor fillColor,
+                                               QColor strokeColor,
+                                               QString title,
+                                               QString subject,
+                                               QString contents);
+
+
+    /// Polyline annotation. When opened, they display pop-up window containing the text of associated 
+    /// note (and window title). Polyline border/fill color can be defined, along with border width.
+    /// \param page Page to which is annotation added
+    /// \param polyline Polyline
+    /// \param borderWidth Border line width
+    /// \param fillColor Fill color
+    /// \param strokeColor Stroke color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    /// \param startLineType Start line ending type
+    /// \param endLineType End line ending type
+    PDFObjectReference createAnnotationPolyline(PDFObjectReference page,
+                                                QPolygonF polyline,
+                                                PDFReal borderWidth,
+                                                QColor fillColor,
+                                                QColor strokeColor,
+                                                QString title,
+                                                QString subject,
+                                                QString contents,
+                                                AnnotationLineEnding startLineType,
+                                                AnnotationLineEnding endLineType);
 
 
     /// Creates a new popup annotation on the page. Popup annotation is represented usually by floating 

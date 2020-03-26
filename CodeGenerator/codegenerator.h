@@ -145,6 +145,7 @@ public:
         _QRectF,
         _QColor,
         _QVariant,
+        _QPolygonF,
         _TextAnnotationIcon,
         _LinkHighlightMode,
         _TextAlignment,
