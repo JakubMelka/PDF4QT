@@ -160,6 +160,26 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     polygon.translate(0, -100);
     builder.createAnnotationPolyline(page7, polygon, 2.0, Qt::green, Qt::yellow, "Title", "Subject", "Contents", pdf::AnnotationLineEnding::ClosedArrow, pdf::AnnotationLineEnding::Circle);
 
+    pdf::PDFObjectReference page8 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationHighlight(page8, QRectF(50, 50, 50, 50), Qt::yellow, "Title1", "Subject1", "Contents - green filling, red boundary");
+    builder.createAnnotationHighlight(page8, QRectF(50, 150, 50, 50), Qt::green);
+    builder.createAnnotationHighlight(page8, QRectF(50, 250, 50, 50), Qt::red);
+
+    pdf::PDFObjectReference page9 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationUnderline(page9, QRectF(50, 50, 50, 50), Qt::yellow, "Title1", "Subject1", "Contents - green filling, red boundary");
+    builder.createAnnotationUnderline(page9, QRectF(50, 150, 50, 50), Qt::green);
+    builder.createAnnotationUnderline(page9, QRectF(50, 250, 50, 50), Qt::red);
+
+    pdf::PDFObjectReference page10 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationSquiggly(page10, QRectF(50, 50, 50, 50), Qt::yellow, "Title1", "Subject1", "Contents - green filling, red boundary");
+    builder.createAnnotationSquiggly(page10, QRectF(50, 150, 50, 50), Qt::green);
+    builder.createAnnotationSquiggly(page10, QRectF(50, 250, 50, 50), Qt::red);
+
+    pdf::PDFObjectReference page11 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationStrikeout(page11, QRectF(50, 50, 50, 50), Qt::yellow, "Title1", "Subject1", "Contents - green filling, red boundary");
+    builder.createAnnotationStrikeout(page11, QRectF(50, 150, 50, 50), Qt::green);
+    builder.createAnnotationStrikeout(page11, QRectF(50, 250, 50, 50), Qt::red);
+
     // Write result to a file
     pdf::PDFDocument document = builder.build();
     pdf::PDFDocumentWriter writer(nullptr);

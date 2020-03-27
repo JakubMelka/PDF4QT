@@ -222,9 +222,8 @@ public:
     PDFObjectReference createActionURI(QString URL);
 
 
-    /// Circle annotation displays ellipse (or circle). When opened, they display pop-up window containing 
-    /// the text of associated note (and window title). Circle border/fill color can be defined, along with 
-    /// border width.
+    /// Circle annotation displays ellipse (or circle). Circle border/fill color can be defined, along with 
+    /// border width. Popup annotation can be attached to this annotation.
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is circle/ellipse displayed
     /// \param borderWidth Width of the border line of circle/ellipse
@@ -290,6 +289,34 @@ public:
                                                 QPointF endPoint,
                                                 AnnotationLineEnding startLineType,
                                                 AnnotationLineEnding endLineType);
+
+
+    /// Text markup annotation is used to highlight text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented). This annotation is usually used to highlight text, but can 
+    /// also highlight other things, such as images, or other graphics.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is highlight displayed
+    /// \param color Color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationHighlight(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color,
+                                                 QString title,
+                                                 QString subject,
+                                                 QString contents);
+
+
+    /// Text markup annotation is used to highlight text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented). This annotation is usually used to highlight text, but can 
+    /// also highlight other things, such as images, or other graphics.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is highlight displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationHighlight(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
 
 
     /// Line annotation represents straight line, or some more advanced graphics, such as dimension with 
@@ -392,7 +419,8 @@ public:
 
 
     /// Polygon annotation. When opened, they display pop-up window containing the text of associated 
-    /// note (and window title). Polygon border/fill color can be defined, along with border width.
+    /// note (and window title), if popup annotation is attached. Polygon border/fill color can be defined, 
+    /// along with border width.
     /// \param page Page to which is annotation added
     /// \param polygon Polygon
     /// \param borderWidth Border line width
@@ -412,7 +440,8 @@ public:
 
 
     /// Polyline annotation. When opened, they display pop-up window containing the text of associated 
-    /// note (and window title). Polyline border/fill color can be defined, along with border width.
+    /// note (and window title), if popup annotation is attached. Polyline border/fill color can be defined, 
+    /// along with border width.
     /// \param page Page to which is annotation added
     /// \param polyline Polyline
     /// \param borderWidth Border line width
@@ -450,8 +479,8 @@ public:
 
 
     /// Square annotation displays rectangle (or square). When opened, they display pop-up window 
-    /// containing the text of associated note (and window title). Square border/fill color can be defined, 
-    /// along with border width.
+    /// containing the text of associated note (and window title), if popup annotation is attached. Square 
+    /// border/fill color can be defined, along with border width.
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is rectangle displayed
     /// \param borderWidth Width of the border line of rectangle
@@ -472,10 +501,63 @@ public:
                                               QString contents);
 
 
+    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
+    /// contain window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
+                                                QRectF rectangle,
+                                                QColor color,
+                                                QString title,
+                                                QString subject,
+                                                QString contents);
+
+
+    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
+    /// contain window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
+                                                QRectF rectangle,
+                                                QColor color);
+
+
+    /// Text markup annotation is used to strikeout text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationStrikeout(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color,
+                                                 QString title,
+                                                 QString subject,
+                                                 QString contents);
+
+
+    /// Text markup annotation is used to strikeout text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationStrikeout(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
+
+
     /// Creates text annotation. Text annotation is "sticky note" attached to a point in the PDF document. 
     /// When closed, it is displayed as icon, if opened, widget appears with attached text. Text annotations 
     /// do not scale or rotate, they appear independent of zoom/rotate. So, they behave as if flags 
-    /// NoZoom or NoRotate to the annotations are being set.
+    /// NoZoom or NoRotate to the annotations are being set. Popup annotation is automatically created 
+    /// for this annotation.
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is icon displayed
     /// \param iconType Icon type
@@ -490,6 +572,32 @@ public:
                                             QString subject,
                                             QString contents,
                                             bool open);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color,
+                                                 QString title,
+                                                 QString subject,
+                                                 QString contents);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
