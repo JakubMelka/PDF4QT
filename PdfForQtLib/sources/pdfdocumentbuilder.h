@@ -106,6 +106,7 @@ public:
     PDFObjectFactory& operator<<(WrapString string);
     PDFObjectFactory& operator<<(AnnotationLineEnding lineEnding);
     PDFObjectFactory& operator<<(const QPointF& point);
+    PDFObjectFactory& operator<<(const QDateTime& dateTime);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -616,6 +617,53 @@ public:
     PDFObject createTrailerDictionary(PDFObjectReference catalog);
 
 
+    /// Set document author.
+    /// \param author Author
+    void setDocumentAuthor(QString author);
+
+
+    /// Set document creation date.
+    /// \param creationDate Creation date/time
+    void setDocumentCreationDate(QDateTime creationDate);
+
+
+    /// Set document creator.
+    /// \param creator Creator
+    void setDocumentCreator(QString creator);
+
+
+    /// Set document keywords.
+    /// \param keywords Keywords
+    void setDocumentKeywords(QString keywords);
+
+
+    /// Set document producer.
+    /// \param producer Producer
+    void setDocumentProducer(QString producer);
+
+
+    /// Set document subject.
+    /// \param subject Subject
+    void setDocumentSubject(QString subject);
+
+
+    /// Set document title.
+    /// \param title Title
+    void setDocumentTitle(QString title);
+
+
+    /// Set document language.
+    /// \param language Document language. It should be a language identifier, as defined in ISO 639 
+    ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
+    ///        english), and the latter two is country code (US - United States).
+    void setLanguage(QString language);
+
+
+    /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
+
+
     /// This function is used to update trailer dictionary. Must be called each time the final document is 
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
@@ -632,6 +680,9 @@ private:
     QString getProducerString() const;
     PDFObjectReference getPageTreeRoot() const;
     PDFInteger getPageTreeRootChildCount() const;
+    PDFObjectReference getDocumentInfo() const;
+    PDFObjectReference getCatalogReference() const;
+    void updateDocumentInfo(PDFObject info);
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;

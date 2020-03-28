@@ -64,6 +64,12 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(const QDateTime& dateTime)
+{
+    addObject(PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::converDateTimeToString(dateTime))));
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(const QPointF& point)
 {
     *this << point.x();
@@ -495,6 +501,56 @@ PDFInteger PDFDocumentBuilder::getPageTreeRootChildCount() const
     }
 
     return 0;
+}
+
+PDFObjectReference PDFDocumentBuilder::getDocumentInfo() const
+{
+    if (const PDFDictionary* trailerDictionary = getDictionaryFromObject(m_storage.getTrailerDictionary()))
+    {
+        PDFObject object = trailerDictionary->get("Info");
+        if (object.isReference())
+        {
+            return object.getReference();
+        }
+    }
+
+    return PDFObjectReference();
+}
+
+PDFObjectReference PDFDocumentBuilder::getCatalogReference() const
+{
+    if (const PDFDictionary* trailerDictionary = getDictionaryFromObject(m_storage.getTrailerDictionary()))
+    {
+        PDFObject object = trailerDictionary->get("Root");
+        if (object.isReference())
+        {
+            return object.getReference();
+        }
+    }
+
+    return PDFObjectReference();
+}
+
+void PDFDocumentBuilder::updateDocumentInfo(PDFObject info)
+{
+    PDFObjectReference infoReference = getDocumentInfo();
+    if (!infoReference.isValid())
+    {
+        PDFObjectFactory objectFactory;
+        objectFactory.beginDictionary();
+        objectFactory.endDictionary();
+        infoReference = addObject(objectFactory.takeObject());
+
+        // Update the trailer dictionary
+        objectFactory.beginDictionary();
+        objectFactory.beginDictionaryItem("Info");
+        objectFactory << infoReference;
+        objectFactory.endDictionaryItem();
+        objectFactory.endDictionary();
+        m_storage.updateTrailerDictionary(objectFactory.takeObject());
+    }
+
+    mergeTo(infoReference, info);
 }
 
 /* START GENERATED CODE */
@@ -1820,14 +1876,6 @@ PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Size");
-    objectBuilder << 1;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Root");
-    objectBuilder << catalog;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Info");
-    objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("Producer");
     objectBuilder << getProducerString();
     objectBuilder.endDictionaryItem();
@@ -1838,10 +1886,140 @@ PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog
     objectBuilder << WrapCurrentDateTime();
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
+    PDFObjectReference infoDictionary = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Size");
+    objectBuilder << 1;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Root");
+    objectBuilder << catalog;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Info");
+    objectBuilder << infoDictionary;
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObject trailerDictionary = objectBuilder.takeObject();
     return trailerDictionary;
+}
+
+
+void PDFDocumentBuilder::setDocumentAuthor(QString author)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Author");
+    objectBuilder << author;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setDocumentCreationDate(QDateTime creationDate)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << creationDate;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setDocumentCreator(QString creator)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Creator");
+    objectBuilder << creator;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setDocumentKeywords(QString keywords)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Keywords");
+    objectBuilder << keywords;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setDocumentProducer(QString producer)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Producer");
+    objectBuilder << producer;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setDocumentSubject(QString subject)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Subject");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setDocumentTitle(QString title)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Title");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject info = objectBuilder.takeObject();
+    updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setLanguage(QString language)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Lang");
+    objectBuilder << language;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
 }
 
 
@@ -1853,7 +2031,8 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     objectBuilder.beginDictionaryItem("Size");
     objectBuilder << objectCount;
     objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Info");
+    objectBuilder.endDictionary();
+    PDFObject trailerDictionary = objectBuilder.takeObject();
     objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("Producer");
     objectBuilder << getProducerString();
@@ -1862,10 +2041,9 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     objectBuilder << WrapCurrentDateTime();
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject trailerDictionary = objectBuilder.takeObject();
+    PDFObject updatedInfoDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
+    updateDocumentInfo(qMove(updatedInfoDictionary));
 }
 
 

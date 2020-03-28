@@ -20,9 +20,16 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentwriter.h"
 
+#include <QCoreApplication>
+
 void PDFExamplesGenerator::generateAnnotationsExample()
 {
     pdf::PDFDocumentBuilder builder;
+    builder.setDocumentTitle("Test document");
+    builder.setDocumentAuthor("Jakub Melka");
+    builder.setDocumentCreator(QCoreApplication::applicationName());
+    builder.setDocumentSubject("Testing annotations");
+    builder.setLanguage(QLocale::system());
 
     pdf::PDFObjectReference page1 = builder.appendPage(QRectF(0, 0, 400, 400));
     builder.createAnnotationText(page1, QRectF(50,  50, 24, 24), pdf::TextAnnotationIcon::Comment, "Title1", "Subject1", "Comment", false);

@@ -146,6 +146,8 @@ public:
         _QColor,
         _QVariant,
         _QPolygonF,
+        _QDateTime,
+        _QLocale,
         _TextAnnotationIcon,
         _LinkHighlightMode,
         _TextAlignment,
