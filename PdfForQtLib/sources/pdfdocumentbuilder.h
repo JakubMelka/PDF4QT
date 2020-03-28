@@ -107,6 +107,7 @@ public:
     PDFObjectFactory& operator<<(AnnotationLineEnding lineEnding);
     PDFObjectFactory& operator<<(const QPointF& point);
     PDFObjectFactory& operator<<(const QDateTime& dateTime);
+    PDFObjectFactory& operator<<(AnnotationBorderStyle style);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -617,6 +618,84 @@ public:
     PDFObject createTrailerDictionary(PDFObjectReference catalog);
 
 
+    /// Sets annotation border.
+    /// \param annotation Annotation
+    /// \param hRadius Horizontal corner radius
+    /// \param vRadius Vertical corner radius
+    /// \param width Line width
+    void setAnnotationBorder(PDFObjectReference annotation,
+                             PDFReal hRadius,
+                             PDFReal vRadius,
+                             PDFReal width);
+
+
+    /// Sets annotation border style.
+    /// \param annotation Annotation
+    /// \param style Style
+    /// \param width Width
+    void setAnnotationBorderStyle(PDFObjectReference annotation,
+                                  AnnotationBorderStyle style,
+                                  PDFReal width);
+
+
+    /// Sets annotation color.
+    /// \param annotation Annotation
+    /// \param color Color
+    void setAnnotationColor(PDFObjectReference annotation,
+                            QColor color);
+
+
+    /// Sets annotation contents.
+    /// \param annotation Annotation
+    /// \param contents Contents
+    void setAnnotationContents(PDFObjectReference annotation,
+                               QString contents);
+
+
+    /// Sets constant opacity of annotation's graphics.
+    /// \param annotation Annotation
+    /// \param opacity Opacity (value must be in range from 0.0 to 1.0)
+    void setAnnotationOpacity(PDFObjectReference annotation,
+                              PDFReal opacity);
+
+
+    /// Sets open state of the annotation.
+    /// \param annotation Annotation
+    /// \param isOpen Is annotation opened?
+    void setAnnotationOpenState(PDFObjectReference annotation,
+                                bool isOpen);
+
+
+    /// Sets annotation quadrilaterals. Quadrilaterals are sequence of 4 points, where first two points are 
+    /// on the upper side of quadrilateral, and the last two points are on the lower side of quadrilateral. 
+    /// Quadrilaterals are represented as unclosed polygon with 4 * n vertices.
+    /// \param annotation Annotation
+    /// \param quadrilaterals Quadrilaterals
+    void setAnnotationQuadPoints(PDFObjectReference annotation,
+                                 QPolygonF quadrilaterals);
+
+
+    /// Sets annotation rich text contents. This function will work only on markup annotations.
+    /// \param annotation Annotation
+    /// \param richText Rich text contents
+    void setAnnotationRichText(PDFObjectReference annotation,
+                               QString richText);
+
+
+    /// Sets annotation subject.
+    /// \param annotation Annotation
+    /// \param subject Subject
+    void setAnnotationSubject(PDFObjectReference annotation,
+                              QString subject);
+
+
+    /// Sets annotation title.
+    /// \param annotation Annotation
+    /// \param title Title
+    void setAnnotationTitle(PDFObjectReference annotation,
+                            QString title);
+
+
     /// Set document author.
     /// \param author Author
     void setDocumentAuthor(QString author);
@@ -653,15 +732,15 @@ public:
 
 
     /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
+
+
+    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
-
-
-    /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
 
 
     /// This function is used to update trailer dictionary. Must be called each time the final document is 

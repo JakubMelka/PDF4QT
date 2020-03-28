@@ -134,6 +134,8 @@ private:
     std::vector<PDFReal> m_dashPattern;
 };
 
+using AnnotationBorderStyle = PDFAnnotationBorder::Style;
+
 /// Annotation border effect
 class PDFAnnotationBorderEffect
 {

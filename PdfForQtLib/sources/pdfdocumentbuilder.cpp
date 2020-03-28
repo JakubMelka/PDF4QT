@@ -64,6 +64,38 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationBorderStyle style)
+{
+    switch (style)
+    {
+        case AnnotationBorderStyle::Solid:
+            *this << WrapName("S");
+            break;
+
+        case AnnotationBorderStyle::Dashed:
+            *this << WrapName("D");
+            break;
+
+        case AnnotationBorderStyle::Beveled:
+            *this << WrapName("B");
+            break;
+
+        case AnnotationBorderStyle::Inset:
+            *this << WrapName("I");
+            break;
+
+        case AnnotationBorderStyle::Underline:
+            *this << WrapName("U");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(const QDateTime& dateTime)
 {
     addObject(PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::converDateTimeToString(dateTime))));
@@ -1903,6 +1935,170 @@ PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog
 }
 
 
+void PDFDocumentBuilder::setAnnotationBorder(PDFObjectReference annotation,
+                                             PDFReal hRadius,
+                                             PDFReal vRadius,
+                                             PDFReal width)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Border");
+    objectBuilder.beginArray();
+    objectBuilder << hRadius;
+    objectBuilder << vRadius;
+    objectBuilder << width;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationBorderStyle(PDFObjectReference annotation,
+                                                  AnnotationBorderStyle style,
+                                                  PDFReal width)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("BS");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("W");
+    objectBuilder << width;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << style;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationColor(PDFObjectReference annotation,
+                                            QColor color)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << WrapAnnotationColor(color);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationContents(PDFObjectReference annotation,
+                                               QString contents)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationOpacity(PDFObjectReference annotation,
+                                              PDFReal opacity)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("CA");
+    objectBuilder << opacity;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationOpenState(PDFObjectReference annotation,
+                                                bool isOpen)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Open");
+    objectBuilder << isOpen;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationQuadPoints(PDFObjectReference annotation,
+                                                 QPolygonF quadrilaterals)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("QuadPoints");
+    objectBuilder << quadrilaterals;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationRichText(PDFObjectReference annotation,
+                                               QString richText)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("RC");
+    objectBuilder << richText;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationSubject(PDFObjectReference annotation,
+                                              QString subject)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
+void PDFDocumentBuilder::setAnnotationTitle(PDFObjectReference annotation,
+                                            QString title)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
 void PDFDocumentBuilder::setDocumentAuthor(QString author)
 {
     PDFObjectFactory objectBuilder;
@@ -2001,6 +2197,14 @@ void PDFDocumentBuilder::setDocumentTitle(QString title)
 }
 
 
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
+}
+
+
 void PDFDocumentBuilder::setLanguage(QString language)
 {
     PDFObjectFactory objectBuilder;
@@ -2012,14 +2216,6 @@ void PDFDocumentBuilder::setLanguage(QString language)
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
     mergeTo(getCatalogReference(), updatedCatalog);
-}
-
-
-void PDFDocumentBuilder::setLanguage(QLocale locale)
-{
-    PDFObjectFactory objectBuilder;
-
-    setLanguage(locale.name());
 }
 
 
