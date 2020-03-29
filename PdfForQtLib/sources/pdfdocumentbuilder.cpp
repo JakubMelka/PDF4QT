@@ -18,9 +18,164 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfencoding.h"
 #include "pdfconstants.h"
+#include "pdfdocumentreader.h"
+#include "pdfvisitor.h"
+
+#include <QBuffer>
+#include <QPainter>
+#include <QPdfWriter>
 
 namespace pdf
 {
+
+class PDFCollectReferencesVisitor : public PDFAbstractVisitor
+{
+public:
+    explicit PDFCollectReferencesVisitor(std::set<PDFObjectReference>& references) :
+        m_references(references)
+    {
+
+    }
+
+    virtual void visitArray(const PDFArray* array) override;
+    virtual void visitDictionary(const PDFDictionary* dictionary) override;
+    virtual void visitStream(const PDFStream* stream) override;
+    virtual void visitReference(const PDFObjectReference reference) override;
+
+private:
+    std::set<PDFObjectReference>& m_references;
+};
+
+void PDFCollectReferencesVisitor::visitArray(const PDFArray* array)
+{
+    acceptArray(array);
+}
+
+void PDFCollectReferencesVisitor::visitDictionary(const PDFDictionary* dictionary)
+{
+    for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
+    {
+        dictionary->getValue(i).accept(this);
+    }
+}
+
+void PDFCollectReferencesVisitor::visitStream(const PDFStream* stream)
+{
+    visitDictionary(stream->getDictionary());
+}
+
+void PDFCollectReferencesVisitor::visitReference(const PDFObjectReference reference)
+{
+    m_references.insert(reference);
+}
+
+class PDFReplaceReferencesVisitor : public PDFAbstractVisitor
+{
+public:
+    explicit PDFReplaceReferencesVisitor(const std::map<PDFObjectReference, PDFObjectReference>& replacements) :
+        m_replacements(replacements)
+    {
+        m_objectStack.reserve(32);
+    }
+
+    virtual void visitNull() override;
+    virtual void visitBool(bool value) override;
+    virtual void visitInt(PDFInteger value) override;
+    virtual void visitReal(PDFReal value) override;
+    virtual void visitString(const PDFString* string) override;
+    virtual void visitName(const PDFString* name) override;
+    virtual void visitArray(const PDFArray* array) override;
+    virtual void visitDictionary(const PDFDictionary* dictionary) override;
+    virtual void visitStream(const PDFStream* stream) override;
+    virtual void visitReference(const PDFObjectReference reference) override;
+
+    PDFObject getObject();
+
+private:
+    const std::map<PDFObjectReference, PDFObjectReference>& m_replacements;
+    std::vector<PDFObject> m_objectStack;
+};
+
+void PDFReplaceReferencesVisitor::visitNull()
+{
+    m_objectStack.push_back(PDFObject::createNull());
+}
+
+void PDFReplaceReferencesVisitor::visitBool(bool value)
+{
+    m_objectStack.push_back(PDFObject::createBool(value));
+}
+
+void PDFReplaceReferencesVisitor::visitInt(PDFInteger value)
+{
+    m_objectStack.push_back(PDFObject::createInteger(value));
+}
+
+void PDFReplaceReferencesVisitor::visitReal(PDFReal value)
+{
+    m_objectStack.push_back(PDFObject::createReal(value));
+}
+
+void PDFReplaceReferencesVisitor::visitString(const PDFString* string)
+{
+    m_objectStack.push_back(PDFObject::createString(std::make_shared<PDFString>(*string)));
+}
+
+void PDFReplaceReferencesVisitor::visitName(const PDFString* name)
+{
+    m_objectStack.push_back(PDFObject::createName(std::make_shared<PDFString>(*name)));
+}
+
+void PDFReplaceReferencesVisitor::visitArray(const PDFArray* array)
+{
+    acceptArray(array);
+
+    // We have all objects on the stack
+    Q_ASSERT(array->getCount() <= m_objectStack.size());
+
+    auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
+    std::vector<PDFObject> objects(it, m_objectStack.cend());
+    PDFObject object = PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
+    m_objectStack.erase(it, m_objectStack.cend());
+    m_objectStack.push_back(object);
+}
+
+void PDFReplaceReferencesVisitor::visitDictionary(const PDFDictionary* dictionary)
+{
+    Q_ASSERT(dictionary);
+
+    std::vector<PDFDictionary::DictionaryEntry> entries;
+    entries.reserve(dictionary->getCount());
+
+    for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
+    {
+        dictionary->getValue(i).accept(this);
+        entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
+        m_objectStack.pop_back();
+    }
+
+    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
+}
+
+void PDFReplaceReferencesVisitor::visitStream(const PDFStream* stream)
+{
+    // Replace references in the dictionary
+    visitDictionary(stream->getDictionary());
+    PDFObject dictionaryObject = m_objectStack.back();
+    m_objectStack.pop_back();
+    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*dictionaryObject.getDictionary()), QByteArray(*stream->getContent()))));
+}
+
+void PDFReplaceReferencesVisitor::visitReference(const PDFObjectReference reference)
+{
+    m_objectStack.push_back(PDFObject::createReference(m_replacements.at(reference)));
+}
+
+PDFObject PDFReplaceReferencesVisitor::getObject()
+{
+    Q_ASSERT(m_objectStack.size() == 1);
+    return qMove(m_objectStack.back());
+}
 
 void PDFObjectFactory::beginArray()
 {
@@ -62,6 +217,12 @@ void PDFObjectFactory::endDictionaryItem()
     Item& dictionaryItem = m_items.back();
     Q_ASSERT(dictionaryItem.type == ItemType::Dictionary);
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
+}
+
+PDFObjectFactory& PDFObjectFactory::operator<<(const PDFObject& object)
+{
+    addObject(object);
+    return *this;
 }
 
 PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationBorderStyle style)
@@ -477,6 +638,157 @@ std::array<PDFReal, 4> PDFDocumentBuilder::getAnnotationReductionRectangle(const
     return { qAbs(innerRect.left() - boundingRect.left()), qAbs(boundingRect.bottom() - innerRect.bottom()), qAbs(boundingRect.right() - innerRect.right()), qAbs(boundingRect.top() - innerRect.top()) };
 }
 
+void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference annotationReference)
+{
+    PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_storage, m_storage.getObject(annotationReference));
+    if (!annotation)
+    {
+        return;
+    }
+
+    const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObject(annotation->getPageReference()));
+    if (!pageDictionary)
+    {
+        return;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(&m_storage);
+    QRectF mediaBox = loader.readRectangle(pageDictionary->get("MediaBox"), QRectF());
+    if (!mediaBox.isValid())
+    {
+        return;
+    }
+
+    std::vector<PDFAppeareanceStreams::Key> keys = annotation->getDrawKeys();
+    std::map<PDFAppeareanceStreams::Key, PDFObjectReference> appearanceStreams;
+
+    QRectF boundingRectangle;
+    for (const PDFAppeareanceStreams::Key& key : keys)
+    {
+        PDFContentStreamBuilder builder(mediaBox.size(), PDFContentStreamBuilder::CoordinateSystem::PDF);
+
+        AnnotationDrawParameters parameters;
+        parameters.key = key;
+        parameters.painter = builder.begin();
+        annotation->draw(parameters);
+        PDFContentStreamBuilder::ContentStream contentStream = builder.end(parameters.painter);
+
+        if (!parameters.boundingRectangle.isValid() || !contentStream.pageObject.isValid())
+        {
+            // Invalid stream, do nothing
+            continue;
+        }
+
+        boundingRectangle = boundingRectangle.united(parameters.boundingRectangle);
+
+        std::vector<PDFObject> copiedObjects = copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
+        Q_ASSERT(copiedObjects.size() == 2);
+
+        PDFObjectReference resourcesReference = copiedObjects[0].getReference();
+        PDFObjectReference formReference = copiedObjects[1].getReference();
+
+        // Create form object
+        PDFObjectFactory formFactory;
+
+        formFactory.beginDictionary();
+
+        formFactory.beginDictionaryItem("Type");
+        formFactory << WrapName("XObject");
+        formFactory.endDictionaryItem();
+
+        formFactory.beginDictionaryItem("Subtype");
+        formFactory << WrapName("Form");
+        formFactory.endDictionaryItem();
+
+        formFactory.beginDictionaryItem("BBox");
+        formFactory << parameters.boundingRectangle;
+        formFactory.endDictionaryItem();
+
+        formFactory.beginDictionaryItem("Resources");
+        formFactory << resourcesReference;
+        formFactory.endDictionaryItem();
+
+        formFactory.endDictionary();
+
+        mergeTo(formReference, formFactory.takeObject());
+        appearanceStreams[key] = formReference;
+    }
+
+    if (!appearanceStreams.empty())
+    {
+        PDFObjectFactory asDictionaryFactory;
+        asDictionaryFactory.beginDictionary();
+
+        auto it = appearanceStreams.cbegin();
+        while (it != appearanceStreams.cend())
+        {
+            const PDFAppeareanceStreams::Key& key = it->first;
+
+            auto itEnd = std::next(it);
+            while (itEnd != appearanceStreams.cend() && itEnd->first.first == key.first)
+            {
+                ++itEnd;
+            }
+
+            QByteArray name;
+            switch (key.first)
+            {
+                case PDFAppeareanceStreams::Appearance::Normal:
+                    name = "N";
+                    break;
+                case PDFAppeareanceStreams::Appearance::Rollover:
+                    name = "R";
+                    break;
+                case PDFAppeareanceStreams::Appearance::Down:
+                    name = "D";
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            asDictionaryFactory.beginDictionaryItem(name);
+            const size_t streamCount = std::distance(it, itEnd);
+            if (streamCount == 1)
+            {
+                asDictionaryFactory << it->second;
+            }
+            else
+            {
+                asDictionaryFactory.beginDictionary();
+                for (; it != itEnd; ++it)
+                {
+                    asDictionaryFactory.beginDictionaryItem(it->first.second);
+                    asDictionaryFactory << it->second;
+                    asDictionaryFactory.endDictionaryItem();
+                }
+                asDictionaryFactory.endDictionary();
+            }
+            asDictionaryFactory.endDictionaryItem();
+
+            it = itEnd;
+        }
+
+        asDictionaryFactory.endDictionary();
+
+        PDFObjectFactory annotationFactory;
+        annotationFactory.beginDictionary();
+
+        annotationFactory.beginDictionaryItem("Rect");
+        annotationFactory << boundingRectangle;
+        annotationFactory.endDictionaryItem();
+
+        annotationFactory.beginDictionaryItem("AP");
+        annotationFactory << asDictionaryFactory.takeObject();
+        annotationFactory.endDictionaryItem();
+
+        annotationFactory.endDictionary();
+
+        mergeTo(annotationReference, annotationFactory.takeObject());
+    }
+}
+
 PDFObjectReference PDFDocumentBuilder::addObject(PDFObject object)
 {
     return m_storage.addObject(PDFObjectManipulator::removeNullObjects(object));
@@ -583,6 +895,134 @@ void PDFDocumentBuilder::updateDocumentInfo(PDFObject info)
     }
 
     mergeTo(infoReference, info);
+}
+
+std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences)
+{
+    // 1) Collect all references, which we must copy
+    std::set<PDFObjectReference> references;
+    PDFCollectReferencesVisitor collectReferencesVisitor(references);
+    for (const PDFObject& object : objects)
+    {
+        object.accept(&collectReferencesVisitor);
+    }
+
+    // 2) Make room for new objects, together with mapping
+    std::map<PDFObjectReference, PDFObjectReference> referenceMapping;
+    for (const PDFObjectReference& reference : references)
+    {
+        referenceMapping[reference] = addObject(PDFObject::createNull());
+    }
+
+    // 3) Copy objects from other object to this one
+    for (const PDFObjectReference& sourceReference : references)
+    {
+        const PDFObjectReference targetReference = referenceMapping.at(sourceReference);
+        PDFReplaceReferencesVisitor replaceReferencesVisitor(referenceMapping);
+        storage.getObject(sourceReference).accept(&replaceReferencesVisitor);
+        m_storage.setObject(targetReference, replaceReferencesVisitor.getObject());
+    }
+
+    std::vector<PDFObject> result;
+    result.reserve(objects.size());
+
+    for (const PDFObject& object : objects)
+    {
+        if (object.isReference())
+        {
+            result.push_back(PDFObject::createReference(referenceMapping.at(object.getReference())));
+        }
+        else
+        {
+            PDFReplaceReferencesVisitor replaceReferencesVisitor(referenceMapping);
+            object.accept(&replaceReferencesVisitor);
+
+            if (createReferences)
+            {
+                result.push_back(PDFObject::createReference(addObject(replaceReferencesVisitor.getObject())));
+            }
+            else
+            {
+                result.push_back(replaceReferencesVisitor.getObject());
+            }
+        }
+    }
+
+    return result;
+}
+
+PDFContentStreamBuilder::PDFContentStreamBuilder(QSizeF size, CoordinateSystem coordinateSystem) :
+    m_size(size),
+    m_coordinateSystem(coordinateSystem),
+    m_buffer(nullptr),
+    m_pdfWriter(nullptr),
+    m_painter(nullptr)
+{
+
+}
+
+PDFContentStreamBuilder::~PDFContentStreamBuilder()
+{
+    Q_ASSERT(!m_buffer);
+    Q_ASSERT(!m_pdfWriter);
+    Q_ASSERT(!m_painter);
+}
+
+QPainter* PDFContentStreamBuilder::begin()
+{
+    Q_ASSERT(!m_buffer);
+    Q_ASSERT(!m_pdfWriter);
+    Q_ASSERT(!m_painter);
+
+    m_buffer = new QBuffer();
+    m_buffer->open(QBuffer::ReadWrite);
+
+    m_pdfWriter = new QPdfWriter(m_buffer);
+    m_pdfWriter->setPdfVersion(QPdfWriter::PdfVersion_1_6);
+    m_pdfWriter->setPageSize(QPageSize(m_size, QPageSize::Point));
+    m_pdfWriter->setResolution(m_pdfWriter->logicalDpiX());
+    m_pdfWriter->setPageMargins(QMarginsF());
+
+    m_painter = new QPainter(m_pdfWriter);
+
+    if (m_coordinateSystem == CoordinateSystem::PDF)
+    {
+        m_painter->translate(0, m_size.height());
+        m_painter->scale(0.0, -1.0);
+    }
+
+    return m_painter;
+}
+
+PDFContentStreamBuilder::ContentStream PDFContentStreamBuilder::end(QPainter* painter)
+{
+    ContentStream result;
+    Q_ASSERT(m_painter == painter);
+
+    m_painter->end();
+    delete m_painter;
+    m_painter = nullptr;
+
+    delete m_pdfWriter;
+    m_pdfWriter = nullptr;
+
+    QByteArray bufferData = m_buffer->buffer();
+    m_buffer->close();
+    delete m_buffer;
+    m_buffer = nullptr;
+
+    PDFDocumentReader reader(nullptr, nullptr);
+    result.document = reader.readFromBuffer(bufferData);
+
+    if (result.document.getCatalog()->getPageCount() > 0)
+    {
+        const PDFPage* page = result.document.getCatalog()->getPage(0);
+        result.pageObject = page->getPageReference();
+        result.resources = page->getResources();
+        result.contents = page->getContents();
+    }
+
+    return result;
 }
 
 /* START GENERATED CODE */
@@ -701,6 +1141,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationCircle(PDFObjectReference
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -762,6 +1203,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReferen
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -845,6 +1287,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReferen
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -908,6 +1351,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationHighlight(PDFObjectRefere
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -956,6 +1400,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationHighlight(PDFObjectRefere
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1042,6 +1487,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLine(PDFObjectReference p
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1148,6 +1594,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLine(PDFObjectReference p
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1189,6 +1636,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference p
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationReference);
     return annotationReference;
 }
 
@@ -1271,6 +1719,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPolygon(PDFObjectReferenc
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1350,6 +1799,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPolyline(PDFObjectReferen
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1389,6 +1839,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference 
     objectBuilder.endDictionary();
     PDFObject upgradedParentAnnotation = objectBuilder.takeObject();
     mergeTo(parentAnnotation, upgradedParentAnnotation);
+    updateAnnotationAppearanceStreams(popupAnnotation);
     return popupAnnotation;
 }
 
@@ -1457,6 +1908,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1520,6 +1972,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReferen
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1568,6 +2021,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReferen
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1631,6 +2085,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationStrikeout(PDFObjectRefere
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1679,6 +2134,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationStrikeout(PDFObjectRefere
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1751,6 +2207,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationText(PDFObjectReference p
     PDFObject pageAnnots = objectBuilder.takeObject();
     mergeTo(annotationObject, updateAnnotationPopup);
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1814,6 +2271,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectRefere
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 
@@ -1862,6 +2320,7 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectRefere
     objectBuilder.endDictionary();
     PDFObject pageAnnots = objectBuilder.takeObject();
     appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
     return annotationObject;
 }
 

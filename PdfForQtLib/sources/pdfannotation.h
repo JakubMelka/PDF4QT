@@ -31,7 +31,7 @@
 
 namespace pdf
 {
-class PDFDocument;
+class PDFObjectStorage;
 class PDFDrawWidgetProxy;
 
 using TextAlignment = Qt::Alignment;
@@ -105,15 +105,15 @@ public:
 
     /// Parses the annotation border from the array. If object contains invalid annotation border,
     /// then default annotation border is returned. If object is empty, empty annotation border is returned.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Border object
-    static PDFAnnotationBorder parseBorder(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationBorder parseBorder(const PDFObjectStorage* storage, PDFObject object);
 
     /// Parses the annotation border from the BS dictionary. If object contains invalid annotation border,
     /// then default annotation border is returned. If object is empty, empty annotation border is returned.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Border object
-    static PDFAnnotationBorder parseBS(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationBorder parseBS(const PDFObjectStorage* storage, PDFObject object);
 
     /// Returns true, if object is correctly defined
     bool isValid() const { return m_definition != Definition::Invalid; }
@@ -150,9 +150,9 @@ public:
 
     /// Parses the annotation border effect from the object. If object contains invalid annotation border effect,
     /// then default annotation border effect is returned. If object is empty, also default annotation border effect is returned.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Border effect object
-    static PDFAnnotationBorderEffect parse(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationBorderEffect parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     Effect m_effect = Effect::None;
@@ -179,9 +179,9 @@ public:
 
     /// Parses annotation appearance streams from the object. If object is invalid, then
     /// empty appearance stream is constructed.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Appearance streams object
-    static PDFAppeareanceStreams parse(const PDFDocument* document, PDFObject object);
+    static PDFAppeareanceStreams parse(const PDFObjectStorage* storage, PDFObject object);
 
     /// Tries to search for appearance stream for given appearance. If no appearance is found,
     /// then null object is returned.
@@ -248,9 +248,9 @@ public:
 
     /// Parses annotation callout line from the object. If object is invalid, then
     /// invalid callout line is constructed.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Callout line object
-    static PDFAnnotationCalloutLine parse(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationCalloutLine parse(const PDFObjectStorage* storage, PDFObject object);
 
     bool isValid() const { return m_type != Type::Invalid; }
     Type getType() const { return m_type; }
@@ -284,9 +284,9 @@ public:
 
     /// Parses annotation appearance icon fit info from the object. If object is invalid, then
     /// default appearance icon fit info is constructed.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Appearance icon fit info object
-    static PDFAnnotationIconFitInfo parse(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationIconFitInfo parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     ScaleCondition m_scaleCondition = ScaleCondition::Always;
@@ -329,9 +329,9 @@ public:
 
     /// Parses annotation appearance characteristics from the object. If object is invalid, then
     /// default appearance characteristics is constructed.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Appearance characteristics object
-    static PDFAnnotationAppearanceCharacteristics parse(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationAppearanceCharacteristics parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     PDFInteger m_rotation = 0;
@@ -376,9 +376,9 @@ public:
 
     /// Parses annotation additional actions from the object. If object is invalid, then
     /// empty additional actions is constructed.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Additional actions object
-    static PDFAnnotationAdditionalActions parse(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationAdditionalActions parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     std::array<PDFActionPtr, End> m_actions;
@@ -389,6 +389,22 @@ class PDFMarkupAnnotation;
 class PDFTextAnnotation;
 
 using PDFAnnotationPtr = QSharedPointer<PDFAnnotation>;
+
+struct AnnotationDrawParameters
+{
+    /// Painter, onto which is annotation graphics drawn
+    QPainter* painter = nullptr;
+
+    /// Output parameter. Marks annotation's graphics bounding
+    /// rectangle (it can be different/adjusted from original
+    /// annotation bounding rectangle, in that case, it must be adjusted).
+    /// If this rectangle is invalid, then appearance content stream
+    /// is assumed to be empty.
+    QRectF boundingRectangle;
+
+    /// Appeareance mode (normal/rollover/down, and appearance state)
+    PDFAppeareanceStreams::Key key;
+};
 
 /// Base class for all annotation types. Represents PDF annotation object.
 /// Annotations are various enhancements to pages graphical representation,
@@ -421,6 +437,17 @@ public:
     virtual PDFMarkupAnnotation* asMarkupAnnotation() { return nullptr; }
     virtual const PDFMarkupAnnotation* asMarkupAnnotation() const { return nullptr; }
 
+    /// Draws the annotation using parameters. Annotation is drawn onto painter,
+    /// but actual graphics can be drawn outside of annotation's rectangle.
+    /// In that case, adjusted annotation's rectangle is passed to the parameters.
+    /// Painter must use annotation's coordinate system (for example, line points
+    /// must match in both in painter and this annotation).
+    /// \param parameters Graphics parameters
+    virtual void draw(AnnotationDrawParameters& parameters) const;
+
+    /// Returns a list of appearance states, which must be created for this annotation
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const;
+
     const QRectF& getRectangle() const { return m_rectangle; }
     const QString& getContents() const { return m_contents; }
     PDFObjectReference getPageReference() const { return m_pageReference; }
@@ -436,24 +463,39 @@ public:
     PDFObjectReference getOptionalContent() const { return m_optionalContentReference; }
 
     /// Parses annotation from the object. If error occurs, then nullptr is returned.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Annotation object
-    static PDFAnnotationPtr parse(const PDFDocument* document, PDFObject object);
+    static PDFAnnotationPtr parse(const PDFObjectStorage* storage, PDFObject object);
 
     /// Parses quadrilaterals and fills them in the painter path. If no quadrilaterals are defined,
     /// then annotation rectangle is used. If annotation rectangle is also invalid,
     /// then empty painter path is used.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param quadrilateralsObject Object with quadrilaterals definition
     /// \param annotationRect Annotation rectangle
-    static PDFAnnotationQuadrilaterals parseQuadrilaterals(const PDFDocument* document, PDFObject quadrilateralsObject, const QRectF annotationRect);
+    static PDFAnnotationQuadrilaterals parseQuadrilaterals(const PDFObjectStorage* storage, PDFObject quadrilateralsObject, const QRectF annotationRect);
 
     /// Converts name to line ending. If appropriate line ending for name is not found,
     /// then None line ending is returned.
     /// \param name Name of the line ending
     static AnnotationLineEnding convertNameToLineEnding(const QByteArray& name);
 
+protected:
+    virtual QColor getStrokeColor() const;
+    virtual QColor getFillColor() const;
+
+    /// Returns draw color from defined annotation color
+    QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color) const;
+
+    /// Returns pen from border settings and annotation color
+    QPen getPen() const;
+
+    /// Returns brush from interior color. If annotation doesn't have
+    /// a brush, then empty brush is returned.
+    QBrush getBrush() const;
+
 private:
+
     QRectF m_rectangle; ///< Annotation rectangle, in page coordinates, "Rect" entry
     QString m_contents; ///< Text to be displayed to the user (or alternate text), "Content" entry
     PDFObjectReference m_pageReference; ///< Reference to annotation's page, "P" entry
@@ -497,8 +539,12 @@ public:
     const QByteArray& getIntent() const { return m_intent; }
     const PDFObject& getExternalData() const { return m_externalData; }
 
+protected:
+    virtual QColor getStrokeColor() const override;
+    virtual QColor getFillColor() const override;
+
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QString m_windowTitle;
     PDFObjectReference m_popupAnnotation;
@@ -541,7 +587,7 @@ public:
     const QString& getStateModel() const { return m_stateModel; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     bool m_open = false;
     QByteArray m_iconName;
@@ -572,7 +618,7 @@ public:
     const PDFAnnotationQuadrilaterals& getActivationRegion() const { return m_activationRegion; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     PDFActionPtr m_action;
     LinkHighlightMode m_highlightMode = LinkHighlightMode::Invert;
@@ -614,7 +660,7 @@ public:
     AnnotationLineEnding getEndLineEnding() const { return m_endLineEnding; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QByteArray m_defaultAppearance;
     Justification m_justification = Justification::Left;
@@ -663,7 +709,7 @@ public:
     const QPointF& getCaptionOffset() const { return m_captionOffset; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QLineF m_line;
     AnnotationLineEnding m_startLineEnding = AnnotationLineEnding::None;
@@ -693,13 +739,17 @@ public:
     }
 
     virtual AnnotationType getType() const override { return m_type; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const std::vector<PDFReal>& getInteriorColor() const { return m_interiorColor; }
     const PDFAnnotationBorderEffect& getBorderEffect() const { return m_effect; }
     const QRectF& getGeometryRectangle() const { return m_geometryRectangle; }
 
+protected:
+    virtual QColor getFillColor() const override;
+
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     AnnotationType m_type;
     std::vector<PDFReal> m_interiorColor;
@@ -738,7 +788,7 @@ public:
     const PDFObject& getMeasure() const { return m_measure; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     AnnotationType m_type;
     std::vector<QPointF> m_vertices;
@@ -766,7 +816,7 @@ public:
     const PDFAnnotationQuadrilaterals& getHiglightArea() const { return m_highlightArea; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     AnnotationType m_type;
     PDFAnnotationQuadrilaterals m_highlightArea;
@@ -790,7 +840,7 @@ public:
     Symbol getSymbol() const { return m_symbol; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QRectF m_caretRectangle;
     Symbol m_symbol = Symbol::None;
@@ -826,7 +876,7 @@ public:
     Stamp getStamp() const { return m_stamp; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     Stamp m_stamp = Stamp::Draft;
 };
@@ -842,7 +892,7 @@ public:
     const QPainterPath& getInkPath() const { return m_inkPath; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QPainterPath m_inkPath;
 };
@@ -860,7 +910,7 @@ public:
     bool isOpened() const { return m_opened; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     bool m_opened = false;
 };
@@ -887,7 +937,7 @@ public:
     Icon getIcon() const { return m_icon; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     PDFFileSpecification m_fileSpecification;
     Icon m_icon = Icon::PushPin;
@@ -912,7 +962,7 @@ public:
     Icon getIcon() const { return m_icon; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     PDFSound m_sound;
     Icon m_icon = Icon::Speaker;
@@ -933,7 +983,7 @@ public:
     const PDFMovieActivation& getMovieActivation() const { return m_movieActivation; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QString m_movieTitle;
     bool m_playMovie = true;
@@ -956,7 +1006,7 @@ public:
     const PDFAnnotationAdditionalActions& getAdditionalActions() const { return m_additionalActions; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QString m_screenTitle;
     PDFAnnotationAppearanceCharacteristics m_appearanceCharacteristics;
@@ -989,7 +1039,7 @@ public:
     const PDFAnnotationAdditionalActions& getAdditionalActions() const { return m_additionalActions; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     HighlightMode m_highlightMode = HighlightMode::Invert;
     PDFAnnotationAppearanceCharacteristics m_appearanceCharacteristics;
@@ -1031,7 +1081,7 @@ public:
     PDFReal getRelativeVerticalOffset() const { return m_relativeVerticalOffset; }
 
 private:
-    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object);
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     QMatrix m_matrix;
     PDFReal m_relativeHorizontalOffset = 0.0;

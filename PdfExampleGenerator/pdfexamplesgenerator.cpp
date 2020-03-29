@@ -188,7 +188,7 @@ void PDFExamplesGenerator::generateAnnotationsExample()
 
         {
             pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(150, 250, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
-            builder.setAnnotationBorderStyle(annotation, pdf::PDFAnnotationBorder::Style::Inset, 2.718);
+            builder.setAnnotationBorder(annotation, 5.0, 3.0, 2.0);
             builder.setAnnotationColor(annotation, Qt::black);
         }
     }

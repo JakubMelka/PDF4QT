@@ -22,6 +22,8 @@
 #include "pdfdocument.h"
 #include "pdfannotation.h"
 
+class QPdfWriter;
+
 namespace pdf
 {
 
@@ -108,6 +110,7 @@ public:
     PDFObjectFactory& operator<<(const QPointF& point);
     PDFObjectFactory& operator<<(const QDateTime& dateTime);
     PDFObjectFactory& operator<<(AnnotationBorderStyle style);
+    PDFObjectFactory& operator<<(const PDFObject& object);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -174,6 +177,63 @@ private:
     std::vector<Item> m_items;
 };
 
+/// This class can create content streams, using the Qt's QPainter
+/// to draw graphics elements on it. Content stream can have various
+/// resources, which can, if selected be dereferenced, so content
+/// stream is encapsulated and doesn't contain references.
+class PDFFORQTLIBSHARED_EXPORT PDFContentStreamBuilder
+{
+public:
+
+    enum class CoordinateSystem
+    {
+        Qt, ///< Qt's coordinate system, (0, 0) is top left
+        PDF ///< PDF's coordinate system, (0, 0) is top right
+    };
+
+    /// Create new content stream builder, with given size and given coordinate system.
+    explicit PDFContentStreamBuilder(QSizeF size, CoordinateSystem coordinateSystem);
+    ~PDFContentStreamBuilder();
+
+    struct ContentStream
+    {
+        /// Page object, which has been created by this content stream builder
+        PDFObjectReference pageObject;
+
+        /// Contents of the created page
+        PDFObject contents;
+
+        /// Resources of the created page
+        PDFObject resources;
+
+        /// Temporary document, which has been created by this builder
+        PDFDocument document;
+    };
+
+    /// Starts painting on a new content stream. This function returns painter,
+    /// onto which can be graphics drawn. Painter respects selected coordinate system.
+    /// Calling begin multiple times, without subsequent calls to end function,
+    /// is invalid and can result in undefined behaviour.
+    /// \return Painter, onto which can be graphic content drawn
+    QPainter* begin();
+
+    /// Finishes painting on a new content stream. This function returns content
+    /// stream object, which is associated with this page. This function
+    /// must be called with painter, which has been returned with call to begin function.
+    /// \param painter Painter, which was returned with function begin()
+    ContentStream end(QPainter* painter);
+
+    /// Returns actually used coordinate system
+    CoordinateSystem getCoordinateSystem() const { return m_coordinateSystem; }
+
+private:
+    QSizeF m_size;
+    CoordinateSystem m_coordinateSystem;
+    QBuffer* m_buffer;
+    QPdfWriter* m_pdfWriter;
+    QPainter* m_painter;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFDocumentBuilder
 {
 public:
@@ -211,6 +271,11 @@ public:
 
     /// Returns annotation bounding rectangle
     std::array<PDFReal, 4> getAnnotationReductionRectangle(const QRectF& boundingRect, const QRectF& innerRect) const;
+
+    /// If reference \p annotationReference points to supported annotation,
+    /// then this function updates annotation's appearance streams.
+    /// \param annotationReference Reference to the annotation
+    void updateAnnotationAppearanceStreams(PDFObjectReference annotationReference);
 
 /* START GENERATED CODE */
 
@@ -762,6 +827,15 @@ private:
     PDFObjectReference getDocumentInfo() const;
     PDFObjectReference getCatalogReference() const;
     void updateDocumentInfo(PDFObject info);
+
+    /// Copies objects from another storage. Objects have adjusted references to match
+    /// this storage references and objects are added after the last objects of active storage.
+    /// This function can also automatically create references from direct objects passed
+    /// by parameter \p objects, if \p createReferences is set to true.
+    /// \param objects Objects, which we want to copy from another storage
+    /// \param storage Storage, from which we are copying from
+    /// \param createReferences Create references from \p objects
+    std::vector<PDFObject> copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences);
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;

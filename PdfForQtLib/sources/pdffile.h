@@ -24,7 +24,7 @@
 
 namespace pdf
 {
-class PDFDocument;
+class PDFObjectStorage;
 
 class PDFEmbeddedFile
 {
@@ -39,7 +39,7 @@ public:
     const QByteArray& getChecksum() const { return m_checksum; }
     const PDFStream* getStream() const { return m_stream.getStream(); }
 
-    static PDFEmbeddedFile parse(const PDFDocument* document, PDFObject object);
+    static PDFEmbeddedFile parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     PDFObject m_stream;
@@ -75,7 +75,7 @@ public:
     PDFObjectReference getCollection() const { return m_collection; }
     const std::map<QByteArray, PDFEmbeddedFile>& getEmbeddedFiles() const { return m_embeddedFiles; }
 
-    static PDFFileSpecification parse(const PDFDocument* document, PDFObject object);
+    static PDFFileSpecification parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     /// Name of the file system used to interpret this file specification,

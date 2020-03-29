@@ -40,9 +40,14 @@ static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_TRUE = "True";
 static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_FALSE = "False";
 static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown";
 
+QByteArray PDFObjectStorage::getDecodedStream(const PDFStream* stream) const
+{
+    return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(QOverload<const PDFObject&>::of(&PDFObjectStorage::getObject), this, std::placeholders::_1), getSecurityHandler());
+}
+
 QByteArray PDFDocument::getDecodedStream(const PDFStream* stream) const
 {
-    return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(&PDFDocument::getObject, this, std::placeholders::_1), m_pdfObjectStorage.getSecurityHandler());
+    return m_pdfObjectStorage.getDecodedStream(stream);
 }
 
 const PDFDictionary* PDFDocument::getTrailerDictionary() const
@@ -242,9 +247,15 @@ void PDFObjectStorage::updateTrailerDictionary(PDFObject trailerDictionary)
     m_trailerDictionary = PDFObjectManipulator::merge(m_trailerDictionary, trailerDictionary, PDFObjectManipulator::RemoveNullObjects);
 }
 
+PDFDocumentDataLoaderDecorator::PDFDocumentDataLoaderDecorator(const PDFDocument* document)
+    : m_storage(&document->getStorage())
+{
+
+}
+
 QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isName())
     {
         return dereferencedObject.getString();
@@ -255,7 +266,7 @@ QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
 
 QByteArray PDFDocumentDataLoaderDecorator::readString(const PDFObject& object)
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isString())
     {
         return dereferencedObject.getString();
@@ -266,7 +277,7 @@ QByteArray PDFDocumentDataLoaderDecorator::readString(const PDFObject& object)
 
 PDFInteger PDFDocumentDataLoaderDecorator::readInteger(const PDFObject& object, PDFInteger defaultValue) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isInt())
     {
         return dereferencedObject.getInteger();
@@ -277,7 +288,7 @@ PDFInteger PDFDocumentDataLoaderDecorator::readInteger(const PDFObject& object, 
 
 PDFReal PDFDocumentDataLoaderDecorator::readNumber(const PDFObject& object, PDFReal defaultValue) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
 
     if (dereferencedObject.isReal())
     {
@@ -292,7 +303,7 @@ PDFReal PDFDocumentDataLoaderDecorator::readNumber(const PDFObject& object, PDFR
 
 bool PDFDocumentDataLoaderDecorator::readBoolean(const PDFObject& object, bool defaultValue) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
 
     if (dereferencedObject.isBool())
     {
@@ -304,7 +315,7 @@ bool PDFDocumentDataLoaderDecorator::readBoolean(const PDFObject& object, bool d
 
 QString PDFDocumentDataLoaderDecorator::readTextString(const PDFObject& object, const QString& defaultValue) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isString())
     {
         return PDFEncoding::convertTextString(dereferencedObject.getString());
@@ -315,7 +326,7 @@ QString PDFDocumentDataLoaderDecorator::readTextString(const PDFObject& object, 
 
 QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, const QRectF& defaultValue) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isArray())
     {
         const PDFArray* array = dereferencedObject.getArray();
@@ -324,7 +335,7 @@ QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, co
             std::array<PDFReal, 4> items;
             for (size_t i = 0; i < 4; ++i)
             {
-                const PDFObject& object = m_document->getObject(array->getItem(i));
+                const PDFObject& object = m_storage->getObject(array->getItem(i));
                 if (object.isReal())
                 {
                     items[i] = object.getReal();
@@ -441,7 +452,7 @@ std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArr
 
 std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFObject& object, std::vector<PDFReal> defaultValue) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isArray())
     {
         const PDFArray* array = dereferencedObject.getArray();
@@ -469,7 +480,7 @@ std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFOb
 
 std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const PDFObject& object) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isArray())
     {
         const PDFArray* array = dereferencedObject.getArray();
@@ -512,7 +523,7 @@ PDFObjectReference PDFDocumentDataLoaderDecorator::readReferenceFromDictionary(c
 
 std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArray(const PDFObject& object) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isArray())
     {
         const PDFArray* array = dereferencedObject.getArray();
@@ -544,7 +555,7 @@ std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArr
 
 std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readNameArray(const PDFObject& object) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isArray())
     {
         const PDFArray* array = dereferencedObject.getArray();
@@ -626,7 +637,7 @@ std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArrayFromDicti
 
 std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArray(const PDFObject& object) const
 {
-    const PDFObject& dereferencedObject = m_document->getObject(object);
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isArray())
     {
         const PDFArray* array = dereferencedObject.getArray();

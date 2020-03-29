@@ -70,10 +70,10 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
         {
             currentOutlineItem->setTitle(PDFEncoding::convertTextString(titleObject.getString()));
         }
-        currentOutlineItem->setAction(PDFAction::parse(document, dictionary->get("A")));
+        currentOutlineItem->setAction(PDFAction::parse(&document->getStorage(), dictionary->get("A")));
         if (!currentOutlineItem->getAction() && dictionary->hasKey("Dest"))
         {
-            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(document, dictionary->get("Dest")))));
+            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), dictionary->get("Dest")))));
         }
 
         PDFDocumentDataLoaderDecorator loader(document);

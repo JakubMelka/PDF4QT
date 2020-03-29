@@ -95,11 +95,11 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         PDFObject openAction = document->getObject(catalogDictionary->get("OpenAction"));
         if (openAction.isArray())
         {
-            catalogObject.m_openAction.reset(new PDFActionGoTo(PDFDestination::parse(document, openAction)));
+            catalogObject.m_openAction.reset(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), openAction)));
         }
         if (openAction.isDictionary())
         {
-            catalogObject.m_openAction = PDFAction::parse(document, openAction);
+            catalogObject.m_openAction = PDFAction::parse(&document->getStorage(), openAction);
         }
     }
 
@@ -136,20 +136,20 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
 
     if (const PDFDictionary* namesDictionary = document->getDictionaryFromObject(catalogDictionary->get("Names")))
     {
-        auto parseDestination = [](const PDFDocument* document, PDFObject object)
+        auto parseDestination = [](const PDFObjectStorage* storage, PDFObject object)
         {
-            object = document->getObject(object);
+            object = storage->getObject(object);
             if (object.isDictionary())
             {
                 object = object.getDictionary()->get("D");
             }
 
-            return PDFDestination::parse(document, qMove(object));
+            return PDFDestination::parse(storage, qMove(object));
         };
 
-        catalogObject.m_destinations = PDFNameTreeLoader<PDFDestination>::parse(document, namesDictionary->get("Dests"), parseDestination);
-        catalogObject.m_javaScriptActions = PDFNameTreeLoader<PDFActionPtr>::parse(document, namesDictionary->get("JavaScript"), &PDFAction::parse);
-        catalogObject.m_embeddedFiles = PDFNameTreeLoader<PDFFileSpecification>::parse(document, namesDictionary->get("EmbeddedFiles"), &PDFFileSpecification::parse);
+        catalogObject.m_destinations = PDFNameTreeLoader<PDFDestination>::parse(&document->getStorage(), namesDictionary->get("Dests"), parseDestination);
+        catalogObject.m_javaScriptActions = PDFNameTreeLoader<PDFActionPtr>::parse(&document->getStorage(), namesDictionary->get("JavaScript"), &PDFAction::parse);
+        catalogObject.m_embeddedFiles = PDFNameTreeLoader<PDFFileSpecification>::parse(&document->getStorage(), namesDictionary->get("EmbeddedFiles"), &PDFFileSpecification::parse);
     }
 
     // Examine "Dests" dictionary
@@ -158,7 +158,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         const size_t count = destsDictionary->getCount();
         for (size_t i = 0; i < count; ++i)
         {
-            catalogObject.m_destinations[destsDictionary->getKey(i)] = PDFDestination::parse(document, destsDictionary->getValue(i));
+            catalogObject.m_destinations[destsDictionary->getKey(i)] = PDFDestination::parse(&document->getStorage(), destsDictionary->getValue(i));
         }
     }
 

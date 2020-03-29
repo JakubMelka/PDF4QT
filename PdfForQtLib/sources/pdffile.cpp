@@ -104,10 +104,10 @@ const PDFEmbeddedFile* PDFFileSpecification::getPlatformFile() const
     return nullptr;
 }
 
-PDFFileSpecification PDFFileSpecification::parse(const PDFDocument* document, PDFObject object)
+PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFFileSpecification result;
-    object = document->getObject(object);
+    object = storage->getObject(object);
 
     if (object.isString())
     {
@@ -115,7 +115,7 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFDocument* document, PD
     }
     else if (object.isDictionary())
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         const PDFDictionary* dictionary = object.getDictionary();
         PDFObject collectionObject = dictionary->get("Cl");
 
@@ -129,13 +129,13 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFDocument* document, PD
         result.m_description = loader.readTextStringFromDictionary(dictionary, "Desc", QString());
         result.m_collection = collectionObject.isReference() ? collectionObject.getReference() : PDFObjectReference();
 
-        PDFObject embeddedFiles = document->getObject(dictionary->get("EF"));
+        PDFObject embeddedFiles = storage->getObject(dictionary->get("EF"));
         if (embeddedFiles.isDictionary())
         {
             const PDFDictionary* embeddedFilesDictionary = embeddedFiles.getDictionary();
             for (size_t i = 0; i < embeddedFilesDictionary->getCount(); ++i)
             {
-                result.m_embeddedFiles[embeddedFilesDictionary->getKey(i)] = PDFEmbeddedFile::parse(document, embeddedFilesDictionary->getValue(i));
+                result.m_embeddedFiles[embeddedFilesDictionary->getKey(i)] = PDFEmbeddedFile::parse(storage, embeddedFilesDictionary->getValue(i));
             }
         }
     }
@@ -143,20 +143,20 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFDocument* document, PD
     return result;
 }
 
-PDFEmbeddedFile PDFEmbeddedFile::parse(const PDFDocument* document, PDFObject object)
+PDFEmbeddedFile PDFEmbeddedFile::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFEmbeddedFile result;
-    object = document->getObject(object);
+    object = storage->getObject(object);
 
     if (object.isStream())
     {
         const PDFStream* stream = object.getStream();
         const PDFDictionary* dictionary = stream->getDictionary();
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         result.m_stream = object;
         result.m_subtype = loader.readNameFromDictionary(dictionary, "Subtype");
 
-        const PDFObject& paramsObject = document->getObject(dictionary->get("Params"));
+        const PDFObject& paramsObject = storage->getObject(dictionary->get("Params"));
         if (paramsObject.isDictionary())
         {
             const PDFDictionary* paramsDictionary = paramsObject.getDictionary();

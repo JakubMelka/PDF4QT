@@ -34,27 +34,27 @@ public:
     explicit PDFNameTreeLoader() = delete;
 
     using MappedObjects = std::map<QByteArray, Type>;
-    using LoadMethod = std::function<Type(const PDFDocument*, const PDFObject&)>;
+    using LoadMethod = std::function<Type(const PDFObjectStorage*, const PDFObject&)>;
 
     /// Parses the name tree and loads its items into the map. Some errors are ignored,
     /// e.g. when kid is null. Objects are retrieved by \p loadMethod.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param root Root of the name tree
     /// \param loadMethod Parsing method, which retrieves parsed object
-    static MappedObjects parse(const PDFDocument* document, const PDFObject& root, const LoadMethod& loadMethod)
+    static MappedObjects parse(const PDFObjectStorage* storage, const PDFObject& root, const LoadMethod& loadMethod)
     {
         MappedObjects result;
-        parseImpl(result, document, root, loadMethod);
+        parseImpl(result, storage, root, loadMethod);
         return result;
     }
 
 private:
-    static void parseImpl(MappedObjects& objects, const PDFDocument* document, const PDFObject& root, const LoadMethod& loadMethod)
+    static void parseImpl(MappedObjects& objects, const PDFObjectStorage* storage, const PDFObject& root, const LoadMethod& loadMethod)
     {
-        if (const PDFDictionary* dictionary = document->getDictionaryFromObject(root))
+        if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(root))
         {
             // Jakub Melka: First, load the objects into the map
-            const PDFObject& namedItems = document->getObject(dictionary->get("Names"));
+            const PDFObject& namedItems = storage->getObject(dictionary->get("Names"));
             if (namedItems.isArray())
             {
                 const PDFArray* namedItemsArray = namedItems.getArray();
@@ -64,25 +64,25 @@ private:
                     const size_t numberIndex = 2 * i;
                     const size_t valueIndex = 2 * i + 1;
 
-                    const PDFObject& name = document->getObject(namedItemsArray->getItem(numberIndex));
+                    const PDFObject& name = storage->getObject(namedItemsArray->getItem(numberIndex));
                     if (!name.isString())
                     {
                         continue;
                     }
 
-                    objects[name.getString()] = loadMethod(document, namedItemsArray->getItem(valueIndex));
+                    objects[name.getString()] = loadMethod(storage, namedItemsArray->getItem(valueIndex));
                 }
             }
 
             // Then, follow the kids
-            const PDFObject&  kids = document->getObject(dictionary->get("Kids"));
+            const PDFObject&  kids = storage->getObject(dictionary->get("Kids"));
             if (kids.isArray())
             {
                 const PDFArray* kidsArray = kids.getArray();
                 const size_t count = kidsArray->getCount();
                 for (size_t i = 0; i < count; ++i)
                 {
-                    parseImpl(objects, document, kidsArray->getItem(i), loadMethod);
+                    parseImpl(objects, storage, kidsArray->getItem(i), loadMethod);
                 }
             }
         }

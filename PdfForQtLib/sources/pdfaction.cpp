@@ -23,10 +23,10 @@
 namespace pdf
 {
 
-PDFActionPtr PDFAction::parse(const PDFDocument* document, PDFObject object)
+PDFActionPtr PDFAction::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     std::set<PDFObjectReference> usedReferences;
-    return parseImpl(document, qMove(object), usedReferences);
+    return parseImpl(storage, qMove(object), usedReferences);
 }
 
 void PDFAction::apply(const std::function<void (const PDFAction*)>& callback)
@@ -46,7 +46,7 @@ std::vector<const PDFAction*> PDFAction::getActionList() const
     return result;
 }
 
-PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object, std::set<PDFObjectReference>& usedReferences)
+PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject object, std::set<PDFObjectReference>& usedReferences)
 {
     if (object.isReference())
     {
@@ -56,7 +56,7 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
             throw PDFException(PDFTranslationContext::tr("Circular dependence in actions found."));
         }
         usedReferences.insert(reference);
-        object = document->getObjectByReference(reference);
+        object = storage->getObjectByReference(reference);
     }
 
     if (object.isNull())
@@ -69,34 +69,34 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
         throw PDFException(PDFTranslationContext::tr("Invalid action."));
     }
 
-    PDFDocumentDataLoaderDecorator loader(document);
+    PDFDocumentDataLoaderDecorator loader(storage);
     const PDFDictionary* dictionary = object.getDictionary();
     QByteArray name = loader.readNameFromDictionary(dictionary, "S");
 
     if (name == "GoTo") // Goto action
     {
-        PDFDestination destination = PDFDestination::parse(document, dictionary->get("D"));
+        PDFDestination destination = PDFDestination::parse(storage, dictionary->get("D"));
         return PDFActionPtr(new PDFActionGoTo(qMove(destination)));
     }
     else if (name == "GoToR")
     {
-        PDFDestination destination = PDFDestination::parse(document, dictionary->get("D"));
-        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(document, dictionary->get("F"));
+        PDFDestination destination = PDFDestination::parse(storage, dictionary->get("D"));
+        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
         return PDFActionPtr(new PDFActionGoToR(qMove(destination), qMove(fileSpecification), loader.readBooleanFromDictionary(dictionary, "NewWindow", false)));
     }
     else if (name == "GoToE")
     {
-        PDFDestination destination = PDFDestination::parse(document, dictionary->get("D"));
-        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(document, dictionary->get("F"));
-        return PDFActionPtr(new PDFActionGoToE(qMove(destination), qMove(fileSpecification), loader.readBooleanFromDictionary(dictionary, "NewWindow", false), document->getObject(dictionary->get("T"))));
+        PDFDestination destination = PDFDestination::parse(storage, dictionary->get("D"));
+        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
+        return PDFActionPtr(new PDFActionGoToE(qMove(destination), qMove(fileSpecification), loader.readBooleanFromDictionary(dictionary, "NewWindow", false), storage->getObject(dictionary->get("T"))));
     }
     else if (name == "Launch")
     {
-        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(document, dictionary->get("F"));
+        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
         const bool newWindow = loader.readBooleanFromDictionary(dictionary, "NewWindow", false);
         PDFActionLaunch::Win win;
 
-        const PDFObject& winDictionaryObject = document->getObject(dictionary->get("Win"));
+        const PDFObject& winDictionaryObject = storage->getObject(dictionary->get("Win"));
         if (winDictionaryObject.isDictionary())
         {
             const PDFDictionary* winDictionary = winDictionaryObject.getDictionary();
@@ -110,7 +110,7 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
     }
     else if (name == "Thread")
     {
-        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(document, dictionary->get("F"));
+        PDFFileSpecification fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
         PDFActionThread::Thread thread;
         PDFActionThread::Bead bead;
 
@@ -149,7 +149,7 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
         const bool isSynchronous = loader.readBooleanFromDictionary(dictionary, "Synchronous", false);
         const bool isRepeat = loader.readBooleanFromDictionary(dictionary, "Repeat", false);
         const bool isMix = loader.readBooleanFromDictionary(dictionary, "Mix", false);
-        return PDFActionPtr(new PDFActionSound(PDFSound::parse(document, dictionary->get("Sound")), volume, isSynchronous, isRepeat, isMix));
+        return PDFActionPtr(new PDFActionSound(PDFSound::parse(storage, dictionary->get("Sound")), volume, isSynchronous, isRepeat, isMix));
     }
     else if (name == "Movie")
     {
@@ -220,7 +220,7 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
         const bool isRadioButtonsPreserved = loader.readBooleanFromDictionary(dictionary, "PreserveRB", true);
         PDFActionSetOCGState::StateChangeItems items;
 
-        PDFObject stateArrayObject = document->getObject(dictionary->get("State"));
+        PDFObject stateArrayObject = storage->getObject(dictionary->get("State"));
         if (stateArrayObject.isArray())
         {
             constexpr const std::array<std::pair<const char*, PDFActionSetOCGState::SwitchType>, 3> types = {
@@ -258,23 +258,23 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
 
         if (dictionary->hasKey("R"))
         {
-            rendition = PDFRendition::parse(document, dictionary->get("R"));
+            rendition = PDFRendition::parse(storage, dictionary->get("R"));
         }
-        PDFObject javascriptObject = document->getObject(dictionary->get("JS"));
+        PDFObject javascriptObject = storage->getObject(dictionary->get("JS"));
         if (javascriptObject.isString())
         {
             javascript = PDFEncoding::convertTextString(javascriptObject.getString());
         }
         else if (javascriptObject.isStream())
         {
-            javascript = PDFEncoding::convertTextString(document->getDecodedStream(javascriptObject.getStream()));
+            javascript = PDFEncoding::convertTextString(storage->getDecodedStream(javascriptObject.getStream()));
         }
 
         return PDFActionPtr(new PDFActionRendition(qMove(rendition), annotation, operation, qMove(javascript)));
     }
     else if (name == "Trans")
     {
-        return PDFActionPtr(new PDFActionTransition(PDFPageTransition::parse(document, dictionary->get("Trans"))));
+        return PDFActionPtr(new PDFActionTransition(PDFPageTransition::parse(storage, dictionary->get("Trans"))));
     }
     else if (name == "GoTo3DView")
     {
@@ -283,14 +283,14 @@ PDFActionPtr PDFAction::parseImpl(const PDFDocument* document, PDFObject object,
     else if (name == "JavaScript")
     {
         QByteArray textJavaScript;
-        const PDFObject& javaScriptObject = document->getObject(dictionary->get("JS"));
+        const PDFObject& javaScriptObject = storage->getObject(dictionary->get("JS"));
         if (javaScriptObject.isString())
         {
             textJavaScript = javaScriptObject.getString();
         }
         else if (javaScriptObject.isStream())
         {
-            textJavaScript = document->getDecodedStream(javaScriptObject.getStream());
+            textJavaScript = storage->getDecodedStream(javaScriptObject.getStream());
         }
         return PDFActionPtr(new PDFActionJavaScript(PDFEncoding::convertTextString(textJavaScript)));
     }
@@ -311,10 +311,10 @@ void PDFAction::fillActionList(std::vector<const PDFAction*>& actionList) const
     }
 }
 
-PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject object)
+PDFDestination PDFDestination::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFDestination result;
-    object = document->getObject(object);
+    object = storage->getObject(object);
 
     if (object.isName() || object.isString())
     {
@@ -330,7 +330,7 @@ PDFDestination PDFDestination::parse(const PDFDocument* document, PDFObject obje
             return result;
         }
 
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
 
         // First parse page number/page index
         PDFObject pageNumberObject = array->getItem(0);

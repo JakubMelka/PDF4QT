@@ -28,11 +28,11 @@
 
 namespace pdf
 {
-class PDFDocument;
+class PDFObjectStorage;
 
 struct PDFMediaMultiLanguageTexts
 {
-    static PDFMediaMultiLanguageTexts parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaMultiLanguageTexts parse(const PDFObjectStorage* storage, PDFObject object);
 
     std::map<QByteArray, QString> texts;
 };
@@ -78,7 +78,7 @@ public:
 
     }
 
-    static PDFMediaOffset parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaOffset parse(const PDFObjectStorage* storage, PDFObject object);
 
     const TimeData* getTimeData() const { return std::holds_alternative<TimeData>(m_data) ? &std::get<TimeData>(m_data) : nullptr; }
     const FrameData* getFrameData() const { return std::holds_alternative<FrameData>(m_data) ? &std::get<FrameData>(m_data) : nullptr; }
@@ -104,7 +104,7 @@ public:
 
     }
 
-    static PDFMediaSoftwareIdentifier parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaSoftwareIdentifier parse(const PDFObjectStorage* storage, PDFObject object);
 
     const QByteArray& getSoftware() const { return m_software; }
     const std::vector<PDFInteger>& getLowVersion() const { return m_lowVersion; }
@@ -131,7 +131,7 @@ public:
 
     }
 
-    static PDFMediaPlayer parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaPlayer parse(const PDFObjectStorage* storage, PDFObject object);
 
     const PDFMediaSoftwareIdentifier* getSoftwareIdentifier() const { return &m_softwareIdentifier; }
 
@@ -154,7 +154,7 @@ public:
 
     }
 
-    static PDFMediaPlayers parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaPlayers parse(const PDFObjectStorage* storage, PDFObject object);
 
     const std::vector<PDFMediaPlayer>& getPlayersMustUsed() const { return m_playersMustUsed; }
     const std::vector<PDFMediaPlayer>& getPlayersAlternate() const { return m_playersAlternate; }
@@ -191,7 +191,7 @@ public:
 
     }
 
-    static PDFMediaPermissions parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaPermissions parse(const PDFObjectStorage* storage, PDFObject object);
 
     Permission getPermission() const { return m_permission; }
 
@@ -232,7 +232,7 @@ public:
         PDFReal durationSeconds = 0.0;
     };
 
-    static PDFMediaPlayParameters parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaPlayParameters parse(const PDFObjectStorage* storage, PDFObject object);
 
     const PDFMediaPlayers* getPlayers() const { return &m_players; }
     const PlayParameters* getPlayParametersMustHonored() const { return &m_mustHonored; }
@@ -303,7 +303,7 @@ public:
 
     }
 
-    static PDFMediaScreenParameters parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaScreenParameters parse(const PDFObjectStorage* storage, PDFObject object);
 
     const ScreenParameters* getScreenParametersMustHonored() const { return &m_mustHonored; }
     const ScreenParameters* getScreenParametersBestEffort() const { return &m_bestEffort; }
@@ -352,7 +352,7 @@ public:
 
     }
 
-    static PDFMediaClip parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaClip parse(const PDFObjectStorage* storage, PDFObject object);
 
     const MediaClipData& getMediaClipData() const { return m_mediaClipData; }
     const std::vector<MediaSectionData>& getClipSections() const { return m_sections; }
@@ -372,7 +372,7 @@ public:
 
     }
 
-    static PDFMediaMinimumBitDepth parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaMinimumBitDepth parse(const PDFObjectStorage* storage, PDFObject object);
 
     PDFInteger getScreenMinimumBitDepth() const { return m_screenMinimumBitDepth; }
     PDFInteger getMonitorSpecifier() const { return m_monitorSpecifier; }
@@ -393,7 +393,7 @@ public:
 
     }
 
-    static PDFMediaMinimumScreenSize parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaMinimumScreenSize parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     PDFInteger m_minimumWidth;
@@ -409,7 +409,7 @@ class PDFMediaCriteria
 public:
     explicit inline PDFMediaCriteria() = default;
 
-    static PDFMediaCriteria parse(const PDFDocument* document, PDFObject object);
+    static PDFMediaCriteria parse(const PDFObjectStorage* storage, PDFObject object);
 
     bool hasAudioDescriptions() const { return m_audioDescriptions.has_value(); }
     bool hasTextCaptions() const { return m_textCaptions.has_value(); }
@@ -473,7 +473,7 @@ public:
         PDFObject renditions;
     };
 
-    static PDFRendition parse(const PDFDocument* document, PDFObject object);
+    static PDFRendition parse(const PDFObjectStorage* storage, PDFObject object);
 
     Type getType() const { return m_type; }
     const QString& getName() const { return m_name; }
@@ -519,7 +519,7 @@ public:
 
     /// Creates a new sound from the object. If data are invalid, then invalid object
     /// is returned, no exception is thrown.
-    static PDFSound parse(const PDFDocument* document, PDFObject object);
+    static PDFSound parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     PDFFileSpecification m_fileSpecification;
@@ -546,7 +546,7 @@ public:
 
     /// Creates a new movie from the object. If data are invalid, then invalid object
     /// is returned, no exception is thrown.
-    static PDFMovie parse(const PDFDocument* document, PDFObject object);
+    static PDFMovie parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     PDFFileSpecification m_movieFile;
@@ -590,10 +590,10 @@ public:
 
     /// Creates a new moview from the object. If data are invalid, then invalid object
     /// is returned, no exception is thrown.
-    static PDFMovieActivation parse(const PDFDocument* document, PDFObject object);
+    static PDFMovieActivation parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
-    static MovieTime parseMovieTime(const PDFDocument* document, PDFObject object);
+    static MovieTime parseMovieTime(const PDFObjectStorage* storage, PDFObject object);
     static PDFInteger parseMovieTimeFromString(const QByteArray& string);
 
     MovieTime m_start;

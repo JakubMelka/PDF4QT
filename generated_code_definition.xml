@@ -398,6 +398,7 @@ return pageReference;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -600,6 +601,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -874,6 +876,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -1077,6 +1080,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -1231,6 +1235,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -1520,6 +1525,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -1879,6 +1885,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -2025,6 +2032,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationReference);
 return annotationReference;</property>
         </QObject>
       </property>
@@ -2317,6 +2325,7 @@ return annotationReference;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -2584,6 +2593,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -2722,6 +2732,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">mergeTo(parentAnnotation, upgradedParentAnnotation);
+updateAnnotationAppearanceStreams(popupAnnotation);
 return popupAnnotation;</property>
         </QObject>
       </property>
@@ -2953,6 +2964,7 @@ return popupAnnotation;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3156,6 +3168,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3310,6 +3323,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3513,6 +3527,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3667,6 +3682,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3909,6 +3925,7 @@ return annotationObject;</property>
           <property name="variableType">_void</property>
           <property name="code">mergeTo(annotationObject, updateAnnotationPopup);
 appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -4112,6 +4129,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>
@@ -4266,6 +4284,7 @@ return annotationObject;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
 return annotationObject;</property>
         </QObject>
       </property>

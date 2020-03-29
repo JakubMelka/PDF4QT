@@ -69,6 +69,20 @@ public:
     /// then null object is returned (no exception is thrown).
     const PDFObject& getObject(PDFObjectReference reference) const;
 
+    /// If object is reference, the dereference attempt is performed
+    /// and object is returned. If it is not a reference, then self
+    /// is returned. If dereference attempt fails, then null object
+    /// is returned (no exception is thrown).
+    const PDFObject& getObject(const PDFObject& object) const;
+
+    /// Returns dictionary from an object. If object is not a dictionary,
+    /// then nullptr is returned (no exception is thrown).
+    const PDFDictionary* getDictionaryFromObject(const PDFObject& object) const;
+
+    /// Returns object by reference. If dereference attempt fails, then null object
+    /// is returned (no exception is thrown).
+    const PDFObject& getObjectByReference(PDFObjectReference reference) const;
+
     /// Returns array of objects stored in this storage
     const PDFObjects& getObjects() const { return m_objects; }
 
@@ -98,6 +112,11 @@ public:
     /// \param trailerDictionary New trailer dictionary
     void updateTrailerDictionary(PDFObject trailerDictionary);
 
+    /// Returns the decoded stream. If stream data cannot be decoded,
+    /// then empty byte array is returned.
+    /// \param stream Stream to be decoded
+    QByteArray getDecodedStream(const PDFStream* stream) const;
+
 private:
     PDFObjects m_objects;
     PDFObject m_trailerDictionary;
@@ -112,7 +131,8 @@ private:
 class PDFDocumentDataLoaderDecorator
 {
 public:
-    inline explicit PDFDocumentDataLoaderDecorator(const PDFDocument* document) : m_document(document) { }
+    explicit PDFDocumentDataLoaderDecorator(const PDFDocument* document);
+    inline explicit PDFDocumentDataLoaderDecorator(const PDFObjectStorage* storage) : m_storage(storage) { }
     inline ~PDFDocumentDataLoaderDecorator() = default;
 
     /// Reads a name from the object, if it is possible. If object is not a name,
@@ -159,7 +179,7 @@ public:
     template<typename Enum, typename Iterator>
     Enum readEnumByName(const PDFObject& object, Iterator begin, Iterator end, Enum defaultValue) const
     {
-        const PDFObject& dereferencedObject = m_document->getObject(object);
+        const PDFObject& dereferencedObject = m_storage->getObject(object);
         if (dereferencedObject.isName() || dereferencedObject.isString())
         {
             QByteArray name = dereferencedObject.getString();
@@ -184,7 +204,7 @@ public:
     template<typename T>
     void readNumberArray(const PDFObject& object, T first, T last)
     {
-        const PDFObject& dereferencedObject = m_document->getObject(object);
+        const PDFObject& dereferencedObject = m_storage->getObject(object);
         if (dereferencedObject.isArray())
         {
             const PDFArray* array = dereferencedObject.getArray();
@@ -318,7 +338,7 @@ public:
     std::vector<QByteArray> readStringArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
 private:
-    const PDFDocument* m_document;
+    const PDFObjectStorage* m_storage;
 };
 
 /// PDF document main class.
@@ -456,6 +476,40 @@ inline
 const PDFObject& PDFDocument::getObjectByReference(PDFObjectReference reference) const
 {
     return m_pdfObjectStorage.getObject(reference);
+}
+
+inline
+const PDFObject& PDFObjectStorage::getObject(const PDFObject& object) const
+{
+    if (object.isReference())
+    {
+        // Try to dereference the object
+        return getObject(object.getReference());
+    }
+
+    return object;
+}
+
+inline
+const PDFDictionary* PDFObjectStorage::getDictionaryFromObject(const PDFObject& object) const
+{
+    const PDFObject& dereferencedObject = getObject(object);
+    if (dereferencedObject.isDictionary())
+    {
+        return dereferencedObject.getDictionary();
+    }
+    else if (dereferencedObject.isStream())
+    {
+        return dereferencedObject.getStream()->getDictionary();
+    }
+
+    return nullptr;
+}
+
+inline
+const PDFObject& PDFObjectStorage::getObjectByReference(PDFObjectReference reference) const
+{
+    return getObject(reference);
 }
 
 }   // namespace pdf

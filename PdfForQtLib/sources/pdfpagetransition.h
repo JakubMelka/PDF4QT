@@ -22,7 +22,7 @@
 
 namespace pdf
 {
-class PDFDocument;
+class PDFObjectStorage;
 
 /// Page transition during presentation settings.
 class PDFPageTransition
@@ -57,7 +57,7 @@ public:
         Outward
     };
 
-    static PDFPageTransition parse(const PDFDocument* document, PDFObject object);
+    static PDFPageTransition parse(const PDFObjectStorage* storage, PDFObject object);
 
     Style getStyle() const { return m_style; }
     PDFReal getDuration() const { return m_duration; }

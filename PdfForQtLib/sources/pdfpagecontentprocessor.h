@@ -44,6 +44,37 @@ class PDFOptionalContentActivity;
 
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
 
+class PDFLineDashPattern
+{
+public:
+    explicit inline PDFLineDashPattern() = default;
+    explicit inline PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset) :
+        m_dashArray(dashArray),
+        m_dashOffset(dashOffset)
+    {
+        if (m_dashArray.size() % 2 == 1)
+        {
+            m_dashArray.push_back(m_dashArray.back());
+        }
+    }
+
+    inline const std::vector<PDFReal>& getDashArray() const { return m_dashArray; }
+    inline void setDashArray(const std::vector<PDFReal>& dashArray) { m_dashArray = dashArray; }
+
+    inline PDFReal getDashOffset() const { return m_dashOffset; }
+    inline void setDashOffset(PDFReal dashOffset) { m_dashOffset = dashOffset; }
+
+    inline bool operator==(const PDFLineDashPattern& other) const { return m_dashArray == other.m_dashArray && m_dashOffset == other.m_dashOffset; }
+    inline bool operator!=(const PDFLineDashPattern& other) const { return !(*this == other); }
+
+    /// Is line solid? Function returns true, if yes.
+    bool isSolid() const { return m_dashArray.empty(); }
+
+private:
+    std::vector<PDFReal> m_dashArray;
+    PDFReal m_dashOffset = 0.0;
+};
+
 /// Process the contents of the page.
 class PDFPageContentProcessor : public PDFRenderErrorReporter
 {
@@ -192,34 +223,6 @@ public:
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
 
 protected:
-
-    class PDFLineDashPattern
-    {
-    public:
-        explicit inline PDFLineDashPattern() = default;
-        explicit inline PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset) :
-            m_dashArray(dashArray),
-            m_dashOffset(dashOffset)
-        {
-
-        }
-
-        inline const std::vector<PDFReal>& getDashArray() const { return m_dashArray; }
-        inline void setDashArray(const std::vector<PDFReal>& dashArray) { m_dashArray = dashArray; }
-
-        inline PDFReal getDashOffset() const { return m_dashOffset; }
-        inline void setDashOffset(PDFReal dashOffset) { m_dashOffset = dashOffset; }
-
-        inline bool operator==(const PDFLineDashPattern& other) const { return m_dashArray == other.m_dashArray && m_dashOffset == other.m_dashOffset; }
-        inline bool operator!=(const PDFLineDashPattern& other) const { return !(*this == other); }
-
-        /// Is line solid? Function returns true, if yes.
-        bool isSolid() const { return m_dashArray.empty(); }
-
-    private:
-        std::vector<PDFReal> m_dashArray;
-        PDFReal m_dashOffset = 0.0;
-    };
 
     struct PDFTransparencyGroup
     {

@@ -21,13 +21,13 @@
 namespace pdf
 {
 
-PDFPageTransition PDFPageTransition::parse(const PDFDocument* document, PDFObject object)
+PDFPageTransition PDFPageTransition::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFPageTransition result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
 
         constexpr const std::array<std::pair<const char*, Style>, 12> styles = {
             std::pair<const char*, Style>{ "Split", Style::Split },

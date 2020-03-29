@@ -34,6 +34,7 @@ namespace pdf
 {
 class PDFAction;
 class PDFDocument;
+class PDFObjectStorage;
 
 enum class ActionType
 {
@@ -87,9 +88,9 @@ public:
 
     /// Parses the destination from the object. If object contains invalid destination,
     /// then empty destination is returned. If object is empty, empty destination is returned.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Destination object
-    static PDFDestination parse(const PDFDocument* document, PDFObject object);
+    static PDFDestination parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
     DestinationType m_destinationType = DestinationType::Invalid;
@@ -120,9 +121,9 @@ public:
 
     /// Tries to parse the action. If serious error occurs, then exception is thrown.
     /// If \p object is null object, then nullptr is returned.
-    /// \param document Document
+    /// \param storage Object storage
     /// \param object Object containing the action
-    static PDFActionPtr parse(const PDFDocument* document, PDFObject object);
+    static PDFActionPtr parse(const PDFObjectStorage* storage, PDFObject object);
 
     /// Calls the lambda function with action as parameter, then following
     /// the 'Next' entry, as described by PDF 1.7 specification.
@@ -132,7 +133,7 @@ public:
     std::vector<const PDFAction*> getActionList() const;
 
 private:
-    static PDFActionPtr parseImpl(const PDFDocument* document, PDFObject object, std::set<PDFObjectReference>& usedReferences);
+    static PDFActionPtr parseImpl(const PDFObjectStorage* storage, PDFObject object, std::set<PDFObjectReference>& usedReferences);
 
     void fillActionList(std::vector<const PDFAction*>& actionList) const;
 

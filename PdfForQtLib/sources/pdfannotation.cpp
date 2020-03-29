@@ -22,21 +22,22 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfcms.h"
 #include "pdfwidgetutils.h"
+#include "pdfpagecontentprocessor.h"
 
 namespace pdf
 {
 
-PDFAnnotationBorder PDFAnnotationBorder::parseBorder(const PDFDocument* document, PDFObject object)
+PDFAnnotationBorder PDFAnnotationBorder::parseBorder(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationBorder result;
-    object = document->getObject(object);
+    object = storage->getObject(object);
 
     if (object.isArray())
     {
         const PDFArray* array = object.getArray();
         if (array->getCount() >= 3)
         {
-            PDFDocumentDataLoaderDecorator loader(document);
+            PDFDocumentDataLoaderDecorator loader(storage);
             result.m_definition = Definition::Simple;
             result.m_hCornerRadius = loader.readNumber(array->getItem(0), 0.0);
             result.m_vCornerRadius = loader.readNumber(array->getItem(1), 0.0);
@@ -52,13 +53,13 @@ PDFAnnotationBorder PDFAnnotationBorder::parseBorder(const PDFDocument* document
     return result;
 }
 
-PDFAnnotationBorder PDFAnnotationBorder::parseBS(const PDFDocument* document, PDFObject object)
+PDFAnnotationBorder PDFAnnotationBorder::parseBS(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationBorder result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         result.m_definition = Definition::BorderStyle;
         result.m_width = loader.readNumberFromDictionary(dictionary, "W", 1.0);
 
@@ -76,13 +77,13 @@ PDFAnnotationBorder PDFAnnotationBorder::parseBS(const PDFDocument* document, PD
     return result;
 }
 
-PDFAnnotationBorderEffect PDFAnnotationBorderEffect::parse(const PDFDocument* document, PDFObject object)
+PDFAnnotationBorderEffect PDFAnnotationBorderEffect::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationBorderEffect result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         result.m_intensity = loader.readNumberFromDictionary(dictionary, "I", 0.0);
 
         constexpr const std::array<std::pair<const char*, Effect>, 2> effects = {
@@ -96,16 +97,16 @@ PDFAnnotationBorderEffect PDFAnnotationBorderEffect::parse(const PDFDocument* do
     return result;
 }
 
-PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFDocument* document, PDFObject object)
+PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAppeareanceStreams result;
 
-    auto processSubdicitonary = [&result, document](Appearance appearance, PDFObject subdictionaryObject)
+    auto processSubdicitonary = [&result, storage](Appearance appearance, PDFObject subdictionaryObject)
     {
-        subdictionaryObject = document->getObject(subdictionaryObject);
+        subdictionaryObject = storage->getObject(subdictionaryObject);
         if (subdictionaryObject.isDictionary())
         {
-            const PDFDictionary* subdictionary = document->getDictionaryFromObject(subdictionaryObject);
+            const PDFDictionary* subdictionary = storage->getDictionaryFromObject(subdictionaryObject);
             for (size_t i = 0; i < subdictionary->getCount(); ++i)
             {
                 result.m_appearanceStreams[std::make_pair(appearance, subdictionary->getKey(i))] = subdictionary->getValue(i);
@@ -117,7 +118,7 @@ PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFDocument* document, 
         }
     };
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
         processSubdicitonary(Appearance::Normal, dictionary->get("N"));
         processSubdicitonary(Appearance::Rollover, dictionary->get("R"));
@@ -158,17 +159,27 @@ PDFAnnotation::PDFAnnotation() :
 
 }
 
-PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject object)
+void PDFAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    Q_UNUSED(parameters);
+}
+
+std::vector<PDFAppeareanceStreams::Key> PDFAnnotation::getDrawKeys() const
+{
+    return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() } };
+}
+
+PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationPtr result;
 
-    const PDFDictionary* dictionary = document->getDictionaryFromObject(object);
+    const PDFDictionary* dictionary = storage->getDictionaryFromObject(object);
     if (!dictionary)
     {
         return result;
     }
 
-    PDFDocumentDataLoaderDecorator loader(document);
+    PDFDocumentDataLoaderDecorator loader(storage);
 
     QRectF annotationsRectangle = loader.readRectangle(dictionary->get("Rect"), QRectF());
 
@@ -189,13 +200,13 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         PDFLinkAnnotation* linkAnnotation = new PDFLinkAnnotation;
         result.reset(linkAnnotation);
 
-        linkAnnotation->m_action = PDFAction::parse(document, dictionary->get("A"));
+        linkAnnotation->m_action = PDFAction::parse(storage, dictionary->get("A"));
         if (!linkAnnotation->m_action)
         {
-            PDFDestination destination = PDFDestination::parse(document, dictionary->get("Dest"));
+            PDFDestination destination = PDFDestination::parse(storage, dictionary->get("Dest"));
             linkAnnotation->m_action.reset(new PDFActionGoTo(destination));
         }
-        linkAnnotation->m_previousAction = PDFAction::parse(document, dictionary->get("PA"));
+        linkAnnotation->m_previousAction = PDFAction::parse(storage, dictionary->get("PA"));
 
         constexpr const std::array<std::pair<const char*, LinkHighlightMode>, 4> highlightMode = {
             std::pair<const char*, LinkHighlightMode>{ "N", LinkHighlightMode::None },
@@ -205,7 +216,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         };
 
         linkAnnotation->m_highlightMode = loader.readEnumByName(dictionary->get("H"), highlightMode.begin(), highlightMode.end(), LinkHighlightMode::Invert);
-        linkAnnotation->m_activationRegion = parseQuadrilaterals(document, dictionary->get("QuadPoints"), annotationsRectangle);
+        linkAnnotation->m_activationRegion = parseQuadrilaterals(storage, dictionary->get("QuadPoints"), annotationsRectangle);
     }
     else if (subtype == "FreeText")
     {
@@ -220,9 +231,9 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         freeTextAnnotation->m_defaultAppearance = loader.readStringFromDictionary(dictionary, "DA");
         freeTextAnnotation->m_justification = static_cast<PDFFreeTextAnnotation::Justification>(loader.readIntegerFromDictionary(dictionary, "Q", 0));
         freeTextAnnotation->m_defaultStyleString = loader.readTextStringFromDictionary(dictionary, "DS", QString());
-        freeTextAnnotation->m_calloutLine = PDFAnnotationCalloutLine::parse(document, dictionary->get("CL"));
+        freeTextAnnotation->m_calloutLine = PDFAnnotationCalloutLine::parse(storage, dictionary->get("CL"));
         freeTextAnnotation->m_intent = loader.readEnumByName(dictionary->get("IT"), intents.begin(), intents.end(), PDFFreeTextAnnotation::Intent::None);
-        freeTextAnnotation->m_effect = PDFAnnotationBorderEffect::parse(document, dictionary->get("BE"));
+        freeTextAnnotation->m_effect = PDFAnnotationBorderEffect::parse(storage, dictionary->get("BE"));
 
         std::vector<PDFReal> differenceRectangle = loader.readNumberArrayFromDictionary(dictionary, "RD");
         if (differenceRectangle.size() == 4)
@@ -266,7 +277,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         lineAnnotation->m_captionRendered = loader.readBooleanFromDictionary(dictionary, "Cap", false);
         lineAnnotation->m_intent = (loader.readNameFromDictionary(dictionary, "IT") == "LineDimension") ? PDFLineAnnotation::Intent::Dimension : PDFLineAnnotation::Intent::Arrow;
         lineAnnotation->m_captionPosition = (loader.readNameFromDictionary(dictionary, "CP") == "Top") ? PDFLineAnnotation::CaptionPosition::Top : PDFLineAnnotation::CaptionPosition::Inline;
-        lineAnnotation->m_measureDictionary = document->getObject(dictionary->get("Measure"));
+        lineAnnotation->m_measureDictionary = storage->getObject(dictionary->get("Measure"));
 
         std::vector<PDFReal> captionOffset = loader.readNumberArrayFromDictionary(dictionary, "CO");
         if (captionOffset.size() == 2)
@@ -280,7 +291,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         result.reset(annotation);
 
         annotation->m_interiorColor = loader.readNumberArrayFromDictionary(dictionary, "IC");
-        annotation->m_effect = PDFAnnotationBorderEffect::parse(document, dictionary->get("BE"));
+        annotation->m_effect = PDFAnnotationBorderEffect::parse(storage, dictionary->get("BE"));
 
         std::vector<PDFReal> differenceRectangle = loader.readNumberArrayFromDictionary(dictionary, "RD");
         if (differenceRectangle.size() == 4)
@@ -313,7 +324,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         }
 
         annotation->m_interiorColor = loader.readNumberArrayFromDictionary(dictionary, "IC");
-        annotation->m_effect = PDFAnnotationBorderEffect::parse(document, dictionary->get("BE"));
+        annotation->m_effect = PDFAnnotationBorderEffect::parse(storage, dictionary->get("BE"));
 
         constexpr const std::array<std::pair<const char*, PDFPolygonalGeometryAnnotation::Intent>, 3> intents = {
             std::pair<const char*, PDFPolygonalGeometryAnnotation::Intent>{ "PolygonCloud", PDFPolygonalGeometryAnnotation::Intent::Cloud },
@@ -322,7 +333,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         };
 
         annotation->m_intent = loader.readEnumByName(dictionary->get("IT"), intents.begin(), intents.end(), PDFPolygonalGeometryAnnotation::Intent::None);
-        annotation->m_measure = document->getObject(dictionary->get("Measure"));
+        annotation->m_measure = storage->getObject(dictionary->get("Measure"));
     }
     else if (subtype == "Highlight" ||
              subtype == "Underline" ||
@@ -346,7 +357,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         PDFHighlightAnnotation* annotation = new PDFHighlightAnnotation(type);
         result.reset(annotation);
 
-        annotation->m_highlightArea = parseQuadrilaterals(document, dictionary->get("QuadPoints"), annotationsRectangle);
+        annotation->m_highlightArea = parseQuadrilaterals(storage, dictionary->get("QuadPoints"), annotationsRectangle);
     }
     else if (subtype == "Caret")
     {
@@ -394,7 +405,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         PDFInkAnnotation* annotation = new PDFInkAnnotation();
         result.reset(annotation);
 
-        PDFObject inkList = document->getObject(dictionary->get("InkList"));
+        PDFObject inkList = storage->getObject(dictionary->get("InkList"));
         if (inkList.isArray())
         {
             const PDFArray* inkListArray = inkList.getArray();
@@ -432,7 +443,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         PDFFileAttachmentAnnotation* annotation = new PDFFileAttachmentAnnotation();
         result.reset(annotation);
 
-        annotation->m_fileSpecification = PDFFileSpecification::parse(document, dictionary->get("FS"));
+        annotation->m_fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("FS"));
 
         constexpr const std::array<std::pair<const char*, PDFFileAttachmentAnnotation::Icon>, 4> icons = {
             std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Graph", PDFFileAttachmentAnnotation::Icon::Graph },
@@ -448,7 +459,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         PDFSoundAnnotation* annotation = new PDFSoundAnnotation();
         result.reset(annotation);
 
-        annotation->m_sound = PDFSound::parse(document, dictionary->get("Sound"));
+        annotation->m_sound = PDFSound::parse(storage, dictionary->get("Sound"));
 
         constexpr const std::array<std::pair<const char*, PDFSoundAnnotation::Icon>, 2> icons = {
             std::pair<const char*, PDFSoundAnnotation::Icon>{ "Speaker", PDFSoundAnnotation::Icon::Speaker },
@@ -463,9 +474,9 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         result.reset(annotation);
 
         annotation->m_movieTitle = loader.readStringFromDictionary(dictionary, "T");
-        annotation->m_movie = PDFMovie::parse(document, dictionary->get("Movie"));
+        annotation->m_movie = PDFMovie::parse(storage, dictionary->get("Movie"));
 
-        PDFObject activation = document->getObject(dictionary->get("A"));
+        PDFObject activation = storage->getObject(dictionary->get("A"));
         if (activation.isBool())
         {
             annotation->m_playMovie = activation.getBool();
@@ -473,7 +484,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         else if (activation.isDictionary())
         {
             annotation->m_playMovie = true;
-            annotation->m_movieActivation = PDFMovieActivation::parse(document, activation);
+            annotation->m_movieActivation = PDFMovieActivation::parse(storage, activation);
         }
     }
     else if (subtype == "Screen")
@@ -482,9 +493,9 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         result.reset(annotation);
 
         annotation->m_screenTitle = loader.readTextStringFromDictionary(dictionary, "T", QString());
-        annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(document, dictionary->get("MK"));
-        annotation->m_action = PDFAction::parse(document, dictionary->get("A"));
-        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(document, dictionary->get("AA"));
+        annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(storage, dictionary->get("MK"));
+        annotation->m_action = PDFAction::parse(storage, dictionary->get("A"));
+        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, dictionary->get("AA"));
     }
     else if (subtype == "Widget")
     {
@@ -500,9 +511,9 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         };
 
         annotation->m_highlightMode = loader.readEnumByName(dictionary->get("H"), highlightModes.begin(), highlightModes.end(), PDFWidgetAnnotation::HighlightMode::Invert);
-        annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(document, dictionary->get("MK"));
-        annotation->m_action = PDFAction::parse(document, dictionary->get("A"));
-        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(document, dictionary->get("AA"));
+        annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(storage, dictionary->get("MK"));
+        annotation->m_action = PDFAction::parse(storage, dictionary->get("A"));
+        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, dictionary->get("AA"));
     }
     else if (subtype == "PrinterMark")
     {
@@ -519,7 +530,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         PDFWatermarkAnnotation* annotation = new PDFWatermarkAnnotation();
         result.reset(annotation);
 
-        if (const PDFDictionary* fixedPrintDictionary = document->getDictionaryFromObject(dictionary->get("FixedPrint")))
+        if (const PDFDictionary* fixedPrintDictionary = storage->getDictionaryFromObject(dictionary->get("FixedPrint")))
         {
             annotation->m_matrix = loader.readMatrixFromDictionary(fixedPrintDictionary, "Matrix", QMatrix());
             annotation->m_relativeHorizontalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "H", 0.0);
@@ -547,13 +558,13 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
     }
 
     result->m_flags = Flags(loader.readIntegerFromDictionary(dictionary, "F", 0));
-    result->m_appearanceStreams = PDFAppeareanceStreams::parse(document, dictionary->get("AP"));
+    result->m_appearanceStreams = PDFAppeareanceStreams::parse(storage, dictionary->get("AP"));
     result->m_appearanceState = loader.readNameFromDictionary(dictionary, "AS");
 
-    result->m_annotationBorder = PDFAnnotationBorder::parseBS(document, dictionary->get("BS"));
+    result->m_annotationBorder = PDFAnnotationBorder::parseBS(storage, dictionary->get("BS"));
     if (!result->m_annotationBorder.isValid())
     {
-        result->m_annotationBorder = PDFAnnotationBorder::parseBorder(document, dictionary->get("Border"));
+        result->m_annotationBorder = PDFAnnotationBorder::parseBorder(storage, dictionary->get("Border"));
     }
     result->m_color = loader.readNumberArrayFromDictionary(dictionary, "C");
     result->m_structParent = loader.readIntegerFromDictionary(dictionary, "StructParent", 0);
@@ -570,18 +581,18 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFDocument* document, PDFObject obj
         markupAnnotation->m_subject = loader.readTextStringFromDictionary(dictionary, "Subj", QString());
         markupAnnotation->m_replyType = (loader.readNameFromDictionary(dictionary, "RT") == "Group") ? PDFMarkupAnnotation::ReplyType::Group : PDFMarkupAnnotation::ReplyType::Reply;
         markupAnnotation->m_intent = loader.readNameFromDictionary(dictionary, "IT");
-        markupAnnotation->m_externalData = document->getObject(dictionary->get("ExData"));
+        markupAnnotation->m_externalData = storage->getObject(dictionary->get("ExData"));
     }
 
     return result;
 }
 
-PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFDocument* document, PDFObject quadrilateralsObject, const QRectF annotationRect)
+PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectStorage* storage, PDFObject quadrilateralsObject, const QRectF annotationRect)
 {
     QPainterPath path;
     std::vector<QLineF> underlines;
 
-    PDFDocumentDataLoaderDecorator loader(document);
+    PDFDocumentDataLoaderDecorator loader(storage);
     std::vector<PDFReal> points = loader.readNumberArray(quadrilateralsObject);
     const size_t quadrilateralCount = points.size() % 8;
     path.reserve(int(quadrilateralCount) + 5);
@@ -639,9 +650,89 @@ AnnotationLineEnding PDFAnnotation::convertNameToLineEnding(const QByteArray& na
     return AnnotationLineEnding::None;
 }
 
-PDFAnnotationCalloutLine PDFAnnotationCalloutLine::parse(const PDFDocument* document, PDFObject object)
+QColor PDFAnnotation::getStrokeColor() const
 {
-    PDFDocumentDataLoaderDecorator loader(document);
+    return getDrawColorFromAnnotationColor(getColor());
+}
+
+QColor PDFAnnotation::getFillColor() const
+{
+    return QColor();
+}
+
+QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color) const
+{
+    switch (color.size())
+    {
+        case 1:
+        {
+            const PDFReal gray = color.back();
+            return QColor::fromRgbF(gray, gray, gray, 1.0);
+        }
+
+        case 3:
+        {
+            const PDFReal r = color[0];
+            const PDFReal g = color[1];
+            const PDFReal b = color[2];
+            return QColor::fromRgbF(r, g, b, 1.0);
+        }
+
+        case 4:
+        {
+            const PDFReal c = color[0];
+            const PDFReal m = color[1];
+            const PDFReal y = color[2];
+            const PDFReal k = color[3];
+            return QColor::fromCmykF(c, m, y, k, 1.0);
+        }
+
+        default:
+            break;
+    }
+
+    return QColor(Qt::black);
+}
+
+QPen PDFAnnotation::getPen() const
+{
+    QColor strokeColor = getStrokeColor();
+    const PDFAnnotationBorder& border = getBorder();
+
+    if (qFuzzyIsNull(border.getWidth()))
+    {
+        // No border is drawn
+        return Qt::NoPen;
+    }
+
+    QPen pen(strokeColor);
+    pen.setWidthF(border.getWidth());
+
+    if (!border.getDashPattern().empty())
+    {
+        PDFLineDashPattern lineDashPattern(border.getDashPattern(), 0.0);
+        pen.setStyle(Qt::CustomDashLine);
+        pen.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+        pen.setDashOffset(lineDashPattern.getDashOffset());
+    }
+
+    return pen;
+}
+
+QBrush PDFAnnotation::getBrush() const
+{
+    QColor color = getFillColor();
+    if (color.isValid())
+    {
+        return QBrush(color, Qt::SolidPattern);
+    }
+
+    return QBrush(Qt::NoBrush);
+}
+
+PDFAnnotationCalloutLine PDFAnnotationCalloutLine::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFDocumentDataLoaderDecorator loader(storage);
     std::vector<PDFReal> points = loader.readNumberArray(object);
 
     switch (points.size())
@@ -659,13 +750,13 @@ PDFAnnotationCalloutLine PDFAnnotationCalloutLine::parse(const PDFDocument* docu
     return PDFAnnotationCalloutLine();
 }
 
-PDFAnnotationAppearanceCharacteristics PDFAnnotationAppearanceCharacteristics::parse(const PDFDocument* document, PDFObject object)
+PDFAnnotationAppearanceCharacteristics PDFAnnotationAppearanceCharacteristics::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationAppearanceCharacteristics result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
 
         result.m_rotation = loader.readIntegerFromDictionary(dictionary, "R", 0);
         result.m_borderColor = loader.readNumberArrayFromDictionary(dictionary, "BC");
@@ -673,22 +764,22 @@ PDFAnnotationAppearanceCharacteristics PDFAnnotationAppearanceCharacteristics::p
         result.m_normalCaption = loader.readTextStringFromDictionary(dictionary, "CA", QString());
         result.m_rolloverCaption = loader.readTextStringFromDictionary(dictionary, "RC", QString());
         result.m_downCaption = loader.readTextStringFromDictionary(dictionary, "AC", QString());
-        result.m_normalIcon = document->getObject(dictionary->get("I"));
-        result.m_rolloverIcon = document->getObject(dictionary->get("RI"));
-        result.m_downIcon = document->getObject(dictionary->get("IX"));
-        result.m_iconFit = PDFAnnotationIconFitInfo::parse(document, dictionary->get("IF"));
+        result.m_normalIcon = storage->getObject(dictionary->get("I"));
+        result.m_rolloverIcon = storage->getObject(dictionary->get("RI"));
+        result.m_downIcon = storage->getObject(dictionary->get("IX"));
+        result.m_iconFit = PDFAnnotationIconFitInfo::parse(storage, dictionary->get("IF"));
         result.m_pushButtonMode = static_cast<PushButtonMode>(loader.readIntegerFromDictionary(dictionary, "TP", PDFInteger(PDFAnnotationAppearanceCharacteristics::PushButtonMode::NoIcon)));
     }
     return result;
 }
 
-PDFAnnotationIconFitInfo PDFAnnotationIconFitInfo::parse(const PDFDocument* document, PDFObject object)
+PDFAnnotationIconFitInfo PDFAnnotationIconFitInfo::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationIconFitInfo info;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
 
         constexpr const std::array<std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>, 4> scaleConditions = {
             std::pair<const char*, PDFAnnotationIconFitInfo::ScaleCondition>{ "A", PDFAnnotationIconFitInfo::ScaleCondition::Always },
@@ -717,22 +808,22 @@ PDFAnnotationIconFitInfo PDFAnnotationIconFitInfo::parse(const PDFDocument* docu
     return info;
 }
 
-PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFDocument* document, PDFObject object)
+PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFAnnotationAdditionalActions result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        result.m_actions[CursorEnter] = PDFAction::parse(document, dictionary->get("E"));
-        result.m_actions[CursorLeave] = PDFAction::parse(document, dictionary->get("X"));
-        result.m_actions[MousePressed] = PDFAction::parse(document, dictionary->get("D"));
-        result.m_actions[MouseReleased] = PDFAction::parse(document, dictionary->get("U"));
-        result.m_actions[FocusIn] = PDFAction::parse(document, dictionary->get("Fo"));
-        result.m_actions[FocusOut] = PDFAction::parse(document, dictionary->get("Bl"));
-        result.m_actions[PageOpened] = PDFAction::parse(document, dictionary->get("PO"));
-        result.m_actions[PageClosed] = PDFAction::parse(document, dictionary->get("PC"));
-        result.m_actions[PageShow] = PDFAction::parse(document, dictionary->get("PV"));
-        result.m_actions[PageHide] = PDFAction::parse(document, dictionary->get("PI"));
+        result.m_actions[CursorEnter] = PDFAction::parse(storage, dictionary->get("E"));
+        result.m_actions[CursorLeave] = PDFAction::parse(storage, dictionary->get("X"));
+        result.m_actions[MousePressed] = PDFAction::parse(storage, dictionary->get("D"));
+        result.m_actions[MouseReleased] = PDFAction::parse(storage, dictionary->get("U"));
+        result.m_actions[FocusIn] = PDFAction::parse(storage, dictionary->get("Fo"));
+        result.m_actions[FocusOut] = PDFAction::parse(storage, dictionary->get("Bl"));
+        result.m_actions[PageOpened] = PDFAction::parse(storage, dictionary->get("PO"));
+        result.m_actions[PageClosed] = PDFAction::parse(storage, dictionary->get("PC"));
+        result.m_actions[PageShow] = PDFAction::parse(storage, dictionary->get("PV"));
+        result.m_actions[PageHide] = PDFAction::parse(storage, dictionary->get("PI"));
     }
 
     return result;
@@ -931,7 +1022,7 @@ PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(
         annotations.annotations.reserve(pageAnnotations.size());
         for (PDFObjectReference annotationReference : pageAnnotations)
         {
-            PDFAnnotationPtr annotationPtr = PDFAnnotation::parse(m_document, m_document->getObjectByReference(annotationReference));
+            PDFAnnotationPtr annotationPtr = PDFAnnotation::parse(&m_document->getStorage(), m_document->getObjectByReference(annotationReference));
             if (annotationPtr)
             {
                 PageAnnotation annotation;
@@ -954,6 +1045,80 @@ PDFAnnotationManager::Target PDFAnnotationManager::getTarget() const
 void PDFAnnotationManager::setTarget(Target target)
 {
     m_target = target;
+}
+
+void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    Q_ASSERT(parameters.painter);
+    parameters.boundingRectangle = getRectangle();
+
+    QPainter& painter = *parameters.painter;
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+
+    switch (getType())
+    {
+        case AnnotationType::Square:
+        {
+            const PDFAnnotationBorder& border = getBorder();
+
+            const PDFReal hCornerRadius = border.getHorizontalCornerRadius();
+            const PDFReal vCornerRadius = border.getVerticalCornerRadius();
+            const bool isRounded = !qFuzzyIsNull(hCornerRadius) || !qFuzzyIsNull(vCornerRadius);
+
+            if (isRounded)
+            {
+                painter.drawRoundedRect(getRectangle(), hCornerRadius, vCornerRadius, Qt::AbsoluteSize);
+            }
+            else
+            {
+                painter.drawRect(getRectangle());
+            }
+            break;
+        }
+
+        case AnnotationType::Circle:
+        {
+            painter.drawEllipse(getRectangle());
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+}
+
+QColor PDFSimpleGeometryAnnotation::getFillColor() const
+{
+    QColor color = getDrawColorFromAnnotationColor(getInteriorColor());
+    if (color.isValid())
+    {
+        color.setAlphaF(getOpacity());
+    }
+    return color;
+}
+
+QColor PDFMarkupAnnotation::getStrokeColor() const
+{
+    QColor color = PDFAnnotation::getStrokeColor();
+    if (color.isValid())
+    {
+        color.setAlphaF(m_opacity);
+    }
+    return color;
+}
+
+QColor PDFMarkupAnnotation::getFillColor() const
+{
+    QColor color = PDFAnnotation::getFillColor();
+    if (color.isValid())
+    {
+        color.setAlphaF(m_opacity);
+    }
+    return color;
 }
 
 }   // namespace pdf

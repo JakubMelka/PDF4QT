@@ -23,11 +23,11 @@
 namespace pdf
 {
 
-PDFSound PDFSound::parse(const PDFDocument* document, PDFObject object)
+PDFSound PDFSound::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFSound result;
 
-    object = document->getObject(object);
+    object = storage->getObject(object);
     if (object.isStream())
     {
         const PDFStream* stream = object.getStream();
@@ -41,24 +41,24 @@ PDFSound PDFSound::parse(const PDFDocument* document, PDFObject object)
         };
 
         // Jakub Melka: parse the sound without exceptions
-        PDFDocumentDataLoaderDecorator loader(document);
-        result.m_fileSpecification = PDFFileSpecification::parse(document, dictionary->get("F"));
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
         result.m_samplingRate = loader.readNumberFromDictionary(dictionary, "R", 0.0);
         result.m_channels = loader.readIntegerFromDictionary(dictionary, "C", 1);
         result.m_bitsPerSample = loader.readIntegerFromDictionary(dictionary, "B", 8);
         result.m_format = loader.readEnumByName(dictionary->get("E"), formats.cbegin(), formats.cend(), Format::Raw);
         result.m_soundCompression = loader.readNameFromDictionary(dictionary, "CO");
-        result.m_soundCompressionParameters = document->getObject(dictionary->get("CP"));
+        result.m_soundCompressionParameters = storage->getObject(dictionary->get("CP"));
         result.m_streamObject = object;
     }
 
     return result;
 }
 
-PDFRendition PDFRendition::parse(const PDFDocument* document, PDFObject object)
+PDFRendition PDFRendition::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFRendition result;
-    object = document->getObject(object);
+    object = storage->getObject(object);
     const PDFDictionary* renditionDictionary = nullptr;
     if (object.isDictionary())
     {
@@ -76,17 +76,17 @@ PDFRendition PDFRendition::parse(const PDFDocument* document, PDFObject object)
             std::pair<const char*, Type>{ "SR", Type::Selector }
         };
 
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         result.m_type = loader.readEnumByName(renditionDictionary->get("S"), types.cbegin(), types.cend(), Type::Invalid);
         result.m_name = loader.readTextStringFromDictionary(renditionDictionary, "N", QString());
 
-        auto readMediaCriteria = [renditionDictionary, document](const char* entry)
+        auto readMediaCriteria = [renditionDictionary, storage](const char* entry)
         {
-            PDFObject dictionaryObject = document->getObject(renditionDictionary->get(entry));
+            PDFObject dictionaryObject = storage->getObject(renditionDictionary->get(entry));
             if (dictionaryObject.isDictionary())
             {
                 const PDFDictionary* dictionary = dictionaryObject.getDictionary();
-                return PDFMediaCriteria::parse(document, dictionary->get("C"));
+                return PDFMediaCriteria::parse(storage, dictionary->get("C"));
             }
 
             return PDFMediaCriteria();
@@ -100,9 +100,9 @@ PDFRendition PDFRendition::parse(const PDFDocument* document, PDFObject object)
             case Type::Media:
             {
                 MediaRenditionData data;
-                data.clip = PDFMediaClip::parse(document, renditionDictionary->get("C"));
-                data.playParameters = PDFMediaPlayParameters::parse(document, renditionDictionary->get("P"));
-                data.screenParameters = PDFMediaScreenParameters::parse(document, renditionDictionary->get("SP"));
+                data.clip = PDFMediaClip::parse(storage, renditionDictionary->get("C"));
+                data.playParameters = PDFMediaPlayParameters::parse(storage, renditionDictionary->get("P"));
+                data.screenParameters = PDFMediaScreenParameters::parse(storage, renditionDictionary->get("SP"));
 
                 result.m_data = qMove(data);
                 break;
@@ -122,22 +122,22 @@ PDFRendition PDFRendition::parse(const PDFDocument* document, PDFObject object)
     return result;
 }
 
-PDFMediaMinimumBitDepth PDFMediaMinimumBitDepth::parse(const PDFDocument* document, PDFObject object)
+PDFMediaMinimumBitDepth PDFMediaMinimumBitDepth::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         return PDFMediaMinimumBitDepth(loader.readIntegerFromDictionary(dictionary, "V", -1), loader.readIntegerFromDictionary(dictionary, "M", 0));
     }
 
     return PDFMediaMinimumBitDepth(-1, -1);
 }
 
-PDFMediaMinimumScreenSize PDFMediaMinimumScreenSize::parse(const PDFDocument* document, PDFObject object)
+PDFMediaMinimumScreenSize PDFMediaMinimumScreenSize::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         std::vector<PDFInteger> values = loader.readIntegerArrayFromDictionary(dictionary, "V");
         if (values.size() == 2)
         {
@@ -148,11 +148,11 @@ PDFMediaMinimumScreenSize PDFMediaMinimumScreenSize::parse(const PDFDocument* do
     return  PDFMediaMinimumScreenSize(-1, -1, -1);
 }
 
-PDFMediaSoftwareIdentifier PDFMediaSoftwareIdentifier::parse(const PDFDocument* document, PDFObject object)
+PDFMediaSoftwareIdentifier PDFMediaSoftwareIdentifier::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         return PDFMediaSoftwareIdentifier(loader.readTextStringFromDictionary(dictionary, "U", QString()).toLatin1(),
                                           loader.readIntegerArrayFromDictionary(dictionary, "L"),
                                           loader.readIntegerArrayFromDictionary(dictionary, "H"),
@@ -164,13 +164,13 @@ PDFMediaSoftwareIdentifier PDFMediaSoftwareIdentifier::parse(const PDFDocument* 
     return PDFMediaSoftwareIdentifier(QByteArray(), { }, { }, true, true, { });
 }
 
-PDFMediaCriteria PDFMediaCriteria::parse(const PDFDocument* document, PDFObject object)
+PDFMediaCriteria PDFMediaCriteria::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFMediaCriteria criteria;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         auto readBoolean = [&loader, dictionary](const char* name, std::optional<bool>& value)
         {
             if (dictionary->hasKey(name))
@@ -189,15 +189,15 @@ PDFMediaCriteria PDFMediaCriteria::parse(const PDFDocument* document, PDFObject 
         }
         if (dictionary->hasKey("D"))
         {
-            criteria.m_minimumBitDepth = PDFMediaMinimumBitDepth::parse(document, dictionary->get("D"));
+            criteria.m_minimumBitDepth = PDFMediaMinimumBitDepth::parse(storage, dictionary->get("D"));
         }
         if (dictionary->hasKey("Z"))
         {
-            criteria.m_minimumScreenSize = PDFMediaMinimumScreenSize::parse(document, dictionary->get("Z"));
+            criteria.m_minimumScreenSize = PDFMediaMinimumScreenSize::parse(storage, dictionary->get("Z"));
         }
         if (dictionary->hasKey("V"))
         {
-            const PDFObject& viewerObject = document->getObject(dictionary->get("V"));
+            const PDFObject& viewerObject = storage->getObject(dictionary->get("V"));
             if (viewerObject.isArray())
             {
                 std::vector<PDFMediaSoftwareIdentifier> viewers;
@@ -205,7 +205,7 @@ PDFMediaCriteria PDFMediaCriteria::parse(const PDFDocument* document, PDFObject 
                 viewers.reserve(viewersArray->getCount());
                 for (size_t i = 0; i < viewersArray->getCount(); ++i)
                 {
-                    viewers.emplace_back(PDFMediaSoftwareIdentifier::parse(document, viewersArray->getItem(i)));
+                    viewers.emplace_back(PDFMediaSoftwareIdentifier::parse(storage, viewersArray->getItem(i)));
                 }
                 criteria.m_viewers = qMove(viewers);
             }
@@ -228,11 +228,11 @@ PDFMediaCriteria PDFMediaCriteria::parse(const PDFDocument* document, PDFObject 
     return criteria;
 }
 
-PDFMediaPermissions PDFMediaPermissions::parse(const PDFDocument* document, PDFObject object)
+PDFMediaPermissions PDFMediaPermissions::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         constexpr const std::array<std::pair<const char*, Permission>, 4> types = {
             std::pair<const char*, Permission>{ "TEMPNEVER", Permission::Never },
             std::pair<const char*, Permission>{ "TEMPEXTRACT", Permission::Extract },
@@ -246,15 +246,15 @@ PDFMediaPermissions PDFMediaPermissions::parse(const PDFDocument* document, PDFO
     return PDFMediaPermissions(Permission::Never);
 }
 
-PDFMediaPlayers PDFMediaPlayers::parse(const PDFDocument* document, PDFObject object)
+PDFMediaPlayers PDFMediaPlayers::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        auto readPlayers = [document, dictionary](const char* key)
+        auto readPlayers = [storage, dictionary](const char* key)
         {
             std::vector<PDFMediaPlayer> result;
 
-            const PDFObject& playersArrayObject = document->getObject(dictionary->get(key));
+            const PDFObject& playersArrayObject = storage->getObject(dictionary->get(key));
             if (playersArrayObject.isArray())
             {
                 const PDFArray* playersArray = playersArrayObject.getArray();
@@ -262,7 +262,7 @@ PDFMediaPlayers PDFMediaPlayers::parse(const PDFDocument* document, PDFObject ob
 
                 for (size_t i = 0; i < playersArray->getCount(); ++i)
                 {
-                    result.emplace_back(PDFMediaPlayer::parse(document, playersArray->getItem(i)));
+                    result.emplace_back(PDFMediaPlayer::parse(storage, playersArray->getItem(i)));
                 }
             }
 
@@ -275,24 +275,24 @@ PDFMediaPlayers PDFMediaPlayers::parse(const PDFDocument* document, PDFObject ob
     return PDFMediaPlayers({ }, { }, { });
 }
 
-PDFMediaPlayer PDFMediaPlayer::parse(const PDFDocument* document, PDFObject object)
+PDFMediaPlayer PDFMediaPlayer::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        return PDFMediaPlayer(PDFMediaSoftwareIdentifier::parse(document, dictionary->get("PID")));
+        return PDFMediaPlayer(PDFMediaSoftwareIdentifier::parse(storage, dictionary->get("PID")));
     }
     return PDFMediaPlayer(PDFMediaSoftwareIdentifier(QByteArray(), { }, { }, true, true, { }));
 }
 
-PDFMediaOffset PDFMediaOffset::parse(const PDFDocument* document, PDFObject object)
+PDFMediaOffset PDFMediaOffset::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         QByteArray S = loader.readNameFromDictionary(dictionary, "S");
         if (S == "T")
         {
-            if (const PDFDictionary* timespanDictionary = document->getDictionaryFromObject(dictionary->get("T")))
+            if (const PDFDictionary* timespanDictionary = storage->getDictionaryFromObject(dictionary->get("T")))
             {
                 return PDFMediaOffset(Type::Time, TimeData{ loader.readIntegerFromDictionary(timespanDictionary, "V", 0) });
             }
@@ -310,14 +310,14 @@ PDFMediaOffset PDFMediaOffset::parse(const PDFDocument* document, PDFObject obje
     return PDFMediaOffset(Type::Invalid, std::monostate());
 }
 
-PDFMediaClip PDFMediaClip::parse(const PDFDocument* document, PDFObject object)
+PDFMediaClip PDFMediaClip::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     MediaClipData clipData;
     std::vector<MediaSectionData> sections;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         std::set<PDFObjectReference> usedReferences;
         while (dictionary)
         {
@@ -326,23 +326,23 @@ PDFMediaClip PDFMediaClip::parse(const PDFDocument* document, PDFObject object)
             {
                 clipData.name = loader.readTextStringFromDictionary(dictionary, "N", QString());
 
-                PDFObject fileSpecificationOrStreamObject = document->getObject(dictionary->get("D"));
+                PDFObject fileSpecificationOrStreamObject = storage->getObject(dictionary->get("D"));
                 if (fileSpecificationOrStreamObject.isStream())
                 {
                     clipData.dataStream = fileSpecificationOrStreamObject;
                 }
                 else
                 {
-                    clipData.fileSpecification = PDFFileSpecification::parse(document, fileSpecificationOrStreamObject);
+                    clipData.fileSpecification = PDFFileSpecification::parse(storage, fileSpecificationOrStreamObject);
                 }
                 clipData.contentType = loader.readStringFromDictionary(dictionary, "CT");
-                clipData.permissions = PDFMediaPermissions::parse(document, dictionary->get("P"));
-                clipData.alternateTextDescriptions = PDFMediaMultiLanguageTexts::parse(document, dictionary->get("Alt"));
-                clipData.players = PDFMediaPlayers::parse(document, dictionary->get("PL"));
+                clipData.permissions = PDFMediaPermissions::parse(storage, dictionary->get("P"));
+                clipData.alternateTextDescriptions = PDFMediaMultiLanguageTexts::parse(storage, dictionary->get("Alt"));
+                clipData.players = PDFMediaPlayers::parse(storage, dictionary->get("PL"));
 
-                auto getBaseUrl = [&loader, document, dictionary](const char* name)
+                auto getBaseUrl = [&loader, storage, dictionary](const char* name)
                 {
-                    if (const PDFDictionary* subdictionary = document->getDictionaryFromObject(dictionary->get(name)))
+                    if (const PDFDictionary* subdictionary = storage->getDictionaryFromObject(dictionary->get(name)))
                     {
                         return loader.readStringFromDictionary(subdictionary, "BU");
                     }
@@ -357,16 +357,16 @@ PDFMediaClip PDFMediaClip::parse(const PDFDocument* document, PDFObject object)
             {
                 MediaSectionData sectionData;
                 sectionData.name = loader.readTextStringFromDictionary(dictionary, "N", QString());
-                sectionData.alternateTextDescriptions = PDFMediaMultiLanguageTexts::parse(document, dictionary->get("Alt"));
+                sectionData.alternateTextDescriptions = PDFMediaMultiLanguageTexts::parse(storage, dictionary->get("Alt"));
 
-                auto readMediaSectionBeginEnd = [document, dictionary](const char* name)
+                auto readMediaSectionBeginEnd = [storage, dictionary](const char* name)
                 {
                     MediaSectionBeginEnd result;
 
-                    if (const PDFDictionary* subdictionary = document->getDictionaryFromObject(dictionary->get(name)))
+                    if (const PDFDictionary* subdictionary = storage->getDictionaryFromObject(dictionary->get(name)))
                     {
-                        result.offsetBegin = PDFMediaOffset::parse(document, subdictionary->get("B"));
-                        result.offsetEnd = PDFMediaOffset::parse(document, subdictionary->get("E"));
+                        result.offsetBegin = PDFMediaOffset::parse(storage, subdictionary->get("B"));
+                        result.offsetEnd = PDFMediaOffset::parse(storage, subdictionary->get("E"));
                     }
 
                     return result;
@@ -384,7 +384,7 @@ PDFMediaClip PDFMediaClip::parse(const PDFDocument* document, PDFObject object)
                     }
                     usedReferences.insert(next.getReference());
                 }
-                dictionary = document->getDictionaryFromObject(next);
+                dictionary = storage->getDictionaryFromObject(next);
                 continue;
             }
 
@@ -395,21 +395,21 @@ PDFMediaClip PDFMediaClip::parse(const PDFDocument* document, PDFObject object)
     return PDFMediaClip(qMove(clipData), qMove(sections));
 }
 
-PDFMediaMultiLanguageTexts PDFMediaMultiLanguageTexts::parse(const PDFDocument* document, PDFObject object)
+PDFMediaMultiLanguageTexts PDFMediaMultiLanguageTexts::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFMediaMultiLanguageTexts texts;
 
-    object = document->getObject(object);
+    object = storage->getObject(object);
     if (object.isArray())
     {
         const PDFArray* array = object.getArray();
         if (array->getCount() % 2 == 0)
         {
-            PDFDocumentDataLoaderDecorator loader(document);
+            PDFDocumentDataLoaderDecorator loader(storage);
             const size_t pairs = array->getCount() / 2;
             for (size_t i = 0; i < pairs; ++i)
             {
-                const PDFObject& languageName = document->getObject(array->getItem(2 * i));
+                const PDFObject& languageName = storage->getObject(array->getItem(2 * i));
                 const PDFObject& text = array->getItem(2 * i + 1);
 
                 if (languageName.isString())
@@ -423,28 +423,28 @@ PDFMediaMultiLanguageTexts PDFMediaMultiLanguageTexts::parse(const PDFDocument* 
     return texts;
 }
 
-PDFMediaPlayParameters PDFMediaPlayParameters::parse(const PDFDocument* document, PDFObject object)
+PDFMediaPlayParameters PDFMediaPlayParameters::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFMediaPlayParameters result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        result.m_players = PDFMediaPlayers::parse(document, dictionary->get("PL"));
+        result.m_players = PDFMediaPlayers::parse(storage, dictionary->get("PL"));
 
-        auto getPlayParameters = [document, dictionary](const char* name)
+        auto getPlayParameters = [storage, dictionary](const char* name)
         {
             PlayParameters parameters;
 
-            if (const PDFDictionary* subdictionary = document->getDictionaryFromObject(dictionary->get(name)))
+            if (const PDFDictionary* subdictionary = storage->getDictionaryFromObject(dictionary->get(name)))
             {
-                PDFDocumentDataLoaderDecorator loader(document);
+                PDFDocumentDataLoaderDecorator loader(storage);
                 parameters.volume = loader.readIntegerFromDictionary(subdictionary, "V", 100);
                 parameters.controllerUserInterface = loader.readBooleanFromDictionary(subdictionary, "C", false);
                 parameters.fitMode = static_cast<FitMode>(loader.readIntegerFromDictionary(subdictionary, "F", 5));
                 parameters.playAutomatically = loader.readBooleanFromDictionary(subdictionary, "A", true);
                 parameters.repeat = loader.readNumberFromDictionary(dictionary, "RC", 1.0);
 
-                if (const PDFDictionary* durationDictionary = document->getDictionaryFromObject(subdictionary->get("D")))
+                if (const PDFDictionary* durationDictionary = storage->getDictionaryFromObject(subdictionary->get("D")))
                 {
                     constexpr const std::array<std::pair<const char*, Duration>, 3> durations = {
                         std::pair<const char*, Duration>{ "I", Duration::Intrinsic },
@@ -453,7 +453,7 @@ PDFMediaPlayParameters PDFMediaPlayParameters::parse(const PDFDocument* document
                     };
                     parameters.duration = loader.readEnumByName(durationDictionary->get("S"), durations.cbegin(), durations.cend(), Duration::Intrinsic);
 
-                    if (const PDFDictionary* timeDictionary = document->getDictionaryFromObject(durationDictionary->get("T")))
+                    if (const PDFDictionary* timeDictionary = storage->getDictionaryFromObject(durationDictionary->get("T")))
                     {
                         parameters.durationSeconds = loader.readNumberFromDictionary(timeDictionary, "V", 0.0);
                     }
@@ -469,16 +469,16 @@ PDFMediaPlayParameters PDFMediaPlayParameters::parse(const PDFDocument* document
     return result;
 }
 
-PDFMediaScreenParameters PDFMediaScreenParameters::parse(const PDFDocument* document, PDFObject object)
+PDFMediaScreenParameters PDFMediaScreenParameters::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        auto getScreenParameters = [document, dictionary](const char* name)
+        auto getScreenParameters = [storage, dictionary](const char* name)
         {
             ScreenParameters result;
-            if (const PDFDictionary* screenDictionary = document->getDictionaryFromObject(dictionary->get(name)))
+            if (const PDFDictionary* screenDictionary = storage->getDictionaryFromObject(dictionary->get(name)))
             {
-                PDFDocumentDataLoaderDecorator loader(document);
+                PDFDocumentDataLoaderDecorator loader(storage);
                 result.windowType = static_cast<WindowType>(loader.readIntegerFromDictionary(screenDictionary, "W", 3));
                 result.opacity = loader.readNumberFromDictionary(screenDictionary, "O", 1.0);
                 result.monitorSpecification = loader.readIntegerFromDictionary(screenDictionary, "M", 0);
@@ -486,7 +486,7 @@ PDFMediaScreenParameters PDFMediaScreenParameters::parse(const PDFDocument* docu
                 rgb.resize(3, 1.0);
                 result.backgroundColor.setRgbF(rgb[0], rgb[1], rgb[2]);
 
-                if (const PDFDictionary* floatWindowDictionary = document->getDictionaryFromObject(screenDictionary->get("F")))
+                if (const PDFDictionary* floatWindowDictionary = storage->getDictionaryFromObject(screenDictionary->get("F")))
                 {
                     std::vector<PDFInteger> sizeArray = loader.readIntegerArrayFromDictionary(floatWindowDictionary, "D");
                     sizeArray.resize(2, 0);
@@ -496,7 +496,7 @@ PDFMediaScreenParameters PDFMediaScreenParameters::parse(const PDFDocument* docu
                     result.floatingWindowHasTitleBar = loader.readBooleanFromDictionary(floatWindowDictionary, "T", true);
                     result.floatingWindowCloseable = loader.readBooleanFromDictionary(floatWindowDictionary, "UC", true);
                     result.floatingWindowResizeMode = static_cast<ResizeMode>(loader.readIntegerFromDictionary(floatWindowDictionary, "R", 0));
-                    result.floatingWindowTitle = PDFMediaMultiLanguageTexts::parse(document, floatWindowDictionary->get("TT"));
+                    result.floatingWindowTitle = PDFMediaMultiLanguageTexts::parse(storage, floatWindowDictionary->get("TT"));
                     switch (loader.readIntegerFromDictionary(floatWindowDictionary, "P", 4))
                     {
                         case 0:
@@ -539,14 +539,14 @@ PDFMediaScreenParameters PDFMediaScreenParameters::parse(const PDFDocument* docu
     return PDFMediaScreenParameters();
 }
 
-PDFMovie PDFMovie::parse(const PDFDocument* document, PDFObject object)
+PDFMovie PDFMovie::parse(const PDFObjectStorage* storage, PDFObject object)
 {
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
         PDFMovie result;
 
-        PDFDocumentDataLoaderDecorator loader(document);
-        result.m_movieFile = PDFFileSpecification::parse(document, dictionary->get("F"));
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_movieFile = PDFFileSpecification::parse(storage, dictionary->get("F"));
         std::vector<PDFInteger> windowSizeArray = loader.readIntegerArrayFromDictionary(dictionary, "Aspect");
         if (windowSizeArray.size() == 2)
         {
@@ -554,7 +554,7 @@ PDFMovie PDFMovie::parse(const PDFDocument* document, PDFObject object)
         }
         result.m_rotationAngle = loader.readIntegerFromDictionary(dictionary, "Rotate", 0);
 
-        PDFObject posterObject = document->getObject(dictionary->get("Poster"));
+        PDFObject posterObject = storage->getObject(dictionary->get("Poster"));
         if (posterObject.isBool())
         {
             result.m_showPoster = posterObject.getBool();
@@ -571,13 +571,13 @@ PDFMovie PDFMovie::parse(const PDFDocument* document, PDFObject object)
     return PDFMovie();
 }
 
-PDFMovieActivation PDFMovieActivation::parse(const PDFDocument* document, PDFObject object)
+PDFMovieActivation PDFMovieActivation::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFMovieActivation result;
 
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
 
         constexpr const std::array<std::pair<const char*, Mode>, 4> modes = {
             std::pair<const char*, Mode>{ "Once", Mode::Once },
@@ -597,8 +597,8 @@ PDFMovieActivation PDFMovieActivation::parse(const PDFDocument* document, PDFObj
             relativePosition.resize(2, 0.5);
         }
 
-        result.m_start = parseMovieTime(document, dictionary->get("Start"));
-        result.m_duration = parseMovieTime(document, dictionary->get("Duration"));
+        result.m_start = parseMovieTime(storage, dictionary->get("Start"));
+        result.m_duration = parseMovieTime(storage, dictionary->get("Duration"));
         result.m_rate = loader.readNumberFromDictionary(dictionary, "Rate", 1.0);
         result.m_volume = loader.readNumberFromDictionary(dictionary, "Volume", 1.0);
         result.m_showControls = loader.readBooleanFromDictionary(dictionary, "ShowControls", false);
@@ -612,11 +612,11 @@ PDFMovieActivation PDFMovieActivation::parse(const PDFDocument* document, PDFObj
     return result;
 }
 
-PDFMovieActivation::MovieTime PDFMovieActivation::parseMovieTime(const PDFDocument* document, PDFObject object)
+PDFMovieActivation::MovieTime PDFMovieActivation::parseMovieTime(const PDFObjectStorage* storage, PDFObject object)
 {
     MovieTime result;
 
-    object = document->getObject(object);
+    object = storage->getObject(object);
     if (object.isInt())
     {
         result.value = object.getInteger();
@@ -630,10 +630,10 @@ PDFMovieActivation::MovieTime PDFMovieActivation::parseMovieTime(const PDFDocume
         const PDFArray* objectArray = object.getArray();
         if (objectArray->getCount() == 2)
         {
-            PDFDocumentDataLoaderDecorator loader(document);
+            PDFDocumentDataLoaderDecorator loader(storage);
             result.unitsPerSecond = loader.readInteger(objectArray->getItem(1), 0);
 
-            object = document->getObject(objectArray->getItem(0));
+            object = storage->getObject(objectArray->getItem(0));
             if (object.isInt())
             {
                 result.value = object.getInteger();
