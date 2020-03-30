@@ -980,7 +980,7 @@ QPainter* PDFContentStreamBuilder::begin()
     m_pdfWriter = new QPdfWriter(m_buffer);
     m_pdfWriter->setPdfVersion(QPdfWriter::PdfVersion_1_6);
     m_pdfWriter->setPageSize(QPageSize(m_size, QPageSize::Point));
-    m_pdfWriter->setResolution(m_pdfWriter->logicalDpiX());
+    m_pdfWriter->setResolution(72);
     m_pdfWriter->setPageMargins(QMarginsF());
 
     m_painter = new QPainter(m_pdfWriter);
@@ -988,7 +988,7 @@ QPainter* PDFContentStreamBuilder::begin()
     if (m_coordinateSystem == CoordinateSystem::PDF)
     {
         m_painter->translate(0, m_size.height());
-        m_painter->scale(0.0, -1.0);
+        m_painter->scale(1.0, -1.0);
     }
 
     return m_painter;

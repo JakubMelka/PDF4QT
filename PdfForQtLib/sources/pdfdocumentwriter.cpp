@@ -160,6 +160,7 @@ void PDFWriteObjectVisitor::visitStream(const PDFStream* stream)
     m_device->write(*stream->getContent());
     m_device->write("\x0D\x0A");
     m_device->write("endstream");
+    m_device->write("\x0D\x0A");
 }
 
 void PDFWriteObjectVisitor::visitReference(const PDFObjectReference reference)

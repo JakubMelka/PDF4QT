@@ -257,11 +257,36 @@ bool PDFStream::equals(const PDFObjectContent* other) const
 
 PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlags flags)
 {
-    if (left.getType() != right.getType())
+    const bool leftHasDictionary = left.isDictionary() || left.isStream();
+
+    if (left.getType() != right.getType() && (leftHasDictionary != right.isDictionary()))
     {
         return right;
     }
 
+    if (left.isStream())
+    {
+        Q_ASSERT(right.isDictionary() || right.isStream());
+        const PDFStream* leftStream = left.getStream();
+        const PDFStream* rightStream = right.isStream() ? right.getStream() : nullptr;
+
+        PDFDictionary targetDictionary = *leftStream->getDictionary();
+        const PDFDictionary& sourceDictionary = rightStream ? *rightStream->getDictionary() : *right.getDictionary();
+
+        for (size_t i = 0, count = sourceDictionary.getCount(); i < count; ++i)
+        {
+            const QByteArray& key = sourceDictionary.getKey(i);
+            PDFObject value = merge(targetDictionary.get(key), sourceDictionary.getValue(i), flags);
+            targetDictionary.setEntry(key, qMove(value));
+        }
+
+        if (flags.testFlag(RemoveNullObjects))
+        {
+            targetDictionary.removeNullObjects();
+        }
+
+        return PDFObject::createStream(std::make_shared<PDFStream>(qMove(targetDictionary), QByteArray(rightStream ? *rightStream->getContent() : *leftStream->getContent())));
+    }
     if (left.isDictionary())
     {
         Q_ASSERT(right.isDictionary());
