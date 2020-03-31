@@ -24,6 +24,8 @@
 #include "pdfwidgetutils.h"
 #include "pdfpagecontentprocessor.h"
 
+#include <QApplication>
+
 namespace pdf
 {
 
@@ -1079,7 +1081,11 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
 
         case AnnotationType::Circle:
         {
-            painter.drawEllipse(getRectangle());
+            const PDFAnnotationBorder& border = getBorder();
+            const PDFReal width = border.getWidth();
+            QRectF rectangle = getRectangle();
+            rectangle.adjust(width, width, -width, -width);
+            painter.drawEllipse(rectangle);
             break;
         }
 
@@ -1119,6 +1125,75 @@ QColor PDFMarkupAnnotation::getFillColor() const
         color.setAlphaF(m_opacity);
     }
     return color;
+}
+
+void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    const PDFReal opacity = getOpacity();
+    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
+    QColor fillColor = QColor::fromRgbF(1.0, 1.0, 0.0, opacity);
+
+    constexpr const PDFReal rectSize = 32.0;
+    constexpr const PDFReal penWidth = 2.0;
+
+    QPainter& painter = *parameters.painter;
+    QRectF rectangle = getRectangle();
+    rectangle.setSize(QSizeF(rectSize, rectSize));
+
+    QPen pen(strokeColor);
+    pen.setWidthF(penWidth);
+    painter.setPen(pen);
+
+    painter.setBrush(QBrush(fillColor, Qt::SolidPattern));
+
+    QRectF ellipseRectangle = rectangle;
+    ellipseRectangle.adjust(penWidth, penWidth, -penWidth, -penWidth);
+
+    // Draw the ellipse
+    painter.drawEllipse(ellipseRectangle);
+
+    QFont font = QApplication::font();
+    font.setPixelSize(16.0);
+
+    QString text = "?";
+    if (m_iconName == "Comment")
+    {
+        text = QString::fromUtf16(u"\U0001F4AC");
+    }
+    else if (m_iconName == "Help")
+    {
+        text = "?";
+    }
+    else if (m_iconName == "Insert")
+    {
+        text = QString::fromUtf16(u"\u2380");
+    }
+    else if (m_iconName == "Key")
+    {
+        text = QString::fromUtf16(u"\U0001F511");
+    }
+    else if (m_iconName == "NewParagraph")
+    {
+        text = QString::fromUtf16(u"\u2606");
+    }
+    else if (m_iconName == "Note")
+    {
+        text = QString::fromUtf16(u"\u266A");
+    }
+    else if (m_iconName == "Paragraph")
+    {
+        text = QString::fromUtf16(u"\u00B6");
+    }
+
+    QPainterPath textPath;
+    textPath.addText(0.0, 0.0, font, text);
+    textPath = QMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
+    QRectF textBoundingRect = textPath.boundingRect();
+    QPointF offset = rectangle.center() - textBoundingRect.center();
+    textPath.translate(offset);
+    painter.fillPath(textPath, QBrush(strokeColor, Qt::SolidPattern));
+
+    parameters.boundingRectangle = rectangle;
 }
 
 }   // namespace pdf

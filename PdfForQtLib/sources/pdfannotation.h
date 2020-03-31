@@ -580,6 +580,7 @@ public:
     inline explicit PDFTextAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Text; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     bool isOpen() const { return m_open; }
     const QByteArray& getIconName() const { return m_iconName; }

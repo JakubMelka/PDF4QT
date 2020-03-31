@@ -15,12 +15,12 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-#include <QCoreApplication>
+#include <QApplication>
 
 #include "pdfexamplesgenerator.h"
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication a(argc, argv);
+    QApplication a(argc, argv);
     PDFExamplesGenerator::generateAnnotationsExample();
 }
