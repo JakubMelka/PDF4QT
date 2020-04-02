@@ -484,6 +484,26 @@ protected:
     virtual QColor getStrokeColor() const;
     virtual QColor getFillColor() const;
 
+    struct LineGeometryInfo
+    {
+        /// Original line
+        QLineF originalLine;
+
+        /// Transformed line
+        QLineF transformedLine;
+
+        /// Matrix LCStoGCS is local coordinate system of line originalLine. It transforms
+        /// points on the line to the global coordinate system. So, point (0, 0) will
+        /// map onto p1 and point (originalLine.length(), 0) will map onto p2.
+        QMatrix LCStoGCS;
+
+        /// Inverted matrix of LCStoGCS. It maps global coordinate system to local
+        /// coordinate system of the original line.
+        QMatrix GCStoLCS;
+
+        static LineGeometryInfo create(QLineF line);
+    };
+
     /// Returns draw color from defined annotation color
     QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color) const;
 
@@ -493,6 +513,25 @@ protected:
     /// Returns brush from interior color. If annotation doesn't have
     /// a brush, then empty brush is returned.
     QBrush getBrush() const;
+
+    /// Draw line using given parameters and painter. Line is specified
+    /// by its geometry information. Painter must be set to global coordinates.
+    /// Bounding path is also updated, it is specified in global coordinates,
+    /// not in line local coordinate system. We consider p1 as start point of
+    /// the line, and p2 as the end point. The painter must have proper QPen
+    /// and QBrush setted, this function uses current pen/brush to paint the line.
+    /// \param info Line geometry info
+    /// \param painter Painter
+    /// \param lineEndingSize Line ending size
+    /// \param p1Ending Line endpoint graphics at p1
+    /// \param p2Ending Line endpoint graphics at p2
+    /// \param boundingPath Bounding path in global coordinate system
+    void drawLine(const LineGeometryInfo& info,
+                  QPainter& painter,
+                  PDFReal lineEndingSize,
+                  AnnotationLineEnding p1Ending,
+                  AnnotationLineEnding p2Ending,
+                  QPainterPath& boundingPath) const;
 
 private:
 
@@ -683,6 +722,7 @@ public:
     inline explicit PDFLineAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Line; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     enum class Intent
     {
@@ -708,6 +748,9 @@ public:
     CaptionPosition getCaptionPosition() const { return m_captionPosition; }
     const PDFObject& getMeasureDictionary() const { return m_measureDictionary; }
     const QPointF& getCaptionOffset() const { return m_captionOffset; }
+
+protected:
+    virtual QColor getFillColor() const override;
 
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
@@ -787,6 +830,9 @@ public:
     const PDFAnnotationBorderEffect& getBorderEffect() const { return m_effect; }
     Intent getIntent() const { return m_intent; }
     const PDFObject& getMeasure() const { return m_measure; }
+
+protected:
+    virtual QColor getFillColor() const override;
 
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);

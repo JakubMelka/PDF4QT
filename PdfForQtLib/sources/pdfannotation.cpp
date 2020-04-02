@@ -1196,4 +1196,263 @@ void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
     parameters.boundingRectangle = rectangle;
 }
 
+void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QLineF line = getLine();
+    if (line.isNull())
+    {
+        // Jakub Melka: do not draw empty lines
+        return;
+    }
+
+    QPainter& painter = *parameters.painter;
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+
+    QPainterPath boundingPath;
+    boundingPath.moveTo(line.p1());
+    boundingPath.lineTo(line.p2());
+
+    LineGeometryInfo info = LineGeometryInfo::create(line);
+
+    const PDFReal leaderLineLength = getLeaderLineLength();
+    const PDFReal coefficientSigned = (leaderLineLength >= 0.0) ? 1.0 : -1.0;
+    const PDFReal leaderLineOffset = getLeaderLineOffset() * coefficientSigned;
+    const PDFReal leaderLineExtension = getLeaderLineExtension() * coefficientSigned;
+    const PDFReal lineEndingSize = qMin(painter.pen().widthF() * 5.0, line.length() * 0.5);
+    const bool hasLeaderLine = !qFuzzyIsNull(leaderLineLength) || !qFuzzyIsNull(leaderLineExtension);
+
+    QLineF normalLine = info.transformedLine.normalVector().unitVector();
+    QPointF normalVector = normalLine.p1() - normalLine.p2();
+
+    QLineF lineToPaint = info.transformedLine;
+    if (hasLeaderLine)
+    {
+        // We will draw leader lines at both start/end
+        QPointF p1llStart = info.transformedLine.p1() + normalVector * leaderLineOffset;
+        QPointF p1llEnd = info.transformedLine.p1() + normalVector * (leaderLineOffset + leaderLineLength + leaderLineExtension);
+
+        QLineF llStart(p1llStart, p1llEnd);
+        llStart = info.LCStoGCS.map(llStart);
+
+        boundingPath.moveTo(llStart.p1());
+        boundingPath.lineTo(llStart.p2());
+        painter.drawLine(llStart);
+
+        QPointF p2llStart = info.transformedLine.p2() + normalVector * leaderLineOffset;
+        QPointF p2llEnd = info.transformedLine.p2() + normalVector * (leaderLineOffset + leaderLineLength + leaderLineExtension);
+
+        QLineF llEnd(p2llStart, p2llEnd);
+        llEnd = info.LCStoGCS.map(llEnd);
+
+        boundingPath.moveTo(llEnd.p1());
+        boundingPath.lineTo(llEnd.p2());
+        painter.drawLine(llEnd);
+
+        lineToPaint.translate(normalVector * (leaderLineOffset + leaderLineLength));
+    }
+
+    QLineF lineToPaintOrig = info.LCStoGCS.map(lineToPaint);
+    info = LineGeometryInfo::create(lineToPaintOrig);
+    drawLine(info, painter, lineEndingSize, getStartLineEnding(), getEndLineEnding(), boundingPath);
+
+    parameters.boundingRectangle = boundingPath.boundingRect();
+    parameters.boundingRectangle.adjust(-lineEndingSize, -lineEndingSize, lineEndingSize, lineEndingSize);
+}
+
+QColor PDFLineAnnotation::getFillColor() const
+{
+    QColor color = getDrawColorFromAnnotationColor(getInteriorColor());
+    if (color.isValid())
+    {
+        color.setAlphaF(getOpacity());
+    }
+    return color;
+}
+
+QColor PDFPolygonalGeometryAnnotation::getFillColor() const
+{
+    QColor color = getDrawColorFromAnnotationColor(getInteriorColor());
+    if (color.isValid())
+    {
+        color.setAlphaF(getOpacity());
+    }
+    return color;
+}
+
+PDFAnnotation::LineGeometryInfo PDFAnnotation::LineGeometryInfo::create(QLineF line)
+{
+    LineGeometryInfo result;
+    result.originalLine = line;
+    result.transformedLine = QLineF(QPointF(0, 0), QPointF(line.length(), 0));
+
+    // Strategy: for simplification, we rotate the line clockwise so we will
+    // get the line axis equal to the x-axis.
+    const double angle = line.angleTo(QLineF(0, 0, 1, 0));
+
+    QPointF p1 = line.p1();
+
+    // Matrix LCStoGCS is local coordinate system of line line. It transforms
+    // points on the line to the global coordinate system. So, point (0, 0) will
+    // map onto p1 and point (length(p1-p2), 0) will map onto p2.
+    result.LCStoGCS = QMatrix();
+    result.LCStoGCS.translate(p1.x(), p1.y());
+    result.LCStoGCS.rotate(angle);
+    result.GCStoLCS = result.LCStoGCS.inverted();
+
+    return result;
+}
+
+void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
+                             QPainter& painter,
+                             PDFReal lineEndingSize,
+                             AnnotationLineEnding p1Ending,
+                             AnnotationLineEnding p2Ending,
+                             QPainterPath& boundingPath) const
+{
+    const PDFReal angle = 30;
+    const PDFReal lineEndingHalfSize = lineEndingSize * 0.5;
+    const PDFReal arrowAxisLength = lineEndingHalfSize / qTan(qDegreesToRadians(angle));
+
+    auto getOffsetFromLineEnding = [lineEndingHalfSize, arrowAxisLength](AnnotationLineEnding ending)
+    {
+        switch (ending)
+        {
+            case AnnotationLineEnding::Square:
+            case AnnotationLineEnding::Circle:
+            case AnnotationLineEnding::Diamond:
+                return lineEndingHalfSize;
+            case AnnotationLineEnding::ClosedArrow:
+                return arrowAxisLength;
+
+            default:
+                break;
+        }
+
+        return 0.0;
+    };
+
+    auto drawLineEnding = [&](QPointF point, AnnotationLineEnding ending, bool flipAxis)
+    {
+        QPainterPath path;
+
+        switch (ending)
+        {
+            case AnnotationLineEnding::None:
+                break;
+
+            case AnnotationLineEnding::Square:
+            {
+                path.addRect(-lineEndingHalfSize, -lineEndingHalfSize, lineEndingSize, lineEndingSize);
+                break;
+            }
+
+            case AnnotationLineEnding::Circle:
+            {
+                path.addEllipse(QPointF(0, 0), lineEndingHalfSize, lineEndingHalfSize);
+                break;
+            }
+
+            case AnnotationLineEnding::Diamond:
+            {
+                path.moveTo(0.0, -lineEndingHalfSize);
+                path.lineTo(lineEndingHalfSize, 0.0);
+                path.lineTo(0.0, +lineEndingHalfSize);
+                path.lineTo(-lineEndingHalfSize, 0.0);
+                path.closeSubpath();
+                break;
+            }
+
+            case AnnotationLineEnding::OpenArrow:
+            {
+                path.moveTo(0.0, 0.0);
+                path.lineTo(arrowAxisLength, lineEndingHalfSize);
+                path.moveTo(0.0, 0.0);
+                path.lineTo(arrowAxisLength, -lineEndingHalfSize);
+                break;
+            }
+
+            case AnnotationLineEnding::ClosedArrow:
+            {
+                path.moveTo(0.0, 0.0);
+                path.lineTo(arrowAxisLength, lineEndingHalfSize);
+                path.lineTo(arrowAxisLength, -lineEndingHalfSize);
+                path.closeSubpath();
+                break;
+            }
+
+            case AnnotationLineEnding::Butt:
+            {
+                path.moveTo(0.0, -lineEndingHalfSize);
+                path.lineTo(0.0, lineEndingHalfSize);
+                break;
+            }
+
+            case AnnotationLineEnding::ROpenArrow:
+            {
+                path.moveTo(0.0, 0.0);
+                path.lineTo(-arrowAxisLength, lineEndingHalfSize);
+                path.moveTo(0.0, 0.0);
+                path.lineTo(-arrowAxisLength, -lineEndingHalfSize);
+                break;
+            }
+
+            case AnnotationLineEnding::RClosedArrow:
+            {
+                path.moveTo(0.0, 0.0);
+                path.lineTo(-arrowAxisLength, lineEndingHalfSize);
+                path.lineTo(-arrowAxisLength, -lineEndingHalfSize);
+                path.closeSubpath();
+                break;
+            }
+
+            case AnnotationLineEnding::Slash:
+            {
+                const PDFReal angle = 60;
+                const PDFReal lineEndingHalfSize = lineEndingSize * 0.5;
+                const PDFReal slashAxisLength = lineEndingHalfSize / qTan(qDegreesToRadians(angle));
+
+                path.moveTo(-slashAxisLength, -lineEndingHalfSize);
+                path.lineTo(slashAxisLength, lineEndingHalfSize);
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        if (!path.isEmpty())
+        {
+            // Flip the x-axis (we are drawing endpoint)
+            if (flipAxis && ending != AnnotationLineEnding::Slash)
+            {
+                QMatrix matrix;
+                matrix.scale(-1.0, 1.0);
+                path = matrix.map(path);
+            }
+
+            path.translate(point);
+            path = info.LCStoGCS.map(path);
+            painter.drawPath(path);
+            boundingPath.addPath(path);
+        }
+    };
+
+    // Remove the offset from start/end
+    const PDFReal startOffset = getOffsetFromLineEnding(p1Ending);
+    const PDFReal endOffset = getOffsetFromLineEnding(p2Ending);
+
+    QLineF adjustedLine = info.transformedLine;
+    adjustedLine.setP1(adjustedLine.p1() + QPointF(startOffset, 0));
+    adjustedLine.setP2(adjustedLine.p2() - QPointF(endOffset, 0));
+    adjustedLine = info.LCStoGCS.map(adjustedLine);
+
+    drawLineEnding(info.transformedLine.p1(), p1Ending, false);
+    drawLineEnding(info.transformedLine.p2(), p2Ending, true);
+    painter.drawLine(adjustedLine);
+
+    boundingPath.moveTo(adjustedLine.p1());
+    boundingPath.lineTo(adjustedLine.p2());
+}
+
 }   // namespace pdf
