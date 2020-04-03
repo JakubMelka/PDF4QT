@@ -1254,7 +1254,7 @@ void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     QLineF lineToPaintOrig = info.LCStoGCS.map(lineToPaint);
     info = LineGeometryInfo::create(lineToPaintOrig);
-    drawLine(info, painter, lineEndingSize, getStartLineEnding(), getEndLineEnding(), boundingPath);
+    drawLine(info, painter, lineEndingSize, getStartLineEnding(), getEndLineEnding(), boundingPath, getCaptionOffset(), getContents(), getCaptionPosition() == CaptionPosition::Top);
 
     parameters.boundingRectangle = boundingPath.boundingRect();
     parameters.boundingRectangle.adjust(-lineEndingSize, -lineEndingSize, lineEndingSize, lineEndingSize);
@@ -1268,6 +1268,79 @@ QColor PDFLineAnnotation::getFillColor() const
         color.setAlphaF(getOpacity());
     }
     return color;
+}
+
+void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    if (m_vertices.empty())
+    {
+        // Jakub Melka: do not draw empty lines
+        return;
+    }
+
+    QPainter& painter = *parameters.painter;
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+
+    const PDFReal penWidth = painter.pen().widthF();
+    switch (m_type)
+    {
+        case AnnotationType::Polygon:
+        {
+            QPolygonF polygon;
+            polygon.reserve(int(m_vertices.size() + 1));
+            for (const QPointF& point : m_vertices)
+            {
+                polygon << point;
+            }
+            if (!polygon.isClosed())
+            {
+                polygon << m_vertices.front();
+            }
+
+            painter.drawPolygon(polygon, Qt::OddEvenFill);
+            parameters.boundingRectangle = polygon.boundingRect();
+            parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
+            break;
+        }
+
+        case AnnotationType::Polyline:
+        {
+            const PDFReal lineEndingSize = painter.pen().widthF() * 5.0;
+            QPainterPath boundingPath;
+
+            const size_t pointCount = m_vertices.size();
+            const size_t lastPoint = pointCount - 1;
+            for (size_t i = 1; i < pointCount; ++i)
+            {
+                if (i == 1)
+                {
+                    // We draw first line
+                    drawLine(LineGeometryInfo::create(QLineF(m_vertices[i - 1], m_vertices[i])), painter, lineEndingSize, getStartLineEnding(), AnnotationLineEnding::None, boundingPath, QPointF(), QString(), true);
+                }
+                else if (i == lastPoint)
+                {
+                    // We draw last line
+                    drawLine(LineGeometryInfo::create(QLineF(m_vertices[i - 1], m_vertices[i])), painter, lineEndingSize, AnnotationLineEnding::None, getEndLineEnding(), boundingPath, QPointF(), QString(), true);
+                }
+                else
+                {
+                    QLineF line(m_vertices[i - 1], m_vertices[i]);
+                    boundingPath.moveTo(line.p1());
+                    boundingPath.lineTo(line.p2());
+                    painter.drawLine(line);
+                }
+            }
+
+            parameters.boundingRectangle = boundingPath.boundingRect();
+            parameters.boundingRectangle.adjust(-lineEndingSize, -lineEndingSize, lineEndingSize, lineEndingSize);
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 }
 
 QColor PDFPolygonalGeometryAnnotation::getFillColor() const
@@ -1308,7 +1381,10 @@ void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
                              PDFReal lineEndingSize,
                              AnnotationLineEnding p1Ending,
                              AnnotationLineEnding p2Ending,
-                             QPainterPath& boundingPath) const
+                             QPainterPath& boundingPath,
+                             QPointF textOffset,
+                             const QString& text,
+                             bool textIsAboveLine) const
 {
     const PDFReal angle = 30;
     const PDFReal lineEndingHalfSize = lineEndingSize * 0.5;
@@ -1445,14 +1521,82 @@ void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
     QLineF adjustedLine = info.transformedLine;
     adjustedLine.setP1(adjustedLine.p1() + QPointF(startOffset, 0));
     adjustedLine.setP2(adjustedLine.p2() - QPointF(endOffset, 0));
-    adjustedLine = info.LCStoGCS.map(adjustedLine);
+
+    int textVerticalOffset = 0;
+    const bool drawText = !text.isEmpty();
+    QPainterPath textPath;
+
+    if (drawText)
+    {
+        QFont font = QApplication::font();
+        font.setPixelSize(12.0);
+
+        QFontMetricsF fontMetrics(font, painter.device());
+        textVerticalOffset = fontMetrics.descent() + fontMetrics.leading();
+
+        textPath.addText(0, 0, font, text);
+        textPath = QMatrix(1, 0, 0, -1, 0, 0).map(textPath);
+    }
 
     drawLineEnding(info.transformedLine.p1(), p1Ending, false);
     drawLineEnding(info.transformedLine.p2(), p2Ending, true);
-    painter.drawLine(adjustedLine);
 
-    boundingPath.moveTo(adjustedLine.p1());
-    boundingPath.lineTo(adjustedLine.p2());
+    if (drawText && !textIsAboveLine)
+    {
+        // We will draw text in the line
+        QRectF textBoundingRect = textPath.controlPointRect();
+        QPointF center = textBoundingRect.center();
+        const qreal offsetY = center.y();
+        const qreal offsetX = center.x();
+        textPath.translate(textOffset + adjustedLine.center() - QPointF(offsetX, offsetY));
+        textBoundingRect = textPath.controlPointRect();
+
+        const qreal textPadding = 3.0;
+        const qreal textStart = textBoundingRect.left() - textPadding;
+        const qreal textEnd = textBoundingRect.right() + textPadding;
+
+        textPath = info.LCStoGCS.map(textPath);
+        painter.fillPath(textPath, QBrush(painter.pen().color(), Qt::SolidPattern));
+        boundingPath.addPath(textPath);
+
+        if (textStart > adjustedLine.p1().x())
+        {
+            QLineF leftLine(adjustedLine.p1(), QPointF(textStart, adjustedLine.p2().y()));
+            painter.drawLine(info.LCStoGCS.map(leftLine));
+        }
+
+        if (textEnd < adjustedLine.p2().x())
+        {
+            QLineF rightLine(QPointF(textEnd, adjustedLine.p2().y()), adjustedLine.p2());
+            painter.drawLine(info.LCStoGCS.map(rightLine));
+        }
+
+        // Include whole line to the bounding path
+        adjustedLine = info.LCStoGCS.map(adjustedLine);
+        boundingPath.moveTo(adjustedLine.p1());
+        boundingPath.lineTo(adjustedLine.p2());
+    }
+    else
+    {
+        if (drawText)
+        {
+            // We will draw text above the line
+            QRectF textBoundingRect = textPath.controlPointRect();
+            const qreal offsetY = textBoundingRect.top() - textVerticalOffset;
+            const qreal offsetX = textBoundingRect.center().x();
+            textPath.translate(textOffset + adjustedLine.center() - QPointF(offsetX, offsetY));
+
+            textPath = info.LCStoGCS.map(textPath);
+            painter.fillPath(textPath, QBrush(painter.pen().color(), Qt::SolidPattern));
+            boundingPath.addPath(textPath);
+        }
+
+        adjustedLine = info.LCStoGCS.map(adjustedLine);
+        painter.drawLine(adjustedLine);
+
+        boundingPath.moveTo(adjustedLine.p1());
+        boundingPath.lineTo(adjustedLine.p2());
+    }
 }
 
 }   // namespace pdf

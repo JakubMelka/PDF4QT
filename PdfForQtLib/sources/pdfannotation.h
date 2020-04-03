@@ -526,12 +526,18 @@ protected:
     /// \param p1Ending Line endpoint graphics at p1
     /// \param p2Ending Line endpoint graphics at p2
     /// \param boundingPath Bounding path in global coordinate system
+    /// \param textOffset Additional text offset
+    /// \param text Text, which should be printed along the line
+    /// \param textIsAboveLine Text should be printed above line
     void drawLine(const LineGeometryInfo& info,
                   QPainter& painter,
                   PDFReal lineEndingSize,
                   AnnotationLineEnding p1Ending,
                   AnnotationLineEnding p2Ending,
-                  QPainterPath& boundingPath) const;
+                  QPainterPath& boundingPath,
+                  QPointF textOffset,
+                  const QString& text,
+                  bool textIsAboveLine) const;
 
 private:
 
@@ -822,6 +828,7 @@ public:
     }
 
     virtual AnnotationType getType() const override { return m_type; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const std::vector<QPointF>& getVertices() const { return m_vertices; }
     AnnotationLineEnding getStartLineEnding() const { return m_startLineEnding; }
