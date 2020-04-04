@@ -203,20 +203,24 @@ private:
 class PDFAnnotationQuadrilaterals
 {
 public:
+    using Quadrilateral = std::array<QPointF, 4>;
+    using Quadrilaterals = std::vector<Quadrilateral>;
+
     inline explicit PDFAnnotationQuadrilaterals() = default;
-    inline explicit PDFAnnotationQuadrilaterals(QPainterPath&& path, std::vector<QLineF>&& underLines) :
+    inline explicit PDFAnnotationQuadrilaterals(QPainterPath&& path, Quadrilaterals&& quadrilaterals) :
         m_path(qMove(path)),
-        m_underLines(qMove(underLines))
+        m_quadrilaterals(qMove(quadrilaterals))
     {
 
     }
 
     const QPainterPath& getPath() const { return m_path; }
-    const std::vector<QLineF>& getUnderlines() const { return m_underLines; }
+    const Quadrilaterals& getQuadrilaterals() const { return m_quadrilaterals; }
+    bool isEmpty() const { return m_path.isEmpty(); }
 
 private:
     QPainterPath m_path;
-    std::vector<QLineF> m_underLines;
+    Quadrilaterals m_quadrilaterals;
 };
 
 /// Represents callout line (line from annotation to some point)
@@ -657,6 +661,8 @@ public:
     inline explicit PDFLinkAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Link; }
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const;
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const PDFAction* getAction() const { return m_action.data(); }
     LinkHighlightMode getHighlightMode() const { return m_highlightMode; }
@@ -866,6 +872,7 @@ public:
     }
 
     virtual AnnotationType getType() const override { return m_type; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const PDFAnnotationQuadrilaterals& getHiglightArea() const { return m_highlightArea; }
 

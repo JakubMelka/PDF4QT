@@ -592,13 +592,13 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
 PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectStorage* storage, PDFObject quadrilateralsObject, const QRectF annotationRect)
 {
     QPainterPath path;
-    std::vector<QLineF> underlines;
+    PDFAnnotationQuadrilaterals::Quadrilaterals quadrilaterals;
 
     PDFDocumentDataLoaderDecorator loader(storage);
     std::vector<PDFReal> points = loader.readNumberArray(quadrilateralsObject);
     const size_t quadrilateralCount = points.size() % 8;
     path.reserve(int(quadrilateralCount) + 5);
-    underlines.reserve(quadrilateralCount);
+    quadrilaterals.reserve(quadrilateralCount);
     for (size_t i = 0; i < quadrilateralCount; ++i)
     {
         const size_t offset = i * 8;
@@ -609,12 +609,11 @@ PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectSt
 
         path.moveTo(p1);
         path.lineTo(p2);
-        path.lineTo(p3);
         path.lineTo(p4);
-        path.lineTo(p1);
+        path.lineTo(p3);
         path.closeSubpath();
 
-        underlines.emplace_back(p1, p2);
+        quadrilaterals.emplace_back(PDFAnnotationQuadrilaterals::Quadrilateral{ p1, p2, p3, p4 });
     }
 
     if (path.isEmpty() && annotationRect.isValid())
@@ -622,10 +621,10 @@ PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectSt
         // Jakub Melka: we are using points at the top, because PDF has inverted y axis
         // against the Qt's y axis.
         path.addRect(annotationRect);
-        underlines.emplace_back(annotationRect.topLeft(), annotationRect.topRight());
+        quadrilaterals.emplace_back(PDFAnnotationQuadrilaterals::Quadrilateral{ annotationRect.topLeft(), annotationRect.topRight(), annotationRect.bottomLeft(), annotationRect.bottomRight() });
     }
 
-    return PDFAnnotationQuadrilaterals(qMove(path), qMove(underlines));
+    return PDFAnnotationQuadrilaterals(qMove(path), qMove(quadrilaterals));
 }
 
 AnnotationLineEnding PDFAnnotation::convertNameToLineEnding(const QByteArray& name)
@@ -1596,6 +1595,155 @@ void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
 
         boundingPath.moveTo(adjustedLine.p1());
         boundingPath.lineTo(adjustedLine.p2());
+    }
+}
+
+void PDFHighlightAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    if (m_highlightArea.isEmpty())
+    {
+        // Jakub Melka: do not draw empty highlight area
+        return;
+    }
+
+    QPainter& painter = *parameters.painter;
+    parameters.boundingRectangle = m_highlightArea.getPath().boundingRect();
+
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+    switch (m_type)
+    {
+        case AnnotationType::Highlight:
+        {
+            painter.setCompositionMode(QPainter::CompositionMode_Multiply);
+            painter.fillPath(m_highlightArea.getPath(), QBrush(getStrokeColor(), Qt::SolidPattern));
+            break;
+        }
+
+        case AnnotationType::Underline:
+        {
+            for (const PDFAnnotationQuadrilaterals::Quadrilateral& quadrilateral : m_highlightArea.getQuadrilaterals())
+            {
+                QPointF p1 = quadrilateral[0];
+                QPointF p2 = quadrilateral[1];
+                QLineF line(p1, p2);
+                painter.drawLine(line);
+            }
+            break;
+        }
+
+        case AnnotationType::Squiggly:
+        {
+            // Jakub Melka: Squiggly underline
+            for (const PDFAnnotationQuadrilaterals::Quadrilateral& quadrilateral : m_highlightArea.getQuadrilaterals())
+            {
+                QPointF p1 = quadrilateral[0];
+                QPointF p2 = quadrilateral[1];
+
+                // Calculate length (height) of quadrilateral
+                const PDFReal height = (QLineF(quadrilateral[0], quadrilateral[2]).length() + QLineF(quadrilateral[1], quadrilateral[3]).length()) * 0.5;
+                const PDFReal markSize = height / 7.0;
+
+                // We can't assume, that line is horizontal. For example, rotated text with 45° degrees
+                // counterclockwise, if it is highlighted with squiggly underline, it is not horizontal line.
+                // So, we must calculate line geometry and transform it.
+                QLineF line(p1, p2);
+                LineGeometryInfo lineGeometryInfo = LineGeometryInfo::create(line);
+
+                bool leadingEdge = true;
+                for (PDFReal x = lineGeometryInfo.transformedLine.p1().x(); x < lineGeometryInfo.transformedLine.p2().x(); x+= markSize)
+                {
+                    QLineF line;
+                    if (leadingEdge)
+                    {
+                        line = QLineF(x, 0.0, x + markSize, markSize);
+                    }
+                    else
+                    {
+                        // Falling edge
+                        line = QLineF(x, markSize, x + markSize, 0.0);
+                    }
+
+                    QLineF transformedLine = lineGeometryInfo.LCStoGCS.map(line);
+                    painter.drawLine(transformedLine);
+                    leadingEdge = !leadingEdge;
+                }
+            }
+            break;
+        }
+
+        case AnnotationType::StrikeOut:
+        {
+            for (const PDFAnnotationQuadrilaterals::Quadrilateral& quadrilateral : m_highlightArea.getQuadrilaterals())
+            {
+                QPointF p1 = (quadrilateral[0] + quadrilateral[2]) * 0.5;
+                QPointF p2 = (quadrilateral[1] + quadrilateral[3]) * 0.5;
+                QLineF line(p1, p2);
+                painter.drawLine(line);
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    const qreal penWidth = painter.pen().widthF();
+    parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
+}
+
+std::vector<PDFAppeareanceStreams::Key> PDFLinkAnnotation::getDrawKeys() const
+{
+    return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Down, QByteArray() } };
+}
+
+void PDFLinkAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    if (parameters.key.first != PDFAppeareanceStreams::Appearance::Down ||
+        m_activationRegion.isEmpty() ||
+        m_highlightMode == LinkHighlightMode::None)
+    {
+        // Nothing to draw
+        return;
+    }
+
+    QPainter& painter = *parameters.painter;
+    parameters.boundingRectangle = getRectangle();
+
+    switch (m_highlightMode)
+    {
+        case LinkHighlightMode::Invert:
+        {
+            // Invert all
+            painter.setCompositionMode(QPainter::CompositionMode_Difference);
+            painter.fillPath(m_activationRegion.getPath(), QBrush(Qt::white, Qt::SolidPattern));
+            break;
+        }
+
+        case LinkHighlightMode::Outline:
+        {
+            // Invert the border
+            painter.setCompositionMode(QPainter::CompositionMode_Difference);
+            QPen pen = getPen();
+            pen.setColor(Qt::white);
+            painter.setPen(pen);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(m_activationRegion.getPath());
+            break;
+        }
+
+        case LinkHighlightMode::Push:
+        {
+            // Draw border
+            painter.setPen(getPen());
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(m_activationRegion.getPath());
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
     }
 }
 
