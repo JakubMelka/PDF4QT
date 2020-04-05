@@ -917,6 +917,7 @@ public:
     };
 
     virtual AnnotationType getType() const override { return AnnotationType::Caret; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const QRectF& getCaretRectangle() const { return m_caretRectangle; }
     Symbol getSymbol() const { return m_symbol; }

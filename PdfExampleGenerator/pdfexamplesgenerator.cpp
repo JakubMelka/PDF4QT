@@ -237,6 +237,11 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     builder.createAnnotationStrikeout(page11, QRectF(50, 150, 50, 50), Qt::green);
     builder.createAnnotationStrikeout(page11, QRectF(50, 250, 50, 50), Qt::red);
 
+    pdf::PDFObjectReference page12 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationCaret(page12, QRectF(50, 50, 50, 50), 3.0, Qt::blue, "Title1", "Subject1", "Contents - green filling, red boundary");
+    builder.createAnnotationCaret(page12, QRectF(50, 150, 50, 50), 3.0, Qt::red, "Title2", "Subject2", "Contents - red boundary");
+    builder.createAnnotationCaret(page12, QRectF(50, 250, 50, 50), 3.0, Qt::green, "Title3", "Subject3", "Contents - green filling");
+
     // Write result to a file
     pdf::PDFDocument document = builder.build();
     pdf::PDFDocumentWriter writer(nullptr);

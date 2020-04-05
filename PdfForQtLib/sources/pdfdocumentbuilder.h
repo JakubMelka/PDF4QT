@@ -289,6 +289,25 @@ public:
     PDFObjectReference createActionURI(QString URL);
 
 
+    /// Caret annotations are used to indicate, where text should be inserted (for example, if reviewer 
+    /// reviews the document, and he wants to mark, that some text should be inserted, he uses this 
+    /// annotation).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is caret displayed
+    /// \param borderWidth Border width
+    /// \param color Caret color. If you do not want to have a border, then use invalid QColor.
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationCaret(PDFObjectReference page,
+                                             QRectF rectangle,
+                                             PDFReal borderWidth,
+                                             QColor color,
+                                             QString title,
+                                             QString subject,
+                                             QString contents);
+
+
     /// Circle annotation displays ellipse (or circle). Circle border/fill color can be defined, along with 
     /// border width. Popup annotation can be attached to this annotation.
     /// \param page Page to which is annotation added

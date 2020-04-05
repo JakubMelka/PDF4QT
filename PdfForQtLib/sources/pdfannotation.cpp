@@ -1911,4 +1911,31 @@ void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.drawText(QRectF(QPointF(0, 0), textRect.size()), getContents(), option);
 }
 
+void PDFCaretAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QPainter& painter = *parameters.painter;
+    parameters.boundingRectangle = getRectangle();
+
+    QRectF caretRect = getCaretRectangle();
+    if (caretRect.isEmpty())
+    {
+        caretRect = getRectangle();
+    }
+
+    QPointF controlPoint(caretRect.center());
+    controlPoint.setY(caretRect.top());
+
+    QPointF topPoint = controlPoint;
+    topPoint.setY(caretRect.bottom());
+
+    QPainterPath path;
+    path.moveTo(caretRect.topLeft());
+    path.quadTo(controlPoint, topPoint);
+    path.quadTo(controlPoint, caretRect.topRight());
+    path.lineTo(caretRect.topLeft());
+    path.closeSubpath();
+
+    painter.fillPath(path, QBrush(getStrokeColor(), Qt::SolidPattern));
+}
+
 }   // namespace pdf
