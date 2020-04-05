@@ -430,7 +430,6 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
                         annotation->m_inkPath.lineTo(point);
                     }
                 }
-                annotation->m_inkPath.closeSubpath();
             }
         }
     }
@@ -1936,6 +1935,80 @@ void PDFCaretAnnotation::draw(AnnotationDrawParameters& parameters) const
     path.closeSubpath();
 
     painter.fillPath(path, QBrush(getStrokeColor(), Qt::SolidPattern));
+}
+
+void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QPainter& painter = *parameters.painter;
+    QPainterPath path = getInkPath();
+
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+
+    QPainterPath boundingPath;
+    QPainterPath currentPath;
+    const int elementCount = path.elementCount();
+    for (int i = 0; i < elementCount; ++i)
+    {
+        QPainterPath::Element element = path.elementAt(i);
+        switch (element.type)
+        {
+            case QPainterPath::MoveToElement:
+            {
+                // Reset the path
+                if (!currentPath.isEmpty())
+                {
+                    boundingPath.addPath(currentPath);
+                    painter.drawPath(currentPath);
+                    currentPath.clear();
+                }
+                currentPath.moveTo(element.x, element.y);
+                break;
+            }
+
+            case QPainterPath::LineToElement:
+            {
+                const QPointF p0 = currentPath.currentPosition();
+                const QPointF p1(element.x, element.y);
+
+                QLineF line(p0, p1);
+                QPointF normal = line.normalVector().p2() - p0;
+
+                // Jakub Melka: This computation should be clarified. We use second order Bezier curves.
+                // We must calculate single control point. Let B(t) is bezier curve of second order.
+                // Then second derivation is B''(t) = 2(p0 - 2*Pc + p1). Second derivation curve is its
+                // normal. So, we calculate normal vector of the line (which has norm equal to line length),
+                // then we get following formula:
+                //
+                // Pc = (p0 + p1) / 2 - B''(t) / 4
+                //
+                // So, for bezier curves of second order, second derivative is constant (which is not surprising,
+                // because second derivative of polynomial of order 2 is also a constant). Control point is then
+                // used to paint the path.
+                QPointF controlPoint = -normal * 0.25 + (p0 + p1) * 0.5;
+                currentPath.quadTo(controlPoint, p1);
+                break;
+            }
+
+            case QPainterPath::CurveToElement:
+            case QPainterPath::CurveToDataElement:
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    // Reset the path
+    if (!currentPath.isEmpty())
+    {
+        boundingPath.addPath(currentPath);
+        painter.drawPath(currentPath);
+        currentPath.clear();
+    }
+
+    const qreal penWidth = painter.pen().widthF();
+    parameters.boundingRectangle = boundingPath.boundingRect();
+    parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
 }
 
 }   // namespace pdf

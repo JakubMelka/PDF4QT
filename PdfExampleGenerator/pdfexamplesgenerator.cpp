@@ -242,6 +242,37 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     builder.createAnnotationCaret(page12, QRectF(50, 150, 50, 50), 3.0, Qt::red, "Title2", "Subject2", "Contents - red boundary");
     builder.createAnnotationCaret(page12, QRectF(50, 250, 50, 50), 3.0, Qt::green, "Title3", "Subject3", "Contents - green filling");
 
+    pdf::PDFObjectReference page13 = builder.appendPage(QRectF(0, 0, 400, 400));
+    {
+        QPolygonF polygon;
+        polygon << QPointF(50, 50);
+        polygon << QPointF(50, 100);
+        polygon << QPointF(100, 50);
+        builder.createAnnotationInk(page13, polygon, 2.0, Qt::red, "Title", "Subject", "Contents");
+    }
+    {
+        QPolygonF polygon;
+        polygon << QPointF(50, 50);
+        polygon << QPointF(50, 100);
+        polygon << QPointF(100, 50);
+        polygon.translate(150, 0);
+        builder.createAnnotationInk(page13, polygon, 2.0, Qt::red, "Title", "Subject", "Contents");
+    }
+
+    {
+        pdf::Polygons polygons;
+        QPolygonF polygon;
+        polygon << QPointF(50, 50);
+        polygon << QPointF(50, 100);
+        polygon << QPointF(100, 50);
+        polygon << QPointF(50, 50);
+        polygon.translate(0, 150);
+        polygons.push_back(polygon);
+        polygon.translate(150, 0);
+        polygons.push_back(polygon);
+        builder.createAnnotationInk(page13, polygons, 2.0, Qt::red, "Title", "Subject", "Contents");
+    }
+
     // Write result to a file
     pdf::PDFDocument document = builder.build();
     pdf::PDFDocumentWriter writer(nullptr);

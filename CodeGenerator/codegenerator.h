@@ -148,6 +148,7 @@ public:
         _QPolygonF,
         _QDateTime,
         _QLocale,
+        _Polygons,
         _TextAnnotationIcon,
         _LinkHighlightMode,
         _TextAlignment,

@@ -437,6 +437,40 @@ public:
                                                  QColor color);
 
 
+    /// Ink anotation represents freehand scribble composed from one or more disjoint paths.
+    /// \param page Page to which is annotation added
+    /// \param inkPoints Ink points
+    /// \param borderWidth Border line width
+    /// \param strokeColor Stroke color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationInk(PDFObjectReference page,
+                                           QPolygonF inkPoints,
+                                           PDFReal borderWidth,
+                                           QColor strokeColor,
+                                           QString title,
+                                           QString subject,
+                                           QString contents);
+
+
+    /// Ink anotation represents freehand scribble composed from one or more disjoint paths.
+    /// \param page Page to which is annotation added
+    /// \param inkPoints Ink points (vector of polygons)
+    /// \param borderWidth Border line width
+    /// \param strokeColor Stroke color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationInk(PDFObjectReference page,
+                                           Polygons inkPoints,
+                                           PDFReal borderWidth,
+                                           QColor strokeColor,
+                                           QString title,
+                                           QString subject,
+                                           QString contents);
+
+
     /// Line annotation represents straight line, or some more advanced graphics, such as dimension with 
     /// text. Line annotations are markup annotations, so they can have popup window. Line endings can 
     /// be specified.
@@ -697,6 +731,16 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
     /// \param title Title
     /// \param subject Subject
     /// \param contents Contents
@@ -706,16 +750,6 @@ public:
                                                  QString title,
                                                  QString subject,
                                                  QString contents);
-
-
-    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
-    /// window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
-    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
-                                                 QRectF rectangle,
-                                                 QColor color);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
@@ -878,6 +912,7 @@ private:
     PDFObjectReference getDocumentInfo() const;
     PDFObjectReference getCatalogReference() const;
     void updateDocumentInfo(PDFObject info);
+    QRectF getPolygonsBoundingRect(const Polygons& Polygons) const;
 
     /// Copies objects from another storage. Objects have adjusted references to match
     /// this storage references and objects are added after the last objects of active storage.

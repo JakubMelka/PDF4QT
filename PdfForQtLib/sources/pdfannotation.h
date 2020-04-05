@@ -35,6 +35,7 @@ class PDFObjectStorage;
 class PDFDrawWidgetProxy;
 
 using TextAlignment = Qt::Alignment;
+using Polygons = std::vector<QPolygonF>;
 
 enum class AnnotationType
 {
@@ -971,6 +972,7 @@ public:
     inline explicit PDFInkAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Ink; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const QPainterPath& getInkPath() const { return m_inkPath; }
 
