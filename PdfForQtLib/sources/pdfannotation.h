@@ -388,6 +388,26 @@ private:
     std::array<PDFActionPtr, End> m_actions;
 };
 
+/// Annotation default appearance
+class PDFAnnotationDefaultAppearance
+{
+public:
+    explicit inline PDFAnnotationDefaultAppearance() = default;
+
+    /// Parses appearance string. If error occurs, then default appearance
+    /// string is constructed.
+    static PDFAnnotationDefaultAppearance parse(const QByteArray& string);
+
+    const QByteArray& getFontName() const { return m_fontName; }
+    PDFReal getFontSize() const { return m_fontSize; }
+    QColor getFontColor() const { return m_fontColor; }
+
+private:
+    QByteArray m_fontName;
+    PDFReal m_fontSize = 8.0;
+    QColor m_fontColor = Qt::black;
+};
+
 class PDFAnnotation;
 class PDFMarkupAnnotation;
 class PDFTextAnnotation;
@@ -484,6 +504,9 @@ public:
     /// \param name Name of the line ending
     static AnnotationLineEnding convertNameToLineEnding(const QByteArray& name);
 
+    /// Returns draw color from defined annotation color
+    static QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color);
+
 protected:
     virtual QColor getStrokeColor() const;
     virtual QColor getFillColor() const;
@@ -507,9 +530,6 @@ protected:
 
         static LineGeometryInfo create(QLineF line);
     };
-
-    /// Returns draw color from defined annotation color
-    QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color) const;
 
     /// Returns pen from border settings and annotation color
     QPen getPen() const;
@@ -686,6 +706,7 @@ public:
     inline explicit PDFFreeTextAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::FreeText; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     enum class Justification
     {

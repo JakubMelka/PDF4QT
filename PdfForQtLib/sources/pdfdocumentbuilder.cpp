@@ -899,12 +899,33 @@ void PDFDocumentBuilder::updateDocumentInfo(PDFObject info)
 
 std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences)
 {
-    // 1) Collect all references, which we must copy
+    // 1) Collect all references, which we must copy. If object is referenced, then
+    //    we must also collect references of referenced object.
     std::set<PDFObjectReference> references;
-    PDFCollectReferencesVisitor collectReferencesVisitor(references);
-    for (const PDFObject& object : objects)
     {
-        object.accept(&collectReferencesVisitor);
+        PDFCollectReferencesVisitor collectReferencesVisitor(references);
+        for (const PDFObject& object : objects)
+        {
+            object.accept(&collectReferencesVisitor);
+        }
+    }
+
+    // Iterative algorihm, which adds additional references from referenced objects.
+    // If new reference is added, then we must also check, that all referenced objects
+    // from this object are added.
+    std::set<PDFObjectReference> workSet = references;
+    while (!workSet.empty())
+    {
+        std::set<PDFObjectReference> addedReferences;
+        PDFCollectReferencesVisitor collectReferencesVisitor(addedReferences);
+        for (const PDFObjectReference& objectReference : workSet)
+        {
+            storage.getObject(objectReference).accept(&collectReferencesVisitor);
+        }
+
+        workSet.clear();
+        std::set_difference(addedReferences.cbegin(), addedReferences.cend(), references.cbegin(), references.cend(), std::inserter(workSet, workSet.cend()));
+        references.merge(addedReferences);
     }
 
     // 2) Make room for new objects, together with mapping
@@ -1264,10 +1285,92 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReferen
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("CL");
     objectBuilder.beginArray();
-    objectBuilder << startPoint.x();
-    objectBuilder << startPoint.y();
-    objectBuilder << endPoint.x();
-    objectBuilder << endPoint.y();
+    objectBuilder << startPoint;
+    objectBuilder << endPoint;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("LE");
+    objectBuilder.beginArray();
+    objectBuilder << startLineType;
+    objectBuilder << endLineType;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReference page,
+                                                                QRectF boundingRectangle,
+                                                                QRectF textRectangle,
+                                                                QString title,
+                                                                QString subject,
+                                                                QString contents,
+                                                                TextAlignment textAlignment,
+                                                                QPointF startPoint,
+                                                                QPointF kneePoint,
+                                                                QPointF endPoint,
+                                                                AnnotationLineEnding startLineType,
+                                                                AnnotationLineEnding endLineType)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("FreeText");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << boundingRectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Q");
+    objectBuilder << WrapFreeTextAlignment(textAlignment);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("DA");
+    objectBuilder << WrapString("/Arial 10 Tf");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("RD");
+    objectBuilder << getAnnotationReductionRectangle(boundingRectangle, textRectangle);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CL");
+    objectBuilder.beginArray();
+    objectBuilder << startPoint;
+    objectBuilder << kneePoint;
+    objectBuilder << endPoint;
     objectBuilder.endArray();
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("LE");

@@ -358,6 +358,38 @@ public:
                                                 AnnotationLineEnding endLineType);
 
 
+    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
+    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
+    /// the document. Free text annotation can also have callout line, with, or without a knee. Specify 
+    /// start/end point parameters of this function to get callout line.
+    /// \param page Page to which is annotation added
+    /// \param boundingRectangle Bounding rectangle of free text annotation. It must contain both 
+    ///        callout line and text rectangle.
+    /// \param textRectangle Rectangle with text, in absolute coordinates. They are then recomputed to 
+    ///        match bounding rectangle.
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents (text displayed)
+    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
+    /// \param startPoint Start point of callout line
+    /// \param kneePoint Knee point of callout line
+    /// \param endPoint End point of callout line
+    /// \param startLineType Line ending at the start point
+    /// \param endLineType Line ending at the end point
+    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
+                                                QRectF boundingRectangle,
+                                                QRectF textRectangle,
+                                                QString title,
+                                                QString subject,
+                                                QString contents,
+                                                TextAlignment textAlignment,
+                                                QPointF startPoint,
+                                                QPointF kneePoint,
+                                                QPointF endPoint,
+                                                AnnotationLineEnding startLineType,
+                                                AnnotationLineEnding endLineType);
+
+
     /// Text markup annotation is used to highlight text. It is a markup annotation, so it can contain 
     /// window to be opened (and commented). This annotation is usually used to highlight text, but can 
     /// also highlight other things, such as images, or other graphics.

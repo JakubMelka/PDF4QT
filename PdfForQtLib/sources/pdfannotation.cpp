@@ -23,6 +23,7 @@
 #include "pdfcms.h"
 #include "pdfwidgetutils.h"
 #include "pdfpagecontentprocessor.h"
+#include "pdfparser.h"
 
 #include <QApplication>
 
@@ -661,7 +662,7 @@ QColor PDFAnnotation::getFillColor() const
     return QColor();
 }
 
-QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color) const
+QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color)
 {
     switch (color.size())
     {
@@ -1745,6 +1746,169 @@ void PDFLinkAnnotation::draw(AnnotationDrawParameters& parameters) const
             Q_ASSERT(false);
             break;
     }
+}
+
+PDFAnnotationDefaultAppearance PDFAnnotationDefaultAppearance::parse(const QByteArray& string)
+{
+    PDFAnnotationDefaultAppearance result;
+    PDFLexicalAnalyzer analyzer(string.constData(), string.constData() + string.size());
+
+    std::vector<PDFLexicalAnalyzer::Token> tokens;
+
+    for (PDFLexicalAnalyzer::Token token = analyzer.fetch(); token.type != PDFLexicalAnalyzer::TokenType::EndOfFile; token = analyzer.fetch())
+    {
+        tokens.push_back(qMove(token));
+    }
+
+    auto readNumber = [&tokens](size_t index) -> PDFReal
+    {
+        Q_ASSERT(index >= 0 && index < tokens.size());
+        const PDFLexicalAnalyzer::Token& token = tokens[index];
+        if (token.type == PDFLexicalAnalyzer::TokenType::Real ||
+            token.type == PDFLexicalAnalyzer::TokenType::Integer)
+        {
+            return token.data.toDouble();
+        }
+
+        return 0.0;
+    };
+
+    for (size_t i = 0; i < tokens.size(); ++i)
+    {
+        const PDFLexicalAnalyzer::Token& token = tokens[i];
+        if (token.type == PDFLexicalAnalyzer::TokenType::Command)
+        {
+            QByteArray command = token.data.toByteArray();
+            if (command == "Tf")
+            {
+                if (i >= 1)
+                {
+                    result.m_fontSize = readNumber(i - 1);
+                }
+                if (i >= 2)
+                {
+                    result.m_fontName = tokens[i - 2].data.toByteArray();
+                }
+            }
+            else if (command == "g" && i >= 1)
+            {
+                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 1) });
+            }
+            else if (command == "rg" && i >= 3)
+            {
+                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 3), readNumber(i - 2), readNumber(i - 1) });
+            }
+            else if (command == "k" && i >= 4)
+            {
+                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 4), readNumber(i - 3), readNumber(i - 2), readNumber(i - 1) });
+            }
+        }
+    }
+
+    return result;
+}
+
+void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QPainter& painter = *parameters.painter;
+    parameters.boundingRectangle = getRectangle();
+
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+
+    // Draw callout line
+    const PDFAnnotationCalloutLine& calloutLine = getCalloutLine();
+
+    switch (calloutLine.getType())
+    {
+        case PDFAnnotationCalloutLine::Type::Invalid:
+        {
+            // Annotation doesn't have callout line
+            break;
+        }
+
+        case PDFAnnotationCalloutLine::Type::StartEnd:
+        {
+            QPainterPath boundingPath;
+            QLineF line(calloutLine.getPoint(0), calloutLine.getPoint(1));
+            const PDFReal lineEndingSize = qMin(painter.pen().widthF() * 5.0, line.length() * 0.5);
+            drawLine(LineGeometryInfo::create(line), painter, lineEndingSize,
+                     getStartLineEnding(), getEndLineEnding(), boundingPath,
+                     QPointF(), QString(), true);
+            break;
+        }
+
+        case PDFAnnotationCalloutLine::Type::StartKneeEnd:
+        {
+            QPainterPath boundingPath;
+
+            QLineF lineStart(calloutLine.getPoint(0), calloutLine.getPoint(1));
+            QLineF lineEnd(calloutLine.getPoint(1), calloutLine.getPoint(2));
+
+            PDFReal preferredLineEndingSize = painter.pen().widthF() * 5.0;
+            PDFReal lineStartEndingSize = qMin(preferredLineEndingSize, lineStart.length() * 0.5);
+            drawLine(LineGeometryInfo::create(lineStart), painter, lineStartEndingSize,
+                     getStartLineEnding(), AnnotationLineEnding::None, boundingPath,
+                     QPointF(), QString(), true);
+
+
+            PDFReal lineEndEndingSize = qMin(preferredLineEndingSize, lineEnd.length() * 0.5);
+            drawLine(LineGeometryInfo::create(lineEnd), painter, lineEndEndingSize,
+                     AnnotationLineEnding::None, getEndLineEnding() , boundingPath,
+                     QPointF(), QString(), true);
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    QRectF textRect = getTextRectangle();
+    if (!textRect.isValid())
+    {
+        textRect = getRectangle();
+    }
+
+    painter.drawRect(textRect);
+
+    // Draw text
+    PDFAnnotationDefaultAppearance defaultAppearance = PDFAnnotationDefaultAppearance::parse(getDefaultAppearance());
+
+    QFont font(defaultAppearance.getFontName());
+    font.setPixelSize(defaultAppearance.getFontSize());
+    painter.setPen(defaultAppearance.getFontColor());
+
+    Qt::Alignment alignment = Qt::AlignTop;
+    switch (getJustification())
+    {
+        case PDFFreeTextAnnotation::Justification::Left:
+            alignment |= Qt::AlignLeft;
+            break;
+
+        case PDFFreeTextAnnotation::Justification::Centered:
+            alignment |= Qt::AlignHCenter;
+            break;
+
+        case PDFFreeTextAnnotation::Justification::Right:
+            alignment |= Qt::AlignRight;
+            break;
+
+        default:
+            alignment |= Qt::AlignLeft;
+            Q_ASSERT(false);
+            break;
+    }
+
+    QTextOption option(alignment);
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    option.setUseDesignMetrics(true);
+
+    painter.translate(textRect.left(), textRect.bottom());
+    painter.scale(1.0, -1.0);
+    painter.drawText(QRectF(QPointF(0, 0), textRect.size()), getContents(), option);
 }
 
 }   // namespace pdf
