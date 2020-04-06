@@ -273,6 +273,23 @@ void PDFExamplesGenerator::generateAnnotationsExample()
         builder.createAnnotationInk(page13, polygons, 2.0, Qt::red, "Title", "Subject", "Contents");
     }
 
+    pdf::PDFObjectReference page14 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationStamp(page14, QRectF(10, 50, 100, 50), pdf::Stamp::Approved, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(10, 100, 100, 50), pdf::Stamp::AsIs, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(10, 150, 100, 50), pdf::Stamp::Confidential, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(10, 200, 100, 50), pdf::Stamp::Departmental, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(10, 250, 100, 50), pdf::Stamp::Draft, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(10, 300, 100, 50), pdf::Stamp::Experimental, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(10, 350, 100, 50), pdf::Stamp::Expired, "Title", "Subject", "Contents");
+
+    builder.createAnnotationStamp(page14, QRectF(210, 50, 100, 50), pdf::Stamp::Final, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(210, 100, 100, 50), pdf::Stamp::ForComment, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(210, 150, 100, 50), pdf::Stamp::ForPublicRelease, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(210, 200, 100, 50), pdf::Stamp::NotApproved, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(210, 250, 100, 50), pdf::Stamp::NotForPublicRelease, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(210, 300, 100, 50), pdf::Stamp::Sold, "Title", "Subject", "Contents");
+    builder.createAnnotationStamp(page14, QRectF(210, 350, 100, 50), pdf::Stamp::TopSecret, "Title", "Subject", "Contents");
+
     // Write result to a file
     pdf::PDFDocument document = builder.build();
     pdf::PDFDocumentWriter writer(nullptr);

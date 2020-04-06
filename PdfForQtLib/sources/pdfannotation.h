@@ -930,6 +930,24 @@ private:
     Symbol m_symbol = Symbol::None;
 };
 
+enum class Stamp
+{
+    Approved,
+    AsIs,
+    Confidential,
+    Departmental,
+    Draft,
+    Experimental,
+    Expired,
+    Final,
+    ForComment,
+    ForPublicRelease,
+    NotApproved,
+    NotForPublicRelease,
+    Sold,
+    TopSecret
+};
+
 /// Annotation for stamps. Displays text or graphics intended to look
 /// as if they were stamped on the paper.
 class PDFStampAnnotation : public PDFMarkupAnnotation
@@ -937,25 +955,8 @@ class PDFStampAnnotation : public PDFMarkupAnnotation
 public:
     inline explicit PDFStampAnnotation() = default;
 
-    enum class Stamp
-    {
-        Approved,
-        AsIs,
-        Confidential,
-        Departmental,
-        Draft,
-        Experimental,
-        Expired,
-        Final,
-        ForComment,
-        ForPublicRelease,
-        NotApproved,
-        NotForPublicRelease,
-        Sold,
-        TopSecret
-    };
-
     virtual AnnotationType getType() const override { return AnnotationType::Stamp; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     Stamp getStamp() const { return m_stamp; }
 

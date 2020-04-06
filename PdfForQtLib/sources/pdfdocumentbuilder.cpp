@@ -219,6 +219,74 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(Stamp stamp)
+{
+    switch (stamp)
+    {
+        case Stamp::Approved:
+            *this << WrapName("Approved");
+            break;
+
+        case Stamp::AsIs:
+            *this << WrapName("AsIs");
+            break;
+
+        case Stamp::Confidential:
+            *this << WrapName("Confidential");
+            break;
+
+        case Stamp::Departmental:
+            *this << WrapName("Departmental");
+            break;
+
+        case Stamp::Draft:
+            *this << WrapName("Draft");
+            break;
+
+        case Stamp::Experimental:
+            *this << WrapName("Experimental");
+            break;
+
+        case Stamp::Expired:
+            *this << WrapName("Expired");
+            break;
+
+        case Stamp::Final:
+            *this << WrapName("Final");
+            break;
+
+        case Stamp::ForComment:
+            *this << WrapName("ForComment");
+            break;
+
+        case Stamp::ForPublicRelease:
+            *this << WrapName("ForPublicRelease");
+            break;
+
+        case Stamp::NotApproved:
+            *this << WrapName("NotApproved");
+            break;
+
+        case Stamp::NotForPublicRelease:
+            *this << WrapName("NotForPublicRelease");
+            break;
+
+        case Stamp::Sold:
+            *this << WrapName("Sold");
+            break;
+
+        case Stamp::TopSecret:
+            *this << WrapName("TopSecret");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(const PDFObject& object)
 {
     addObject(object);
@@ -2201,8 +2269,6 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
-    PDFObjectReference popupAnnotation = createAnnotationPopup(page, annotationObject, getPopupWindowRect(rectangle), false);
-
     objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("Annots");
     objectBuilder.beginArray();
@@ -2313,6 +2379,62 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReferen
     objectBuilder << rectangle.topLeft();
     objectBuilder << rectangle.topRight();
     objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationStamp(PDFObjectReference page,
+                                                             QRectF rectangle,
+                                                             Stamp stampType,
+                                                             QString title,
+                                                             QString subject,
+                                                             QString contents)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Stamp");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Name");
+    objectBuilder << stampType;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
@@ -2518,55 +2640,6 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationText(PDFObjectReference p
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectReference page,
                                                                  QRectF rectangle,
-                                                                 QColor color)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Annot");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Subtype");
-    objectBuilder << WrapName("Underline");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Rect");
-    objectBuilder << rectangle;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("P");
-    objectBuilder << page;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("CreationDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("C");
-    objectBuilder << color;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("QuadPoints");
-    objectBuilder.beginArray();
-    objectBuilder << rectangle.bottomLeft();
-    objectBuilder << rectangle.bottomRight();
-    objectBuilder << rectangle.topLeft();
-    objectBuilder << rectangle.topRight();
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Annots");
-    objectBuilder.beginArray();
-    objectBuilder << annotationObject;
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject pageAnnots = objectBuilder.takeObject();
-    appendTo(page, pageAnnots);
-    updateAnnotationAppearanceStreams(annotationObject);
-    return annotationObject;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectReference page,
-                                                                 QRectF rectangle,
                                                                  QColor color,
                                                                  QString title,
                                                                  QString subject,
@@ -2604,6 +2677,55 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectRefere
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subj");
     objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("QuadPoints");
+    objectBuilder.beginArray();
+    objectBuilder << rectangle.bottomLeft();
+    objectBuilder << rectangle.bottomRight();
+    objectBuilder << rectangle.topLeft();
+    objectBuilder << rectangle.topRight();
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectReference page,
+                                                                 QRectF rectangle,
+                                                                 QColor color)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Underline");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << color;
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("QuadPoints");
     objectBuilder.beginArray();

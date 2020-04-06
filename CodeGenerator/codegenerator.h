@@ -153,7 +153,8 @@ public:
         _LinkHighlightMode,
         _TextAlignment,
         _AnnotationLineEnding,
-        _AnnotationBorderStyle
+        _AnnotationBorderStyle,
+        _Stamp
     };
     Q_ENUM(DataType)
 

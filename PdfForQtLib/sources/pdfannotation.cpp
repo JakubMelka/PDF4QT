@@ -384,24 +384,24 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         PDFStampAnnotation* annotation = new PDFStampAnnotation();
         result.reset(annotation);
 
-        constexpr const std::array<std::pair<const char*, PDFStampAnnotation::Stamp>, 14> stamps = {
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Approved", PDFStampAnnotation::Stamp::Approved },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "AsIs", PDFStampAnnotation::Stamp::AsIs },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Confidential", PDFStampAnnotation::Stamp::Confidential },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Departmental", PDFStampAnnotation::Stamp::Departmental },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Draft", PDFStampAnnotation::Stamp::Draft },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Experimental", PDFStampAnnotation::Stamp::Experimental },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Expired", PDFStampAnnotation::Stamp::Expired },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Final", PDFStampAnnotation::Stamp::Final },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "ForComment", PDFStampAnnotation::Stamp::ForComment },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "ForPublicRelease", PDFStampAnnotation::Stamp::ForPublicRelease },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "NotApproved", PDFStampAnnotation::Stamp::NotApproved },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "NotForPublicRelease", PDFStampAnnotation::Stamp::NotForPublicRelease },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "Sold", PDFStampAnnotation::Stamp::Sold },
-            std::pair<const char*, PDFStampAnnotation::Stamp>{ "TopSecret", PDFStampAnnotation::Stamp::TopSecret }
+        constexpr const std::array<std::pair<const char*, Stamp>, 14> stamps = {
+            std::pair<const char*, Stamp>{ "Approved", Stamp::Approved },
+            std::pair<const char*, Stamp>{ "AsIs", Stamp::AsIs },
+            std::pair<const char*, Stamp>{ "Confidential", Stamp::Confidential },
+            std::pair<const char*, Stamp>{ "Departmental", Stamp::Departmental },
+            std::pair<const char*, Stamp>{ "Draft", Stamp::Draft },
+            std::pair<const char*, Stamp>{ "Experimental", Stamp::Experimental },
+            std::pair<const char*, Stamp>{ "Expired", Stamp::Expired },
+            std::pair<const char*, Stamp>{ "Final", Stamp::Final },
+            std::pair<const char*, Stamp>{ "ForComment", Stamp::ForComment },
+            std::pair<const char*, Stamp>{ "ForPublicRelease", Stamp::ForPublicRelease },
+            std::pair<const char*, Stamp>{ "NotApproved", Stamp::NotApproved },
+            std::pair<const char*, Stamp>{ "NotForPublicRelease", Stamp::NotForPublicRelease },
+            std::pair<const char*, Stamp>{ "Sold", Stamp::Sold },
+            std::pair<const char*, Stamp>{ "TopSecret", Stamp::TopSecret }
         };
 
-        annotation->m_stamp = loader.readEnumByName(dictionary->get("Name"), stamps.begin(), stamps.end(), PDFStampAnnotation::Stamp::Draft);
+        annotation->m_stamp = loader.readEnumByName(dictionary->get("Name"), stamps.begin(), stamps.end(), Stamp::Draft);
     }
     else if (subtype == "Ink")
     {
@@ -2008,6 +2008,116 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     const qreal penWidth = painter.pen().widthF();
     parameters.boundingRectangle = boundingPath.boundingRect();
+    parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
+}
+
+void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QPainter& painter = *parameters.painter;
+
+    QString text;
+    QColor color(Qt::red);
+
+    switch (m_stamp)
+    {
+        case Stamp::Approved:
+            text = PDFTranslationContext::tr("APPROVED");
+            color = Qt::green;
+            break;
+
+        case Stamp::AsIs:
+            text = PDFTranslationContext::tr("AS IS");
+            break;
+
+        case Stamp::Confidential:
+            text = PDFTranslationContext::tr("CONFIDENTIAL");
+            break;
+
+        case Stamp::Departmental:
+            text = PDFTranslationContext::tr("DEPARTMENTAL");
+            color = Qt::blue;
+            break;
+
+        case Stamp::Draft:
+            text = PDFTranslationContext::tr("DRAFT");
+            break;
+
+        case Stamp::Experimental:
+            text = PDFTranslationContext::tr("EXPERIMENTAL");
+            color = Qt::blue;
+            break;
+
+        case Stamp::Expired:
+            text = PDFTranslationContext::tr("EXPIRED");
+            break;
+
+        case Stamp::Final:
+            text = PDFTranslationContext::tr("FINAL");
+            break;
+
+        case Stamp::ForComment:
+            text = PDFTranslationContext::tr("FOR COMMENT");
+            color = Qt::green;
+            break;
+
+        case Stamp::ForPublicRelease:
+            text = PDFTranslationContext::tr("FOR PUBLIC RELEASE");
+            color = Qt::green;
+            break;
+
+        case Stamp::NotApproved:
+            text = PDFTranslationContext::tr("NOT APPROVED");
+            break;
+
+        case Stamp::NotForPublicRelease:
+            text = PDFTranslationContext::tr("NOT FOR PUBLIC RELEASE");
+            break;
+
+        case Stamp::Sold:
+            text = PDFTranslationContext::tr("SOLD");
+            color = Qt::blue;
+            break;
+
+        case Stamp::TopSecret:
+            text = PDFTranslationContext::tr("TOP SECRET");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    const PDFReal textHeight = 16;
+    QFont font("Courier New");
+    font.setBold(true);
+    font.setPixelSize(textHeight);
+
+    QFontMetricsF fontMetrics(font, painter.device());
+    const qreal textWidth = fontMetrics.width(text);
+    const qreal rectangleWidth = textWidth + 10;
+    const qreal rectangleHeight = textHeight * 1.2;
+    const qreal penWidth = 2.0;
+
+    QRectF rectangle = getRectangle();
+    rectangle.setSize(QSizeF(rectangleWidth, rectangleHeight));
+
+    QPen pen(color);
+    pen.setWidthF(penWidth);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+
+    painter.drawRoundedRect(rectangle, 5, 5, Qt::AbsoluteSize);
+
+    // Draw text
+    QPainterPath textPath;
+    textPath.addText(0, 0, font, text);
+    textPath = QMatrix(1, 0, 0, -1, 0, 0).map(textPath);
+
+    QPointF center = textPath.boundingRect().center();
+    textPath.translate(rectangle.center() - center);
+    painter.fillPath(textPath, QBrush(color, Qt::SolidPattern));
+
+    parameters.boundingRectangle = rectangle;
     parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
 }
 
