@@ -290,6 +290,12 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     builder.createAnnotationStamp(page14, QRectF(210, 300, 100, 50), pdf::Stamp::Sold, "Title", "Subject", "Contents");
     builder.createAnnotationStamp(page14, QRectF(210, 350, 100, 50), pdf::Stamp::TopSecret, "Title", "Subject", "Contents");
 
+    pdf::PDFObjectReference page15 = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationFileAttachment(page15, QPointF(50, 150), pdf::PDFObjectReference(), pdf::FileAttachmentIcon::PushPin, "Title", "File description");
+    builder.createAnnotationFileAttachment(page15, QPointF(50, 350), pdf::PDFObjectReference(), pdf::FileAttachmentIcon::Graph, "Title", "File description");
+    builder.createAnnotationFileAttachment(page15, QPointF(250, 150), pdf::PDFObjectReference(), pdf::FileAttachmentIcon::Paperclip, "Title", "File description");
+    builder.createAnnotationFileAttachment(page15, QPointF(250, 350), pdf::PDFObjectReference(), pdf::FileAttachmentIcon::Tag, "Title", "File description");
+
     // Write result to a file
     pdf::PDFDocument document = builder.build();
     pdf::PDFDocumentWriter writer(nullptr);

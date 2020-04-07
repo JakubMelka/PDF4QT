@@ -112,6 +112,7 @@ public:
     PDFObjectFactory& operator<<(AnnotationBorderStyle style);
     PDFObjectFactory& operator<<(const PDFObject& object);
     PDFObjectFactory& operator<<(Stamp stamp);
+    PDFObjectFactory& operator<<(FileAttachmentIcon icon);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -329,6 +330,21 @@ public:
                                               QString title,
                                               QString subject,
                                               QString contents);
+
+
+    /// Creates a new file attachment annotation. This annotation needs file specification as parameter.
+    /// \param page Page to which is annotation added
+    /// \param position Position
+    /// \param fileSpecification File specification
+    /// \param icon Icon
+    /// \param title Title
+    /// \param description Description
+    PDFObjectReference createAnnotationFileAttachment(PDFObjectReference page,
+                                                      QPointF position,
+                                                      PDFObjectReference fileSpecification,
+                                                      FileAttachmentIcon icon,
+                                                      QString title,
+                                                      QString description);
 
 
     /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
@@ -747,6 +763,16 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
     /// \param title Title
     /// \param subject Subject
     /// \param contents Contents
@@ -756,16 +782,6 @@ public:
                                                  QString title,
                                                  QString subject,
                                                  QString contents);
-
-
-    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
-    /// window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
-    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
-                                                 QRectF rectangle,
-                                                 QColor color);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 

@@ -1001,6 +1001,14 @@ private:
     bool m_opened = false;
 };
 
+enum class FileAttachmentIcon
+{
+    Graph,
+    Paperclip,
+    PushPin,
+    Tag
+};
+
 /// File attachment annotation contains reference to (embedded or external) file.
 /// So it is a link to specified file. Activating annotation enables user to view
 /// or store attached file in the filesystem.
@@ -1009,24 +1017,17 @@ class PDFFileAttachmentAnnotation : public PDFMarkupAnnotation
 public:
     inline explicit PDFFileAttachmentAnnotation() = default;
 
-    enum class Icon
-    {
-        Graph,
-        Paperclip,
-        PushPin,
-        Tag
-    };
-
     virtual AnnotationType getType() const override { return AnnotationType::FileAttachment; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const PDFFileSpecification& getFileSpecification() const { return m_fileSpecification; }
-    Icon getIcon() const { return m_icon; }
+    FileAttachmentIcon getIcon() const { return m_icon; }
 
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
 
     PDFFileSpecification m_fileSpecification;
-    Icon m_icon = Icon::PushPin;
+    FileAttachmentIcon m_icon = FileAttachmentIcon::PushPin;
 };
 
 /// Sound annotation contains sound, which is played, when

@@ -154,6 +154,7 @@ public:
         _TextAlignment,
         _AnnotationLineEnding,
         _AnnotationBorderStyle,
+        _FileAttachmentIcon,
         _Stamp
     };
     Q_ENUM(DataType)

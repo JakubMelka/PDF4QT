@@ -447,14 +447,14 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
 
         annotation->m_fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("FS"));
 
-        constexpr const std::array<std::pair<const char*, PDFFileAttachmentAnnotation::Icon>, 4> icons = {
-            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Graph", PDFFileAttachmentAnnotation::Icon::Graph },
-            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Paperclip", PDFFileAttachmentAnnotation::Icon::Paperclip },
-            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "PushPin", PDFFileAttachmentAnnotation::Icon::PushPin },
-            std::pair<const char*, PDFFileAttachmentAnnotation::Icon>{ "Tag", PDFFileAttachmentAnnotation::Icon::Tag }
+        constexpr const std::array<std::pair<const char*, FileAttachmentIcon>, 4> icons = {
+            std::pair<const char*, FileAttachmentIcon>{ "Graph", FileAttachmentIcon::Graph },
+            std::pair<const char*, FileAttachmentIcon>{ "Paperclip", FileAttachmentIcon::Paperclip },
+            std::pair<const char*, FileAttachmentIcon>{ "PushPin", FileAttachmentIcon::PushPin },
+            std::pair<const char*, FileAttachmentIcon>{ "Tag", FileAttachmentIcon::Tag }
         };
 
-        annotation->m_icon = loader.readEnumByName(dictionary->get("Name"), icons.begin(), icons.end(), PDFFileAttachmentAnnotation::Icon::PushPin);
+        annotation->m_icon = loader.readEnumByName(dictionary->get("Name"), icons.begin(), icons.end(), FileAttachmentIcon::PushPin);
     }
     else if (subtype == "Sound")
     {
@@ -2119,6 +2119,51 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     parameters.boundingRectangle = rectangle;
     parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
+}
+
+void PDFFileAttachmentAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QString text = "?";
+    switch (getIcon())
+    {
+        case FileAttachmentIcon::Graph:
+            text = QString::fromUtf16(u"\U0001F4C8");
+            break;
+        case FileAttachmentIcon::Paperclip:
+            text = QString::fromUtf16(u"\U0001F4CE");
+            break;
+        case FileAttachmentIcon::PushPin:
+            text = QString::fromUtf16(u"\U0001F4CC");
+            break;
+        case FileAttachmentIcon::Tag:
+            text = QString::fromUtf16(u"\U0001F3F7");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    const PDFReal opacity = getOpacity();
+    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
+
+    constexpr const PDFReal rectSize = 24.0;
+    QPainter& painter = *parameters.painter;
+    QRectF rectangle = getRectangle();
+    rectangle.setSize(QSizeF(rectSize, rectSize));
+
+    QFont font = QApplication::font();
+    font.setPixelSize(16.0);
+
+    QPainterPath textPath;
+    textPath.addText(0.0, 0.0, font, text);
+    textPath = QMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
+    QRectF textBoundingRect = textPath.boundingRect();
+    QPointF offset = rectangle.center() - textBoundingRect.center();
+    textPath.translate(offset);
+    painter.fillPath(textPath, QBrush(strokeColor, Qt::SolidPattern));
+
+    parameters.boundingRectangle = rectangle;
 }
 
 }   // namespace pdf
