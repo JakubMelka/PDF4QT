@@ -24,6 +24,7 @@
 #include <QColor>
 
 #include <map>
+#include <array>
 #include <optional>
 
 namespace pdf
@@ -588,7 +589,7 @@ public:
     PDFInteger getScaleDenominator() const { return m_scaleDenominator; }
     QPointF getRelativeWindowPosition() const { return m_relativeWindowPosition; }
 
-    /// Creates a new moview from the object. If data are invalid, then invalid object
+    /// Creates a new movie from the object. If data are invalid, then invalid object
     /// is returned, no exception is thrown.
     static PDFMovieActivation parse(const PDFObjectStorage* storage, PDFObject object);
 
@@ -606,6 +607,322 @@ private:
     PDFInteger m_scaleNumerator = 0;
     PDFInteger m_scaleDenominator = 0;
     QPointF m_relativeWindowPosition;
+};
+
+/// Rich media position of window
+class PDFRichMediaWindowPosition
+{
+public:
+    explicit inline PDFRichMediaWindowPosition() = default;
+
+    enum class Alignment
+    {
+        Near,
+        Center,
+        Far
+    };
+
+    Alignment getHorizontalAlignment() const { return m_horizontalAlignment; }
+    Alignment getVerticalAlignment() const { return m_verticalAlignment; }
+    PDFReal getHorizontalOffset() const { return m_horizontalOffset; }
+    PDFReal getVerticalOffset() const { return m_verticalOffset; }
+
+    /// Creates a new rich media position from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaWindowPosition parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Alignment m_horizontalAlignment = Alignment::Far;
+    Alignment m_verticalAlignment = Alignment::Near;
+    PDFReal m_horizontalOffset = 18.0;
+    PDFReal m_verticalOffset = 18.0;
+};
+
+/// Rich media window
+class PDFRichMediaWindow
+{
+public:
+    explicit inline PDFRichMediaWindow() = default;
+
+    enum SizeHintType
+    {
+        Default,
+        Max,
+        Min,
+        End
+    };
+
+    PDFReal getWidth(SizeHintType type) const { return m_width.at(type); }
+    PDFReal getHeight(SizeHintType type) const { return m_height.at(type); }
+    const PDFRichMediaWindowPosition& getRichMediaWindowPosition() const { return m_richMediaPosition; }
+
+    using WindowSize = std::array<PDFReal, End>;
+
+    /// Creates a new rich media window from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaWindow parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    WindowSize m_width = { 288.0, 576.0, 72.0 };
+    WindowSize m_height = { 288.0, 576.0, 72.0 };
+    PDFRichMediaWindowPosition m_richMediaPosition;
+};
+
+/// Rich media presentation defines, how rich media will appear on the page,
+/// or if it should be launched in a new window.
+class PDFRichMediaPresentation
+{
+public:
+    explicit inline PDFRichMediaPresentation() = default;
+
+    enum class Style
+    {
+        Embedded,
+        Windowed
+    };
+
+    Style getStyle() const { return m_style; }
+    const PDFRichMediaWindow& getWindow() const { return m_window; }
+    bool isTransparent() const { return m_isTransparent; }
+    bool isNavigationPaneEnabled() const { return m_isNavigationPaneEnabled; }
+    bool isToolbarEnabled() const { return m_isToolbarEnabled; }
+    bool isContentClickPassed() const { return m_isContentClickPassed; }
+
+    /// Creates a new rich media presentation from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaPresentation parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Style m_style = Style::Embedded;
+    PDFRichMediaWindow m_window; ///< Meaningful only when style is windowed
+    bool m_isTransparent = false;
+    bool m_isNavigationPaneEnabled = false;
+    bool m_isToolbarEnabled = false;
+    bool m_isContentClickPassed = false;
+};
+
+/// Rich media animation
+class PDFRichMediaAnimation
+{
+public:
+    explicit inline PDFRichMediaAnimation() = default;
+
+    enum class Animation
+    {
+        None,
+        Linear,
+        Oscillating
+    };
+
+    Animation getAnimation() const { return m_animation; }
+    PDFInteger getPlayCount() const { return m_playCount; }
+    PDFReal getSpeed() const { return m_speed; }
+
+    /// Creates a new rich media animation from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaAnimation parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Animation m_animation = Animation::None;
+    PDFInteger m_playCount = -1;
+    PDFReal m_speed = 1;
+};
+
+/// Rich media deactivation dictionary
+class PDFRichMediaDeactivation
+{
+public:
+    explicit inline PDFRichMediaDeactivation() = default;
+
+    enum class DeactivationMode
+    {
+        ExplicitlyByUserAction,
+        PageLoseFocus,
+        PageHide
+    };
+
+    DeactivationMode getMode() const { return m_mode; }
+
+    /// Creates a new rich media deactivation from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaDeactivation parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    DeactivationMode m_mode = DeactivationMode::ExplicitlyByUserAction;
+};
+
+/// Rich media activation dictionary
+class PDFRichMediaActivation
+{
+public:
+    explicit inline PDFRichMediaActivation() = default;
+
+    enum class ActivationMode
+    {
+        ExplicitlyByUserAction,
+        PageEnterFocus,
+        PageShow
+    };
+
+    ActivationMode getActivationMode() const { return m_mode; }
+    const PDFRichMediaAnimation& getAnimation() const { return m_animation; }
+    PDFObjectReference getView() const { return m_view; }
+    PDFObjectReference getConfiguration() const { return m_configuration; }
+    const PDFRichMediaPresentation& getPresentation() const { return m_presentation; }
+
+    /// Creates a new rich media activation from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaActivation parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    ActivationMode m_mode = ActivationMode::ExplicitlyByUserAction;
+    PDFRichMediaAnimation m_animation;
+    PDFObjectReference m_view;
+    PDFObjectReference m_configuration;
+    PDFRichMediaPresentation m_presentation;
+};
+
+/// Rich media settings
+class PDFRichMediaSettings
+{
+public:
+    explicit inline PDFRichMediaSettings() = default;
+
+    const PDFRichMediaActivation& getActivation() const { return m_activation; }
+    const PDFRichMediaDeactivation& getDeactivation() const { return m_deactivation; }
+
+    /// Creates a new rich media settings from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaSettings parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    PDFRichMediaActivation m_activation;
+    PDFRichMediaDeactivation m_deactivation;
+};
+
+/// Rich media content dictionary
+class PDFRichMediaContent
+{
+public:
+    explicit inline PDFRichMediaContent() = default;
+
+    using Assets = std::map<QByteArray, PDFFileSpecification>;
+    using Configurations = std::vector<PDFObjectReference>;
+    using Views = std::vector<PDFObjectReference>;
+
+    const Assets& getAssets() const { return m_assets; }
+    const Configurations& getConfigurations() const { return m_configurations; }
+    const Views& getViews() const { return m_views; }
+
+    /// Creates a new rich media content from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaContent parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Assets m_assets;
+    Configurations m_configurations;
+    Views m_views;
+};
+
+enum class RichMediaType
+{
+    Unspecified,
+    _3D,
+    Sound,
+    Flash,
+    Video
+};
+
+/// Rich media configuration dictionary
+class PDFRichMediaConfiguration
+{
+public:
+    explicit inline PDFRichMediaConfiguration() = default;
+
+    using Instances = std::vector<PDFObjectReference>;
+
+    RichMediaType getType() const { return m_type; }
+    const Instances& getInstances() const { return m_instances; }
+
+    /// Creates a new rich media configuration from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaConfiguration parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    RichMediaType m_type = RichMediaType::Unspecified;
+    Instances m_instances;
+};
+
+/// Rich media instance dictionary
+class PDFRichMediaInstance
+{
+public:
+    explicit inline PDFRichMediaInstance() = default;
+
+    RichMediaType getType() const { return m_type; }
+    PDFObjectReference getAsset() const { return m_asset; }
+
+    /// Creates a new rich media instance from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDFRichMediaInstance parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    RichMediaType m_type = RichMediaType::Unspecified;
+    PDFObjectReference m_asset;
+};
+
+/// 3D PDF activation dictionary
+class PDF3DActivation
+{
+public:
+
+    /// Activation/deactivation mode
+    enum class TriggerMode
+    {
+        ExplicitlyByUserAction, ///< Explicitly turned on/off by user
+        PageFocus,              ///< Turned on/off by gain/lose focus
+        PageVisibility          ///< Turned on/off by page shown/hidden
+    };
+
+    /// Activation mode
+    enum class ActivationMode
+    {
+        Uninstantiated,
+        Instantiated,
+        Live
+    };
+
+    /// Style
+    enum class Style
+    {
+        Embedded,
+        Windowed
+    };
+
+    TriggerMode getActivationTriggerMode() const { return m_activationMode; }
+    TriggerMode getDeactivationTriggerMode() const { return m_deactivationMode; }
+    ActivationMode getActivationMode() const { return m_activationMode; }
+    ActivationMode getDeactivationMode() const { return m_deactivationMode; }
+    bool hasToolbar() const { return m_toolbar; }
+    bool hasNavigator() const { return m_navigator; }
+    Style getStyle() const { return m_style; }
+    const PDFRichMediaWindow& getWindow() const { return m_window; }
+    bool isTransparent() const { return m_transparent; }
+
+    /// Creates a new 3D annotation activation from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DActivation parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    TriggerMode m_activationTriggerMode = TriggerMode::ExplicitlyByUserAction;
+    TriggerMode m_deactivationTriggerMode = TriggerMode::PageVisibility;
+    ActivationMode m_activationMode = ActivationMode::Live;
+    ActivationMode m_deactivationMode = ActivationMode::Uninstantiated;
+    bool m_toolbar = true;
+    bool m_navigator = false;
+    Style m_style = Style::Embedded;
+    PDFRichMediaWindow m_window;
+    bool m_transparent = false;
 };
 
 }   // namespace pdf

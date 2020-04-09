@@ -17,11 +17,19 @@
 
 #include "pdfmultimedia.h"
 #include "pdfdocument.h"
+#include "pdfnametreeloader.h"
 
 #include <QtEndian>
 
 namespace pdf
 {
+
+constexpr const std::array<std::pair<const char*, RichMediaType>, 4> richMediaTypes = {
+    std::pair<const char*, RichMediaType>{ "3D", RichMediaType::_3D },
+    std::pair<const char*, RichMediaType>{ "Flash", RichMediaType::Flash },
+    std::pair<const char*, RichMediaType>{ "Sound", RichMediaType::Sound },
+    std::pair<const char*, RichMediaType>{ "Video", RichMediaType::Video }
+};
 
 PDFSound PDFSound::parse(const PDFObjectStorage* storage, PDFObject object)
 {
@@ -660,6 +668,244 @@ PDFInteger PDFMovieActivation::parseMovieTimeFromString(const QByteArray& string
     }
 
     return 0;
+}
+
+PDFRichMediaWindowPosition PDFRichMediaWindowPosition::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaWindowPosition result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, Alignment>, 3> alignments = {
+            std::pair<const char*, Alignment>{ "Near", Alignment::Near },
+            std::pair<const char*, Alignment>{ "Center", Alignment::Center },
+            std::pair<const char*, Alignment>{ "Far", Alignment::Far }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_horizontalAlignment = loader.readEnumByName(dictionary->get("HAlign"), alignments.cbegin(), alignments.cend(), Alignment::Far);
+        result.m_verticalAlignment = loader.readEnumByName(dictionary->get("VAlign"), alignments.cbegin(), alignments.cend(), Alignment::Near);
+        result.m_horizontalOffset = loader.readNumberFromDictionary(dictionary, "HOffset", 18.0);
+        result.m_verticalOffset = loader.readNumberFromDictionary(dictionary, "VOffset", 18.0);
+    }
+
+    return result;
+}
+
+PDFRichMediaWindow PDFRichMediaWindow::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaWindow result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        // Parse width
+        if (const PDFDictionary* widthDictionary = storage->getDictionaryFromObject(dictionary->get("Width")))
+        {
+            result.m_width[Default] = loader.readNumberFromDictionary(widthDictionary, "Default", 288.0);
+            result.m_width[Max] = loader.readNumberFromDictionary(widthDictionary, "Max", 576.0);
+            result.m_width[Min] = loader.readNumberFromDictionary(widthDictionary, "Min", 72.0);
+        }
+
+        // Parse height
+        if (const PDFDictionary* heightDictionary = storage->getDictionaryFromObject(dictionary->get("Height")))
+        {
+            result.m_height[Default] = loader.readNumberFromDictionary(heightDictionary, "Default", 288.0);
+            result.m_height[Max] = loader.readNumberFromDictionary(heightDictionary, "Max", 576.0);
+            result.m_height[Min] = loader.readNumberFromDictionary(heightDictionary, "Min", 72.0);
+        }
+
+        result.m_richMediaPosition = PDFRichMediaWindowPosition::parse(storage, dictionary->get("Position"));
+    }
+
+    return result;
+}
+
+PDFRichMediaPresentation PDFRichMediaPresentation::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaPresentation result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, Style>, 2> styles = {
+            std::pair<const char*, Style>{ "Embedded", Style::Embedded },
+            std::pair<const char*, Style>{ "Windowed", Style::Windowed }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_style = loader.readEnumByName(dictionary->get("Style"), styles.cbegin(), styles.cend(), Style::Embedded);
+        result.m_window = PDFRichMediaWindow::parse(storage, dictionary->get("Window"));
+        result.m_isTransparent = loader.readBooleanFromDictionary(dictionary, "Transparent", false);
+        result.m_isNavigationPaneEnabled = loader.readBooleanFromDictionary(dictionary, "NavigationPane", false);
+        result.m_isToolbarEnabled = loader.readBooleanFromDictionary(dictionary, "Toolbar", false);
+        result.m_isContentClickPassed = loader.readBooleanFromDictionary(dictionary, "PassContextClick", false);
+    }
+
+    return result;
+}
+
+PDFRichMediaAnimation PDFRichMediaAnimation::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaAnimation result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, Animation>, 3> animations = {
+            std::pair<const char*, Animation>{ "None", Animation::None },
+            std::pair<const char*, Animation>{ "Linear", Animation::Linear },
+            std::pair<const char*, Animation>{ "Oscillating", Animation::Oscillating }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_animation = loader.readEnumByName(dictionary->get("Subtype"), animations.cbegin(), animations.cend(), Animation::None);
+        result.m_playCount = loader.readIntegerFromDictionary(dictionary, "PlayCount", -1);
+        result.m_speed = loader.readNumberFromDictionary(dictionary, "Speed", 1.0);
+    }
+
+    return result;
+}
+
+PDFRichMediaDeactivation PDFRichMediaDeactivation::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaDeactivation result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, DeactivationMode>, 3> deactivationModes = {
+            std::pair<const char*, DeactivationMode>{ "XD", DeactivationMode::ExplicitlyByUserAction },
+            std::pair<const char*, DeactivationMode>{ "PC", DeactivationMode::PageLoseFocus },
+            std::pair<const char*, DeactivationMode>{ "PI", DeactivationMode::PageHide }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_mode = loader.readEnumByName(dictionary->get("Condition"), deactivationModes.cbegin(), deactivationModes.cend(), DeactivationMode::ExplicitlyByUserAction);
+    }
+
+    return result;
+}
+
+PDFRichMediaActivation PDFRichMediaActivation::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaActivation result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, ActivationMode>, 3> activationModes = {
+            std::pair<const char*, ActivationMode>{ "XA", ActivationMode::ExplicitlyByUserAction },
+            std::pair<const char*, ActivationMode>{ "PO", ActivationMode::PageEnterFocus },
+            std::pair<const char*, ActivationMode>{ "PV", ActivationMode::PageShow }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_mode = loader.readEnumByName(dictionary->get("Condition"), activationModes.cbegin(), activationModes.cend(), ActivationMode::ExplicitlyByUserAction);
+        result.m_animation = PDFRichMediaAnimation::parse(storage, dictionary->get("Animation"));
+        result.m_view = loader.readReferenceFromDictionary(dictionary, "View");
+        result.m_configuration = loader.readReferenceFromDictionary(dictionary, "Configuration");
+        result.m_presentation = PDFRichMediaPresentation::parse(storage, dictionary->get("Presentation"));
+    }
+
+    return result;
+}
+
+PDFRichMediaSettings PDFRichMediaSettings::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaSettings result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        result.m_activation = PDFRichMediaActivation::parse(storage, dictionary->get("Activation"));
+        result.m_deactivation = PDFRichMediaDeactivation::parse(storage, dictionary->get("Deactivation"));
+    }
+
+    return result;
+}
+
+PDFRichMediaContent PDFRichMediaContent::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaContent result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_assets = PDFNameTreeLoader<PDFFileSpecification>::parse(storage, dictionary->get("Assets"), &PDFFileSpecification::parse);
+        result.m_configurations = loader.readReferenceArrayFromDictionary(dictionary, "Configurations");
+        result.m_views = loader.readReferenceArrayFromDictionary(dictionary, "Views");
+    }
+
+    return result;
+}
+
+PDFRichMediaConfiguration PDFRichMediaConfiguration::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaConfiguration result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_type = loader.readEnumByName(dictionary->get("Subtype"), richMediaTypes.cbegin(), richMediaTypes.cend(), RichMediaType::Unspecified);
+        result.m_instances = loader.readReferenceArrayFromDictionary(dictionary, "Instances");
+    }
+
+    return result;
+}
+
+PDFRichMediaInstance PDFRichMediaInstance::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFRichMediaInstance result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_type = loader.readEnumByName(dictionary->get("Subtype"), richMediaTypes.cbegin(), richMediaTypes.cend(), RichMediaType::Unspecified);
+        result.m_asset = loader.readReferenceFromDictionary(dictionary, "Asset");
+    }
+
+    return result;
+}
+
+PDF3DActivation PDF3DActivation::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DActivation result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, TriggerMode>, 3> activationModes = {
+            std::pair<const char*, TriggerMode>{ "XA", TriggerMode::ExplicitlyByUserAction },
+            std::pair<const char*, TriggerMode>{ "PO", TriggerMode::PageFocus },
+            std::pair<const char*, TriggerMode>{ "PV", TriggerMode::PageVisibility }
+        };
+
+        constexpr const std::array<std::pair<const char*, ActivationMode>, 3> deactivationModes = {
+            std::pair<const char*, TriggerMode>{ "XD", TriggerMode::ExplicitlyByUserAction },
+            std::pair<const char*, TriggerMode>{ "PC", TriggerMode::PageFocus },
+            std::pair<const char*, TriggerMode>{ "PI", TriggerMode::PageVisibility }
+        };
+
+        constexpr const std::array<std::pair<const char*, ActivationMode>, 3> stateModes = {
+            std::pair<const char*, ActivationMode>{ "I", ActivationMode::Instantiated },
+            std::pair<const char*, ActivationMode>{ "L", ActivationMode::Live },
+            std::pair<const char*, ActivationMode>{ "U", ActivationMode::Uninstantiated }
+        };
+
+        constexpr const std::array<std::pair<const char*, Style>, 2> styles = {
+            std::pair<const char*, Style>{ "Embedded", Style::Embedded },
+            std::pair<const char*, Style>{ "Windowed", Style::Windowed }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_activationTriggerMode = loader.readEnumByName(dictionary->get("A"), activationModes.cbegin(), activationModes.cend(), TriggerMode::ExplicitlyByUserAction);
+        result.m_deactivationTriggerMode = loader.readEnumByName(dictionary->get("D"), deactivationModes.cbegin(), deactivationModes.cend(), TriggerMode::PageVisibility);
+        result.m_activationMode = loader.readEnumByName(dictionary->get("AIS"), stateModes.cbegin(), stateModes.cend(), ActivationMode::Live);
+        result.m_deactivationMode = loader.readEnumByName(dictionary->get("DIS"), stateModes.cbegin(), stateModes.cend(), ActivationMode::Uninstantiated);
+        result.m_toolbar = loader.readBooleanFromDictionary(dictionary, "TB", true);
+        result.m_navigator = loader.readBooleanFromDictionary(dictionary, "NP", false);
+        result.m_style = loader.readEnumByName(dictionary->get("Style"), styles.cbegin(), styles.cend(), Style::Embedded);
+        result.m_window = PDFRichMediaWindow::parse(storage, dictionary->get("Window"));
+        result.m_transparent = loader.readBooleanFromDictionary(dictionary, "Transparent", false);
+    }
+
+    return result;
 }
 
 }   // namespace pdf

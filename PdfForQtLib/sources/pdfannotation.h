@@ -64,7 +64,8 @@ enum class AnnotationType
     PrinterMark,
     TrapNet,
     Watermark,
-    _3D
+    _3D,
+    RichMedia
 };
 
 enum class AnnotationLineEnding
@@ -564,6 +565,12 @@ protected:
                   const QString& text,
                   bool textIsAboveLine) const;
 
+    /// Draws character unicode symbol using text
+    /// \param text Text to be drawn
+    /// \param opacity Opacity
+    /// \param parameters Draw parameters
+    void drawCharacterSymbol(QString text, PDFReal opacity, AnnotationDrawParameters& parameters) const;
+
 private:
 
     QRectF m_rectangle; ///< Annotation rectangle, in page coordinates, "Rect" entry
@@ -1044,6 +1051,7 @@ public:
     };
 
     virtual AnnotationType getType() const override { return AnnotationType::Sound; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const PDFSound& getSound() const { return m_sound; }
     Icon getIcon() const { return m_icon; }
@@ -1173,6 +1181,27 @@ private:
     QMatrix m_matrix;
     PDFReal m_relativeHorizontalOffset = 0.0;
     PDFReal m_relativeVerticalOffset = 0.0;
+};
+
+/// Rich media annotations can be video, audio, or other multimedia presentations.
+/// The application should provide additional functionality to control rich media,
+/// such as buttons to play/pause/stop video etc. This annotation consists
+/// of contents and settings, settings are optional.
+class PDFRichMediaAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFRichMediaAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::RichMedia; }
+
+    const PDFRichMediaContent* getContent() const { return &m_content; }
+    const PDFRichMediaSettings* getSettings() const { return &m_settings; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
+
+    PDFRichMediaContent m_content;
+    PDFRichMediaSettings m_settings;
 };
 
 /// Annotation manager manages annotations for document's pages. Each page

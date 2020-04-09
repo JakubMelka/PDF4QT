@@ -539,6 +539,14 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
             annotation->m_relativeVerticalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "V", 0.0);
         }
     }
+    else if (subtype == "RichMedia")
+    {
+        PDFRichMediaAnnotation* annotation = new PDFRichMediaAnnotation();
+        result.reset(annotation);
+
+        annotation->m_content = PDFRichMediaContent::parse(storage, dictionary->get("RichMediaContent"));
+        annotation->m_settings = PDFRichMediaSettings::parse(storage, dictionary->get("RichMediaSettings"));
+    }
 
     if (!result)
     {
@@ -2121,6 +2129,29 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
 }
 
+void PDFAnnotation::drawCharacterSymbol(QString text, PDFReal opacity, AnnotationDrawParameters& parameters) const
+{
+    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
+
+    constexpr const PDFReal rectSize = 24.0;
+    QPainter& painter = *parameters.painter;
+    QRectF rectangle = getRectangle();
+    rectangle.setSize(QSizeF(rectSize, rectSize));
+
+    QFont font = QApplication::font();
+    font.setPixelSize(16.0);
+
+    QPainterPath textPath;
+    textPath.addText(0.0, 0.0, font, text);
+    textPath = QMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
+    QRectF textBoundingRect = textPath.boundingRect();
+    QPointF offset = rectangle.center() - textBoundingRect.center();
+    textPath.translate(offset);
+    painter.fillPath(textPath, QBrush(strokeColor, Qt::SolidPattern));
+
+    parameters.boundingRectangle = rectangle;
+}
+
 void PDFFileAttachmentAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     QString text = "?";
@@ -2144,26 +2175,27 @@ void PDFFileAttachmentAnnotation::draw(AnnotationDrawParameters& parameters) con
             break;
     }
 
-    const PDFReal opacity = getOpacity();
-    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
+    drawCharacterSymbol(text, getOpacity(), parameters);
+}
 
-    constexpr const PDFReal rectSize = 24.0;
-    QPainter& painter = *parameters.painter;
-    QRectF rectangle = getRectangle();
-    rectangle.setSize(QSizeF(rectSize, rectSize));
+void PDFSoundAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    QString text = "?";
+    switch (getIcon())
+    {
+        case Icon::Speaker:
+            text = QString::fromUtf16(u"\U0001F508");
+            break;
+        case Icon::Microphone:
+            text = QString::fromUtf16(u"\U0001F3A4");
+            break;
 
-    QFont font = QApplication::font();
-    font.setPixelSize(16.0);
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 
-    QPainterPath textPath;
-    textPath.addText(0.0, 0.0, font, text);
-    textPath = QMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
-    QRectF textBoundingRect = textPath.boundingRect();
-    QPointF offset = rectangle.center() - textBoundingRect.center();
-    textPath.translate(offset);
-    painter.fillPath(textPath, QBrush(strokeColor, Qt::SolidPattern));
-
-    parameters.boundingRectangle = rectangle;
+    drawCharacterSymbol(text, getOpacity(), parameters);
 }
 
 }   // namespace pdf
