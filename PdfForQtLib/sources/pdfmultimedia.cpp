@@ -31,6 +31,74 @@ constexpr const std::array<std::pair<const char*, RichMediaType>, 4> richMediaTy
     std::pair<const char*, RichMediaType>{ "Video", RichMediaType::Video }
 };
 
+class PDF3DAuxiliaryParser
+{
+public:
+    PDF3DAuxiliaryParser() = delete;
+
+    /// Parses 4x4 transformation matrix
+    /// \param storage Storage
+    /// \param object Object
+    static QMatrix4x4 parseMatrix4x4(const PDFObjectStorage* storage, PDFObject object);
+
+    /// Parses 3D annotation color
+    static QColor parseColor(const PDFObjectStorage* storage, PDFObject object, QColor defaultColor);
+};
+
+QMatrix4x4 PDF3DAuxiliaryParser::parseMatrix4x4(const PDFObjectStorage* storage, PDFObject object)
+{
+    QMatrix4x4 matrix;
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    std::vector<PDFReal> elements = loader.readNumberArray(object);
+    if (elements.size() == 12)
+    {
+        const PDFReal a = elements[ 0];
+        const PDFReal b = elements[ 1];
+        const PDFReal c = elements[ 2];
+        const PDFReal d = elements[ 3];
+        const PDFReal e = elements[ 4];
+        const PDFReal f = elements[ 5];
+        const PDFReal g = elements[ 6];
+        const PDFReal h = elements[ 7];
+        const PDFReal i = elements[ 8];
+        const PDFReal tx = elements[ 9];
+        const PDFReal ty = elements[10];
+        const PDFReal tz = elements[11];
+
+        matrix = QMatrix4x4(a, b, c, 0,
+                            d, e, f, 0,
+                            g, h, i, 0,
+                            tx, ty, tz, 1.0);
+    }
+
+    return matrix;
+}
+
+QColor PDF3DAuxiliaryParser::parseColor(const PDFObjectStorage* storage, PDFObject object, QColor defaultColor)
+{
+    object = storage->getObject(object);
+
+    // If color is invalid according to the specification, then return default value
+    if (object.isArray())
+    {
+        const PDFArray* array = object.getArray();
+        if (array->getCount() == 4)
+        {
+            PDFDocumentDataLoaderDecorator loader(storage);
+            if (loader.readName(array->getItem(0)) == "DeviceRGB")
+            {
+                const PDFReal r = loader.readNumber(array->getItem(1), 0.0);
+                const PDFReal g = loader.readNumber(array->getItem(2), 0.0);
+                const PDFReal b = loader.readNumber(array->getItem(3), 0.0);
+                return QColor::fromRgbF(r, g, b, 1.0);
+            }
+        }
+    }
+
+    return defaultColor;
+}
+
 PDFSound PDFSound::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFSound result;
@@ -876,7 +944,7 @@ PDF3DActivation PDF3DActivation::parse(const PDFObjectStorage* storage, PDFObjec
             std::pair<const char*, TriggerMode>{ "PV", TriggerMode::PageVisibility }
         };
 
-        constexpr const std::array<std::pair<const char*, ActivationMode>, 3> deactivationModes = {
+        constexpr const std::array<std::pair<const char*, TriggerMode>, 3> deactivationModes = {
             std::pair<const char*, TriggerMode>{ "XD", TriggerMode::ExplicitlyByUserAction },
             std::pair<const char*, TriggerMode>{ "PC", TriggerMode::PageFocus },
             std::pair<const char*, TriggerMode>{ "PI", TriggerMode::PageVisibility }
@@ -903,6 +971,221 @@ PDF3DActivation PDF3DActivation::parse(const PDFObjectStorage* storage, PDFObjec
         result.m_style = loader.readEnumByName(dictionary->get("Style"), styles.cbegin(), styles.cend(), Style::Embedded);
         result.m_window = PDFRichMediaWindow::parse(storage, dictionary->get("Window"));
         result.m_transparent = loader.readBooleanFromDictionary(dictionary, "Transparent", false);
+    }
+
+    return result;
+}
+
+PDF3DRenderMode PDF3DRenderMode::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DRenderMode result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, RenderMode>, 15> renderModes = {
+            std::pair<const char*, RenderMode>{ "Solid",                          RenderMode::Solid },
+            std::pair<const char*, RenderMode>{ "SolidWireframe",                 RenderMode::SolidWireframe },
+            std::pair<const char*, RenderMode>{ "Transparent",                    RenderMode::Transparent },
+            std::pair<const char*, RenderMode>{ "TransparentWireframe",           RenderMode::TransparentWireframe },
+            std::pair<const char*, RenderMode>{ "BoundingBox",                    RenderMode::BoundingBox },
+            std::pair<const char*, RenderMode>{ "TransparentBoundingBox",         RenderMode::TransparentBoundingBox },
+            std::pair<const char*, RenderMode>{ "TransparentBoundingBoxOutline",  RenderMode::TransparentBoundingBoxOutline },
+            std::pair<const char*, RenderMode>{ "Wireframe",                      RenderMode::Wireframe },
+            std::pair<const char*, RenderMode>{ "ShadedWireframe",                RenderMode::ShadedWireframe },
+            std::pair<const char*, RenderMode>{ "HiddenWireframe",                RenderMode::HiddenWireframe },
+            std::pair<const char*, RenderMode>{ "Vertices",                       RenderMode::Vertices },
+            std::pair<const char*, RenderMode>{ "ShadedVertices",                 RenderMode::ShadedVertices },
+            std::pair<const char*, RenderMode>{ "Illustration",                   RenderMode::Illustration },
+            std::pair<const char*, RenderMode>{ "SolidOutline",                   RenderMode::SolidOutline },
+            std::pair<const char*, RenderMode>{ "ShadedIllustration",             RenderMode::ShadedIllustration }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_renderMode = loader.readEnumByName(dictionary->get("Subtype"), renderModes.cbegin(), renderModes.cend(), RenderMode::Solid);
+        result.m_auxiliaryColor = PDF3DAuxiliaryParser::parseColor(storage, dictionary->get("AC"), Qt::black);
+        result.m_faceColor = PDF3DAuxiliaryParser::parseColor(storage, dictionary->get("FC"), Qt::black);
+        result.m_faceColorMode = (loader.readName(dictionary->get("FC")) != "BG") ? FaceColorMode::Color : FaceColorMode::BG;
+        result.m_opacity = loader.readNumberFromDictionary(dictionary, "O", 0.5);
+        result.m_creaseAngle = loader.readNumberFromDictionary(dictionary, "CV", 45.0);
+    }
+
+    return result;
+}
+
+PDF3DNode PDF3DNode::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DNode result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_name = loader.readTextStringFromDictionary(dictionary, "N", QString());
+        if (dictionary->hasKey("O"))
+        {
+            result.m_opacity = loader.readNumberFromDictionary(dictionary, "O", 1.0);
+        }
+        if (dictionary->hasKey("V"))
+        {
+            result.m_visibility = loader.readBooleanFromDictionary(dictionary, "V", true);
+        }
+        if (dictionary->hasKey("M"))
+        {
+            result.m_matrix = PDF3DAuxiliaryParser::parseMatrix4x4(storage, dictionary->get("M"));
+        }
+        result.m_instance = loader.readReferenceFromDictionary(dictionary, "Instance");
+        result.m_data = loader.readTextStringFromDictionary(dictionary, "Data", QString());
+        if (dictionary->hasKey("RM"))
+        {
+            result.m_renderMode = PDF3DRenderMode::parse(storage, dictionary->get("RM"));
+        }
+    }
+
+    return result;
+}
+
+PDF3DCrossSection PDF3DCrossSection::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DCrossSection result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        loader.readNumberArray(dictionary->get("C"), result.m_centerOfRotation.begin(), result.m_centerOfRotation.end());
+
+        PDFObject axesRotation = storage->getObject(dictionary->get("O"));
+        if (const PDFArray* rotations = axesRotation.getArray())
+        {
+            if (rotations->getCount() == 3)
+            {
+                PDFObject xObject = storage->getObject(rotations->getItem(0));
+                PDFObject yObject = storage->getObject(rotations->getItem(1));
+                PDFObject zObject = storage->getObject(rotations->getItem(2));
+
+                auto readValue = [&result, &loader](const PDFObject& object, int index, Direction direction)
+                {
+                    if (object.isNull())
+                    {
+                        result.m_perpendicularDirection = direction;
+                        result.m_rotationAngles[index] = 0.0;
+                    }
+                    else
+                    {
+                        result.m_rotationAngles[index] = loader.readNumber(object, 0.0);
+                    }
+                };
+
+                readValue(xObject, 0, Direction::X);
+                readValue(yObject, 1, Direction::Y);
+                readValue(zObject, 2, Direction::Z);
+            }
+        }
+
+        result.m_cutPlaneOpacity = loader.readNumberFromDictionary(dictionary, "PO", 0.5);
+        result.m_cutPlaneColor = PDF3DAuxiliaryParser::parseColor(storage, dictionary->get("PC"), Qt::white);
+        result.m_intersectionVisibility = loader.readBooleanFromDictionary(dictionary, "IV", false);
+        result.m_intersectionColor = PDF3DAuxiliaryParser::parseColor(storage, dictionary->get("IC"), Qt::green);
+        result.m_showTransparent = loader.readBooleanFromDictionary(dictionary, "ST", false);
+        result.m_sectionCapping = loader.readBooleanFromDictionary(dictionary, "SC", false);
+    }
+
+    return result;
+}
+
+PDF3DLightingScheme PDF3DLightingScheme::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DLightingScheme result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, LightingScheme>, 12> lightingSchemes = {
+            std::pair<const char*, LightingScheme>{ "Artwork", LightingScheme::Artwork },
+            std::pair<const char*, LightingScheme>{ "None", LightingScheme::None },
+            std::pair<const char*, LightingScheme>{ "White", LightingScheme::White },
+            std::pair<const char*, LightingScheme>{ "Day", LightingScheme::Day },
+            std::pair<const char*, LightingScheme>{ "Night", LightingScheme::Night },
+            std::pair<const char*, LightingScheme>{ "Hard", LightingScheme::Hard },
+            std::pair<const char*, LightingScheme>{ "Primary", LightingScheme::Primary },
+            std::pair<const char*, LightingScheme>{ "Blue", LightingScheme::Blue },
+            std::pair<const char*, LightingScheme>{ "Red", LightingScheme::Red },
+            std::pair<const char*, LightingScheme>{ "Cube", LightingScheme::Cube },
+            std::pair<const char*, LightingScheme>{ "CAD", LightingScheme::CAD },
+            std::pair<const char*, LightingScheme>{ "Headlamp", LightingScheme::Headlamp }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_scheme = loader.readEnumByName(dictionary->get("Subtype"), lightingSchemes.cbegin(), lightingSchemes.cend(), LightingScheme::Artwork);
+    }
+
+    return result;
+}
+
+PDF3DBackground PDF3DBackground::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DBackground result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        // This is a hack to parse color in same way as in another objects
+        PDFObject colorSpace = dictionary->get("CS");
+        if (colorSpace.isNull())
+        {
+            colorSpace = PDFObject::createName(std::make_shared<PDFString>("DeviceRGB"));
+        }
+        std::vector<PDFReal> color = loader.readNumberArrayFromDictionary(dictionary, "C", { 1.0, 1.0, 1.0});
+        PDFArray array;
+        array.appendItem(colorSpace);
+        for (PDFReal colorComponent : color)
+        {
+            array.appendItem(PDFObject::createReal(colorComponent));
+        }
+        PDFObject colorObject = PDFObject::createArray(std::make_shared<PDFArray>(qMove(array)));
+
+        result.m_color = PDF3DAuxiliaryParser::parseColor(storage, colorObject, Qt::white);
+        result.m_entireAnnotation = loader.readBooleanFromDictionary(dictionary, "EA", false);
+    }
+
+    return result;
+}
+
+PDF3DProjection PDF3DProjection::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DProjection result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, Projection>, 2> projections = {
+            std::pair<const char*, Projection>{ "O", Projection::Orthographic },
+            std::pair<const char*, Projection>{ "P", Projection::Perspective }
+        };
+
+        constexpr const std::array<std::pair<const char*, ClippingStyle>, 2> clippingStyles = {
+            std::pair<const char*, ClippingStyle>{ "XNF", ClippingStyle::Explicit },
+            std::pair<const char*, ClippingStyle>{ "ANF", ClippingStyle::Automatic }
+        };
+
+        constexpr const std::array<std::pair<const char*, ScaleMode>, 5> scaleModes = {
+            std::pair<const char*, ScaleMode>{ "W", ScaleMode::W },
+            std::pair<const char*, ScaleMode>{ "H", ScaleMode::H },
+            std::pair<const char*, ScaleMode>{ "Min", ScaleMode::Min },
+            std::pair<const char*, ScaleMode>{ "Max", ScaleMode::Max },
+            std::pair<const char*, ScaleMode>{ "Absolute", ScaleMode::Absolute }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_projection = loader.readEnumByName(dictionary->get("Subtype"), projections.cbegin(), projections.cend(), Projection::Orthographic);
+        result.m_clippingStyle = loader.readEnumByName(dictionary->get("CS"), clippingStyles.cbegin(), clippingStyles.cend(), ClippingStyle::Automatic);
+        result.m_near = loader.readNumberFromDictionary(dictionary, "N", 0.0);
+        result.m_far = loader.readNumberFromDictionary(dictionary, "F", qInf());
+        result.m_fieldOfViewAngle = loader.readNumberFromDictionary(dictionary, "FOV", 90.0);
+        if (dictionary->hasKey("PS"))
+        {
+            result.m_projectionScalingDiameter = loader.readNumberFromDictionary(dictionary, "PS", 0.0);
+            result.m_projectionScaleMode = loader.readEnumByName(dictionary->get("PS"), scaleModes.cbegin(), scaleModes.cend(), ScaleMode::Value);
+        }
+        result.m_scaleFactor = loader.readNumberFromDictionary(dictionary, "OS", 1.0);
+        result.m_scaleMode = result.m_projectionScaleMode = loader.readEnumByName(dictionary->get("OB"), scaleModes.cbegin(), scaleModes.cend(), ScaleMode::Absolute);
     }
 
     return result;

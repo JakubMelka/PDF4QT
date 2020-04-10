@@ -22,6 +22,7 @@
 #include "pdffile.h"
 
 #include <QColor>
+#include <QMatrix4x4>
 
 #include <map>
 #include <array>
@@ -30,6 +31,8 @@
 namespace pdf
 {
 class PDFObjectStorage;
+
+using PDFPoint3D = std::array<PDFReal, 3>;
 
 struct PDFMediaMultiLanguageTexts
 {
@@ -899,8 +902,8 @@ public:
         Windowed
     };
 
-    TriggerMode getActivationTriggerMode() const { return m_activationMode; }
-    TriggerMode getDeactivationTriggerMode() const { return m_deactivationMode; }
+    TriggerMode getActivationTriggerMode() const { return m_activationTriggerMode; }
+    TriggerMode getDeactivationTriggerMode() const { return m_deactivationTriggerMode; }
     ActivationMode getActivationMode() const { return m_activationMode; }
     ActivationMode getDeactivationMode() const { return m_deactivationMode; }
     bool hasToolbar() const { return m_toolbar; }
@@ -923,6 +926,228 @@ private:
     Style m_style = Style::Embedded;
     PDFRichMediaWindow m_window;
     bool m_transparent = false;
+};
+
+/// 3D PDF render mode
+class PDF3DRenderMode
+{
+public:
+    explicit inline PDF3DRenderMode() = default;
+
+    enum class RenderMode
+    {
+        Solid,
+        SolidWireframe,
+        Transparent,
+        TransparentWireframe,
+        BoundingBox,
+        TransparentBoundingBox,
+        TransparentBoundingBoxOutline,
+        Wireframe,
+        ShadedWireframe,
+        HiddenWireframe,
+        Vertices,
+        ShadedVertices,
+        Illustration,
+        SolidOutline,
+        ShadedIllustration
+    };
+
+    enum class FaceColorMode
+    {
+        BG,     ///< Current background color
+        Color   ///< Color specified
+    };
+
+    RenderMode getRenderMode() const { return m_renderMode; }
+    QColor getAuxiliaryColor() const { return m_auxiliaryColor; }
+    QColor getFaceColor() const { return m_faceColor; }
+    FaceColorMode getFaceColorMode() const { return m_faceColorMode; }
+    PDFReal getOpacity() const { return m_opacity; }
+    PDFReal getCreaseAngle() const { return m_creaseAngle; }
+
+    /// Creates a new 3D render mode from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DRenderMode parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    RenderMode m_renderMode = RenderMode::Solid;
+    QColor m_auxiliaryColor = Qt::black;
+    QColor m_faceColor = Qt::black;
+    FaceColorMode m_faceColorMode = FaceColorMode::BG;
+    PDFReal m_opacity = 0.5;
+    PDFReal m_creaseAngle = 45.0;
+};
+
+/// 3D PDF node (part of 3D structure)
+class PDF3DNode
+{
+public:
+    explicit inline PDF3DNode() = default;
+
+    const QString& getName() const { return m_name; }
+    const std::optional<PDFReal>& getOpacity() const { return m_opacity; }
+    const std::optional<bool>& getVisibility() const { return m_visibility; }
+    const std::optional<QMatrix4x4>& getMatrix() const { return m_matrix; }
+    PDFObjectReference getInstance() const { return m_instance; }
+    const QString& getData() const { return m_data; }
+    const std::optional<PDF3DRenderMode>& getRenderMode() const { return m_renderMode; }
+
+    /// Creates a new 3D node from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DNode parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    QString m_name;
+    std::optional<PDFReal> m_opacity;
+    std::optional<bool> m_visibility;
+    std::optional<QMatrix4x4> m_matrix;
+    PDFObjectReference m_instance;
+    QString m_data;
+    std::optional<PDF3DRenderMode> m_renderMode;
+};
+
+/// 3D PDF Cross section
+class PDF3DCrossSection
+{
+public:
+    explicit inline PDF3DCrossSection() = default;
+
+    enum class Direction
+    {
+        X,
+        Y,
+        Z
+    };
+
+    PDFPoint3D getCenterOfRotation() const { return m_centerOfRotation; }
+    PDFPoint3D getRotationAngles() const { return m_rotationAngles; }
+    Direction getPerpendicularDirection() const { return m_perpendicularDirection; }
+    PDFReal getCutPlaneOpacity() const { return m_cutPlaneOpacity; }
+    QColor getCutPlaneColor() const { return m_cutPlaneColor; }
+    bool getIntersectionVisibility() const { return m_intersectionVisibility; }
+    QColor getIntersectionColor() const { return m_intersectionColor; }
+    bool getShowTransparent() const { return m_showTransparent; }
+    bool getSectionCapping() const { return m_sectionCapping; }
+
+    /// Creates a new 3D cross section from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DCrossSection parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    PDFPoint3D m_centerOfRotation{};
+    PDFPoint3D m_rotationAngles{};
+    Direction m_perpendicularDirection = Direction::X;
+    PDFReal m_cutPlaneOpacity = 0.5;
+    QColor m_cutPlaneColor = Qt::white;
+    bool m_intersectionVisibility = false;
+    QColor m_intersectionColor = Qt::green;
+    bool m_showTransparent = false;
+    bool m_sectionCapping = false;
+};
+
+/// 3D PDF lighting scheme
+class PDF3DLightingScheme
+{
+public:
+    explicit inline PDF3DLightingScheme() = default;
+
+    enum class LightingScheme
+    {
+        Artwork,
+        None,
+        White,
+        Day,
+        Night,
+        Hard,
+        Primary,
+        Blue,
+        Red,
+        Cube,
+        CAD,
+        Headlamp
+    };
+
+    LightingScheme getLightingScheme() const { return m_scheme; }
+
+    /// Creates a new 3D lighting scheme from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DLightingScheme parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    LightingScheme m_scheme = LightingScheme::Artwork;
+};
+
+/// 3D PDF background
+class PDF3DBackground
+{
+public:
+    explicit inline PDF3DBackground() = default;
+
+    QColor getColor() const { return m_color; }
+    bool getEntireAnnotation() const { return m_entireAnnotation; }
+
+    /// Creates a new 3D background from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DBackground parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    QColor m_color;
+    bool m_entireAnnotation = false;
+};
+
+/// 3D PDF projection
+class PDF3DProjection
+{
+public:
+    explicit inline PDF3DProjection() = default;
+
+    enum class Projection
+    {
+        Orthographic,
+        Perspective
+    };
+
+    enum class ClippingStyle
+    {
+        Explicit,
+        Automatic
+    };
+
+    enum class ScaleMode
+    {
+        W,
+        H,
+        Min,
+        Max,
+        Absolute,
+        Value       ///< This means projection scaling diameter is defined
+    };
+
+    Projection getProjection() const { return m_projection; }
+    ClippingStyle getClippingStyle() const { return m_clippingStyle; }
+    PDFReal getNearPlane() const { return m_near; }
+    PDFReal getFarPlane() const { return m_far; }
+    PDFReal getFieldOfViewAngle() const { return m_fieldOfViewAngle; }
+    PDFReal getProjectionScalingDiameter() const { return m_projectionScalingDiameter; }
+    ScaleMode getProjectionScaleMode() const { return m_projectionScaleMode; }
+    PDFReal getScaleFactor() const { return m_scaleFactor; }
+    ScaleMode getScaleMode() const { return m_scaleMode; }
+
+    /// Creates a new 3D projection from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DProjection parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Projection m_projection = Projection::Orthographic;
+    ClippingStyle m_clippingStyle = ClippingStyle::Automatic;
+    PDFReal m_near = 0.0;
+    PDFReal m_far = qInf();
+    PDFReal m_fieldOfViewAngle = 90.0;
+    PDFReal m_projectionScalingDiameter = 0.0;
+    ScaleMode m_projectionScaleMode = ScaleMode::W;
+    PDFReal m_scaleFactor = 1.0;
+    ScaleMode m_scaleMode = ScaleMode::Absolute;
 };
 
 }   // namespace pdf
