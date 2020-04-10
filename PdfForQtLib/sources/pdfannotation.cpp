@@ -539,6 +539,44 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
             annotation->m_relativeVerticalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "V", 0.0);
         }
     }
+    else if (subtype == "3D")
+    {
+        PDF3DAnnotation* annotation = new PDF3DAnnotation();
+        result.reset(annotation);
+
+        annotation->m_stream = PDF3DStream::parse(storage, dictionary->get("3DD"));
+
+        const std::vector<PDF3DView>& views = annotation->getStream().getViews();
+        PDFObject defaultViewObject = storage->getObject(dictionary->get("DV"));
+        if (defaultViewObject.isDictionary())
+        {
+            annotation->m_defaultView = PDF3DView::parse(storage, defaultViewObject);
+        }
+        else if (defaultViewObject.isInt())
+        {
+            PDFInteger index = defaultViewObject.getInteger();
+            if (index >= 0 && index < PDFInteger(views.size()))
+            {
+                annotation->m_defaultView = views[index];
+            }
+        }
+        else if (defaultViewObject.isName() && !views.empty())
+        {
+            QByteArray name = defaultViewObject.getString();
+            if (name == "F")
+            {
+                annotation->m_defaultView = views.front();
+            }
+            else if (name == "L")
+            {
+                annotation->m_defaultView = views.back();
+            }
+        }
+
+        annotation->m_activation = PDF3DActivation::parse(storage, dictionary->get("3DA"));
+        annotation->m_interactive = loader.readBooleanFromDictionary(dictionary, "3DI", true);
+        annotation->m_viewBox = loader.readRectangle(dictionary->get("3DB"), QRectF());
+    }
     else if (subtype == "RichMedia")
     {
         PDFRichMediaAnnotation* annotation = new PDFRichMediaAnnotation();

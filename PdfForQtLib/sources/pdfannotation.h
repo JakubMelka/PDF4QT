@@ -1183,6 +1183,30 @@ private:
     PDFReal m_relativeVerticalOffset = 0.0;
 };
 
+/// 3D annotations represents 3D scene, which can be viewed in the application.
+class PDF3DAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDF3DAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::_3D; }
+
+    const PDF3DStream& getStream() const { return m_stream; }
+    const std::optional<PDF3DView>& getDefaultView() const { return m_defaultView; }
+    const PDF3DActivation& getActivation() const { return m_activation; }
+    bool isInteractive() const { return m_interactive; }
+    QRectF getViewBox() const { return m_viewBox; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object);
+
+    PDF3DStream m_stream;
+    std::optional<PDF3DView> m_defaultView;
+    PDF3DActivation m_activation;
+    bool m_interactive = true;
+    QRectF m_viewBox;
+};
+
 /// Rich media annotations can be video, audio, or other multimedia presentations.
 /// The application should provide additional functionality to control rich media,
 /// such as buttons to play/pause/stop video etc. This annotation consists

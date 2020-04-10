@@ -635,6 +635,26 @@ std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArrayFromDicti
     return std::vector<QByteArray>();
 }
 
+QStringList PDFDocumentDataLoaderDecorator::readTextStringList(const PDFObject& object)
+{
+    QStringList result;
+
+    const PDFObject& dereferencedObject = m_storage->getObject(object);
+    if (dereferencedObject.isArray())
+    {
+        const PDFArray* array = dereferencedObject.getArray();
+        const size_t count = array->getCount();
+        result.reserve(int(count));
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            result << readTextString(array->getItem(i), QString());
+        }
+    }
+
+    return result;
+}
+
 std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArray(const PDFObject& object) const
 {
     const PDFObject& dereferencedObject = m_storage->getObject(object);

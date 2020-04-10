@@ -337,6 +337,30 @@ public:
     /// \param key Entry key
     std::vector<QByteArray> readStringArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
+    /// Reads string list. If error occurs, empty list is returned.
+    QStringList readTextStringList(const PDFObject& object);
+
+    /// Reads list of object, using parse function defined in object
+    template<typename Object>
+    std::vector<Object> readObjectList(PDFObject object)
+    {
+        std::vector<Object> result;
+        object = m_storage->getObject(object);
+        if (object.isArray())
+        {
+            const PDFArray* array = object.getArray();
+            const size_t count = array->getCount();
+            result.reserve(count);
+
+            for (size_t i = 0; i < count; ++i)
+            {
+                result.emplace_back(Object::parse(m_storage, array->getItem(i)));
+            }
+        }
+
+        return result;
+    }
+
 private:
     const PDFObjectStorage* m_storage;
 };

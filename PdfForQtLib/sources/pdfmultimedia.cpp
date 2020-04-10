@@ -1174,7 +1174,7 @@ PDF3DProjection PDF3DProjection::parse(const PDFObjectStorage* storage, PDFObjec
         };
 
         PDFDocumentDataLoaderDecorator loader(storage);
-        result.m_projection = loader.readEnumByName(dictionary->get("Subtype"), projections.cbegin(), projections.cend(), Projection::Orthographic);
+        result.m_projection = loader.readEnumByName(dictionary->get("Subtype"), projections.cbegin(), projections.cend(), Projection::Perspective);
         result.m_clippingStyle = loader.readEnumByName(dictionary->get("CS"), clippingStyles.cbegin(), clippingStyles.cend(), ClippingStyle::Automatic);
         result.m_near = loader.readNumberFromDictionary(dictionary, "N", 0.0);
         result.m_far = loader.readNumberFromDictionary(dictionary, "F", qInf());
@@ -1186,6 +1186,109 @@ PDF3DProjection PDF3DProjection::parse(const PDFObjectStorage* storage, PDFObjec
         }
         result.m_scaleFactor = loader.readNumberFromDictionary(dictionary, "OS", 1.0);
         result.m_scaleMode = result.m_projectionScaleMode = loader.readEnumByName(dictionary->get("OB"), scaleModes.cbegin(), scaleModes.cend(), ScaleMode::Absolute);
+    }
+
+    return result;
+}
+
+PDF3DView PDF3DView::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DView result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, MatrixSelection>, 2> matrixSelection = {
+            std::pair<const char*, MatrixSelection>{ "M", MatrixSelection::M },
+            std::pair<const char*, MatrixSelection>{ "U3D", MatrixSelection::U3D }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_externalName = loader.readTextStringFromDictionary(dictionary, "XN", QString());
+        result.m_internalName = loader.readTextStringFromDictionary(dictionary, "IN", QString());
+        result.m_matrixSelection = loader.readEnumByName(dictionary->get("MS"), matrixSelection.cbegin(), matrixSelection.cend(), MatrixSelection::M);
+        result.m_cameraToWorld = PDF3DAuxiliaryParser::parseMatrix4x4(storage, dictionary->get("C2W"));
+        result.m_U3Dpath = loader.readTextStringList(dictionary->get("U3DPath"));
+        result.m_cameraDistance = loader.readNumberFromDictionary(dictionary, "CO", 0.0);
+        result.m_projection = PDF3DProjection::parse(storage, dictionary->get("P"));
+        result.m_overlay = dictionary->get("O");
+        result.m_background = PDF3DBackground::parse(storage, dictionary->get("BG"));
+        result.m_renderMode = PDF3DRenderMode::parse(storage, dictionary->get("RM"));
+        result.m_lightingScheme = PDF3DLightingScheme::parse(storage, dictionary->get("LS"));
+        result.m_crossSections = loader.readObjectList<PDF3DCrossSection>(dictionary->get("SA"));
+        result.m_nodes = loader.readObjectList<PDF3DNode>(dictionary->get("NA"));
+        result.m_nodesRestore = loader.readBooleanFromDictionary(dictionary, "NR", false);
+    }
+
+    return result;
+}
+
+PDF3DAnimation PDF3DAnimation::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DAnimation result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, Animation>, 3> animations = {
+            std::pair<const char*, Animation>{ "None", Animation::None },
+            std::pair<const char*, Animation>{ "Linear", Animation::Linear },
+            std::pair<const char*, Animation>{ "Oscillating", Animation::Oscillating }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_animation = loader.readEnumByName(dictionary->get("Subtype"), animations.cbegin(), animations.cend(), Animation::None);
+        result.m_playCount = loader.readIntegerFromDictionary(dictionary, "PC", -1);
+        result.m_speed = loader.readNumberFromDictionary(dictionary, "TM", 1.0);
+    }
+
+    return result;
+}
+
+PDF3DStream PDF3DStream::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDF3DStream result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        constexpr const std::array<std::pair<const char*, Type>, 2> types = {
+            std::pair<const char*, Type>{ "U3D", Type::U3D },
+            std::pair<const char*, Type>{ "PRC", Type::PRC }
+        };
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_stream = object;
+        result.m_type = loader.readEnumByName(dictionary->get("Subtype"), types.cbegin(), types.cend(), Type::Invalid);
+        result.m_views = loader.readObjectList<PDF3DView>(dictionary->get("VA"));
+
+        PDFObject defaultViewObject = storage->getObject(dictionary->get("DV"));
+        if (defaultViewObject.isDictionary())
+        {
+            result.m_defaultView = PDF3DView::parse(storage, defaultViewObject);
+        }
+        else if (defaultViewObject.isInt())
+        {
+            PDFInteger index = defaultViewObject.getInteger();
+            if (index >= 0 && index < PDFInteger(result.m_views.size()))
+            {
+                result.m_defaultView = result.m_views[index];
+            }
+        }
+        else if (defaultViewObject.isName() && !result.m_views.empty())
+        {
+            QByteArray name = defaultViewObject.getString();
+            if (name == "F")
+            {
+                result.m_defaultView = result.m_views.front();
+            }
+            else if (name == "L")
+            {
+                result.m_defaultView = result.m_views.back();
+            }
+        }
+
+        result.m_resources = dictionary->get("Resources");
+        result.m_onInstantiateJavascript = dictionary->get("OnInstantiate");
+        result.m_animation = PDF3DAnimation::parse(storage, dictionary->get("AN"));
+        result.m_colorSpace = dictionary->get("ColorSpace");
     }
 
     return result;

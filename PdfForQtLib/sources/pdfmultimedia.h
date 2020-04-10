@@ -1139,7 +1139,7 @@ public:
     static PDF3DProjection parse(const PDFObjectStorage* storage, PDFObject object);
 
 private:
-    Projection m_projection = Projection::Orthographic;
+    Projection m_projection = Projection::Perspective;
     ClippingStyle m_clippingStyle = ClippingStyle::Automatic;
     PDFReal m_near = 0.0;
     PDFReal m_far = qInf();
@@ -1148,6 +1148,118 @@ private:
     ScaleMode m_projectionScaleMode = ScaleMode::W;
     PDFReal m_scaleFactor = 1.0;
     ScaleMode m_scaleMode = ScaleMode::Absolute;
+};
+
+/// 3D PDF view
+class PDF3DView
+{
+public:
+    explicit inline PDF3DView() = default;
+
+    enum class MatrixSelection
+    {
+        M,
+        U3D
+    };
+
+    const QString& getExternalName() const { return m_externalName; }
+    const QString& getInternalName() const { return m_internalName; }
+    MatrixSelection getMatrixSelection() const{ return m_matrixSelection; }
+    const QMatrix4x4& getCameraToWorld() const { return m_cameraToWorld; }
+    const QStringList& getU3DPath() const { return m_U3Dpath; }
+    PDFReal getCameraDistance() const { return m_cameraDistance; }
+    const PDF3DProjection& getProjection() const { return m_projection; }
+    const PDFObject& getOverlay() const { return m_overlay; }
+    const PDF3DBackground& getBackground() const { return m_background; }
+    const PDF3DRenderMode& getRenderMode() const { return m_renderMode; }
+    const PDF3DLightingScheme& getLightingScheme() const { return m_lightingScheme; }
+    const std::vector<PDF3DCrossSection>& getCrossSections() const { return m_crossSections; }
+    const std::vector<PDF3DNode>& getNodes() const { return m_nodes; }
+    bool getNodesRestore() const { return m_nodesRestore; }
+
+    /// Creates a new 3D view from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DView parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    QString m_externalName;
+    QString m_internalName;
+    MatrixSelection m_matrixSelection = MatrixSelection::M;
+    QMatrix4x4 m_cameraToWorld;
+    QStringList m_U3Dpath;
+    PDFReal m_cameraDistance = 0.0;
+    PDF3DProjection m_projection;
+    PDFObject m_overlay;
+    PDF3DBackground m_background;
+    PDF3DRenderMode m_renderMode;
+    PDF3DLightingScheme m_lightingScheme;
+    std::vector<PDF3DCrossSection> m_crossSections;
+    std::vector<PDF3DNode> m_nodes;
+    bool m_nodesRestore = false;
+};
+
+/// 3D PDF animation
+class PDF3DAnimation
+{
+public:
+    explicit inline PDF3DAnimation() = default;
+
+    enum class Animation
+    {
+        None,
+        Linear,
+        Oscillating
+    };
+
+    Animation getAnimation() const { return m_animation; }
+    PDFInteger getPlayCount() const { return m_playCount; }
+    PDFReal getSpeed() const { return m_speed; }
+
+    /// Creates a new 3D animation from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DAnimation parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Animation m_animation = Animation::None;
+    PDFInteger m_playCount = -1;
+    PDFReal m_speed = 1;
+};
+
+/// 3D PDF stream
+class PDF3DStream
+{
+public:
+    explicit inline PDF3DStream() = default;
+
+    enum class Type
+    {
+        Invalid,
+        U3D,
+        PRC
+    };
+
+    PDFObject getStream() const { return m_stream; }
+    Type getType() const { return m_type; }
+    const std::vector<PDF3DView>& getViews() const { return m_views; }
+    const std::optional<PDF3DView>& getDefaultView() const { return m_defaultView; }
+    PDFObject getResources() const { return m_resources; }
+    PDFObject getOnInstantiateJavascript() const { return m_onInstantiateJavascript; }
+    PDF3DAnimation getAnimation() const { return m_animation; }
+    PDFObject getColorSpace() const { return m_colorSpace; }
+
+    /// Creates a new 3D stream from the object. If data are invalid, then invalid object
+    /// is returned, no exception is thrown.
+    static PDF3DStream parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    PDFObject m_stream;
+    Type m_type = Type::Invalid;
+    std::vector<PDF3DView> m_views;
+    std::optional<PDF3DView> m_defaultView;
+    PDFObject m_resources;
+    PDFObject m_onInstantiateJavascript;
+    PDF3DAnimation m_animation;
+    PDFObject m_colorSpace;
 };
 
 }   // namespace pdf
