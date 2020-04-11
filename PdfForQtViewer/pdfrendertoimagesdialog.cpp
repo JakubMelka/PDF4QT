@@ -283,7 +283,7 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
             m_pageIndices = m_imageExportSettings.getPages();
             m_optionalContentActivity = new pdf::PDFOptionalContentActivity(m_document, pdf::OCUsage::Export, this);
             m_cms = m_proxy->getCMSManager()->getCurrentCMS();
-            m_rasterizerPool = new pdf::PDFRasterizerPool(m_document, m_proxy->getFontCache(), m_cms.data(),
+            m_rasterizerPool = new pdf::PDFRasterizerPool(m_document, m_proxy->getFontCache(), m_proxy->getCMSManager(),
                                                           m_optionalContentActivity, m_proxy->getFeatures(), m_proxy->getMeshQualitySettings(),
                                                           pdf::PDFRasterizerPool::getDefaultRasterizerCount(), m_proxy->isUsingOpenGL(), m_proxy->getSurfaceFormat(), this);
             connect(m_rasterizerPool, &pdf::PDFRasterizerPool::renderError, this, &PDFRenderToImagesDialog::onRenderError);

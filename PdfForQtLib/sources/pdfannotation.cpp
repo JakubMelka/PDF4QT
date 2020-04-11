@@ -876,18 +876,28 @@ PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFOb
     return result;
 }
 
-PDFAnnotationManager::PDFAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
+PDFAnnotationManager::PDFAnnotationManager(PDFFontCache* fontCache,
+                                           const PDFCMSManager* cmsManager,
+                                           const PDFOptionalContentActivity* optionalActivity,
+                                           PDFMeshQualitySettings meshQualitySettings,
+                                           PDFRenderer::Features features,
+                                           Target target,
+                                           QObject* parent) :
     BaseClass(parent),
     m_document(nullptr),
-    m_proxy(proxy)
+    m_fontCache(fontCache),
+    m_cmsManager(cmsManager),
+    m_optionalActivity(optionalActivity),
+    m_meshQualitySettings(meshQualitySettings),
+    m_features(features),
+    m_target(target)
 {
-    Q_ASSERT(proxy);
-    m_proxy->registerDrawInterface(this);
+
 }
 
 PDFAnnotationManager::~PDFAnnotationManager()
 {
-    m_proxy->unregisterDrawInterface(this);
+
 }
 
 void PDFAnnotationManager::drawPage(QPainter* painter,
@@ -905,12 +915,19 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
         const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
         Q_ASSERT(page);
 
-        PDFRenderer::Features features = m_proxy->getFeatures();
-        PDFFontCache* fontCache = m_proxy->getFontCache();
-        const PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
-        const PDFOptionalContentActivity* optionalActivity = m_proxy->getOptionalContentActivity();
-        const PDFMeshQualitySettings& meshQualitySettings = m_proxy->getMeshQualitySettings();
-        fontCache->setCacheShrinkEnabled(this, false);
+        PDFRenderer::Features features = m_features;
+        if (!features.testFlag(PDFRenderer::DisplayAnnotations))
+        {
+            // Annotation displaying is disabled
+            return;
+        }
+
+        Q_ASSERT(m_fontCache);
+        Q_ASSERT(m_cmsManager);
+        Q_ASSERT(m_optionalActivity);
+
+        const PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
+        m_fontCache->setCacheShrinkEnabled(this, false);
 
         for (PageAnnotation& annotation : annotations.annotations)
         {
@@ -925,7 +942,16 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
             PDFObject appearanceStreamObject = m_document->getObject(getAppearanceStream(annotation));
             if (!appearanceStreamObject.isStream())
             {
-                // Object is not valid appearance stream
+                // Object is not valid appearance stream. We will try to draw default
+                // annotation appearance.
+                painter->save();
+                painter->setRenderHint(QPainter::Antialiasing, true);
+                painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+                AnnotationDrawParameters parameters;
+                parameters.painter = painter;
+                parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
+                annotation.annotation->draw(parameters);
+                painter->restore();
                 continue;
             }
 
@@ -1019,7 +1045,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
             // Step 3) - compute final matrix AA
             QMatrix AA = formMatrix * A;
 
-            PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, fontCache, cms.get(), optionalActivity, meshQualitySettings);
+            PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms.get(), m_optionalActivity, m_meshQualitySettings);
             pdfPainter.initializeProcessor();
 
             // Jakub Melka: we must check, that we do not display annotation disabled by optional content
@@ -1030,15 +1056,16 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
             }
         }
 
-        fontCache->setCacheShrinkEnabled(this, true);
+        m_fontCache->setCacheShrinkEnabled(this, true);
     }
 }
 
-void PDFAnnotationManager::setDocument(const PDFDocument* document)
+void PDFAnnotationManager::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
 {
     if (m_document != document)
     {
         m_document = document;
+        m_optionalActivity = optionalContentActivity;
         m_pageAnnotations.clear();
     }
 }
@@ -1056,6 +1083,7 @@ PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(
 {
     Q_ASSERT(m_document);
 
+    QMutexLocker lock(&m_mutex);
     auto it = m_pageAnnotations.find(pageIndex);
     if (it == m_pageAnnotations.cend())
     {
@@ -1084,6 +1112,46 @@ PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(
     return it->second;
 }
 
+PDFRenderer::Features PDFAnnotationManager::getFeatures() const
+{
+    return m_features;
+}
+
+void PDFAnnotationManager::setFeatures(PDFRenderer::Features features)
+{
+    m_features = features;
+}
+
+PDFMeshQualitySettings PDFAnnotationManager::getMeshQualitySettings() const
+{
+    return m_meshQualitySettings;
+}
+
+void PDFAnnotationManager::setMeshQualitySettings(const PDFMeshQualitySettings& meshQualitySettings)
+{
+    m_meshQualitySettings = meshQualitySettings;
+}
+
+PDFFontCache* PDFAnnotationManager::getFontCache() const
+{
+    return m_fontCache;
+}
+
+void PDFAnnotationManager::setFontCache(PDFFontCache* fontCache)
+{
+    m_fontCache = fontCache;
+}
+
+const PDFOptionalContentActivity* PDFAnnotationManager::getOptionalActivity() const
+{
+    return m_optionalActivity;
+}
+
+void PDFAnnotationManager::setOptionalActivity(const PDFOptionalContentActivity* optionalActivity)
+{
+    m_optionalActivity = optionalActivity;
+}
+
 PDFAnnotationManager::Target PDFAnnotationManager::getTarget() const
 {
     return m_target;
@@ -1092,6 +1160,19 @@ PDFAnnotationManager::Target PDFAnnotationManager::getTarget() const
 void PDFAnnotationManager::setTarget(Target target)
 {
     m_target = target;
+}
+
+PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
+    BaseClass(proxy->getFontCache(), proxy->getCMSManager(), proxy->getOptionalContentActivity(), proxy->getMeshQualitySettings(), proxy->getFeatures(), Target::View, parent),
+    m_proxy(proxy)
+{
+    Q_ASSERT(proxy);
+    m_proxy->registerDrawInterface(this);
+}
+
+PDFWidgetAnnotationManager::~PDFWidgetAnnotationManager()
+{
+    m_proxy->unregisterDrawInterface(this);
 }
 
 void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const

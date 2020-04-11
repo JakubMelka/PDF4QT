@@ -37,7 +37,9 @@ namespace pdf
 class PDFCMS;
 class PDFProgress;
 class PDFFontCache;
+class PDFCMSManager;
 class PDFPrecompiledPage;
+class PDFAnnotationManager;
 class PDFOptionalContentActivity;
 
 /// Renders the PDF page on the painter, or onto an image.
@@ -57,6 +59,7 @@ public:
         DebugTextLines          = 0x0080,   ///< Debug text line layout algorithm
         InvertColors            = 0x0100,   ///< Invert colors
         DenyExtraGraphics       = 0x0200,   ///< Do not display additional graphics, for example from tools
+        DisplayAnnotations      = 0x0400,   ///< Display annotations
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
@@ -95,7 +98,7 @@ public:
     static QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle);
 
     /// Returns default renderer features
-    static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing | ClipToCropBox; }
+    static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations; }
 
 private:
     const PDFDocument* m_document;
@@ -139,15 +142,20 @@ public:
 
     /// Renders page to the image of given size. If some error occurs, then
     /// empty image is returned. Warning: this function can modify this object,
-    /// so it is not const and is not thread safe.
+    /// so it is not const and is not thread safe. We can also draw annotations,
+    /// if \p annotationManager is not nullptr and annotations are enabled.
+    /// \param pageIndex Page index
     /// \param page Page
     /// \param compiledPage Compiled page contents
     /// \param size Size of the target image
     /// \param features Renderer features
-    QImage render(const PDFPage* page,
+    /// \param annotationManager Annotation manager (can be nullptr)
+    QImage render(PDFInteger pageIndex,
+                  const PDFPage* page,
                   const PDFPrecompiledPage* compiledPage,
                   QSize size,
-                  PDFRenderer::Features features);
+                  PDFRenderer::Features features,
+                  const PDFAnnotationManager* annotationManager);
 
 private:
     void initializeOpenGL();
@@ -179,7 +187,7 @@ public:
     /// Creates new rasterizer pool
     /// \param document Document
     /// \param fontCache Font cache
-    /// \param cms Color management system
+    /// \param cmsManager Color management system manager
     /// \param optionalContentActivity Optional content activity
     /// \param features Renderer features
     /// \param meshQualitySettings Mesh quality settings
@@ -188,8 +196,8 @@ public:
     /// \param surfaceFormat Surface format
     /// \param parent Parent object
     explicit PDFRasterizerPool(const PDFDocument* document,
-                               const PDFFontCache* fontCache,
-                               const PDFCMS* cms,
+                               PDFFontCache* fontCache,
+                               const PDFCMSManager* cmsManager,
                                const PDFOptionalContentActivity* optionalContentActivity,
                                PDFRenderer::Features features,
                                const PDFMeshQualitySettings& meshQualitySettings,
@@ -226,8 +234,8 @@ signals:
 
 private:
     const PDFDocument* m_document;
-    const PDFFontCache* m_fontCache;
-    const PDFCMS* m_cms;
+    PDFFontCache* m_fontCache;
+    const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     PDFRenderer::Features m_features;
     const PDFMeshQualitySettings& m_meshQualitySettings;

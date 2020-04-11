@@ -180,7 +180,7 @@ private:
     bool m_isChangingProgressStep;
 
     pdf::PDFToolManager* m_toolManager;
-    pdf::PDFAnnotationManager* m_annotationManager;
+    pdf::PDFWidgetAnnotationManager* m_annotationManager;
     PDFTextToSpeech* m_textToSpeech;
 };
 

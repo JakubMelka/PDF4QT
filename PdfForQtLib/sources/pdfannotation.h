@@ -22,8 +22,11 @@
 #include "pdfobject.h"
 #include "pdfaction.h"
 #include "pdffile.h"
+#include "pdfcms.h"
 #include "pdfmultimedia.h"
+#include "pdfmeshqualitysettings.h"
 #include "pdfdocumentdrawinterface.h"
+#include "pdfrenderer.h"
 
 #include <QPainterPath>
 
@@ -33,6 +36,8 @@ namespace pdf
 {
 class PDFObjectStorage;
 class PDFDrawWidgetProxy;
+class PDFFontCache;
+class PDFOptionalContentActivity;
 
 using TextAlignment = Qt::Alignment;
 using Polygons = std::vector<QPolygonF>;
@@ -1230,9 +1235,8 @@ private:
 
 /// Annotation manager manages annotations for document's pages. Each page
 /// can have multiple annotations, and this object caches them. Also,
-/// this object builds annotation's appearance streams, if necessary.
-/// This object is not thread safe, functions can't be called from another
-/// thread.
+/// this object builds annotation's appearance streams, if necessary. This
+/// manager is intended to non-gui rendering.
 class PDFFORQTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
 {
     Q_OBJECT
@@ -1248,7 +1252,13 @@ public:
         Print
     };
 
-    explicit PDFAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
+    explicit PDFAnnotationManager(PDFFontCache* fontCache,
+                                  const PDFCMSManager* cmsManager,
+                                  const PDFOptionalContentActivity* optionalActivity,
+                                  PDFMeshQualitySettings meshQualitySettings,
+                                  PDFRenderer::Features features,
+                                  Target target,
+                                  QObject* parent);
     virtual ~PDFAnnotationManager() override;
 
     virtual void drawPage(QPainter* painter,
@@ -1257,10 +1267,22 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix) const override;
 
-    void setDocument(const PDFDocument* document);
+    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
 
     Target getTarget() const;
     void setTarget(Target target);
+
+    const PDFOptionalContentActivity* getOptionalActivity() const;
+    void setOptionalActivity(const PDFOptionalContentActivity* optionalActivity);
+
+    PDFFontCache* getFontCache() const;
+    void setFontCache(PDFFontCache* fontCache);
+
+    PDFMeshQualitySettings getMeshQualitySettings() const;
+    void setMeshQualitySettings(const PDFMeshQualitySettings& meshQualitySettings);
+
+    PDFRenderer::Features getFeatures() const;
+    void setFeatures(PDFRenderer::Features features);
 
 private:
     struct PageAnnotation
@@ -1287,9 +1309,33 @@ private:
     PageAnnotations& getPageAnnotations(PDFInteger pageIndex) const;
 
     const PDFDocument* m_document;
-    PDFDrawWidgetProxy* m_proxy;
+
+    PDFFontCache* m_fontCache;
+    const PDFCMSManager* m_cmsManager;
+    const PDFOptionalContentActivity* m_optionalActivity;
+    PDFMeshQualitySettings m_meshQualitySettings;
+    PDFRenderer::Features m_features;
+
+    mutable QMutex m_mutex;
     mutable std::map<PDFInteger, PageAnnotations> m_pageAnnotations;
     Target m_target = Target::View;
+};
+
+/// Annotation manager for GUI rendering, it also manages annotations widgets
+/// for parent widget.
+class PDFFORQTLIBSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFAnnotationManager;
+
+public:
+    explicit PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
+    virtual ~PDFWidgetAnnotationManager() override;
+
+private:
+    PDFDrawWidgetProxy* m_proxy;
 };
 
 }   // namespace pdf

@@ -66,6 +66,7 @@
      <addaction name="actionRenderOptionTextAntialiasing"/>
      <addaction name="actionRenderOptionSmoothPictures"/>
      <addaction name="actionRenderOptionIgnoreOptionalContentSettings"/>
+     <addaction name="actionRenderOptionDisplayAnnotations"/>
     </widget>
     <addaction name="menuPage_Layout"/>
     <addaction name="menuRendering_Options"/>
@@ -497,6 +498,14 @@
    </property>
    <property name="text">
     <string>Extract Image</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionDisplayAnnotations">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Display Annotations</string>
    </property>
   </action>
  </widget>

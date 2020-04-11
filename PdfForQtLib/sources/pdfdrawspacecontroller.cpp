@@ -23,6 +23,7 @@
 #include "pdfcompiler.h"
 #include "pdfconstants.h"
 #include "pdfcms.h"
+#include "pdfannotation.h"
 
 #include <QPainter>
 #include <QFontMetrics>
@@ -394,6 +395,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_textLayoutCompiler(new PDFAsynchronousTextLayoutCompiler(this)),
     m_rasterizer(new PDFRasterizer(this)),
     m_progress(nullptr),
+    m_annotationManager(nullptr),
     m_useOpenGL(false)
 {
     m_controller = new PDFDrawSpaceController(this);
@@ -824,7 +826,7 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
             if (compiledPage && compiledPage->isValid())
             {
                 // Rasterize the image.
-                image = m_rasterizer->render(page, compiledPage, imageSize, m_features);
+                image = m_rasterizer->render(pageIndex, page, compiledPage, imageSize, m_features, m_annotationManager);
             }
 
             if (image.isNull())
@@ -1284,6 +1286,16 @@ void PDFDrawWidgetProxy::updateVerticalScrollbarFromOffset()
         PDFBoolGuard guard(m_updateDisabled);
         m_verticalScrollbar->setValue(-m_verticalOffset);
     }
+}
+
+PDFWidgetAnnotationManager* PDFDrawWidgetProxy::getAnnotationManager() const
+{
+    return m_annotationManager;
+}
+
+void PDFDrawWidgetProxy::setAnnotationManager(PDFWidgetAnnotationManager* annotationManager)
+{
+    m_annotationManager = annotationManager;
 }
 
 PDFRenderer::Features PDFDrawWidgetProxy::getFeatures() const

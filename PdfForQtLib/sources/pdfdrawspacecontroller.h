@@ -38,6 +38,7 @@ class PDFWidget;
 class IDrawWidget;
 class PDFCMSManager;
 class PDFTextLayoutGetter;
+class PDFWidgetAnnotationManager;
 class PDFAsynchronousPageCompiler;
 class PDFAsynchronousTextLayoutCompiler;
 
@@ -357,6 +358,9 @@ public:
     /// Returns snapshot of current view area
     PDFWidgetSnapshot getSnapshot() const;
     
+    PDFWidgetAnnotationManager* getAnnotationManager() const;
+    void setAnnotationManager(PDFWidgetAnnotationManager* annotationManager);
+
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
@@ -492,6 +496,9 @@ private:
 
     /// Progress
     PDFProgress* m_progress;
+
+    /// Annotation manager
+    PDFWidgetAnnotationManager* m_annotationManager;
 
     /// Additional drawing interfaces
     std::set<IDocumentDrawInterface*> m_drawInterfaces;

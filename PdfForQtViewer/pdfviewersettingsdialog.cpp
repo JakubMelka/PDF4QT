@@ -238,6 +238,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->ignoreOptionalContentCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::IgnoreOptionalContent));
     ui->clipToCropBoxCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::ClipToCropBox));
     ui->displayTimeCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::DisplayTimes));
+    ui->displayAnnotationsCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::DisplayAnnotations));
 
     // Shading
     ui->preferredMeshResolutionEdit->setValue(m_settings.m_preferredMeshResolutionRatio);
@@ -357,6 +358,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->ignoreOptionalContentCheckBox)
     {
         m_settings.m_features.setFlag(pdf::PDFRenderer::IgnoreOptionalContent, ui->ignoreOptionalContentCheckBox->isChecked());
+    }
+    else if (sender == ui->displayAnnotationsCheckBox)
+    {
+        m_settings.m_features.setFlag(pdf::PDFRenderer::DisplayAnnotations, ui->displayAnnotationsCheckBox->isChecked());
     }
     else if (sender == ui->clipToCropBoxCheckBox)
     {

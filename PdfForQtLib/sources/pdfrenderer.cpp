@@ -20,6 +20,7 @@
 #include "pdfdocument.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfprogress.h"
+#include "pdfannotation.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -193,7 +194,12 @@ void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
     }
 }
 
-QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* compiledPage, QSize size, PDFRenderer::Features features)
+QImage PDFRasterizer::render(PDFInteger pageIndex,
+                             const PDFPage* page,
+                             const PDFPrecompiledPage* compiledPage,
+                             QSize size,
+                             PDFRenderer::Features features,
+                             const PDFAnnotationManager* annotationManager)
 {
     QImage image;
 
@@ -228,6 +234,12 @@ QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* comp
                     QPainter painter(&device);
                     painter.fillRect(QRect(QPoint(0, 0), size), compiledPage->getPaperColor());
                     compiledPage->draw(&painter, page->getCropBox(), matrix, features);
+
+                    if (annotationManager)
+                    {
+                        PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+                        annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix);
+                    }
                 }
 
                 m_fbo->release();
@@ -253,6 +265,12 @@ QImage PDFRasterizer::render(const PDFPage* page, const PDFPrecompiledPage* comp
 
         QPainter painter(&image);
         compiledPage->draw(&painter, page->getCropBox(), matrix, features);
+
+        if (annotationManager)
+        {
+            PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix);
+        }
     }
 
     // Jakub Melka: Convert the image into format Format_ARGB32_Premultiplied for fast drawing.
@@ -405,7 +423,8 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
 
         // Precompile the page
         PDFPrecompiledPage precompiledPage;
-        PDFRenderer renderer(m_document, m_fontCache, m_cms, m_optionalContentActivity, m_features, m_meshQualitySettings);
+        PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
+        PDFRenderer renderer(m_document, m_fontCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
         renderer.compile(&precompiledPage, pageIndex);
 
         for (const PDFRenderError error : precompiledPage.getErrors())
@@ -413,9 +432,13 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
             emit renderError(PDFRenderError(error.type, PDFTranslationContext::tr("Page %1: %2").arg(pageIndex + 1).arg(error.message)));
         }
 
+        // Annotation manager
+        PDFAnnotationManager annotationManager(m_fontCache, m_cmsManager, m_optionalContentActivity, m_meshQualitySettings, m_features, PDFAnnotationManager::Target::Print, nullptr);
+        annotationManager.setDocument(m_document, m_optionalContentActivity);
+
         // Render page to image
         PDFRasterizer* rasterizer = acquire();
-        QImage image = rasterizer->render(page, &precompiledPage, imageSizeGetter(page), m_features);
+        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager);
         release(rasterizer);
 
         // Now, process the image
@@ -812,8 +835,8 @@ QString PDFPageImageExportSettings::getOutputFileName(PDFInteger pageIndex, cons
 }
 
 PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
-                                     const PDFFontCache* fontCache,
-                                     const PDFCMS* cms,
+                                     PDFFontCache* fontCache,
+                                     const PDFCMSManager* cmsManager,
                                      const PDFOptionalContentActivity* optionalContentActivity,
                                      PDFRenderer::Features features,
                                      const PDFMeshQualitySettings& meshQualitySettings,
@@ -824,7 +847,7 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
     BaseClass(parent),
     m_document(document),
     m_fontCache(fontCache),
-    m_cms(cms),
+    m_cmsManager(cmsManager),
     m_optionalContentActivity(optionalContentActivity),
     m_features(features),
     m_meshQualitySettings(meshQualitySettings),

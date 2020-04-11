@@ -234,6 +234,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
     ui->actionRenderOptionSmoothPictures->setData(pdf::PDFRenderer::SmoothImages);
     ui->actionRenderOptionIgnoreOptionalContentSettings->setData(pdf::PDFRenderer::IgnoreOptionalContent);
+    ui->actionRenderOptionDisplayAnnotations->setData(pdf::PDFRenderer::DisplayAnnotations);
     ui->actionInvertColors->setData(pdf::PDFRenderer::InvertColors);
     ui->actionShow_Text_Blocks->setData(pdf::PDFRenderer::DebugTextBlocks);
     ui->actionShow_Text_Lines->setData(pdf::PDFRenderer::DebugTextLines);
@@ -263,7 +264,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     updateMagnifierToolSettings();
     connect(m_toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
 
-    m_annotationManager = new pdf::PDFAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_pdfWidget->getDrawWidgetProxy()->setAnnotationManager(m_annotationManager);
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
@@ -861,6 +863,8 @@ void PDFViewerMainWindow::onViewerSettingsChanged()
     m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setMinimalMeshResolutionRatio(m_settings->getMinimalMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setColorTolerance(m_settings->getColorTolerance());
+    m_annotationManager->setFeatures(m_settings->getFeatures());
+    m_annotationManager->setMeshQualitySettings(m_pdfWidget->getDrawWidgetProxy()->getMeshQualitySettings());
     pdf::PDFExecutionPolicy::setStrategy(m_settings->getMultithreadingStrategy());
 
     updateRenderingOptionActions();
@@ -973,7 +977,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
         m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
     }
 
-    m_annotationManager->setDocument(document);
+    m_annotationManager->setDocument(document, m_optionalContentActivity);
     m_toolManager->setDocument(document);
     m_textToSpeech->setDocument(document);
     m_pdfWidget->setDocument(document, m_optionalContentActivity);
@@ -1030,6 +1034,7 @@ std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
              ui->actionRenderOptionTextAntialiasing,
              ui->actionRenderOptionSmoothPictures,
              ui->actionRenderOptionIgnoreOptionalContentSettings,
+             ui->actionRenderOptionDisplayAnnotations,
              ui->actionShow_Text_Blocks,
              ui->actionShow_Text_Lines,
              ui->actionInvertColors };
