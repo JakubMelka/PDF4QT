@@ -32,6 +32,10 @@
 
 #include <array>
 
+class QKeyEvent;
+class QMouseEvent;
+class QWheelEvent;
+
 namespace pdf
 {
 class PDFObjectStorage;
@@ -1284,12 +1288,13 @@ public:
     PDFRenderer::Features getFeatures() const;
     void setFeatures(PDFRenderer::Features features);
 
-private:
+protected:
     struct PageAnnotation
     {
         PDFAppeareanceStreams::Appearance appearance = PDFAppeareanceStreams::Appearance::Normal;
-        PDFCachedItem<PDFObject> appearanceStream;
         PDFAnnotationPtr annotation;
+
+        mutable PDFCachedItem<PDFObject> appearanceStream;
     };
 
     struct PageAnnotations
@@ -1299,14 +1304,37 @@ private:
         std::vector<PageAnnotation> annotations;
     };
 
+    /// Prepares annotation transformations for rendering
+    /// \param pagePointToDevicePointMatrix Page point to device point matrix
+    /// \param device Paint device, onto which will be annotation rendered
+    /// \param annotationFlags Annotation flags
+    /// \param page Page
+    /// \param[in,out] annotationRectangle Input/output annotation rectangle
+    QMatrix prepareTransformations(const QMatrix& pagePointToDevicePointMatrix,
+                                   QPaintDevice* device,
+                                   const PDFAnnotation::Flags annotationFlags,
+                                   const PDFPage* page,
+                                   QRectF& annotationRectangle) const;
+
     /// Returns current appearance stream for given page annotation
     /// \param pageAnnotation Page annotation
-    PDFObject getAppearanceStream(PageAnnotation& pageAnnotation) const;
+    PDFObject getAppearanceStream(const PageAnnotation& pageAnnotation) const;
+
+    /// Returns constant reference to page annotation for given page index.
+    /// This function requires, that pointer to m_document is valid.
+    /// \param pageIndex Page index (must point to valid page)
+    const PageAnnotations& getPageAnnotations(PDFInteger pageIndex) const;
 
     /// Returns reference to page annotation for given page index.
     /// This function requires, that pointer to m_document is valid.
     /// \param pageIndex Page index (must point to valid page)
-    PageAnnotations& getPageAnnotations(PDFInteger pageIndex) const;
+    PageAnnotations& getPageAnnotations(PDFInteger pageIndex);
+
+    /// Returns true, if given page has any annotation
+    bool hasAnnotation(PDFInteger pageIndex) const;
+
+    /// Returns true, if any page in the given indices has annotation
+    bool hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const;
 
     const PDFDocument* m_document;
 
@@ -1334,8 +1362,39 @@ public:
     explicit PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
     virtual ~PDFWidgetAnnotationManager() override;
 
+    /// Handles key press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+
+    /// Handles mouse press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void mousePressEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse release event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse move event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse wheel event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    void wheelEvent(QWidget* widget, QWheelEvent* event);
+
+    /// Returns tooltip generated from annotation
+    const QString& getTooltip() const { return m_tooltip; }
+
 private:
+    void updateFromMouseEvent(QMouseEvent* event);
+
     PDFDrawWidgetProxy* m_proxy;
+    QString m_tooltip;
 };
 
 }   // namespace pdf

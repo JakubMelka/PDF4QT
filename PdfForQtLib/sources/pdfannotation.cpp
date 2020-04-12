@@ -24,8 +24,10 @@
 #include "pdfwidgetutils.h"
 #include "pdfpagecontentprocessor.h"
 #include "pdfparser.h"
+#include "pdfdrawwidget.h"
 
 #include <QApplication>
+#include <QMouseEvent>
 
 namespace pdf
 {
@@ -900,6 +902,69 @@ PDFAnnotationManager::~PDFAnnotationManager()
 
 }
 
+QMatrix PDFAnnotationManager::prepareTransformations(const QMatrix& pagePointToDevicePointMatrix,
+                                                     QPaintDevice* device,
+                                                     const PDFAnnotation::Flags annotationFlags,
+                                                     const PDFPage* page,
+                                                     QRectF& annotationRectangle) const
+{
+    // "Unrotate" user coordinate space, if NoRotate flag is set
+    QMatrix userSpaceToDeviceSpace = pagePointToDevicePointMatrix;
+    if (annotationFlags.testFlag(PDFAnnotation::NoRotate))
+    {
+        PDFReal rotationAngle = 0.0;
+        switch (page->getPageRotation())
+        {
+            case PageRotation::None:
+                break;
+
+            case PageRotation::Rotate90:
+                rotationAngle = -90.0;
+                break;
+
+            case PageRotation::Rotate180:
+                rotationAngle = -180.0;
+                break;
+
+            case PageRotation::Rotate270:
+                rotationAngle = -270.0;
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        QMatrix rotationMatrix;
+        rotationMatrix.rotate(-rotationAngle);
+        QPointF topLeft = annotationRectangle.bottomLeft(); // Do not forget, that y is upward instead of Qt
+        QPointF difference = topLeft - rotationMatrix.map(topLeft);
+
+        QMatrix finalMatrix;
+        finalMatrix.translate(difference.x(), difference.y());
+        finalMatrix.rotate(-rotationAngle);
+        userSpaceToDeviceSpace = finalMatrix * userSpaceToDeviceSpace;
+    }
+
+    if (annotationFlags.testFlag(PDFAnnotation::NoZoom))
+    {
+        // Jakub Melka: we must adjust annotation rectangle to disable zoom. We calculate
+        // inverse zoom as square root of absolute value of determinant of scale matrix.
+        // Determinant corresponds approximately to zoom squared, and if we will have
+        // unrotated matrix, and both axes are scaled by same value, then determinant will
+        // be exactly zoom squared. Also, we will adjust to target device logical DPI,
+        // if we, for example are using 4K, or 8K monitors.
+        qreal zoom = 1.0 / qSqrt(qAbs(pagePointToDevicePointMatrix.determinant()));
+        zoom = PDFWidgetUtils::scaleDPI_x(device, zoom);
+
+        QRectF unzoomedRect(annotationRectangle.bottomLeft(), annotationRectangle.size() * zoom);
+        unzoomedRect.translate(0, -unzoomedRect.height());
+        annotationRectangle = unzoomedRect;
+    }
+
+    return userSpaceToDeviceSpace;
+}
+
 void PDFAnnotationManager::drawPage(QPainter* painter,
                                     PDFInteger pageIndex,
                                     const PDFPrecompiledPage* compiledPage,
@@ -909,7 +974,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
 
-    PageAnnotations& annotations = getPageAnnotations(pageIndex);
+    const PageAnnotations& annotations = getPageAnnotations(pageIndex);
     if (!annotations.isEmpty())
     {
         const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
@@ -929,7 +994,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
         const PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
         m_fontCache->setCacheShrinkEnabled(this, false);
 
-        for (PageAnnotation& annotation : annotations.annotations)
+        for (const PageAnnotation& annotation : annotations.annotations)
         {
             const PDFAnnotation::Flags annotationFlags = annotation.annotation->getFlags();
             if (annotationFlags.testFlag(PDFAnnotation::Hidden) || // Annotation is completely hidden
@@ -972,58 +1037,10 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 continue;
             }
 
-            // "Unrotate" user coordinate space, if NoRotate flag is set
-            QMatrix userSpaceToDeviceSpace = pagePointToDevicePointMatrix;
-            if (annotationFlags.testFlag(PDFAnnotation::NoRotate))
-            {
-                PDFReal rotationAngle = 0.0;
-                switch (page->getPageRotation())
-                {
-                    case PageRotation::None:
-                        break;
-
-                    case PageRotation::Rotate90:
-                        rotationAngle = -90.0;
-                        break;
-
-                    case PageRotation::Rotate180:
-                        rotationAngle = -180.0;
-                        break;
-
-                    case PageRotation::Rotate270:
-                        rotationAngle = -270.0;
-                        break;
-
-                    default:
-                        Q_ASSERT(false);
-                        break;
-                }
-
-                QMatrix rotationMatrix;
-                rotationMatrix.rotate(-rotationAngle);
-                QPointF topLeft = annotationRectangle.bottomLeft(); // Do not forget, that y is upward instead of Qt
-                QPointF difference = topLeft - rotationMatrix.map(topLeft);
-
-                QMatrix finalMatrix;
-                finalMatrix.translate(difference.x(), difference.y());
-                finalMatrix.rotate(-rotationAngle);
-                userSpaceToDeviceSpace = finalMatrix * userSpaceToDeviceSpace;
-            }
+            QMatrix userSpaceToDeviceSpace = prepareTransformations(pagePointToDevicePointMatrix, painter->device(), annotationFlags, page, annotationRectangle);
 
             if (annotationFlags.testFlag(PDFAnnotation::NoZoom))
             {
-                // Jakub Melka: we must adjust annotation rectangle to disable zoom. We calculate
-                // inverse zoom as square root of absolute value of determinant of scale matrix.
-                // Determinant corresponds approximately to zoom squared, and if we will have
-                // unrotated matrix, and both axes are scaled by same value, then determinant will
-                // be exactly zoom squared. Also, we will adjust to target device logical DPI,
-                // if we, for example are using 4K, or 8K monitors.
-                qreal zoom = 1.0 / qSqrt(qAbs(pagePointToDevicePointMatrix.determinant()));
-                zoom = PDFWidgetUtils::scaleDPI_x(painter->device(), zoom);
-
-                QRectF unzoomedRect(annotationRectangle.bottomLeft(), annotationRectangle.size() * zoom);
-                unzoomedRect.translate(0, -unzoomedRect.height());
-                annotationRectangle = unzoomedRect;
                 features.setFlag(PDFRenderer::ClipToCropBox, false);
             }
 
@@ -1070,16 +1087,23 @@ void PDFAnnotationManager::setDocument(const PDFDocument* document, const PDFOpt
     }
 }
 
-PDFObject PDFAnnotationManager::getAppearanceStream(PageAnnotation& pageAnnotation) const
+PDFObject PDFAnnotationManager::getAppearanceStream(const PageAnnotation& pageAnnotation) const
 {
     auto getAppearanceStream = [&pageAnnotation] (void) -> PDFObject
     {
         return pageAnnotation.annotation->getAppearanceStreams().getAppearance(pageAnnotation.appearance, pageAnnotation.annotation->getAppearanceState());
     };
+
+    QMutexLocker lock(&m_mutex);
     return pageAnnotation.appearanceStream.get(getAppearanceStream);
 }
 
-PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(PDFInteger pageIndex) const
+const PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(PDFInteger pageIndex) const
+{
+    return const_cast<PDFAnnotationManager*>(this)->getPageAnnotations(pageIndex);
+}
+
+PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(PDFInteger pageIndex)
 {
     Q_ASSERT(m_document);
 
@@ -1110,6 +1134,16 @@ PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(
     }
 
     return it->second;
+}
+
+bool PDFAnnotationManager::hasAnnotation(PDFInteger pageIndex) const
+{
+    return !getPageAnnotations(pageIndex).isEmpty();
+}
+
+bool PDFAnnotationManager::hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const
+{
+    return std::any_of(pageIndices.cbegin(), pageIndices.cend(), std::bind(&PDFAnnotationManager::hasAnnotation, this, std::placeholders::_1));
 }
 
 PDFRenderer::Features PDFAnnotationManager::getFeatures() const
@@ -1173,6 +1207,99 @@ PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy
 PDFWidgetAnnotationManager::~PDFWidgetAnnotationManager()
 {
     m_proxy->unregisterDrawInterface(this);
+}
+
+void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+
+    updateFromMouseEvent(event);
+}
+
+void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+
+    updateFromMouseEvent(event);
+}
+
+void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+
+    updateFromMouseEvent(event);
+}
+
+void PDFWidgetAnnotationManager::wheelEvent(QWidget* widget, QWheelEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
+{
+    PDFWidget* widget = m_proxy->getWidget();
+    std::vector<PDFInteger> currentPages = widget->getDrawWidget()->getCurrentPages();
+
+    if (!hasAnyPageAnnotation(currentPages))
+    {
+        // All pages doesn't have annotation
+        return;
+    }
+
+    m_tooltip = QString();
+
+    // We must update appearance states, and update tooltip
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    const bool isDown = event->buttons().testFlag(Qt::LeftButton);
+    const PDFAppeareanceStreams::Appearance hoverAppearance = isDown ? PDFAppeareanceStreams::Appearance::Down : PDFAppeareanceStreams::Appearance::Rollover;
+
+    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+    {
+        PageAnnotations& pageAnnotations = getPageAnnotations(snapshotItem.pageIndex);
+        for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            QRectF annotationRect = pageAnnotation.annotation->getRectangle();
+            QMatrix matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+            QPainterPath path;
+            path.addRect(annotationRect);
+            path = matrix.map(path);
+
+            if (path.contains(event->pos()))
+            {
+                pageAnnotation.appearance = hoverAppearance;
+
+                // Generate tooltip
+                if (m_tooltip.isEmpty())
+                {
+                    const PDFMarkupAnnotation* markupAnnotation = dynamic_cast<const PDFMarkupAnnotation*>(pageAnnotation.annotation.data());
+                    if (markupAnnotation)
+                    {
+                        QColor backgroundColor = markupAnnotation->getDrawColorFromAnnotationColor(markupAnnotation->getColor());
+                        if (!backgroundColor.isValid())
+                        {
+                            backgroundColor = Qt::lightGray;
+                        }
+                        backgroundColor.setHslF(backgroundColor.hslHueF(), backgroundColor.hslSaturationF(), 1.0);
+                        m_tooltip = QString("<p><b>%1 (%2)</b></p><p>%3</p>").arg(markupAnnotation->getWindowTitle(), markupAnnotation->getCreationDate().toLocalTime().toString(), markupAnnotation->getContents());
+                    }
+                }
+            }
+            else
+            {
+                pageAnnotation.appearance = PDFAppeareanceStreams::Appearance::Normal;
+            }
+        }
+    }
 }
 
 void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const

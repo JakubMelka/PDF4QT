@@ -19,6 +19,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfcompiler.h"
 #include "pdfwidgettool.h"
+#include "pdfannotation.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -232,6 +233,17 @@ void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
         }
     }
 
+    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
+    {
+        annotationManager->keyPressEvent(this, event);
+        setToolTip(annotationManager->getTooltip());
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
     // Vertical navigation
     QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
     if (verticalScrollbar->isVisible())
@@ -275,6 +287,17 @@ void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
         }
     }
 
+    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
+    {
+        annotationManager->mousePressEvent(this, event);
+        setToolTip(annotationManager->getTooltip());
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
     if (event->button() == Qt::LeftButton)
     {
         m_mouseOperation = MouseOperation::Translate;
@@ -294,6 +317,17 @@ void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
     if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
     {
         toolManager->mouseReleaseEvent(this, event);
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
+    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
+    {
+        annotationManager->mouseReleaseEvent(this, event);
+        setToolTip(annotationManager->getTooltip());
         if (event->isAccepted())
         {
             updateCursor();
@@ -331,6 +365,17 @@ void PDFDrawWidgetBase<BaseWidget>::mouseMoveEvent(QMouseEvent* event)
     if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
     {
         toolManager->mouseMoveEvent(this, event);
+        if (event->isAccepted())
+        {
+            updateCursor();
+            return;
+        }
+    }
+
+    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
+    {
+        annotationManager->mouseMoveEvent(this, event);
+        setToolTip(annotationManager->getTooltip());
         if (event->isAccepted())
         {
             updateCursor();
@@ -391,6 +436,17 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
         toolManager->wheelEvent(this, event);
         if (event->isAccepted())
         {
+            return;
+        }
+    }
+
+    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
+    {
+        annotationManager->wheelEvent(this, event);
+        setToolTip(annotationManager->getTooltip());
+        if (event->isAccepted())
+        {
+            updateCursor();
             return;
         }
     }

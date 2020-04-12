@@ -35,7 +35,6 @@ namespace pdf
 {
 class PDFProgress;
 class PDFWidget;
-class IDrawWidget;
 class PDFCMSManager;
 class PDFTextLayoutGetter;
 class PDFWidgetAnnotationManager;
