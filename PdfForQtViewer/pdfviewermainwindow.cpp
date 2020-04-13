@@ -265,6 +265,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
+    connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
     m_pdfWidget->getDrawWidgetProxy()->setAnnotationManager(m_annotationManager);
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);

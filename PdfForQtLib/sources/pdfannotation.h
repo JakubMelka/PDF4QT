@@ -670,6 +670,7 @@ public:
     inline explicit PDFTextAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Text; }
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const override;
     virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     bool isOpen() const { return m_open; }
@@ -1407,6 +1408,9 @@ public:
 
     /// Returns tooltip generated from annotation
     const QString& getTooltip() const { return m_tooltip; }
+
+signals:
+    void actionTriggered(const pdf::PDFAction* action);
 
 private:
     void updateFromMouseEvent(QMouseEvent* event);

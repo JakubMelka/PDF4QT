@@ -1300,13 +1300,23 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     const PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
                     if (markupAnnotation)
                     {
-                        QColor backgroundColor = markupAnnotation->getDrawColorFromAnnotationColor(markupAnnotation->getColor());
-                        if (!backgroundColor.isValid())
+                        QString title = markupAnnotation->getWindowTitle();
+                        if (title.isEmpty())
                         {
-                            backgroundColor = Qt::lightGray;
+                            title = markupAnnotation->getSubject();
                         }
-                        backgroundColor.setHslF(backgroundColor.hslHueF(), backgroundColor.hslSaturationF(), 1.0);
-                        m_tooltip = QString("<p><b>%1 (%2)</b></p><p>%3</p>").arg(markupAnnotation->getWindowTitle(), markupAnnotation->getCreationDate().toLocalTime().toString(), markupAnnotation->getContents());
+                        if (title.isEmpty())
+                        {
+                            title = PDFTranslationContext::tr("Info");
+                        }
+
+                        const size_t repliesCount = pageAnnotations.getReplies(pageAnnotation).size();
+                        if (repliesCount > 0)
+                        {
+                            title = PDFTranslationContext::tr("%1 (%2 replies)").arg(title).arg(repliesCount);
+                        }
+
+                        m_tooltip = QString("<p><b>%1</b></p><p>%2</p>").arg(title, markupAnnotation->getContents());
                     }
                 }
 
@@ -1335,6 +1345,20 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
                         dialog->exec();
                     }
+
+                    if (pageAnnotation.annotation->getType() == AnnotationType::Link)
+                    {
+                        const PDFLinkAnnotation* linkAnnotation = dynamic_cast<const PDFLinkAnnotation*>(pageAnnotation.annotation.data());
+                        Q_ASSERT(linkAnnotation);
+
+                        // We must check, if user clicked to the link area
+                        QPainterPath activationPath = linkAnnotation->getActivationRegion().getPath();
+                        activationPath = snapshotItem.pageToDeviceMatrix.map(activationPath);
+                        if (activationPath.contains(event->pos()) && linkAnnotation->getAction())
+                        {
+                            emit actionTriggered(linkAnnotation->getAction());
+                        }
+                    }
                 }
             }
             else
@@ -1342,7 +1366,13 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                 pageAnnotation.appearance = PDFAppeareanceStreams::Appearance::Normal;
             }
 
-            appearanceChanged |= oldAppearance != pageAnnotation.appearance;
+            const bool currentAppearanceChanged = oldAppearance != pageAnnotation.appearance;
+            if (currentAppearanceChanged)
+            {
+                // We have changed appearance - we must mark stream as dirty
+                pageAnnotation.appearanceStream.dirty();
+                appearanceChanged = true;
+            }
         }
     }
 
@@ -1382,6 +1412,7 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
     QWidget* frameWidget = new QWidget(scrollArea);
     QVBoxLayout* frameLayout = new QVBoxLayout(frameWidget);
     frameLayout->setMargin(0);
+    frameLayout->setSpacing(0);
     scrollArea->setWidget(frameWidget);
 
     const PDFMarkupAnnotation* markupMainAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
@@ -1423,7 +1454,8 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
             title = markupAnnotation->getSubject();
         }
 
-        title = QString("%1 (%2)").arg(title, markupAnnotation->getCreationDate().toLocalTime().toString(Qt::TextDate)).trimmed();
+        QString dateTimeString = markupAnnotation->getCreationDate().toLocalTime().toString(Qt::SystemLocaleLongDate);
+        title = QString("%1 (%2)").arg(title, dateTimeString).trimmed();
 
         groupBox->setStyleSheet(style);
         groupBox->setTitle(title);
@@ -1525,11 +1557,19 @@ QColor PDFMarkupAnnotation::getFillColor() const
     return color;
 }
 
+std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys() const
+{
+    return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() },
+             PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Rollover, QByteArray() },
+             PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Down, QByteArray() } };
+}
+
 void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     const PDFReal opacity = getOpacity();
     QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
-    QColor fillColor = QColor::fromRgbF(1.0, 1.0, 0.0, opacity);
+    QColor fillColor = (parameters.key.first == PDFAppeareanceStreams::Appearance::Normal) ? QColor::fromRgbF(1.0, 1.0, 0.0, opacity) :
+                                                                                             QColor::fromRgbF(1.0, 0.0, 0.0, opacity);
 
     constexpr const PDFReal rectSize = 32.0;
     constexpr const PDFReal penWidth = 2.0;
