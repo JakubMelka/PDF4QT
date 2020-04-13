@@ -736,7 +736,7 @@ std::array<PDFReal, 4> PDFDocumentBuilder::getAnnotationReductionRectangle(const
 
 void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference annotationReference)
 {
-    PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_storage, m_storage.getObject(annotationReference));
+    PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_storage, annotationReference);
     if (!annotation)
     {
         return;

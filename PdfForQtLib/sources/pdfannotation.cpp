@@ -26,8 +26,14 @@
 #include "pdfparser.h"
 #include "pdfdrawwidget.h"
 
+#include <QDialog>
 #include <QApplication>
 #include <QMouseEvent>
+#include <QGroupBox>
+#include <QScrollArea>
+#include <QTextEdit>
+#include <QVBoxLayout>
+#include <QLabel>
 
 namespace pdf
 {
@@ -174,8 +180,9 @@ std::vector<PDFAppeareanceStreams::Key> PDFAnnotation::getDrawKeys() const
     return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() } };
 }
 
-PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject object)
+PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference)
 {
+    PDFObject object = storage->getObjectByReference(reference);
     PDFAnnotationPtr result;
 
     const PDFDictionary* dictionary = storage->getDictionaryFromObject(object);
@@ -185,7 +192,6 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
     }
 
     PDFDocumentDataLoaderDecorator loader(storage);
-
     QRectF annotationsRectangle = loader.readRectangle(dictionary->get("Rect"), QRectF());
 
     // Determine type of annotation
@@ -595,6 +601,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
     }
 
     // Load common data for annotation
+    result->m_selfReference = reference;
     result->m_rectangle = annotationsRectangle;
     result->m_contents = loader.readTextStringFromDictionary(dictionary, "Contents", QString());
     result->m_pageReference = loader.readReferenceFromDictionary(dictionary, "P");
@@ -999,7 +1006,8 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
             const PDFAnnotation::Flags annotationFlags = annotation.annotation->getFlags();
             if (annotationFlags.testFlag(PDFAnnotation::Hidden) || // Annotation is completely hidden
                 (m_target == Target::Print && !annotationFlags.testFlag(PDFAnnotation::Print)) || // Target is print and annotation is marked as not printed
-                (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView))) // Target is view, and annotation is disabled for screen
+                (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView)) ||  // Target is view, and annotation is disabled for screen
+                 annotation.annotation->isReplyTo()) // Annotation is reply to another annotation, display just the first annotation
             {
                 continue;
             }
@@ -1121,7 +1129,7 @@ PDFAnnotationManager::PageAnnotations& PDFAnnotationManager::getPageAnnotations(
         annotations.annotations.reserve(pageAnnotations.size());
         for (PDFObjectReference annotationReference : pageAnnotations)
         {
-            PDFAnnotationPtr annotationPtr = PDFAnnotation::parse(&m_document->getStorage(), m_document->getObjectByReference(annotationReference));
+            PDFAnnotationPtr annotationPtr = PDFAnnotation::parse(&m_document->getStorage(), annotationReference);
             if (annotationPtr)
             {
                 PageAnnotation annotation;
@@ -1257,6 +1265,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     }
 
     m_tooltip = QString();
+    bool appearanceChanged = false;
 
     // We must update appearance states, and update tooltip
     PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
@@ -1268,6 +1277,13 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
         PageAnnotations& pageAnnotations = getPageAnnotations(snapshotItem.pageIndex);
         for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
         {
+            if (pageAnnotation.annotation->isReplyTo())
+            {
+                // Annotation is reply to another annotation, do not interact with it
+                continue;
+            }
+
+            const PDFAppeareanceStreams::Appearance oldAppearance = pageAnnotation.appearance;
             QRectF annotationRect = pageAnnotation.annotation->getRectangle();
             QMatrix matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
             QPainterPath path;
@@ -1281,7 +1297,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                 // Generate tooltip
                 if (m_tooltip.isEmpty())
                 {
-                    const PDFMarkupAnnotation* markupAnnotation = dynamic_cast<const PDFMarkupAnnotation*>(pageAnnotation.annotation.data());
+                    const PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
                     if (markupAnnotation)
                     {
                         QColor backgroundColor = markupAnnotation->getDrawColorFromAnnotationColor(markupAnnotation->getColor());
@@ -1293,13 +1309,137 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                         m_tooltip = QString("<p><b>%1 (%2)</b></p><p>%3</p>").arg(markupAnnotation->getWindowTitle(), markupAnnotation->getCreationDate().toLocalTime().toString(), markupAnnotation->getContents());
                     }
                 }
+
+                // Generate popup window
+                if (event->type() == QEvent::MouseButtonPress && event->button() == Qt::LeftButton)
+                {
+                    const PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
+                    if (markupAnnotation)
+                    {
+                        QDialog* dialog = createDialogForMarkupAnnotations(widget, pageAnnotation, pageAnnotations);
+
+                        // Set proper dialog position - according to the popup annotation. If we
+                        // do not have popup annotation, then try to use annotations rectangle.
+                        if (const PageAnnotation* popupAnnotation = pageAnnotations.getPopupAnnotation(pageAnnotation))
+                        {
+                            QPoint popupPoint = snapshotItem.pageToDeviceMatrix.map(popupAnnotation->annotation->getRectangle().bottomLeft()).toPoint();
+                            popupPoint = widget->mapToGlobal(popupPoint);
+                            dialog->move(popupPoint);
+                        }
+                        else if (markupAnnotation->getRectangle().isValid())
+                        {
+                            QPoint popupPoint = snapshotItem.pageToDeviceMatrix.map(markupAnnotation->getRectangle().bottomRight()).toPoint();
+                            popupPoint = widget->mapToGlobal(popupPoint);
+                            dialog->move(popupPoint);
+                        }
+
+                        dialog->exec();
+                    }
+                }
             }
             else
             {
                 pageAnnotation.appearance = PDFAppeareanceStreams::Appearance::Normal;
             }
+
+            appearanceChanged |= oldAppearance != pageAnnotation.appearance;
         }
     }
+
+    // If appearance has changed, then we must redraw the page
+    if (appearanceChanged)
+    {
+        emit widget->getDrawWidgetProxy()->repaintNeeded();
+    }
+}
+
+QDialog* PDFWidgetAnnotationManager::createDialogForMarkupAnnotations(PDFWidget* widget,
+                                                                      const PageAnnotation& pageAnnotation,
+                                                                      const PageAnnotations& pageAnnotations)
+{
+    QDialog* dialog = new QDialog(widget->getDrawWidget()->getWidget(), Qt::Popup);
+    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    createWidgetsForMarkupAnnotations(dialog, pageAnnotation, pageAnnotations);
+    return dialog;
+}
+
+void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* parentWidget,
+                                                                   const PageAnnotation& pageAnnotation,
+                                                                   const PageAnnotations& pageAnnotations)
+{
+    std::vector<const PageAnnotation*> replies = pageAnnotations.getReplies(pageAnnotation);
+    replies.insert(replies.begin(), &pageAnnotation);
+
+    QScrollArea* scrollArea = new QScrollArea(parentWidget);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    QVBoxLayout* layout = new QVBoxLayout(parentWidget);
+    layout->addWidget(scrollArea);
+    layout->setMargin(0);
+    layout->setContentsMargins(QMargins());
+
+    QWidget* frameWidget = new QWidget(scrollArea);
+    QVBoxLayout* frameLayout = new QVBoxLayout(frameWidget);
+    frameLayout->setMargin(0);
+    scrollArea->setWidget(frameWidget);
+
+    const PDFMarkupAnnotation* markupMainAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
+    QColor color = markupMainAnnotation->getDrawColorFromAnnotationColor(markupMainAnnotation->getColor());
+    QColor titleColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.2, 1.0);
+    QColor backgroundColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.9, 1.0);
+
+    QString style = "QGroupBox { "
+                    "border: 2px solid black; "
+                    "border-color: rgb(%4, %5, %6); "
+                    "margin-top: 3ex; "
+                    "background-color: rgb(%1, %2, %3); "
+                    "}"
+                    "QGroupBox::title { "
+                    "subcontrol-origin: margin; "
+                    "subcontrol-position: top center; "
+                    "padding: 0px 8192px; "
+                    "background-color: rgb(%4, %5, %6); "
+                    "color: #FFFFFF;"
+                    "}";
+    style = style.arg(backgroundColor.red()).arg(backgroundColor.green()).arg(backgroundColor.blue()).arg(titleColor.red()).arg(titleColor.green()).arg(titleColor.blue());
+
+    for (const PageAnnotation* annotation : replies)
+    {
+        const PDFMarkupAnnotation* markupAnnotation = annotation->annotation->asMarkupAnnotation();
+
+        if (!markupAnnotation)
+        {
+            // This should not happen...
+            continue;
+        }
+
+        QGroupBox* groupBox = new QGroupBox(scrollArea);
+        frameLayout->addWidget(groupBox);
+
+        QString title = markupAnnotation->getWindowTitle();
+        if (title.isEmpty())
+        {
+            title = markupAnnotation->getSubject();
+        }
+
+        title = QString("%1 (%2)").arg(title, markupAnnotation->getCreationDate().toLocalTime().toString(Qt::TextDate)).trimmed();
+
+        groupBox->setStyleSheet(style);
+        groupBox->setTitle(title);
+        QVBoxLayout* groupBoxLayout = new QVBoxLayout(groupBox);
+
+        QLabel* label = new QLabel(groupBox);
+        label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+        label->setWordWrap(true);
+        label->setText(markupAnnotation->getContents());
+        label->setFixedWidth(PDFWidgetUtils::scaleDPI_x(label, 250));
+        label->setMinimumHeight(label->sizeHint().height());
+        groupBoxLayout->addWidget(label);
+    }
+
+    frameWidget->setFixedSize(frameWidget->minimumSizeHint());
+    parentWidget->setFixedSize(scrollArea->sizeHint());
 }
 
 void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const
@@ -1358,6 +1498,11 @@ QColor PDFSimpleGeometryAnnotation::getFillColor() const
         color.setAlphaF(getOpacity());
     }
     return color;
+}
+
+bool PDFMarkupAnnotation::isReplyTo() const
+{
+    return m_inReplyTo.isValid() && m_replyType == ReplyType::Reply;
 }
 
 QColor PDFMarkupAnnotation::getStrokeColor() const
@@ -2442,6 +2587,64 @@ void PDFSoundAnnotation::draw(AnnotationDrawParameters& parameters) const
     }
 
     drawCharacterSymbol(text, getOpacity(), parameters);
+}
+
+const PDFAnnotationManager::PageAnnotation* PDFAnnotationManager::PageAnnotations::getPopupAnnotation(const PageAnnotation& pageAnnotation) const
+{
+    const PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
+    if (markupAnnotation)
+    {
+        const PDFObjectReference popupAnnotation = markupAnnotation->getPopupAnnotation();
+        auto it = std::find_if(annotations.cbegin(), annotations.cend(), [this, popupAnnotation](const PageAnnotation& pa) { return pa.annotation->getSelfReference() == popupAnnotation; });
+        if (it != annotations.cend())
+        {
+            return &*it;
+        }
+    }
+
+    return nullptr;
+}
+
+std::vector<const PDFAnnotationManager::PageAnnotation*> PDFAnnotationManager::PageAnnotations::getReplies(const PageAnnotation& pageAnnotation) const
+{
+    std::vector<const PageAnnotation*> result;
+
+    const PDFObjectReference reference = pageAnnotation.annotation->getSelfReference();
+    for (size_t i = 0, count = annotations.size(); i < count; ++i)
+    {
+        const PageAnnotation& currentAnnotation = annotations[i];
+        if (currentAnnotation.annotation->isReplyTo())
+        {
+            const PDFMarkupAnnotation* markupAnnotation = currentAnnotation.annotation->asMarkupAnnotation();
+            Q_ASSERT(markupAnnotation);
+
+            if (markupAnnotation->getInReplyTo() == reference)
+            {
+                result.push_back(&currentAnnotation);
+            }
+        }
+    }
+
+    auto comparator = [](const PageAnnotation* l, const PageAnnotation* r)
+    {
+        QDateTime leftDateTime = l->annotation->getLastModifiedDateTime();
+        QDateTime rightDateTime = r->annotation->getLastModifiedDateTime();
+
+        if (const PDFMarkupAnnotation* markupL = l->annotation->asMarkupAnnotation())
+        {
+            leftDateTime = markupL->getCreationDate();
+        }
+
+        if (const PDFMarkupAnnotation* markupR = r->annotation->asMarkupAnnotation())
+        {
+            rightDateTime = markupR->getCreationDate();
+        }
+
+        return leftDateTime < rightDateTime;
+    };
+    std::sort(result.begin(), result.end(), comparator);
+
+    return result;
 }
 
 }   // namespace pdf
