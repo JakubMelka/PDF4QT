@@ -1003,7 +1003,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
 
         for (const PageAnnotation& annotation : annotations.annotations)
         {
-            const PDFAnnotation::Flags annotationFlags = annotation.annotation->getFlags();
+            const PDFAnnotation::Flags annotationFlags = annotation.annotation->getEffectiveFlags();
             if (annotationFlags.testFlag(PDFAnnotation::Hidden) || // Annotation is completely hidden
                 (m_target == Target::Print && !annotationFlags.testFlag(PDFAnnotation::Print)) || // Target is print and annotation is marked as not printed
                 (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView)) ||  // Target is view, and annotation is disabled for screen
@@ -1265,6 +1265,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     }
 
     m_tooltip = QString();
+    m_cursor = std::nullopt;
     bool appearanceChanged = false;
 
     // We must update appearance states, and update tooltip
@@ -1285,7 +1286,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
             const PDFAppeareanceStreams::Appearance oldAppearance = pageAnnotation.appearance;
             QRectF annotationRect = pageAnnotation.annotation->getRectangle();
-            QMatrix matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+            QMatrix matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
             QPainterPath path;
             path.addRect(annotationRect);
             path = matrix.map(path);
@@ -1320,6 +1321,22 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     }
                 }
 
+                const PDFAction* linkAction = nullptr;
+                if (pageAnnotation.annotation->getType() == AnnotationType::Link)
+                {
+                    const PDFLinkAnnotation* linkAnnotation = dynamic_cast<const PDFLinkAnnotation*>(pageAnnotation.annotation.data());
+                    Q_ASSERT(linkAnnotation);
+
+                    // We must check, if user clicked to the link area
+                    QPainterPath activationPath = linkAnnotation->getActivationRegion().getPath();
+                    activationPath = snapshotItem.pageToDeviceMatrix.map(activationPath);
+                    if (activationPath.contains(event->pos()) && linkAnnotation->getAction())
+                    {
+                        m_cursor = QCursor(Qt::PointingHandCursor);
+                        linkAction = linkAnnotation->getAction();
+                    }
+                }
+
                 // Generate popup window
                 if (event->type() == QEvent::MouseButtonPress && event->button() == Qt::LeftButton)
                 {
@@ -1346,18 +1363,9 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                         dialog->exec();
                     }
 
-                    if (pageAnnotation.annotation->getType() == AnnotationType::Link)
+                    if (linkAction)
                     {
-                        const PDFLinkAnnotation* linkAnnotation = dynamic_cast<const PDFLinkAnnotation*>(pageAnnotation.annotation.data());
-                        Q_ASSERT(linkAnnotation);
-
-                        // We must check, if user clicked to the link area
-                        QPainterPath activationPath = linkAnnotation->getActivationRegion().getPath();
-                        activationPath = snapshotItem.pageToDeviceMatrix.map(activationPath);
-                        if (activationPath.contains(event->pos()) && linkAnnotation->getAction())
-                        {
-                            emit actionTriggered(linkAnnotation->getAction());
-                        }
+                        emit actionTriggered(linkAction);
                     }
                 }
             }
@@ -1632,6 +1640,11 @@ void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.fillPath(textPath, QBrush(strokeColor, Qt::SolidPattern));
 
     parameters.boundingRectangle = rectangle;
+}
+
+PDFTextAnnotation::Flags PDFTextAnnotation::getEffectiveFlags() const
+{
+    return getFlags() | NoZoom | NoRotate;
 }
 
 void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const

@@ -97,6 +97,9 @@ public:
         m_object = T();
     }
 
+    /// Returns true, if cache is dirty
+    inline bool isDirty() const { return m_dirty; }
+
 private:
     bool m_dirty;
     T m_object;

@@ -28,6 +28,7 @@
 #include "pdfdocumentdrawinterface.h"
 #include "pdfrenderer.h"
 
+#include <QCursor>
 #include <QPainterPath>
 
 #include <array>
@@ -485,6 +486,10 @@ public:
     /// Returns a list of appearance states, which must be created for this annotation
     virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const;
 
+    /// Returns effective flags (some annotations can behave as they have always
+    /// set some flags, such as NoZoom and NoRotate)
+    virtual Flags getEffectiveFlags() const { return getFlags(); }
+
     PDFObjectReference getSelfReference() const { return m_selfReference; }
     const QRectF& getRectangle() const { return m_rectangle; }
     const QString& getContents() const { return m_contents; }
@@ -672,6 +677,7 @@ public:
     virtual AnnotationType getType() const override { return AnnotationType::Text; }
     virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const override;
     virtual void draw(AnnotationDrawParameters& parameters) const override;
+    virtual Flags getEffectiveFlags() const override;
 
     bool isOpen() const { return m_open; }
     const QByteArray& getIconName() const { return m_iconName; }
@@ -1245,7 +1251,8 @@ private:
 /// Annotation manager manages annotations for document's pages. Each page
 /// can have multiple annotations, and this object caches them. Also,
 /// this object builds annotation's appearance streams, if necessary. This
-/// manager is intended to non-gui rendering.
+/// manager is intended to non-gui rendering. If widget annotation manager is used,
+/// then this object is not thread safe.
 class PDFFORQTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
 {
     Q_OBJECT
@@ -1409,6 +1416,9 @@ public:
     /// Returns tooltip generated from annotation
     const QString& getTooltip() const { return m_tooltip; }
 
+    /// Returns current cursor
+    const std::optional<QCursor>& getCursor() const { return m_cursor;}
+
 signals:
     void actionTriggered(const pdf::PDFAction* action);
 
@@ -1435,6 +1445,7 @@ private:
 
     PDFDrawWidgetProxy* m_proxy;
     QString m_tooltip;
+    std::optional<QCursor> m_cursor;
 };
 
 }   // namespace pdf

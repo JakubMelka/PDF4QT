@@ -399,6 +399,14 @@ void PDFDrawWidgetBase<BaseWidget>::updateCursor()
 
     if (!cursor)
     {
+        if (PDFWidgetAnnotationManager* annotationManager = m_widget->getDrawWidgetProxy()->getAnnotationManager())
+        {
+            cursor = annotationManager->getCursor();
+        }
+    }
+
+    if (!cursor)
+    {
         switch (m_mouseOperation)
         {
             case MouseOperation::None:
@@ -436,6 +444,7 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
         toolManager->wheelEvent(this, event);
         if (event->isAccepted())
         {
+            updateCursor();
             return;
         }
     }
