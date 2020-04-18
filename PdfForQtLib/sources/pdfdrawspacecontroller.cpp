@@ -752,12 +752,13 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     painter->restore();
                 }
 
+                QList<PDFRenderError> drawInterfaceErrors;
                 if (!features.testFlag(PDFRenderer::DenyExtraGraphics))
                 {
                     for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
                     {
                         painter->save();
-                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix);
+                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, drawInterfaceErrors);
                         painter->restore();
                     }
                 }
@@ -794,10 +795,15 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     painter->restore();
                 }
 
-                const QList<PDFRenderError>& errors = compiledPage->getErrors();
-                if (!errors.empty())
+                const QList<PDFRenderError>& pageErrors = compiledPage->getErrors();
+                if (!pageErrors.empty() || !drawInterfaceErrors.empty())
                 {
-                    emit renderingError(item.pageIndex, errors);
+                    QList<PDFRenderError> errors = pageErrors;
+                    if (!drawInterfaceErrors.isEmpty())
+                    {
+                        errors.append(drawInterfaceErrors);
+                    }
+                    emit renderingError(item.pageIndex, qMove(errors));
                 }
             }
         }
@@ -1371,13 +1377,15 @@ void IDocumentDrawInterface::drawPage(QPainter* painter,
                                       PDFInteger pageIndex,
                                       const PDFPrecompiledPage* compiledPage,
                                       PDFTextLayoutGetter& layoutGetter,
-                                      const QMatrix& pagePointToDevicePointMatrix) const
+                                      const QMatrix& pagePointToDevicePointMatrix,
+                                      QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(painter);
     Q_UNUSED(pageIndex);
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(pagePointToDevicePointMatrix);
+    Q_UNUSED(errors);
 }
 
 void IDocumentDrawInterface::drawPostRendering(QPainter* painter, QRect rect) const

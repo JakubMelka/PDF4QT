@@ -19,6 +19,7 @@
 #define PDFDOCUMENTDRAWINTERFACE_H
 
 #include "pdfglobal.h"
+#include "pdfexception.h"
 
 class QPainter;
 
@@ -40,11 +41,13 @@ public:
     /// \param compiledPage Compiled page
     /// \param layoutGetter Layout getter
     /// \param pagePointToDevicePointMatrix Matrix mapping page space to device point space
+    /// \param[out] errors Output parameter - rendering errors
     virtual void drawPage(QPainter* painter,
                           pdf::PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const;
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const;
 
     /// Performs drawing of additional graphics after all pages are drawn onto the painter.
     /// \param painter Painter

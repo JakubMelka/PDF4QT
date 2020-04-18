@@ -46,6 +46,7 @@ SOURCES += \
     sources/pdfdocumentwriter.cpp \
     sources/pdfexecutionpolicy.cpp \
     sources/pdffile.cpp \
+    sources/pdfform.cpp \
     sources/pdfitemmodels.cpp \
     sources/pdfjbig2decoder.cpp \
     sources/pdfmultimedia.cpp \
@@ -94,6 +95,7 @@ HEADERS += \
     sources/pdfdocumentwriter.h \
     sources/pdfexecutionpolicy.h \
     sources/pdffile.h \
+    sources/pdfform.h \
     sources/pdfitemmodels.h \
     sources/pdfjbig2decoder.h \
     sources/pdfmeshqualitysettings.h \

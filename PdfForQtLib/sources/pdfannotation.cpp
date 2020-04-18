@@ -976,7 +976,8 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                                     PDFInteger pageIndex,
                                     const PDFPrecompiledPage* compiledPage,
                                     PDFTextLayoutGetter& layoutGetter,
-                                    const QMatrix& pagePointToDevicePointMatrix) const
+                                    const QMatrix& pagePointToDevicePointMatrix,
+                                    QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
@@ -1003,81 +1004,94 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
 
         for (const PageAnnotation& annotation : annotations.annotations)
         {
-            const PDFAnnotation::Flags annotationFlags = annotation.annotation->getEffectiveFlags();
-            if (annotationFlags.testFlag(PDFAnnotation::Hidden) || // Annotation is completely hidden
-                (m_target == Target::Print && !annotationFlags.testFlag(PDFAnnotation::Print)) || // Target is print and annotation is marked as not printed
-                (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView)) ||  // Target is view, and annotation is disabled for screen
-                 annotation.annotation->isReplyTo()) // Annotation is reply to another annotation, display just the first annotation
+            try
             {
+                const PDFAnnotation::Flags annotationFlags = annotation.annotation->getEffectiveFlags();
+                if (annotationFlags.testFlag(PDFAnnotation::Hidden) || // Annotation is completely hidden
+                        (m_target == Target::Print && !annotationFlags.testFlag(PDFAnnotation::Print)) || // Target is print and annotation is marked as not printed
+                        (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView)) ||  // Target is view, and annotation is disabled for screen
+                        annotation.annotation->isReplyTo()) // Annotation is reply to another annotation, display just the first annotation
+                {
+                    continue;
+                }
+
+                PDFObject appearanceStreamObject = m_document->getObject(getAppearanceStream(annotation));
+                if (!appearanceStreamObject.isStream())
+                {
+                    // Object is not valid appearance stream. We will try to draw default
+                    // annotation appearance.
+                    painter->save();
+                    painter->setRenderHint(QPainter::Antialiasing, true);
+                    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+                    AnnotationDrawParameters parameters;
+                    parameters.painter = painter;
+                    parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
+                    annotation.annotation->draw(parameters);
+                    painter->restore();
+                    continue;
+                }
+
+                PDFDocumentDataLoaderDecorator loader(m_document);
+                const PDFStream* formStream = appearanceStreamObject.getStream();
+                const PDFDictionary* formDictionary = formStream->getDictionary();
+
+                QRectF annotationRectangle = annotation.annotation->getRectangle();
+                QRectF formBoundingBox = loader.readRectangle(formDictionary->get("BBox"), QRectF());
+                QMatrix formMatrix = loader.readMatrixFromDictionary(formDictionary, "Matrix", QMatrix());
+                QByteArray content = m_document->getDecodedStream(formStream);
+                PDFObject resources = m_document->getObject(formDictionary->get("Resources"));
+                PDFObject transparencyGroup = m_document->getObject(formDictionary->get("Group"));
+
+                if (formBoundingBox.isEmpty() || annotationRectangle.isEmpty())
+                {
+                    // Form bounding box is empty
+                    continue;
+                }
+
+                QMatrix userSpaceToDeviceSpace = prepareTransformations(pagePointToDevicePointMatrix, painter->device(), annotationFlags, page, annotationRectangle);
+
+                if (annotationFlags.testFlag(PDFAnnotation::NoZoom))
+                {
+                    features.setFlag(PDFRenderer::ClipToCropBox, false);
+                }
+
+                // Jakub Melka: perform algorithm 8.1, defined in PDF 1.7 reference,
+                // chapter 8.4.4 Appearance streams.
+
+                // Step 1) - calculate transformed appearance box
+                QRectF transformedAppearanceBox = formMatrix.mapRect(formBoundingBox);
+
+                // Step 2) - calculate matrix A, which maps from form space to annotation space
+                //           Matrix A transforms from transformed appearance box space to the
+                //           annotation rectangle.
+                const PDFReal scaleX = annotationRectangle.width() / transformedAppearanceBox.width();
+                const PDFReal scaleY = annotationRectangle.height() / transformedAppearanceBox.height();
+                const PDFReal translateX = annotationRectangle.left() - transformedAppearanceBox.left() * scaleX;
+                const PDFReal translateY = annotationRectangle.bottom() - transformedAppearanceBox.bottom() * scaleY;
+                QMatrix A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
+
+                // Step 3) - compute final matrix AA
+                QMatrix AA = formMatrix * A;
+
+                PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms.get(), m_optionalActivity, m_meshQualitySettings);
+                pdfPainter.initializeProcessor();
+
+                // Jakub Melka: we must check, that we do not display annotation disabled by optional content
+                PDFObjectReference oc = annotation.annotation->getOptionalContent();
+                if (!oc.isValid() || !pdfPainter.isContentSuppressedByOC(oc))
+                {
+                    pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
+                }
+            }
+            catch (PDFException exception)
+            {
+                errors.push_back(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
                 continue;
             }
-
-            PDFObject appearanceStreamObject = m_document->getObject(getAppearanceStream(annotation));
-            if (!appearanceStreamObject.isStream())
+            catch (PDFRendererException exception)
             {
-                // Object is not valid appearance stream. We will try to draw default
-                // annotation appearance.
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing, true);
-                painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
-                AnnotationDrawParameters parameters;
-                parameters.painter = painter;
-                parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
-                annotation.annotation->draw(parameters);
-                painter->restore();
+                errors.push_back(exception.getError());
                 continue;
-            }
-
-            PDFDocumentDataLoaderDecorator loader(m_document);
-            const PDFStream* formStream = appearanceStreamObject.getStream();
-            const PDFDictionary* formDictionary = formStream->getDictionary();
-
-            QRectF annotationRectangle = annotation.annotation->getRectangle();
-            QRectF formBoundingBox = loader.readRectangle(formDictionary->get("BBox"), QRectF());
-            QMatrix formMatrix = loader.readMatrixFromDictionary(formDictionary, "Matrix", QMatrix());
-            QByteArray content = m_document->getDecodedStream(formStream);
-            PDFObject resources = m_document->getObject(formDictionary->get("Resources"));
-            PDFObject transparencyGroup = m_document->getObject(formDictionary->get("Group"));
-
-            if (formBoundingBox.isEmpty() || annotationRectangle.isEmpty())
-            {
-                // Form bounding box is empty
-                continue;
-            }
-
-            QMatrix userSpaceToDeviceSpace = prepareTransformations(pagePointToDevicePointMatrix, painter->device(), annotationFlags, page, annotationRectangle);
-
-            if (annotationFlags.testFlag(PDFAnnotation::NoZoom))
-            {
-                features.setFlag(PDFRenderer::ClipToCropBox, false);
-            }
-
-            // Jakub Melka: perform algorithm 8.1, defined in PDF 1.7 reference,
-            // chapter 8.4.4 Appearance streams.
-
-            // Step 1) - calculate transformed appearance box
-            QRectF transformedAppearanceBox = formMatrix.mapRect(formBoundingBox);
-
-            // Step 2) - calculate matrix A, which maps from form space to annotation space
-            //           Matrix A transforms from transformed appearance box space to the
-            //           annotation rectangle.
-            const PDFReal scaleX = annotationRectangle.width() / transformedAppearanceBox.width();
-            const PDFReal scaleY = annotationRectangle.height() / transformedAppearanceBox.height();
-            const PDFReal translateX = annotationRectangle.left() - transformedAppearanceBox.left() * scaleX;
-            const PDFReal translateY = annotationRectangle.bottom() - transformedAppearanceBox.bottom() * scaleY;
-            QMatrix A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
-
-            // Step 3) - compute final matrix AA
-            QMatrix AA = formMatrix * A;
-
-            PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms.get(), m_optionalActivity, m_meshQualitySettings);
-            pdfPainter.initializeProcessor();
-
-            // Jakub Melka: we must check, that we do not display annotation disabled by optional content
-            PDFObjectReference oc = annotation.annotation->getOptionalContent();
-            if (!oc.isValid() || !pdfPainter.isContentSuppressedByOC(oc))
-            {
-                pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
             }
         }
 

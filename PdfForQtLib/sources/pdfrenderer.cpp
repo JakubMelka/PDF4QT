@@ -237,8 +237,9 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
 
                     if (annotationManager)
                     {
+                        QList<PDFRenderError> errors;
                         PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                        annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix);
+                        annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
                     }
                 }
 
@@ -268,8 +269,9 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
 
         if (annotationManager)
         {
+            QList<PDFRenderError> errors;
             PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix);
+            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
         }
     }
 

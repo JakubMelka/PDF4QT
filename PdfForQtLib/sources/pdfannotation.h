@@ -1129,7 +1129,7 @@ private:
     PDFAnnotationAdditionalActions m_additionalActions;
 };
 
-/// Widget annotation represents form fileds for interactive forms.
+/// Widget annotation represents form fields for interactive forms.
 /// Annotation's dictionary is merged with form field dictionary,
 /// it can be done, because dictionaries doesn't overlap.
 class PDFWidgetAnnotation : public PDFAnnotation
@@ -1281,7 +1281,8 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const override;
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
 
     void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
 

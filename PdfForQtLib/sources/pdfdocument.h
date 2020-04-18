@@ -28,6 +28,8 @@
 #include <QMatrix>
 #include <QDateTime>
 
+#include <optional>
+
 namespace pdf
 {
 class PDFDocument;
@@ -138,12 +140,12 @@ public:
     /// Reads a name from the object, if it is possible. If object is not a name,
     /// then empty byte array is returned.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
-    QByteArray readName(const PDFObject& object);
+    QByteArray readName(const PDFObject& object) const;
 
     /// Reads a string from the object, if it is possible. If object is not a string,
     /// then empty byte array is returned.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
-    QByteArray readString(const PDFObject& object);
+    QByteArray readString(const PDFObject& object) const;
 
     /// Reads an integer from the object, if it is possible.
     /// \param object Object, can be an indirect reference to object (it is dereferenced)
@@ -239,15 +241,15 @@ public:
 
     /// Tries to read matrix from the dictionary. If matrix entry is not present, default value is returned.
     /// If it is present and invalid, exception is thrown.
-    QMatrix readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue);
+    QMatrix readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue) const;
 
     /// Tries to read array of real values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, default value is returned.
-    std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key, std::vector<PDFReal> defaultValue = std::vector<PDFReal>());
+    std::vector<PDFReal> readNumberArrayFromDictionary(const PDFDictionary* dictionary, const char* key, std::vector<PDFReal> defaultValue = std::vector<PDFReal>()) const;
 
     /// Tries to read array of integer values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, empty array is returned.
-    std::vector<PDFInteger> readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
+    std::vector<PDFInteger> readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
     /// Reads number from dictionary. If dictionary entry doesn't exist, or error occurs, default value is returned.
     /// \param dictionary Dictionary containing desired data
@@ -275,7 +277,7 @@ public:
 
     /// Tries to read array of references from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, empty array is returned.
-    std::vector<PDFObjectReference> readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key);
+    std::vector<PDFObjectReference> readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
     /// Reads number array from dictionary. Reads all values. If some value is not
     /// real number (or integer number), default value is returned. Default value is also returned,
@@ -324,12 +326,12 @@ public:
     /// Reads a name from dictionary. If dictionary entry doesn't exist, or error occurs, empty byte array is returned.
     /// \param dictionary Dictionary containing desired data
     /// \param key Entry key
-    QByteArray readNameFromDictionary(const PDFDictionary* dictionary, const char* key);
+    QByteArray readNameFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
     /// Reads a string from dictionary. If dictionary entry doesn't exist, or error occurs, empty byte array is returned.
     /// \param dictionary Dictionary containing desired data
     /// \param key Entry key
-    QByteArray readStringFromDictionary(const PDFDictionary* dictionary, const char* key);
+    QByteArray readStringFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
     /// Reads string array from dictionary. Reads all values. If error occurs,
     /// then empty array is returned.
@@ -360,6 +362,17 @@ public:
 
         return result;
     }
+
+    /// Reads optional string from dictionary. If key is not in dictionary,
+    /// then empty optional is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    std::optional<QByteArray> readOptionalStringFromDictionary(const PDFDictionary* dictionary, const char* key) const;
+
+    /// Reads optionalinteger from dictionary. If dictionary entry doesn't exist, or error occurs, empty optional is returned.
+    /// \param dictionary Dictionary containing desired data
+    /// \param key Entry key
+    std::optional<PDFInteger> readOptionalIntegerFromDictionary(const PDFDictionary* dictionary, const char* key) const;
 
 private:
     const PDFObjectStorage* m_storage;

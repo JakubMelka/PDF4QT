@@ -253,7 +253,7 @@ PDFDocumentDataLoaderDecorator::PDFDocumentDataLoaderDecorator(const PDFDocument
 
 }
 
-QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
+QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object) const
 {
     const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isName())
@@ -264,7 +264,7 @@ QByteArray PDFDocumentDataLoaderDecorator::readName(const PDFObject& object)
     return QByteArray();
 }
 
-QByteArray PDFDocumentDataLoaderDecorator::readString(const PDFObject& object)
+QByteArray PDFDocumentDataLoaderDecorator::readString(const PDFObject& object) const
 {
     const PDFObject& dereferencedObject = m_storage->getObject(object);
     if (dereferencedObject.isString())
@@ -362,7 +362,7 @@ QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, co
     return defaultValue;
 }
 
-QMatrix PDFDocumentDataLoaderDecorator::readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue)
+QMatrix PDFDocumentDataLoaderDecorator::readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue) const
 {
     if (dictionary->hasKey(key))
     {
@@ -380,7 +380,7 @@ QMatrix PDFDocumentDataLoaderDecorator::readMatrixFromDictionary(const PDFDictio
 
 std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArrayFromDictionary(const PDFDictionary* dictionary,
                                                                                    const char* key,
-                                                                                   std::vector<PDFReal> defaultValue)
+                                                                                   std::vector<PDFReal> defaultValue) const
 {
     if (dictionary->hasKey(key))
     {
@@ -390,7 +390,7 @@ std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArrayFromDictiona
     return defaultValue;
 }
 
-std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
+std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const
 {
     if (dictionary->hasKey(key))
     {
@@ -440,7 +440,7 @@ QString PDFDocumentDataLoaderDecorator::readTextStringFromDictionary(const PDFDi
     return defaultValue;
 }
 
-std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key)
+std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArrayFromDictionary(const PDFDictionary* dictionary, const char* key) const
 {
     if (dictionary->hasKey(key))
     {
@@ -605,7 +605,7 @@ bool PDFDocumentDataLoaderDecorator::readBooleanFromDictionary(const PDFDictiona
     return defaultValue;
 }
 
-QByteArray PDFDocumentDataLoaderDecorator::readNameFromDictionary(const PDFDictionary* dictionary, const char* key)
+QByteArray PDFDocumentDataLoaderDecorator::readNameFromDictionary(const PDFDictionary* dictionary, const char* key) const
 {
     if (dictionary->hasKey(key))
     {
@@ -615,7 +615,7 @@ QByteArray PDFDocumentDataLoaderDecorator::readNameFromDictionary(const PDFDicti
     return QByteArray();
 }
 
-QByteArray PDFDocumentDataLoaderDecorator::readStringFromDictionary(const PDFDictionary* dictionary, const char* key)
+QByteArray PDFDocumentDataLoaderDecorator::readStringFromDictionary(const PDFDictionary* dictionary, const char* key) const
 {
     if (dictionary->hasKey(key))
     {
@@ -653,6 +653,28 @@ QStringList PDFDocumentDataLoaderDecorator::readTextStringList(const PDFObject& 
     }
 
     return result;
+}
+
+std::optional<QByteArray> PDFDocumentDataLoaderDecorator::readOptionalStringFromDictionary(const PDFDictionary* dictionary, const char* key) const
+{
+    if (dictionary->hasKey(key))
+    {
+        return readStringFromDictionary(dictionary, key);
+    }
+    return std::nullopt;
+}
+
+std::optional<PDFInteger> PDFDocumentDataLoaderDecorator::readOptionalIntegerFromDictionary(const PDFDictionary* dictionary, const char* key) const
+{
+    if (dictionary->hasKey(key))
+    {
+        PDFInteger integer = readIntegerFromDictionary(dictionary, key, std::numeric_limits<PDFInteger>::max());
+        if (integer != std::numeric_limits<PDFInteger>::max())
+        {
+            return integer;
+        }
+    }
+    return std::nullopt;
 }
 
 std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArray(const PDFObject& object) const

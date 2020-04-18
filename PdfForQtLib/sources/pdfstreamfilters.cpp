@@ -443,7 +443,14 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
             break; // No error, normal behaviour
 
         default:
+        {
+            if (errorMessage.isEmpty())
+            {
+                errorMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
+            }
+
             throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+        }
     }
 
     return result;

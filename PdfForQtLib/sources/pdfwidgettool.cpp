@@ -213,9 +213,11 @@ void PDFFindTextTool::drawPage(QPainter* painter,
                                PDFInteger pageIndex,
                                const PDFPrecompiledPage* compiledPage,
                                PDFTextLayoutGetter& layoutGetter,
-                               const QMatrix& pagePointToDevicePointMatrix) const
+                               const QMatrix& pagePointToDevicePointMatrix,
+                               QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
+    Q_UNUSED(errors);
 
     const pdf::PDFTextSelection& textSelection = getTextSelection();
     pdf::PDFTextSelectionPainter textSelectionPainter(&textSelection);
@@ -507,9 +509,11 @@ void PDFSelectTextTool::drawPage(QPainter* painter,
                                  PDFInteger pageIndex,
                                  const PDFPrecompiledPage* compiledPage,
                                  PDFTextLayoutGetter& layoutGetter,
-                                 const QMatrix& pagePointToDevicePointMatrix) const
+                                 const QMatrix& pagePointToDevicePointMatrix,
+                                 QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
+    Q_UNUSED(errors);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
     textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
@@ -966,10 +970,12 @@ void PDFPickTool::drawPage(QPainter* painter,
                            PDFInteger pageIndex,
                            const PDFPrecompiledPage* compiledPage,
                            PDFTextLayoutGetter& layoutGetter,
-                           const QMatrix& pagePointToDevicePointMatrix) const
+                           const QMatrix& pagePointToDevicePointMatrix,
+                           QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
 
     // If we are picking rectangles, then draw current selection rectangle
     if (m_mode == Mode::Rectangles && m_pageIndex == pageIndex && !m_pickedPoints.empty())

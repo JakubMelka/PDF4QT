@@ -150,7 +150,8 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const override;
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
 
 protected:
     virtual void setActiveImpl(bool active) override;
@@ -216,7 +217,8 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const override;
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
 
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
@@ -308,7 +310,8 @@ public:
     virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix) const override;
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
