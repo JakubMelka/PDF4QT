@@ -36,6 +36,7 @@ PDFForm PDFForm::parse(const PDFObjectStorage* storage, PDFObject object)
             form.m_formFields.emplace_back(PDFFormField::parse(storage, fieldRootReference, nullptr));
         }
 
+        form.m_formType = FormType::AcroForm;
         form.m_needAppearances = loader.readBooleanFromDictionary(formDictionary, "NeedAppearances", false);
         form.m_signatureFlags = static_cast<SignatureFlags>(loader.readIntegerFromDictionary(formDictionary, "SigFlags", 0));
         form.m_calculationOrder = loader.readReferenceArrayFromDictionary(formDictionary, "CO");
@@ -43,6 +44,12 @@ PDFForm PDFForm::parse(const PDFObjectStorage* storage, PDFObject object)
         form.m_defaultAppearance = loader.readOptionalStringFromDictionary(formDictionary, "DA");
         form.m_quadding = loader.readOptionalIntegerFromDictionary(formDictionary, "Q");
         form.m_xfa = formDictionary->get("XFA");
+
+        if (!form.m_xfa.isNull())
+        {
+            // Jakub Melka: handle XFA form
+            form.m_formType = FormType::XFAForm;
+        }
     }
 
     return form;
@@ -69,7 +76,7 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
 
         PDFDocumentDataLoaderDecorator loader(storage);
         FieldType formFieldType = parentField ? parentField->getFieldType() : FieldType::Invalid;
-        if (fieldDictionary->hasKey(FT))
+        if (fieldDictionary->hasKey("FT"))
         {
             formFieldType = loader.readEnumByName(fieldDictionary->get("FT"), fieldTypes.begin(), fieldTypes.end(), FieldType::Invalid);
         }
@@ -177,6 +184,42 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
             }
 
             formFieldText->m_maxLength = loader.readIntegerFromDictionary(fieldDictionary, "MaxLen", maxLengthDefault);
+        }
+
+        if (formFieldChoice)
+        {
+            // Parse options - it is array of options values. Option value can be either a single text
+            // string, or array of two values - export value and text to be displayed.
+            PDFObject options = storage->getObject(fieldDictionary->get("Opt"));
+            if (options.isArray())
+            {
+                const PDFArray* optionsArray = options.getArray();
+                formFieldChoice->m_options.reserve(optionsArray->getCount());
+                for (size_t i = 0; i < optionsArray->getCount(); ++i)
+                {
+                    PDFFormFieldChoice::Option option;
+
+                    PDFObject optionItemObject = storage->getObject(optionsArray->getItem(i));
+                    if (optionItemObject.isArray())
+                    {
+                        QStringList stringList = loader.readTextStringList(optionItemObject);
+                        if (stringList.size() == 2)
+                        {
+                            option.exportString = stringList[0];
+                            option.userString = stringList[1];
+                        }
+                    }
+                    else
+                    {
+                        option.userString = loader.readTextString(optionItemObject, QString());
+                        option.exportString = option.userString;
+                    }
+
+                    formFieldChoice->m_options.emplace_back(qMove(option));
+                }
+            }
+
+            formFieldChoice->m_topIndex = loader.readIntegerFromDictionary(fieldDictionary, "TI", 0);
         }
     }
 

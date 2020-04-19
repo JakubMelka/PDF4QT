@@ -64,6 +64,7 @@ class PDFFormField
 {
 public:
     explicit inline PDFFormField() = default;
+    virtual ~PDFFormField() = default;
 
     enum class FieldType
     {
@@ -230,6 +231,7 @@ private:
     QStringList m_options;
 };
 
+/// Represents single line, or multiline text field
 class PDFFormFieldText : public PDFFormField
 {
 public:
@@ -250,9 +252,28 @@ class PDFFormFieldChoice : public PDFFormField
 public:
     explicit inline PDFFormFieldChoice() = default;
 
+    bool isComboBox() const { return m_fieldFlags.testFlag(Combo); }
+    bool isEditableComboBox() const { return m_fieldFlags.testFlag(Edit); }
+    bool isListBox() const { return !isComboBox(); }
+
+    struct Option
+    {
+        QString exportString;
+        QString userString;
+    };
+
+    using Options = std::vector<Option>;
+
+    const Options& getOptions() const { return m_options; }
+    PDFInteger getTopIndex() const { return m_topIndex; }
+    const PDFObject& getSelection() const { return m_selection; }
+
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
+    Options m_options;
+    PDFInteger m_topIndex;
+    PDFObject m_selection;
 };
 
 class PDFFormFieldSignature : public PDFFormField
