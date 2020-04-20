@@ -1378,7 +1378,7 @@ protected:
 
 /// Annotation manager for GUI rendering, it also manages annotations widgets
 /// for parent widget.
-class PDFFORQTLIBSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager
+class PDFFORQTLIBSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 
@@ -1392,33 +1392,35 @@ public:
     /// Handles key press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
 
     /// Handles mouse press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void mousePressEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
 
     /// Handles mouse release event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
 
     /// Handles mouse move event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
     /// Handles mouse wheel event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void wheelEvent(QWidget* widget, QWheelEvent* event);
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
 
     /// Returns tooltip generated from annotation
-    const QString& getTooltip() const { return m_tooltip; }
+    virtual QString getTooltip() const override { return m_tooltip; }
 
     /// Returns current cursor
-    const std::optional<QCursor>& getCursor() const { return m_cursor;}
+    virtual const std::optional<QCursor>& getCursor() const override { return m_cursor; }
+
+    virtual int getInputPriority() const override { return AnnotationPriority; }
 
 signals:
     void actionTriggered(const pdf::PDFAction* action);

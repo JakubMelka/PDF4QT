@@ -22,6 +22,9 @@
 #include "pdfexception.h"
 
 class QPainter;
+class QKeyEvent;
+class QMouseEvent;
+class QWheelEvent;
 
 namespace pdf
 {
@@ -53,6 +56,71 @@ public:
     /// \param painter Painter
     /// \param rect Draw rectangle (usually viewport rectangle of the pdf widget)
     virtual void drawPostRendering(QPainter* painter, QRect rect) const;
+};
+
+/// Input interface for handling events. Implementations should react on these events,
+/// and set it to accepted, if they were consumed by the interface. Interface, which
+/// consumes mouse press event, should also consume mouse release event.
+class IDrawWidgetInputInterface
+{
+public:
+    explicit inline IDrawWidgetInputInterface() = default;
+    virtual ~IDrawWidgetInputInterface() = default;
+
+    enum InputPriority
+    {
+        ToolPriority = 10,
+        FormPriority = 20,
+        AnnotationPriority = 30
+    };
+
+    /// Handles key press event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) = 0;
+
+    /// Handles mouse press event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) = 0;
+
+    /// Handles mouse release event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) = 0;
+
+    /// Handles mouse move event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) = 0;
+
+    /// Handles mouse wheel event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) = 0;
+
+    /// Returns tooltip
+    virtual QString getTooltip() const = 0;
+
+    /// Returns current cursor
+    virtual const std::optional<QCursor>& getCursor() const = 0;
+
+    /// Returns input priority (interfaces with higher priority
+    /// will get input events before interfaces with lower priority)
+    virtual int getInputPriority() const = 0;
+
+    class Comparator
+    {
+    public:
+        explicit constexpr inline Comparator() = default;
+
+        bool operator()(IDrawWidgetInputInterface* left, IDrawWidgetInputInterface* right) const
+        {
+            return std::make_pair(left->getInputPriority(), left) < std::make_pair(right->getInputPriority(), right);
+        }
+    };
+
+    static constexpr Comparator getComparator() { return Comparator(); }
 };
 
 }   // namespace pdf

@@ -395,7 +395,6 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_textLayoutCompiler(new PDFAsynchronousTextLayoutCompiler(this)),
     m_rasterizer(new PDFRasterizer(this)),
     m_progress(nullptr),
-    m_annotationManager(nullptr),
     m_useOpenGL(false)
 {
     m_controller = new PDFDrawSpaceController(this);
@@ -832,7 +831,7 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
             if (compiledPage && compiledPage->isValid())
             {
                 // Rasterize the image.
-                image = m_rasterizer->render(pageIndex, page, compiledPage, imageSize, m_features, m_annotationManager);
+                image = m_rasterizer->render(pageIndex, page, compiledPage, imageSize, m_features, m_widget->getAnnotationManager());
             }
 
             if (image.isNull())
@@ -1296,12 +1295,7 @@ void PDFDrawWidgetProxy::updateVerticalScrollbarFromOffset()
 
 PDFWidgetAnnotationManager* PDFDrawWidgetProxy::getAnnotationManager() const
 {
-    return m_annotationManager;
-}
-
-void PDFDrawWidgetProxy::setAnnotationManager(PDFWidgetAnnotationManager* annotationManager)
-{
-    m_annotationManager = annotationManager;
+    return m_widget->getAnnotationManager();
 }
 
 PDFRenderer::Features PDFDrawWidgetProxy::getFeatures() const

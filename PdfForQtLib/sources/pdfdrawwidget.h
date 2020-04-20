@@ -32,6 +32,8 @@ class PDFCMSManager;
 class PDFToolManager;
 class PDFDrawWidget;
 class PDFDrawWidgetProxy;
+class PDFWidgetAnnotationManager;
+class IDrawWidgetInputInterface;
 
 class IDrawWidget
 {
@@ -79,14 +81,17 @@ public:
 
     const PDFCMSManager* getCMSManager() const { return m_cmsManager; }
     PDFToolManager* getToolManager() const { return m_toolManager; }
+    PDFWidgetAnnotationManager* getAnnotationManager() const { return m_annotationManager; }
     IDrawWidget* getDrawWidget() const { return m_drawWidget; }
     QScrollBar* getHorizontalScrollbar() const { return m_horizontalScrollBar; }
     QScrollBar* getVerticalScrollbar() const { return m_verticalScrollBar; }
     PDFDrawWidgetProxy* getDrawWidgetProxy() const { return m_proxy; }
     const PageRenderingErrors* getPageRenderingErrors() const { return &m_pageRenderingErrors; }
     int getPageRenderingErrorCount() const;
+    const std::vector<IDrawWidgetInputInterface*>& getInputInterfaces() const { return m_inputInterfaces; }
 
-    void setToolManager(PDFToolManager* toolManager) { m_toolManager = toolManager; }
+    void setToolManager(PDFToolManager* toolManager);
+    void setAnnotationManager(PDFWidgetAnnotationManager* annotationManager);
 
 signals:
     void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
@@ -98,13 +103,18 @@ private:
 
     IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
 
+    void removeInputInterface(IDrawWidgetInputInterface* inputInterface);
+    void addInputInterface(IDrawWidgetInputInterface* inputInterface);
+
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;
+    PDFWidgetAnnotationManager* m_annotationManager;
     IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;
     PDFDrawWidgetProxy* m_proxy;
     PageRenderingErrors m_pageRenderingErrors;
+    std::vector<IDrawWidgetInputInterface*> m_inputInterfaces;
 };
 
 template<typename BaseWidget>
@@ -131,6 +141,9 @@ protected:
 
 private:
     void updateCursor();
+
+    template<typename Event, void(IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
+    bool processEvent(Event* event);
 
     enum class MouseOperation
     {

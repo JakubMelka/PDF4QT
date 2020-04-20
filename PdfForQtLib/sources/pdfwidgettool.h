@@ -386,7 +386,7 @@ private:
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
-class PDFFORQTLIBSHARED_EXPORT PDFToolManager : public QObject
+class PDFFORQTLIBSHARED_EXPORT PDFToolManager : public QObject, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 
@@ -444,31 +444,34 @@ public:
     /// Handles key press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
 
     /// Handles mouse press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void mousePressEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
 
     /// Handles mouse release event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
 
     /// Handles mouse move event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
     /// Handles mouse wheel event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
-    void wheelEvent(QWidget* widget, QWheelEvent* event);
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
 
     /// Returns actual cursor defined by the tool. Cursor can be undefined,
     /// in this case, optional will be set to nullopt.
-    const std::optional<QCursor>& getCursor() const;
+    virtual const std::optional<QCursor>& getCursor() const override;
+
+    virtual QString getTooltip() const override { return QString(); }
+    virtual int getInputPriority() const override { return ToolPriority; }
 
 signals:
     /// This is signal is set, when we want to display information message

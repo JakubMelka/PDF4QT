@@ -173,6 +173,38 @@ IDrawWidget* PDFWidget::createDrawWidget(RendererEngine rendererEngine, int samp
     return nullptr;
 }
 
+void PDFWidget::removeInputInterface(IDrawWidgetInputInterface* inputInterface)
+{
+    auto it = std::find(m_inputInterfaces.begin(), m_inputInterfaces.end(), inputInterface);
+    if (it != m_inputInterfaces.end())
+    {
+        m_inputInterfaces.erase(it);
+    }
+}
+
+void PDFWidget::addInputInterface(IDrawWidgetInputInterface* inputInterface)
+{
+    if (inputInterface)
+    {
+        m_inputInterfaces.push_back(inputInterface);
+        std::sort(m_inputInterfaces.begin(), m_inputInterfaces.end(), IDrawWidgetInputInterface::Comparator());
+    }
+}
+
+void PDFWidget::setToolManager(PDFToolManager* toolManager)
+{
+    removeInputInterface(m_toolManager);
+    m_toolManager = toolManager;
+    addInputInterface(m_toolManager);
+}
+
+void PDFWidget::setAnnotationManager(PDFWidgetAnnotationManager* annotationManager)
+{
+    removeInputInterface(m_annotationManager);
+    m_annotationManager = annotationManager;
+    addInputInterface(m_annotationManager);
+}
+
 template<typename BaseWidget>
 PDFDrawWidgetBase<BaseWidget>::PDFDrawWidgetBase(PDFWidget* widget, QWidget* parent) :
     BaseWidget(parent),
@@ -218,30 +250,41 @@ void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePos
 }
 
 template<typename BaseWidget>
+template<typename Event, void (IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
+bool PDFDrawWidgetBase<BaseWidget>::processEvent(Event* event)
+{
+    QString tooltip;
+    for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
+    {
+        (inputInterface->*Function)(this, event);
+
+        // Update tooltip
+        if (tooltip.isEmpty())
+        {
+            tooltip = inputInterface->getTooltip();
+        }
+
+        // If event is accepted, then update cursor/tooltip and return
+        if (event->isAccepted())
+        {
+            setToolTip(tooltip);
+            updateCursor();
+            return true;
+        }
+    }
+    setToolTip(tooltip);
+
+    return false;
+}
+
+template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
 {
     event->ignore();
 
-    // Try to pass event to tool manager
-    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    if (processEvent<QKeyEvent, &IDrawWidgetInputInterface::keyPressEvent>(event))
     {
-        toolManager->keyPressEvent(this, event);
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
-    }
-
-    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
-    {
-        annotationManager->keyPressEvent(this, event);
-        setToolTip(annotationManager->getTooltip());
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
+        return;
     }
 
     // Vertical navigation
@@ -276,26 +319,9 @@ void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
 {
     event->ignore();
 
-    // Try to pass event to tool manager
-    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mousePressEvent>(event))
     {
-        toolManager->mousePressEvent(this, event);
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
-    }
-
-    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
-    {
-        annotationManager->mousePressEvent(this, event);
-        setToolTip(annotationManager->getTooltip());
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
+        return;
     }
 
     if (event->button() == Qt::LeftButton)
@@ -313,26 +339,9 @@ void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
 {
     event->ignore();
 
-    // Try to pass event to tool manager
-    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseReleaseEvent>(event))
     {
-        toolManager->mouseReleaseEvent(this, event);
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
-    }
-
-    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
-    {
-        annotationManager->mouseReleaseEvent(this, event);
-        setToolTip(annotationManager->getTooltip());
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
+        return;
     }
 
     performMouseOperation(event->pos());
@@ -361,26 +370,9 @@ void PDFDrawWidgetBase<BaseWidget>::mouseMoveEvent(QMouseEvent* event)
 {
     event->ignore();
 
-    // Try to pass event to tool manager
-    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseMoveEvent>(event))
     {
-        toolManager->mouseMoveEvent(this, event);
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
-    }
-
-    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
-    {
-        annotationManager->mouseMoveEvent(this, event);
-        setToolTip(annotationManager->getTooltip());
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
+        return;
     }
 
     performMouseOperation(event->pos());
@@ -392,16 +384,15 @@ template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::updateCursor()
 {
     std::optional<QCursor> cursor;
-    if (PDFToolManager* toolManager = m_widget->getToolManager())
-    {
-        cursor = toolManager->getCursor();
-    }
 
-    if (!cursor)
+    for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
     {
-        if (PDFWidgetAnnotationManager* annotationManager = m_widget->getDrawWidgetProxy()->getAnnotationManager())
+        cursor = inputInterface->getCursor();
+
+        if (cursor)
         {
-            cursor = annotationManager->getCursor();
+            // We have found cursor
+            break;
         }
     }
 
@@ -438,26 +429,9 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
 {
     event->ignore();
 
-    // Try to pass event to tool manager
-    if (PDFToolManager* toolManager = getPDFWidget()->getToolManager())
+    if (processEvent<QWheelEvent, &IDrawWidgetInputInterface::wheelEvent>(event))
     {
-        toolManager->wheelEvent(this, event);
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
-    }
-
-    if (PDFWidgetAnnotationManager* annotationManager = getPDFWidget()->getDrawWidgetProxy()->getAnnotationManager())
-    {
-        annotationManager->wheelEvent(this, event);
-        setToolTip(annotationManager->getTooltip());
-        if (event->isAccepted())
-        {
-            updateCursor();
-            return;
-        }
+        return;
     }
 
     Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
