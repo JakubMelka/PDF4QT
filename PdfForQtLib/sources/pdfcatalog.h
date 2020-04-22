@@ -235,6 +235,7 @@ public:
     PageMode getPageMode() const { return m_pageMode; }
     const QByteArray& getBaseURI() const { return m_baseURI; }
     const std::map<QByteArray, PDFFileSpecification>& getEmbeddedFiles() const { return m_embeddedFiles; }
+    const PDFObject& getFormObject() const { return m_formObject; }
 
     /// Returns destination using the key. If destination with the key is not found,
     /// then nullptr is returned.
@@ -257,6 +258,7 @@ private:
     PageLayout m_pageLayout = PageLayout::SinglePage;
     PageMode m_pageMode = PageMode::UseNone;
     QByteArray m_baseURI;
+    PDFObject m_formObject;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;

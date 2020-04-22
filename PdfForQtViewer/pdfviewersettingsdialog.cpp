@@ -58,6 +58,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
     new QListWidgetItem(QIcon(":/resources/ui.svg"), tr("UI"), ui->optionsPagesWidget, UISettings);
     new QListWidgetItem(QIcon(":/resources/speech.svg"), tr("Speech"), ui->optionsPagesWidget, SpeechSettings);
+    new QListWidgetItem(QIcon(":/resources/form-settings.svg"), tr("Forms"), ui->optionsPagesWidget, FormSettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
@@ -193,6 +194,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
             ui->stackedWidget->setCurrentWidget(ui->speechPage);
             break;
 
+        case FormSettings:
+            ui->stackedWidget->setCurrentWidget(ui->formPage);
+            break;
+
         default:
             Q_ASSERT(false);
             break;
@@ -316,6 +321,10 @@ void PDFViewerSettingsDialog::loadData()
     ui->speechRateEdit->setValue(m_settings.m_speechRate);
     ui->speechPitchEdit->setValue(m_settings.m_speechPitch);
     ui->speechVolumeEdit->setValue(m_settings.m_speechVolume);
+
+    // Form Settings
+    ui->formHighlightFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::HighlightFields));
+    ui->formHighlightRequiredFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::HighlightRequiredFields));
 }
 
 void PDFViewerSettingsDialog::saveData()
@@ -486,6 +495,14 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->magnifierZoomEdit)
     {
         m_settings.m_magnifierZoom = ui->magnifierZoomEdit->value();
+    }
+    else if (sender == ui->formHighlightFieldsCheckBox)
+    {
+        m_settings.m_formAppearanceFlags.setFlag(pdf::PDFFormManager::HighlightFields, ui->formHighlightFieldsCheckBox->isChecked());
+    }
+    else if (sender == ui->formHighlightRequiredFieldsCheckBox)
+    {
+        m_settings.m_formAppearanceFlags.setFlag(pdf::PDFFormManager::HighlightRequiredFields, ui->formHighlightRequiredFieldsCheckBox->isChecked());
     }
 
     const bool loadData = !qobject_cast<const QDoubleSpinBox*>(sender) && !qobject_cast<const QSpinBox*>(sender);

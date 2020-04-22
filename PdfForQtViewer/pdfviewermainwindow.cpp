@@ -90,6 +90,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_isChangingProgressStep(false),
     m_toolManager(nullptr),
     m_annotationManager(nullptr),
+    m_formManager(nullptr),
     m_textToSpeech(new PDFTextToSpeech(this))
 {
     ui->setupUi(this);
@@ -268,6 +269,11 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
     m_pdfWidget->setAnnotationManager(m_annotationManager);
 
+    m_formManager = new pdf::PDFFormManager(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_formManager->setAnnotationManager(m_annotationManager);
+    m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
+    m_annotationManager->setFormManager(m_formManager);
+
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
@@ -288,6 +294,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
 {
+    delete m_formManager;
+    m_formManager = nullptr;
+
     delete m_annotationManager;
     m_annotationManager = nullptr;
 
@@ -669,6 +678,11 @@ void PDFViewerMainWindow::readSettings()
     m_settings->readSettings(settings, m_CMSManager->getDefaultSettings());
     m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
     m_textToSpeech->setSettings(m_settings);
+
+    if (m_formManager)
+    {
+        m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
+    }
 }
 
 void PDFViewerMainWindow::readActionSettings()
@@ -979,6 +993,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
     }
 
     m_annotationManager->setDocument(document, m_optionalContentActivity);
+    m_formManager->setDocument(document);
     m_toolManager->setDocument(document);
     m_textToSpeech->setDocument(document);
     m_pdfWidget->setDocument(document, m_optionalContentActivity);
@@ -1164,6 +1179,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
         m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
         m_recentFileManager->setRecentFilesLimit(dialog.getOtherSettings().maximumRecentFileCount);
         m_textToSpeech->setSettings(m_settings);
+        m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
         updateMagnifierToolSettings();
     }
 }

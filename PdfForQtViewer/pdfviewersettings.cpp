@@ -80,6 +80,10 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_speechVolume = settings.value("speechVolume", defaultSettings.m_speechVolume).toDouble();
     settings.endGroup();
 
+    settings.beginGroup("Forms");
+    m_settings.m_formAppearanceFlags = static_cast<pdf::PDFFormManager::FormAppearanceFlags>(settings.value("formAppearance", int(pdf::PDFFormManager::getDefaultApperanceFlags())).toInt());
+    settings.endGroup();
+
     emit settingsChanged();
 }
 
@@ -126,6 +130,10 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("speechRate", m_settings.m_speechRate);
     settings.setValue("speechPitch", m_settings.m_speechPitch);
     settings.setValue("speechVolume", m_settings.m_speechVolume);
+    settings.endGroup();
+
+    settings.beginGroup("Forms");
+    settings.setValue("formAppearance", int(m_settings.m_formAppearanceFlags));
     settings.endGroup();
 }
 
@@ -232,7 +240,8 @@ PDFViewerSettings::Settings::Settings() :
     m_speechPitch(0.0),
     m_speechVolume(1.0),
     m_magnifierSize(100),
-    m_magnifierZoom(2.0)
+    m_magnifierZoom(2.0),
+    m_formAppearanceFlags(pdf::PDFFormManager::getDefaultApperanceFlags())
 {
 
 }

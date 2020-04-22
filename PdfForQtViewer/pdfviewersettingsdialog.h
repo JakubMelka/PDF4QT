@@ -70,7 +70,8 @@ public:
         ColorManagementSystemSettings,
         SecuritySettings,
         UISettings,
-        SpeechSettings
+        SpeechSettings,
+        FormSettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }

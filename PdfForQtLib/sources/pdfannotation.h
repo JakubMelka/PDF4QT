@@ -43,6 +43,7 @@ class PDFWidget;
 class PDFObjectStorage;
 class PDFDrawWidgetProxy;
 class PDFFontCache;
+class PDFFormManager;
 class PDFOptionalContentActivity;
 
 using TextAlignment = Qt::Alignment;
@@ -1301,6 +1302,9 @@ public:
     PDFRenderer::Features getFeatures() const;
     void setFeatures(PDFRenderer::Features features);
 
+    PDFFormManager* getFormManager() const;
+    void setFormManager(PDFFormManager* formManager);
+
 protected:
     struct PageAnnotation
     {
@@ -1368,6 +1372,7 @@ protected:
     PDFFontCache* m_fontCache;
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalActivity;
+    PDFFormManager* m_formManager;
     PDFMeshQualitySettings m_meshQualitySettings;
     PDFRenderer::Features m_features;
 

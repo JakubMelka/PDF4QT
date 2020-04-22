@@ -25,6 +25,7 @@
 #include "pdfpagecontentprocessor.h"
 #include "pdfparser.h"
 #include "pdfdrawwidget.h"
+#include "pdfform.h"
 
 #include <QDialog>
 #include <QApplication>
@@ -897,6 +898,7 @@ PDFAnnotationManager::PDFAnnotationManager(PDFFontCache* fontCache,
     m_fontCache(fontCache),
     m_cmsManager(cmsManager),
     m_optionalActivity(optionalActivity),
+    m_formManager(nullptr),
     m_meshQualitySettings(meshQualitySettings),
     m_features(features),
     m_target(target)
@@ -1081,6 +1083,22 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 if (!oc.isValid() || !pdfPainter.isContentSuppressedByOC(oc))
                 {
                     pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
+
+                    // Is it a form field?
+                    if (m_formManager && annotation.annotation->getType() == AnnotationType::Widget)
+                    {
+                        const PDFFormManager::FormAppearanceFlags flags = m_formManager->getAppearanceFlags();
+                        if (flags.testFlag(PDFFormManager::HighlightFields) || flags.testFlag(PDFFormManager::HighlightRequiredFields))
+                        {
+                            const PDFFormField* formField = m_formManager->getFormFieldForWidget(annotation.annotation->getSelfReference());
+                            if (!formField)
+                            {
+                                continue;
+                            }
+
+                            s
+                        }
+                    }
                 }
             }
             catch (PDFException exception)
@@ -1166,6 +1184,16 @@ bool PDFAnnotationManager::hasAnnotation(PDFInteger pageIndex) const
 bool PDFAnnotationManager::hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const
 {
     return std::any_of(pageIndices.cbegin(), pageIndices.cend(), std::bind(&PDFAnnotationManager::hasAnnotation, this, std::placeholders::_1));
+}
+
+PDFFormManager* PDFAnnotationManager::getFormManager() const
+{
+    return m_formManager;
+}
+
+void PDFAnnotationManager::setFormManager(PDFFormManager* formManager)
+{
+    m_formManager = formManager;
 }
 
 PDFRenderer::Features PDFAnnotationManager::getFeatures() const
@@ -1336,7 +1364,8 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                 }
 
                 const PDFAction* linkAction = nullptr;
-                if (pageAnnotation.annotation->getType() == AnnotationType::Link)
+                const AnnotationType annotationType = pageAnnotation.annotation->getType();
+                if (annotationType == AnnotationType::Link)
                 {
                     const PDFLinkAnnotation* linkAnnotation = dynamic_cast<const PDFLinkAnnotation*>(pageAnnotation.annotation.data());
                     Q_ASSERT(linkAnnotation);
@@ -1349,6 +1378,10 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                         m_cursor = QCursor(Qt::PointingHandCursor);
                         linkAction = linkAnnotation->getAction();
                     }
+                }
+                if (annotationType == AnnotationType::Widget)
+                {
+                    m_cursor = QCursor(Qt::ArrowCursor);
                 }
 
                 // Generate popup window

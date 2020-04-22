@@ -168,6 +168,8 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         catalogObject.m_baseURI = loader.readStringFromDictionary(URIDictionary, "Base");
     }
 
+    catalogObject.m_formObject = catalogDictionary->get("AcroForm");
+
     return catalogObject;
 }
 

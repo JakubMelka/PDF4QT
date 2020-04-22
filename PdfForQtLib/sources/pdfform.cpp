@@ -17,6 +17,7 @@
 
 #include "pdfform.h"
 #include "pdfdocument.h"
+#include "pdfdrawspacecontroller.h"
 
 namespace pdf
 {
@@ -53,6 +54,19 @@ PDFForm PDFForm::parse(const PDFObjectStorage* storage, PDFObject object)
     }
 
     return form;
+}
+
+void PDFFormField::fillWidgetToFormFieldMapping(PDFWidgetToFormFieldMapping& mapping)
+{
+    for (const auto& childField : m_childFields)
+    {
+        childField->fillWidgetToFormFieldMapping(mapping);
+    }
+
+    for (const PDFFormWidget& formWidget : m_widgets)
+    {
+        mapping[formWidget.getWidget()] = formWidget.getParent();
+    }
 }
 
 PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField)
@@ -251,6 +265,79 @@ PDFFormFieldButton::ButtonType PDFFormFieldButton::getButtonType() const
     }
 
     return ButtonType::CheckBox;
+}
+
+PDFFormManager::PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
+    BaseClass(parent),
+    m_proxy(proxy),
+    m_annotationManager(nullptr),
+    m_document(nullptr),
+    m_flags(getDefaultApperanceFlags())
+{
+    Q_ASSERT(proxy);
+}
+
+PDFFormManager::~PDFFormManager()
+{
+
+}
+
+PDFAnnotationManager* PDFFormManager::getAnnotationManager() const
+{
+    return m_annotationManager;
+}
+
+void PDFFormManager::setAnnotationManager(PDFAnnotationManager* annotationManager)
+{
+    m_annotationManager = annotationManager;
+}
+
+const PDFDocument* PDFFormManager::getDocument() const
+{
+    return m_document;
+}
+
+void PDFFormManager::setDocument(const PDFDocument* document)
+{
+    if (m_document != document)
+    {
+        m_document = document;
+
+        if (m_document)
+        {
+            m_form = PDFForm::parse(&m_document->getStorage(), m_document->getCatalog()->getFormObject());
+        }
+        else
+        {
+            // Clean the form
+            m_form = PDFForm();
+        }
+
+        updateWidgetToFormFieldMapping();
+    }
+}
+
+PDFFormManager::FormAppearanceFlags PDFFormManager::getAppearanceFlags() const
+{
+    return m_flags;
+}
+
+void PDFFormManager::setAppearanceFlags(FormAppearanceFlags flags)
+{
+    m_flags = flags;
+}
+
+void PDFFormManager::updateWidgetToFormFieldMapping()
+{
+    m_widgetToFormField.clear();
+
+    if (hasAcroForm())
+    {
+        for (const PDFFormFieldPointer& formFieldPtr : m_form.getFormFields())
+        {
+            formFieldPtr->fillWidgetToFormFieldMapping(m_widgetToFormField);
+        }
+    }
 }
 
 }   // namespace pdf

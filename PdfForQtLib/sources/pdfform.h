@@ -31,6 +31,7 @@ class PDFFormField;
 
 using PDFFormFieldPointer = QSharedPointer<PDFFormField>;
 using PDFFormFields = std::vector<PDFFormFieldPointer>;
+using PDFWidgetToFormFieldMapping = std::map<PDFObjectReference, PDFFormField*>;
 
 /// A simple proxy to the widget annotation
 class PDFFormWidget
@@ -182,6 +183,10 @@ public:
     const PDFObject& getValue() const { return m_value; }
     const PDFObject& getDefaultValue() const { return m_defaultValue; }
 
+    /// Fills widget to form field mapping
+    /// \param mapping Form field mapping
+    void fillWidgetToFormFieldMapping(PDFWidgetToFormFieldMapping& mapping);
+
     /// Parses form field from the object reference. If some error occurs
     /// then null pointer is returned, no exception is thrown.
     /// \param storage Storage
@@ -311,6 +316,7 @@ public:
     };
     Q_DECLARE_FLAGS(SignatureFlags, SignatureFlag)
 
+    FormType getFormType() const { return m_formType; }
     const PDFFormFields& getFormFields() const { return m_formFields; }
     bool isAppearanceUpdateNeeded() const { return m_needAppearances; }
     SignatureFlags getSignatureFlags() const { return m_signatureFlags; }
@@ -336,6 +342,58 @@ private:
     std::optional<QByteArray> m_defaultAppearance;
     std::optional<PDFInteger> m_quadding;
     PDFObject m_xfa;
+};
+
+/// Form manager. Manages all form widgets functionality - triggers actions,
+/// edits fields, updates annotation appearances, etc. Valid pointer to annotation
+/// manager is requirement.
+class PDFFORQTLIBSHARED_EXPORT PDFFormManager : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent);
+    virtual ~PDFFormManager() override;
+
+    enum FormAppearanceFlag
+    {
+        None                    = 0x0000,
+        HighlightFields         = 0x0001,
+        HighlightRequiredFields = 0x0002,
+    };
+    Q_DECLARE_FLAGS(FormAppearanceFlags, FormAppearanceFlag)
+
+    bool hasAcroForm() const { return m_form.getFormType() == PDFForm::FormType::AcroForm; }
+
+    /// Returns form field for widget. If widget doesn't have attached form field,
+    /// then nullptr is returned.
+    /// \param widget Widget annotation
+    const PDFFormField* getFormFieldForWidget(PDFObjectReference widget) const;
+
+    PDFAnnotationManager* getAnnotationManager() const;
+    void setAnnotationManager(PDFAnnotationManager* annotationManager);
+
+    const PDFDocument* getDocument() const;
+    void setDocument(const PDFDocument* document);
+
+    /// Returns default form apperance flags
+    static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
+
+    FormAppearanceFlags getAppearanceFlags() const;
+    void setAppearanceFlags(FormAppearanceFlags flags);
+
+private:
+    void updateWidgetToFormFieldMapping();
+
+    PDFDrawWidgetProxy* m_proxy;
+    PDFAnnotationManager* m_annotationManager;
+    const PDFDocument* m_document;
+    FormAppearanceFlags m_flags;
+    PDFForm m_form;
+    PDFWidgetToFormFieldMapping m_widgetToFormField;
 };
 
 }   // namespace pdf

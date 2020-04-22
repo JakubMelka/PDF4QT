@@ -21,6 +21,7 @@
 #include "pdfrenderer.h"
 #include "pdfcms.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfform.h"
 
 #include <QObject>
 
@@ -75,6 +76,9 @@ public:
         // Magnifier tool settings
         int m_magnifierSize;
         double m_magnifierZoom;
+
+        // Form settings
+        pdf::PDFFormManager::FormAppearanceFlags m_formAppearanceFlags;
     };
 
     const Settings& getSettings() const { return m_settings; }

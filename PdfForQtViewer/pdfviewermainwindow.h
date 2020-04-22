@@ -29,6 +29,7 @@
 #include "pdfrecentfilemanager.h"
 #include "pdftexttospeech.h"
 #include "pdfannotation.h"
+#include "pdfform.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -181,6 +182,7 @@ private:
 
     pdf::PDFToolManager* m_toolManager;
     pdf::PDFWidgetAnnotationManager* m_annotationManager;
+    pdf::PDFFormManager* m_formManager;
     PDFTextToSpeech* m_textToSpeech;
 };
 

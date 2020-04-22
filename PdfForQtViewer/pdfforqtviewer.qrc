@@ -43,5 +43,6 @@
         <file>resources/magnifier.svg</file>
         <file>resources/screenshot-tool.svg</file>
         <file>resources/extract-image.svg</file>
+        <file>resources/form-settings.svg</file>
     </qresource>
 </RCC>
