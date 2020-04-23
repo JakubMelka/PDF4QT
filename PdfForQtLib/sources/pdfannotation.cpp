@@ -26,6 +26,7 @@
 #include "pdfparser.h"
 #include "pdfdrawwidget.h"
 #include "pdfform.h"
+#include "pdfpainterutils.h"
 
 #include <QDialog>
 #include <QApplication>
@@ -974,6 +975,48 @@ QMatrix PDFAnnotationManager::prepareTransformations(const QMatrix& pagePointToD
     return userSpaceToDeviceSpace;
 }
 
+void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectangle,
+                                                         const PDFAnnotation* annotation,
+                                                         QPainter* painter,
+                                                         QMatrix userSpaceToDeviceSpace) const
+{
+    const bool isWidget = annotation->getType() == AnnotationType::Widget;
+    if (m_formManager && isWidget)
+    {
+        // Is it a form field?
+        const PDFFormManager::FormAppearanceFlags flags = m_formManager->getAppearanceFlags();
+        if (flags.testFlag(PDFFormManager::HighlightFields) || flags.testFlag(PDFFormManager::HighlightRequiredFields))
+        {
+            const PDFFormField* formField = m_formManager->getFormFieldForWidget(annotation->getSelfReference());
+            if (!formField)
+            {
+                return;
+            }
+
+            QColor color;
+            if (flags.testFlag(PDFFormManager::HighlightFields))
+            {
+                color = Qt::blue;
+            }
+            if (flags.testFlag(PDFFormManager::HighlightRequiredFields) && formField->getFlags().testFlag(PDFFormField::Required))
+            {
+                color = Qt::red;
+            }
+
+            if (color.isValid())
+            {
+                color.setAlphaF(0.2);
+
+                // Draw annotation rectangle by highlight color
+                QPainterPath highlightArea;
+                highlightArea.addRect(annotationRectangle);
+                highlightArea = userSpaceToDeviceSpace.map(highlightArea);
+                painter->fillPath(highlightArea, color);
+            }
+        }
+    }
+}
+
 void PDFAnnotationManager::drawPage(QPainter* painter,
                                     PDFInteger pageIndex,
                                     const PDFPrecompiledPage* compiledPage,
@@ -1021,15 +1064,40 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 if (!appearanceStreamObject.isStream())
                 {
                     // Object is not valid appearance stream. We will try to draw default
-                    // annotation appearance.
-                    painter->save();
-                    painter->setRenderHint(QPainter::Antialiasing, true);
-                    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
-                    AnnotationDrawParameters parameters;
-                    parameters.painter = painter;
-                    parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
-                    annotation.annotation->draw(parameters);
-                    painter->restore();
+                    // annotation appearance, but we must consider also optional content.
+                    // We do not draw annotation, if it is not ignored and annotation
+                    // has reference to optional content.
+
+                    if (!m_features.testFlag(PDFRenderer::IgnoreOptionalContent) &&
+                        annotation.annotation->getOptionalContent().isValid())
+                    {
+                        continue;
+                    }
+
+                    QRectF annotationRectangle = annotation.annotation->getRectangle();
+                    {
+                        PDFPainterStateGuard guard(painter);
+                        painter->setRenderHint(QPainter::Antialiasing, true);
+                        painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+                        AnnotationDrawParameters parameters;
+                        parameters.painter = painter;
+                        parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
+                        annotation.annotation->draw(parameters);
+
+                        if (parameters.boundingRectangle.isValid())
+                        {
+                            annotationRectangle = parameters.boundingRectangle;
+                        }
+                    }
+
+                    // Draw highlighting of fields, but only, if target is View,
+                    // we do not want to render form field highlight, when we are
+                    // printing to the printer.
+                    if (m_target == Target::View)
+                    {
+                        PDFPainterStateGuard guard(painter);
+                        drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, pagePointToDevicePointMatrix);
+                    }
                     continue;
                 }
 
@@ -1075,30 +1143,30 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 // Step 3) - compute final matrix AA
                 QMatrix AA = formMatrix * A;
 
-                PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms.get(), m_optionalActivity, m_meshQualitySettings);
-                pdfPainter.initializeProcessor();
+                bool isContentVisible = false;
 
-                // Jakub Melka: we must check, that we do not display annotation disabled by optional content
-                PDFObjectReference oc = annotation.annotation->getOptionalContent();
-                if (!oc.isValid() || !pdfPainter.isContentSuppressedByOC(oc))
+                // Draw annotation
                 {
-                    pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
+                    PDFPainterStateGuard guard(painter);
+                    PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms.get(), m_optionalActivity, m_meshQualitySettings);
+                    pdfPainter.initializeProcessor();
 
-                    // Is it a form field?
-                    if (m_formManager && annotation.annotation->getType() == AnnotationType::Widget)
+                    // Jakub Melka: we must check, that we do not display annotation disabled by optional content
+                    PDFObjectReference oc = annotation.annotation->getOptionalContent();
+                    isContentVisible = !oc.isValid() || !pdfPainter.isContentSuppressedByOC(oc);
+
+                    if (isContentVisible)
                     {
-                        const PDFFormManager::FormAppearanceFlags flags = m_formManager->getAppearanceFlags();
-                        if (flags.testFlag(PDFFormManager::HighlightFields) || flags.testFlag(PDFFormManager::HighlightRequiredFields))
-                        {
-                            const PDFFormField* formField = m_formManager->getFormFieldForWidget(annotation.annotation->getSelfReference());
-                            if (!formField)
-                            {
-                                continue;
-                            }
-
-                            s
-                        }
+                        pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
                     }
+                }
+
+                // Draw highlighting of fields, but only, if target is View,
+                // we do not want to render form field highlight, when we are
+                // printing to the printer.
+                if (isContentVisible && m_target == Target::View)
+                {
+                    drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, userSpaceToDeviceSpace);
                 }
             }
             catch (PDFException exception)

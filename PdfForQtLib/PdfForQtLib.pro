@@ -105,6 +105,7 @@ HEADERS += \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
     sources/pdfpagetransition.h \
+    sources/pdfpainterutils.h \
     sources/pdfparser.h \
     sources/pdfglobal.h \
     sources/pdfconstants.h \

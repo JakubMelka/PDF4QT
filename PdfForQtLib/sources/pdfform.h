@@ -367,6 +367,7 @@ public:
     Q_DECLARE_FLAGS(FormAppearanceFlags, FormAppearanceFlag)
 
     bool hasAcroForm() const { return m_form.getFormType() == PDFForm::FormType::AcroForm; }
+    bool hasXFAForm() const { return m_form.getFormType() == PDFForm::FormType::XFAForm; }
 
     /// Returns form field for widget. If widget doesn't have attached form field,
     /// then nullptr is returned.

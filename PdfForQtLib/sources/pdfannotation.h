@@ -1261,6 +1261,8 @@ class PDFFORQTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDo
 private:
     using BaseClass = QObject;
 
+    void drawWidgetAnnotationHighlight(QRectF annotationRectangle, PDFObjectReference annotationReference, QPainter* painter, QMatrix userSpaceToDeviceSpace) const;
+
 public:
 
     enum class Target
@@ -1366,6 +1368,11 @@ protected:
 
     /// Returns true, if any page in the given indices has annotation
     bool hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const;
+
+    void drawWidgetAnnotationHighlight(QRectF annotationRectangle,
+                                       const PDFAnnotation* annotation,
+                                       QPainter* painter,
+                                       QMatrix userSpaceToDeviceSpace) const;
 
     const PDFDocument* m_document;
 

@@ -282,6 +282,17 @@ PDFFormManager::~PDFFormManager()
 
 }
 
+const PDFFormField* PDFFormManager::getFormFieldForWidget(PDFObjectReference widget) const
+{
+    auto it = m_widgetToFormField.find(widget);
+    if (it != m_widgetToFormField.cend())
+    {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
 PDFAnnotationManager* PDFFormManager::getAnnotationManager() const
 {
     return m_annotationManager;
@@ -331,7 +342,7 @@ void PDFFormManager::updateWidgetToFormFieldMapping()
 {
     m_widgetToFormField.clear();
 
-    if (hasAcroForm())
+    if (hasAcroForm() || hasXFAForm())
     {
         for (const PDFFormFieldPointer& formFieldPtr : m_form.getFormFields())
         {
