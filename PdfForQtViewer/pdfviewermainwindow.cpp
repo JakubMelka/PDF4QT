@@ -117,6 +117,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionRotateRight->setShortcut(QKeySequence("Ctrl+Shift++"));
     ui->actionRotateLeft->setShortcut(QKeySequence("Ctrl+Shift+-"));
     ui->actionPrint->setShortcut(QKeySequence::Print);
+    ui->actionUndo->setShortcut(QKeySequence::Undo);
+    ui->actionRedo->setShortcut(QKeySequence::Redo);
 
     for (QAction* action : m_recentFileManager->getActions())
     {

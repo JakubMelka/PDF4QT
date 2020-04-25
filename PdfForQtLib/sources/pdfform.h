@@ -329,13 +329,23 @@ public:
     const std::optional<PDFInteger>& getQuadding() const { return m_quadding; }
     const PDFObject& getXFA() const { return m_xfa; }
 
+    bool isAcroForm() const { return getFormType() == PDFForm::FormType::AcroForm; }
+    bool isXFAForm() const { return getFormType() == PDFForm::FormType::XFAForm; }
+
+    /// Returns form field for widget. If widget doesn't have attached form field,
+    /// then nullptr is returned.
+    /// \param widget Widget annotation
+    const PDFFormField* getFormFieldForWidget(PDFObjectReference widget) const;
+
     /// Parses form from the object. If some error occurs
     /// then empty form is returned, no exception is thrown.
-    /// \param storage Storage
+    /// \param document Document
     /// \param reference Field reference
-    static PDFForm parse(const PDFObjectStorage* storage, PDFObject object);
+    static PDFForm parse(const PDFDocument* document, PDFObject object);
 
 private:
+    void updateWidgetToFormFieldMapping();
+
     FormType m_formType = FormType::None;
     PDFFormFields m_formFields;
     bool m_needAppearances = false;
@@ -345,6 +355,7 @@ private:
     std::optional<QByteArray> m_defaultAppearance;
     std::optional<PDFInteger> m_quadding;
     PDFObject m_xfa;
+    PDFWidgetToFormFieldMapping m_widgetToFormField;
 };
 
 /// Form manager. Manages all form widgets functionality - triggers actions,
@@ -375,7 +386,7 @@ public:
     /// Returns form field for widget. If widget doesn't have attached form field,
     /// then nullptr is returned.
     /// \param widget Widget annotation
-    const PDFFormField* getFormFieldForWidget(PDFObjectReference widget) const;
+    const PDFFormField* getFormFieldForWidget(PDFObjectReference widget) const { return m_form.getFormFieldForWidget(widget); }
 
     PDFAnnotationManager* getAnnotationManager() const;
     void setAnnotationManager(PDFAnnotationManager* annotationManager);
@@ -391,14 +402,12 @@ public:
 
 private:
     void updateFieldValues();
-    void updateWidgetToFormFieldMapping();
 
     PDFDrawWidgetProxy* m_proxy;
     PDFAnnotationManager* m_annotationManager;
     const PDFDocument* m_document;
     FormAppearanceFlags m_flags;
     PDFForm m_form;
-    PDFWidgetToFormFieldMapping m_widgetToFormField;
 };
 
 }   // namespace pdf

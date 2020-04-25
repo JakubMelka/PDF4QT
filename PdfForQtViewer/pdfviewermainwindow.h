@@ -34,7 +34,6 @@
 #include <QFuture>
 #include <QTreeView>
 #include <QMainWindow>
-#include <QSharedPointer>
 #include <QWinTaskbarButton>
 #include <QWinTaskbarProgress>
 #include <QFutureWatcher>
@@ -147,7 +146,7 @@ private:
 
     struct AsyncReadingResult
     {
-        QSharedPointer<pdf::PDFDocument> document;
+        pdf::PDFDocumentPointer document;
         QString errorMessage;
         pdf::PDFDocumentReader::Result result = pdf::PDFDocumentReader::Result::Cancelled;
     };
@@ -157,7 +156,7 @@ private:
     PDFRecentFileManager* m_recentFileManager;
     PDFViewerSettings* m_settings;
     pdf::PDFWidget* m_pdfWidget;
-    QSharedPointer<pdf::PDFDocument> m_pdfDocument;
+    pdf::PDFDocumentPointer m_pdfDocument;
     QString m_currentFile;
     PDFSidebarWidget* m_sidebarWidget;
     QDockWidget* m_sidebarDockWidget;

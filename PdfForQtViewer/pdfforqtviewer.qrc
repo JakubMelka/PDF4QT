@@ -44,5 +44,7 @@
         <file>resources/screenshot-tool.svg</file>
         <file>resources/extract-image.svg</file>
         <file>resources/form-settings.svg</file>
+        <file>resources/undo.svg</file>
+        <file>resources/redo.svg</file>
     </qresource>
 </RCC>

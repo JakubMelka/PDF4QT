@@ -22,19 +22,19 @@
 namespace pdf
 {
 
-PDFForm PDFForm::parse(const PDFObjectStorage* storage, PDFObject object)
+PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
 {
     PDFForm form;
 
-    if (const PDFDictionary* formDictionary = storage->getDictionaryFromObject(object))
+    if (const PDFDictionary* formDictionary = document->getDictionaryFromObject(object))
     {
-        PDFDocumentDataLoaderDecorator loader(storage);
+        PDFDocumentDataLoaderDecorator loader(document);
 
         std::vector<PDFObjectReference> fieldRoots = loader.readReferenceArrayFromDictionary(formDictionary, "Fields");
         form.m_formFields.reserve(fieldRoots.size());
         for (const PDFObjectReference& fieldRootReference : fieldRoots)
         {
-            form.m_formFields.emplace_back(PDFFormField::parse(storage, fieldRootReference, nullptr));
+            form.m_formFields.emplace_back(PDFFormField::parse(&document->getStorage(), fieldRootReference, nullptr));
         }
 
         form.m_formType = FormType::AcroForm;
@@ -51,9 +51,71 @@ PDFForm PDFForm::parse(const PDFObjectStorage* storage, PDFObject object)
             // Jakub Melka: handle XFA form
             form.m_formType = FormType::XFAForm;
         }
+
+        // As post-processing, delete all form fields, which are nullptr (are incorrectly defined)
+        form.m_formFields.erase(std::remove_if(form.m_formFields.begin(), form.m_formFields.end(), [](const auto& field){ return !field; }), form.m_formFields.end());
+        form.updateWidgetToFormFieldMapping();
+
+        // If we have form, then we must also look for 'rogue' form fields, which are
+        // incorrectly not in the 'Fields' entry of this form. We do this by iterating
+        // all pages, and their annotations and try to find these 'rogue' fields.
+        bool rogueFieldFound = false;
+        const size_t pageCount = document->getCatalog()->getPageCount();
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            const PDFPage* page = document->getCatalog()->getPage(i);
+            for (PDFObjectReference annotationReference : page->getAnnotations())
+            {
+                const PDFDictionary* annotationDictionary = document->getDictionaryFromObject(document->getObjectByReference(annotationReference));
+
+                if (form.m_widgetToFormField.count(annotationReference))
+                {
+                    // This widget/form field is already present
+                    continue;
+                }
+
+                if (loader.readNameFromDictionary(annotationDictionary, "Subtype") == "Widget")
+                {
+                    rogueFieldFound = true;
+                    form.m_formFields.emplace_back(PDFFormField::parse(&document->getStorage(), annotationReference, nullptr));
+                }
+            }
+        }
+
+        // As post-processing, delete all form fields, which are nullptr (are incorrectly defined)
+        form.m_formFields.erase(std::remove_if(form.m_formFields.begin(), form.m_formFields.end(), [](const auto& field){ return !field; }), form.m_formFields.end());
+
+        if (rogueFieldFound)
+        {
+            form.updateWidgetToFormFieldMapping();
+        }
     }
 
     return form;
+}
+
+void PDFForm::updateWidgetToFormFieldMapping()
+{
+    m_widgetToFormField.clear();
+
+    if (isAcroForm() || isXFAForm())
+    {
+        for (const PDFFormFieldPointer& formFieldPtr : getFormFields())
+        {
+            formFieldPtr->fillWidgetToFormFieldMapping(m_widgetToFormField);
+        }
+    }
+}
+
+const PDFFormField* PDFForm::getFormFieldForWidget(PDFObjectReference widget) const
+{
+    auto it = m_widgetToFormField.find(widget);
+    if (it != m_widgetToFormField.cend())
+    {
+        return it->second;
+    }
+
+    return nullptr;
 }
 
 void PDFFormField::fillWidgetToFormFieldMapping(PDFWidgetToFormFieldMapping& mapping)
@@ -142,6 +204,34 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
         }
         result.reset(formField);
 
+        PDFObject parentV = parentField ? parentField->getValue() : PDFObject();
+        PDFObject parentDV = parentField ? parentField->getDefaultValue() : PDFObject();
+        FieldFlags parentFlags = parentField ? parentField->getFlags() : None;
+
+        formField->m_selfReference = reference;
+        formField->m_fieldType = formFieldType;
+        formField->m_parentField = parentField;
+        formField->m_fieldNames[Partial] = loader.readTextStringFromDictionary(fieldDictionary, "T", QString());
+        formField->m_fieldNames[UserCaption] = loader.readTextStringFromDictionary(fieldDictionary, "TU", QString());
+        formField->m_fieldNames[Export] = loader.readTextStringFromDictionary(fieldDictionary, "TM", QString());
+        formField->m_fieldFlags = fieldDictionary->hasKey("Ff") ? static_cast<FieldFlags>(loader.readIntegerFromDictionary(fieldDictionary, "Ff", 0)) : parentFlags;
+        formField->m_value = fieldDictionary->hasKey("V") ? fieldDictionary->get("V") : parentV;
+        formField->m_defaultValue = fieldDictionary->hasKey("DV") ? fieldDictionary->get("DV") : parentDV;
+        formField->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, fieldDictionary->get("AA"));
+
+        // Generate fully qualified name. If partial name is empty, then fully qualified name
+        // is generated from parent fully qualified name (i.e. it is same as parent's name).
+        // This is according the PDF specification 1.7.
+        QStringList names;
+        if (parentField)
+        {
+            names << parentField->getName(FullyQualified);
+        }
+        names << formField->m_fieldNames[Partial];
+        names.removeAll(QString());
+
+        formField->m_fieldNames[FullyQualified] = names.join(".");
+
         std::vector<PDFObjectReference> kids = loader.readReferenceArrayFromDictionary(fieldDictionary, "Kids");
         if (kids.empty())
         {
@@ -181,22 +271,6 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
             }
 
         }
-
-        PDFObject parentV = parentField ? parentField->getValue() : PDFObject();
-        PDFObject parentDV = parentField ? parentField->getDefaultValue() : PDFObject();
-        FieldFlags parentFlags = parentField ? parentField->getFlags() : None;
-
-        formField->m_selfReference = reference;
-        formField->m_fieldType = formFieldType;
-        formField->m_parentField = parentField;
-        formField->m_fieldNames[Partial] = loader.readTextStringFromDictionary(fieldDictionary, "T", QString());
-        formField->m_fieldNames[UserCaption] = loader.readTextStringFromDictionary(fieldDictionary, "TU", QString());
-        formField->m_fieldNames[Export] = loader.readTextStringFromDictionary(fieldDictionary, "TM", QString());
-        formField->m_fieldNames[FullyQualified] = parentField ? QString("%1.%2").arg(parentField->getName(FullyQualified), formField->m_fieldNames[Partial]) : formField->m_fieldNames[Partial];
-        formField->m_fieldFlags = fieldDictionary->hasKey("Ff") ? static_cast<FieldFlags>(loader.readIntegerFromDictionary(fieldDictionary, "Ff", 0)) : parentFlags;
-        formField->m_value = fieldDictionary->hasKey("V") ? fieldDictionary->get("V") : parentV;
-        formField->m_defaultValue = fieldDictionary->hasKey("DV") ? fieldDictionary->get("DV") : parentDV;
-        formField->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, fieldDictionary->get("AA"));
 
         if (formFieldButton)
         {
@@ -297,17 +371,6 @@ PDFFormManager::~PDFFormManager()
 
 }
 
-const PDFFormField* PDFFormManager::getFormFieldForWidget(PDFObjectReference widget) const
-{
-    auto it = m_widgetToFormField.find(widget);
-    if (it != m_widgetToFormField.cend())
-    {
-        return it->second;
-    }
-
-    return nullptr;
-}
-
 PDFAnnotationManager* PDFFormManager::getAnnotationManager() const
 {
     return m_annotationManager;
@@ -333,15 +396,13 @@ void PDFFormManager::setDocument(const PDFModifiedDocument& document)
         {
             if (m_document)
             {
-                m_form = PDFForm::parse(&m_document->getStorage(), m_document->getCatalog()->getFormObject());
+                m_form = PDFForm::parse(m_document, m_document->getCatalog()->getFormObject());
             }
             else
             {
                 // Clean the form
                 m_form = PDFForm();
             }
-
-            updateWidgetToFormFieldMapping();
         }
         else if (document.hasFlag(PDFModifiedDocument::FormField))
         {
@@ -368,19 +429,6 @@ void PDFFormManager::updateFieldValues()
         for (const PDFFormFieldPointer& childField : m_form.getFormFields())
         {
             childField->reloadValue(&m_document->getStorage(), PDFObject());
-        }
-    }
-}
-
-void PDFFormManager::updateWidgetToFormFieldMapping()
-{
-    m_widgetToFormField.clear();
-
-    if (hasAcroForm() || hasXFAForm())
-    {
-        for (const PDFFormFieldPointer& formFieldPtr : m_form.getFormFields())
-        {
-            formFieldPtr->fillWidgetToFormFieldMapping(m_widgetToFormField);
         }
     }
 }

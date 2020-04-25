@@ -42,6 +42,7 @@ SOURCES += \
         pdfsendmail.cpp \
         pdfsidebarwidget.cpp \
         pdftexttospeech.cpp \
+        pdfundoredomanager.cpp \
         pdfviewermainwindow.cpp \
         pdfviewersettings.cpp \
         pdfviewersettingsdialog.cpp
@@ -55,6 +56,7 @@ HEADERS += \
         pdfsendmail.h \
         pdfsidebarwidget.h \
         pdftexttospeech.h \
+        pdfundoredomanager.h \
         pdfviewermainwindow.h \
         pdfviewersettings.h \
         pdfviewersettingsdialog.h

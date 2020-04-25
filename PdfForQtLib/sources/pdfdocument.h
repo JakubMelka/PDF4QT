@@ -479,6 +479,8 @@ private:
     PDFCatalog m_catalog;
 };
 
+using PDFDocumentPointer = QSharedPointer<PDFDocument>;
+
 /// Helper class for document updates (for example, add/delete annotations,
 /// fill form fields, do some other minor operations) and also for major
 /// updates (document reset). It also contains modification flags, which are
