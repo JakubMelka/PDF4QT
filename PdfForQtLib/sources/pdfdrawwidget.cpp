@@ -66,9 +66,9 @@ PDFWidget::~PDFWidget()
 
 }
 
-void PDFWidget::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
+void PDFWidget::setDocument(const PDFModifiedDocument& document)
 {
-    m_proxy->setDocument(document, optionalContentActivity);
+    m_proxy->setDocument(document);
     m_pageRenderingErrors.clear();
 }
 

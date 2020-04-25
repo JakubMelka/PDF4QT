@@ -35,6 +35,7 @@ class QPainterPath;
 namespace pdf
 {
 class PDFDocument;
+class PDFModifiedDocument;
 class PDFRenderErrorReporter;
 
 using CID = unsigned int;
@@ -396,9 +397,10 @@ public:
 
     }
 
-    /// Sets the document to the cache. Whole cache is cleared.
+    /// Sets the document to the cache. Whole cache is cleared,
+    /// if it is needed.
     /// \param document Document to be setted
-    void setDocument(const PDFDocument* document);
+    void setDocument(const PDFModifiedDocument& document);
 
     /// Retrieves font from the cache. If font can't be accessed or created,
     /// then exception is thrown.

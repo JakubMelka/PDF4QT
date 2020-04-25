@@ -1185,13 +1185,17 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
     }
 }
 
-void PDFAnnotationManager::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
+void PDFAnnotationManager::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
         m_document = document;
-        m_optionalActivity = optionalContentActivity;
-        m_pageAnnotations.clear();
+        m_optionalActivity = document.getOptionalContentActivity();
+
+        if (document.hasReset() || document.hasFlag(PDFModifiedDocument::Annotation))
+        {
+            m_pageAnnotations.clear();
+        }
     }
 }
 

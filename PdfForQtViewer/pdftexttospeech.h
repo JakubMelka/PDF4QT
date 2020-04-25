@@ -34,6 +34,7 @@ namespace pdf
 {
 class PDFDocument;
 class PDFDrawWidgetProxy;
+class PDFModifiedDocument;
 }
 
 namespace pdfviewer
@@ -66,7 +67,7 @@ public:
     bool isValid() const;
 
     /// Sets active document to text to speech engine
-    void setDocument(const pdf::PDFDocument* document);
+    void setDocument(const pdf::PDFModifiedDocument& document);
 
     /// Apply settings to the reader
     void setSettings(const PDFViewerSettings* viewerSettings);

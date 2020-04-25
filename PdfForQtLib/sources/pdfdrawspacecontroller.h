@@ -56,8 +56,7 @@ public:
     /// in that case, draw space is cleared. Optional content activity can be nullptr,
     /// in that case, no content is suppressed.
     /// \param document Document
-    /// \param optionalContentActivity Optional content activity
-    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
+    void setDocument(const PDFModifiedDocument& document);
 
     /// Sets the page layout. Page layout can be one of the PDF's page layouts.
     /// \param pageLayout Page layout
@@ -193,8 +192,7 @@ public:
     /// in that case, draw space is cleared. Optional content activity can be nullptr,
     /// in that case, no content is suppressed.
     /// \param document Document
-    /// \param optionalContentActivity Optional content activity
-    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
+    void setDocument(const PDFModifiedDocument& document);
 
     void init(PDFWidget* widget);
 

@@ -48,8 +48,13 @@ public:
     void start();
 
     /// Stops the engine and all underlying asynchronous tasks. Also
-    /// clears the cache. Call this function only if engine is active.
-    void stop();
+    /// clears the cache if needed. Call this function only if engine is active.
+    /// Cache is cleared only, if \p clearCache parameter is being set to true.
+    /// Set it to false, if "soft" document update occurs (this means change
+    /// to the document, which doesn't modify page content in precompiled
+    /// pages (graphic content / number of pages change).
+    /// \param clearCache Clear cache
+    void stop(bool clearCache);
 
     /// Resets the engine - calls stop and then calls start.
     void reset();
@@ -107,8 +112,12 @@ public:
     void start();
 
     /// Stops the engine and all underlying asynchronous tasks. Also
-    /// clears the cache. Call this function only if engine is active.
-    void stop();
+    /// clears the cache if parameter \p clearCache. Call this function
+    /// only if engine is active. Clear cache should be set to false,
+    /// only if "soft" document update appears (no text on page is being
+    /// changed).
+    /// \param clearCache Clear cache
+    void stop(bool clearCache);
 
     /// Resets the engine - calls stop and then calls start.
     void reset();

@@ -69,6 +69,21 @@ void PDFFormField::fillWidgetToFormFieldMapping(PDFWidgetToFormFieldMapping& map
     }
 }
 
+void PDFFormField::reloadValue(const PDFObjectStorage* storage, PDFObject parentValue)
+{
+    Q_ASSERT(storage);
+
+    if (const PDFDictionary* fieldDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(getSelfReference())))
+    {
+        m_value = fieldDictionary->hasKey("V") ? fieldDictionary->get("V") : parentValue;
+    }
+
+    for (const PDFFormFieldPointer& childField : m_childFields)
+    {
+        childField->reloadValue(storage, m_value);
+    }
+}
+
 PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField)
 {
     PDFFormFieldPointer result;
@@ -308,23 +323,31 @@ const PDFDocument* PDFFormManager::getDocument() const
     return m_document;
 }
 
-void PDFFormManager::setDocument(const PDFDocument* document)
+void PDFFormManager::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
         m_document = document;
 
-        if (m_document)
+        if (document.hasReset())
         {
-            m_form = PDFForm::parse(&m_document->getStorage(), m_document->getCatalog()->getFormObject());
-        }
-        else
-        {
-            // Clean the form
-            m_form = PDFForm();
-        }
+            if (m_document)
+            {
+                m_form = PDFForm::parse(&m_document->getStorage(), m_document->getCatalog()->getFormObject());
+            }
+            else
+            {
+                // Clean the form
+                m_form = PDFForm();
+            }
 
-        updateWidgetToFormFieldMapping();
+            updateWidgetToFormFieldMapping();
+        }
+        else if (document.hasFlag(PDFModifiedDocument::FormField))
+        {
+            // Just update field values
+            updateFieldValues();
+        }
     }
 }
 
@@ -336,6 +359,17 @@ PDFFormManager::FormAppearanceFlags PDFFormManager::getAppearanceFlags() const
 void PDFFormManager::setAppearanceFlags(FormAppearanceFlags flags)
 {
     m_flags = flags;
+}
+
+void PDFFormManager::updateFieldValues()
+{
+    if (m_document)
+    {
+        for (const PDFFormFieldPointer& childField : m_form.getFormFields())
+        {
+            childField->reloadValue(&m_document->getStorage(), PDFObject());
+        }
+    }
 }
 
 void PDFFormManager::updateWidgetToFormFieldMapping()

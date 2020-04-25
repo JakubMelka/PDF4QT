@@ -40,12 +40,18 @@ PDFTreeItemModel::PDFTreeItemModel(QObject* parent) :
 
 }
 
-void PDFTreeItemModel::setDocument(const PDFDocument* document)
+void PDFTreeItemModel::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
         m_document = document;
-        update();
+
+        // We must only update only, when document has been reset, i.e.
+        // all document content has been changed.
+        if (document.hasReset())
+        {
+            update();
+        }
     }
 }
 
@@ -727,20 +733,29 @@ void PDFThumbnailsItemModel::setThumbnailsSize(int size)
     }
 }
 
-void PDFThumbnailsItemModel::setDocument(const PDFDocument* document)
+void PDFThumbnailsItemModel::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
-        beginResetModel();
-        m_thumbnailCache.clear();
-        m_document = document;
-
-        m_pageCount = 0;
-        if (m_document)
+        if (document.hasReset() || document.hasFlag(PDFModifiedDocument::Annotation))
         {
-            m_pageCount = static_cast<int>(m_document->getCatalog()->getPageCount());
+            beginResetModel();
+            m_thumbnailCache.clear();
+            m_document = document;
+
+            m_pageCount = 0;
+            if (m_document)
+            {
+                m_pageCount = static_cast<int>(m_document->getCatalog()->getPageCount());
+            }
+            endResetModel();
         }
-        endResetModel();
+        else
+        {
+            // Soft reset
+            m_document = document;
+            Q_ASSERT(!m_document || m_pageCount == static_cast<int>(m_document->getCatalog()->getPageCount()));
+        }
     }
 }
 
@@ -776,6 +791,21 @@ void PDFThumbnailsItemModel::onPageImageChanged(bool all, const std::vector<PDFI
 QString PDFThumbnailsItemModel::getKey(int pageIndex) const
 {
     return QString("PDF_THUMBNAIL_%1").arg(pageIndex);
+}
+
+PDFAttachmentsTreeItem::PDFAttachmentsTreeItem(PDFAttachmentsTreeItem* parent, QIcon icon, QString title, QString description, const PDFFileSpecification* fileSpecification) :
+    PDFTreeItem(parent),
+    m_icon(qMove(icon)),
+    m_title(qMove(title)),
+    m_description(qMove(description)),
+    m_fileSpecification(std::make_unique<PDFFileSpecification>(*fileSpecification))
+{
+
+}
+
+PDFAttachmentsTreeItem::~PDFAttachmentsTreeItem()
+{
+
 }
 
 }   // namespace pdf

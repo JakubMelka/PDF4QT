@@ -343,6 +343,16 @@ OCState PDFOptionalContentActivity::getState(PDFObjectReference ocg) const
     return OCState::Unknown;
 }
 
+void PDFOptionalContentActivity::setDocument(const PDFDocument* document)
+{
+    if (m_document != document)
+    {
+        Q_ASSERT(document);
+        m_document = document;
+        m_properties = document->getCatalog()->getOptionalContentProperties();
+    }
+}
+
 void PDFOptionalContentActivity::setState(PDFObjectReference ocg, OCState state, bool preserveRadioButtons)
 {
     auto it = m_states.find(ocg);

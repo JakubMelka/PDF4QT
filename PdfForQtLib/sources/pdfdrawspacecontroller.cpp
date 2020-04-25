@@ -49,14 +49,20 @@ PDFDrawSpaceController::~PDFDrawSpaceController()
 
 }
 
-void PDFDrawSpaceController::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
+void PDFDrawSpaceController::setDocument(const PDFModifiedDocument& document)
 {
     if (document != m_document)
     {
         m_document = document;
         m_fontCache.setDocument(document);
-        m_optionalContentActivity = optionalContentActivity;
-        recalculate();
+        m_optionalContentActivity = document.getOptionalContentActivity();
+
+        // If document is not being reset, then recalculation is not needed,
+        // pages should remain the same.
+        if (document.hasReset())
+        {
+            recalculate();
+        }
     }
 }
 
@@ -411,14 +417,22 @@ PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 
 }
 
-void PDFDrawWidgetProxy::setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity)
+void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document)
 {
-    m_compiler->stop();
-    m_textLayoutCompiler->stop();
-    m_controller->setDocument(document, optionalContentActivity);
-    connect(optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawWidgetProxy::onOptionalContentGroupStateChanged);
-    m_compiler->start();
-    m_textLayoutCompiler->start();
+    if (getDocument() != document)
+    {
+        m_compiler->stop(document.hasReset());
+        m_textLayoutCompiler->stop(document.hasReset());
+        m_controller->setDocument(document);
+
+        if (PDFOptionalContentActivity* optionalContentActivity = document.getOptionalContentActivity())
+        {
+            connect(optionalContentActivity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFDrawWidgetProxy::onOptionalContentGroupStateChanged, Qt::UniqueConnection);
+        }
+
+        m_compiler->start();
+        m_textLayoutCompiler->start();
+    }
 }
 
 void PDFDrawWidgetProxy::init(PDFWidget* widget)
@@ -1312,8 +1326,8 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
 {
     if (m_features != features)
     {
-        m_compiler->stop();
-        m_textLayoutCompiler->stop();
+        m_compiler->stop(true);
+        m_textLayoutCompiler->stop(true);
         m_features = features;
         m_compiler->start();
         m_textLayoutCompiler->start();
@@ -1325,7 +1339,7 @@ void PDFDrawWidgetProxy::setPreferredMeshResolutionRatio(PDFReal ratio)
 {
     if (m_meshQualitySettings.preferredMeshResolutionRatio != ratio)
     {
-        m_compiler->stop();
+        m_compiler->stop(true);
         m_meshQualitySettings.preferredMeshResolutionRatio = ratio;
         m_compiler->start();
         emit pageImageChanged(true, { });
@@ -1336,7 +1350,7 @@ void PDFDrawWidgetProxy::setMinimalMeshResolutionRatio(PDFReal ratio)
 {
     if (m_meshQualitySettings.minimalMeshResolutionRatio != ratio)
     {
-        m_compiler->stop();
+        m_compiler->stop(true);
         m_meshQualitySettings.minimalMeshResolutionRatio = ratio;
         m_compiler->start();
         emit pageImageChanged(true, { });
@@ -1347,7 +1361,7 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
 {
     if (m_meshQualitySettings.tolerance != colorTolerance)
     {
-        m_compiler->stop();
+        m_compiler->stop(true);
         m_meshQualitySettings.tolerance = colorTolerance;
         m_compiler->start();
         emit pageImageChanged(true, { });

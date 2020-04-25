@@ -48,7 +48,7 @@ public:
     /// Sets document, shuts down the tool, if it is active, and document
     /// is changing.
     /// \param document Document
-    void setDocument(const PDFDocument* document);
+    void setDocument(const PDFModifiedDocument& document);
 
     /// Sets tool as active or inactive. If tool is active, then it is processed
     /// in draw widget proxy events (such as drawing etc.).
@@ -416,7 +416,7 @@ public:
 
     /// Sets document
     /// \param document Document
-    void setDocument(const PDFDocument* document);
+    void setDocument(const PDFModifiedDocument& document);
 
     enum PredefinedTools
     {

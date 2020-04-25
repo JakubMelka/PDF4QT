@@ -61,7 +61,7 @@ bool PDFTextToSpeech::isValid() const
     return m_document != nullptr;
 }
 
-void PDFTextToSpeech::setDocument(const pdf::PDFDocument* document)
+void PDFTextToSpeech::setDocument(const pdf::PDFModifiedDocument& document)
 {
     if (m_document != document)
     {

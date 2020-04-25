@@ -135,7 +135,7 @@ private:
     void onRenderingOptionTriggered(bool checked);
 
     void openDocument(const QString& fileName);
-    void setDocument(const pdf::PDFDocument* document);
+    void setDocument(pdf::PDFModifiedDocument document);
     void closeDocument();
 
     void setPageLayout(pdf::PageLayout pageLayout);

@@ -121,10 +121,10 @@ PDFSidebarWidget::~PDFSidebarWidget()
     delete ui;
 }
 
-void PDFSidebarWidget::setDocument(const pdf::PDFDocument* document, pdf::PDFOptionalContentActivity* optionalContentActivity)
+void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document)
 {
     m_document = document;
-    m_optionalContentActivity = optionalContentActivity;
+    m_optionalContentActivity = document.getOptionalContentActivity();
 
     // Update outline
     m_outlineTreeModel->setDocument(document);

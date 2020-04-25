@@ -25,9 +25,9 @@
 
 namespace pdf
 {
-
-class PDFObjectStorage;
 class PDFFormField;
+class PDFObjectStorage;
+class PDFModifiedDocument;
 
 using PDFFormFieldPointer = QSharedPointer<PDFFormField>;
 using PDFFormFields = std::vector<PDFFormFieldPointer>;
@@ -186,6 +186,9 @@ public:
     /// Fills widget to form field mapping
     /// \param mapping Form field mapping
     void fillWidgetToFormFieldMapping(PDFWidgetToFormFieldMapping& mapping);
+
+    /// Reloads value from object storage. Actually stored value is lost.
+    void reloadValue(const PDFObjectStorage* storage, PDFObject parentValue);
 
     /// Parses form field from the object reference. If some error occurs
     /// then null pointer is returned, no exception is thrown.
@@ -378,7 +381,7 @@ public:
     void setAnnotationManager(PDFAnnotationManager* annotationManager);
 
     const PDFDocument* getDocument() const;
-    void setDocument(const PDFDocument* document);
+    void setDocument(const PDFModifiedDocument& document);
 
     /// Returns default form apperance flags
     static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
@@ -387,6 +390,7 @@ public:
     void setAppearanceFlags(FormAppearanceFlags flags);
 
 private:
+    void updateFieldValues();
     void updateWidgetToFormFieldMapping();
 
     PDFDrawWidgetProxy* m_proxy;

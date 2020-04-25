@@ -32,6 +32,7 @@ class PDFCMSManager;
 class PDFToolManager;
 class PDFDrawWidget;
 class PDFDrawWidgetProxy;
+class PDFModifiedDocument;
 class PDFWidgetAnnotationManager;
 class IDrawWidgetInputInterface;
 
@@ -64,8 +65,7 @@ public:
     /// in that case, widget contents are cleared. Optional content activity can be nullptr,
     /// if this occurs, no content is suppressed.
     /// \param document Document
-    /// \param optionalContentActivity Optional content activity
-    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
+    void setDocument(const PDFModifiedDocument& document);
 
     /// Update rendering engine according the settings
     /// \param engine Engine type

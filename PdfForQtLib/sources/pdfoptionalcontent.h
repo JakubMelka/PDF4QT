@@ -167,6 +167,11 @@ public:
     /// \param ocg Optional content group
     OCState getState(PDFObjectReference ocg) const;
 
+    /// Sets document to this object. Optional content settings
+    /// must be compatible and applicable to new document.
+    /// \param document Document
+    void setDocument(const PDFDocument* document);
+
     /// Sets the state of optional content group. If optional content group doesn't exist,
     /// then nothing happens. If optional content group is contained in radio button group, then
     /// all other optional content groups in the group are switched off, if we are

@@ -959,7 +959,8 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             m_recentFileManager->addRecentFile(m_fileInfo.originalFileName);
 
             m_pdfDocument = result.document;
-            setDocument(m_pdfDocument.data());
+            pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
+            setDocument(document);
 
             statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(m_fileInfo.fileName), 4000);
             break;
@@ -977,27 +978,36 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
     updateActionsAvailability();
 }
 
-void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
+void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
 {
-    if (m_optionalContentActivity)
+    if (document.hasReset())
     {
-        // We use deleteLater, because we want to avoid consistency problem with model
-        // (we set document to the model before activity).
-        m_optionalContentActivity->deleteLater();
-        m_optionalContentActivity = nullptr;
+        if (m_optionalContentActivity)
+        {
+            // We use deleteLater, because we want to avoid consistency problem with model
+            // (we set document to the model before activity).
+            m_optionalContentActivity->deleteLater();
+            m_optionalContentActivity = nullptr;
+        }
+
+        if (document)
+        {
+            m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
+        }
+    }
+    else if (m_optionalContentActivity)
+    {
+        Q_ASSERT(document);
+        m_optionalContentActivity->setDocument(document);
     }
 
-    if (document)
-    {
-        m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
-    }
-
-    m_annotationManager->setDocument(document, m_optionalContentActivity);
+    document.setOptionalContentActivity(m_optionalContentActivity);
+    m_annotationManager->setDocument(document);
     m_formManager->setDocument(document);
     m_toolManager->setDocument(document);
     m_textToSpeech->setDocument(document);
-    m_pdfWidget->setDocument(document, m_optionalContentActivity);
-    m_sidebarWidget->setDocument(document, m_optionalContentActivity);
+    m_pdfWidget->setDocument(document);
+    m_sidebarWidget->setDocument(document);
     m_advancedFindWidget->setDocument(document);
 
     if (m_sidebarWidget->isEmpty())
@@ -1034,7 +1044,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFDocument* document)
 
 void PDFViewerMainWindow::closeDocument()
 {
-    setDocument(nullptr);
+    setDocument(pdf::PDFModifiedDocument());
     m_pdfDocument.reset();
     updateActionsAvailability();
 }

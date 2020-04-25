@@ -36,6 +36,7 @@ namespace pdf
 class PDFAction;
 class PDFDocument;
 class PDFDrawWidgetProxy;
+class PDFModifiedDocument;
 class PDFOutlineTreeItemModel;
 class PDFThumbnailsItemModel;
 class PDFAttachmentsTreeItemModel;
@@ -69,7 +70,7 @@ public:
         _END
     };
 
-    void setDocument(const pdf::PDFDocument* document, pdf::PDFOptionalContentActivity* optionalContentActivity);
+    void setDocument(const pdf::PDFModifiedDocument& document);
 
     /// Returns true, if all items in sidebar are empty
     bool isEmpty() const;

@@ -60,12 +60,17 @@ PDFWidgetTool::~PDFWidgetTool()
 
 }
 
-void PDFWidgetTool::setDocument(const PDFDocument* document)
+void PDFWidgetTool::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
-        // We must turn off the tool, if we are changing the document
-        setActive(false);
+        // We must turn off the tool, if we are changing the document. We turn off tool,
+        // only if whole document is being reset.
+        if (document.hasReset())
+        {
+            setActive(false);
+        }
+
         m_document = document;
 
         for (PDFWidgetTool* tool : m_toolStack)
@@ -728,7 +733,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     }
 }
 
-void PDFToolManager::setDocument(const PDFDocument* document)
+void PDFToolManager::setDocument(const PDFModifiedDocument& document)
 {
     for (PDFWidgetTool* tool : m_tools)
     {

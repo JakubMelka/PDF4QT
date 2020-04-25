@@ -1591,14 +1591,20 @@ FontType PDFTrueTypeFont::getFontType() const
     return FontType::TrueType;
 }
 
-void PDFFontCache::setDocument(const PDFDocument* document)
+void PDFFontCache::setDocument(const PDFModifiedDocument& document)
 {
     QMutexLocker lock(&m_mutex);
     if (m_document != document)
     {
         m_document = document;
-        m_fontCache.clear();
-        m_realizedFontCache.clear();
+
+        // Jakub Melka: If document has not reset flag, then fonts of the
+        // document remains the same. So it is not needed to clear font cache.
+        if (document.hasReset())
+        {
+            m_fontCache.clear();
+            m_realizedFontCache.clear();
+        }
     }
 }
 

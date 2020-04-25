@@ -56,7 +56,7 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<pdf::PDFRenderError>& errors) const override;
 
-    void setDocument(const pdf::PDFDocument* document);
+    void setDocument(const pdf::PDFModifiedDocument& document);
 
 protected:
     virtual void showEvent(QShowEvent* event) override;

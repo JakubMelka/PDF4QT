@@ -57,7 +57,7 @@ void PDFAsynchronousPageCompiler::start()
     }
 }
 
-void PDFAsynchronousPageCompiler::stop()
+void PDFAsynchronousPageCompiler::stop(bool clearCache)
 {
     switch (m_state)
     {
@@ -75,7 +75,11 @@ void PDFAsynchronousPageCompiler::stop()
                 taskItem.second.taskWatcher->waitForFinished();
             }
             m_tasks.clear();
-            m_cache.clear();
+
+            if (clearCache)
+            {
+                m_cache.clear();
+            }
 
             m_state = State::Inactive;
             break;
@@ -92,7 +96,7 @@ void PDFAsynchronousPageCompiler::stop()
 
 void PDFAsynchronousPageCompiler::reset()
 {
-    stop();
+    stop(true);
     start();
 }
 
@@ -291,7 +295,7 @@ void PDFAsynchronousTextLayoutCompiler::start()
     }
 }
 
-void PDFAsynchronousTextLayoutCompiler::stop()
+void PDFAsynchronousTextLayoutCompiler::stop(bool clearCache)
 {
     switch (m_state)
     {
@@ -303,7 +307,12 @@ void PDFAsynchronousTextLayoutCompiler::stop()
             // Stop the engine
             m_state = State::Stopping;
             m_textLayoutCompileFutureWatcher.waitForFinished();
-            m_textLayouts = std::nullopt;
+
+            if (clearCache)
+            {
+                m_textLayouts = std::nullopt;
+            }
+
             m_state = State::Inactive;
             break;
         }
@@ -319,7 +328,7 @@ void PDFAsynchronousTextLayoutCompiler::stop()
 
 void PDFAsynchronousTextLayoutCompiler::reset()
 {
-    stop();
+    stop(true);
     start();
 }
 

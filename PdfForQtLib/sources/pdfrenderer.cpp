@@ -434,9 +434,13 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
             emit renderError(PDFRenderError(error.type, PDFTranslationContext::tr("Page %1: %2").arg(pageIndex + 1).arg(error.message)));
         }
 
+        // We can const-cast here, because we do not modify the document in annotation manager.
+        // Annotations are just rendered to the target picture.
+        PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(m_document), const_cast<PDFOptionalContentActivity*>(m_optionalContentActivity));
+
         // Annotation manager
         PDFAnnotationManager annotationManager(m_fontCache, m_cmsManager, m_optionalContentActivity, m_meshQualitySettings, m_features, PDFAnnotationManager::Target::Print, nullptr);
-        annotationManager.setDocument(m_document, m_optionalContentActivity);
+        annotationManager.setDocument(modifiedDocument);
 
         // Render page to image
         PDFRasterizer* rasterizer = acquire();

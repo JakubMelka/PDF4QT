@@ -49,14 +49,20 @@ PDFAdvancedFindWidget::~PDFAdvancedFindWidget()
     delete ui;
 }
 
-void PDFAdvancedFindWidget::setDocument(const pdf::PDFDocument* document)
+void PDFAdvancedFindWidget::setDocument(const pdf::PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
         m_document = document;
-        m_findResults.clear();
-        updateUI();
-        updateResultsUI();
+
+        // If document is not being reset, then page text should remain the same,
+        // so, there is no need to clear the results.
+        if (document.hasReset())
+        {
+            m_findResults.clear();
+            updateUI();
+            updateResultsUI();
+        }
     }
 }
 

@@ -44,6 +44,7 @@ class PDFObjectStorage;
 class PDFDrawWidgetProxy;
 class PDFFontCache;
 class PDFFormManager;
+class PDFModifiedDocument;
 class PDFOptionalContentActivity;
 
 using TextAlignment = Qt::Alignment;
@@ -1287,7 +1288,9 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
-    void setDocument(const PDFDocument* document, const PDFOptionalContentActivity* optionalContentActivity);
+    /// Set document
+    /// \param document New document
+    void setDocument(const PDFModifiedDocument& document);
 
     Target getTarget() const;
     void setTarget(Target target);

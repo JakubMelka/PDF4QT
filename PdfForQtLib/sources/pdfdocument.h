@@ -479,6 +479,59 @@ private:
     PDFCatalog m_catalog;
 };
 
+/// Helper class for document updates (for example, add/delete annotations,
+/// fill form fields, do some other minor operations) and also for major
+/// updates (document reset). It also contains modification flags, which are
+/// hints for update operations (for example, if only annotations are changed,
+/// then rebuilding outline tree is not needed). At least one of the flags
+/// must be set. Reset flag is conservative, so it should be set, when document
+/// changes are not known.
+class PDFModifiedDocument
+{
+public:
+
+    enum ModificationFlag
+    {
+        None        = 0x0000,   ///< No flag
+        Reset       = 0x0001,   ///< Whole document content is changed (for example, new document is being set)
+        Annotation  = 0x0002,   ///< Annotations changed
+        FormField   = 0x0004,   ///< Form field content changed
+    };
+
+    Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)
+
+    explicit inline PDFModifiedDocument() = default;
+    explicit inline PDFModifiedDocument(PDFDocument* document, PDFOptionalContentActivity* optionalContentActivity) :
+        m_document(document),
+        m_optionalContentActivity(optionalContentActivity),
+        m_flags(Reset)
+    {
+        Q_ASSERT(document);
+    }
+
+    explicit inline PDFModifiedDocument(PDFDocument* document, PDFOptionalContentActivity* optionalContentActivity, ModificationFlags flags) :
+        m_document(document),
+        m_optionalContentActivity(optionalContentActivity),
+        m_flags(flags)
+    {
+        Q_ASSERT(document);
+    }
+
+    PDFDocument* getDocument() const { return m_document; }
+    PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
+    void setOptionalContentActivity(PDFOptionalContentActivity* optionalContentActivity) { m_optionalContentActivity = optionalContentActivity; }
+
+    bool hasReset() const { return m_flags.testFlag(Reset); }
+    bool hasFlag(ModificationFlag flag) const { return m_flags.testFlag(flag); }
+
+    operator PDFDocument*() const { return m_document; }
+
+private:
+    PDFDocument* m_document = nullptr;
+    PDFOptionalContentActivity* m_optionalContentActivity = nullptr;
+    ModificationFlags m_flags = Reset;
+};
+
 // Implementation
 
 inline

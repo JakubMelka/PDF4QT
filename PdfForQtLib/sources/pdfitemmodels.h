@@ -30,6 +30,7 @@ namespace pdf
 class PDFAction;
 class PDFDocument;
 class PDFOutlineItem;
+class PDFModifiedDocument;
 class PDFFileSpecification;
 class PDFOptionalContentActivity;
 class PDFDrawWidgetProxy;
@@ -66,13 +67,15 @@ private:
     QList<PDFTreeItem*> m_children;
 };
 
-/// Root of all tree item models
+/// Root of all tree item models. Reimplementations of this model
+/// must handle "soft" document updates, such as only annotations changed etc.
+/// Model should be rebuilded only, if it is neccessary.
 class PDFFORQTLIBSHARED_EXPORT PDFTreeItemModel : public QAbstractItemModel
 {
 public:
     explicit PDFTreeItemModel(QObject* parent);
 
-    void setDocument(const pdf::PDFDocument* document);
+    void setDocument(const PDFModifiedDocument& document);
 
     bool isEmpty() const;
 
@@ -172,26 +175,19 @@ private:
 class PDFAttachmentsTreeItem : public PDFTreeItem
 {
 public:
-    explicit PDFAttachmentsTreeItem(PDFAttachmentsTreeItem* parent, QIcon icon, QString title, QString description, const PDFFileSpecification* fileSpecification) :
-        PDFTreeItem(parent),
-        m_icon(qMove(icon)),
-        m_title(qMove(title)),
-        m_description(qMove(description)),
-        m_fileSpecification(fileSpecification)
-    {
-
-    }
+    explicit PDFAttachmentsTreeItem(PDFAttachmentsTreeItem* parent, QIcon icon, QString title, QString description, const PDFFileSpecification* fileSpecification);
+    virtual ~PDFAttachmentsTreeItem() override;
 
     const QIcon& getIcon() const { return m_icon; }
     const QString& getTitle() const { return m_title; }
     const QString& getDescription() const { return m_description; }
-    const PDFFileSpecification* getFileSpecification() const { return m_fileSpecification; }
+    const PDFFileSpecification* getFileSpecification() const { return m_fileSpecification.get(); }
 
 private:
     QIcon m_icon;
     QString m_title;
     QString m_description;
-    const PDFFileSpecification* m_fileSpecification;
+    std::unique_ptr<PDFFileSpecification> m_fileSpecification;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFAttachmentsTreeItemModel : public PDFTreeItemModel
@@ -235,7 +231,7 @@ public:
     virtual QVariant data(const QModelIndex& index, int role) const override;
 
     void setThumbnailsSize(int size);
-    void setDocument(const PDFDocument* document);
+    void setDocument(const PDFModifiedDocument& document);
 
     /// Sets the extra item width/height for size hint. This space will be added to the size hint (pixmap size)
     void setExtraItemSizeHint(int width, int height) { m_extraItemWidthHint = width; m_extraItemHeighHint = height; }
