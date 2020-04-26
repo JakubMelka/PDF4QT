@@ -74,7 +74,8 @@ PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
                     continue;
                 }
 
-                if (loader.readNameFromDictionary(annotationDictionary, "Subtype") == "Widget")
+                if (loader.readNameFromDictionary(annotationDictionary, "Subtype") == "Widget" &&
+                    !annotationDictionary->hasKey("Kids"))
                 {
                     rogueFieldFound = true;
                     form.m_formFields.emplace_back(PDFFormField::parse(&document->getStorage(), annotationReference, nullptr));
@@ -143,6 +144,16 @@ void PDFFormField::reloadValue(const PDFObjectStorage* storage, PDFObject parent
     for (const PDFFormFieldPointer& childField : m_childFields)
     {
         childField->reloadValue(storage, m_value);
+    }
+}
+
+void PDFFormField::apply(const std::function<void (const PDFFormField*)>& functor) const
+{
+    functor(this);
+
+    for (const PDFFormFieldPointer& childField : m_childFields)
+    {
+        childField->apply(functor);
     }
 }
 
@@ -361,7 +372,8 @@ PDFFormManager::PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     m_proxy(proxy),
     m_annotationManager(nullptr),
     m_document(nullptr),
-    m_flags(getDefaultApperanceFlags())
+    m_flags(getDefaultApperanceFlags()),
+    m_focusedEditor(nullptr)
 {
     Q_ASSERT(proxy);
 }
@@ -403,6 +415,8 @@ void PDFFormManager::setDocument(const PDFModifiedDocument& document)
                 // Clean the form
                 m_form = PDFForm();
             }
+
+            updateFormWidgetEditors();
         }
         else if (document.hasFlag(PDFModifiedDocument::FormField))
         {
@@ -422,6 +436,245 @@ void PDFFormManager::setAppearanceFlags(FormAppearanceFlags flags)
     m_flags = flags;
 }
 
+bool PDFFormManager::hasFormFieldWidgetText(PDFObjectReference widgetAnnotation) const
+{
+    if (const PDFFormField* formField = getFormFieldForWidget(widgetAnnotation))
+    {
+        switch (formField->getFieldType())
+        {
+            case PDFFormField::FieldType::Text:
+                return true;
+
+            case PDFFormField::FieldType::Choice:
+            {
+                PDFFormField::FieldFlags flags = formField->getFlags();
+                return flags.testFlag(PDFFormField::Combo) && flags.testFlag(PDFFormField::Edit);
+            }
+
+            default:
+                break;
+        }
+    }
+
+    return false;
+}
+
+PDFFormWidgets PDFFormManager::getWidgets() const
+{
+    PDFFormWidgets result;
+
+    auto functor = [&result](const PDFFormField* formField)
+    {
+        const PDFFormWidgets& widgets = formField->getWidgets();
+        result.insert(result.cend(), widgets.cbegin(), widgets.cend());
+    };
+    apply(functor);
+
+    return result;
+}
+
+void PDFFormManager::apply(const std::function<void (const PDFFormField*)>& functor) const
+{
+    for (const PDFFormFieldPointer& childField : m_form.getFormFields())
+    {
+        childField->apply(functor);
+    }
+}
+
+void PDFFormManager::setFocusToEditor(PDFFormFieldWidgetEditor* editor)
+{
+    if (m_focusedEditor != editor)
+    {
+        if (m_focusedEditor)
+        {
+            m_focusedEditor->setFocus(false);
+        }
+
+        m_focusedEditor = editor;
+
+        if (m_focusedEditor)
+        {
+            m_focusedEditor->setFocus(true);
+        }
+
+        // Request repaint, because focus changed
+        Q_ASSERT(m_proxy);
+        m_proxy->repaintNeeded();
+    }
+}
+
+bool PDFFormManager::focusNextPrevFormField(bool next)
+{
+    if (m_widgetEditors.empty())
+    {
+        return false;
+    }
+
+    std::vector<PDFFormFieldWidgetEditor*>::const_iterator newFocusIterator = m_widgetEditors.cend();
+
+    if (!m_focusedEditor)
+    {
+        // We are setting a new focus
+        if (next)
+        {
+            newFocusIterator = m_widgetEditors.cbegin();
+        }
+        else
+        {
+            newFocusIterator = std::prev(m_widgetEditors.cend());
+        }
+    }
+    else
+    {
+        std::vector<PDFFormFieldWidgetEditor*>::const_iterator it = std::find(m_widgetEditors.cbegin(), m_widgetEditors.cend(), m_focusedEditor);
+        Q_ASSERT(it != m_widgetEditors.cend());
+
+        if (next)
+        {
+            newFocusIterator = std::next(it);
+        }
+        else if (it != m_widgetEditors.cbegin())
+        {
+            newFocusIterator = std::prev(it);
+        }
+    }
+
+    if (newFocusIterator != m_widgetEditors.cend())
+    {
+        setFocusToEditor(*newFocusIterator);
+        return true;
+    }
+    else
+    {
+        // Jakub Melka: We must remove focus out of editor, because
+        setFocusToEditor(nullptr);
+    }
+
+    return false;
+}
+
+bool PDFFormManager::isFocused(PDFObjectReference widget) const
+{
+    if (m_focusedEditor)
+    {
+        return m_focusedEditor->getWidgetAnnotation() == widget;
+    }
+
+    return false;
+}
+
+void PDFFormManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormManager::wheelEvent(QWidget* widget, QWheelEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+const std::optional<QCursor>& PDFFormManager::getCursor() const
+{
+    static const std::optional<QCursor> dummy;
+    return dummy;
+}
+
+void PDFFormManager::updateFormWidgetEditors()
+{
+    setFocusToEditor(nullptr);
+    qDeleteAll(m_widgetEditors);
+    m_widgetEditors.clear();
+
+    for (PDFFormWidget widget : getWidgets())
+    {
+        const PDFFormField* formField = widget.getParent();
+        switch (formField->getFieldType())
+        {
+            case PDFFormField::FieldType::Button:
+            {
+                Q_ASSERT(dynamic_cast<const PDFFormFieldButton*>(formField));
+                const PDFFormFieldButton* formFieldButton = static_cast<const PDFFormFieldButton*>(formField);
+                switch (formFieldButton->getButtonType())
+                {
+                    case PDFFormFieldButton::ButtonType::PushButton:
+                    {
+                        m_widgetEditors.push_back(new PDFFormFieldPushButtonEditor(this, widget, this));
+                        break;
+                    }
+
+                    case PDFFormFieldButton::ButtonType::RadioButton:
+                    case PDFFormFieldButton::ButtonType::CheckBox:
+                    {
+                        m_widgetEditors.push_back(new PDFFormFieldCheckableButtonEditor(this, widget, this));
+                        break;
+                    }
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+
+                break;
+            }
+
+            case PDFFormField::FieldType::Text:
+            {
+                m_widgetEditors.push_back(new PDFFormFieldTextBoxEditor(this, widget, this));
+                break;
+            }
+
+            case PDFFormField::FieldType::Choice:
+            {
+                Q_ASSERT(dynamic_cast<const PDFFormFieldChoice*>(formField));
+                const PDFFormFieldChoice* formFieldChoice = static_cast<const PDFFormFieldChoice*>(formField);
+                if (formFieldChoice->isComboBox())
+                {
+                    m_widgetEditors.push_back(new PDFFormFieldComboBoxEditor(this, widget, this));
+                }
+                else if (formFieldChoice->isListBox())
+                {
+                    m_widgetEditors.push_back(new PDFFormFieldListBoxEditor(this, widget, this));
+                }
+                else
+                {
+                    // Uknown field choice
+                    Q_ASSERT(false);
+                }
+
+                break;
+            }
+
+            case PDFFormField::FieldType::Signature:
+                // Signature fields doesn't have editor
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+}
+
 void PDFFormManager::updateFieldValues()
 {
     if (m_document)
@@ -431,6 +684,50 @@ void PDFFormManager::updateFieldValues()
             childField->reloadValue(&m_document->getStorage(), PDFObject());
         }
     }
+}
+
+PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(parent),
+    m_formManager(formManager),
+    m_formWidget(formWidget),
+    m_hasFocus(false)
+{
+    Q_ASSERT(m_formManager);
+}
+
+void PDFFormFieldWidgetEditor::setFocus(bool hasFocus)
+{
+    m_hasFocus = hasFocus;
+}
+
+PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent)
+{
+
+}
+
+PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent)
+{
+
+}
+
+PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent)
+{
+
+}
+
+PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent)
+{
+
+}
+
+PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent)
+{
+
 }
 
 }   // namespace pdf

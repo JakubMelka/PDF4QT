@@ -985,7 +985,8 @@ void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectan
     {
         // Is it a form field?
         const PDFFormManager::FormAppearanceFlags flags = m_formManager->getAppearanceFlags();
-        if (flags.testFlag(PDFFormManager::HighlightFields) || flags.testFlag(PDFFormManager::HighlightRequiredFields))
+        const bool isFocused = m_formManager->isFocused(annotation->getSelfReference());
+        if (isFocused || flags.testFlag(PDFFormManager::HighlightFields) || flags.testFlag(PDFFormManager::HighlightRequiredFields))
         {
             const PDFFormField* formField = m_formManager->getFormFieldForWidget(annotation->getSelfReference());
             if (!formField)
@@ -1001,6 +1002,10 @@ void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectan
             if (flags.testFlag(PDFFormManager::HighlightRequiredFields) && formField->getFlags().testFlag(PDFFormField::Required))
             {
                 color = Qt::red;
+            }
+            if (isFocused)
+            {
+                color = Qt::yellow;
             }
 
             if (color.isValid())
@@ -1453,7 +1458,14 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                 }
                 if (annotationType == AnnotationType::Widget)
                 {
-                    m_cursor = QCursor(Qt::ArrowCursor);
+                    if (m_formManager && m_formManager->hasFormFieldWidgetText(pageAnnotation.annotation->getSelfReference()))
+                    {
+                        m_cursor = QCursor(Qt::IBeamCursor);
+                    }
+                    else
+                    {
+                        m_cursor = QCursor(Qt::ArrowCursor);
+                    }
                 }
 
                 // Generate popup window

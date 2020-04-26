@@ -20,6 +20,7 @@
 #include "pdfcompiler.h"
 #include "pdfwidgettool.h"
 #include "pdfannotation.h"
+#include "pdfform.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -34,6 +35,8 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
     QWidget(parent),
     m_cmsManager(cmsManager),
     m_toolManager(nullptr),
+    m_annotationManager(nullptr),
+    m_formManager(nullptr),
     m_drawWidget(nullptr),
     m_horizontalScrollBar(nullptr),
     m_verticalScrollBar(nullptr),
@@ -64,6 +67,16 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
 PDFWidget::~PDFWidget()
 {
 
+}
+
+bool PDFWidget::focusNextPrevChild(bool next)
+{
+    if (m_formManager && m_formManager->focusNextPrevFormField(next))
+    {
+        return true;
+    }
+
+    return QWidget::focusNextPrevChild(next);
 }
 
 void PDFWidget::setDocument(const PDFModifiedDocument& document)
@@ -189,6 +202,18 @@ void PDFWidget::addInputInterface(IDrawWidgetInputInterface* inputInterface)
         m_inputInterfaces.push_back(inputInterface);
         std::sort(m_inputInterfaces.begin(), m_inputInterfaces.end(), IDrawWidgetInputInterface::Comparator());
     }
+}
+
+PDFFormManager* PDFWidget::getFormManager() const
+{
+    return m_formManager;
+}
+
+void PDFWidget::setFormManager(PDFFormManager* formManager)
+{
+    removeInputInterface(m_formManager);
+    m_formManager = formManager;
+    addInputInterface(m_formManager);
 }
 
 void PDFWidget::setToolManager(PDFToolManager* toolManager)

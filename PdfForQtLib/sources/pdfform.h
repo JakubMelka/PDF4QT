@@ -20,12 +20,14 @@
 
 #include "pdfobject.h"
 #include "pdfannotation.h"
+#include "pdfdocumentdrawinterface.h"
 
 #include <optional>
 
 namespace pdf
 {
 class PDFFormField;
+class PDFFormManager;
 class PDFObjectStorage;
 class PDFModifiedDocument;
 
@@ -189,6 +191,12 @@ public:
 
     /// Reloads value from object storage. Actually stored value is lost.
     void reloadValue(const PDFObjectStorage* storage, PDFObject parentValue);
+
+    /// Applies function to this form field and all its descendants,
+    /// in pre-order (first application is to the parent, following
+    /// calls to apply for children).
+    /// \param functor Functor to apply
+    void apply(const std::function<void(const PDFFormField*)>& functor) const;
 
     /// Parses form field from the object reference. If some error occurs
     /// then null pointer is returned, no exception is thrown.
@@ -358,10 +366,99 @@ private:
     PDFWidgetToFormFieldMapping m_widgetToFormField;
 };
 
+/// Base class for editors of form fields. It enables editation
+/// of form fields, such as entering text, clicking on check box etc.
+class PDFFormFieldWidgetEditor : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldWidgetEditor() = default;
+
+    PDFFormField*  getFormField() const { return m_formWidget.getParent(); }
+    PDFObjectReference getWidgetAnnotation() const { return m_formWidget.getWidget(); }
+
+    void setFocus(bool hasFocus);
+
+private:
+    PDFFormManager* m_formManager;
+    PDFFormWidget m_formWidget;
+    bool m_hasFocus;
+};
+
+/// Editor for push buttons
+class PDFFormFieldPushButtonEditor : public PDFFormFieldWidgetEditor
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldPushButtonEditor() = default;
+};
+
+/// Editor for check boxes or radio buttons
+class PDFFormFieldCheckableButtonEditor : public PDFFormFieldWidgetEditor
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldCheckableButtonEditor() = default;
+};
+
+/// Editor for text fields
+class PDFFormFieldTextBoxEditor : public PDFFormFieldWidgetEditor
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldTextBoxEditor() = default;
+};
+
+/// Editor for combo boxes
+class PDFFormFieldComboBoxEditor : public PDFFormFieldWidgetEditor
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldComboBoxEditor() = default;
+};
+
+/// Editor for list boxes
+class PDFFormFieldListBoxEditor : public PDFFormFieldWidgetEditor
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldListBoxEditor() = default;
+};
+
 /// Form manager. Manages all form widgets functionality - triggers actions,
 /// edits fields, updates annotation appearances, etc. Valid pointer to annotation
 /// manager is requirement.
-class PDFFORQTLIBSHARED_EXPORT PDFFormManager : public QObject
+class PDFFORQTLIBSHARED_EXPORT PDFFormManager : public QObject, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 
@@ -394,13 +491,78 @@ public:
     const PDFDocument* getDocument() const;
     void setDocument(const PDFModifiedDocument& document);
 
-    /// Returns default form apperance flags
-    static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
-
     FormAppearanceFlags getAppearanceFlags() const;
     void setAppearanceFlags(FormAppearanceFlags flags);
 
+    /// Returns true, if form field has text (for example, it is a text box,
+    /// or editable combo box)
+    /// \param widgetAnnotation Widget annotation
+    bool hasFormFieldWidgetText(PDFObjectReference widgetAnnotation) const;
+
+    /// Returns all form field widgets. This function is not simple getter,
+    /// call can be expensive, because all form fields are accessed.
+    PDFFormWidgets getWidgets() const;
+
+    /// Applies function to all form fields present in the form,
+    /// in pre-order (first application is to the parent, following
+    /// calls to apply for children).
+    /// \param functor Functor to apply
+    void apply(const std::function<void(const PDFFormField*)>& functor) const;
+
+    /// Sets focus to the editor. Is is allowed to pass nullptr to this
+    /// function, it means that no editor is focused.
+    /// \param editor Editor to be focused
+    void setFocusToEditor(PDFFormFieldWidgetEditor* editor);
+
+    /// Tries to set focus on next/previous form field in the focus chain.
+    /// Function returns true, if focus has been successfully set.
+    /// \param next Focus next (true) or previous (false) widget
+    bool focusNextPrevFormField(bool next);
+
+    /// Returns true, if widget is focused.
+    /// \param widget Widget annotation reference
+    bool isFocused(PDFObjectReference widget) const;
+
+    /// Returns default form apperance flags
+    static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
+
+    // interface IDrawWidgetInputInterface
+
+    /// Handles key press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+
+    /// Handles mouse press event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+
+    /// Handles mouse release event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+
+    /// Handles mouse move event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+    /// Handles mouse wheel event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
+
+    /// Returns tooltip generated from annotation
+    virtual QString getTooltip() const override { return QString(); }
+
+    /// Returns current cursor
+    virtual const std::optional<QCursor>& getCursor() const override;
+
+    virtual int getInputPriority() const override { return FormPriority; }
+
 private:
+    void updateFormWidgetEditors();
     void updateFieldValues();
 
     PDFDrawWidgetProxy* m_proxy;
@@ -408,6 +570,9 @@ private:
     const PDFDocument* m_document;
     FormAppearanceFlags m_flags;
     PDFForm m_form;
+
+    std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
+    PDFFormFieldWidgetEditor* m_focusedEditor;
 };
 
 }   // namespace pdf

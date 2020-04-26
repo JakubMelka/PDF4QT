@@ -31,6 +31,7 @@ class PDFDocument;
 class PDFCMSManager;
 class PDFToolManager;
 class PDFDrawWidget;
+class PDFFormManager;
 class PDFDrawWidgetProxy;
 class PDFModifiedDocument;
 class PDFWidgetAnnotationManager;
@@ -58,6 +59,8 @@ public:
     /// \param samplesCount Samples count for rendering engine MSAA antialiasing
     explicit PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int samplesCount, QWidget* parent);
     virtual ~PDFWidget() override;
+
+    virtual bool focusNextPrevChild(bool next) override;
 
     using PageRenderingErrors = std::map<PDFInteger, QList<PDFRenderError>>;
 
@@ -93,6 +96,9 @@ public:
     void setToolManager(PDFToolManager* toolManager);
     void setAnnotationManager(PDFWidgetAnnotationManager* annotationManager);
 
+    PDFFormManager* getFormManager() const;
+    void setFormManager(PDFFormManager* formManager);
+
 signals:
     void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
 
@@ -109,6 +115,7 @@ private:
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;
     PDFWidgetAnnotationManager* m_annotationManager;
+    PDFFormManager* m_formManager;
     IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;
