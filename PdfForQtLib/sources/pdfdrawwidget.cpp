@@ -340,6 +340,19 @@ void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
 }
 
 template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::keyReleaseEvent(QKeyEvent* event)
+{
+    event->ignore();
+
+    if (processEvent<QKeyEvent, &IDrawWidgetInputInterface::keyReleaseEvent>(event))
+    {
+        return;
+    }
+
+    event->accept();
+}
+
+template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
 {
     event->ignore();

@@ -114,7 +114,7 @@ PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFObjectStorage* stora
 {
     PDFAppeareanceStreams result;
 
-    auto processSubdicitonary = [&result, storage](Appearance appearance, PDFObject subdictionaryObject)
+    auto processSubdictionary = [&result, storage](Appearance appearance, PDFObject subdictionaryObject)
     {
         subdictionaryObject = storage->getObject(subdictionaryObject);
         if (subdictionaryObject.isDictionary())
@@ -133,9 +133,9 @@ PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFObjectStorage* stora
 
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        processSubdicitonary(Appearance::Normal, dictionary->get("N"));
-        processSubdicitonary(Appearance::Rollover, dictionary->get("R"));
-        processSubdicitonary(Appearance::Down, dictionary->get("D"));
+        processSubdictionary(Appearance::Normal, dictionary->get("N"));
+        processSubdictionary(Appearance::Rollover, dictionary->get("R"));
+        processSubdictionary(Appearance::Down, dictionary->get("D"));
     }
 
     return result;
@@ -507,7 +507,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         annotation->m_screenTitle = loader.readTextStringFromDictionary(dictionary, "T", QString());
         annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(storage, dictionary->get("MK"));
         annotation->m_action = PDFAction::parse(storage, dictionary->get("A"));
-        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, dictionary->get("AA"));
+        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, dictionary->get("AA"), dictionary->get("A"));
     }
     else if (subtype == "Widget")
     {
@@ -525,7 +525,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         annotation->m_highlightMode = loader.readEnumByName(dictionary->get("H"), highlightModes.begin(), highlightModes.end(), PDFWidgetAnnotation::HighlightMode::Invert);
         annotation->m_appearanceCharacteristics = PDFAnnotationAppearanceCharacteristics::parse(storage, dictionary->get("MK"));
         annotation->m_action = PDFAction::parse(storage, dictionary->get("A"));
-        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, dictionary->get("AA"));
+        annotation->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, dictionary->get("AA"), dictionary->get("A"));
     }
     else if (subtype == "PrinterMark")
     {
@@ -866,7 +866,7 @@ PDFAnnotationIconFitInfo PDFAnnotationIconFitInfo::parse(const PDFObjectStorage*
     return info;
 }
 
-PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFObjectStorage* storage, PDFObject object)
+PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFObjectStorage* storage, PDFObject object, PDFObject defaultAction)
 {
     PDFAnnotationAdditionalActions result;
 
@@ -884,6 +884,7 @@ PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFOb
         result.m_actions[PageHide] = PDFAction::parse(storage, dictionary->get("PI"));
     }
 
+    result.m_actions[Default] = PDFAction::parse(storage, defaultAction);
     return result;
 }
 
@@ -1337,6 +1338,12 @@ PDFWidgetAnnotationManager::~PDFWidgetAnnotationManager()
 }
 
 void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFWidgetAnnotationManager::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
     Q_UNUSED(event);

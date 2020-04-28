@@ -79,6 +79,11 @@ public:
     /// \param event Event
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) = 0;
 
+    /// Handles key release event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) = 0;
+
     /// Handles mouse press event from widget
     /// \param widget Widget
     /// \param event Event

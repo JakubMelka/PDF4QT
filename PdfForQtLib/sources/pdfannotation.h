@@ -383,6 +383,7 @@ public:
         PageClosed,
         PageShow,
         PageHide,
+        Default,
         End
     };
 
@@ -397,7 +398,8 @@ public:
     /// empty additional actions is constructed.
     /// \param storage Object storage
     /// \param object Additional actions object
-    static PDFAnnotationAdditionalActions parse(const PDFObjectStorage* storage, PDFObject object);
+    /// \param defaultAction Default action of object (defined in "A" entry of annotation dictionary)
+    static PDFAnnotationAdditionalActions parse(const PDFObjectStorage* storage, PDFObject object, PDFObject defaultAction);
 
 private:
     std::array<PDFActionPtr, End> m_actions;
@@ -1409,6 +1411,11 @@ public:
     /// \param event Event
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
 
+    /// Handles key release event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
+
     /// Handles mouse press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
@@ -1438,7 +1445,7 @@ public:
     virtual int getInputPriority() const override { return AnnotationPriority; }
 
 signals:
-    void actionTriggered(const pdf::PDFAction* action);
+    void actionTriggered(const PDFAction* action);
 
 private:
     void updateFromMouseEvent(QMouseEvent* event);

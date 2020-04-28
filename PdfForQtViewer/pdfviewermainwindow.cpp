@@ -276,6 +276,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
     m_annotationManager->setFormManager(m_formManager);
     m_pdfWidget->setFormManager(m_formManager);
+    connect(m_formManager, &pdf::PDFFormManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);

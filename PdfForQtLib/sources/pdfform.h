@@ -40,10 +40,11 @@ class PDFFormWidget
 {
 public:
     explicit inline PDFFormWidget() = default;
-    explicit inline PDFFormWidget(PDFObjectReference widget, PDFFormField* parentField);
+    explicit inline PDFFormWidget(PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions);
 
     PDFObjectReference getWidget() const { return m_widget; }
     PDFFormField* getParent() const { return m_parentField; }
+    const PDFAction* getAction(PDFAnnotationAdditionalActions::Action action) const { return m_actions.getAction(action); }
 
     /// Parses form widget from the object reference. If some error occurs
     /// then empty object is returned, no exception is thrown.
@@ -55,6 +56,7 @@ public:
 private:
     PDFObjectReference m_widget;
     PDFFormField* m_parentField;
+    PDFAnnotationAdditionalActions m_actions;
 };
 
 using PDFFormWidgets = std::vector<PDFFormWidget>;
@@ -197,6 +199,10 @@ public:
     /// calls to apply for children).
     /// \param functor Functor to apply
     void apply(const std::function<void(const PDFFormField*)>& functor) const;
+
+    /// Returns action by type. If action is not found, nullptr is returned
+    /// \param action Action type
+    const PDFAction* getAction(PDFAnnotationAdditionalActions::Action action) const { return m_additionalActions.getAction(action); }
 
     /// Parses form field from the object reference. If some error occurs
     /// then null pointer is returned, no exception is thrown.
@@ -379,12 +385,21 @@ public:
     explicit PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldWidgetEditor() = default;
 
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+
+    const PDFFormWidget* getFormWidget() const { return &m_formWidget; }
     PDFFormField*  getFormField() const { return m_formWidget.getParent(); }
     PDFObjectReference getWidgetAnnotation() const { return m_formWidget.getWidget(); }
 
     void setFocus(bool hasFocus);
 
-private:
+protected:
+    void performKeypadNavigation(QWidget* widget, QKeyEvent* event);
+
     PDFFormManager* m_formManager;
     PDFFormWidget m_formWidget;
     bool m_hasFocus;
@@ -401,6 +416,12 @@ private:
 public:
     explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldPushButtonEditor() = default;
+
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
+
+private:
+    void click();
 };
 
 /// Editor for check boxes or radio buttons
@@ -523,33 +544,44 @@ public:
     /// \param widget Widget annotation reference
     bool isFocused(PDFObjectReference widget) const;
 
+    /// Tries to find appropriate action and returns it. If action is not found,
+    /// then nullptr is returned.
+    /// \param actionType Action to be performed
+    /// \param widget Form field widget
+    const PDFAction* getAction(PDFAnnotationAdditionalActions::Action actionType, const PDFFormWidget* widget);
+
     /// Returns default form apperance flags
     static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
 
     // interface IDrawWidgetInputInterface
 
-    /// Handles key press event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
+    /// Handles key press event from widget
+    /// \param widget Widget
     /// \param event Event
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
 
-    /// Handles mouse press event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
+    /// Handles key release event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
+
+    /// Handles mouse press event from widget
+    /// \param widget Widget
     /// \param event Event
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
 
-    /// Handles mouse release event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
+    /// Handles mouse release event from widget
+    /// \param widget Widget
     /// \param event Event
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
 
-    /// Handles mouse move event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
+    /// Handles mouse move event from widge
+    /// \param widget Widget
     /// \param event Event
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
-    /// Handles mouse wheel event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
+    /// Handles mouse wheel event from widget
+    /// \param widget Widget
     /// \param event Event
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
 
@@ -560,6 +592,9 @@ public:
     virtual const std::optional<QCursor>& getCursor() const override;
 
     virtual int getInputPriority() const override { return FormPriority; }
+
+signals:
+    void actionTriggered(const PDFAction* action);
 
 private:
     void updateFormWidgetEditors();

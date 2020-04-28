@@ -113,6 +113,14 @@ void PDFWidgetTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
     }
 }
 
+void PDFWidgetTool::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->keyReleaseEvent(widget, event);
+    }
+}
+
 void PDFWidgetTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
     if (PDFWidgetTool* tool = getTopToolstackTool())
@@ -796,6 +804,16 @@ void PDFToolManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
     if (activeTool)
     {
         activeTool->keyPressEvent(widget, event);
+    }
+}
+
+void PDFToolManager::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->keyReleaseEvent(widget, event);
     }
 }
 

@@ -19,6 +19,10 @@
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
 
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QApplication>
+
 namespace pdf
 {
 
@@ -228,7 +232,7 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
         formField->m_fieldFlags = fieldDictionary->hasKey("Ff") ? static_cast<FieldFlags>(loader.readIntegerFromDictionary(fieldDictionary, "Ff", 0)) : parentFlags;
         formField->m_value = fieldDictionary->hasKey("V") ? fieldDictionary->get("V") : parentV;
         formField->m_defaultValue = fieldDictionary->hasKey("DV") ? fieldDictionary->get("DV") : parentDV;
-        formField->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, fieldDictionary->get("AA"));
+        formField->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, fieldDictionary->get("AA"), fieldDictionary->get("A"));
 
         // Generate fully qualified name. If partial name is empty, then fully qualified name
         // is generated from parent fully qualified name (i.e. it is same as parent's name).
@@ -340,17 +344,23 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
     return result;
 }
 
-PDFFormWidget::PDFFormWidget(PDFObjectReference widget, PDFFormField* parentField) :
+PDFFormWidget::PDFFormWidget(PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions) :
     m_widget(widget),
-    m_parentField(parentField)
+    m_parentField(parentField),
+    m_actions(qMove(actions))
 {
 
 }
 
 PDFFormWidget PDFFormWidget::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField)
 {
-    Q_UNUSED(storage);
-    return PDFFormWidget(reference, parentField);
+    PDFAnnotationAdditionalActions actions;
+    if (const PDFDictionary* annotationDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(reference)))
+    {
+        actions = PDFAnnotationAdditionalActions::parse(storage, annotationDictionary->get("AA"), annotationDictionary->get("A"));
+    }
+
+    return PDFFormWidget(reference, parentField, qMove(actions));
 }
 
 PDFFormFieldButton::ButtonType PDFFormFieldButton::getButtonType() const
@@ -563,10 +573,38 @@ bool PDFFormManager::isFocused(PDFObjectReference widget) const
     return false;
 }
 
+const PDFAction* PDFFormManager::getAction(PDFAnnotationAdditionalActions::Action actionType, const PDFFormWidget* widget)
+{
+    if (const PDFAction* action = widget->getAction(actionType))
+    {
+        return action;
+    }
+
+    for (const PDFFormField* formField = widget->getParent(); formField; formField = formField->getParentField())
+    {
+        if (const PDFAction* action = formField->getAction(actionType))
+        {
+            return action;
+        }
+    }
+
+    return nullptr;
+}
+
 void PDFFormManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (m_focusedEditor)
+    {
+        m_focusedEditor->keyPressEvent(widget, event);
+    }
+}
+
+void PDFFormManager::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (m_focusedEditor)
+    {
+        m_focusedEditor->keyReleaseEvent(widget, event);
+    }
 }
 
 void PDFFormManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -695,15 +733,168 @@ PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, 
     Q_ASSERT(m_formManager);
 }
 
+void PDFFormFieldWidgetEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormFieldWidgetEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormFieldWidgetEditor::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormFieldWidgetEditor::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void PDFFormFieldWidgetEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
 void PDFFormFieldWidgetEditor::setFocus(bool hasFocus)
 {
     m_hasFocus = hasFocus;
+}
+
+void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEvent* event)
+{
+    int key = event->key();
+
+    const bool isLeft = key == Qt::Key_Left;
+    const bool isRight = key == Qt::Key_Right;
+    const bool isUp = key == Qt::Key_Up;
+    const bool isDown = key == Qt::Key_Down;
+    const bool isHorizontal = isLeft || isRight;
+
+    Qt::NavigationMode navigationMode = Qt::NavigationModeKeypadDirectional;
+#ifdef QT_KEYPAD_NAVIGATION
+    navigationMode = QApplication::navigationMode();
+#endif
+
+    switch (navigationMode)
+    {
+        case Qt::NavigationModeKeypadTabOrder:
+        {
+            // According the Qt's documentation, Up/Down arrows are used
+            // to change focus. So, if user pressed Left/Right, we must
+            // ignore this event.
+            if (isHorizontal)
+            {
+                return;
+            }
+            break;
+        }
+
+        case Qt::NavigationModeKeypadDirectional:
+            // Default behaviour
+            break;
+
+        default:
+            // Nothing happens
+            return;
+    }
+
+    bool next = false;
+    if (isHorizontal)
+    {
+        switch (widget->layoutDirection())
+        {
+            case Qt::LeftToRight:
+            case Qt::LayoutDirectionAuto:
+                next = isRight;
+                break;
+
+            case Qt::RightToLeft:
+                next = isLeft;
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+    else
+    {
+        // Vertical
+        next = isDown;
+    }
+
+    m_formManager->focusNextPrevFormField(next);
 }
 
 PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
     BaseClass(formManager, formWidget, parent)
 {
 
+}
+
+void PDFFormFieldPushButtonEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    switch (event->key())
+    {
+        case Qt::Key_Enter:
+        case Qt::Key_Return:
+        {
+            click();
+            event->accept();
+            break;
+        }
+
+        case Qt::Key_Left:
+        case Qt::Key_Right:
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+        {
+            performKeypadNavigation(widget, event);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+void PDFFormFieldPushButtonEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    switch (event->key())
+    {
+        case Qt::Key_Select:
+        case Qt::Key_Space:
+        {
+            click();
+            event->accept();
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+void PDFFormFieldPushButtonEditor::click()
+{
+    if (const PDFAction* action = m_formManager->getAction(PDFAnnotationAdditionalActions::MousePressed, getFormWidget()))
+    {
+        emit m_formManager->actionTriggered(action);
+    }
+    else if (const PDFAction* action = m_formManager->getAction(PDFAnnotationAdditionalActions::Default, getFormWidget()))
+    {
+        emit m_formManager->actionTriggered(action);
+    }
 }
 
 PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :

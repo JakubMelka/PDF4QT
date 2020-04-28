@@ -66,6 +66,11 @@ public:
     /// \param event Event
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
 
+    /// Handles key release event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
+
     /// Handles mouse press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
@@ -445,6 +450,11 @@ public:
     /// \param widget Widget, over which tool operates
     /// \param event Event
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+
+    /// Handles key release event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
 
     /// Handles mouse press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
