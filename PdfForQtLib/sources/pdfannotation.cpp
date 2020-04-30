@@ -1172,6 +1172,8 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 // printing to the printer.
                 if (isContentVisible && m_target == Target::View)
                 {
+                    PDFPainterStateGuard guard(painter);
+                    painter->resetMatrix();
                     drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, userSpaceToDeviceSpace);
                 }
             }

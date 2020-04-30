@@ -1312,7 +1312,6 @@ public:
     PDFFormManager* getFormManager() const;
     void setFormManager(PDFFormManager* formManager);
 
-protected:
     struct PageAnnotation
     {
         PDFAppeareanceStreams::Appearance appearance = PDFAppeareanceStreams::Appearance::Normal;
@@ -1374,6 +1373,7 @@ protected:
     /// Returns true, if any page in the given indices has annotation
     bool hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const;
 
+protected:
     void drawWidgetAnnotationHighlight(QRectF annotationRectangle,
                                        const PDFAnnotation* annotation,
                                        QPainter* painter,

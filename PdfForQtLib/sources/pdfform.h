@@ -351,6 +351,11 @@ public:
     /// \param widget Widget annotation
     const PDFFormField* getFormFieldForWidget(PDFObjectReference widget) const;
 
+    /// Returns form field for widget. If widget doesn't have attached form field,
+    /// then nullptr is returned.
+    /// \param widget Widget annotation
+    PDFFormField* getFormFieldForWidget(PDFObjectReference widget);
+
     /// Parses form from the object. If some error occurs
     /// then empty form is returned, no exception is thrown.
     /// \param document Document
@@ -417,8 +422,9 @@ public:
     explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldPushButtonEditor() = default;
 
-    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
-    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
 
 private:
     void click();
@@ -498,6 +504,7 @@ public:
     };
     Q_DECLARE_FLAGS(FormAppearanceFlags, FormAppearanceFlag)
 
+    bool hasForm() const { return hasAcroForm() || hasXFAForm(); }
     bool hasAcroForm() const { return m_form.getFormType() == PDFForm::FormType::AcroForm; }
     bool hasXFAForm() const { return m_form.getFormType() == PDFForm::FormType::XFAForm; }
 
@@ -505,6 +512,11 @@ public:
     /// then nullptr is returned.
     /// \param widget Widget annotation
     const PDFFormField* getFormFieldForWidget(PDFObjectReference widget) const { return m_form.getFormFieldForWidget(widget); }
+
+    /// Returns form field for widget. If widget doesn't have attached form field,
+    /// then nullptr is returned.
+    /// \param widget Widget annotation
+    PDFFormField* getFormFieldForWidget(PDFObjectReference widget) { return m_form.getFormFieldForWidget(widget); }
 
     PDFAnnotationManager* getAnnotationManager() const;
     void setAnnotationManager(PDFAnnotationManager* annotationManager);
@@ -553,6 +565,27 @@ public:
     /// Returns default form apperance flags
     static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
 
+    struct MouseEventInfo
+    {
+        /// Form field under mouse event, nullptr, if
+        /// no form field is under mouse button.
+        PDFFormField* formField = nullptr;
+
+        /// Form field widget editor, which is associated
+        /// with given form field.
+        PDFFormFieldWidgetEditor* editor = nullptr;
+
+        /// Mouse position in form field coordinate space
+        QPointF mousePosition;
+
+        /// Matrix, which maps from device space to widget space
+        QMatrix deviceToWidget;
+
+        /// Returns true, if mouse event info is valid, i.e.
+        /// mouse event occurs above some form field.
+        bool isValid() const { return editor != nullptr; }
+    };
+
     // interface IDrawWidgetInputInterface
 
     /// Handles key press event from widget
@@ -600,6 +633,31 @@ private:
     void updateFormWidgetEditors();
     void updateFieldValues();
 
+    PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
+    MouseEventInfo getMouseEventInfo(QWidget* widget, QPoint point);
+
+    struct MouseGrabInfo
+    {
+        MouseEventInfo info;
+        int mouseGrabNesting = 0;
+
+        bool isMouseGrabbed() const { return mouseGrabNesting > 0; }
+    };
+
+    bool isMouseGrabbed() const { return m_mouseGrabInfo.isMouseGrabbed(); }
+
+    /// Grabs mouse input, if mouse is already grabbed, or if event
+    /// is accepted. When mouse is grabbed, then mouse input events
+    /// are sent to active editor and are automatically accepted.
+    /// \param info Mouse event info
+    /// \param event Mouse event
+    void grabMouse(const MouseEventInfo& info, QMouseEvent* event);
+
+    /// Release mouse input
+    /// \param info Mouse event info
+    /// \param event Mouse event
+    void ungrabMouse(const MouseEventInfo& info, QMouseEvent* event);
+
     PDFDrawWidgetProxy* m_proxy;
     PDFAnnotationManager* m_annotationManager;
     const PDFDocument* m_document;
@@ -608,6 +666,7 @@ private:
 
     std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
     PDFFormFieldWidgetEditor* m_focusedEditor;
+    MouseGrabInfo m_mouseGrabInfo;
 };
 
 }   // namespace pdf

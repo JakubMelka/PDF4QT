@@ -18,6 +18,7 @@
 #include "pdfform.h"
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
 
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -113,6 +114,17 @@ void PDFForm::updateWidgetToFormFieldMapping()
 }
 
 const PDFFormField* PDFForm::getFormFieldForWidget(PDFObjectReference widget) const
+{
+    auto it = m_widgetToFormField.find(widget);
+    if (it != m_widgetToFormField.cend())
+    {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
+PDFFormField* PDFForm::getFormFieldForWidget(PDFObjectReference widget)
 {
     auto it = m_widgetToFormField.find(widget);
     if (it != m_widgetToFormField.cend())
@@ -609,26 +621,193 @@ void PDFFormManager::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
 
 void PDFFormManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (!hasForm())
+    {
+        return;
+    }
+
+    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    if (info.isValid())
+    {
+        Q_ASSERT(info.editor);
+
+        // We try to set focus on editor
+        if (event->button() == Qt::LeftButton)
+        {
+            setFocusToEditor(info.editor);
+        }
+
+        info.editor->mousePressEvent(widget, event);
+        grabMouse(info, event);
+    }
+    else if (!isMouseGrabbed())
+    {
+        // Mouse is not grabbed, user clicked elsewhere, unfocus editor
+        setFocusToEditor(nullptr);
+    }
 }
 
 void PDFFormManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (!hasForm())
+    {
+        return;
+    }
+
+    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    if (info.isValid())
+    {
+        Q_ASSERT(info.editor);
+        info.editor->mouseReleaseEvent(widget, event);
+        ungrabMouse(info, event);
+    }
 }
 
 void PDFFormManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    if (!hasForm())
+    {
+        return;
+    }
+
+    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    if (info.isValid())
+    {
+        Q_ASSERT(info.editor);
+        info.editor->mouseMoveEvent(widget, event);
+
+        // If mouse is grabbed, then event is accepted always (because
+        // we get Press event, when we grabbed the mouse, then we will
+        // wait for corresponding release event while all mouse move events
+        // will be accepted, even if editor doesn't accept them.
+        if (isMouseGrabbed())
+        {
+            event->accept();
+        }
+    }
 }
 
 void PDFFormManager::wheelEvent(QWidget* widget, QWheelEvent* event)
 {
     Q_UNUSED(widget);
     Q_UNUSED(event);
+
+    // We will accept mouse wheel events, if we are grabbing the mouse.
+    // We do not want to zoom in/zoom out while grabbing.
+    if (isMouseGrabbed())
+    {
+        event->accept();
+    }
+}
+
+void PDFFormManager::grabMouse(const MouseEventInfo& info, QMouseEvent* event)
+{
+    if (event->type() == QEvent::MouseButtonDblClick)
+    {
+        // Double clicks doesn't grab the mouse
+        return;
+    }
+
+    Q_ASSERT(event->type() == QEvent::MouseButtonPress);
+
+    if (isMouseGrabbed())
+    {
+        // If mouse is already grabbed, then when new mouse button is pressed,
+        // we just increase nesting level and accept the mouse event. We are
+        // accepting all mouse events, if mouse is grabbed.
+        ++m_mouseGrabInfo.mouseGrabNesting;
+        event->accept();
+    }
+    else if (event->isAccepted())
+    {
+        // Event is accepted and we are not grabbing the mouse. We must start
+        // grabbing the mouse.
+        Q_ASSERT(m_mouseGrabInfo.mouseGrabNesting == 0);
+        ++m_mouseGrabInfo.mouseGrabNesting;
+        m_mouseGrabInfo.info = info;
+    }
+}
+
+void PDFFormManager::ungrabMouse(const MouseEventInfo& info, QMouseEvent* event)
+{
+    Q_UNUSED(info);
+    Q_ASSERT(event->type() == QEvent::MouseButtonRelease);
+
+    if (isMouseGrabbed())
+    {
+        // Mouse is being grabbed, decrease nesting level. We must also accept
+        // mouse release event, because mouse is being grabbed.
+        --m_mouseGrabInfo.mouseGrabNesting;
+        event->accept();
+
+        if (!isMouseGrabbed())
+        {
+            m_mouseGrabInfo.info = MouseEventInfo();
+        }
+    }
+
+    Q_ASSERT(m_mouseGrabInfo.mouseGrabNesting >= 0);
+}
+
+PDFFormManager::MouseEventInfo PDFFormManager::getMouseEventInfo(QWidget* widget, QPoint point)
+{
+    MouseEventInfo result;
+
+    if (isMouseGrabbed())
+    {
+        result = m_mouseGrabInfo.info;
+        result.mousePosition = result.deviceToWidget.map(point);
+        return result;
+    }
+
+    std::vector<PDFInteger> currentPages = m_proxy->getWidget()->getDrawWidget()->getCurrentPages();
+
+    if (!m_annotationManager->hasAnyPageAnnotation(currentPages))
+    {
+        // All pages doesn't have annotation
+        return result;
+    }
+
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+    {
+        const PDFAnnotationManager::PageAnnotations& pageAnnotations = m_annotationManager->getPageAnnotations(snapshotItem.pageIndex);
+        for (const PDFAnnotationManager::PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            if (pageAnnotation.annotation->isReplyTo())
+            {
+                // Annotation is reply to another annotation, do not interact with it
+                continue;
+            }
+
+            if (pageAnnotation.annotation->getType() != AnnotationType::Widget)
+            {
+                // Annotation is not widget annotation (form field), do not interact with it
+                continue;
+            }
+
+            QRectF annotationRect = pageAnnotation.annotation->getRectangle();
+            QMatrix widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+
+            QPainterPath path;
+            path.addRect(annotationRect);
+            path = widgetToDevice.map(path);
+
+            if (path.contains(point))
+            {
+                if (PDFFormField* formField = getFormFieldForWidget(pageAnnotation.annotation->getSelfReference()))
+                {
+                    result.formField = formField;
+                    result.deviceToWidget = widgetToDevice.inverted();
+                    result.mousePosition = result.deviceToWidget.map(point);
+                    result.editor = getEditor(formField);
+                    return result;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 const std::optional<QCursor>& PDFFormManager::getCursor() const
@@ -722,6 +901,19 @@ void PDFFormManager::updateFieldValues()
             childField->reloadValue(&m_document->getStorage(), PDFObject());
         }
     }
+}
+
+PDFFormFieldWidgetEditor* PDFFormManager::getEditor(const PDFFormField* formField) const
+{
+    for (PDFFormFieldWidgetEditor* editor : m_widgetEditors)
+    {
+        if (editor->getFormField() == formField)
+        {
+            return editor;
+        }
+    }
+
+    return nullptr;
 }
 
 PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
@@ -882,6 +1074,17 @@ void PDFFormFieldPushButtonEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* e
 
         default:
             break;
+    }
+}
+
+void PDFFormFieldPushButtonEditor::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        click();
+        event->accept();
     }
 }
 
