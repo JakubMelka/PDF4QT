@@ -165,6 +165,23 @@ PDFObject PDFAppeareanceStreams::getAppearance(Appearance appearance, const QByt
     return PDFObject();
 }
 
+QByteArrayList PDFAppeareanceStreams::getAppearanceStates(Appearance appearance)
+{
+    QByteArrayList result;
+
+    for (const auto& item : m_appearanceStreams)
+    {
+        if (item.first.first != appearance)
+        {
+            continue;
+        }
+
+        result << item.first.second;
+    }
+
+    return result;
+}
+
 PDFAnnotation::PDFAnnotation() :
     m_flags(),
     m_structParent(0)

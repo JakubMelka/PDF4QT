@@ -19,6 +19,7 @@
 #define PDFFORM_H
 
 #include "pdfobject.h"
+#include "pdfdocument.h"
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
 
@@ -30,6 +31,7 @@ class PDFFormField;
 class PDFFormManager;
 class PDFObjectStorage;
 class PDFModifiedDocument;
+class PDFDocumentModifier;
 
 using PDFFormFieldPointer = QSharedPointer<PDFFormField>;
 using PDFFormFields = std::vector<PDFFormFieldPointer>;
@@ -40,8 +42,9 @@ class PDFFormWidget
 {
 public:
     explicit inline PDFFormWidget() = default;
-    explicit inline PDFFormWidget(PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions);
+    explicit inline PDFFormWidget(PDFObjectReference page, PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions);
 
+    PDFObjectReference getPage() const { return m_page; }
     PDFObjectReference getWidget() const { return m_widget; }
     PDFFormField* getParent() const { return m_parentField; }
     const PDFAction* getAction(PDFAnnotationAdditionalActions::Action action) const { return m_actions.getAction(action); }
@@ -54,6 +57,7 @@ public:
     static PDFFormWidget parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
 private:
+    PDFObjectReference m_page;
     PDFObjectReference m_widget;
     PDFFormField* m_parentField;
     PDFAnnotationAdditionalActions m_actions;
@@ -200,6 +204,12 @@ public:
     /// \param functor Functor to apply
     void apply(const std::function<void(const PDFFormField*)>& functor) const;
 
+    /// Applies function to this form field and all its descendants,
+    /// in pre-order (first application is to the parent, following
+    /// calls to apply for children).
+    /// \param functor Functor to apply
+    void modify(const std::function<void(PDFFormField*)>& functor);
+
     /// Returns action by type. If action is not found, nullptr is returned
     /// \param action Action type
     const PDFAction* getAction(PDFAnnotationAdditionalActions::Action action) const { return m_additionalActions.getAction(action); }
@@ -210,6 +220,29 @@ public:
     /// \param reference Field reference
     /// \param parentField Parent field (or nullptr, if it is root field)
     static PDFFormFieldPointer parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+
+    struct SetValueParameters
+    {
+        enum class Scope
+        {
+            User,       ///< Changed value comes from user input
+            Internal    ///< Value is changed by some program operation (for example, calculation)
+        };
+
+        PDFObject value;
+        PDFObjectReference invokingWidget;
+        PDFFormField* invokingFormField = nullptr;
+        PDFDocumentModifier* modifier = nullptr;
+        PDFFormManager* formManager = nullptr;
+        Scope scope = Scope::User;
+    };
+
+    /// Sets value to the form field. If value has been correctly
+    /// set, then true is returned, otherwise false is returned.
+    /// This function also verifies, if value can be set (i.e. form field
+    /// is editable, and value is valid).
+    /// \param parameters Parameters
+    virtual bool setValue(const SetValueParameters& parameters);
 
 protected:
     PDFObjectReference m_selfReference;
@@ -243,10 +276,26 @@ public:
 
     const QStringList& getOptions() const { return m_options; }
 
+    /// Returns appearance state, which corresponds to the checked
+    /// state of checkbox or radio button. If error occurs, then
+    /// empty byte array is returned.
+    /// \param formManager Form manager
+    /// \param widget Widget
+    static QByteArray getOnAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget);
+
+    /// Returns appearance state, which corresponds to the unchecked
+    /// state of checkbox or radio button. If error occurs, then
+    /// empty byte array is returned.
+    /// \param formManager Form manager
+    /// \param widget Widget
+    static QByteArray getOffAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget);
+
+    virtual bool setValue(const SetValueParameters& parameters) override;
+
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
-    /// List of names of 'On' state for radio buttons. In widget annotation's appearance
+    /// List of export names of 'On' state for radio buttons. In widget annotation's appearance
     /// dictionaries, state names are computer generated numbers (for example /1, /3, ...),
     /// which are indices to this string list. This allows to distinguish between
     /// different widget annotations, even if they have same value in m_options array.
@@ -410,8 +459,8 @@ protected:
     bool m_hasFocus;
 };
 
-/// Editor for push buttons
-class PDFFormFieldPushButtonEditor : public PDFFormFieldWidgetEditor
+/// Editor for button-like editors
+class PDFFormFieldAbstractButtonEditor : public PDFFormFieldWidgetEditor
 {
     Q_OBJECT
 
@@ -419,28 +468,47 @@ private:
     using BaseClass = PDFFormFieldWidgetEditor;
 
 public:
-    explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
-    virtual ~PDFFormFieldPushButtonEditor() = default;
+    explicit PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldAbstractButtonEditor() = default;
 
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
 
-private:
-    void click();
+protected:
+    virtual void click() = 0;
 };
 
-/// Editor for check boxes or radio buttons
-class PDFFormFieldCheckableButtonEditor : public PDFFormFieldWidgetEditor
+/// Editor for push buttons
+class PDFFormFieldPushButtonEditor : public PDFFormFieldAbstractButtonEditor
 {
     Q_OBJECT
 
 private:
-    using BaseClass = PDFFormFieldWidgetEditor;
+    using BaseClass = PDFFormFieldAbstractButtonEditor;
+
+public:
+    explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
+    virtual ~PDFFormFieldPushButtonEditor() = default;
+
+protected:
+    virtual void click() override;
+};
+
+/// Editor for check boxes or radio buttons
+class PDFFormFieldCheckableButtonEditor : public PDFFormFieldAbstractButtonEditor
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFFormFieldAbstractButtonEditor;
 
 public:
     explicit PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldCheckableButtonEditor() = default;
+
+protected:
+    virtual void click() override;
 };
 
 /// Editor for text fields
@@ -542,6 +610,12 @@ public:
     /// \param functor Functor to apply
     void apply(const std::function<void(const PDFFormField*)>& functor) const;
 
+    /// Applies function to all form fields present in the form,
+    /// in pre-order (first application is to the parent, following
+    /// calls to apply for children).
+    /// \param functor Functor to apply
+    void modify(const std::function<void(PDFFormField*)>& functor) const;
+
     /// Sets focus to the editor. Is is allowed to pass nullptr to this
     /// function, it means that no editor is focused.
     /// \param editor Editor to be focused
@@ -586,6 +660,9 @@ public:
         bool isValid() const { return editor != nullptr; }
     };
 
+    /// Tries to set value to the form field
+    void setFormFieldValue(PDFFormField::SetValueParameters parameters);
+
     // interface IDrawWidgetInputInterface
 
     /// Handles key press event from widget
@@ -628,6 +705,7 @@ public:
 
 signals:
     void actionTriggered(const PDFAction* action);
+    void documentModified(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags);
 
 private:
     void updateFormWidgetEditors();

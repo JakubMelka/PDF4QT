@@ -93,13 +93,9 @@ private slots:
     void on_actionFitHeight_triggered();
     void on_actionProperties_triggered();
     void on_actionSend_by_E_Mail_triggered();
-
     void on_actionRotateRight_triggered();
-
     void on_actionRotateLeft_triggered();
-
     void on_actionPrint_triggered();
-
     void on_actionRender_to_Images_triggered();
 
 private:
@@ -118,6 +114,7 @@ private:
     void onProgressFinished();
 
     void onDocumentReadingFinished();
+    void onDocumentModified(pdf::PDFDocumentPointer document, pdf::PDFModifiedDocument::ModificationFlags flags);
 
     void readSettings();
     void readActionSettings();

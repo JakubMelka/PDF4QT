@@ -148,6 +148,7 @@ public:
         _QPolygonF,
         _QDateTime,
         _QLocale,
+        _QByteArray,
         _Polygons,
         _TextAnnotationIcon,
         _LinkHighlightMode,
@@ -363,7 +364,8 @@ public:
         Structure,
         Annotations,
         ColorSpace,
-        Actions
+        Actions,
+        Forms
     };
     Q_ENUM(FunctionType)
 

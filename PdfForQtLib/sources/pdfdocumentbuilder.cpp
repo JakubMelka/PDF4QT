@@ -1154,6 +1154,25 @@ PDFContentStreamBuilder::ContentStream PDFContentStreamBuilder::end(QPainter* pa
     return result;
 }
 
+PDFDocumentModifier::PDFDocumentModifier(const PDFDocument* originalDocument) :
+    m_originalDocument(originalDocument),
+    m_builder(originalDocument)
+{
+
+}
+
+bool PDFDocumentModifier::finalize()
+{
+    PDFDocument document = m_builder.build();
+    if (document != *m_originalDocument)
+    {
+        m_modifiedDocument.reset(new PDFDocument(qMove(document)));
+        return true;
+    }
+
+    return false;
+}
+
 /* START GENERATED CODE */
 
 PDFObjectReference PDFDocumentBuilder::appendPage(QRectF mediaBox)
@@ -2898,6 +2917,21 @@ PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog
 }
 
 
+void PDFDocumentBuilder::setAnnotationAppearanceState(PDFObjectReference annotation,
+                                                      QByteArray appearanceState)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("AS");
+    objectBuilder << WrapName(appearanceState);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
 void PDFDocumentBuilder::setAnnotationBorder(PDFObjectReference annotation,
                                              PDFReal hRadius,
                                              PDFReal vRadius,
@@ -3157,6 +3191,21 @@ void PDFDocumentBuilder::setDocumentTitle(QString title)
     objectBuilder.endDictionary();
     PDFObject info = objectBuilder.takeObject();
     updateDocumentInfo(qMove(info));
+}
+
+
+void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
+                                           PDFObject value)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("V");
+    objectBuilder << value;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject formFieldObject = objectBuilder.takeObject();
+    mergeTo(formField, formFieldObject);
 }
 
 

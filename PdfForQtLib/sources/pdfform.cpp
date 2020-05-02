@@ -19,10 +19,12 @@
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QApplication>
+#include <QByteArray>
 
 namespace pdf
 {
@@ -170,6 +172,16 @@ void PDFFormField::apply(const std::function<void (const PDFFormField*)>& functo
     for (const PDFFormFieldPointer& childField : m_childFields)
     {
         childField->apply(functor);
+    }
+}
+
+void PDFFormField::modify(const std::function<void (PDFFormField*)>& functor)
+{
+    functor(this);
+
+    for (const PDFFormFieldPointer& childField : m_childFields)
+    {
+        childField->modify(functor);
     }
 }
 
@@ -356,7 +368,16 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
     return result;
 }
 
-PDFFormWidget::PDFFormWidget(PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions) :
+bool PDFFormField::setValue(const SetValueParameters& parameters)
+{
+    Q_UNUSED(parameters);
+
+    // Default behaviour: return false, value cannot be set
+    return false;
+}
+
+PDFFormWidget::PDFFormWidget(PDFObjectReference page, PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions) :
+    m_page(page),
     m_widget(widget),
     m_parentField(parentField),
     m_actions(qMove(actions))
@@ -366,13 +387,16 @@ PDFFormWidget::PDFFormWidget(PDFObjectReference widget, PDFFormField* parentFiel
 
 PDFFormWidget PDFFormWidget::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField)
 {
+    PDFObjectReference pageReference;
     PDFAnnotationAdditionalActions actions;
     if (const PDFDictionary* annotationDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(reference)))
     {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        pageReference = loader.readReferenceFromDictionary(annotationDictionary, "P");
         actions = PDFAnnotationAdditionalActions::parse(storage, annotationDictionary->get("AA"), annotationDictionary->get("A"));
     }
 
-    return PDFFormWidget(reference, parentField, qMove(actions));
+    return PDFFormWidget(pageReference, reference, parentField, qMove(actions));
 }
 
 PDFFormFieldButton::ButtonType PDFFormFieldButton::getButtonType() const
@@ -387,6 +411,105 @@ PDFFormFieldButton::ButtonType PDFFormFieldButton::getButtonType() const
     }
 
     return ButtonType::CheckBox;
+}
+
+QByteArray PDFFormFieldButton::getOnAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget)
+{
+    Q_ASSERT(formManager);
+    Q_ASSERT(widget);
+
+    const PDFDocument* document = formManager->getDocument();
+    Q_ASSERT(document);
+
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(widget->getWidget())))
+    {
+        PDFAppeareanceStreams streams = PDFAppeareanceStreams::parse(&document->getStorage(), dictionary->get("AP"));
+        QByteArrayList states = streams.getAppearanceStates(PDFAppeareanceStreams::Appearance::Normal);
+
+        for (const QByteArray& state : states)
+        {
+            if (!state.isEmpty() && state != "Off")
+            {
+                return state;
+            }
+        }
+    }
+
+    return QByteArray();
+}
+
+QByteArray PDFFormFieldButton::getOffAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget)
+{
+    Q_UNUSED(formManager);
+    Q_UNUSED(widget);
+
+    // 'Off' value is specified by PDF 1.7 specification. It has always value 'Off'.
+    // 'On' values can have different appearance states.
+    return "Off";
+}
+
+bool PDFFormFieldButton::setValue(const SetValueParameters& parameters)
+{
+    // Do not allow to set value to push buttons
+    if (getFlags().testFlag(PushButton))
+    {
+        return false;
+    }
+
+    // If form field is readonly, and scope is user (form field is changed by user,
+    // not by calculated value), then we must not allow value change.
+    if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
+    {
+        return false;
+    }
+
+    Q_ASSERT(parameters.formManager);
+    Q_ASSERT(parameters.modifier);
+    Q_ASSERT(parameters.value.isName());
+
+    PDFDocumentBuilder* builder = parameters.modifier->getBuilder();
+    QByteArray state = parameters.value.getString();
+    parameters.modifier->markFormFieldChanged();
+    builder->setFormFieldValue(getSelfReference(), parameters.value);
+
+    // Change widget appearance states
+    const bool isRadio = getFlags().testFlag(Radio);
+    const bool isRadioInUnison = getFlags().testFlag(RadiosInUnison);
+    const bool isSameValueForAllWidgets = !isRadio || isRadioInUnison;
+    const bool isAllowedToCheckAllOff = !getFlags().testFlag(NoToggleToOff);
+    bool hasWidgets = !m_widgets.empty();
+    bool isAnyWidgetToggledOn = false;
+
+    for (const PDFFormWidget& formWidget : getWidgets())
+    {
+        QByteArray onState = PDFFormFieldButton::getOnAppearanceState(parameters.formManager, &formWidget);
+
+        // We set appearance to 'On' if following two conditions both hold:
+        //  1) State equals to widget's "On" state
+        //  2) Either we are setting value to invoking widget, or setting of same
+        //     value to other widgets is allowed (it is a checkbox, or radio in unison)
+        if (state == onState && (isSameValueForAllWidgets || formWidget.getWidget() == parameters.invokingWidget))
+        {
+            isAnyWidgetToggledOn = true;
+            builder->setAnnotationAppearanceState(formWidget.getWidget(), onState);
+        }
+        else
+        {
+            QByteArray offState = PDFFormFieldButton::getOffAppearanceState(parameters.formManager, &formWidget);
+            builder->setAnnotationAppearanceState(formWidget.getWidget(), offState);
+        }
+        parameters.modifier->markAnnotationsChanged();
+    }
+
+    // We must check, if correct value has been set. If form field has no widgets,
+    // but has same qualified name, then no check is performed (just form field value is set
+    // to same value in all form fields with same qualified name, according to the PDF specification.
+    if (hasWidgets && !isAnyWidgetToggledOn && !isAllowedToCheckAllOff)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 PDFFormManager::PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
@@ -503,6 +626,14 @@ void PDFFormManager::apply(const std::function<void (const PDFFormField*)>& func
     }
 }
 
+void PDFFormManager::modify(const std::function<void (PDFFormField*)>& functor) const
+{
+    for (const PDFFormFieldPointer& childField : m_form.getFormFields())
+    {
+        childField->modify(functor);
+    }
+}
+
 void PDFFormManager::setFocusToEditor(PDFFormFieldWidgetEditor* editor)
 {
     if (m_focusedEditor != editor)
@@ -601,6 +732,47 @@ const PDFAction* PDFFormManager::getAction(PDFAnnotationAdditionalActions::Actio
     }
 
     return nullptr;
+}
+
+void PDFFormManager::setFormFieldValue(PDFFormField::SetValueParameters parameters)
+{
+    Q_ASSERT(parameters.invokingFormField);
+    Q_ASSERT(parameters.invokingWidget.isValid());
+
+    parameters.formManager = this;
+    parameters.scope = PDFFormField::SetValueParameters::Scope::User;
+
+    PDFDocumentModifier modifier(m_document);
+    parameters.modifier = &modifier;
+
+    if (parameters.invokingFormField->setValue(parameters))
+    {
+        // We must also set dependent fields with same name
+        QString qualifiedFormFieldName = parameters.invokingFormField->getName(PDFFormField::NameType::FullyQualified);
+        if (!qualifiedFormFieldName.isEmpty())
+        {
+            parameters.scope = PDFFormField::SetValueParameters::Scope::Internal;
+            auto updateDependentField = [&parameters, &qualifiedFormFieldName](PDFFormField* formField)
+            {
+                if (parameters.invokingFormField == formField)
+                {
+                    // Do not update self
+                    return;
+                }
+
+                if (qualifiedFormFieldName == formField->getName(PDFFormField::NameType::FullyQualified))
+                {
+                    formField->setValue(parameters);
+                }
+            };
+            modify(updateDependentField);
+        }
+
+        if (modifier.finalize())
+        {
+            emit documentModified(modifier.getDocument(), modifier.getFlags());
+        }
+    }
 }
 
 void PDFFormManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
@@ -966,7 +1138,6 @@ void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEven
 
     const bool isLeft = key == Qt::Key_Left;
     const bool isRight = key == Qt::Key_Right;
-    const bool isUp = key == Qt::Key_Up;
     const bool isDown = key == Qt::Key_Down;
     const bool isHorizontal = isLeft || isRight;
 
@@ -1032,7 +1203,13 @@ PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFFormManager* formM
 
 }
 
-void PDFFormFieldPushButtonEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
+PDFFormFieldAbstractButtonEditor::PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent)
+{
+
+}
+
+void PDFFormFieldAbstractButtonEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     switch (event->key())
     {
@@ -1058,7 +1235,7 @@ void PDFFormFieldPushButtonEditor::keyPressEvent(QWidget* widget, QKeyEvent* eve
     }
 }
 
-void PDFFormFieldPushButtonEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+void PDFFormFieldAbstractButtonEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
 
@@ -1077,7 +1254,7 @@ void PDFFormFieldPushButtonEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* e
     }
 }
 
-void PDFFormFieldPushButtonEditor::mousePressEvent(QWidget* widget, QMouseEvent* event)
+void PDFFormFieldAbstractButtonEditor::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
 
@@ -1104,6 +1281,33 @@ PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFFormMana
     BaseClass(formManager, formWidget, parent)
 {
 
+}
+
+void PDFFormFieldCheckableButtonEditor::click()
+{
+    QByteArray newState;
+
+    // First, check current state of form field
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
+    QByteArray state = loader.readName(m_formWidget.getParent()->getValue());
+    QByteArray onState = PDFFormFieldButton::getOnAppearanceState(m_formManager, &m_formWidget);
+    if (state != onState)
+    {
+        newState = onState;
+    }
+    else
+    {
+        newState = PDFFormFieldButton::getOffAppearanceState(m_formManager, &m_formWidget);
+    }
+
+    // We have a new state, try to apply it to form field
+    PDFFormField::SetValueParameters parameters;
+    parameters.formManager = m_formManager;
+    parameters.invokingWidget = m_formWidget.getWidget();
+    parameters.invokingFormField = m_formWidget.getParent();
+    parameters.scope = PDFFormField::SetValueParameters::Scope::User;
+    parameters.value = PDFObject::createName(std::make_shared<PDFString>(qMove(newState)));
+    m_formManager->setFormFieldValue(parameters);
 }
 
 PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :

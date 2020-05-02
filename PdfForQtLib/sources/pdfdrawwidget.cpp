@@ -83,6 +83,7 @@ void PDFWidget::setDocument(const PDFModifiedDocument& document)
 {
     m_proxy->setDocument(document);
     m_pageRenderingErrors.clear();
+    m_drawWidget->getWidget()->update();
 }
 
 void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)

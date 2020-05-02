@@ -209,6 +209,10 @@ public:
     /// \param state State name
     PDFObject getAppearance(Appearance appearance, const QByteArray& state) const;
 
+    /// Returns list of appearance states for given appearance
+    /// \param appearance Appearance
+    QByteArrayList getAppearanceStates(Appearance appearance);
+
 private:
     std::map<Key, PDFObject> m_appearanceStreams;
 };

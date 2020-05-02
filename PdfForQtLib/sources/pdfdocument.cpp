@@ -45,6 +45,12 @@ QByteArray PDFObjectStorage::getDecodedStream(const PDFStream* stream) const
     return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(QOverload<const PDFObject&>::of(&PDFObjectStorage::getObject), this, std::placeholders::_1), getSecurityHandler());
 }
 
+bool PDFDocument::operator==(const PDFDocument& other) const
+{
+    // Document is considered equal, if storage is equal
+    return m_pdfObjectStorage == other.m_pdfObjectStorage;
+}
+
 QByteArray PDFDocument::getDecodedStream(const PDFStream* stream) const
 {
     return m_pdfObjectStorage.getDecodedStream(stream);
@@ -213,6 +219,13 @@ void PDFDocument::initInfo()
             throw PDFException(tr("Bad format of document info entry in trailer dictionary."));
         }
     }
+}
+
+bool PDFObjectStorage::operator==(const PDFObjectStorage& other) const
+{
+    // We compare just content. Security handler just defines encryption behavior.
+    return m_objects == other.m_objects &&
+           m_trailerDictionary == other.m_trailerDictionary;
 }
 
 const PDFObject& PDFObjectStorage::getObject(PDFObjectReference reference) const

@@ -242,7 +242,7 @@ public:
     /// Creates a new blank document (with no pages)
     explicit PDFDocumentBuilder();
 
-    ///
+    /// Creates a new document as modification of old document
     explicit PDFDocumentBuilder(const PDFDocument* document);
 
     /// Resets the object to the initial state.
@@ -800,6 +800,13 @@ public:
     PDFObject createTrailerDictionary(PDFObjectReference catalog);
 
 
+    /// Sets annotation appearance state.
+    /// \param annotation Annotation
+    /// \param appearanceState Appearance state
+    void setAnnotationAppearanceState(PDFObjectReference annotation,
+                                      QByteArray appearanceState);
+
+
     /// Sets annotation border.
     /// \param annotation Annotation
     /// \param hRadius Horizontal corner radius
@@ -913,6 +920,15 @@ public:
     void setDocumentTitle(QString title);
 
 
+    /// Sets form field value. Value must be correct for this form field, no checking is performed. Also, if 
+    /// you use this function, annotation widgets, which are attached to this form field, should also be 
+    /// updated (for example, appearance state and sometimes appearance streams).
+    /// \param formField Form field
+    /// \param value Value
+    void setFormFieldValue(PDFObjectReference formField,
+                           PDFObject value);
+
+
     /// Set document language.
     /// \param locale Locale, from which is language determined
     void setLanguage(QLocale locale);
@@ -957,6 +973,38 @@ private:
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;
+};
+
+/// This class serves for document modification. While document is modified,
+/// modification flags are gathered. At the end of the modification, it is checked,
+/// if document was really changed.
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentModifier
+{
+public:
+    explicit PDFDocumentModifier(const PDFDocument* originalDocument);
+
+    /// Returns builder, which can modify document
+    PDFDocumentBuilder* getBuilder() { return &m_builder; }
+
+    /// Finalizes document modification and prepares new changed document.
+    /// If document content is equal to the original, then false is returned,
+    /// otherwise true is returned. If document was not modified,
+    /// then new document is not created and function \p getDocument
+    /// will return nullptr.
+    bool finalize();
+
+    PDFDocumentPointer getDocument() const { return m_modifiedDocument; }
+    PDFModifiedDocument::ModificationFlags getFlags() const { return m_modificationFlags; }
+
+    void markReset() { m_modificationFlags.setFlag(PDFModifiedDocument::Reset); }
+    void markAnnotationsChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::Annotation); }
+    void markFormFieldChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::FormField); }
+
+private:
+    const PDFDocument* m_originalDocument;
+    PDFDocumentBuilder m_builder;
+    PDFDocumentPointer m_modifiedDocument;
+    PDFModifiedDocument::ModificationFlags m_modificationFlags;
 };
 
 // Implementation

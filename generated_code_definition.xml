@@ -5779,6 +5779,70 @@ return annotationObject;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
+              <property name="parameterName">appearanceState</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">Appearance state</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">AS</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName(appearanceState)</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">annotationObject</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(annotation, annotationObject);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Annotations</property>
+      <property name="functionName">setAnnotationAppearanceState</property>
+      <property name="functionDescription">Sets annotation appearance state.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">annotation</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Annotation</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
               <property name="parameterName">hRadius</property>
               <property name="parameterType">_PDFReal</property>
               <property name="parameterDescription">Horizontal corner radius</property>
@@ -6852,6 +6916,70 @@ return annotationObject;</property>
       <property name="functionType">Structure</property>
       <property name="functionName">setDocumentTitle</property>
       <property name="functionDescription">Set document title.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">formField</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Form field</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">value</property>
+              <property name="parameterType">_PDFObject</property>
+              <property name="parameterDescription">Value</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">V</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">value</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">formFieldObject</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(formField, formFieldObject);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Forms</property>
+      <property name="functionName">setFormFieldValue</property>
+      <property name="functionDescription">Sets form field value. Value must be correct for this form field, no checking is performed. Also, if you use this function, annotation widgets, which are attached to this form field, should also be updated (for example, appearance state and sometimes appearance streams).</property>
       <property name="returnType">_void</property>
     </QObject>
     <QObject class="codegen::GeneratedFunction">

@@ -55,6 +55,9 @@ GeneratorMainWindow::GeneratorMainWindow(QWidget *parent) :
     connect(ui->parameterValueEdit, &QLineEdit::editingFinished, this, &GeneratorMainWindow::saveGeneratedSettings);
     connect(ui->parameterDescriptionEdit, &QTextBrowser::textChanged, this, &GeneratorMainWindow::saveGeneratedSettings);
 
+    ui->parameterItemTypeCombo->setMaxVisibleItems(30);
+    ui->parameterDataTypeCombo->setMaxVisibleItems(30);
+
     setWindowState(Qt::WindowMaximized);
     updateFunctionListUI();
 }

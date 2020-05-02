@@ -48,10 +48,16 @@ public:
     constexpr inline PDFObjectStorage& operator=(const PDFObjectStorage&) = default;
     constexpr inline PDFObjectStorage& operator=(PDFObjectStorage&&) = default;
 
+    bool operator==(const PDFObjectStorage& other) const;
+    bool operator!=(const PDFObjectStorage& other) const { return !(*this == other); }
+
     struct Entry
     {
         constexpr inline explicit Entry() = default;
         inline explicit Entry(PDFInteger generation, PDFObject object) : generation(generation), object(std::move(object)) { }
+
+        inline bool operator==(const Entry& other) const { return generation == other.generation && object == other.object; }
+        inline bool operator!=(const Entry& other) const { return !(*this == other); }
 
         PDFInteger generation = 0;
         PDFObject object;
@@ -385,6 +391,9 @@ class PDFFORQTLIBSHARED_EXPORT PDFDocument
 
 public:
     explicit PDFDocument() = default;
+
+    bool operator==(const PDFDocument& other) const;
+    bool operator!=(const PDFDocument& other) const { return !(*this == other); }
 
     const PDFObjectStorage& getStorage() const { return m_pdfObjectStorage; }
 

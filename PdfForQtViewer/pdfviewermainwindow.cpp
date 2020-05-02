@@ -277,6 +277,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_annotationManager->setFormManager(m_formManager);
     m_pdfWidget->setFormManager(m_formManager);
     connect(m_formManager, &pdf::PDFFormManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
+    connect(m_formManager, &pdf::PDFFormManager::documentModified, this, &PDFViewerMainWindow::onDocumentModified);
 
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
@@ -980,6 +981,13 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             break; // Do nothing, user cancelled the document reading
     }
     updateActionsAvailability();
+}
+
+void PDFViewerMainWindow::onDocumentModified(pdf::PDFDocumentPointer document, pdf::PDFModifiedDocument::ModificationFlags flags)
+{
+    m_pdfDocument = document;
+    pdf::PDFModifiedDocument modifiedDocument(m_pdfDocument.data(), m_optionalContentActivity, flags);
+    setDocument(modifiedDocument);
 }
 
 void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
