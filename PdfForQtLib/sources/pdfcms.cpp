@@ -1059,12 +1059,13 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalColorProfiles(QString profi
     PDFColorProfileIdentifiers result;
 
     QDir directory(profileDirectory);
+    QDir applicationDirectory(QApplication::applicationDirPath());
     if (!profileDirectory.isEmpty() && directory.exists())
     {
         QStringList iccProfiles = directory.entryList({ "*.icc" }, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::NoSort);
         for (const QString& fileName : iccProfiles)
         {
-            QString filePath = directory.absoluteFilePath(fileName);
+            QString filePath = QDir::cleanPath(applicationDirectory.relativeFilePath(directory.absoluteFilePath(fileName)));
 
             // Try to read the profile from the file. If it fails, then do nothing.
             QFile file(filePath);
