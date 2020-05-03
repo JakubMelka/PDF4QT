@@ -861,13 +861,6 @@
            <layout class="QVBoxLayout" name="verticalLayout_4">
             <item>
              <layout class="QGridLayout" name="uiGroupBoxLayout">
-              <item row="1" column="0">
-               <widget class="QLabel" name="magnifierSizeLabel">
-                <property name="text">
-                 <string>Magnifier size</string>
-                </property>
-               </widget>
-              </item>
               <item row="0" column="0">
                <widget class="QLabel" name="maximumRecentFileCountLabel">
                 <property name="text">
@@ -875,13 +868,20 @@
                 </property>
                </widget>
               </item>
-              <item row="0" column="1">
-               <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
+                <property name="minimum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>10.000000000000000</double>
+                </property>
+               </widget>
               </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="magnifierZoomLabel">
+              <item row="3" column="0">
+               <widget class="QLabel" name="maximumUndoStepsLabel">
                 <property name="text">
-                 <string>Magnifier zoom</string>
+                 <string>Maximum undo steps</string>
                 </property>
                </widget>
               </item>
@@ -898,13 +898,41 @@
                 </property>
                </widget>
               </item>
-              <item row="2" column="1">
-               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
-                <property name="minimum">
-                 <double>1.000000000000000</double>
+              <item row="0" column="1">
+               <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="magnifierZoomLabel">
+                <property name="text">
+                 <string>Magnifier zoom</string>
                 </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="magnifierSizeLabel">
+                <property name="text">
+                 <string>Magnifier size</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="maximumRedoStepsLabel">
+                <property name="text">
+                 <string>Maximum redo steps</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="maximumUndoStepsEdit">
                 <property name="maximum">
-                 <double>10.000000000000000</double>
+                 <number>20</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="maximumRedoStepsEdit">
+                <property name="maximum">
+                 <number>20</number>
                 </property>
                </widget>
               </item>
@@ -913,7 +941,7 @@
             <item>
              <widget class="QLabel" name="uiInfoLabel">
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum count of recent files controls, how much of recent files will be displayed in menu. When document is opened, then document is addet to the top of recent file list, and recent file list is truncated from bottom, if number of recent files is greater, than maximum.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings &lt;/span&gt;set the appearance of the magnifier. Magnifier tool magnifies area under the mouse cursor. You can specify how big the magnifier will be (in pixels) and how much it will zoom.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum count of recent files controls, how much of recent files will be displayed in menu. When document is opened, then document is addet to the top of recent file list, and recent file list is truncated from bottom, if number of recent files is greater, than maximum.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings &lt;/span&gt;set the appearance of the magnifier. Magnifier tool magnifies area under the mouse cursor. You can specify how big the magnifier will be (in &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) and how much it will zoom.&lt;/p&gt;&lt;p&gt;By specifying &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt; step count, you can control how many undo/redo steps is available when editing document. Set maximum undo step count to zero to disable undo/redo. You can also set undo step count to nonzero and redo step count to zero. In this case, redo actions will not be available, only undo actions. Changes are optimized for memory usage, so each undo/redo steps shares common unmodified objects between them (so, by guessestimate, 10 modifications of 50 MB document can take 51 MB of memory). Memory usage depends on how big changes are, but usually only small changes are done (for example, editing form field, modifying annotation affects small number of objects).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="wordWrap">
                <bool>true</bool>

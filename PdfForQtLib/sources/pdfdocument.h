@@ -517,7 +517,16 @@ public:
         m_optionalContentActivity(optionalContentActivity),
         m_flags(Reset)
     {
-        Q_ASSERT(document);
+        Q_ASSERT(m_document);
+    }
+
+    explicit inline PDFModifiedDocument(PDFDocumentPointer document, PDFOptionalContentActivity* optionalContentActivity) :
+        m_documentPointer(qMove(document)),
+        m_document(m_documentPointer.data()),
+        m_optionalContentActivity(optionalContentActivity),
+        m_flags(Reset)
+    {
+        Q_ASSERT(m_document);
     }
 
     explicit inline PDFModifiedDocument(PDFDocument* document, PDFOptionalContentActivity* optionalContentActivity, ModificationFlags flags) :
@@ -525,19 +534,31 @@ public:
         m_optionalContentActivity(optionalContentActivity),
         m_flags(flags)
     {
-        Q_ASSERT(document);
+        Q_ASSERT(m_document);
+    }
+
+    explicit inline PDFModifiedDocument(PDFDocumentPointer document, PDFOptionalContentActivity* optionalContentActivity, ModificationFlags flags) :
+        m_documentPointer(qMove(document)),
+        m_document(m_documentPointer.data()),
+        m_optionalContentActivity(optionalContentActivity),
+        m_flags(flags)
+    {
+        Q_ASSERT(m_document);
     }
 
     PDFDocument* getDocument() const { return m_document; }
     PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
     void setOptionalContentActivity(PDFOptionalContentActivity* optionalContentActivity) { m_optionalContentActivity = optionalContentActivity; }
+    ModificationFlags getFlags() const { return m_flags; }
 
     bool hasReset() const { return m_flags.testFlag(Reset); }
     bool hasFlag(ModificationFlag flag) const { return m_flags.testFlag(flag); }
 
     operator PDFDocument*() const { return m_document; }
+    operator PDFDocumentPointer() const { return m_documentPointer; }
 
 private:
+    PDFDocumentPointer m_documentPointer;
     PDFDocument* m_document = nullptr;
     PDFOptionalContentActivity* m_optionalContentActivity = nullptr;
     ModificationFlags m_flags = Reset;

@@ -77,6 +77,10 @@ public:
         int m_magnifierSize;
         double m_magnifierZoom;
 
+        // Undo/redo steps settings
+        int m_maximumUndoSteps;
+        int m_maximumRedoSteps;
+
         // Form settings
         pdf::PDFFormManager::FormAppearanceFlags m_formAppearanceFlags;
     };

@@ -264,6 +264,8 @@ void PDFViewerSettingsDialog::loadData()
     ui->maximumRecentFileCountEdit->setValue(m_otherSettings.maximumRecentFileCount);
     ui->magnifierSizeEdit->setValue(m_settings.m_magnifierSize);
     ui->magnifierZoomEdit->setValue(m_settings.m_magnifierZoom);
+    ui->maximumUndoStepsEdit->setValue(m_settings.m_maximumUndoSteps);
+    ui->maximumRedoStepsEdit->setValue(m_settings.m_maximumRedoSteps);
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -503,6 +505,14 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->formHighlightRequiredFieldsCheckBox)
     {
         m_settings.m_formAppearanceFlags.setFlag(pdf::PDFFormManager::HighlightRequiredFields, ui->formHighlightRequiredFieldsCheckBox->isChecked());
+    }
+    else if (sender == ui->maximumUndoStepsEdit)
+    {
+        m_settings.m_maximumUndoSteps = ui->maximumUndoStepsEdit->value();
+    }
+    else if (sender == ui->maximumRedoStepsEdit)
+    {
+        m_settings.m_maximumRedoSteps = ui->maximumRedoStepsEdit->value();
     }
 
     const bool loadData = !qobject_cast<const QDoubleSpinBox*>(sender) && !qobject_cast<const QSpinBox*>(sender);

@@ -30,6 +30,7 @@
 #include "pdftexttospeech.h"
 #include "pdfannotation.h"
 #include "pdfform.h"
+#include "pdfundoredomanager.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -114,7 +115,8 @@ private:
     void onProgressFinished();
 
     void onDocumentReadingFinished();
-    void onDocumentModified(pdf::PDFDocumentPointer document, pdf::PDFModifiedDocument::ModificationFlags flags);
+    void onDocumentModified(pdf::PDFModifiedDocument document);
+    void onDocumentUndoRedo(pdf::PDFModifiedDocument document);
 
     void readSettings();
     void readActionSettings();
@@ -126,6 +128,8 @@ private:
     void updateUI(bool fullUpdate);
     void updateActionsAvailability();
     void updateMagnifierToolSettings();
+    void updateUndoRedoSettings();
+    void updateUndoRedoActions();
 
     void onViewerSettingsChanged();
     void onRenderingOptionTriggered(bool checked);
@@ -180,6 +184,7 @@ private:
     pdf::PDFWidgetAnnotationManager* m_annotationManager;
     pdf::PDFFormManager* m_formManager;
     PDFTextToSpeech* m_textToSpeech;
+    PDFUndoRedoManager* m_undoRedoManager;
 };
 
 }   // namespace pdfviewer

@@ -45,7 +45,7 @@ void PDFUndoRedoManager::doUndo()
     clampUndoRedoSteps();
 
     emit undoRedoStateChanged();
-    emit documentChangeRequest(item.document, item.flags);
+    emit documentChangeRequest(pdf::PDFModifiedDocument(item.oldDocument, nullptr, item.flags));
 }
 
 void PDFUndoRedoManager::doRedo()
@@ -62,7 +62,7 @@ void PDFUndoRedoManager::doRedo()
     clampUndoRedoSteps();
 
     emit undoRedoStateChanged();
-    emit documentChangeRequest(item.document, item.flags);
+    emit documentChangeRequest(pdf::PDFModifiedDocument(item.newDocument, nullptr, item.flags));
 }
 
 void PDFUndoRedoManager::clear()
@@ -71,6 +71,25 @@ void PDFUndoRedoManager::clear()
     {
         m_undoSteps.clear();
         m_redoSteps.clear();
+        emit undoRedoStateChanged();
+    }
+}
+
+void PDFUndoRedoManager::createUndo(pdf::PDFModifiedDocument document, pdf::PDFDocumentPointer oldDocument)
+{
+    m_undoSteps.emplace_back(oldDocument, document, document.getFlags());
+    m_redoSteps.clear();
+    clampUndoRedoSteps();
+    emit undoRedoStateChanged();
+}
+
+void PDFUndoRedoManager::setMaximumSteps(size_t undoLimit, size_t redoLimit)
+{
+    if (m_undoLimit != undoLimit || m_redoLimit != redoLimit)
+    {
+        m_undoLimit = undoLimit;
+        m_redoLimit = redoLimit;
+        clampUndoRedoSteps();
         emit undoRedoStateChanged();
     }
 }

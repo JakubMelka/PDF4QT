@@ -91,7 +91,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_toolManager(nullptr),
     m_annotationManager(nullptr),
     m_formManager(nullptr),
-    m_textToSpeech(new PDFTextToSpeech(this))
+    m_textToSpeech(new PDFTextToSpeech(this)),
+    m_undoRedoManager(new PDFUndoRedoManager(this))
 {
     ui->setupUi(this);
 
@@ -289,6 +290,13 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(&m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
     connect(this, &PDFViewerMainWindow::queryPasswordRequest, this, &PDFViewerMainWindow::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
     connect(ui->actionFind, &QAction::triggered, this, [this] { m_toolManager->setActiveTool(m_toolManager->getFindTextTool()); });
+
+    // Connect undo/redo manager
+    connect(m_undoRedoManager, &PDFUndoRedoManager::undoRedoStateChanged, this, &PDFViewerMainWindow::updateUndoRedoActions);
+    connect(m_undoRedoManager, &PDFUndoRedoManager::documentChangeRequest, this, &PDFViewerMainWindow::onDocumentUndoRedo);
+    connect(ui->actionUndo, &QAction::triggered, m_undoRedoManager, &PDFUndoRedoManager::doUndo);
+    connect(ui->actionRedo, &QAction::triggered, m_undoRedoManager, &PDFUndoRedoManager::doRedo);
+    updateUndoRedoSettings();
 
     readActionSettings();
     updatePageLayoutActions();
@@ -873,6 +881,7 @@ void PDFViewerMainWindow::updateActionsAvailability()
     ui->actionPrint->setEnabled(hasValidDocument && canPrint);
     ui->actionRender_to_Images->setEnabled(hasValidDocument && canPrint);
     setEnabled(!isBusy);
+    updateUndoRedoActions();
 }
 
 void PDFViewerMainWindow::onViewerSettingsChanged()
@@ -983,11 +992,24 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
     updateActionsAvailability();
 }
 
-void PDFViewerMainWindow::onDocumentModified(pdf::PDFDocumentPointer document, pdf::PDFModifiedDocument::ModificationFlags flags)
+void PDFViewerMainWindow::onDocumentModified(pdf::PDFModifiedDocument document)
+{
+    // We will create undo/redo step from old document, with flags from the new,
+    // because new document is modification of old document with flags.
+
+    Q_ASSERT(m_pdfDocument);
+    m_undoRedoManager->createUndo(document, m_pdfDocument);
+
+    m_pdfDocument = document;
+    document.setOptionalContentActivity(m_optionalContentActivity);
+    setDocument(document);
+}
+
+void PDFViewerMainWindow::onDocumentUndoRedo(pdf::PDFModifiedDocument document)
 {
     m_pdfDocument = document;
-    pdf::PDFModifiedDocument modifiedDocument(m_pdfDocument.data(), m_optionalContentActivity, flags);
-    setDocument(modifiedDocument);
+    document.setOptionalContentActivity(m_optionalContentActivity);
+    setDocument(document);
 }
 
 void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
@@ -1006,6 +1028,8 @@ void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
         {
             m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
         }
+
+        m_undoRedoManager->clear();
     }
     else if (m_optionalContentActivity)
     {
@@ -1039,7 +1063,7 @@ void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
     updateTitle();
     updateUI(true);
 
-    if (m_pdfDocument)
+    if (m_pdfDocument && document.hasReset())
     {
         const pdf::PDFCatalog* catalog = m_pdfDocument->getCatalog();
         setPageLayout(catalog->getPageLayout());
@@ -1188,6 +1212,22 @@ void PDFViewerMainWindow::updateMagnifierToolSettings()
     magnifierTool->setMagnifierZoom(m_settings->getSettings().m_magnifierZoom);
 }
 
+void PDFViewerMainWindow::updateUndoRedoSettings()
+{
+    const PDFViewerSettings::Settings& settings = m_settings->getSettings();
+    m_undoRedoManager->setMaximumSteps(settings.m_maximumUndoSteps, settings.m_maximumRedoSteps);
+}
+
+void PDFViewerMainWindow::updateUndoRedoActions()
+{
+    const bool isBusy = m_futureWatcher.isRunning() || m_isBusy;
+    const bool canUndo = !isBusy && m_undoRedoManager->canUndo();
+    const bool canRedo = !isBusy && m_undoRedoManager->canRedo();
+
+    ui->actionUndo->setEnabled(canUndo);
+    ui->actionRedo->setEnabled(canRedo);
+}
+
 void PDFViewerMainWindow::on_actionOptions_triggered()
 {
     PDFViewerSettingsDialog::OtherSettings otherSettings;
@@ -1203,6 +1243,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
         m_textToSpeech->setSettings(m_settings);
         m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
         updateMagnifierToolSettings();
+        updateUndoRedoSettings();
     }
 }
 

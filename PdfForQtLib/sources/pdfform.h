@@ -705,7 +705,7 @@ public:
 
 signals:
     void actionTriggered(const PDFAction* action);
-    void documentModified(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags);
+    void documentModified(PDFModifiedDocument document);
 
 private:
     void updateFormWidgetEditors();

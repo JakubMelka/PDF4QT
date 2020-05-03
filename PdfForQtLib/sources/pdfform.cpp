@@ -770,7 +770,7 @@ void PDFFormManager::setFormFieldValue(PDFFormField::SetValueParameters paramete
 
         if (modifier.finalize())
         {
-            emit documentModified(modifier.getDocument(), modifier.getFlags());
+            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }

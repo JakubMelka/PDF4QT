@@ -52,6 +52,16 @@ public:
     /// Clears all undo/redo steps
     void clear();
 
+    /// Create undo action (after document modification)
+    /// \param document Document created by modification
+    /// \param oldDocument Old document
+    void createUndo(pdf::PDFModifiedDocument document, pdf::PDFDocumentPointer oldDocument);
+
+    /// Sets maximum steps for undo/redo
+    /// \param undoLimit Maximum undo steps
+    /// \param redoLimit Maximum redo steps
+    void setMaximumSteps(size_t undoLimit, size_t redoLimit);
+
 signals:
     /// This signals are emitted, when undo/redo action availability has
     /// been changed (for example, user pressed undo/redo action)
@@ -60,9 +70,8 @@ signals:
     /// This signal is being emitted, when user performs undo/redo action.
     /// Before signal is emitted, this object is in corrected state, as action
     /// is performed.
-    /// \param document Active document
-    /// \param flags Change flags
-    void documentChangeRequest(pdf::PDFDocumentPointer document, pdf::PDFModifiedDocument::ModificationFlags flags);
+    /// \param document Document
+    void documentChangeRequest(pdf::PDFModifiedDocument document);
 
 private:
     /// Clamps undo/redo steps so they fit the limits
@@ -70,7 +79,17 @@ private:
 
     struct UndoRedoItem
     {
-        pdf::PDFDocumentPointer document;
+        explicit inline UndoRedoItem() = default;
+        explicit inline UndoRedoItem(pdf::PDFDocumentPointer oldDocument, pdf::PDFDocumentPointer newDocument, pdf::PDFModifiedDocument::ModificationFlags flags) :
+            oldDocument(qMove(oldDocument)),
+            newDocument(qMove(newDocument)),
+            flags(flags)
+        {
+
+        }
+
+        pdf::PDFDocumentPointer oldDocument;
+        pdf::PDFDocumentPointer newDocument;
         pdf::PDFModifiedDocument::ModificationFlags flags = pdf::PDFModifiedDocument::None;
     };
 
