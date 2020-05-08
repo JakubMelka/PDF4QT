@@ -23,6 +23,8 @@
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
 
+#include <QTextLayout>
+
 #include <optional>
 
 namespace pdf
@@ -309,6 +311,10 @@ public:
     explicit inline PDFFormFieldText() = default;
 
     PDFInteger getTextMaximalLength() const { return m_maxLength; }
+    const QByteArray& getDefaultAppearance() const { return m_defaultAppearance; }
+    Qt::Alignment getAlignment() const { return m_alignment; }
+    const QString& getRichTextDefaultStyle() const { return m_defaultStyle; }
+    const QString& getRichTextValue() const { return m_richTextValue; }
 
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
@@ -316,6 +322,18 @@ private:
     /// Maximal length of text in the field. If zero,
     /// no maximal length is specified.
     PDFInteger m_maxLength = 0;
+
+    /// Default appearance
+    QByteArray m_defaultAppearance;
+
+    /// Text field alignment
+    Qt::Alignment m_alignment = 0;
+
+    /// Default style
+    QString m_defaultStyle;
+
+    /// Rich text value
+    QString m_richTextValue;
 };
 
 class PDFFormFieldChoice : public PDFFormField
@@ -426,6 +444,148 @@ private:
     PDFWidgetToFormFieldMapping m_widgetToFormField;
 };
 
+/// "Pseudo" widget, which is emulating text editor, which can be single line, or multiline.
+/// Passwords can also be edited and editor can be read only.
+class PDFTextEditPseudowidget
+{
+public:
+    explicit inline PDFTextEditPseudowidget(PDFFormField::FieldFlags flags);
+
+    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+
+    inline bool isReadonly() const { return m_flags.testFlag(PDFFormField::ReadOnly); }
+    inline bool isMultiline() const { return m_flags.testFlag(PDFFormField::Multiline); }
+    inline bool isPassword() const { return m_flags.testFlag(PDFFormField::Password); }
+    inline bool isFileSelect() const { return m_flags.testFlag(PDFFormField::FileSelect); }
+    inline bool isComb() const { return m_flags.testFlag(PDFFormField::Comb); }
+
+    inline bool isEmpty() const { return m_editText.isEmpty(); }
+    inline bool isTextSelected() const { return !isEmpty() && getSelectionLength() > 0; }
+    inline bool isWholeTextSelected() const { return !isEmpty() && getSelectionLength() == m_editText.length(); }
+
+    inline int getTextLength() const { return m_editText.length(); }
+    inline int getSelectionLength() const { return m_selectionEnd - m_selectionStart; }
+
+    inline int getPositionCursor() const { return m_positionCursor; }
+    inline int getPositionStart() const { return 0; }
+    inline int getPositionEnd() const { return getTextLength(); }
+
+    inline void clearSelection() { m_selectionStart = m_selectionEnd = 0; }
+
+    inline QString getSelectedText() const { return m_editText.mid(m_selectionStart, getSelectionLength()); }
+
+    /// Sets (updates) text selection
+    /// \param startPosition From where we are selecting text
+    /// \param selectionLength Selection length (positive - to the right, negative - to the left)
+    void setSelection(int startPosition, int selectionLength);
+
+    /// Moves cursor position. It behaves as usual in text boxes,
+    /// when user moves the cursor. If \p select is true, then
+    /// selection is updated.
+    /// \param position New position of the cursor
+    /// \param select Select text when moving the cursor?
+    void setCursorPosition(int position, bool select);
+
+    /// Sets text content of the widget. This functions sets the text,
+    /// even if widget is readonly.
+    /// \param text Text to be set
+    void setText(const QString& text);
+
+    /// Sets widget appearance, such as font, font size, color, text alignment,
+    /// and rectangle, in which widget resides on page (in page coordinates)
+    /// \param appearance Appearance
+    /// \param textAlignment Text alignment
+    /// \param rect Widget rectangle in page coordinates
+    /// \param maxTextLength Maximal text length
+    void setAppearance(const PDFAnnotationDefaultAppearance& appearance,
+                       Qt::Alignment textAlignment,
+                       QRectF rect,
+                       int maxTextLength);
+
+    void performCut();
+    void performCopy();
+    void performPaste();
+    void performClear();
+    void performSelectAll();
+    void performBackspace();
+    void performDelete();
+    void performRemoveSelectedText();
+    void performInsertText(const QString& text);
+
+private:
+    /// This function does following things:
+    ///     1) Clamps edit text to fit maximum length
+    ///     2) Creates display string from edit string
+    ///     3) Updates text layout
+    void updateTextLayout();
+
+    /// Returns single step forward, which is determined
+    /// by cursor move style and layout direction.
+    int getSingleStepForward() const;
+
+    /// Returns single step backward, which is determined
+    /// by cursor move style and layout direction.
+    int getSingleStepBackward() const { return -getSingleStepForward(); }
+
+    /// Returns next/previous position, by number of steps,
+    /// using given cursor mode (skipping characters or whole words).
+    /// \param steps Number of steps to proceed (can be negative number)
+    /// \param mode Skip mode - letters or words?
+    int getNextPrevCursorPosition(int steps, QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(m_positionCursor, steps, mode); }
+
+    /// Returns next/previous position from reference cursor position, by number of steps,
+    /// using given cursor mode (skipping characters or whole words).
+    /// \param referencePosition Reference cursor position
+    /// \param steps Number of steps to proceed (can be negative number)
+    /// \param mode Skip mode - letters or words?
+    int getNextPrevCursorPosition(int referencePosition, int steps, QTextLayout::CursorMode mode) const;
+
+    /// Returns current line text start position
+    int getCurrentLineTextStart() const;
+
+    /// Returns current line text end position
+    int getCurrentLineTextEnd() const;
+
+    inline int getCursorForward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepForward(), mode); }
+    inline int getCursorBackward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepBackward(), mode); }
+    inline int getCursorCharacterForward() const { return getCursorForward(QTextLayout::SkipCharacters); }
+    inline int getCursorCharacterBackward() const { return getCursorBackward(QTextLayout::SkipCharacters); }
+    inline int getCursorWordForward() const { return getCursorForward(QTextLayout::SkipWords); }
+    inline int getCursorWordBackward() const { return getCursorBackward(QTextLayout::SkipWords); }
+    inline int getCursorDocumentStart() const { return (getSingleStepForward() > 0) ? getPositionStart() : getPositionEnd(); }
+    inline int getCursorDocumentEnd() const { return (getSingleStepForward() > 0) ? getPositionEnd() : getPositionStart(); }
+    inline int getCursorLineStart() const { return (getSingleStepForward() > 0) ? getCurrentLineTextStart() : getCurrentLineTextEnd(); }
+    inline int getCursorLineEnd() const { return (getSingleStepForward() > 0) ? getCurrentLineTextEnd() : getCurrentLineTextStart(); }
+    inline int getCursorNextLine() const { return getCurrentLineTextEnd(); }
+    inline int getCursorPreviousLine() const { return getNextPrevCursorPosition(getCurrentLineTextStart(), -1, QTextLayout::SkipCharacters); }
+
+    int getCursorLineUp() const;
+    int getCursorLineDown() const;
+
+    PDFFormField::FieldFlags m_flags;
+
+    /// Text edited by the user
+    QString m_editText;
+
+    /// Text, which is displayed. It can differ from text
+    /// edited by user, in case password is being entered.
+    QString m_displayText;
+
+    /// Text layout
+    QTextLayout m_textLayout;
+
+    /// Character for displaying passwords
+    QChar m_passwordReplacementCharacter;
+
+    int m_selectionStart;
+    int m_selectionEnd;
+    int m_positionCursor;
+    int m_maxTextLength;
+
+    QRectF m_widgetRect;
+    QColor m_textColor;
+};
+
 /// Base class for editors of form fields. It enables editation
 /// of form fields, such as entering text, clicking on check box etc.
 class PDFFormFieldWidgetEditor : public QObject
@@ -522,6 +682,9 @@ private:
 public:
     explicit PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldTextBoxEditor() = default;
+
+private:
+    PDFTextEditPseudowidget m_textEdit;
 };
 
 /// Editor for combo boxes
@@ -575,6 +738,8 @@ public:
     bool hasForm() const { return hasAcroForm() || hasXFAForm(); }
     bool hasAcroForm() const { return m_form.getFormType() == PDFForm::FormType::AcroForm; }
     bool hasXFAForm() const { return m_form.getFormType() == PDFForm::FormType::XFAForm; }
+
+    const PDFForm* getForm() const { return &m_form; }
 
     /// Returns form field for widget. If widget doesn't have attached form field,
     /// then nullptr is returned.
@@ -662,6 +827,9 @@ public:
 
     /// Tries to set value to the form field
     void setFormFieldValue(PDFFormField::SetValueParameters parameters);
+
+    /// Get widget rectangle (from annotation)
+    QRectF getWidgetRectangle(const PDFFormWidget& widget) const;
 
     // interface IDrawWidgetInputInterface
 

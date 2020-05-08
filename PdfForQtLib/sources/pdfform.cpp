@@ -25,6 +25,7 @@
 #include <QMouseEvent>
 #include <QApplication>
 #include <QByteArray>
+#include <QClipboard>
 
 namespace pdf
 {
@@ -319,13 +320,48 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
         if (formFieldText)
         {
             PDFInteger maxLengthDefault = 0;
+            QByteArray defaultAppearance;
+            Qt::Alignment alignment = 0;
 
             if (PDFFormFieldText* parentTextField = dynamic_cast<PDFFormFieldText*>(parentField))
             {
                 maxLengthDefault = parentTextField->getTextMaximalLength();
+                defaultAppearance = parentTextField->getDefaultAppearance();
+                alignment = parentTextField->getAlignment();
             }
 
+            if (fieldDictionary->hasKey("DA"))
+            {
+                defaultAppearance = loader.readStringFromDictionary(fieldDictionary, "DA");
+            }
+            if (fieldDictionary->hasKey("Q"))
+            {
+                const PDFInteger quadding = loader.readIntegerFromDictionary(fieldDictionary, "Q", -1);
+                switch (quadding)
+                {
+                    case 0:
+                        alignment = Qt::AlignLeft;
+                        break;
+
+                    case 1:
+                        alignment = Qt::AlignHCenter;
+                        break;
+
+                    case 2:
+                        alignment = Qt::AlignRight;
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+            alignment |= Qt::AlignVCenter;
+
             formFieldText->m_maxLength = loader.readIntegerFromDictionary(fieldDictionary, "MaxLen", maxLengthDefault);
+            formFieldText->m_defaultAppearance = defaultAppearance;
+            formFieldText->m_alignment = alignment;
+            formFieldText->m_defaultStyle = loader.readTextStringFromDictionary(fieldDictionary, "DS", QString());
+            formFieldText->m_richTextValue = loader.readTextStringFromDictionary(fieldDictionary, "RV", QString());
         }
 
         if (formFieldChoice)
@@ -773,6 +809,17 @@ void PDFFormManager::setFormFieldValue(PDFFormField::SetValueParameters paramete
             emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
+}
+
+QRectF PDFFormManager::getWidgetRectangle(const PDFFormWidget& widget) const
+{
+    if (const PDFDictionary* dictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(widget.getWidget())))
+    {
+        PDFDocumentDataLoaderDecorator loader(m_document);
+        return loader.readRectangle(dictionary->get("Rect"), QRectF());
+    }
+
+    return QRectF();
 }
 
 void PDFFormManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
@@ -1323,9 +1370,618 @@ PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager
 }
 
 PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent)
+    BaseClass(formManager, formWidget, parent),
+    m_textEdit(formWidget.getParent()->getFlags())
 {
+    const PDFFormFieldText* parentField = dynamic_cast<const PDFFormFieldText*>(formWidget.getParent());
+    Q_ASSERT(parentField);
 
+    PDFDocumentDataLoaderDecorator loader(formManager->getDocument());
+
+    QByteArray defaultAppearance = parentField->getDefaultAppearance();
+    if (defaultAppearance.isEmpty())
+    {
+        defaultAppearance = formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
+    }
+    Qt::Alignment alignment = parentField->getAlignment();
+    if (!(alignment & Qt::AlignHorizontal_Mask))
+    {
+        switch (formManager->getForm()->getQuadding().value_or(0))
+        {
+            default:
+            case 0:
+                alignment |= Qt::AlignLeft;
+                break;
+
+            case 1:
+                alignment |= Qt::AlignHCenter;
+                break;
+
+            case 2:
+                alignment |= Qt::AlignRight;
+                break;
+        }
+    }
+
+    // Initialize text edit
+    m_textEdit.setAppearance(PDFAnnotationDefaultAppearance::parse(defaultAppearance), alignment, m_formManager->getWidgetRectangle(formWidget), parentField->getTextMaximalLength());
+    m_textEdit.setText(loader.readTextString(parentField->getValue(), QString()));
+}
+
+PDFTextEditPseudowidget::PDFTextEditPseudowidget(PDFFormField::FieldFlags flags) :
+    m_flags(flags),
+    m_selectionStart(0),
+    m_selectionEnd(0),
+    m_positionCursor(0),
+    m_maxTextLength(0)
+{
+    m_textLayout.setCacheEnabled(true);
+    m_passwordReplacementCharacter = QApplication::style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter);
+}
+
+void PDFTextEditPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    /*
+       We will support following key sequences:
+            Delete
+            Cut,
+            Copy,
+            Paste,
+            SelectAll,
+            MoveToNextChar,
+            MoveToPreviousChar,
+            MoveToNextWord,
+            MoveToPreviousWord,
+            MoveToNextLine,
+            MoveToPreviousLine,
+            MoveToStartOfLine,
+            MoveToEndOfLine,
+            MoveToStartOfBlock,
+            MoveToEndOfBlock,
+            MoveToStartOfDocument,
+            MoveToEndOfDocument,
+            SelectNextChar,
+            SelectPreviousChar,
+            SelectNextWord,
+            SelectPreviousWord,
+            SelectNextLine,
+            SelectPreviousLine,
+            SelectStartOfLine,
+            SelectEndOfLine,
+            SelectStartOfBlock,
+            SelectEndOfBlock,
+            SelectStartOfDocument,
+            SelectEndOfDocument,
+            DeleteStartOfWord,
+            DeleteEndOfWord,
+            DeleteEndOfLine,
+            Deselect,
+            DeleteCompleteLine,
+            Backspace,
+     * */
+
+    event->accept();
+
+    if (event == QKeySequence::Delete)
+    {
+        performDelete();
+    }
+    else if (event == QKeySequence::Cut)
+    {
+        performCut();
+    }
+    else if (event == QKeySequence::Copy)
+    {
+        performCopy();
+    }
+    else if (event == QKeySequence::Paste)
+    {
+        performPaste();
+    }
+    else if (event == QKeySequence::SelectAll)
+    {
+        setSelection(0, getTextLength());
+    }
+    else if (event == QKeySequence::MoveToNextChar)
+    {
+        setCursorPosition(getCursorCharacterForward(), false);
+    }
+    else if (event == QKeySequence::MoveToPreviousChar)
+    {
+        setCursorPosition(getCursorCharacterBackward(), false);
+    }
+    else if (event == QKeySequence::MoveToNextWord)
+    {
+        setCursorPosition(getCursorWordForward(), false);
+    }
+    else if (event == QKeySequence::MoveToPreviousWord)
+    {
+        setCursorPosition(getCursorWordBackward(), false);
+    }
+    else if (event == QKeySequence::MoveToNextLine)
+    {
+        setCursorPosition(getCursorNextLine(), false);
+    }
+    else if (event == QKeySequence::MoveToPreviousLine)
+    {
+        setCursorPosition(getCursorPreviousLine(), false);
+    }
+    else if (event == QKeySequence::MoveToStartOfLine || event == QKeySequence::MoveToStartOfBlock)
+    {
+        setCursorPosition(getCursorLineStart(), false);
+    }
+    else if (event == QKeySequence::MoveToEndOfLine || event == QKeySequence::MoveToEndOfBlock)
+    {
+        setCursorPosition(getCursorLineEnd(), false);
+    }
+    else if (event == QKeySequence::MoveToStartOfDocument)
+    {
+        setCursorPosition(getCursorDocumentStart(), false);
+    }
+    else if (event == QKeySequence::MoveToEndOfDocument)
+    {
+        setCursorPosition(getCursorDocumentEnd(), false);
+    }
+    else if (event == QKeySequence::SelectNextChar)
+    {
+        setCursorPosition(getCursorCharacterForward(), true);
+    }
+    else if (event == QKeySequence::SelectPreviousChar)
+    {
+        setCursorPosition(getCursorCharacterBackward(), true);
+    }
+    else if (event == QKeySequence::SelectNextWord)
+    {
+        setCursorPosition(getCursorWordForward(), true);
+    }
+    else if (event == QKeySequence::SelectPreviousWord)
+    {
+        setCursorPosition(getCursorWordBackward(), true);
+    }
+    else if (event == QKeySequence::SelectNextLine)
+    {
+        setCursorPosition(getCursorNextLine(), true);
+    }
+    else if (event == QKeySequence::SelectPreviousLine)
+    {
+        setCursorPosition(getCursorPreviousLine(), true);
+    }
+    else if (event == QKeySequence::SelectStartOfLine || event == QKeySequence::SelectStartOfBlock)
+    {
+        setCursorPosition(getCursorLineStart(), true);
+    }
+    else if (event == QKeySequence::SelectEndOfLine || event == QKeySequence::SelectEndOfBlock)
+    {
+        setCursorPosition(getCursorLineEnd(), true);
+    }
+    else if (event == QKeySequence::SelectStartOfDocument)
+    {
+        setCursorPosition(getCursorDocumentStart(), true);
+    }
+    else if (event == QKeySequence::SelectEndOfDocument)
+    {
+        setCursorPosition(getCursorDocumentEnd(), true);
+    }
+    else if (event == QKeySequence::DeleteStartOfWord)
+    {
+        if (!isReadonly())
+        {
+            setCursorPosition(getCursorWordBackward(), true);
+            performRemoveSelectedText();
+        }
+    }
+    else if (event == QKeySequence::DeleteEndOfWord)
+    {
+        if (!isReadonly())
+        {
+            setCursorPosition(getCursorWordForward(), true);
+            performRemoveSelectedText();
+        }
+    }
+    else if (event == QKeySequence::DeleteEndOfLine)
+    {
+        if (!isReadonly())
+        {
+            setCursorPosition(getCursorLineEnd(), true);
+            performRemoveSelectedText();
+        }
+    }
+    else if (event == QKeySequence::Deselect)
+    {
+        clearSelection();
+    }
+    else if (event == QKeySequence::DeleteCompleteLine)
+    {
+        if (!isReadonly())
+        {
+            m_selectionStart = getCurrentLineTextStart();
+            m_selectionEnd = getCurrentLineTextEnd();
+            performRemoveSelectedText();
+        }
+    }
+    else if (event == QKeySequence::Backspace)
+    {
+        performBackspace();
+    }
+    else if (event->key() == Qt::Key_Direction_L)
+    {
+        QTextOption option = m_textLayout.textOption();
+        option.setTextDirection(Qt::LeftToRight);
+        m_textLayout.setTextOption(qMove(option));
+        updateTextLayout();
+    }
+    else if (event->key() == Qt::Key_Direction_R)
+    {
+        QTextOption option = m_textLayout.textOption();
+        option.setTextDirection(Qt::LeftToRight);
+        m_textLayout.setTextOption(qMove(option));
+        updateTextLayout();
+    }
+    else if (event->key() == Qt::Key_Up)
+    {
+        setCursorPosition(getCursorLineUp(), event->modifiers().testFlag(Qt::ShiftModifier));
+    }
+    else if (event->key() == Qt::Key_Down)
+    {
+        setCursorPosition(getCursorLineDown(), event->modifiers().testFlag(Qt::ShiftModifier));
+    }
+    else if (event->key() == Qt::Key_Left)
+    {
+        const int position = (event->modifiers().testFlag(Qt::ControlModifier)) ? getCursorWordBackward() : getCursorCharacterBackward();
+        setCursorPosition(position, event->modifiers().testFlag(Qt::ShiftModifier));
+    }
+    else if (event->key() == Qt::Key_Right)
+    {
+        const int position = (event->modifiers().testFlag(Qt::ControlModifier)) ? getCursorWordForward() : getCursorCharacterForward();
+        setCursorPosition(position, event->modifiers().testFlag(Qt::ShiftModifier));
+    }
+    else
+    {
+        QString text = event->text();
+        if (!text.isEmpty())
+        {
+            performInsertText(text);
+        }
+        else
+        {
+            event->ignore();
+        }
+    }
+}
+
+void PDFTextEditPseudowidget::setSelection(int startPosition, int selectionLength)
+{
+    if (selectionLength > 0)
+    {
+        // We are selecting to the right
+        m_selectionStart = startPosition;
+        m_selectionEnd = qMin(startPosition + selectionLength, getTextLength());
+        m_positionCursor = m_selectionEnd;
+    }
+    else if (selectionLength < 0)
+    {
+        // We are selecting to the left
+        m_selectionStart = qMax(startPosition + selectionLength, 0);
+        m_selectionEnd = startPosition;
+        m_positionCursor = m_selectionStart;
+    }
+    else
+    {
+        // Clear the selection
+        m_selectionStart = 0;
+        m_selectionEnd = 0;
+        m_positionCursor = startPosition;
+    }
+}
+
+void PDFTextEditPseudowidget::setCursorPosition(int position, bool select)
+{
+    if (select)
+    {
+        const bool isTextSelected = this->isTextSelected();
+        const bool isCursorAtStartOfSelection = isTextSelected && m_selectionStart == m_positionCursor;
+        const bool isCursorAtEndOfSelection = isTextSelected && m_selectionEnd == m_positionCursor;
+
+        // Do we have selected text, and cursor is at the end of selected text?
+        // In this case, we must preserve start of the selection (we are manipulating
+        // with the end of selection.
+        if (isCursorAtEndOfSelection)
+        {
+            m_selectionStart = qMin(m_selectionStart, position);
+            m_selectionEnd = qMax(m_selectionStart, position);
+        }
+        else if (isCursorAtStartOfSelection)
+        {
+            // We must preserve end of the text selection, because we are manipulating
+            // with start of text selection.
+            m_selectionStart = qMin(m_selectionEnd, position);
+            m_selectionEnd = qMax(m_selectionEnd, position);
+        }
+        else
+        {
+            // Otherwise we are manipulating with cursor
+            m_selectionStart = qMin(m_positionCursor, position);
+            m_selectionEnd = qMax(m_positionCursor, position);
+        }
+    }
+
+    // Why we are clearing text selection, even if we doesn't have it?
+    // We can have, for example m_selectionStart == m_selectionEnd == 3,
+    // and we want to have it both zero.
+    if (!select || !isTextSelected())
+    {
+        clearSelection();
+    }
+
+    m_positionCursor = position;
+}
+
+void PDFTextEditPseudowidget::setText(const QString& text)
+{
+    clearSelection();
+    m_editText = text;
+    setCursorPosition(getPositionEnd(), false);
+    updateTextLayout();
+}
+
+void PDFTextEditPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance& appearance, Qt::Alignment textAlignment, QRectF rect, int maxTextLength)
+{
+    // Set appearance
+    qreal fontSize = appearance.getFontSize();
+    if (qFuzzyIsNull(fontSize))
+    {
+        fontSize = rect.height();
+    }
+
+    QFont font(appearance.getFontName());
+    font.setHintingPreference(QFont::PreferNoHinting);
+    font.setPixelSize(qCeil(fontSize));
+    m_textLayout.setFont(font);
+
+    QTextOption option = m_textLayout.textOption();
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    option.setAlignment(textAlignment);
+    option.setUseDesignMetrics(true);
+    m_textLayout.setTextOption(option);
+
+    m_textColor = appearance.getFontColor();
+    if (!m_textColor.isValid())
+    {
+        m_textColor = Qt::black;
+    }
+
+    m_maxTextLength = maxTextLength;
+    m_widgetRect = rect;
+}
+
+void PDFTextEditPseudowidget::performCut()
+{
+    if (isReadonly())
+    {
+        return;
+    }
+
+    performCopy();
+    performRemoveSelectedText();
+}
+
+void PDFTextEditPseudowidget::performCopy()
+{
+    if (isTextSelected() && !isPassword())
+    {
+        QApplication::clipboard()->setText(getSelectedText(), QClipboard::Clipboard);
+    }
+}
+
+void PDFTextEditPseudowidget::performPaste()
+{
+    // We always insert text, even if it is empty. Because we want
+    // to erase selected text.
+    performInsertText(QApplication::clipboard()->text(QClipboard::Clipboard));
+}
+
+void PDFTextEditPseudowidget::performClear()
+{
+    if (isReadonly())
+    {
+        return;
+    }
+
+    performSelectAll();
+    performRemoveSelectedText();
+}
+
+void PDFTextEditPseudowidget::performSelectAll()
+{
+    m_selectionStart = getPositionStart();
+    m_selectionEnd = getPositionEnd();
+}
+
+void PDFTextEditPseudowidget::performBackspace()
+{
+    if (isReadonly())
+    {
+        return;
+    }
+
+    // If we have selection, then delete selected text. If we do not have
+    // selection, then we delete previous character.
+    if (!isTextSelected())
+    {
+        setCursorPosition(m_textLayout.previousCursorPosition(m_positionCursor, QTextLayout::SkipCharacters), true);
+    }
+
+    performRemoveSelectedText();
+}
+
+void PDFTextEditPseudowidget::performDelete()
+{
+    if (isReadonly())
+    {
+        return;
+    }
+
+    // If we have selection, then delete selected text. If we do not have
+    // selection, then we delete previous character.
+    if (!isTextSelected())
+    {
+        setCursorPosition(m_textLayout.nextCursorPosition(m_positionCursor, QTextLayout::SkipCharacters), true);
+    }
+
+    performRemoveSelectedText();
+}
+
+void PDFTextEditPseudowidget::performRemoveSelectedText()
+{
+    m_editText.remove(m_selectionStart, getSelectionLength());
+    setCursorPosition(m_selectionStart, false);
+    clearSelection();
+    updateTextLayout();
+}
+
+void PDFTextEditPseudowidget::performInsertText(const QString& text)
+{
+    if (isReadonly())
+    {
+        return;
+    }
+
+    // Insert text at the cursor
+    performRemoveSelectedText();
+    m_editText.insert(m_positionCursor, text);
+    setCursorPosition(m_positionCursor + text.length(), false);
+    updateTextLayout();
+}
+
+void PDFTextEditPseudowidget::updateTextLayout()
+{
+    // Prepare display text
+    if (isPassword())
+    {
+        m_displayText.resize(m_editText.length(), m_passwordReplacementCharacter);
+    }
+    else
+    {
+        m_displayText = m_editText;
+    }
+
+    // Perform text layout
+    m_textLayout.clearLayout();
+    m_textLayout.setText(m_displayText);
+    m_textLayout.beginLayout();
+
+    QPointF textLinePosition = m_widgetRect.topLeft();
+
+    while (true)
+    {
+        QTextLine textLine = m_textLayout.createLine();
+        if (!textLine.isValid())
+        {
+            // We are finished with layout
+            break;
+        }
+
+        textLinePosition.ry() += textLine.leading();
+        textLine.setLineWidth(m_widgetRect.width());
+        textLine.setPosition(textLinePosition);
+        textLinePosition.ry() += textLine.height();
+    }
+    m_textLayout.endLayout();
+
+    // Check length
+    if (m_maxTextLength > 0)
+    {
+        int length = 0;
+        int currentPos = 0;
+
+        while (currentPos <= m_editText.length())
+        {
+            currentPos = m_textLayout.nextCursorPosition(currentPos, QTextLayout::SkipCharacters);
+            ++length;
+
+            if (length == m_maxTextLength)
+            {
+                break;
+            }
+        }
+
+        if (currentPos < m_editText.length())
+        {
+            m_editText = m_editText.left(currentPos);
+            m_positionCursor = qBound(getPositionStart(), m_positionCursor, getPositionEnd());
+            updateTextLayout();
+        }
+    }
+}
+
+int PDFTextEditPseudowidget::getSingleStepForward() const
+{
+    // If direction is right-to-left, then move backward (because
+    // text is painted from right to left.
+    return (m_textLayout.textOption().textDirection() == Qt::RightToLeft) ? -1 : 1;
+}
+
+int PDFTextEditPseudowidget::getNextPrevCursorPosition(int referencePosition, int steps, QTextLayout::CursorMode mode) const
+{
+    int cursor = referencePosition;
+
+    if (steps > 0)
+    {
+        for (int i = 0; i < steps; ++i)
+        {
+            cursor = m_textLayout.nextCursorPosition(cursor, mode);
+        }
+    }
+    else if (steps < 0)
+    {
+        for (int i = 0; i < steps; ++i)
+        {
+            cursor = m_textLayout.previousCursorPosition(cursor, mode);
+        }
+    }
+
+    return cursor;
+}
+
+int PDFTextEditPseudowidget::getCurrentLineTextStart() const
+{
+    return m_textLayout.lineForTextPosition(m_positionCursor).textStart();
+}
+
+int PDFTextEditPseudowidget::getCurrentLineTextEnd() const
+{
+    QTextLine textLine = m_textLayout.lineForTextPosition(m_positionCursor);
+    return textLine.textStart() + textLine.textLength();
+}
+
+int PDFTextEditPseudowidget::getCursorLineUp() const
+{
+    QTextLine line = m_textLayout.lineForTextPosition(m_positionCursor);
+    const int lineIndex = line.lineNumber() - 1;
+
+    if (lineIndex >= 0)
+    {
+        QTextLine upLine = m_textLayout.lineAt(lineIndex);
+        return upLine.xToCursor(line.cursorToX(m_positionCursor), QTextLine::CursorBetweenCharacters);
+    }
+
+    return m_positionCursor;
+}
+
+int PDFTextEditPseudowidget::getCursorLineDown() const
+{
+    QTextLine line = m_textLayout.lineForTextPosition(m_positionCursor);
+    const int lineIndex = line.lineNumber() + 1;
+
+    if (lineIndex < m_textLayout.lineCount())
+    {
+        QTextLine downLine = m_textLayout.lineAt(lineIndex);
+        return downLine.xToCursor(line.cursorToX(m_positionCursor), QTextLine::CursorBetweenCharacters);
+    }
+
+    return m_positionCursor;
 }
 
 }   // namespace pdf
