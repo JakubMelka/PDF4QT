@@ -74,6 +74,12 @@ public:
         AnnotationPriority = 30
     };
 
+    /// Handles shortcut override event. Accept this event, when you want given
+    /// key sequence to be propagated to keyPressEvent.
+    /// \param widget Widget
+    /// \param event Event
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) = 0;
+
     /// Handles key press event from widget
     /// \param widget Widget
     /// \param event Event

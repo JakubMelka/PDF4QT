@@ -20,6 +20,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfpainterutils.h"
 
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -822,6 +823,15 @@ QRectF PDFFormManager::getWidgetRectangle(const PDFFormWidget& widget) const
     return QRectF();
 }
 
+
+void PDFFormManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (m_focusedEditor)
+    {
+        m_focusedEditor->shortcutOverrideEvent(widget, event);
+    }
+}
+
 void PDFFormManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     if (m_focusedEditor)
@@ -1144,6 +1154,12 @@ PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, 
     Q_ASSERT(m_formManager);
 }
 
+void PDFFormFieldWidgetEditor::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
 void PDFFormFieldWidgetEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
@@ -1176,7 +1192,16 @@ void PDFFormFieldWidgetEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* even
 
 void PDFFormFieldWidgetEditor::setFocus(bool hasFocus)
 {
-    m_hasFocus = hasFocus;
+    if (m_hasFocus != hasFocus)
+    {
+        m_hasFocus = hasFocus;
+        setFocusImpl(m_hasFocus);
+    }
+}
+
+void PDFFormFieldWidgetEditor::draw(AnnotationDrawParameters& parameters) const
+{
+    Q_UNUSED(parameters);
 }
 
 void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEvent* event)
@@ -1369,24 +1394,22 @@ PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager
 
 }
 
-PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent),
-    m_textEdit(formWidget.getParent()->getFlags())
+void PDFFormFieldTextBoxEditor::initializeTextEdit(PDFTextEditPseudowidget* textEdit) const
 {
-    const PDFFormFieldText* parentField = dynamic_cast<const PDFFormFieldText*>(formWidget.getParent());
+    const PDFFormFieldText* parentField = dynamic_cast<const PDFFormFieldText*>(m_formWidget.getParent());
     Q_ASSERT(parentField);
 
-    PDFDocumentDataLoaderDecorator loader(formManager->getDocument());
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
 
     QByteArray defaultAppearance = parentField->getDefaultAppearance();
     if (defaultAppearance.isEmpty())
     {
-        defaultAppearance = formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
+        defaultAppearance = m_formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
     }
     Qt::Alignment alignment = parentField->getAlignment();
     if (!(alignment & Qt::AlignHorizontal_Mask))
     {
-        switch (formManager->getForm()->getQuadding().value_or(0))
+        switch (m_formManager->getForm()->getQuadding().value_or(0))
         {
             default:
             case 0:
@@ -1404,8 +1427,46 @@ PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager
     }
 
     // Initialize text edit
-    m_textEdit.setAppearance(PDFAnnotationDefaultAppearance::parse(defaultAppearance), alignment, m_formManager->getWidgetRectangle(formWidget), parentField->getTextMaximalLength());
-    m_textEdit.setText(loader.readTextString(parentField->getValue(), QString()));
+    textEdit->setAppearance(PDFAnnotationDefaultAppearance::parse(defaultAppearance), alignment, m_formManager->getWidgetRectangle(m_formWidget), parentField->getTextMaximalLength());
+    textEdit->setText(loader.readTextString(parentField->getValue(), QString()));
+}
+
+void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
+{
+    if (focused)
+    {
+        m_textEdit.setCursorPosition(m_textEdit.getPositionEnd(), false);
+        m_textEdit.performSelectAll();
+    }
+}
+
+PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
+    BaseClass(formManager, formWidget, parent),
+    m_textEdit(formWidget.getParent()->getFlags())
+{
+    initializeTextEdit(&m_textEdit);
+}
+
+void PDFFormFieldTextBoxEditor::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    m_textEdit.shortcutOverrideEvent(widget, event);
+}
+
+void PDFFormFieldTextBoxEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    m_textEdit.keyPressEvent(widget, event);
+
+    if (event->isAccepted())
+    {
+        widget->update();
+    }
+}
+
+void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters) const
+{
+    m_textEdit.draw(parameters, true);
 }
 
 PDFTextEditPseudowidget::PDFTextEditPseudowidget(PDFFormField::FieldFlags flags) :
@@ -1417,6 +1478,43 @@ PDFTextEditPseudowidget::PDFTextEditPseudowidget(PDFFormField::FieldFlags flags)
 {
     m_textLayout.setCacheEnabled(true);
     m_passwordReplacementCharacter = QApplication::style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter);
+}
+
+void PDFTextEditPseudowidget::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    constexpr QKeySequence::StandardKey acceptedKeys[] = { QKeySequence::Delete, QKeySequence::Cut, QKeySequence::Copy, QKeySequence::Paste,
+                                                           QKeySequence::SelectAll, QKeySequence::MoveToNextChar, QKeySequence::MoveToPreviousChar,
+                                                           QKeySequence::MoveToNextWord, QKeySequence::MoveToPreviousWord, QKeySequence::MoveToNextLine,
+                                                           QKeySequence::MoveToPreviousLine, QKeySequence::MoveToStartOfLine, QKeySequence::MoveToEndOfLine,
+                                                           QKeySequence::MoveToStartOfBlock, QKeySequence::MoveToEndOfBlock, QKeySequence::MoveToStartOfDocument,
+                                                           QKeySequence::MoveToEndOfDocument, QKeySequence::SelectNextChar, QKeySequence::SelectPreviousChar,
+                                                           QKeySequence::SelectNextWord, QKeySequence::SelectPreviousWord, QKeySequence::SelectNextLine,
+                                                           QKeySequence::SelectPreviousLine, QKeySequence::SelectStartOfLine, QKeySequence::SelectEndOfLine,
+                                                           QKeySequence::SelectStartOfBlock, QKeySequence::SelectEndOfBlock, QKeySequence::SelectStartOfDocument,
+                                                           QKeySequence::SelectEndOfDocument, QKeySequence::DeleteStartOfWord, QKeySequence::DeleteEndOfWord,
+                                                           QKeySequence::DeleteEndOfLine, QKeySequence::Deselect, QKeySequence::DeleteCompleteLine, QKeySequence::Backspace };
+
+    if (std::any_of(std::begin(acceptedKeys), std::end(acceptedKeys), [event](QKeySequence::StandardKey standardKey) { return event == standardKey; }))
+    {
+        event->accept();
+        return;
+    }
+
+    switch (event->key())
+    {
+        case Qt::Key_Direction_L:
+        case Qt::Key_Direction_R:
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+        case Qt::Key_Left:
+        case Qt::Key_Right:
+            event->accept();
+            break;
+
+        default:
+            break;
+    }
 }
 
 void PDFTextEditPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
@@ -1502,11 +1600,11 @@ void PDFTextEditPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
     }
     else if (event == QKeySequence::MoveToNextLine)
     {
-        setCursorPosition(getCursorNextLine(), false);
+        setCursorPosition(getCursorLineDown(), false);
     }
     else if (event == QKeySequence::MoveToPreviousLine)
     {
-        setCursorPosition(getCursorPreviousLine(), false);
+        setCursorPosition(getCursorLineUp(), false);
     }
     else if (event == QKeySequence::MoveToStartOfLine || event == QKeySequence::MoveToStartOfBlock)
     {
@@ -1542,11 +1640,11 @@ void PDFTextEditPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
     }
     else if (event == QKeySequence::SelectNextLine)
     {
-        setCursorPosition(getCursorNextLine(), true);
+        setCursorPosition(getCursorLineDown(), true);
     }
     else if (event == QKeySequence::SelectPreviousLine)
     {
-        setCursorPosition(getCursorPreviousLine(), true);
+        setCursorPosition(getCursorLineUp(), true);
     }
     else if (event == QKeySequence::SelectStartOfLine || event == QKeySequence::SelectStartOfBlock)
     {
@@ -1601,7 +1699,7 @@ void PDFTextEditPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
             performRemoveSelectedText();
         }
     }
-    else if (event == QKeySequence::Backspace)
+    else if (event == QKeySequence::Backspace || event->key() == Qt::Key_Backspace)
     {
         performBackspace();
     }
@@ -1741,7 +1839,7 @@ void PDFTextEditPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance
     m_textLayout.setFont(font);
 
     QTextOption option = m_textLayout.textOption();
-    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    option.setWrapMode(isMultiline() ? QTextOption::WrapAtWordBoundaryOrAnywhere : QTextOption::NoWrap);
     option.setAlignment(textAlignment);
     option.setUseDesignMetrics(true);
     m_textLayout.setTextOption(option);
@@ -1835,10 +1933,13 @@ void PDFTextEditPseudowidget::performDelete()
 
 void PDFTextEditPseudowidget::performRemoveSelectedText()
 {
-    m_editText.remove(m_selectionStart, getSelectionLength());
-    setCursorPosition(m_selectionStart, false);
-    clearSelection();
-    updateTextLayout();
+    if (isTextSelected())
+    {
+        m_editText.remove(m_selectionStart, getSelectionLength());
+        setCursorPosition(m_selectionStart, false);
+        clearSelection();
+        updateTextLayout();
+    }
 }
 
 void PDFTextEditPseudowidget::performInsertText(const QString& text)
@@ -1853,6 +1954,58 @@ void PDFTextEditPseudowidget::performInsertText(const QString& text)
     m_editText.insert(m_positionCursor, text);
     setCursorPosition(m_positionCursor + text.length(), false);
     updateTextLayout();
+}
+
+void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool edit) const
+{
+    pdf::PDFPainterStateGuard guard(parameters.painter);
+    parameters.boundingRectangle = parameters.annotation->getRectangle();
+
+    QPainter* painter = parameters.painter;
+    painter->translate(parameters.boundingRectangle.bottomLeft());
+    painter->scale(1.0, -1.0);
+
+    QVector<QTextLayout::FormatRange> selections;
+
+    QTextLayout::FormatRange defaultFormat;
+    defaultFormat.start = getPositionStart();
+    defaultFormat.length = getTextLength();
+    defaultFormat.format.clearBackground();
+    defaultFormat.format.setForeground(QBrush(m_textColor, Qt::SolidPattern));
+
+    // If we are editing, draw selections
+    if (edit && isTextSelected())
+    {
+        QTextLayout::FormatRange before = defaultFormat;
+        QTextLayout::FormatRange after = defaultFormat;
+
+        before.start = getPositionStart();
+        before.length = m_selectionStart;
+        after.start = m_selectionEnd;
+        after.length = getTextLength() - m_selectionEnd;
+
+        QPalette palette = QApplication::palette();
+        QTextLayout::FormatRange selectedFormat = defaultFormat;
+        selectedFormat.start = m_selectionStart;
+        selectedFormat.length = getSelectionLength();
+        selectedFormat.format.setForeground(palette.brush(QPalette::HighlightedText));
+        selectedFormat.format.setBackground(palette.brush(QPalette::Highlight));
+
+        selections = { before, selectedFormat, after};
+    }
+    else
+    {
+        selections.push_back(defaultFormat);
+    }
+
+    // Draw text
+    m_textLayout.draw(painter, QPointF(0.0, 0.0), selections, QRectF(0, 0, parameters.boundingRectangle.width(), parameters.boundingRectangle.height()));
+
+    // If we are editing, also draw text
+    if (edit)
+    {
+        m_textLayout.drawCursor(painter, QPointF(0.0, 0.0), m_positionCursor);
+    }
 }
 
 void PDFTextEditPseudowidget::updateTextLayout()
@@ -1872,7 +2025,7 @@ void PDFTextEditPseudowidget::updateTextLayout()
     m_textLayout.setText(m_displayText);
     m_textLayout.beginLayout();
 
-    QPointF textLinePosition = m_widgetRect.topLeft();
+    QPointF textLinePosition(0.0, 0.0);
 
     while (true)
     {
@@ -1936,7 +2089,7 @@ int PDFTextEditPseudowidget::getNextPrevCursorPosition(int referencePosition, in
     }
     else if (steps < 0)
     {
-        for (int i = 0; i < steps; ++i)
+        for (int i = 0; i < -steps; ++i)
         {
             cursor = m_textLayout.previousCursorPosition(cursor, mode);
         }

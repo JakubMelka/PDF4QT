@@ -46,6 +46,7 @@ class PDFFontCache;
 class PDFFormManager;
 class PDFModifiedDocument;
 class PDFOptionalContentActivity;
+class PDFFormFieldWidgetEditor;
 
 using TextAlignment = Qt::Alignment;
 using Polygons = std::vector<QPolygonF>;
@@ -439,6 +440,14 @@ struct AnnotationDrawParameters
 {
     /// Painter, onto which is annotation graphics drawn
     QPainter* painter = nullptr;
+
+    /// Pointer to annotation (if draw is delegated to other objects,
+    /// for example, form manager, then maybe pointer to annotation
+    /// is needed).
+    PDFAnnotation* annotation = nullptr;
+
+    /// Pointer to form manager (if forms are drawn)
+    const PDFFormManager* formManager = nullptr;
 
     /// Output parameter. Marks annotation's graphics bounding
     /// rectangle (it can be different/adjusted from original
@@ -1155,6 +1164,7 @@ public:
     };
 
     virtual AnnotationType getType() const override { return AnnotationType::Widget; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     HighlightMode getHighlightMode() const { return m_highlightMode; }
     const PDFAnnotationAppearanceCharacteristics& getAppearanceCharacteristics() const { return m_appearanceCharacteristics; }
@@ -1410,34 +1420,12 @@ public:
     explicit PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
     virtual ~PDFWidgetAnnotationManager() override;
 
-    /// Handles key press event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
-    /// \param event Event
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
-
-    /// Handles key release event from widget
-    /// \param widget Widget
-    /// \param event Event
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
-
-    /// Handles mouse press event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
-    /// \param event Event
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
-
-    /// Handles mouse release event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
-    /// \param event Event
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
-
-    /// Handles mouse move event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
-    /// \param event Event
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
-
-    /// Handles mouse wheel event from widget, over which tool operates
-    /// \param widget Widget, over which tool operates
-    /// \param event Event
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
 
     /// Returns tooltip generated from annotation

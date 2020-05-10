@@ -451,6 +451,7 @@ class PDFTextEditPseudowidget
 public:
     explicit inline PDFTextEditPseudowidget(PDFFormField::FieldFlags flags);
 
+    void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
     void keyPressEvent(QWidget* widget, QKeyEvent* event);
 
     inline bool isReadonly() const { return m_flags.testFlag(PDFFormField::ReadOnly); }
@@ -511,6 +512,10 @@ public:
     void performDelete();
     void performRemoveSelectedText();
     void performInsertText(const QString& text);
+
+    /// Draw text edit using given parameters
+    /// \param parameters Parameters
+    void draw(AnnotationDrawParameters& parameters, bool edit) const;
 
 private:
     /// This function does following things:
@@ -599,11 +604,14 @@ public:
     explicit PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldWidgetEditor() = default;
 
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event);
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+
+    virtual bool isEditorDrawEnabled() const { return false; }
 
     const PDFFormWidget* getFormWidget() const { return &m_formWidget; }
     PDFFormField*  getFormField() const { return m_formWidget.getParent(); }
@@ -611,7 +619,15 @@ public:
 
     void setFocus(bool hasFocus);
 
+    /// Draw form field widget using given parameters
+    /// \param parameters Parameters
+    virtual void draw(AnnotationDrawParameters& parameters) const;
+
 protected:
+    /// This function is called every time, the focus state changes
+    /// \param focused If editor was focused, or not
+    virtual void setFocusImpl(bool focused) { Q_UNUSED(focused); }
+
     void performKeypadNavigation(QWidget* widget, QKeyEvent* event);
 
     PDFFormManager* m_formManager;
@@ -682,6 +698,20 @@ private:
 public:
     explicit PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldTextBoxEditor() = default;
+
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+
+    virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
+
+    /// Initializes text edit using actual form field value,
+    /// font, color for text edit appearance.
+    /// \param textEdit Text editor
+    void initializeTextEdit(PDFTextEditPseudowidget* textEdit) const;
+
+protected:
+    virtual void setFocusImpl(bool focused);
 
 private:
     PDFTextEditPseudowidget m_textEdit;
@@ -831,36 +861,17 @@ public:
     /// Get widget rectangle (from annotation)
     QRectF getWidgetRectangle(const PDFFormWidget& widget) const;
 
+    /// Returns editor for form field
+    PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
+
     // interface IDrawWidgetInputInterface
 
-    /// Handles key press event from widget
-    /// \param widget Widget
-    /// \param event Event
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
-
-    /// Handles key release event from widget
-    /// \param widget Widget
-    /// \param event Event
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
-
-    /// Handles mouse press event from widget
-    /// \param widget Widget
-    /// \param event Event
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
-
-    /// Handles mouse release event from widget
-    /// \param widget Widget
-    /// \param event Event
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
-
-    /// Handles mouse move event from widge
-    /// \param widget Widget
-    /// \param event Event
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
-
-    /// Handles mouse wheel event from widget
-    /// \param widget Widget
-    /// \param event Event
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
 
     /// Returns tooltip generated from annotation
@@ -879,7 +890,6 @@ private:
     void updateFormWidgetEditors();
     void updateFieldValues();
 
-    PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
     MouseEventInfo getMouseEventInfo(QWidget* widget, QPoint point);
 
     struct MouseGrabInfo

@@ -254,6 +254,17 @@ QSize PDFDrawWidgetBase<BaseWidget>::minimumSizeHint() const
 }
 
 template<typename BaseWidget>
+bool PDFDrawWidgetBase<BaseWidget>::event(QEvent* event)
+{
+    if (event->type() == QEvent::ShortcutOverride)
+    {
+        return processEvent<QKeyEvent, &IDrawWidgetInputInterface::shortcutOverrideEvent>(static_cast<QKeyEvent*>(event));
+    }
+
+    return BaseWidget::event(event);
+}
+
+template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePosition)
 {
     switch (m_mouseOperation)

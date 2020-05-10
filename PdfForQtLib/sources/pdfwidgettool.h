@@ -446,6 +446,9 @@ public:
     /// Returns magnifier tool
     PDFMagnifierTool* getMagnifierTool() const;
 
+    /// Handles shortcut override event
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+
     /// Handles key press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event

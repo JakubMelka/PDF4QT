@@ -1012,6 +1012,13 @@ void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectan
                 return;
             }
 
+            // Nekreslíme zvýraznění push buttonů
+            if (formField->getFieldType() == PDFFormField::FieldType::Button &&
+                formField->getFlags().testFlag(PDFFormField::PushButton))
+            {
+                return;
+            }
+
             QColor color;
             if (flags.testFlag(PDFFormManager::HighlightFields))
             {
@@ -1083,8 +1090,16 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                     continue;
                 }
 
+                const PDFFormFieldWidgetEditor* editor = nullptr;
+                const bool isWidget = annotation.annotation->getType() == AnnotationType::Widget;
+                if (isWidget && m_formManager)
+                {
+                    editor = m_formManager->getEditor(m_formManager->getFormFieldForWidget(annotation.annotation->getSelfReference()));
+                }
+                const bool isEditorDrawEnabled = editor && editor->isEditorDrawEnabled();
+
                 PDFObject appearanceStreamObject = m_document->getObject(getAppearanceStream(annotation));
-                if (!appearanceStreamObject.isStream())
+                if (!appearanceStreamObject.isStream() || isEditorDrawEnabled)
                 {
                     // Object is not valid appearance stream. We will try to draw default
                     // annotation appearance, but we must consider also optional content.
@@ -1104,6 +1119,8 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                         painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
                         AnnotationDrawParameters parameters;
                         parameters.painter = painter;
+                        parameters.annotation = annotation.annotation.data();
+                        parameters.formManager = m_formManager;
                         parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
                         annotation.annotation->draw(parameters);
 
@@ -1116,7 +1133,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                     // Draw highlighting of fields, but only, if target is View,
                     // we do not want to render form field highlight, when we are
                     // printing to the printer.
-                    if (m_target == Target::View)
+                    if (m_target == Target::View && !isEditorDrawEnabled)
                     {
                         PDFPainterStateGuard guard(painter);
                         drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, pagePointToDevicePointMatrix);
@@ -1354,6 +1371,12 @@ PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy
 PDFWidgetAnnotationManager::~PDFWidgetAnnotationManager()
 {
     m_proxy->unregisterDrawInterface(this);
+}
+
+void PDFWidgetAnnotationManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
 }
 
 void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
@@ -2855,6 +2878,57 @@ std::vector<const PDFAnnotationManager::PageAnnotation*> PDFAnnotationManager::P
     std::sort(result.begin(), result.end(), comparator);
 
     return result;
+}
+
+void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    // Do not draw without form manager
+    if (!parameters.formManager)
+    {
+        return;
+    }
+
+    // Do not draw without form field
+    const PDFFormField* formField = parameters.formManager->getFormFieldForWidget(getSelfReference());
+    if (!formField)
+    {
+        return;
+    }
+
+    const PDFFormFieldWidgetEditor* editor = parameters.formManager->getEditor(formField);
+    if (editor && editor->isEditorDrawEnabled())
+    {
+        editor->draw(parameters);
+    }
+    else
+    {
+        switch (formField->getFieldType())
+        {
+            case PDFFormField::FieldType::Text:
+            {
+                if (const PDFFormFieldTextBoxEditor* textBoxEditor = qobject_cast<const PDFFormFieldTextBoxEditor*>(editor))
+                {
+                    PDFTextEditPseudowidget pseudowidget(formField->getFlags());
+                    textBoxEditor->initializeTextEdit(&pseudowidget);
+                    pseudowidget.draw(parameters, false);
+                }
+
+                break;
+            }
+
+            case PDFFormField::FieldType::Button:
+            case PDFFormField::FieldType::Invalid:
+            case PDFFormField::FieldType::Choice:
+            case PDFFormField::FieldType::Signature:
+                break;
+
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
+        }
+    }
 }
 
 }   // namespace pdf

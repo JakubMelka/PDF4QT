@@ -788,6 +788,12 @@ PDFMagnifierTool* PDFToolManager::getMagnifierTool() const
     return qobject_cast<PDFMagnifierTool*>(m_predefinedTools[MagnifierTool]);
 }
 
+void PDFToolManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
 void PDFToolManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     event->ignore();

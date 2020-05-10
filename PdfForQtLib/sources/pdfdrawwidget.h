@@ -138,6 +138,7 @@ public:
     virtual QWidget* getWidget() override { return this; }
 
 protected:
+    virtual bool event(QEvent* event) override;
     virtual void keyPressEvent(QKeyEvent* event) override;
     virtual void keyReleaseEvent(QKeyEvent* event) override;
     virtual void mousePressEvent(QMouseEvent* event) override;
