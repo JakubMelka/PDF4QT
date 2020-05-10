@@ -780,6 +780,7 @@ void PDFFormManager::setFormFieldValue(PDFFormField::SetValueParameters paramete
     parameters.scope = PDFFormField::SetValueParameters::Scope::User;
 
     PDFDocumentModifier modifier(m_document);
+    modifier.getBuilder()->setFormManager(this);
     parameters.modifier = &modifier;
 
     if (parameters.invokingFormField->setValue(parameters))
@@ -2102,6 +2103,23 @@ QMatrix PDFTextEditPseudowidget::createTextBoxTransformMatrix(bool edit) const
         }
     }
 
+    if (!isMultiline() && !isComb())
+    {
+        // If text is single line, then adjust text position to the vertical center
+        QTextLine textLine = m_textLayout.lineAt(0);
+        if (textLine.isValid())
+        {
+            const qreal lineSpacing = textLine.leadingIncluded() ? textLine.height() : textLine.leading() + textLine.height();
+            const qreal textBoxHeight = m_widgetRect.height();
+
+            if (lineSpacing < textBoxHeight)
+            {
+                const qreal delta = (textBoxHeight - lineSpacing) * 0.5;
+                matrix.translate(0.0, delta);
+            }
+        }
+    }
+
     return matrix;
 }
 
@@ -2228,7 +2246,7 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         m_textLayout.draw(painter, QPointF(0.0, 0.0), selections, QRectF());
 
         // If we are editing, also draw text
-        if (edit)
+        if (edit && !isReadonly())
         {
             m_textLayout.drawCursor(painter, QPointF(0.0, 0.0), m_positionCursor);
         }

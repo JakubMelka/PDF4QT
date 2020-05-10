@@ -755,7 +755,7 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
         return;
     }
 
-    std::vector<PDFAppeareanceStreams::Key> keys = annotation->getDrawKeys();
+    std::vector<PDFAppeareanceStreams::Key> keys = annotation->getDrawKeys(m_formManager);
     std::map<PDFAppeareanceStreams::Key, PDFObjectReference> appearanceStreams;
 
     QRectF boundingRectangle;
@@ -1078,6 +1078,16 @@ std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>
     }
 
     return result;
+}
+
+const PDFFormManager* PDFDocumentBuilder::getFormManager() const
+{
+    return m_formManager;
+}
+
+void PDFDocumentBuilder::setFormManager(const PDFFormManager* formManager)
+{
+    m_formManager = formManager;
 }
 
 PDFContentStreamBuilder::PDFContentStreamBuilder(QSizeF size, CoordinateSystem coordinateSystem) :

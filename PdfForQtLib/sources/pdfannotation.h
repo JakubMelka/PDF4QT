@@ -212,7 +212,10 @@ public:
 
     /// Returns list of appearance states for given appearance
     /// \param appearance Appearance
-    QByteArrayList getAppearanceStates(Appearance appearance);
+    QByteArrayList getAppearanceStates(Appearance appearance) const;
+
+    /// Returns list of appearance keys
+    std::vector<Key> getAppearanceKeys() const;
 
 private:
     std::map<Key, PDFObject> m_appearanceStreams;
@@ -504,7 +507,7 @@ public:
     virtual void draw(AnnotationDrawParameters& parameters) const;
 
     /// Returns a list of appearance states, which must be created for this annotation
-    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const;
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys(const PDFFormManager* formManager) const;
 
     /// Returns effective flags (some annotations can behave as they have always
     /// set some flags, such as NoZoom and NoRotate)
@@ -695,7 +698,7 @@ public:
     inline explicit PDFTextAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Text; }
-    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const override;
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys(const PDFFormManager* formManager) const override;
     virtual void draw(AnnotationDrawParameters& parameters) const override;
     virtual Flags getEffectiveFlags() const override;
 
@@ -729,7 +732,7 @@ public:
     inline explicit PDFLinkAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::Link; }
-    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys() const;
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys(const PDFFormManager* formManager) const override;
     virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     const PDFAction* getAction() const { return m_action.data(); }
@@ -1168,6 +1171,7 @@ public:
 
     virtual AnnotationType getType() const override { return AnnotationType::Widget; }
     virtual void draw(AnnotationDrawParameters& parameters) const override;
+    virtual std::vector<PDFAppeareanceStreams::Key> getDrawKeys(const PDFFormManager* formManager) const override;
 
     HighlightMode getHighlightMode() const { return m_highlightMode; }
     const PDFAnnotationAppearanceCharacteristics& getAppearanceCharacteristics() const { return m_appearanceCharacteristics; }

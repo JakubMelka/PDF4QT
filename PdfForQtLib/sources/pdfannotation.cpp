@@ -36,6 +36,7 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QStyleOptionButton>
 
 namespace pdf
 {
@@ -165,7 +166,7 @@ PDFObject PDFAppeareanceStreams::getAppearance(Appearance appearance, const QByt
     return PDFObject();
 }
 
-QByteArrayList PDFAppeareanceStreams::getAppearanceStates(Appearance appearance)
+QByteArrayList PDFAppeareanceStreams::getAppearanceStates(Appearance appearance) const
 {
     QByteArrayList result;
 
@@ -182,6 +183,13 @@ QByteArrayList PDFAppeareanceStreams::getAppearanceStates(Appearance appearance)
     return result;
 }
 
+std::vector<PDFAppeareanceStreams::Key> PDFAppeareanceStreams::getAppearanceKeys() const
+{
+    std::vector<Key> result;
+    std::transform(m_appearanceStreams.cbegin(), m_appearanceStreams.cend(), std::back_inserter(result), [](const auto& item) { return item.first; });
+    return result;
+}
+
 PDFAnnotation::PDFAnnotation() :
     m_flags(),
     m_structParent(0)
@@ -194,8 +202,10 @@ void PDFAnnotation::draw(AnnotationDrawParameters& parameters) const
     Q_UNUSED(parameters);
 }
 
-std::vector<PDFAppeareanceStreams::Key> PDFAnnotation::getDrawKeys() const
+std::vector<PDFAppeareanceStreams::Key> PDFAnnotation::getDrawKeys(const PDFFormManager* formManager) const
 {
+    Q_UNUSED(formManager);
+
     return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() } };
 }
 
@@ -1749,8 +1759,10 @@ QColor PDFMarkupAnnotation::getFillColor() const
     return color;
 }
 
-std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys() const
+std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys(const PDFFormManager* formManager) const
 {
+    Q_UNUSED(formManager);
+
     return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() },
              PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Rollover, QByteArray() },
              PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Down, QByteArray() } };
@@ -2328,8 +2340,10 @@ void PDFHighlightAnnotation::draw(AnnotationDrawParameters& parameters) const
     parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
 }
 
-std::vector<PDFAppeareanceStreams::Key> PDFLinkAnnotation::getDrawKeys() const
+std::vector<PDFAppeareanceStreams::Key> PDFLinkAnnotation::getDrawKeys(const PDFFormManager* formManager) const
 {
+    Q_UNUSED(formManager);
+
     return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Down, QByteArray() } };
 }
 
@@ -2899,6 +2913,8 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
         return;
     }
 
+    PDFPainterStateGuard guard(parameters.painter);
+
     const PDFFormFieldWidgetEditor* editor = parameters.formManager->getEditor(formField);
     if (editor && editor->isEditorDrawEnabled())
     {
@@ -2921,8 +2937,112 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
             }
 
             case PDFFormField::FieldType::Button:
-            case PDFFormField::FieldType::Invalid:
+            {
+                const PDFFormFieldButton* button = dynamic_cast<const PDFFormFieldButton*>(formField);
+                switch (button->getButtonType())
+                {
+                    case PDFFormFieldButton::ButtonType::PushButton:
+                    {
+                        QRectF rectangle = getRectangle();
+
+                        QByteArray defaultAppearance = parameters.formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
+                        PDFAnnotationDefaultAppearance appearance = PDFAnnotationDefaultAppearance::parse(defaultAppearance);
+
+                        qreal fontSize = appearance.getFontSize();
+                        if (qFuzzyIsNull(fontSize))
+                        {
+                            fontSize = rectangle.height() * 0.6;
+                        }
+
+                        QFont font(appearance.getFontName());
+                        font.setHintingPreference(QFont::PreferNoHinting);
+                        font.setPixelSize(qCeil(fontSize));
+                        font.setStyleStrategy(QFont::ForceOutline);
+
+                        QFontMetrics fontMetrics(font);
+
+                        QPainter* painter = parameters.painter;
+                        painter->translate(rectangle.bottomLeft());
+                        painter->scale(1.0, -1.0);
+                        painter->setFont(font);
+
+                        QStyleOptionButton option;
+                        option.state = QStyle::State_Enabled;
+                        option.rect = QRect(0, 0, qFloor(rectangle.width()), qFloor(rectangle.height()));
+                        option.palette = QApplication::palette();
+
+                        if (parameters.key.first == PDFAppeareanceStreams::Appearance::Rollover)
+                        {
+                            option.state |= QStyle::State_MouseOver;
+                        }
+
+                        if (parameters.key.first == PDFAppeareanceStreams::Appearance::Down)
+                        {
+                            option.state |= QStyle::State_Sunken;
+                        }
+
+                        option.features = QStyleOptionButton::None;
+                        option.text = getContents();
+                        option.fontMetrics = fontMetrics;
+
+                        QApplication::style()->drawControl(QStyle::CE_PushButton, &option, painter, nullptr);
+                        break;
+                    }
+
+                    case PDFFormFieldButton::ButtonType::RadioButton:
+                    case PDFFormFieldButton::ButtonType::CheckBox:
+                    {
+                        QRectF rectangle = getRectangle();
+                        QPainter* painter = parameters.painter;
+                        painter->translate(rectangle.bottomLeft());
+                        painter->scale(1.0, -1.0);
+
+                        QStyleOptionButton option;
+                        option.state = QStyle::State_Enabled;
+                        option.rect = QRect(0, 0, qFloor(rectangle.width()), qFloor(rectangle.height()));
+                        option.palette = QApplication::palette();
+
+                        if (parameters.key.first == PDFAppeareanceStreams::Appearance::Rollover)
+                        {
+                            option.state |= QStyle::State_MouseOver;
+                        }
+
+                        if (parameters.key.first == PDFAppeareanceStreams::Appearance::Down)
+                        {
+                            option.state |= QStyle::State_Sunken;
+                        }
+
+                        if (parameters.key.second != "Off")
+                        {
+                            option.state |= QStyle::State_On;
+                        }
+                        else
+                        {
+                            option.state |= QStyle::State_Off;
+                        }
+
+                        option.features = QStyleOptionButton::None;
+                        option.text = QString();
+
+                        QStyle::PrimitiveElement element = (button->getButtonType() == PDFFormFieldButton::ButtonType::CheckBox) ? QStyle::PE_IndicatorCheckBox : QStyle::PE_IndicatorRadioButton;
+                        QApplication::style()->drawPrimitive(element, &option, painter, nullptr);
+                        break;
+                    }
+
+                    default:
+                    {
+                        Q_ASSERT(false);
+                        break;
+                    }
+                }
+
+                break;
+            }
+
             case PDFFormField::FieldType::Choice:
+                // TODO: Draw choice field
+
+            case PDFFormField::FieldType::Invalid:
             case PDFFormField::FieldType::Signature:
                 break;
 
@@ -2933,6 +3053,84 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
             }
         }
     }
+}
+
+std::vector<pdf::PDFAppeareanceStreams::Key> PDFWidgetAnnotation::getDrawKeys(const PDFFormManager* formManager) const
+{
+    if (!formManager)
+    {
+        return PDFAnnotation::getDrawKeys(formManager);
+    }
+
+    std::vector<pdf::PDFAppeareanceStreams::Key> result;
+
+    // Try get the form field, if we find it, then determine from form field type
+    // the list of appearance states.
+    const PDFFormField* formField = formManager->getFormFieldForWidget(getSelfReference());
+    if (!formField)
+    {
+        return PDFAnnotation::getDrawKeys(formManager);
+    }
+
+    switch (formField->getFieldType())
+    {
+        case PDFFormField::FieldType::Invalid:
+            break;
+
+        case PDFFormField::FieldType::Button:
+        {
+            const PDFFormFieldButton* button = dynamic_cast<const PDFFormFieldButton*>(formField);
+            switch (button->getButtonType())
+            {
+                case PDFFormFieldButton::ButtonType::PushButton:
+                {
+                    result = { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() },
+                               PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Rollover, QByteArray() },
+                               PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Down, QByteArray() } };
+                    break;
+                }
+
+                case PDFFormFieldButton::ButtonType::RadioButton:
+                case PDFFormFieldButton::ButtonType::CheckBox:
+                {
+                    result = getAppearanceStreams().getAppearanceKeys();
+                    PDFAppeareanceStreams::Key offKey{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() };
+                    if (std::find(result.cbegin(), result.cend(), offKey) == result.cend())
+                    {
+                        result.push_back(qMove(offKey));
+                    }
+                    break;
+                }
+
+                default:
+                {
+                    Q_ASSERT(false);
+                    break;
+                }
+            }
+
+            break;
+        }
+
+        case PDFFormField::FieldType::Text:
+            // Text has only default appearance
+            break;
+
+        case PDFFormField::FieldType::Choice:
+            // TODO: Implement choice appearance
+            break;
+
+        case PDFFormField::FieldType::Signature:
+            // Signatures have always default appearance
+            break;
+    }
+
+    if (result.empty())
+    {
+        result = PDFAnnotation::getDrawKeys(formManager);
+    }
+
+    return result;
 }
 
 }   // namespace pdf

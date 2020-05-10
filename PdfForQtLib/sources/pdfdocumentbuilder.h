@@ -279,6 +279,9 @@ public:
     /// \param annotationReference Reference to the annotation
     void updateAnnotationAppearanceStreams(PDFObjectReference annotationReference);
 
+    const PDFFormManager* getFormManager() const;
+    void setFormManager(const PDFFormManager* formManager);
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -973,6 +976,7 @@ private:
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;
+    const PDFFormManager* m_formManager = nullptr;
 };
 
 /// This class serves for document modification. While document is modified,
