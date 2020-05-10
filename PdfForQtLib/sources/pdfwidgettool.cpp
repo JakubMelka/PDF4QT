@@ -833,6 +833,12 @@ void PDFToolManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
     }
 }
 
+void PDFToolManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
 void PDFToolManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
 {
     event->ignore();

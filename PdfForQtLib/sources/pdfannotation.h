@@ -458,6 +458,9 @@ struct AnnotationDrawParameters
 
     /// Appeareance mode (normal/rollover/down, and appearance state)
     PDFAppeareanceStreams::Key key;
+
+    /// Invert colors?
+    bool invertColors = false;
 };
 
 /// Base class for all annotation types. Represents PDF annotation object.
@@ -1424,6 +1427,7 @@ public:
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;

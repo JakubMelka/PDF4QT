@@ -95,6 +95,11 @@ public:
     /// \param event Event
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) = 0;
 
+    /// Handles mouse double click event from widget
+    /// \param widget Widget
+    /// \param event Event
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) = 0;
+
     /// Handles mouse release event from widget
     /// \param widget Widget
     /// \param event Event

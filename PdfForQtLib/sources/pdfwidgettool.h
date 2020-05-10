@@ -464,6 +464,11 @@ public:
     /// \param event Event
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
 
+    /// Handles mouse double click event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) override;
+
     /// Handles mouse release event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event

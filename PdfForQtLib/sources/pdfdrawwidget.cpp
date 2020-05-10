@@ -385,6 +385,17 @@ void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
 }
 
 template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    event->ignore();
+
+    if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseDoubleClickEvent>(event))
+    {
+        return;
+    }
+}
+
+template<typename BaseWidget>
 void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
 {
     event->ignore();

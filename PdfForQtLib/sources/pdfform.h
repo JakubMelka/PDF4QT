@@ -517,6 +517,25 @@ public:
     /// \param parameters Parameters
     void draw(AnnotationDrawParameters& parameters, bool edit) const;
 
+    /// Returns valid cursor position retrieved from position in the widget.
+    /// \param point Point in page coordinate space
+    /// \param edit Are we using edit transformations?
+    /// \returns Cursor position
+    int getCursorPositionFromWidgetPosition(const QPointF& point, bool edit) const;
+
+    inline int getCursorForward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepForward(), mode); }
+    inline int getCursorBackward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepBackward(), mode); }
+    inline int getCursorCharacterForward() const { return getCursorForward(QTextLayout::SkipCharacters); }
+    inline int getCursorCharacterBackward() const { return getCursorBackward(QTextLayout::SkipCharacters); }
+    inline int getCursorWordForward() const { return getCursorForward(QTextLayout::SkipWords); }
+    inline int getCursorWordBackward() const { return getCursorBackward(QTextLayout::SkipWords); }
+    inline int getCursorDocumentStart() const { return (getSingleStepForward() > 0) ? getPositionStart() : getPositionEnd(); }
+    inline int getCursorDocumentEnd() const { return (getSingleStepForward() > 0) ? getPositionEnd() : getPositionStart(); }
+    inline int getCursorLineStart() const { return (getSingleStepForward() > 0) ? getCurrentLineTextStart() : getCurrentLineTextEnd(); }
+    inline int getCursorLineEnd() const { return (getSingleStepForward() > 0) ? getCurrentLineTextEnd() : getCurrentLineTextStart(); }
+    inline int getCursorNextLine() const { return getCurrentLineTextEnd(); }
+    inline int getCursorPreviousLine() const { return getNextPrevCursorPosition(getCurrentLineTextStart(), -1, QTextLayout::SkipCharacters); }
+
 private:
     /// This function does following things:
     ///     1) Clamps edit text to fit maximum length
@@ -551,18 +570,16 @@ private:
     /// Returns current line text end position
     int getCurrentLineTextEnd() const;
 
-    inline int getCursorForward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepForward(), mode); }
-    inline int getCursorBackward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepBackward(), mode); }
-    inline int getCursorCharacterForward() const { return getCursorForward(QTextLayout::SkipCharacters); }
-    inline int getCursorCharacterBackward() const { return getCursorBackward(QTextLayout::SkipCharacters); }
-    inline int getCursorWordForward() const { return getCursorForward(QTextLayout::SkipWords); }
-    inline int getCursorWordBackward() const { return getCursorBackward(QTextLayout::SkipWords); }
-    inline int getCursorDocumentStart() const { return (getSingleStepForward() > 0) ? getPositionStart() : getPositionEnd(); }
-    inline int getCursorDocumentEnd() const { return (getSingleStepForward() > 0) ? getPositionEnd() : getPositionStart(); }
-    inline int getCursorLineStart() const { return (getSingleStepForward() > 0) ? getCurrentLineTextStart() : getCurrentLineTextEnd(); }
-    inline int getCursorLineEnd() const { return (getSingleStepForward() > 0) ? getCurrentLineTextEnd() : getCurrentLineTextStart(); }
-    inline int getCursorNextLine() const { return getCurrentLineTextEnd(); }
-    inline int getCursorPreviousLine() const { return getNextPrevCursorPosition(getCurrentLineTextStart(), -1, QTextLayout::SkipCharacters); }
+    /// Creates text box transform matrix, which transforms from
+    /// widget space to page space.
+    /// \param edit Create matrix for text editing?
+    QMatrix createTextBoxTransformMatrix(bool edit) const;
+
+    /// Returns vector of cursor positions (which may be not equal
+    /// to edit string length, because edit string can contain surrogates,
+    /// or graphemes, which are single glyphs, but represented by more
+    /// 16-bit unicode codes).
+    std::vector<int> getCursorPositions() const;
 
     int getCursorLineUp() const;
     int getCursorLineDown() const;
@@ -607,9 +624,10 @@ public:
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
-    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event);
-    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event);
-    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event);
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
 
     virtual bool isEditorDrawEnabled() const { return false; }
 
@@ -647,9 +665,10 @@ public:
     explicit PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent);
     virtual ~PDFFormFieldAbstractButtonEditor() = default;
 
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
 
 protected:
     virtual void click() = 0;
@@ -701,6 +720,9 @@ public:
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
 
     virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
     virtual void draw(AnnotationDrawParameters& parameters) const override;
@@ -870,6 +892,7 @@ public:
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;

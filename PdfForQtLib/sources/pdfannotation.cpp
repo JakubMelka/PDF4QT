@@ -1122,6 +1122,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                         parameters.annotation = annotation.annotation.data();
                         parameters.formManager = m_formManager;
                         parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
+                        parameters.invertColors = m_features.testFlag(PDFRenderer::InvertColors);
                         annotation.annotation->draw(parameters);
 
                         if (parameters.boundingRectangle.isValid())
@@ -1394,15 +1395,19 @@ void PDFWidgetAnnotationManager::keyReleaseEvent(QWidget* widget, QKeyEvent* eve
 void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
-    Q_UNUSED(event);
 
     updateFromMouseEvent(event);
+}
+
+void PDFWidgetAnnotationManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
 }
 
 void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
-    Q_UNUSED(event);
 
     updateFromMouseEvent(event);
 }
@@ -1410,7 +1415,6 @@ void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent*
 void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
-    Q_UNUSED(event);
 
     updateFromMouseEvent(event);
 }

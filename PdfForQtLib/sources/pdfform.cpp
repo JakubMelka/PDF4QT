@@ -866,13 +866,37 @@ void PDFFormManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
             setFocusToEditor(info.editor);
         }
 
-        info.editor->mousePressEvent(widget, event);
+        info.editor->mousePressEvent(widget, event, info.mousePosition);
         grabMouse(info, event);
     }
     else if (!isMouseGrabbed())
     {
         // Mouse is not grabbed, user clicked elsewhere, unfocus editor
         setFocusToEditor(nullptr);
+    }
+}
+
+void PDFFormManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
+{
+    if (!hasForm())
+    {
+        return;
+    }
+
+    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    if (info.isValid())
+    {
+        Q_ASSERT(info.editor);
+        info.editor->mouseDoubleClickEvent(widget, event, info.mousePosition);
+
+        // If mouse is grabbed, then event is accepted always (because
+        // we get Press event, when we grabbed the mouse, then we will
+        // wait for corresponding release event while all mouse move events
+        // will be accepted, even if editor doesn't accept them.
+        if (isMouseGrabbed())
+        {
+            event->accept();
+        }
     }
 }
 
@@ -887,7 +911,7 @@ void PDFFormManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
-        info.editor->mouseReleaseEvent(widget, event);
+        info.editor->mouseReleaseEvent(widget, event, info.mousePosition);
         ungrabMouse(info, event);
     }
 }
@@ -903,7 +927,7 @@ void PDFFormManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
-        info.editor->mouseMoveEvent(widget, event);
+        info.editor->mouseMoveEvent(widget, event, info.mousePosition);
 
         // If mouse is grabbed, then event is accepted always (because
         // we get Press event, when we grabbed the mouse, then we will
@@ -1172,22 +1196,32 @@ void PDFFormFieldWidgetEditor::keyReleaseEvent(QWidget* widget, QKeyEvent* event
     Q_UNUSED(event);
 }
 
-void PDFFormFieldWidgetEditor::mousePressEvent(QWidget* widget, QMouseEvent* event)
+void PDFFormFieldWidgetEditor::mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
     Q_UNUSED(widget);
     Q_UNUSED(event);
+    Q_UNUSED(mousePagePosition);
 }
 
-void PDFFormFieldWidgetEditor::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+void PDFFormFieldWidgetEditor::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
     Q_UNUSED(widget);
     Q_UNUSED(event);
+    Q_UNUSED(mousePagePosition);
 }
 
-void PDFFormFieldWidgetEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+void PDFFormFieldWidgetEditor::mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
     Q_UNUSED(widget);
     Q_UNUSED(event);
+    Q_UNUSED(mousePagePosition);
+}
+
+void PDFFormFieldWidgetEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+    Q_UNUSED(mousePagePosition);
 }
 
 void PDFFormFieldWidgetEditor::setFocus(bool hasFocus)
@@ -1281,6 +1315,28 @@ PDFFormFieldAbstractButtonEditor::PDFFormFieldAbstractButtonEditor(PDFFormManage
 
 }
 
+void PDFFormFieldAbstractButtonEditor::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    switch (event->key())
+    {
+        case Qt::Key_Enter:
+        case Qt::Key_Return:
+        case Qt::Key_Left:
+        case Qt::Key_Right:
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+        {
+            event->accept();
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
 void PDFFormFieldAbstractButtonEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     switch (event->key())
@@ -1326,9 +1382,10 @@ void PDFFormFieldAbstractButtonEditor::keyReleaseEvent(QWidget* widget, QKeyEven
     }
 }
 
-void PDFFormFieldAbstractButtonEditor::mousePressEvent(QWidget* widget, QMouseEvent* event)
+void PDFFormFieldAbstractButtonEditor::mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
     Q_UNUSED(widget);
+    Q_UNUSED(mousePagePosition);
 
     if (event->button() == Qt::LeftButton)
     {
@@ -1464,6 +1521,46 @@ void PDFFormFieldTextBoxEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
     }
 }
 
+void PDFFormFieldTextBoxEditor::mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+    if (event->button() == Qt::LeftButton)
+    {
+        const int cursorPosition = m_textEdit.getCursorPositionFromWidgetPosition(mousePagePosition, m_hasFocus);
+        m_textEdit.setCursorPosition(cursorPosition, event->modifiers() & Qt::ShiftModifier);
+
+        event->accept();
+        widget->update();
+    }
+}
+
+void PDFFormFieldTextBoxEditor::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+    if (event->button() == Qt::LeftButton)
+    {
+        const int cursorPosition = m_textEdit.getCursorPositionFromWidgetPosition(mousePagePosition, m_hasFocus);
+        m_textEdit.setCursorPosition(cursorPosition, false);
+        m_textEdit.setCursorPosition(m_textEdit.getCursorWordBackward(), false);
+        m_textEdit.setCursorPosition(m_textEdit.getCursorWordForward(), true);
+
+        event->accept();
+        widget->update();
+    }
+}
+
+void PDFFormFieldTextBoxEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+    // We must test, if left mouse button is pressed while
+    // we are moving the mouse - if yes, then select the text.
+    if (event->buttons() & Qt::LeftButton)
+    {
+        const int cursorPosition = m_textEdit.getCursorPositionFromWidgetPosition(mousePagePosition, m_hasFocus);
+        m_textEdit.setCursorPosition(cursorPosition, true);
+
+        event->accept();
+        widget->update();
+    }
+}
+
 void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters) const
 {
     m_textEdit.draw(parameters, true);
@@ -1514,6 +1611,19 @@ void PDFTextEditPseudowidget::shortcutOverrideEvent(QWidget* widget, QKeyEvent* 
 
         default:
             break;
+    }
+
+    if (!event->text().isEmpty())
+    {
+        event->accept();
+        for (const QChar& character : event->text())
+        {
+            if (!character.isPrint())
+            {
+                event->ignore();
+                break;
+            }
+        }
     }
 }
 
@@ -1836,6 +1946,7 @@ void PDFTextEditPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance
     QFont font(appearance.getFontName());
     font.setHintingPreference(QFont::PreferNoHinting);
     font.setPixelSize(qCeil(fontSize));
+    font.setStyleStrategy(QFont::ForceOutline);
     m_textLayout.setFont(font);
 
     QTextOption option = m_textLayout.textOption();
@@ -1956,56 +2067,232 @@ void PDFTextEditPseudowidget::performInsertText(const QString& text)
     updateTextLayout();
 }
 
+QMatrix PDFTextEditPseudowidget::createTextBoxTransformMatrix(bool edit) const
+{
+    QMatrix matrix;
+
+    matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
+    matrix.scale(1.0, -1.0);
+
+    if (edit && !isComb() && m_textLayout.isValidCursorPosition(m_positionCursor))
+    {
+        // Jakub Melka: we must scroll the control, so cursor is always
+        // visible in the widget area. If we are not editing, this not the
+        // case, because we always show the text from the beginning.
+
+        const QTextLine line = m_textLayout.lineForTextPosition(m_positionCursor);
+        if (line.isValid())
+        {
+            const qreal xCursorPosition = line.cursorToX(m_positionCursor);
+            if (xCursorPosition >= m_widgetRect.width())
+            {
+                const qreal delta = xCursorPosition - m_widgetRect.width();
+                matrix.translate(-delta, 0.0);
+            }
+
+            // Check, if we aren't outside of y position
+            const qreal lineSpacing = line.leadingIncluded() ? line.height() : line.leading() + line.height();
+            const qreal lineBottom = lineSpacing * (line.lineNumber() + 1);
+
+            if (lineBottom >= m_widgetRect.height())
+            {
+                const qreal delta = lineBottom - m_widgetRect.height();
+                matrix.translate(0.0, -delta);
+            }
+        }
+    }
+
+    return matrix;
+}
+
+std::vector<int> PDFTextEditPseudowidget::getCursorPositions() const
+{
+    std::vector<int> result;
+    result.reserve(m_editText.length());
+    result.push_back(0);
+
+    int currentPos = 0;
+    while (currentPos < m_editText.length())
+    {
+        currentPos = m_textLayout.nextCursorPosition(currentPos, QTextLayout::SkipCharacters);
+        result.push_back(currentPos);
+    }
+
+    return result;
+}
+
 void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool edit) const
 {
     pdf::PDFPainterStateGuard guard(parameters.painter);
     parameters.boundingRectangle = parameters.annotation->getRectangle();
 
-    QPainter* painter = parameters.painter;
-    painter->translate(parameters.boundingRectangle.bottomLeft());
-    painter->scale(1.0, -1.0);
+    QPalette palette = QApplication::palette();
 
-    QVector<QTextLayout::FormatRange> selections;
-
-    QTextLayout::FormatRange defaultFormat;
-    defaultFormat.start = getPositionStart();
-    defaultFormat.length = getTextLength();
-    defaultFormat.format.clearBackground();
-    defaultFormat.format.setForeground(QBrush(m_textColor, Qt::SolidPattern));
-
-    // If we are editing, draw selections
-    if (edit && isTextSelected())
+    auto getAdjustedColor = [&parameters](QColor color)
     {
-        QTextLayout::FormatRange before = defaultFormat;
-        QTextLayout::FormatRange after = defaultFormat;
+        if (parameters.invertColors)
+        {
+            return invertColor(color);
+        }
 
-        before.start = getPositionStart();
-        before.length = m_selectionStart;
-        after.start = m_selectionEnd;
-        after.length = getTextLength() - m_selectionEnd;
+        return color;
+    };
 
-        QPalette palette = QApplication::palette();
-        QTextLayout::FormatRange selectedFormat = defaultFormat;
-        selectedFormat.start = m_selectionStart;
-        selectedFormat.length = getSelectionLength();
-        selectedFormat.format.setForeground(palette.brush(QPalette::HighlightedText));
-        selectedFormat.format.setBackground(palette.brush(QPalette::Highlight));
+    QPainter* painter = parameters.painter;
+    painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
+    painter->setWorldMatrix(createTextBoxTransformMatrix(edit), true);
+    painter->setPen(getAdjustedColor(Qt::black));
 
-        selections = { before, selectedFormat, after};
+    if (isComb())
+    {
+        const qreal combCount = qMax(m_maxTextLength, 1);
+        qreal combWidth = m_widgetRect.width() / combCount;
+        QRectF combRect(0.0, 0.0, combWidth, m_widgetRect.height());
+        painter->setFont(m_textLayout.font());
+
+        QColor textColor = getAdjustedColor(palette.color(QPalette::Text));
+        QColor highlightTextColor = getAdjustedColor(palette.color(QPalette::HighlightedText));
+        QColor highlightColor = getAdjustedColor(palette.color(QPalette::Highlight));
+
+        std::vector<int> positions = getCursorPositions();
+        for (size_t i = 1; i < positions.size(); ++i)
+        {
+            if (positions[i - 1] >= m_selectionStart && positions[i] - 1 < m_selectionEnd)
+            {
+                // We are in text selection
+                painter->fillRect(combRect, highlightColor);
+                painter->setPen(highlightTextColor);
+            }
+            else
+            {
+                // We are not in text selection
+                painter->setPen(textColor);
+            }
+
+            int length = positions[i] - positions[i - 1];
+            QString text = m_displayText.mid(positions[i - 1], length);
+            painter->drawText(combRect, Qt::AlignCenter, text);
+
+            // Draw the cursor?
+            if (edit && m_positionCursor >= positions[i - 1] && m_positionCursor < positions[i])
+            {
+                QRectF cursorRect(combRect.left(), combRect.bottom() - 1, combRect.width(), 1);
+                painter->fillRect(cursorRect, textColor);
+            }
+
+            combRect.translate(combWidth, 0.0);
+        }
+
+        // Draw the cursor onto next unfilled cell?
+        if (edit && m_positionCursor == getPositionEnd())
+        {
+            QRectF cursorRect(combRect.left(), combRect.bottom() - 1, combRect.width(), 1);
+            painter->fillRect(cursorRect, textColor);
+        }
     }
     else
     {
-        selections.push_back(defaultFormat);
+        QVector<QTextLayout::FormatRange> selections;
+
+        QTextLayout::FormatRange defaultFormat;
+        defaultFormat.start = getPositionStart();
+        defaultFormat.length = getTextLength();
+        defaultFormat.format.clearBackground();
+        defaultFormat.format.setForeground(QBrush(getAdjustedColor(m_textColor), Qt::SolidPattern));
+
+        // If we are editing, draw selections
+        if (edit && isTextSelected())
+        {
+            QTextLayout::FormatRange before = defaultFormat;
+            QTextLayout::FormatRange after = defaultFormat;
+
+            before.start = getPositionStart();
+            before.length = m_selectionStart;
+            after.start = m_selectionEnd;
+            after.length = getTextLength() - m_selectionEnd;
+
+            QTextLayout::FormatRange selectedFormat = defaultFormat;
+            selectedFormat.start = m_selectionStart;
+            selectedFormat.length = getSelectionLength();
+            selectedFormat.format.setForeground(QBrush(getAdjustedColor(palette.color(QPalette::HighlightedText)), Qt::SolidPattern));
+            selectedFormat.format.setBackground(QBrush(getAdjustedColor(palette.color(QPalette::Highlight)), Qt::SolidPattern));
+
+            selections = { before, selectedFormat, after};
+        }
+        else
+        {
+            selections.push_back(defaultFormat);
+        }
+
+        // Draw text
+        m_textLayout.draw(painter, QPointF(0.0, 0.0), selections, QRectF());
+
+        // If we are editing, also draw text
+        if (edit)
+        {
+            m_textLayout.drawCursor(painter, QPointF(0.0, 0.0), m_positionCursor);
+        }
     }
+}
 
-    // Draw text
-    m_textLayout.draw(painter, QPointF(0.0, 0.0), selections, QRectF(0, 0, parameters.boundingRectangle.width(), parameters.boundingRectangle.height()));
+int PDFTextEditPseudowidget::getCursorPositionFromWidgetPosition(const QPointF& point, bool edit) const
+{
+    QMatrix textBoxSpaceToPageSpace = createTextBoxTransformMatrix(edit);
+    QMatrix pageSpaceToTextBoxSpace = textBoxSpaceToPageSpace.inverted();
 
-    // If we are editing, also draw text
-    if (edit)
+    QPointF textBoxPoint = pageSpaceToTextBoxSpace.map(point);
+
+    if (isComb())
     {
-        m_textLayout.drawCursor(painter, QPointF(0.0, 0.0), m_positionCursor);
+        // If it is comb, then characters are spaced equidistantly
+        const qreal x = qBound(0.0, textBoxPoint.x(), m_widgetRect.width());
+        const size_t position = qFloor(x * qreal(m_maxTextLength) / qreal(m_widgetRect.width()));
+        std::vector<int> positions = getCursorPositions();
+        if (position < positions.size())
+        {
+            return positions[position];
+        }
+
+        return positions.back();
     }
+    else if (m_textLayout.lineCount() > 0)
+    {
+        QTextLine line;
+        qreal yPos = 0.0;
+
+        // Find line under cursor
+        for (int i = 0; i < m_textLayout.lineCount(); ++i)
+        {
+            QTextLine currentLine = m_textLayout.lineAt(i);
+            const qreal lineSpacing = currentLine.leadingIncluded() ? currentLine.height() : currentLine.leading() + currentLine.height();
+            const qreal yNextPos = yPos + lineSpacing;
+
+            if (textBoxPoint.y() >= yPos && textBoxPoint.y() < yNextPos)
+            {
+                line = currentLine;
+                break;
+            }
+
+            yPos = yNextPos;
+        }
+
+        // If no line is found, select last line
+        if (!line.isValid())
+        {
+            if (textBoxPoint.y() < 0.0)
+            {
+                line = m_textLayout.lineAt(0);
+            }
+            else
+            {
+                line = m_textLayout.lineAt(m_textLayout.lineCount() - 1);
+            }
+        }
+
+        return line.xToCursor(textBoxPoint.x(), QTextLine::CursorBetweenCharacters);
+    }
+
+    return 0;
 }
 
 void PDFTextEditPseudowidget::updateTextLayout()
@@ -2049,7 +2336,7 @@ void PDFTextEditPseudowidget::updateTextLayout()
         int length = 0;
         int currentPos = 0;
 
-        while (currentPos <= m_editText.length())
+        while (currentPos < m_editText.length())
         {
             currentPos = m_textLayout.nextCursorPosition(currentPos, QTextLayout::SkipCharacters);
             ++length;
