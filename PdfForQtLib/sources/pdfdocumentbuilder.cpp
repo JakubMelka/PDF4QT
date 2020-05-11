@@ -541,7 +541,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(WrapEmptyArray)
     return *this;
 }
 
-PDFObjectFactory& PDFObjectFactory::operator<<(QString textString)
+PDFObject PDFObjectFactory::createTextString(QString textString)
 {
     if (!PDFEncoding::canConvertToEncoding(textString, PDFEncoding::Encoding::PDFDoc))
     {
@@ -555,14 +555,18 @@ PDFObjectFactory& PDFObjectFactory::operator<<(QString textString)
             textStream << textString;
         }
 
-        addObject(PDFObject::createString(std::make_shared<PDFString>(qMove(ba))));
+        return PDFObject::createString(std::make_shared<PDFString>(qMove(ba)));
     }
     else
     {
         // Use PDF document encoding
-        addObject(PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::convertToEncoding(textString, PDFEncoding::Encoding::PDFDoc))));
+        return PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::convertToEncoding(textString, PDFEncoding::Encoding::PDFDoc)));
     }
+}
 
+PDFObjectFactory& PDFObjectFactory::operator<<(QString textString)
+{
+    addObject(createTextString(textString));
     return *this;
 }
 
@@ -764,8 +768,10 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
         PDFContentStreamBuilder builder(mediaBox.size(), PDFContentStreamBuilder::CoordinateSystem::PDF);
 
         AnnotationDrawParameters parameters;
+        parameters.annotation = annotation.data();
         parameters.key = key;
         parameters.painter = builder.begin();
+        parameters.formManager = m_formManager;
         annotation->draw(parameters);
         PDFContentStreamBuilder::ContentStream contentStream = builder.end(parameters.painter);
 

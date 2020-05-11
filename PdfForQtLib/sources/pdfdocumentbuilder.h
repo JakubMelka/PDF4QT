@@ -134,6 +134,11 @@ public:
 
     PDFObject takeObject();
 
+    /// Creates text string object from QString, using PDFDocEncoding, if possible,
+    /// if not, then UTF-16 BE encoding is used
+    /// \param textString Text to be converted
+    static PDFObject createTextString(QString textString);
+    
 private:
     void addObject(PDFObject object);
 

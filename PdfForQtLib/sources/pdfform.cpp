@@ -773,6 +773,12 @@ const PDFAction* PDFFormManager::getAction(PDFAnnotationAdditionalActions::Actio
 
 void PDFFormManager::setFormFieldValue(PDFFormField::SetValueParameters parameters)
 {
+    if (!m_document)
+    {
+        // This can happen, when we are closing the document and some editor is opened
+        return;
+    }
+
     Q_ASSERT(parameters.invokingFormField);
     Q_ASSERT(parameters.invokingWidget.isValid());
 
@@ -1154,6 +1160,11 @@ void PDFFormManager::updateFieldValues()
         {
             childField->reloadValue(&m_document->getStorage(), PDFObject());
         }
+
+        for (PDFFormFieldWidgetEditor* editor : m_widgetEditors)
+        {
+            editor->reloadValue();
+        }
     }
 }
 
@@ -1496,6 +1507,22 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
         m_textEdit.setCursorPosition(m_textEdit.getPositionEnd(), false);
         m_textEdit.performSelectAll();
     }
+    else if (!m_textEdit.isPassword()) // Passwords are not saved in the document
+    {
+        // If text has been changed, then commit it
+        PDFObject object = PDFObjectFactory::createTextString(m_textEdit.getText());
+
+        if (object != m_formWidget.getParent()->getValue())
+        {
+            PDFFormField::SetValueParameters parameters;
+            parameters.formManager = m_formManager;
+            parameters.invokingWidget = m_formWidget.getWidget();
+            parameters.invokingFormField = m_formWidget.getParent();
+            parameters.scope = PDFFormField::SetValueParameters::Scope::User;
+            parameters.value = qMove(object);
+            m_formManager->setFormFieldValue(parameters);
+        }
+    }
 }
 
 PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
@@ -1514,6 +1541,23 @@ void PDFFormFieldTextBoxEditor::shortcutOverrideEvent(QWidget* widget, QKeyEvent
 
 void PDFFormFieldTextBoxEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
+    if (!m_textEdit.isMultiline() && (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return))
+    {
+        // Commit the editor
+        m_formManager->setFocusToEditor(nullptr);
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Escape)
+    {
+        // Cancel the editor
+        reloadValue();
+        m_formManager->setFocusToEditor(nullptr);
+        event->accept();
+        return;
+    }
+
     m_textEdit.keyPressEvent(widget, event);
 
     if (event->isAccepted())
@@ -1560,6 +1604,12 @@ void PDFFormFieldTextBoxEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* eve
         event->accept();
         widget->update();
     }
+}
+
+void PDFFormFieldTextBoxEditor::reloadValue()
+{
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
+    m_textEdit.setText(loader.readTextString(m_formWidget.getParent()->getValue(), QString()));
 }
 
 void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters) const
@@ -1845,6 +1895,10 @@ void PDFTextEditPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
     {
         const int position = (event->modifiers().testFlag(Qt::ControlModifier)) ? getCursorWordForward() : getCursorCharacterForward();
         setCursorPosition(position, event->modifiers().testFlag(Qt::ShiftModifier));
+    }
+    else if (isMultiline() && (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return))
+    {
+        performInsertText(QString::fromUtf16(u"\u2028"));
     }
     else
     {
@@ -2440,6 +2494,39 @@ int PDFTextEditPseudowidget::getCursorLineDown() const
     }
 
     return m_positionCursor;
+}
+
+bool PDFFormFieldText::setValue(const SetValueParameters& parameters)
+{
+    // Do not allow to set value to push buttons
+    if (getFlags().testFlag(PushButton))
+    {
+        return false;
+    }
+
+    // If form field is readonly, and scope is user (form field is changed by user,
+    // not by calculated value), then we must not allow value change.
+    if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
+    {
+        return false;
+    }
+
+    Q_ASSERT(parameters.formManager);
+    Q_ASSERT(parameters.modifier);
+
+    PDFDocumentBuilder* builder = parameters.modifier->getBuilder();
+    parameters.modifier->markFormFieldChanged();
+    builder->setFormFieldValue(getSelfReference(), parameters.value);
+    m_value = parameters.value;
+
+    // Change widget appearance states
+    for (const PDFFormWidget& formWidget : getWidgets())
+    {
+        builder->updateAnnotationAppearanceStreams(formWidget.getWidget());
+        parameters.modifier->markAnnotationsChanged();
+    }
+
+    return true;
 }
 
 }   // namespace pdf

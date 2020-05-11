@@ -316,6 +316,8 @@ public:
     const QString& getRichTextDefaultStyle() const { return m_defaultStyle; }
     const QString& getRichTextValue() const { return m_richTextValue; }
 
+    virtual bool setValue(const SetValueParameters& parameters) override;
+
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
@@ -473,6 +475,7 @@ public:
 
     inline void clearSelection() { m_selectionStart = m_selectionEnd = 0; }
 
+    inline const QString& getText() const { return m_editText; }
     inline QString getSelectedText() const { return m_editText.mid(m_selectionStart, getSelectionLength()); }
 
     /// Sets (updates) text selection
@@ -628,7 +631,7 @@ public:
     virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
-
+    virtual void reloadValue() { }
     virtual bool isEditorDrawEnabled() const { return false; }
 
     const PDFFormWidget* getFormWidget() const { return &m_formWidget; }
@@ -723,7 +726,7 @@ public:
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
     virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
-
+    virtual void reloadValue() override;
     virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
     virtual void draw(AnnotationDrawParameters& parameters) const override;
 
