@@ -31,6 +31,401 @@
 namespace pdf
 {
 
+/// "Pseudo" widget, which is emulating text editor, which can be single line, or multiline.
+/// Passwords can also be edited and editor can be read only.
+class PDFTextEditPseudowidget
+{
+public:
+    explicit PDFTextEditPseudowidget(PDFFormField::FieldFlags flags);
+
+    void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
+    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+
+    inline bool isReadonly() const { return m_flags.testFlag(PDFFormField::ReadOnly); }
+    inline bool isMultiline() const { return m_flags.testFlag(PDFFormField::Multiline); }
+    inline bool isPassword() const { return m_flags.testFlag(PDFFormField::Password); }
+    inline bool isFileSelect() const { return m_flags.testFlag(PDFFormField::FileSelect); }
+    inline bool isComb() const { return m_flags.testFlag(PDFFormField::Comb); }
+
+    inline bool isEmpty() const { return m_editText.isEmpty(); }
+    inline bool isTextSelected() const { return !isEmpty() && getSelectionLength() > 0; }
+    inline bool isWholeTextSelected() const { return !isEmpty() && getSelectionLength() == m_editText.length(); }
+
+    inline int getTextLength() const { return m_editText.length(); }
+    inline int getSelectionLength() const { return m_selectionEnd - m_selectionStart; }
+
+    inline int getPositionCursor() const { return m_positionCursor; }
+    inline int getPositionStart() const { return 0; }
+    inline int getPositionEnd() const { return getTextLength(); }
+
+    inline void clearSelection() { m_selectionStart = m_selectionEnd = 0; }
+
+    inline const QString& getText() const { return m_editText; }
+    inline QString getSelectedText() const { return m_editText.mid(m_selectionStart, getSelectionLength()); }
+
+    /// Sets (updates) text selection
+    /// \param startPosition From where we are selecting text
+    /// \param selectionLength Selection length (positive - to the right, negative - to the left)
+    void setSelection(int startPosition, int selectionLength);
+
+    /// Moves cursor position. It behaves as usual in text boxes,
+    /// when user moves the cursor. If \p select is true, then
+    /// selection is updated.
+    /// \param position New position of the cursor
+    /// \param select Select text when moving the cursor?
+    void setCursorPosition(int position, bool select);
+
+    /// Sets text content of the widget. This functions sets the text,
+    /// even if widget is readonly.
+    /// \param text Text to be set
+    void setText(const QString& text);
+
+    /// Sets widget appearance, such as font, font size, color, text alignment,
+    /// and rectangle, in which widget resides on page (in page coordinates)
+    /// \param appearance Appearance
+    /// \param textAlignment Text alignment
+    /// \param rect Widget rectangle in page coordinates
+    /// \param maxTextLength Maximal text length
+    void setAppearance(const PDFAnnotationDefaultAppearance& appearance,
+                       Qt::Alignment textAlignment,
+                       QRectF rect,
+                       int maxTextLength);
+
+    void performCut();
+    void performCopy();
+    void performPaste();
+    void performClear();
+    void performSelectAll();
+    void performBackspace();
+    void performDelete();
+    void performRemoveSelectedText();
+    void performInsertText(const QString& text);
+
+    /// Draw text edit using given parameters
+    /// \param parameters Parameters
+    void draw(AnnotationDrawParameters& parameters, bool edit) const;
+
+    /// Returns valid cursor position retrieved from position in the widget.
+    /// \param point Point in page coordinate space
+    /// \param edit Are we using edit transformations?
+    /// \returns Cursor position
+    int getCursorPositionFromWidgetPosition(const QPointF& point, bool edit) const;
+
+    inline int getCursorForward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepForward(), mode); }
+    inline int getCursorBackward(QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(getSingleStepBackward(), mode); }
+    inline int getCursorCharacterForward() const { return getCursorForward(QTextLayout::SkipCharacters); }
+    inline int getCursorCharacterBackward() const { return getCursorBackward(QTextLayout::SkipCharacters); }
+    inline int getCursorWordForward() const { return getCursorForward(QTextLayout::SkipWords); }
+    inline int getCursorWordBackward() const { return getCursorBackward(QTextLayout::SkipWords); }
+    inline int getCursorDocumentStart() const { return (getSingleStepForward() > 0) ? getPositionStart() : getPositionEnd(); }
+    inline int getCursorDocumentEnd() const { return (getSingleStepForward() > 0) ? getPositionEnd() : getPositionStart(); }
+    inline int getCursorLineStart() const { return (getSingleStepForward() > 0) ? getCurrentLineTextStart() : getCurrentLineTextEnd(); }
+    inline int getCursorLineEnd() const { return (getSingleStepForward() > 0) ? getCurrentLineTextEnd() : getCurrentLineTextStart(); }
+    inline int getCursorNextLine() const { return getCurrentLineTextEnd(); }
+    inline int getCursorPreviousLine() const { return getNextPrevCursorPosition(getCurrentLineTextStart(), -1, QTextLayout::SkipCharacters); }
+
+private:
+    /// This function does following things:
+    ///     1) Clamps edit text to fit maximum length
+    ///     2) Creates display string from edit string
+    ///     3) Updates text layout
+    void updateTextLayout();
+
+    /// Returns single step forward, which is determined
+    /// by cursor move style and layout direction.
+    int getSingleStepForward() const;
+
+    /// Returns single step backward, which is determined
+    /// by cursor move style and layout direction.
+    int getSingleStepBackward() const { return -getSingleStepForward(); }
+
+    /// Returns next/previous position, by number of steps,
+    /// using given cursor mode (skipping characters or whole words).
+    /// \param steps Number of steps to proceed (can be negative number)
+    /// \param mode Skip mode - letters or words?
+    int getNextPrevCursorPosition(int steps, QTextLayout::CursorMode mode) const { return getNextPrevCursorPosition(m_positionCursor, steps, mode); }
+
+    /// Returns next/previous position from reference cursor position, by number of steps,
+    /// using given cursor mode (skipping characters or whole words).
+    /// \param referencePosition Reference cursor position
+    /// \param steps Number of steps to proceed (can be negative number)
+    /// \param mode Skip mode - letters or words?
+    int getNextPrevCursorPosition(int referencePosition, int steps, QTextLayout::CursorMode mode) const;
+
+    /// Returns current line text start position
+    int getCurrentLineTextStart() const;
+
+    /// Returns current line text end position
+    int getCurrentLineTextEnd() const;
+
+    /// Creates text box transform matrix, which transforms from
+    /// widget space to page space.
+    /// \param edit Create matrix for text editing?
+    QMatrix createTextBoxTransformMatrix(bool edit) const;
+
+    /// Returns vector of cursor positions (which may be not equal
+    /// to edit string length, because edit string can contain surrogates,
+    /// or graphemes, which are single glyphs, but represented by more
+    /// 16-bit unicode codes).
+    std::vector<int> getCursorPositions() const;
+
+    int getCursorLineUp() const;
+    int getCursorLineDown() const;
+
+    PDFFormField::FieldFlags m_flags;
+
+    /// Text edited by the user
+    QString m_editText;
+
+    /// Text, which is displayed. It can differ from text
+    /// edited by user, in case password is being entered.
+    QString m_displayText;
+
+    /// Text layout
+    QTextLayout m_textLayout;
+
+    /// Character for displaying passwords
+    QChar m_passwordReplacementCharacter;
+
+    int m_selectionStart;
+    int m_selectionEnd;
+    int m_positionCursor;
+    int m_maxTextLength;
+
+    QRectF m_widgetRect;
+    QColor m_textColor;
+};
+
+/// Editor for button-like editors
+class PDFFormFieldAbstractButtonEditor : public PDFFormFieldWidgetEditor
+{
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldAbstractButtonEditor() = default;
+
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+
+protected:
+    virtual void click() = 0;
+};
+
+/// Editor for push buttons
+class PDFFormFieldPushButtonEditor : public PDFFormFieldAbstractButtonEditor
+{
+private:
+    using BaseClass = PDFFormFieldAbstractButtonEditor;
+
+public:
+    explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldPushButtonEditor() = default;
+
+protected:
+    virtual void click() override;
+};
+
+/// Editor for check boxes or radio buttons
+class PDFFormFieldCheckableButtonEditor : public PDFFormFieldAbstractButtonEditor
+{
+private:
+    using BaseClass = PDFFormFieldAbstractButtonEditor;
+
+public:
+    explicit PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldCheckableButtonEditor() = default;
+
+protected:
+    virtual void click() override;
+};
+
+/// Editor for text fields
+class PDFFormFieldTextBoxEditor : public PDFFormFieldWidgetEditor
+{
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldTextBoxEditor() = default;
+
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void reloadValue() override;
+    virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
+    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
+
+    /// Initializes text edit using actual form field value,
+    /// font, color for text edit appearance.
+    /// \param textEdit Text editor
+    void initializeTextEdit(PDFTextEditPseudowidget* textEdit) const;
+
+protected:
+    virtual void setFocusImpl(bool focused);
+
+private:
+    PDFTextEditPseudowidget m_textEdit;
+};
+
+/// Editor for combo boxes
+class PDFFormFieldComboBoxEditor : public PDFFormFieldWidgetEditor
+{
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldComboBoxEditor() = default;
+};
+
+/// "Pseudo" widget, which is emulating list box. It can contain scrollbar.
+class PDFListBoxPseudowidget
+{
+public:
+    explicit PDFListBoxPseudowidget(PDFFormField::FieldFlags flags);
+
+    using Options = PDFFormFieldChoice::Options;
+
+    inline bool isReadonly() const { return m_flags.testFlag(PDFFormField::ReadOnly); }
+    inline bool isMultiSelect() const { return m_flags.testFlag(PDFFormField::MultiSelect); }
+    inline bool isCommitOnSelectionChange() const { return m_flags.testFlag(PDFFormField::CommitOnSelectionChange); }
+
+    void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
+    void keyPressEvent(QWidget* widget, QKeyEvent* event);
+
+    /// Sets widget appearance, such as font, font size, color, text alignment,
+    /// and rectangle, in which widget resides on page (in page coordinates)
+    /// \param appearance Appearance
+    /// \param textAlignment Text alignment
+    /// \param rect Widget rectangle in page coordinates
+    /// \param options Options selectable by list box
+    /// \param topIndex Index of first visible item
+    void setAppearance(const PDFAnnotationDefaultAppearance& appearance,
+                       Qt::Alignment textAlignment,
+                       QRectF rect,
+                       const Options& options,
+                       int topIndex,
+                       std::set<int> selection);
+
+    /// Draw text edit using given parameters
+    /// \param parameters Parameters
+    void draw(AnnotationDrawParameters& parameters, bool edit) const;
+
+    /// Sets current selection. If commit on selection change flag
+    /// is set, then contents of the widgets are commited. New selection
+    /// is not set, if field is readonly and \p force is false
+    /// \param selection New selection
+    /// \param force Set selection even if readonly
+    void setSelection(std::set<int> selection, bool force);
+
+    /// Returns active item selection
+    const std::set<int>& getSelection() const { return m_selection; }
+
+    /// Returns top index
+    int getTopItemIndex() const { return m_topIndex; }
+
+    /// Set top item index
+    /// \param index Top item index
+    void setTopItemIndex(int index);
+
+private:
+    int getStartItemIndex() const { return 0; }
+    int getEndItemIndex() const { return m_options.empty() ? 0 : int(m_options.size() - 1); }
+
+    int getSingleStep() const { return 1; }
+    int getPageStep() const { return qMax(getViewportRowCount() - 1, getSingleStep()); }
+
+    int getViewportRowCount() const { return qFloor(m_widgetRect.height() / m_lineSpacing); }
+
+    /// Returns true, if row with this index is visible in the widget
+    /// (it is in viewport).
+    /// \param index Index
+    bool isVisible(int index) const;
+
+    /// Scrolls the list box in such a way, that index is visible
+    /// \param index Index to scroll to
+    void scrollTo(int index);
+
+    /// Sets current item and updates selection based on keyboard modifiers
+    /// \param index New index
+    /// \param modifiers Keyboard modifiers
+    void setCurrentItem(int index, Qt::KeyboardModifiers modifiers);
+
+    /// Moves current item by offset (negative is up, positive is down)
+    /// \param offset Offset
+    /// \param modifiers Keyboard modifiers
+    void moveCurrentItemIndexByOffset(int offset, Qt::KeyboardModifiers modifiers) { setCurrentItem(m_currentIndex + offset, modifiers); }
+
+    /// Returns true, if list box has continuous selection
+    bool hasContinuousSelection() const;
+
+    /// Returns valid index from index (i.e. index which ranges from first
+    /// row to the last one). If index itself is valid, then it is returned.
+    /// \param index Index, from which we want to get valid one
+    int getValidIndex(int index) const;
+
+    PDFFormField::FieldFlags m_flags;
+
+    Options m_options;
+    Qt::Alignment m_textAlignment = 0;
+    int m_topIndex = 0;
+    int m_currentIndex = 0;
+    std::set<int> m_selection;
+    QFont m_font;
+    PDFReal m_lineSpacing = 0.0;
+    QRectF m_widgetRect;
+    QColor m_textColor;
+};
+
+/// Editor for list boxes
+class PDFFormFieldListBoxEditor : public PDFFormFieldWidgetEditor
+{
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldListBoxEditor() = default;
+
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void reloadValue() override;
+    virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
+    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
+
+    /// Initializes list box using actual form field value,
+    /// font, color for text edit appearance.
+    /// \param listBox List box
+    void initializeListBox(PDFListBoxPseudowidget* listBox) const;
+
+protected:
+    virtual void setFocusImpl(bool focused);
+
+private:
+    /// Returns list of selected items parsed from the object.
+    /// If object is invalid, empty selection is returned. Indices are
+    /// primarily read from \p indices object, if it fails, indices
+    /// are being read from \p value object.
+    /// \param value Selection (string or array of strings)
+    /// \param indices Selected indices
+    std::set<int> getSelectedItems(PDFObject value, PDFObject indices) const;
+
+    /// Commits data to the PDF document
+    void commit();
+
+    PDFListBoxPseudowidget m_listBox;
+};
+
 PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
 {
     PDFForm form;
@@ -115,6 +510,29 @@ void PDFForm::updateWidgetToFormFieldMapping()
             formFieldPtr->fillWidgetToFormFieldMapping(m_widgetToFormField);
         }
     }
+}
+
+Qt::Alignment PDFForm::getDefaultAlignment() const
+{
+    Qt::Alignment alignment = Qt::AlignVCenter;
+
+    switch (getQuadding().value_or(0))
+    {
+        default:
+        case 0:
+            alignment |= Qt::AlignLeft;
+            break;
+
+        case 1:
+            alignment |= Qt::AlignHCenter;
+            break;
+
+        case 2:
+            alignment |= Qt::AlignRight;
+            break;
+    }
+
+    return alignment;
 }
 
 const PDFFormField* PDFForm::getFormFieldForWidget(PDFObjectReference widget) const
@@ -399,6 +817,7 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
             }
 
             formFieldChoice->m_topIndex = loader.readIntegerFromDictionary(fieldDictionary, "TI", 0);
+            formFieldChoice->m_selection = fieldDictionary->get("I");
         }
     }
 
@@ -562,7 +981,7 @@ PDFFormManager::PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
 
 PDFFormManager::~PDFFormManager()
 {
-
+    clearEditors();
 }
 
 PDFAnnotationManager* PDFFormManager::getAnnotationManager() const
@@ -1076,11 +1495,16 @@ const std::optional<QCursor>& PDFFormManager::getCursor() const
     return dummy;
 }
 
+void PDFFormManager::clearEditors()
+{
+    qDeleteAll(m_widgetEditors);
+    m_widgetEditors.clear();
+}
+
 void PDFFormManager::updateFormWidgetEditors()
 {
     setFocusToEditor(nullptr);
-    qDeleteAll(m_widgetEditors);
-    m_widgetEditors.clear();
+    clearEditors();
 
     for (PDFFormWidget widget : getWidgets())
     {
@@ -1095,14 +1519,14 @@ void PDFFormManager::updateFormWidgetEditors()
                 {
                     case PDFFormFieldButton::ButtonType::PushButton:
                     {
-                        m_widgetEditors.push_back(new PDFFormFieldPushButtonEditor(this, widget, this));
+                        m_widgetEditors.push_back(new PDFFormFieldPushButtonEditor(this, widget));
                         break;
                     }
 
                     case PDFFormFieldButton::ButtonType::RadioButton:
                     case PDFFormFieldButton::ButtonType::CheckBox:
                     {
-                        m_widgetEditors.push_back(new PDFFormFieldCheckableButtonEditor(this, widget, this));
+                        m_widgetEditors.push_back(new PDFFormFieldCheckableButtonEditor(this, widget));
                         break;
                     }
 
@@ -1116,7 +1540,7 @@ void PDFFormManager::updateFormWidgetEditors()
 
             case PDFFormField::FieldType::Text:
             {
-                m_widgetEditors.push_back(new PDFFormFieldTextBoxEditor(this, widget, this));
+                m_widgetEditors.push_back(new PDFFormFieldTextBoxEditor(this, widget));
                 break;
             }
 
@@ -1126,11 +1550,11 @@ void PDFFormManager::updateFormWidgetEditors()
                 const PDFFormFieldChoice* formFieldChoice = static_cast<const PDFFormFieldChoice*>(formField);
                 if (formFieldChoice->isComboBox())
                 {
-                    m_widgetEditors.push_back(new PDFFormFieldComboBoxEditor(this, widget, this));
+                    m_widgetEditors.push_back(new PDFFormFieldComboBoxEditor(this, widget));
                 }
                 else if (formFieldChoice->isListBox())
                 {
-                    m_widgetEditors.push_back(new PDFFormFieldListBoxEditor(this, widget, this));
+                    m_widgetEditors.push_back(new PDFFormFieldListBoxEditor(this, widget));
                 }
                 else
                 {
@@ -1181,8 +1605,7 @@ PDFFormFieldWidgetEditor* PDFFormManager::getEditor(const PDFFormField* formFiel
     return nullptr;
 }
 
-PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(parent),
+PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
     m_formManager(formManager),
     m_formWidget(formWidget),
     m_hasFocus(false)
@@ -1245,9 +1668,10 @@ void PDFFormFieldWidgetEditor::setFocus(bool hasFocus)
     }
 }
 
-void PDFFormFieldWidgetEditor::draw(AnnotationDrawParameters& parameters) const
+void PDFFormFieldWidgetEditor::draw(AnnotationDrawParameters& parameters, bool edit) const
 {
     Q_UNUSED(parameters);
+    Q_UNUSED(edit)
 }
 
 void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEvent* event)
@@ -1315,14 +1739,14 @@ void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEven
     m_formManager->focusNextPrevFormField(next);
 }
 
-PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent)
+PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget)
 {
 
 }
 
-PDFFormFieldAbstractButtonEditor::PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent)
+PDFFormFieldAbstractButtonEditor::PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget)
 {
 
 }
@@ -1418,8 +1842,8 @@ void PDFFormFieldPushButtonEditor::click()
     }
 }
 
-PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent)
+PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget)
 {
 
 }
@@ -1451,14 +1875,8 @@ void PDFFormFieldCheckableButtonEditor::click()
     m_formManager->setFormFieldValue(parameters);
 }
 
-PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent)
-{
-
-}
-
-PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent)
+PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget)
 {
 
 }
@@ -1478,21 +1896,7 @@ void PDFFormFieldTextBoxEditor::initializeTextEdit(PDFTextEditPseudowidget* text
     Qt::Alignment alignment = parentField->getAlignment();
     if (!(alignment & Qt::AlignHorizontal_Mask))
     {
-        switch (m_formManager->getForm()->getQuadding().value_or(0))
-        {
-            default:
-            case 0:
-                alignment |= Qt::AlignLeft;
-                break;
-
-            case 1:
-                alignment |= Qt::AlignHCenter;
-                break;
-
-            case 2:
-                alignment |= Qt::AlignRight;
-                break;
-        }
+        alignment |= m_formManager->getForm()->getDefaultAlignment() & Qt::AlignHorizontal_Mask;
     }
 
     // Initialize text edit
@@ -1525,8 +1929,8 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
     }
 }
 
-PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget, QObject* parent) :
-    BaseClass(formManager, formWidget, parent),
+PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget),
     m_textEdit(formWidget.getParent()->getFlags())
 {
     initializeTextEdit(&m_textEdit);
@@ -1612,9 +2016,19 @@ void PDFFormFieldTextBoxEditor::reloadValue()
     m_textEdit.setText(loader.readTextString(m_formWidget.getParent()->getValue(), QString()));
 }
 
-void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters) const
+void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters, bool edit) const
 {
-    m_textEdit.draw(parameters, true);
+    if (edit)
+    {
+        m_textEdit.draw(parameters, true);
+    }
+    else
+    {
+        // Draw static contents
+        PDFTextEditPseudowidget pseudowidget(m_formWidget.getParent()->getFlags());
+        initializeTextEdit(&pseudowidget);
+        pseudowidget.draw(parameters, false);
+    }
 }
 
 PDFTextEditPseudowidget::PDFTextEditPseudowidget(PDFFormField::FieldFlags flags) :
@@ -2222,7 +2636,7 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         QRectF combRect(0.0, 0.0, combWidth, m_widgetRect.height());
         painter->setFont(m_textLayout.font());
 
-        QColor textColor = getAdjustedColor(palette.color(QPalette::Text));
+        QColor textColor = getAdjustedColor(m_textColor);
         QColor highlightTextColor = getAdjustedColor(palette.color(QPalette::HighlightedText));
         QColor highlightColor = getAdjustedColor(palette.color(QPalette::Highlight));
 
@@ -2527,6 +2941,552 @@ bool PDFFormFieldText::setValue(const SetValueParameters& parameters)
     }
 
     return true;
+}
+
+PDFListBoxPseudowidget::PDFListBoxPseudowidget(PDFFormField::FieldFlags flags) :
+    m_flags(flags),
+    m_topIndex(0),
+    m_currentIndex(0)
+{
+
+}
+
+void PDFListBoxPseudowidget::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event == QKeySequence::Copy)
+    {
+        event->accept();
+        return;
+    }
+
+    if (event == QKeySequence::SelectAll)
+    {
+        // Select All can be processed only, if multiselection is allowed
+        if (isMultiSelect())
+        {
+            event->accept();
+        }
+        return;
+    }
+
+    switch (event->key())
+    {
+        case Qt::Key_Home:
+        case Qt::Key_End:
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+        case Qt::Key_PageUp:
+        case Qt::Key_PageDown:
+            event->accept();
+            break;
+
+        default:
+            break;
+    }
+}
+
+void PDFListBoxPseudowidget::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    event->accept();
+
+    if (event == QKeySequence::Copy)
+    {
+        // Copy the item text
+        if (m_currentIndex >= 0 && m_currentIndex < m_options.size())
+        {
+            QApplication::clipboard()->setText(m_options[m_currentIndex].userString, QClipboard::Clipboard);
+        }
+        return;
+    }
+
+    if (event == QKeySequence::SelectAll && isMultiSelect())
+    {
+        std::set<int> selection;
+        for (int i = 0; i < m_options.size(); ++i)
+        {
+            selection.insert(i);
+        }
+        setSelection(qMove(selection), false);
+        return;
+    }
+
+    switch (event->key())
+    {
+        case Qt::Key_Home:
+            setCurrentItem(getStartItemIndex(), event->modifiers());
+            break;
+
+        case Qt::Key_End:
+            setCurrentItem(getEndItemIndex(), event->modifiers());
+            break;
+
+        case Qt::Key_Up:
+            moveCurrentItemIndexByOffset(-getSingleStep(), event->modifiers());
+            break;
+
+        case Qt::Key_Down:
+            moveCurrentItemIndexByOffset(getSingleStep(), event->modifiers());
+            break;
+
+        case Qt::Key_PageUp:
+            moveCurrentItemIndexByOffset(-getPageStep(), event->modifiers());
+            break;
+
+        case Qt::Key_PageDown:
+            moveCurrentItemIndexByOffset(getPageStep(), event->modifiers());
+            break;
+
+        default:
+            event->ignore();
+            break;
+    }
+}
+
+void PDFListBoxPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance& appearance,
+                                           Qt::Alignment textAlignment,
+                                           QRectF rect,
+                                           const PDFListBoxPseudowidget::Options& options,
+                                           int topIndex,
+                                           std::set<int> selection)
+{
+    // Set appearance
+    qreal fontSize = appearance.getFontSize();
+    if (qFuzzyIsNull(fontSize))
+    {
+        fontSize = qMax(rect.height() / qMax<qreal>(options.size(), 1), qreal(12.0));
+    }
+
+    QFont font(appearance.getFontName());
+    font.setHintingPreference(QFont::PreferNoHinting);
+    font.setPixelSize(qCeil(fontSize));
+    font.setStyleStrategy(QFont::ForceOutline);
+    m_font = font;
+
+    QFontMetricsF fontMetrics(font);
+    m_lineSpacing = fontMetrics.lineSpacing();
+
+    m_textColor = appearance.getFontColor();
+    if (!m_textColor.isValid())
+    {
+        m_textColor = Qt::black;
+    }
+
+    m_textAlignment = textAlignment;
+    m_widgetRect = rect;
+    m_options = options;
+    m_topIndex = getValidIndex(topIndex);
+    m_selection = qMove(selection);
+    m_currentIndex = m_topIndex;
+}
+
+void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edit) const
+{
+    pdf::PDFPainterStateGuard guard(parameters.painter);
+    parameters.boundingRectangle = parameters.annotation->getRectangle();
+
+    QPalette palette = QApplication::palette();
+
+    auto getAdjustedColor = [&parameters](QColor color)
+    {
+        if (parameters.invertColors)
+        {
+            return invertColor(color);
+        }
+
+        return color;
+    };
+
+    QMatrix matrix;
+    matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
+    matrix.scale(1.0, -1.0);
+
+    QPainter* painter = parameters.painter;
+    painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
+    painter->setWorldMatrix(matrix, true);
+    painter->setPen(getAdjustedColor(m_textColor));
+    painter->setFont(m_font);
+
+    QColor textColor = getAdjustedColor(m_textColor);
+    QColor highlightTextColor = getAdjustedColor(palette.color(QPalette::HighlightedText));
+    QColor highlightColor = getAdjustedColor(palette.color(QPalette::Highlight));
+
+    QRectF rect(0, 0, m_widgetRect.width(), m_lineSpacing);
+    for (int i = m_topIndex; i < m_options.size(); ++i)
+    {
+        if (m_selection.count(i))
+        {
+            painter->fillRect(rect, highlightColor);
+            painter->setPen(highlightTextColor);
+        }
+        else
+        {
+            painter->setPen(textColor);
+        }
+
+        painter->drawText(rect, m_textAlignment | Qt::TextSingleLine, m_options[i].userString);
+
+        if (edit && m_currentIndex == i)
+        {
+            pdf::PDFPainterStateGuard guard(parameters.painter);
+            painter->setBrush(Qt::NoBrush);
+            painter->setPen(Qt::DotLine);
+            painter->drawRect(rect);
+        }
+
+        rect.translate(0, m_lineSpacing);
+    }
+}
+
+void PDFListBoxPseudowidget::setSelection(std::set<int> selection, bool force)
+{
+    if (isReadonly() && !force)
+    {
+        // Field is readonly
+        return;
+    }
+
+    // Jakub Melka: Here should be also commit, when flag CommitOnSelectionChange is set,
+    // but we do it only, when widget loses focus (so no need to update appearance often).
+    // I hope it will be OK.
+
+    m_selection = qMove(selection);
+}
+
+void PDFListBoxPseudowidget::setTopItemIndex(int index)
+{
+    m_topIndex = getValidIndex(index);
+}
+
+bool PDFListBoxPseudowidget::isVisible(int index) const
+{
+    return index >= m_topIndex && index < m_topIndex + getViewportRowCount();
+}
+
+void PDFListBoxPseudowidget::scrollTo(int index)
+{
+    while (!isVisible(index))
+    {
+        if (index < m_topIndex)
+        {
+            --m_topIndex;
+        }
+        else
+        {
+            ++m_topIndex;
+        }
+    }
+}
+
+void PDFListBoxPseudowidget::setCurrentItem(int index, Qt::KeyboardModifiers modifiers)
+{
+    index = getValidIndex(index);
+
+    if (m_currentIndex == index)
+    {
+        return;
+    }
+
+    std::set<int> newSelection;
+    if (!isMultiSelect() || !modifiers.testFlag(Qt::ShiftModifier))
+    {
+        newSelection = { index };
+    }
+    else
+    {
+        int indexFrom = index;
+        int indexTo = index;
+
+        if (hasContinuousSelection())
+        {
+            indexFrom = qMin(index, *m_selection.begin());
+            indexTo = qMax(index, *m_selection.rbegin());
+        }
+        else
+        {
+            indexFrom = qMin(index, m_currentIndex);
+            indexTo = qMax(index, m_currentIndex);
+        }
+
+        for (int i = indexFrom; i <= indexTo; ++i)
+        {
+            newSelection.insert(i);
+        }
+    }
+
+    m_currentIndex = index;
+    setSelection(qMove(newSelection), false);
+    scrollTo(m_currentIndex);
+}
+
+bool PDFListBoxPseudowidget::hasContinuousSelection() const
+{
+    if (m_selection.empty())
+    {
+        return false;
+    }
+
+    return *m_selection.rbegin() - *m_selection.begin() + 1 == m_selection.size();
+}
+
+int PDFListBoxPseudowidget::getValidIndex(int index) const
+{
+    return qBound(getStartItemIndex(), index, getEndItemIndex());
+}
+
+PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget),
+    m_listBox(formWidget.getParent()->getFlags())
+{
+    initializeListBox(&m_listBox);
+}
+
+void PDFFormFieldListBoxEditor::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    m_listBox.shortcutOverrideEvent(widget, event);
+}
+
+void PDFFormFieldListBoxEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    if ((event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return))
+    {
+        // Commit the editor
+        m_formManager->setFocusToEditor(nullptr);
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Escape)
+    {
+        // Cancel the editor
+        reloadValue();
+        m_formManager->setFocusToEditor(nullptr);
+        event->accept();
+        return;
+    }
+
+    m_listBox.keyPressEvent(widget, event);
+
+    if (event->isAccepted())
+    {
+        widget->update();
+    }
+}
+
+void PDFFormFieldListBoxEditor::mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+
+}
+
+void PDFFormFieldListBoxEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+
+}
+
+void PDFFormFieldListBoxEditor::mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+
+}
+
+void PDFFormFieldListBoxEditor::reloadValue()
+{
+    const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+    Q_ASSERT(parentField);
+
+    m_listBox.setTopItemIndex(parentField->getTopIndex());
+    m_listBox.setSelection(getSelectedItems(parentField->getValue(), parentField->getSelection()), true);
+}
+
+void PDFFormFieldListBoxEditor::draw(AnnotationDrawParameters& parameters, bool edit) const
+{
+    if (edit)
+    {
+        m_listBox.draw(parameters, true);
+    }
+    else
+    {
+        // Draw static contents
+        PDFListBoxPseudowidget pseudowidget(m_formWidget.getParent()->getFlags());
+        initializeListBox(&pseudowidget);
+        pseudowidget.draw(parameters, false);
+    }
+}
+
+void PDFFormFieldListBoxEditor::initializeListBox(PDFListBoxPseudowidget* listBox) const
+{
+    const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+    Q_ASSERT(parentField);
+
+    listBox->setAppearance(PDFAnnotationDefaultAppearance::parse(m_formManager->getForm()->getDefaultAppearance().value_or(QByteArray())),
+                           m_formManager->getForm()->getDefaultAlignment(),
+                           m_formManager->getWidgetRectangle(m_formWidget),
+                           parentField->getOptions(),
+                           parentField->getTopIndex(),
+                           getSelectedItems(parentField->getValue(), parentField->getSelection()));
+}
+
+void PDFFormFieldListBoxEditor::setFocusImpl(bool focused)
+{
+    if (!focused && !m_listBox.isReadonly())
+    {
+        commit();
+    }
+}
+
+std::set<int> PDFFormFieldListBoxEditor::getSelectedItems(PDFObject value, PDFObject indices) const
+{
+    std::set<int> result;
+
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
+    value = m_formManager->getDocument()->getObject(value);
+
+    std::vector<PDFInteger> indicesVector = loader.readIntegerArray(indices);
+    if (indicesVector.empty())
+    {
+        const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+        Q_ASSERT(parentField);
+
+        const PDFFormFieldChoice::Options& options = parentField->getOptions();
+        auto addOption = [&options, &result](const QString& optionString)
+        {
+            for (size_t i = 0; i < options.size(); ++i)
+            {
+                const PDFFormFieldChoice::Option& option = options[i];
+                if (option.userString == optionString)
+                {
+                    result.insert(int(i));
+                }
+            }
+        };
+
+        if (value.isString())
+        {
+            addOption(loader.readTextString(value, QString()));
+        }
+        else if (value.isArray())
+        {
+            for (const QString& string : loader.readTextStringList(value))
+            {
+                addOption(string);
+            }
+        }
+    }
+    else
+    {
+        std::sort(indicesVector.begin(), indicesVector.end());
+        std::copy(indicesVector.cbegin(), indicesVector.cend(), std::inserter(result, result.cend()));
+    }
+
+    return result;
+}
+
+void PDFFormFieldListBoxEditor::commit()
+{
+    PDFObject object;
+
+    const std::set<int>& selection = m_listBox.getSelection();
+    if (!selection.empty())
+    {
+        const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+        Q_ASSERT(parentField);
+
+        const PDFFormFieldChoice::Options& options = parentField->getOptions();
+        std::set<QString> values;
+
+        for (const int index : selection)
+        {
+            values.insert(options[index].userString);
+        }
+
+        if (values.size() == 1)
+        {
+            object = PDFObjectFactory::createTextString(*values.begin());
+        }
+        else
+        {
+            PDFObjectFactory objectFactory;
+            objectFactory.beginArray();
+
+            for (const QString& string : values)
+            {
+                objectFactory << string;
+            }
+
+            objectFactory.endArray();
+            object = objectFactory.takeObject();
+        }
+    }
+
+    if (object != m_formWidget.getParent()->getValue())
+    {
+        PDFFormField::SetValueParameters parameters;
+        parameters.formManager = m_formManager;
+        parameters.invokingWidget = m_formWidget.getWidget();
+        parameters.invokingFormField = m_formWidget.getParent();
+        parameters.scope = PDFFormField::SetValueParameters::Scope::User;
+        parameters.value = qMove(object);
+        parameters.listboxTopIndex = m_listBox.getTopItemIndex();
+        std::copy(selection.cbegin(), selection.cend(), std::back_inserter(parameters.listboxChoices));
+        m_formManager->setFormFieldValue(parameters);
+    }
+}
+
+bool PDFFormFieldChoice::setValue(const SetValueParameters& parameters)
+{
+    // Do not allow to set value to push buttons
+    if (getFlags().testFlag(PushButton))
+    {
+        return false;
+    }
+
+    // If form field is readonly, and scope is user (form field is changed by user,
+    // not by calculated value), then we must not allow value change.
+    if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
+    {
+        return false;
+    }
+
+    Q_ASSERT(parameters.formManager);
+    Q_ASSERT(parameters.modifier);
+
+    PDFDocumentBuilder* builder = parameters.modifier->getBuilder();
+    parameters.modifier->markFormFieldChanged();
+    builder->setFormFieldValue(getSelfReference(), parameters.value);
+
+    if (isListBox())
+    {
+        // Listbox has special values, which must be set
+        builder->setFormFieldChoiceTopIndex(getSelfReference(), parameters.listboxTopIndex);
+        builder->setFormFieldChoiceIndices(getSelfReference(), parameters.listboxChoices);
+    }
+
+    m_value = parameters.value;
+
+    // Change widget appearance states
+    for (const PDFFormWidget& formWidget : getWidgets())
+    {
+        builder->updateAnnotationAppearanceStreams(formWidget.getWidget());
+        parameters.modifier->markAnnotationsChanged();
+    }
+
+    return true;
+}
+
+void PDFFormFieldChoice::reloadValue(const PDFObjectStorage* storage, PDFObject parentValue)
+{
+    BaseClass::reloadValue(storage, parentValue);
+
+    if (const PDFDictionary* fieldDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(getSelfReference())))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        m_topIndex = loader.readIntegerFromDictionary(fieldDictionary, "TI", 0);
+        m_selection = fieldDictionary->get("I");
+    }
 }
 
 }   // namespace pdf

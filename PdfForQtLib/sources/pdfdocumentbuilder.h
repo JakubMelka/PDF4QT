@@ -27,6 +27,8 @@ class QPdfWriter;
 namespace pdf
 {
 
+using PDFIntegerVector = std::vector<PDFInteger>;
+
 struct WrapName
 {
     WrapName(const char* name) :
@@ -926,6 +928,20 @@ public:
     /// Set document title.
     /// \param title Title
     void setDocumentTitle(QString title);
+
+
+    /// Sets form field list box indices.
+    /// \param formField Form field
+    /// \param indices Sorted list of selected indices
+    void setFormFieldChoiceIndices(PDFObjectReference formField,
+                                   PDFIntegerVector indices);
+
+
+    /// Sets form field list box top index. Top index is zero-based index of first item visible in the list box.
+    /// \param formField Form field
+    /// \param topIndex Zero-based index of first visible item
+    void setFormFieldChoiceTopIndex(PDFObjectReference formField,
+                                    PDFInteger topIndex);
 
 
     /// Sets form field value. Value must be correct for this form field, no checking is performed. Also, if 

@@ -140,6 +140,7 @@ public:
         _PDFReal,
         _PDFObjectReference,
         _PDFObject,
+        _PDFIntegerVector,
         _QString,
         _QPointF,
         _QRectF,

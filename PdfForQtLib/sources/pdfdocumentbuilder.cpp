@@ -3210,6 +3210,36 @@ void PDFDocumentBuilder::setDocumentTitle(QString title)
 }
 
 
+void PDFDocumentBuilder::setFormFieldChoiceIndices(PDFObjectReference formField,
+                                                   PDFIntegerVector indices)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("I");
+    objectBuilder << indices;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject formFieldObject = objectBuilder.takeObject();
+    mergeTo(formField, formFieldObject);
+}
+
+
+void PDFDocumentBuilder::setFormFieldChoiceTopIndex(PDFObjectReference formField,
+                                                    PDFInteger topIndex)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("TI");
+    objectBuilder << topIndex;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject formFieldObject = objectBuilder.takeObject();
+    mergeTo(formField, formFieldObject);
+}
+
+
 void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
                                            PDFObject value)
 {

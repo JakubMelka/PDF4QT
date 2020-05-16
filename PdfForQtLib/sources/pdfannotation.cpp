@@ -2918,21 +2918,16 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
     const PDFFormFieldWidgetEditor* editor = parameters.formManager->getEditor(formField);
     if (editor && editor->isEditorDrawEnabled())
     {
-        editor->draw(parameters);
+        editor->draw(parameters, true);
     }
     else
     {
         switch (formField->getFieldType())
         {
             case PDFFormField::FieldType::Text:
+            case PDFFormField::FieldType::Choice:
             {
-                if (const PDFFormFieldTextBoxEditor* textBoxEditor = qobject_cast<const PDFFormFieldTextBoxEditor*>(editor))
-                {
-                    PDFTextEditPseudowidget pseudowidget(formField->getFlags());
-                    textBoxEditor->initializeTextEdit(&pseudowidget);
-                    pseudowidget.draw(parameters, false);
-                }
-
+                editor->draw(parameters, false);
                 break;
             }
 
@@ -3038,9 +3033,6 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
 
                 break;
             }
-
-            case PDFFormField::FieldType::Choice:
-                // TODO: Draw choice field
 
             case PDFFormField::FieldType::Invalid:
             case PDFFormField::FieldType::Signature:
