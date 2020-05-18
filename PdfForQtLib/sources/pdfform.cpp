@@ -335,6 +335,28 @@ public:
     /// \param index Top item index
     void setTopItemIndex(int index);
 
+    /// Scrolls the list box in such a way, that index is visible
+    /// \param index Index to scroll to
+    void scrollTo(int index);
+
+    /// Returns valid index from index (i.e. index which ranges from first
+    /// row to the last one). If index itself is valid, then it is returned.
+    /// \param index Index, from which we want to get valid one
+    int getValidIndex(int index) const;
+
+    /// Returns number of rows in the viewport
+    int getViewportRowCount() const { return qFloor(m_widgetRect.height() / m_lineSpacing); }
+
+    /// Returns item index from widget position (i.e. transforms
+    /// point in the widget to the index of item, which is under the point)
+    /// \param point Widget point
+    int getIndexFromWidgetPosition(const QPointF& point) const;
+
+    /// Sets current item and updates selection based on keyboard modifiers
+    /// \param index New index
+    /// \param modifiers Keyboard modifiers
+    void setCurrentItem(int index, Qt::KeyboardModifiers modifiers);
+
 private:
     int getStartItemIndex() const { return 0; }
     int getEndItemIndex() const { return m_options.empty() ? 0 : int(m_options.size() - 1); }
@@ -342,21 +364,10 @@ private:
     int getSingleStep() const { return 1; }
     int getPageStep() const { return qMax(getViewportRowCount() - 1, getSingleStep()); }
 
-    int getViewportRowCount() const { return qFloor(m_widgetRect.height() / m_lineSpacing); }
-
     /// Returns true, if row with this index is visible in the widget
     /// (it is in viewport).
     /// \param index Index
     bool isVisible(int index) const;
-
-    /// Scrolls the list box in such a way, that index is visible
-    /// \param index Index to scroll to
-    void scrollTo(int index);
-
-    /// Sets current item and updates selection based on keyboard modifiers
-    /// \param index New index
-    /// \param modifiers Keyboard modifiers
-    void setCurrentItem(int index, Qt::KeyboardModifiers modifiers);
 
     /// Moves current item by offset (negative is up, positive is down)
     /// \param offset Offset
@@ -366,10 +377,8 @@ private:
     /// Returns true, if list box has continuous selection
     bool hasContinuousSelection() const;
 
-    /// Returns valid index from index (i.e. index which ranges from first
-    /// row to the last one). If index itself is valid, then it is returned.
-    /// \param index Index, from which we want to get valid one
-    int getValidIndex(int index) const;
+    /// Creates transformation matrix, which transforms widget coordinates to page coordinates
+    QMatrix createListBoxTransformMatrix() const;
 
     PDFFormField::FieldFlags m_flags;
 
@@ -398,7 +407,7 @@ public:
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
-    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition) override;
     virtual void reloadValue() override;
     virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
     virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
@@ -974,6 +983,7 @@ PDFFormManager::PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     m_annotationManager(nullptr),
     m_document(nullptr),
     m_flags(getDefaultApperanceFlags()),
+    m_isCommitDisabled(false),
     m_focusedEditor(nullptr)
 {
     Q_ASSERT(proxy);
@@ -1003,6 +1013,7 @@ void PDFFormManager::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
+        PDFTemporaryValueChange change(&m_isCommitDisabled, true);
         m_document = document;
 
         if (document.hasReset())
@@ -1368,14 +1379,23 @@ void PDFFormManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
 void PDFFormManager::wheelEvent(QWidget* widget, QWheelEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
-
-    // We will accept mouse wheel events, if we are grabbing the mouse.
-    // We do not want to zoom in/zoom out while grabbing.
-    if (isMouseGrabbed())
+    if (!hasForm())
     {
-        event->accept();
+        return;
+    }
+
+    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    if (info.isValid())
+    {
+        Q_ASSERT(info.editor);
+        info.editor->wheelEvent(widget, event, info.mousePosition);
+
+        // We will accept mouse wheel events, if we are grabbing the mouse.
+        // We do not want to zoom in/zoom out while grabbing.
+        if (isMouseGrabbed())
+        {
+            event->accept();
+        }
     }
 }
 
@@ -1659,6 +1679,13 @@ void PDFFormFieldWidgetEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* even
     Q_UNUSED(mousePagePosition);
 }
 
+void PDFFormFieldWidgetEditor::wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+    Q_UNUSED(mousePagePosition);
+}
+
 void PDFFormFieldWidgetEditor::setFocus(bool hasFocus)
 {
     if (m_hasFocus != hasFocus)
@@ -1911,7 +1938,7 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
         m_textEdit.setCursorPosition(m_textEdit.getPositionEnd(), false);
         m_textEdit.performSelectAll();
     }
-    else if (!m_textEdit.isPassword()) // Passwords are not saved in the document
+    else if (!m_textEdit.isPassword() && !m_formManager->isCommitDisabled()) // Passwords are not saved in the document
     {
         // If text has been changed, then commit it
         PDFObject object = PDFObjectFactory::createTextString(m_textEdit.getText());
@@ -3083,6 +3110,14 @@ void PDFListBoxPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance&
     m_currentIndex = m_topIndex;
 }
 
+QMatrix PDFListBoxPseudowidget::createListBoxTransformMatrix() const
+{
+    QMatrix matrix;
+    matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
+    matrix.scale(1.0, -1.0);
+    return matrix;
+}
+
 void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edit) const
 {
     pdf::PDFPainterStateGuard guard(parameters.painter);
@@ -3100,9 +3135,7 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
         return color;
     };
 
-    QMatrix matrix;
-    matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
-    matrix.scale(1.0, -1.0);
+    QMatrix matrix = createListBoxTransformMatrix();
 
     QPainter* painter = parameters.painter;
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
@@ -3237,6 +3270,17 @@ int PDFListBoxPseudowidget::getValidIndex(int index) const
     return qBound(getStartItemIndex(), index, getEndItemIndex());
 }
 
+int PDFListBoxPseudowidget::getIndexFromWidgetPosition(const QPointF& point) const
+{
+    QMatrix widgetToPageMatrix = createListBoxTransformMatrix();
+    QMatrix pageToWidgetMatrix = widgetToPageMatrix.inverted();
+
+    QPointF widgetPoint = pageToWidgetMatrix.map(point);
+    const qreal y = widgetPoint.y();
+    const int visualIndex = qFloor(y / m_lineSpacing);
+    return m_topIndex + visualIndex;
+}
+
 PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
     m_listBox(formWidget.getParent()->getFlags())
@@ -3280,17 +3324,67 @@ void PDFFormFieldListBoxEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
 
 void PDFFormFieldListBoxEditor::mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
+    if (event->button() == Qt::LeftButton && m_hasFocus)
+    {
+        const int index = m_listBox.getIndexFromWidgetPosition(mousePagePosition);
 
+        if (event->modifiers() & Qt::ControlModifier)
+        {
+            std::set<int> selection = m_listBox.getSelection();
+            if (selection.count(index))
+            {
+                selection.erase(index);
+            }
+            else
+            {
+                selection.insert(index);
+            }
+            m_listBox.setSelection(qMove(selection), false);
+        }
+        else
+        {
+            m_listBox.setCurrentItem(index, event->modifiers());
+        }
+
+        event->accept();
+        widget->update();
+    }
 }
 
 void PDFFormFieldListBoxEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
+    if (event->buttons() & Qt::LeftButton)
+    {
+        const int index = m_listBox.getIndexFromWidgetPosition(mousePagePosition);
 
+        if (!(event->modifiers() & Qt::ControlModifier))
+        {
+            m_listBox.setCurrentItem(index, event->modifiers());
+
+            event->accept();
+            widget->update();
+        }
+    }
 }
 
-void PDFFormFieldListBoxEditor::mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+void PDFFormFieldListBoxEditor::wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition)
 {
+    Q_UNUSED(mousePagePosition);
 
+    if (m_hasFocus)
+    {
+        if (event->angleDelta().y() < 0)
+        {
+            m_listBox.scrollTo(m_listBox.getValidIndex(m_listBox.getTopItemIndex() + m_listBox.getViewportRowCount()));
+        }
+        else
+        {
+            m_listBox.scrollTo(m_listBox.getValidIndex(m_listBox.getTopItemIndex() - 1));
+        }
+
+        widget->update();
+        event->accept();
+    }
 }
 
 void PDFFormFieldListBoxEditor::reloadValue()
@@ -3332,7 +3426,7 @@ void PDFFormFieldListBoxEditor::initializeListBox(PDFListBoxPseudowidget* listBo
 
 void PDFFormFieldListBoxEditor::setFocusImpl(bool focused)
 {
-    if (!focused && !m_listBox.isReadonly())
+    if (!focused && !m_listBox.isReadonly() && !m_formManager->isCommitDisabled())
     {
         commit();
     }
@@ -3466,6 +3560,11 @@ bool PDFFormFieldChoice::setValue(const SetValueParameters& parameters)
     }
 
     m_value = parameters.value;
+    m_topIndex = parameters.listboxTopIndex;
+
+    PDFObjectFactory objectFactory;
+    objectFactory << parameters.listboxChoices;
+    m_selection = objectFactory.takeObject();
 
     // Change widget appearance states
     for (const PDFFormWidget& formWidget : getWidgets())

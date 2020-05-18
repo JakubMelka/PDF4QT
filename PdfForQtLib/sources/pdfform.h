@@ -472,6 +472,7 @@ public:
     virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition);
     virtual void reloadValue() { }
     virtual bool isEditorDrawEnabled() const { return false; }
 
@@ -622,6 +623,9 @@ public:
     /// Returns editor for form field
     PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
 
+    /// Is committing data disabled?
+    bool isCommitDisabled() const { return m_isCommitDisabled; }
+
     // interface IDrawWidgetInputInterface
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
@@ -681,6 +685,7 @@ private:
     const PDFDocument* m_document;
     FormAppearanceFlags m_flags;
     PDFForm m_form;
+    bool m_isCommitDisabled;
 
     std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
     PDFFormFieldWidgetEditor* m_focusedEditor;
