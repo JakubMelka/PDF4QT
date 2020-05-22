@@ -475,6 +475,7 @@ public:
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition);
     virtual void reloadValue() { }
     virtual bool isEditorDrawEnabled() const { return false; }
+    virtual QRectF getActiveEditorRectangle() const { return QRectF(); }
 
     const PDFFormWidget* getFormWidget() const { return &m_formWidget; }
     PDFFormField*  getFormField() const { return m_formWidget.getParent(); }

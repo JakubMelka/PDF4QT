@@ -798,9 +798,12 @@ PDFAttachmentsTreeItem::PDFAttachmentsTreeItem(PDFAttachmentsTreeItem* parent, Q
     m_icon(qMove(icon)),
     m_title(qMove(title)),
     m_description(qMove(description)),
-    m_fileSpecification(std::make_unique<PDFFileSpecification>(*fileSpecification))
+    m_fileSpecification(nullptr)
 {
-
+    if (fileSpecification)
+    {
+        m_fileSpecification = std::make_unique<PDFFileSpecification>(*fileSpecification);
+    }
 }
 
 PDFAttachmentsTreeItem::~PDFAttachmentsTreeItem()

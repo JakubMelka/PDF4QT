@@ -124,6 +124,8 @@ public:
     inline int getCursorNextLine() const { return getCurrentLineTextEnd(); }
     inline int getCursorPreviousLine() const { return getNextPrevCursorPosition(getCurrentLineTextStart(), -1, QTextLayout::SkipCharacters); }
 
+    const QRectF& getWidgetRect() const { return m_widgetRect; }
+
 private:
     /// This function does following things:
     ///     1) Clamps edit text to fit maximum length
@@ -274,17 +276,6 @@ private:
     PDFTextEditPseudowidget m_textEdit;
 };
 
-/// Editor for combo boxes
-class PDFFormFieldComboBoxEditor : public PDFFormFieldWidgetEditor
-{
-private:
-    using BaseClass = PDFFormFieldWidgetEditor;
-
-public:
-    explicit PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
-    virtual ~PDFFormFieldComboBoxEditor() = default;
-};
-
 /// "Pseudo" widget, which is emulating list box. It can contain scrollbar.
 class PDFListBoxPseudowidget
 {
@@ -391,6 +382,50 @@ private:
     PDFReal m_lineSpacing = 0.0;
     QRectF m_widgetRect;
     QColor m_textColor;
+};
+
+/// Editor for combo boxes
+class PDFFormFieldComboBoxEditor : public PDFFormFieldWidgetEditor
+{
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldComboBoxEditor() = default;
+
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition) override;
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition) override;
+    virtual void reloadValue() override;
+    virtual bool isEditorDrawEnabled() const override { return m_hasFocus; }
+    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
+    virtual QRectF getActiveEditorRectangle() const override;
+
+    /// Initializes text edit using actual form field value,
+    /// font, color for text edit appearance.
+    /// \param textEdit Text editor
+    void initializeTextEdit(PDFTextEditPseudowidget* textEdit) const;
+
+    /// Initializes list box using actual form field  font, color for text edit appearance.
+    /// This listbox is used when combo box is in "down" mode, displaying options.
+    /// \param listBox List box
+    void initializeListBox(PDFListBoxPseudowidget* listBox) const;
+
+protected:
+    virtual void setFocusImpl(bool focused);
+
+private:
+    static PDFFormField::FieldFlags getTextEditFlags(PDFFormField::FieldFlags flags);
+
+    PDFTextEditPseudowidget m_textEdit;
+    PDFListBoxPseudowidget m_listBox;
+    QRectF m_listBoxPopupRectangle;
+    QRectF m_dropDownButtonRectangle;
+    bool m_listBoxVisible;
 };
 
 /// Editor for list boxes
@@ -1485,16 +1520,21 @@ PDFFormManager::MouseEventInfo PDFFormManager::getMouseEventInfo(QWidget* widget
                 continue;
             }
 
-            QRectF annotationRect = pageAnnotation.annotation->getRectangle();
-            QMatrix widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
-
-            QPainterPath path;
-            path.addRect(annotationRect);
-            path = widgetToDevice.map(path);
-
-            if (path.contains(point))
+            if (PDFFormField* formField = getFormFieldForWidget(pageAnnotation.annotation->getSelfReference()))
             {
-                if (PDFFormField* formField = getFormFieldForWidget(pageAnnotation.annotation->getSelfReference()))
+                const PDFFormFieldWidgetEditor* editor = getEditor(formField);
+                QRectF annotationRect = editor->getActiveEditorRectangle();
+                if (!annotationRect.isValid())
+                {
+                    annotationRect = pageAnnotation.annotation->getRectangle();
+                }
+                QMatrix widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+
+                QPainterPath path;
+                path.addRect(annotationRect);
+                path = widgetToDevice.map(path);
+
+                if (path.contains(point))
                 {
                     result.formField = formField;
                     result.deviceToWidget = widgetToDevice.inverted();
@@ -1903,9 +1943,282 @@ void PDFFormFieldCheckableButtonEditor::click()
 }
 
 PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
-    BaseClass(formManager, formWidget)
+    BaseClass(formManager, formWidget),
+    m_textEdit(getTextEditFlags(formWidget.getParent()->getFlags())),
+    m_listBox(formWidget.getParent()->getFlags()),
+    m_listBoxVisible(false)
+{
+    const int listBoxItems = 7;
+    QRectF comboBoxRectangle = m_formManager->getWidgetRectangle(m_formWidget);
+    QRectF listBoxPopupRectangle = comboBoxRectangle;
+    listBoxPopupRectangle.translate(0, -comboBoxRectangle.height() * (listBoxItems));
+    listBoxPopupRectangle.setHeight(comboBoxRectangle.height() * listBoxItems);
+    m_listBoxPopupRectangle = listBoxPopupRectangle;
+    m_dropDownButtonRectangle = comboBoxRectangle;
+    m_dropDownButtonRectangle.setLeft(m_dropDownButtonRectangle.right() - m_dropDownButtonRectangle.height());
+
+    initializeTextEdit(&m_textEdit);
+    initializeListBox(&m_listBox);
+}
+
+void PDFFormFieldComboBoxEditor::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (!m_hasFocus || !m_listBoxVisible)
+    {
+        m_textEdit.shortcutOverrideEvent(widget, event);
+    }
+    else
+    {
+        m_listBox.shortcutOverrideEvent(widget, event);
+    }
+}
+
+void PDFFormFieldComboBoxEditor::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_ASSERT(!m_textEdit.isMultiline());
+
+    if ((event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return))
+    {
+        // Commit the editor
+        m_formManager->setFocusToEditor(nullptr);
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Escape)
+    {
+        // Cancel the editor
+        reloadValue();
+        m_formManager->setFocusToEditor(nullptr);
+        event->accept();
+        return;
+    }
+
+    if (!m_hasFocus || !m_listBoxVisible)
+    {
+        m_textEdit.keyPressEvent(widget, event);
+    }
+    else
+    {
+        m_listBox.keyPressEvent(widget, event);
+    }
+
+    if (event->isAccepted())
+    {
+        widget->update();
+    }
+}
+
+void PDFFormFieldComboBoxEditor::mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+    if (event->button() == Qt::LeftButton && m_hasFocus)
+    {
+        // If popup list box is visible, delegate mouse click to
+        // this list box only.
+        if (m_listBoxVisible)
+        {
+            const int index = m_listBox.getIndexFromWidgetPosition(mousePagePosition);
+
+            if (event->modifiers() & Qt::ControlModifier)
+            {
+                std::set<int> selection = m_listBox.getSelection();
+                if (selection.count(index))
+                {
+                    selection.erase(index);
+                }
+                else
+                {
+                    selection.insert(index);
+                }
+                m_listBox.setSelection(qMove(selection), false);
+            }
+            else
+            {
+                m_listBox.setCurrentItem(index, event->modifiers());
+            }
+
+            m_listBoxVisible = false;
+        }
+        else
+        {
+            // Do we click popup button?
+            if (m_dropDownButtonRectangle.contains(mousePagePosition))
+            {
+                m_listBoxVisible = true;
+            }
+            else
+            {
+                const int cursorPosition = m_textEdit.getCursorPositionFromWidgetPosition(mousePagePosition, m_hasFocus);
+                m_textEdit.setCursorPosition(cursorPosition, event->modifiers() & Qt::ShiftModifier);
+            }
+        }
+
+        event->accept();
+        widget->update();
+    }
+}
+
+void PDFFormFieldComboBoxEditor::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
 {
 
+}
+
+void PDFFormFieldComboBoxEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition)
+{
+
+}
+
+void PDFFormFieldComboBoxEditor::wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition)
+{
+    Q_UNUSED(mousePagePosition);
+
+    if (m_hasFocus && m_listBoxVisible)
+    {
+        if (event->angleDelta().y() < 0)
+        {
+            m_listBox.scrollTo(m_listBox.getValidIndex(m_listBox.getTopItemIndex() + m_listBox.getViewportRowCount()));
+        }
+        else
+        {
+            m_listBox.scrollTo(m_listBox.getValidIndex(m_listBox.getTopItemIndex() - 1));
+        }
+
+        widget->update();
+        event->accept();
+    }
+}
+
+void PDFFormFieldComboBoxEditor::reloadValue()
+{
+    const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+    Q_ASSERT(parentField);
+
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
+    m_textEdit.setText(loader.readTextString(m_formWidget.getParent()->getValue(), QString()));
+
+    m_listBoxVisible = false;
+
+    m_listBox.setTopItemIndex(0);
+    m_listBox.setSelection({ }, true);
+}
+
+void PDFFormFieldComboBoxEditor::draw(AnnotationDrawParameters& parameters, bool edit) const
+{
+    if (edit)
+    {
+        // Draw text edit always
+        {
+            PDFPainterStateGuard guard(parameters.painter);
+            m_textEdit.draw(parameters, true);
+        }
+
+        // Draw down button
+        {
+            PDFPainterStateGuard guard(parameters.painter);
+
+            parameters.painter->translate(m_dropDownButtonRectangle.bottomLeft());
+            parameters.painter->scale(1.0, -1.0);
+
+            QStyleOption option;
+            option.state = QStyle::State_Enabled;
+            option.rect = QRect(0, 0, qFloor(m_dropDownButtonRectangle.width()), qFloor(m_dropDownButtonRectangle.height()));
+            QApplication::style()->drawPrimitive(QStyle::PE_IndicatorButtonDropDown, &option, parameters.painter, nullptr);
+        }
+
+        if (m_listBoxVisible)
+        {
+            PDFPainterStateGuard guard(parameters.painter);
+
+            AnnotationDrawParameters listBoxParameters = parameters;
+            listBoxParameters.boundingRectangle = m_listBoxPopupRectangle;
+
+            QColor color = parameters.invertColors ? Qt::black : Qt::white;
+            listBoxParameters.painter->fillRect(listBoxParameters.boundingRectangle, color);
+
+            m_listBox.draw(listBoxParameters, true);
+        }
+    }
+    else
+    {
+        // Draw static contents
+        PDFTextEditPseudowidget pseudowidget(m_formWidget.getParent()->getFlags());
+        initializeTextEdit(&pseudowidget);
+        pseudowidget.draw(parameters, false);
+    }
+}
+
+QRectF PDFFormFieldComboBoxEditor::getActiveEditorRectangle() const
+{
+    if (m_hasFocus && m_listBoxVisible)
+    {
+        return m_textEdit.getWidgetRect().united(m_listBoxPopupRectangle);
+    }
+
+    return QRectF();
+}
+
+void PDFFormFieldComboBoxEditor::initializeTextEdit(PDFTextEditPseudowidget* textEdit) const
+{
+    const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+    Q_ASSERT(parentField);
+
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
+
+    QByteArray defaultAppearance = m_formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
+    Qt::Alignment alignment = m_formManager->getForm()->getDefaultAlignment();
+
+    // Initialize text edit
+    textEdit->setAppearance(PDFAnnotationDefaultAppearance::parse(defaultAppearance), alignment, m_formManager->getWidgetRectangle(m_formWidget), 0);
+    textEdit->setText(loader.readTextString(parentField->getValue(), QString()));
+}
+
+void PDFFormFieldComboBoxEditor::initializeListBox(PDFListBoxPseudowidget* listBox) const
+{
+    const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
+    Q_ASSERT(parentField);
+
+    // Initialize popup list box
+    listBox->setAppearance(PDFAnnotationDefaultAppearance::parse(m_formManager->getForm()->getDefaultAppearance().value_or(QByteArray())),
+                           m_formManager->getForm()->getDefaultAlignment(),
+                           m_listBoxPopupRectangle,
+                           parentField->getOptions(),
+                           0,
+                           { });
+}
+
+void PDFFormFieldComboBoxEditor::setFocusImpl(bool focused)
+{
+    if (focused)
+    {
+        m_textEdit.setCursorPosition(m_textEdit.getPositionEnd(), false);
+        m_textEdit.performSelectAll();
+    }
+    else if (!m_formManager->isCommitDisabled())
+    {
+        // If text has been changed, then commit it
+        PDFObject object = PDFObjectFactory::createTextString(m_textEdit.getText());
+
+        if (object != m_formWidget.getParent()->getValue())
+        {
+            PDFFormField::SetValueParameters parameters;
+            parameters.formManager = m_formManager;
+            parameters.invokingWidget = m_formWidget.getWidget();
+            parameters.invokingFormField = m_formWidget.getParent();
+            parameters.scope = PDFFormField::SetValueParameters::Scope::User;
+            parameters.value = qMove(object);
+            m_formManager->setFormFieldValue(parameters);
+        }
+    }
+}
+
+PDFFormField::FieldFlags PDFFormFieldComboBoxEditor::getTextEditFlags(PDFFormField::FieldFlags flags)
+{
+    if (flags.testFlag(PDFFormField::ReadOnly) || !flags.testFlag(PDFFormField::Edit))
+    {
+        return PDFFormField::ReadOnly;
+    }
+
+    return PDFFormField::None;
 }
 
 void PDFFormFieldTextBoxEditor::initializeTextEdit(PDFTextEditPseudowidget* textEdit) const
@@ -2652,6 +2965,15 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
     };
 
     QPainter* painter = parameters.painter;
+
+    if (edit)
+    {
+        pdf::PDFPainterStateGuard guard(painter);
+        painter->setPen(getAdjustedColor(Qt::black));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(parameters.boundingRectangle);
+    }
+
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
     painter->setWorldMatrix(createTextBoxTransformMatrix(edit), true);
     painter->setPen(getAdjustedColor(Qt::black));
@@ -3121,7 +3443,11 @@ QMatrix PDFListBoxPseudowidget::createListBoxTransformMatrix() const
 void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edit) const
 {
     pdf::PDFPainterStateGuard guard(parameters.painter);
-    parameters.boundingRectangle = parameters.annotation->getRectangle();
+
+    if (!parameters.boundingRectangle.isValid())
+    {
+        parameters.boundingRectangle = parameters.annotation->getRectangle();
+    }
 
     QPalette palette = QApplication::palette();
 
@@ -3138,6 +3464,15 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
     QMatrix matrix = createListBoxTransformMatrix();
 
     QPainter* painter = parameters.painter;
+
+    if (edit)
+    {
+        pdf::PDFPainterStateGuard guard(painter);
+        painter->setPen(getAdjustedColor(Qt::black));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(parameters.boundingRectangle);
+    }
+
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
     painter->setWorldMatrix(matrix, true);
     painter->setPen(getAdjustedColor(m_textColor));
@@ -3164,7 +3499,7 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
 
         if (edit && m_currentIndex == i)
         {
-            pdf::PDFPainterStateGuard guard(parameters.painter);
+            pdf::PDFPainterStateGuard guard(painter);
             painter->setBrush(Qt::NoBrush);
             painter->setPen(Qt::DotLine);
             painter->drawRect(rect);
