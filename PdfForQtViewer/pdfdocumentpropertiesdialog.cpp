@@ -290,7 +290,8 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
                             {
                                 if (pdf::PDFFontPointer font = pdf::PDFFont::createFont(object, document))
                                 {
-                                    pdf::PDFRealizedFontPointer realizedFont = pdf::PDFRealizedFont::createRealizedFont(font, 8.0, nullptr);
+                                    pdf::PDFRenderErrorReporterDummy dummyReporter;
+                                    pdf::PDFRealizedFontPointer realizedFont = pdf::PDFRealizedFont::createRealizedFont(font, 8.0, &dummyReporter);
                                     if (realizedFont)
                                     {
                                         const pdf::FontType fontType = font->getFontType();

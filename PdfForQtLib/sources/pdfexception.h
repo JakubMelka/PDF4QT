@@ -96,6 +96,23 @@ public:
     virtual void reportRenderErrorOnce(RenderErrorType type, QString message) = 0;
 };
 
+/// Dummy class for reporting render errors
+class PDFRenderErrorReporterDummy : public PDFRenderErrorReporter
+{
+public:
+    virtual void reportRenderError(RenderErrorType type, QString message) override
+    {
+        Q_UNUSED(type);
+        Q_UNUSED(message);
+    }
+
+    virtual void reportRenderErrorOnce(RenderErrorType type, QString message) override
+    {
+        Q_UNUSED(type);
+        Q_UNUSED(message);
+    }
+};
+
 }   // namespace pdf
 
 #endif // PDFEXCEPTION_H
