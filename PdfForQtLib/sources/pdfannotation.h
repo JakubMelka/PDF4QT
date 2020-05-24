@@ -1400,6 +1400,59 @@ protected:
                                        QPainter* painter,
                                        QMatrix userSpaceToDeviceSpace) const;
 
+    /// Returns true, if given annotation should be drawn
+    /// \param annotation Annotation
+    bool isAnnotationDrawEnabled(const PageAnnotation& annotation) const;
+
+    /// Returns true, if annotation is drawn by editor (from form widget)
+    /// \param annotation Annotation
+    bool isAnnotationDrawnByEditor(const PageAnnotation& annotation) const;
+
+    /// Draws annotation
+    /// \param pageAnnotation Page annotation
+    /// \param pagePointToDevicePointMatrix Page point to device point matrix
+    /// \param page Page
+    /// \param cms Color management system
+    /// \param isEditorDrawEnabled Is editor draw enabled?
+    /// \param errors Errors list (where draw errors are stored)
+    /// \param painter Painter
+    void drawAnnotation(const PageAnnotation& annotation,
+                        const QMatrix& pagePointToDevicePointMatrix,
+                        const PDFPage* page,
+                        const PDFCMS* cms,
+                        bool isEditorDrawEnabled,
+                        QList<PDFRenderError>& errors,
+                        QPainter* painter) const;
+
+    /// Draws annotation by direct drawing, not using annotation's
+    /// appearance stream.
+    /// \param pageAnnotation Page annotation
+    /// \param pagePointToDevicePointMatrix Page point to device point matrix
+    /// \param page Page
+    /// \param cms Color management system
+    /// \param isEditorDrawEnabled Is annotation drawn by form widget editor?
+    /// \param painter Painter
+    void drawAnnotationDirect(const PageAnnotation& annotation,
+                              const QMatrix& pagePointToDevicePointMatrix,
+                              const PDFPage* page,
+                              const PDFCMS* cms,
+                              bool isEditorDrawEnabled,
+                              QPainter* painter) const;
+
+    /// Draws annotation using annotation's appearance stream.
+    /// \param pageAnnotation Page annotation
+    /// \param appearanceStreamObject Object with appearance stream
+    /// \param pagePointToDevicePointMatrix Page point to device point matrix
+    /// \param page Page
+    /// \param cms Color management system
+    /// \param painter Painter
+    void drawAnnotationUsingAppearanceStream(const PageAnnotation& annotation,
+                                             const PDFObject& appearanceStreamObject,
+                                             const QMatrix& pagePointToDevicePointMatrix,
+                                             const PDFPage* page,
+                                             const PDFCMS* cms,
+                                             QPainter* painter) const;
+
     const PDFDocument* m_document;
 
     PDFFontCache* m_fontCache;
