@@ -691,6 +691,7 @@ private:
     std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
     PDFFormFieldWidgetEditor* m_focusedEditor;
     MouseGrabInfo m_mouseGrabInfo;
+    std::optional<QCursor> m_mouseCursor;
 };
 
 }   // namespace pdf

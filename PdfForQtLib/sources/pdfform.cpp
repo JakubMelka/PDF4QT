@@ -1444,6 +1444,19 @@ void PDFFormManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
         {
             event->accept();
         }
+
+        if (hasFormFieldWidgetText(info.editor->getWidgetAnnotation()))
+        {
+            m_mouseCursor = QCursor(Qt::IBeamCursor);
+        }
+        else
+        {
+            m_mouseCursor = QCursor(Qt::ArrowCursor);
+        }
+    }
+    else
+    {
+        m_mouseCursor = std::nullopt;
     }
 }
 
@@ -1586,8 +1599,7 @@ PDFFormManager::MouseEventInfo PDFFormManager::getMouseEventInfo(QWidget* widget
 
 const std::optional<QCursor>& PDFFormManager::getCursor() const
 {
-    static const std::optional<QCursor> dummy;
-    return dummy;
+    return m_mouseCursor;
 }
 
 void PDFFormManager::clearEditors()
@@ -1988,11 +2000,14 @@ PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManag
 
     initializeTextEdit(&m_textEdit);
 
+    QFontMetricsF fontMetrics(m_textEdit.getFont());
+    const qreal lineSpacing = fontMetrics.lineSpacing();
+
     const int listBoxItems = qMin(7, int(parentField->getOptions().size()));
     QRectF comboBoxRectangle = m_formManager->getWidgetRectangle(m_formWidget);
     QRectF listBoxPopupRectangle = comboBoxRectangle;
-    listBoxPopupRectangle.translate(0, -comboBoxRectangle.height() * (listBoxItems));
-    listBoxPopupRectangle.setHeight(comboBoxRectangle.height() * listBoxItems);
+    listBoxPopupRectangle.translate(0, -lineSpacing * (listBoxItems));
+    listBoxPopupRectangle.setHeight(lineSpacing * listBoxItems);
     m_listBoxPopupRectangle = listBoxPopupRectangle;
     m_dropDownButtonRectangle = comboBoxRectangle;
     m_dropDownButtonRectangle.setLeft(m_dropDownButtonRectangle.right() - m_dropDownButtonRectangle.height());
