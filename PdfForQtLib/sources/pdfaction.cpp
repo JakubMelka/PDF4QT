@@ -294,6 +294,41 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
         }
         return PDFActionPtr(new PDFActionJavaScript(PDFEncoding::convertTextString(textJavaScript)));
     }
+    else if (name == "SubmitForm")
+    {
+        PDFFormAction::FieldScope fieldScope = PDFFormAction::FieldScope::All;
+        PDFFileSpecification url = PDFFileSpecification::parse(storage, dictionary->get("F"));
+        PDFFormAction::FieldList fieldList = PDFFormAction::parseFieldList(storage, dictionary->get("Fields"), fieldScope);
+        PDFActionSubmitForm::SubmitFlags flags = static_cast<PDFActionSubmitForm::SubmitFlags>(loader.readIntegerFromDictionary(dictionary, "Flags", 0));
+        QByteArray charset = loader.readStringFromDictionary(dictionary, "CharSet");
+
+        if (fieldScope == PDFFormAction::FieldScope::Include &&
+            flags.testFlag(PDFActionSubmitForm::IncludeExclude))
+        {
+            fieldScope = PDFFormAction::FieldScope::Exclude;
+        }
+
+        return PDFActionPtr(new PDFActionSubmitForm(fieldScope, qMove(fieldList), qMove(url), qMove(charset), flags));
+    }
+    else if (name == "ResetForm")
+    {
+        PDFFormAction::FieldScope fieldScope = PDFFormAction::FieldScope::All;
+        PDFFormAction::FieldList fieldList = PDFFormAction::parseFieldList(storage, dictionary->get("Fields"), fieldScope);
+        PDFActionResetForm::ResetFlags flags = static_cast<PDFActionResetForm::ResetFlags>(loader.readIntegerFromDictionary(dictionary, "Flags", 0));
+
+        if (fieldScope == PDFFormAction::FieldScope::Include &&
+            flags.testFlag(PDFActionResetForm::IncludeExclude))
+        {
+            fieldScope = PDFFormAction::FieldScope::Exclude;
+        }
+
+        return PDFActionPtr(new PDFActionResetForm(fieldScope, qMove(fieldList), flags));
+    }
+    else if (name == "ImportData")
+    {
+        PDFFileSpecification file = PDFFileSpecification::parse(storage, dictionary->get("F"));
+        return PDFActionPtr(new PDFActionImportDataForm(qMove(file)));
+    }
 
     return PDFActionPtr();
 }
@@ -406,6 +441,38 @@ PDFDestination PDFDestination::parse(const PDFObjectStorage* storage, PDFObject 
         {
             return result;
         }
+    }
+
+    return result;
+}
+
+PDFFormAction::FieldList PDFFormAction::parseFieldList(const PDFObjectStorage* storage, PDFObject object, FieldScope& fieldScope)
+{
+    FieldList result;
+
+    object = storage->getObject(object);
+    if (object.isArray())
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        const PDFArray* fieldsArray = object.getArray();
+        for (size_t i = 0, count = fieldsArray->getCount(); i < count; ++i)
+        {
+            PDFObject fieldObject = fieldsArray->getItem(i);
+            if (fieldObject.isReference())
+            {
+                result.fieldReferences.push_back(fieldObject.getReference());
+            }
+            else if (fieldObject.isString())
+            {
+                result.qualifiedNames.push_back(loader.readTextString(fieldObject, QString()));
+            }
+        }
+    }
+
+    if (!result.isEmpty())
+    {
+        fieldScope = FieldScope::Include;
     }
 
     return result;

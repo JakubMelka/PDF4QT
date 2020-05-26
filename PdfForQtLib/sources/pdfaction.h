@@ -52,7 +52,10 @@ enum class ActionType
     Rendition,
     Transition,
     GoTo3DView,
-    JavaScript
+    JavaScript,
+    SubmitForm,
+    ResetForm,
+    ImportDataForm
 };
 
 enum class DestinationType
@@ -512,6 +515,133 @@ public:
 
 private:
     QString m_javaScript;
+};
+
+class PDFFormAction : public PDFAction
+{
+public:
+    enum FieldScope
+    {
+        All,        ///< Perform action for all form fields
+        Include,    ///< Perform action only on fields listed in the list
+        Exclude     ///< Perform action on all fields except those in the list
+    };
+
+    struct FieldList
+    {
+        std::vector<PDFObjectReference> fieldReferences;
+        QStringList qualifiedNames;
+
+        bool isEmpty() const { return fieldReferences.empty() && qualifiedNames.isEmpty(); }
+    };
+
+    explicit inline PDFFormAction(FieldScope fieldScope, FieldList fieldList) :
+        m_fieldScope(fieldScope),
+        m_fieldList(qMove(fieldList))
+    {
+
+    }
+
+    FieldScope getFieldScope() const { return m_fieldScope; }
+    const FieldList& getFieldList() const { return m_fieldList; }
+
+    /// Parses the field list from the object. If object contains invalid field list,
+    /// then empty field list is returned. If object is empty, empty field list is returned.
+    /// \param storage Object storage
+    /// \param object Field list array object
+    /// \param[out] fieldScope Result field scope
+    static FieldList parseFieldList(const PDFObjectStorage* storage, PDFObject object, FieldScope& fieldScope);
+
+protected:
+    FieldScope m_fieldScope = FieldScope::All;
+    FieldList m_fieldList;
+};
+
+class PDFActionSubmitForm : public PDFFormAction
+{
+public:
+    enum SubmitFlag
+    {
+        None = 0,
+        IncludeExclude = 1 << 0,
+        IncludeNoValueFields = 1 << 1,
+        ExportFormat = 1 << 2,
+        GetMethod = 1 << 3,
+        SubmitCoordinates = 1 << 4,
+        XFDF = 1 << 5,
+        IncludeAppendSaves = 1 << 6,
+        IncludeAnnotations = 1 << 7,
+        SubmitPDF = 1 << 8,
+        CanonicalFormat = 1 << 9,
+        ExclNonUseAnnots = 1 << 10,
+        ExclFKey = 1 << 11,
+        EmbedForm = 1 << 13
+    };
+    Q_DECLARE_FLAGS(SubmitFlags, SubmitFlag)
+
+    explicit inline PDFActionSubmitForm(FieldScope fieldScope, FieldList fieldList, PDFFileSpecification url, QByteArray charset, SubmitFlags flags) :
+        PDFFormAction(fieldScope, qMove(fieldList)),
+        m_url(qMove(url)),
+        m_charset(qMove(charset)),
+        m_flags(flags)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::SubmitForm; }
+
+    const PDFFileSpecification& getUrl() const { return m_url; }
+    const QByteArray& getCharset() const { return m_charset; }
+    SubmitFlags getFlags() const { return m_flags; }
+
+private:
+    PDFFileSpecification m_url;
+    QByteArray m_charset;
+    SubmitFlags m_flags = None;
+};
+
+class PDFActionResetForm : public PDFFormAction
+{
+public:
+    enum ResetFlag
+    {
+        None = 0,
+        IncludeExclude = 1 << 0,
+    };
+    Q_DECLARE_FLAGS(ResetFlags, ResetFlag)
+
+
+    explicit inline PDFActionResetForm(FieldScope fieldScope, FieldList fieldList, ResetFlags flags) :
+        PDFFormAction(fieldScope, qMove(fieldList)),
+        m_flags(flags)
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::ResetForm; }
+
+    ResetFlags getFlags() const { return m_flags; }
+
+private:
+    ResetFlags m_flags = None;
+};
+
+class PDFActionImportDataForm : public PDFAction
+{
+public:
+
+    explicit inline PDFActionImportDataForm(PDFFileSpecification file) :
+        m_file(qMove(file))
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::ImportDataForm; }
+
+    const PDFFileSpecification& getFile() const { return m_file; }
+
+private:
+    PDFFileSpecification m_file;
 };
 
 }   // namespace pdf
