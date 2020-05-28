@@ -911,6 +911,13 @@ bool PDFFormField::setValue(const SetValueParameters& parameters)
     return false;
 }
 
+void PDFFormField::resetValue(const ResetValueParameters& parameters)
+{
+    Q_UNUSED(parameters);
+
+    // Default behaviour: do nothing
+}
+
 PDFFormWidget::PDFFormWidget(PDFObjectReference page, PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions) :
     m_page(page),
     m_widget(widget),
@@ -1045,6 +1052,41 @@ bool PDFFormFieldButton::setValue(const SetValueParameters& parameters)
     }
 
     return true;
+}
+
+void PDFFormFieldButton::resetValue(const ResetValueParameters& parameters)
+{
+    // Do not allow to reset value of push buttons
+    if (getFlags().testFlag(PushButton))
+    {
+        return;
+    }
+
+    Q_ASSERT(parameters.modifier);
+    Q_ASSERT(parameters.formManager);
+
+    PDFObject defaultValue = getDefaultValue();
+    PDFDocumentBuilder* builder = parameters.modifier->getBuilder();
+    parameters.modifier->markFormFieldChanged();
+    builder->setFormFieldValue(getSelfReference(), defaultValue);
+
+    PDFDocumentDataLoaderDecorator loader(parameters.formManager->getDocument());
+    QByteArray defaultState = loader.readString(defaultValue);
+
+    for (const PDFFormWidget& formWidget : getWidgets())
+    {
+        QByteArray onState = PDFFormFieldButton::getOnAppearanceState(parameters.formManager, &formWidget);
+        if (defaultState == onState)
+        {
+            builder->setAnnotationAppearanceState(formWidget.getWidget(), onState);
+        }
+        else
+        {
+            QByteArray offState = PDFFormFieldButton::getOffAppearanceState(parameters.formManager, &formWidget);
+            builder->setAnnotationAppearanceState(formWidget.getWidget(), offState);
+        }
+        parameters.modifier->markAnnotationsChanged();
+    }
 }
 
 PDFFormManager::PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
@@ -1710,6 +1752,57 @@ PDFFormFieldWidgetEditor* PDFFormManager::getEditor(const PDFFormField* formFiel
     }
 
     return nullptr;
+}
+
+void PDFFormManager::performResetAction(const PDFActionResetForm* action)
+{
+    Q_ASSERT(action);
+    Q_ASSERT(m_document);
+
+    PDFDocumentModifier modifier(m_document);
+    modifier.getBuilder()->setFormManager(this);
+
+    auto resetFieldValue = [this, action, &modifier](PDFFormField* formField)
+    {
+        const PDFFormAction::FieldList& fieldList = action->getFieldList();
+
+        // Akceptujeme form field dle daného filtru?
+        bool accept = false;
+        bool isInFieldList = std::find(fieldList.fieldReferences.cbegin(), fieldList.fieldReferences.cend(), formField->getSelfReference()) != fieldList.fieldReferences.cend() ||
+                             fieldList.qualifiedNames.contains(formField->getName(PDFFormField::NameType::FullyQualified));
+        switch (action->getFieldScope())
+        {
+            case PDFFormAction::FieldScope::All:
+                accept = true;
+                break;
+
+            case PDFFormAction::FieldScope::Include:
+                accept = isInFieldList;
+                break;
+
+            case PDFFormAction::FieldScope::Exclude:
+                accept = !isInFieldList;
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        if (accept)
+        {
+            PDFFormField::ResetValueParameters parameters;
+            parameters.formManager = this;
+            parameters.modifier = &modifier;
+            formField->resetValue(parameters);
+        }
+    };
+    modify(resetFieldValue);
+
+    if (modifier.finalize())
+    {
+        emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
 }
 
 PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
@@ -3346,12 +3439,6 @@ int PDFTextEditPseudowidget::getCursorLineDown() const
 
 bool PDFFormFieldText::setValue(const SetValueParameters& parameters)
 {
-    // Do not allow to set value to push buttons
-    if (getFlags().testFlag(PushButton))
-    {
-        return false;
-    }
-
     // If form field is readonly, and scope is user (form field is changed by user,
     // not by calculated value), then we must not allow value change.
     if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
@@ -3375,6 +3462,25 @@ bool PDFFormFieldText::setValue(const SetValueParameters& parameters)
     }
 
     return true;
+}
+
+void PDFFormFieldText::resetValue(const ResetValueParameters& parameters)
+{
+    Q_ASSERT(parameters.formManager);
+    Q_ASSERT(parameters.modifier);
+
+    PDFObject defaultValue = getDefaultValue();
+    PDFDocumentBuilder* builder = parameters.modifier->getBuilder();
+    parameters.modifier->markFormFieldChanged();
+    builder->setFormFieldValue(getSelfReference(), defaultValue);
+    m_value = defaultValue;
+
+    // Change widget appearance states
+    for (const PDFFormWidget& formWidget : getWidgets())
+    {
+        builder->updateAnnotationAppearanceStreams(formWidget.getWidget());
+        parameters.modifier->markAnnotationsChanged();
+    }
 }
 
 PDFListBoxPseudowidget::PDFListBoxPseudowidget(PDFFormField::FieldFlags flags) :
@@ -3983,12 +4089,6 @@ void PDFFormFieldListBoxEditor::commit()
 
 bool PDFFormFieldChoice::setValue(const SetValueParameters& parameters)
 {
-    // Do not allow to set value to push buttons
-    if (getFlags().testFlag(PushButton))
-    {
-        return false;
-    }
-
     // If form field is readonly, and scope is user (form field is changed by user,
     // not by calculated value), then we must not allow value change.
     if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
@@ -4025,6 +4125,33 @@ bool PDFFormFieldChoice::setValue(const SetValueParameters& parameters)
     }
 
     return true;
+}
+
+void PDFFormFieldChoice::resetValue(const PDFFormField::ResetValueParameters& parameters)
+{
+    Q_ASSERT(parameters.formManager);
+    Q_ASSERT(parameters.modifier);
+
+    PDFObject defaultValue = getDefaultValue();
+    PDFDocumentBuilder* builder = parameters.modifier->getBuilder();
+    parameters.modifier->markFormFieldChanged();
+    builder->setFormFieldValue(getSelfReference(), defaultValue);
+    m_value = defaultValue;
+    m_selection = PDFObject();
+
+    if (isListBox())
+    {
+        // Listbox has special values, which must be set
+        builder->setFormFieldChoiceTopIndex(getSelfReference(), 0);
+        builder->setFormFieldChoiceIndices(getSelfReference(), { });
+    }
+
+    // Change widget appearance states
+    for (const PDFFormWidget& formWidget : getWidgets())
+    {
+        builder->updateAnnotationAppearanceStreams(formWidget.getWidget());
+        parameters.modifier->markAnnotationsChanged();
+    }
 }
 
 void PDFFormFieldChoice::reloadValue(const PDFObjectStorage* storage, PDFObject parentValue)

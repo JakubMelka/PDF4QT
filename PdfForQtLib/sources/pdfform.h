@@ -250,6 +250,17 @@ public:
     /// \param parameters Parameters
     virtual bool setValue(const SetValueParameters& parameters);
 
+    struct ResetValueParameters
+    {
+        PDFDocumentModifier* modifier = nullptr;
+        PDFFormManager* formManager = nullptr;
+    };
+
+    /// Resets value to the field's default value. Widget annotation
+    /// appearances are also updated.
+    /// \param parameters Parameters
+    virtual void resetValue(const ResetValueParameters& parameters);
+
 protected:
     PDFObjectReference m_selfReference;
     FieldType m_fieldType = FieldType::Invalid;
@@ -297,6 +308,7 @@ public:
     static QByteArray getOffAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget);
 
     virtual bool setValue(const SetValueParameters& parameters) override;
+    virtual void resetValue(const ResetValueParameters& parameters) override;
 
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
@@ -321,6 +333,7 @@ public:
     const QString& getRichTextValue() const { return m_richTextValue; }
 
     virtual bool setValue(const SetValueParameters& parameters) override;
+    virtual void resetValue(const ResetValueParameters& parameters) override;
 
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
@@ -366,6 +379,7 @@ public:
     const PDFObject& getSelection() const { return m_selection; }
 
     virtual bool setValue(const SetValueParameters& parameters) override;
+    virtual void resetValue(const ResetValueParameters& parameters) override;
     virtual void reloadValue(const PDFObjectStorage* storage, PDFObject parentValue) override;
 
 private:
@@ -626,6 +640,11 @@ public:
 
     /// Is committing data disabled?
     bool isCommitDisabled() const { return m_isCommitDisabled; }
+
+    /// Performs reset action. Action must be valid pointer. Fields are resetted
+    /// according to the criteria specified in reset action.
+    /// \param action Reset action
+    void performResetAction(const PDFActionResetForm* action);
 
     // interface IDrawWidgetInputInterface
 

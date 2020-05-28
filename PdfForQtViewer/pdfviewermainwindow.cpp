@@ -610,6 +610,12 @@ void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
                 break;
             }
 
+            case pdf::ActionType::ResetForm:
+            {
+                m_formManager->performResetAction(dynamic_cast<const pdf::PDFActionResetForm*>(action));
+                break;
+            }
+
             default:
                 break;
         }
