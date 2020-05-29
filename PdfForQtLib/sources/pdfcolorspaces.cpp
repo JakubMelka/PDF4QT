@@ -1104,19 +1104,19 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
         {
             case 1:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(std::make_shared<PDFString>(std::move(QByteArray(COLOR_SPACE_NAME_DEVICE_GRAY)))), recursion);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_GRAY), recursion);
                 break;
             }
 
             case 3:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(std::make_shared<PDFString>(std::move(QByteArray(COLOR_SPACE_NAME_DEVICE_RGB)))), recursion);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_RGB), recursion);
                 break;
             }
 
             case 4:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(std::make_shared<PDFString>(std::move(QByteArray(COLOR_SPACE_NAME_DEVICE_CMYK)))), recursion);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_CMYK), recursion);
                 break;
             }
 

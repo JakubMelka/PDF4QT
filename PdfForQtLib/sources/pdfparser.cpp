@@ -738,7 +738,7 @@ PDFObject PDFParser::getObject()
             QByteArray array = m_lookAhead1.data.toByteArray();
             array.shrink_to_fit();
             shift();
-            return PDFObject::createString(std::make_shared<PDFString>(std::move(array)));
+            return PDFObject::createString(std::move(array));
         }
 
         case PDFLexicalAnalyzer::TokenType::Name:
@@ -747,7 +747,7 @@ PDFObject PDFParser::getObject()
             QByteArray array = m_lookAhead1.data.toByteArray();
             array.shrink_to_fit();
             shift();
-            return PDFObject::createName(std::make_shared<PDFString>(std::move(array)));
+            return PDFObject::createName(std::move(array));
         }
 
         case PDFLexicalAnalyzer::TokenType::ArrayStart:

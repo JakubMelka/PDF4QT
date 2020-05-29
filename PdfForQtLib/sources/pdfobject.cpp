@@ -15,7 +15,6 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #include "pdfobject.h"
 #include "pdfvisitor.h"
 
@@ -24,11 +23,10 @@ namespace pdf
 
 QByteArray PDFObject::getString() const
 {
-    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
+    PDFStringRef stringRef = getStringObject();
+    Q_ASSERT(stringRef.inplaceString || stringRef.memoryString);
 
-    Q_ASSERT(dynamic_cast<PDFString*>(objectContent.get()));
-    const PDFString* string = static_cast<PDFString*>(objectContent.get());
-    return string->getString();
+    return stringRef.inplaceString ? stringRef.inplaceString->getString() : stringRef.memoryString->getString();
 }
 
 const PDFDictionary* PDFObject::getDictionary() const
@@ -39,12 +37,19 @@ const PDFDictionary* PDFObject::getDictionary() const
     return static_cast<const PDFDictionary*>(objectContent.get());
 }
 
-const PDFString* PDFObject::getStringObject() const
+PDFStringRef PDFObject::getStringObject() const
 {
-    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
+    if (std::holds_alternative<PDFInplaceString>(m_data))
+    {
+        return { &std::get<PDFInplaceString>(m_data) , nullptr };
+    }
+    else
+    {
+        const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
 
-    Q_ASSERT(dynamic_cast<const PDFString*>(objectContent.get()));
-    return static_cast<const PDFString*>(objectContent.get());
+        Q_ASSERT(dynamic_cast<const PDFString*>(objectContent.get()));
+        return { nullptr, static_cast<const PDFString*>(objectContent.get()) };
+    }
 }
 
 const PDFStream* PDFObject::getStream() const
@@ -132,6 +137,54 @@ void PDFObject::accept(PDFAbstractVisitor* visitor) const
 
         default:
             Q_ASSERT(false);
+    }
+}
+
+PDFObject PDFObject::createName(QByteArray name)
+{
+    if (name.size() > PDFInplaceString::MAX_STRING_SIZE)
+    {
+        return PDFObject(Type::Name, std::make_shared<PDFString>(qMove(name)));
+    }
+    else
+    {
+        return PDFObject(Type::Name, PDFInplaceString(qMove(name)));
+    }
+}
+
+PDFObject PDFObject::createString(QByteArray name)
+{
+    if (name.size() > PDFInplaceString::MAX_STRING_SIZE)
+    {
+        return PDFObject(Type::String, std::make_shared<PDFString>(qMove(name)));
+    }
+    else
+    {
+        return PDFObject(Type::String, PDFInplaceString(qMove(name)));
+    }
+}
+
+PDFObject PDFObject::createName(PDFStringRef name)
+{
+    if (name.memoryString)
+    {
+        return PDFObject(Type::Name, std::make_shared<PDFString>(name.getString()));
+    }
+    else
+    {
+        return PDFObject(Type::Name, *name.inplaceString);
+    }
+}
+
+PDFObject PDFObject::createString(PDFStringRef name)
+{
+    if (name.memoryString)
+    {
+        return PDFObject(Type::String, std::make_shared<PDFString>(name.getString()));
+    }
+    else
+    {
+        return PDFObject(Type::String, *name.inplaceString);
     }
 }
 
@@ -333,6 +386,11 @@ PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlag
 PDFObject PDFObjectManipulator::removeNullObjects(PDFObject object)
 {
     return merge(object, object, RemoveNullObjects);
+}
+
+QByteArray PDFStringRef::getString() const
+{
+    return inplaceString ? inplaceString->getString() : memoryString->getString();
 }
 
 }   // namespace pdf

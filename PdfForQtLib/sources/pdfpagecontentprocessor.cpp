@@ -2118,7 +2118,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
         return;
     }
 
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name.name));
     if (colorSpace)
     {
         // We must also set default color (it can depend on the color space)
@@ -2141,7 +2141,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
         return;
     }
 
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(std::make_shared<PDFString>(QByteArray(name.name))));
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name.name));
     if (colorSpace)
     {
         // We must also set default color (it can depend on the color space)

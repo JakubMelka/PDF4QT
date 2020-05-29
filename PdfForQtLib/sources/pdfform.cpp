@@ -2078,7 +2078,7 @@ void PDFFormFieldCheckableButtonEditor::click()
     parameters.invokingWidget = m_formWidget.getWidget();
     parameters.invokingFormField = m_formWidget.getParent();
     parameters.scope = PDFFormField::SetValueParameters::Scope::User;
-    parameters.value = PDFObject::createName(std::make_shared<PDFString>(qMove(newState)));
+    parameters.value = PDFObject::createName(qMove(newState));
     m_formManager->setFormFieldValue(parameters);
 }
 

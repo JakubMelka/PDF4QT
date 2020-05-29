@@ -82,8 +82,8 @@ public:
     virtual void visitBool(bool value) override;
     virtual void visitInt(PDFInteger value) override;
     virtual void visitReal(PDFReal value) override;
-    virtual void visitString(const PDFString* string) override;
-    virtual void visitName(const PDFString* name) override;
+    virtual void visitString(PDFStringRef string) override;
+    virtual void visitName(PDFStringRef name) override;
     virtual void visitArray(const PDFArray* array) override;
     virtual void visitDictionary(const PDFDictionary* dictionary) override;
     virtual void visitStream(const PDFStream* stream) override;
@@ -116,14 +116,14 @@ void PDFReplaceReferencesVisitor::visitReal(PDFReal value)
     m_objectStack.push_back(PDFObject::createReal(value));
 }
 
-void PDFReplaceReferencesVisitor::visitString(const PDFString* string)
+void PDFReplaceReferencesVisitor::visitString(PDFStringRef string)
 {
-    m_objectStack.push_back(PDFObject::createString(std::make_shared<PDFString>(*string)));
+    m_objectStack.push_back(PDFObject::createString(string));
 }
 
-void PDFReplaceReferencesVisitor::visitName(const PDFString* name)
+void PDFReplaceReferencesVisitor::visitName(PDFStringRef name)
 {
-    m_objectStack.push_back(PDFObject::createName(std::make_shared<PDFString>(*name)));
+    m_objectStack.push_back(PDFObject::createName(name));
 }
 
 void PDFReplaceReferencesVisitor::visitArray(const PDFArray* array)
@@ -355,7 +355,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationBorderStyle style)
 
 PDFObjectFactory& PDFObjectFactory::operator<<(const QDateTime& dateTime)
 {
-    addObject(PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::converDateTimeToString(dateTime))));
+    addObject(PDFObject::createString(PDFEncoding::converDateTimeToString(dateTime)));
     return *this;
 }
 
@@ -417,7 +417,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationLineEnding lineEnding)
 
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapString string)
 {
-    addObject(PDFObject::createString(std::make_shared<PDFString>(qMove(string.string))));
+    addObject(PDFObject::createString(qMove(string.string)));
     return *this;
 }
 
@@ -555,12 +555,12 @@ PDFObject PDFObjectFactory::createTextString(QString textString)
             textStream << textString;
         }
 
-        return PDFObject::createString(std::make_shared<PDFString>(qMove(ba)));
+        return PDFObject::createString(qMove(ba));
     }
     else
     {
         // Use PDF document encoding
-        return PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::convertToEncoding(textString, PDFEncoding::Encoding::PDFDoc)));
+        return PDFObject::createString(PDFEncoding::convertToEncoding(textString, PDFEncoding::Encoding::PDFDoc));
     }
 }
 
@@ -599,7 +599,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(WrapAnnotationColor color)
 
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapCurrentDateTime)
 {
-    addObject(PDFObject::createString(std::make_shared<PDFString>(PDFEncoding::converDateTimeToString(QDateTime::currentDateTime()))));
+    addObject(PDFObject::createString(PDFEncoding::converDateTimeToString(QDateTime::currentDateTime())));
     return *this;
 }
 
@@ -617,7 +617,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(int value)
 
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapName wrapName)
 {
-    addObject(PDFObject::createName(std::make_shared<PDFString>(qMove(wrapName.name))));
+    addObject(PDFObject::createName(qMove(wrapName.name)));
     return *this;
 }
 

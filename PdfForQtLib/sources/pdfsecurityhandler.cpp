@@ -53,8 +53,8 @@ public:
     virtual void visitBool(bool value) override;
     virtual void visitInt(PDFInteger value) override;
     virtual void visitReal(PDFReal value) override;
-    virtual void visitString(const PDFString* string) override;
-    virtual void visitName(const PDFString* name) override;
+    virtual void visitString(PDFStringRef string) override;
+    virtual void visitName(PDFStringRef name) override;
     virtual void visitArray(const PDFArray* array) override;
     virtual void visitDictionary(const PDFDictionary* dictionary) override;
     virtual void visitStream(const PDFStream* stream) override;
@@ -88,14 +88,14 @@ void PDFDecryptObjectVisitor::visitReal(PDFReal value)
     m_objectStack.push_back(PDFObject::createReal(value));
 }
 
-void PDFDecryptObjectVisitor::visitString(const PDFString* string)
+void PDFDecryptObjectVisitor::visitString(PDFStringRef string)
 {
-    m_objectStack.push_back(PDFObject::createString(std::make_shared<PDFString>(m_securityHandler->decrypt(string->getString(), m_reference, PDFSecurityHandler::EncryptionScope::String))));
+    m_objectStack.push_back(PDFObject::createString(m_securityHandler->decrypt(string.getString(), m_reference, PDFSecurityHandler::EncryptionScope::String)));
 }
 
-void PDFDecryptObjectVisitor::visitName(const PDFString* name)
+void PDFDecryptObjectVisitor::visitName(PDFStringRef name)
 {
-    m_objectStack.push_back(PDFObject::createName(std::make_shared<PDFString>(*name)));
+    m_objectStack.push_back(PDFObject::createName(name));
 }
 
 void PDFDecryptObjectVisitor::visitArray(const PDFArray* array)

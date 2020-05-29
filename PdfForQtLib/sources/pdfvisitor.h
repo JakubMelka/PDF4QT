@@ -66,8 +66,8 @@ public:
     virtual void visitBool(bool value) { Q_UNUSED(value); }
     virtual void visitInt(PDFInteger value) { Q_UNUSED(value); }
     virtual void visitReal(PDFReal value) { Q_UNUSED(value); }
-    virtual void visitString(const PDFString* string) { Q_UNUSED(string); }
-    virtual void visitName(const PDFString* name) { Q_UNUSED(name); }
+    virtual void visitString(PDFStringRef string) { Q_UNUSED(string); }
+    virtual void visitName(PDFStringRef name) { Q_UNUSED(name); }
     virtual void visitArray(const PDFArray* array) { Q_UNUSED(array); }
     virtual void visitDictionary(const PDFDictionary* dictionary) { Q_UNUSED(dictionary); }
     virtual void visitStream(const PDFStream* stream) { Q_UNUSED(stream); }
@@ -115,8 +115,8 @@ public:
     virtual void visitBool(bool value) override;
     virtual void visitInt(PDFInteger value) override;
     virtual void visitReal(PDFReal value) override;
-    virtual void visitString(const PDFString* string) override;
-    virtual void visitName(const PDFString* name) override;
+    virtual void visitString(PDFStringRef string) override;
+    virtual void visitName(PDFStringRef name) override;
     virtual void visitArray(const PDFArray* array) override;
     virtual void visitDictionary(const PDFDictionary* dictionary) override;
     virtual void visitStream(const PDFStream* stream) override;

@@ -1131,7 +1131,7 @@ PDF3DBackground PDF3DBackground::parse(const PDFObjectStorage* storage, PDFObjec
         PDFObject colorSpace = dictionary->get("CS");
         if (colorSpace.isNull())
         {
-            colorSpace = PDFObject::createName(std::make_shared<PDFString>("DeviceRGB"));
+            colorSpace = PDFObject::createName("DeviceRGB");
         }
         std::vector<PDFReal> color = loader.readNumberArrayFromDictionary(dictionary, "C", { 1.0, 1.0, 1.0});
         PDFArray array;

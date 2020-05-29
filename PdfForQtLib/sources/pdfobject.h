@@ -26,6 +26,7 @@
 #include <memory>
 #include <vector>
 #include <variant>
+#include <array>
 #include <initializer_list>
 
 namespace pdf
@@ -50,6 +51,64 @@ public:
 
     /// Optimizes memory consumption of this object
     virtual void optimize() = 0;
+};
+
+/// This class represents inplace string in the PDF object. To avoid too much
+/// memory allocation, we store small strings inplace as small objects, so
+/// we do not use memory allocator, so this doesn't cause performance downgrade.
+/// Very often, PDF document consists of large number of names and strings
+/// objects, which will fit into this category.
+struct PDFInplaceString
+{
+    static constexpr const int MAX_STRING_SIZE = sizeof(PDFObjectReference) - 1;
+
+    constexpr PDFInplaceString() = default;
+    inline PDFInplaceString(const QByteArray& data)
+    {
+        Q_ASSERT(data.size() <= MAX_STRING_SIZE);
+        size = static_cast<uint8_t>(data.size());
+        std::copy(data.cbegin(), data.cend(), string.data());
+    }
+
+    inline bool operator==(const PDFInplaceString& other) const
+    {
+        if (size != other.size)
+        {
+            return false;
+        }
+
+        for (uint8_t i = 0; i < size; ++i)
+        {
+            if (string[i] != other.string[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    inline bool operator !=(const PDFInplaceString& other) const
+    {
+        return !(*this == other);
+    }
+
+    QByteArray getString() const
+    {
+        return (size > 0) ? QByteArray(string.data(), size) : QByteArray();
+    }
+
+    uint8_t size = 0;
+    std::array<char, MAX_STRING_SIZE> string = { };
+};
+
+/// Reference to the string implementations
+struct PDFStringRef
+{
+    const PDFInplaceString* inplaceString = nullptr;
+    const PDFString* memoryString = nullptr;
+
+    QByteArray getString() const;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFObject
@@ -115,7 +174,7 @@ public:
     QByteArray getString() const;
     const PDFDictionary* getDictionary() const;
     PDFObjectReference getReference() const { return std::get<PDFObjectReference>(m_data); }
-    const PDFString* getStringObject() const;
+    PDFStringRef getStringObject() const;
     const PDFStream* getStream() const;
     const PDFArray* getArray() const;
 
@@ -137,14 +196,8 @@ public:
     /// Creates an object with real number
     static inline PDFObject createReal(PDFReal value) { return PDFObject(Type::Real, value); }
 
-    /// Creates a name object
-    static inline PDFObject createName(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Name, std::move(value)); }
-
     /// Creates a reference object
     static inline PDFObject createReference(const PDFObjectReference& reference) { return PDFObject(Type::Reference, reference); }
-
-    /// Creates a string object
-    static inline PDFObject createString(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::String, std::move(value)); }
 
     /// Creates an array object
     static inline PDFObject createArray(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Array, std::move(value)); }
@@ -155,17 +208,30 @@ public:
     /// Creates a stream object
     static inline PDFObject createStream(PDFObjectContentPointer&& value) { value->optimize(); return PDFObject(Type::Stream, std::move(value)); }
 
+    /// Creates a name object
+    static PDFObject createName(QByteArray name);
+
+    /// Creates a string object
+    static PDFObject createString(QByteArray name);
+
+    /// Creates a name object
+    static PDFObject createName(PDFStringRef name);
+
+    /// Creates a string object
+    static PDFObject createString(PDFStringRef name);
+
 private:
     template<typename T>
     constexpr inline PDFObject(Type type, T&& value) :
-        m_type(type),
-        m_data(std::forward<T>(value))
+        m_data(std::forward<T>(value)),
+        m_type(type)
     {
 
     }
 
+
+    std::variant<typename std::monostate, bool, PDFInteger, PDFReal, PDFObjectReference, PDFObjectContentPointer, PDFInplaceString> m_data;
     Type m_type;
-    std::variant<typename std::monostate, bool, PDFInteger, PDFReal, PDFObjectReference, PDFObjectContentPointer> m_data;
 };
 
 /// Represents raw string in the PDF file. No conversions are performed, this is

@@ -38,8 +38,8 @@ public:
     virtual void visitBool(bool value) override;
     virtual void visitInt(PDFInteger value) override;
     virtual void visitReal(PDFReal value) override;
-    virtual void visitString(const PDFString* string) override;
-    virtual void visitName(const PDFString* name) override;
+    virtual void visitString(PDFStringRef string) override;
+    virtual void visitName(PDFStringRef name) override;
     virtual void visitArray(const PDFArray* array) override;
     virtual void visitDictionary(const PDFDictionary* dictionary) override;
     virtual void visitStream(const PDFStream* stream) override;
@@ -85,9 +85,9 @@ void PDFWriteObjectVisitor::visitReal(PDFReal value)
     m_device->write(" ");
 }
 
-void PDFWriteObjectVisitor::visitString(const PDFString* string)
+void PDFWriteObjectVisitor::visitString(PDFStringRef string)
 {
-    const QByteArray& data = string->getString();
+    QByteArray data = string.getString();
     if (data.indexOf('(') != -1 ||
         data.indexOf(')') != -1 ||
         data.indexOf('\\') != -1)
@@ -126,9 +126,9 @@ void PDFWriteObjectVisitor::writeName(const QByteArray& string)
     m_device->write(" ");
 }
 
-void PDFWriteObjectVisitor::visitName(const PDFString* name)
+void PDFWriteObjectVisitor::visitName(PDFStringRef name)
 {
-    writeName(name->getString());
+    writeName(name.getString());
 }
 
 void PDFWriteObjectVisitor::visitArray(const PDFArray* array)

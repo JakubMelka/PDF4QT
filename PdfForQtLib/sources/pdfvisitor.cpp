@@ -80,16 +80,30 @@ void PDFStatisticsCollector::visitReal(PDFReal value)
     collectStatisticsOfSimpleObject(PDFObject::Type::Real);
 }
 
-void PDFStatisticsCollector::visitString(const PDFString* string)
+void PDFStatisticsCollector::visitString(PDFStringRef string)
 {
     Statistics& statistics = m_statistics[PDFObject::Type::String];
-    collectStatisticsOfString(string, statistics);
+    if (string.inplaceString)
+    {
+        collectStatisticsOfSimpleObject(PDFObject::Type::String);
+    }
+    else
+    {
+        collectStatisticsOfString(string.memoryString, statistics);
+    }
 }
 
-void PDFStatisticsCollector::visitName(const PDFString* name)
+void PDFStatisticsCollector::visitName(PDFStringRef name)
 {
     Statistics& statistics = m_statistics[PDFObject::Type::Name];
-    collectStatisticsOfString(name, statistics);
+    if (name.inplaceString)
+    {
+        collectStatisticsOfSimpleObject(PDFObject::Type::Name);
+    }
+    else
+    {
+        collectStatisticsOfString(name.memoryString, statistics);
+    }
 }
 
 void PDFStatisticsCollector::visitArray(const PDFArray* array)
