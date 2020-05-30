@@ -45,6 +45,11 @@ QByteArray PDFObjectStorage::getDecodedStream(const PDFStream* stream) const
     return PDFStreamFilterStorage::getDecodedStream(stream, std::bind(QOverload<const PDFObject&>::of(&PDFObjectStorage::getObject), this, std::placeholders::_1), getSecurityHandler());
 }
 
+PDFDocument::~PDFDocument()
+{
+
+}
+
 bool PDFDocument::operator==(const PDFDocument& other) const
 {
     // Document is considered equal, if storage is equal

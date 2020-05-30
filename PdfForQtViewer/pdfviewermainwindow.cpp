@@ -85,6 +85,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_progress(new pdf::PDFProgress(this)),
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
+    m_futureWatcher(nullptr),
     m_progressDialog(nullptr),
     m_isBusy(false),
     m_isChangingProgressStep(false),
@@ -287,7 +288,6 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_progress, &pdf::PDFProgress::progressStarted, this, &PDFViewerMainWindow::onProgressStarted);
     connect(m_progress, &pdf::PDFProgress::progressStep, this, &PDFViewerMainWindow::onProgressStep);
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
-    connect(&m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
     connect(this, &PDFViewerMainWindow::queryPasswordRequest, this, &PDFViewerMainWindow::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
     connect(ui->actionFind, &QAction::triggered, this, [this] { m_toolManager->setActiveTool(m_toolManager->getFindTextTool()); });
 
@@ -862,7 +862,7 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
 
 void PDFViewerMainWindow::updateActionsAvailability()
 {
-    const bool isBusy = m_futureWatcher.isRunning() || m_isBusy;
+    const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy;
     const bool hasDocument = m_pdfDocument;
     const bool hasValidDocument = !isBusy && hasDocument;
     bool canPrint = false;
@@ -957,7 +957,9 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
         return result;
     };
     m_future = QtConcurrent::run(readDocument);
-    m_futureWatcher.setFuture(m_future);
+    m_futureWatcher = new QFutureWatcher<AsyncReadingResult>();
+    connect(m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
+    m_futureWatcher->setFuture(m_future);
     updateActionsAvailability();
 }
 
@@ -966,6 +968,10 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
     QApplication::restoreOverrideCursor();
 
     AsyncReadingResult result = m_future.result();
+    m_future = QFuture<AsyncReadingResult>();
+    m_futureWatcher->deleteLater();
+    m_futureWatcher = nullptr;
+
     switch (result.result)
     {
         case pdf::PDFDocumentReader::Result::OK:
@@ -1122,7 +1128,7 @@ int PDFViewerMainWindow::adjustDpiX(int value)
 
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 {
-    if (m_futureWatcher.isRunning())
+    if (m_futureWatcher && m_futureWatcher->isRunning())
     {
         // Jakub Melka: Do not allow to close the application, if document
         // reading is running.
@@ -1226,7 +1232,7 @@ void PDFViewerMainWindow::updateUndoRedoSettings()
 
 void PDFViewerMainWindow::updateUndoRedoActions()
 {
-    const bool isBusy = m_futureWatcher.isRunning() || m_isBusy;
+    const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy;
     const bool canUndo = !isBusy && m_undoRedoManager->canUndo();
     const bool canRedo = !isBusy && m_undoRedoManager->canRedo();
 

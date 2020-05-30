@@ -174,7 +174,7 @@ private:
     PDFFileInfo m_fileInfo;
 
     QFuture<AsyncReadingResult> m_future;
-    QFutureWatcher<AsyncReadingResult> m_futureWatcher;
+    QFutureWatcher<AsyncReadingResult>* m_futureWatcher;
 
     QProgressDialog* m_progressDialog;
     bool m_isBusy;

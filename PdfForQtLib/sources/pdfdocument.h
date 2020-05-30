@@ -391,6 +391,7 @@ class PDFFORQTLIBSHARED_EXPORT PDFDocument
 
 public:
     explicit PDFDocument() = default;
+    ~PDFDocument();
 
     bool operator==(const PDFDocument& other) const;
     bool operator!=(const PDFDocument& other) const { return !(*this == other); }
