@@ -43,6 +43,13 @@ public:
     PDFOperationResult write(const QString& fileName, const PDFDocument* document);
     PDFOperationResult write(QIODevice* device, const PDFDocument* document);
 
+    /// Calculates document file size, as if it is written to the disk.
+    /// No file is accessed by this function; document is written
+    /// to fake stream, which counts operations. If error occurs, and
+    /// size can't be determined, then -1 is returned.
+    /// \param document Document
+    static qint64 getDocumentFileSize(const PDFDocument* document);
+
 private:
     void writeCRLF(QIODevice* device);
     void writeObjectHeader(QIODevice* device, PDFObjectReference reference);

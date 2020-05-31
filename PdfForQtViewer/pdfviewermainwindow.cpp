@@ -24,6 +24,7 @@
 #include "pdfviewersettingsdialog.h"
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfrendertoimagesdialog.h"
+#include "pdfoptimizedocumentdialog.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
@@ -886,6 +887,7 @@ void PDFViewerMainWindow::updateActionsAvailability()
     ui->actionFind->setEnabled(hasValidDocument);
     ui->actionPrint->setEnabled(hasValidDocument && canPrint);
     ui->actionRender_to_Images->setEnabled(hasValidDocument && canPrint);
+    ui->actionOptimize->setEnabled(hasValidDocument);
     setEnabled(!isBusy);
     updateUndoRedoActions();
 }
@@ -1409,4 +1411,15 @@ void PDFViewerMainWindow::on_actionRender_to_Images_triggered()
     dialog.exec();
 }
 
+void PDFViewerMainWindow::on_actionOptimize_triggered()
+{
+    PDFOptimizeDocumentDialog dialog(m_pdfDocument.data(), this);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+
+    }
+}
+
 }   // namespace pdfviewer
+

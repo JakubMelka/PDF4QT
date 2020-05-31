@@ -19,7 +19,7 @@
 #include "pdfencoding.h"
 #include "pdfconstants.h"
 #include "pdfdocumentreader.h"
-#include "pdfvisitor.h"
+#include "pdfobjectutils.h"
 
 #include <QBuffer>
 #include <QPainter>
@@ -27,155 +27,6 @@
 
 namespace pdf
 {
-
-class PDFCollectReferencesVisitor : public PDFAbstractVisitor
-{
-public:
-    explicit PDFCollectReferencesVisitor(std::set<PDFObjectReference>& references) :
-        m_references(references)
-    {
-
-    }
-
-    virtual void visitArray(const PDFArray* array) override;
-    virtual void visitDictionary(const PDFDictionary* dictionary) override;
-    virtual void visitStream(const PDFStream* stream) override;
-    virtual void visitReference(const PDFObjectReference reference) override;
-
-private:
-    std::set<PDFObjectReference>& m_references;
-};
-
-void PDFCollectReferencesVisitor::visitArray(const PDFArray* array)
-{
-    acceptArray(array);
-}
-
-void PDFCollectReferencesVisitor::visitDictionary(const PDFDictionary* dictionary)
-{
-    for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
-    {
-        dictionary->getValue(i).accept(this);
-    }
-}
-
-void PDFCollectReferencesVisitor::visitStream(const PDFStream* stream)
-{
-    visitDictionary(stream->getDictionary());
-}
-
-void PDFCollectReferencesVisitor::visitReference(const PDFObjectReference reference)
-{
-    m_references.insert(reference);
-}
-
-class PDFReplaceReferencesVisitor : public PDFAbstractVisitor
-{
-public:
-    explicit PDFReplaceReferencesVisitor(const std::map<PDFObjectReference, PDFObjectReference>& replacements) :
-        m_replacements(replacements)
-    {
-        m_objectStack.reserve(32);
-    }
-
-    virtual void visitNull() override;
-    virtual void visitBool(bool value) override;
-    virtual void visitInt(PDFInteger value) override;
-    virtual void visitReal(PDFReal value) override;
-    virtual void visitString(PDFStringRef string) override;
-    virtual void visitName(PDFStringRef name) override;
-    virtual void visitArray(const PDFArray* array) override;
-    virtual void visitDictionary(const PDFDictionary* dictionary) override;
-    virtual void visitStream(const PDFStream* stream) override;
-    virtual void visitReference(const PDFObjectReference reference) override;
-
-    PDFObject getObject();
-
-private:
-    const std::map<PDFObjectReference, PDFObjectReference>& m_replacements;
-    std::vector<PDFObject> m_objectStack;
-};
-
-void PDFReplaceReferencesVisitor::visitNull()
-{
-    m_objectStack.push_back(PDFObject::createNull());
-}
-
-void PDFReplaceReferencesVisitor::visitBool(bool value)
-{
-    m_objectStack.push_back(PDFObject::createBool(value));
-}
-
-void PDFReplaceReferencesVisitor::visitInt(PDFInteger value)
-{
-    m_objectStack.push_back(PDFObject::createInteger(value));
-}
-
-void PDFReplaceReferencesVisitor::visitReal(PDFReal value)
-{
-    m_objectStack.push_back(PDFObject::createReal(value));
-}
-
-void PDFReplaceReferencesVisitor::visitString(PDFStringRef string)
-{
-    m_objectStack.push_back(PDFObject::createString(string));
-}
-
-void PDFReplaceReferencesVisitor::visitName(PDFStringRef name)
-{
-    m_objectStack.push_back(PDFObject::createName(name));
-}
-
-void PDFReplaceReferencesVisitor::visitArray(const PDFArray* array)
-{
-    acceptArray(array);
-
-    // We have all objects on the stack
-    Q_ASSERT(array->getCount() <= m_objectStack.size());
-
-    auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
-    std::vector<PDFObject> objects(it, m_objectStack.cend());
-    PDFObject object = PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
-    m_objectStack.erase(it, m_objectStack.cend());
-    m_objectStack.push_back(object);
-}
-
-void PDFReplaceReferencesVisitor::visitDictionary(const PDFDictionary* dictionary)
-{
-    Q_ASSERT(dictionary);
-
-    std::vector<PDFDictionary::DictionaryEntry> entries;
-    entries.reserve(dictionary->getCount());
-
-    for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
-    {
-        dictionary->getValue(i).accept(this);
-        entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
-        m_objectStack.pop_back();
-    }
-
-    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
-}
-
-void PDFReplaceReferencesVisitor::visitStream(const PDFStream* stream)
-{
-    // Replace references in the dictionary
-    visitDictionary(stream->getDictionary());
-    PDFObject dictionaryObject = m_objectStack.back();
-    m_objectStack.pop_back();
-    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*dictionaryObject.getDictionary()), QByteArray(*stream->getContent()))));
-}
-
-void PDFReplaceReferencesVisitor::visitReference(const PDFObjectReference reference)
-{
-    m_objectStack.push_back(PDFObject::createReference(m_replacements.at(reference)));
-}
-
-PDFObject PDFReplaceReferencesVisitor::getObject()
-{
-    Q_ASSERT(m_objectStack.size() == 1);
-    return qMove(m_objectStack.back());
-}
 
 void PDFObjectFactory::beginArray()
 {
@@ -1015,32 +866,7 @@ std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>
 {
     // 1) Collect all references, which we must copy. If object is referenced, then
     //    we must also collect references of referenced object.
-    std::set<PDFObjectReference> references;
-    {
-        PDFCollectReferencesVisitor collectReferencesVisitor(references);
-        for (const PDFObject& object : objects)
-        {
-            object.accept(&collectReferencesVisitor);
-        }
-    }
-
-    // Iterative algorihm, which adds additional references from referenced objects.
-    // If new reference is added, then we must also check, that all referenced objects
-    // from this object are added.
-    std::set<PDFObjectReference> workSet = references;
-    while (!workSet.empty())
-    {
-        std::set<PDFObjectReference> addedReferences;
-        PDFCollectReferencesVisitor collectReferencesVisitor(addedReferences);
-        for (const PDFObjectReference& objectReference : workSet)
-        {
-            storage.getObject(objectReference).accept(&collectReferencesVisitor);
-        }
-
-        workSet.clear();
-        std::set_difference(addedReferences.cbegin(), addedReferences.cend(), references.cbegin(), references.cend(), std::inserter(workSet, workSet.cend()));
-        references.merge(addedReferences);
-    }
+    std::set<PDFObjectReference> references = PDFObjectUtils::getReferences(objects, storage);
 
     // 2) Make room for new objects, together with mapping
     std::map<PDFObjectReference, PDFObjectReference> referenceMapping;
@@ -1053,9 +879,7 @@ std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>
     for (const PDFObjectReference& sourceReference : references)
     {
         const PDFObjectReference targetReference = referenceMapping.at(sourceReference);
-        PDFReplaceReferencesVisitor replaceReferencesVisitor(referenceMapping);
-        storage.getObject(sourceReference).accept(&replaceReferencesVisitor);
-        m_storage.setObject(targetReference, replaceReferencesVisitor.getObject());
+        m_storage.setObject(targetReference, PDFObjectUtils::replaceReferences(storage.getObject(sourceReference), referenceMapping));
     }
 
     std::vector<PDFObject> result;
@@ -1069,16 +893,15 @@ std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>
         }
         else
         {
-            PDFReplaceReferencesVisitor replaceReferencesVisitor(referenceMapping);
-            object.accept(&replaceReferencesVisitor);
+            PDFObject replacedObject = PDFObjectUtils::replaceReferences(object, referenceMapping);
 
             if (createReferences)
             {
-                result.push_back(PDFObject::createReference(addObject(replaceReferencesVisitor.getObject())));
+                result.push_back(PDFObject::createReference(addObject(qMove(replacedObject))));
             }
             else
             {
-                result.push_back(replaceReferencesVisitor.getObject());
+                result.emplace_back(qMove(replacedObject));
             }
         }
     }

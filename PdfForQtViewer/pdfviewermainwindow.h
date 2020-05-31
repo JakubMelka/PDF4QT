@@ -99,6 +99,8 @@ private slots:
     void on_actionPrint_triggered();
     void on_actionRender_to_Images_triggered();
 
+    void on_actionOptimize_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();

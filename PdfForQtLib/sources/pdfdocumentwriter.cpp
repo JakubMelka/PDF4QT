@@ -297,4 +297,157 @@ void PDFDocumentWriter::writeObjectFooter(QIODevice* device)
     writeCRLF(device);
 }
 
+class PDFSizeCounterIODevice : public QIODevice
+{
+public:
+    explicit PDFSizeCounterIODevice(QObject* parent) :
+        QIODevice(parent)
+    {
+
+    }
+
+    virtual bool isSequential() const override;
+    virtual bool open(OpenMode mode) override;
+    virtual void close() override;
+    virtual qint64 pos() const override;
+    virtual qint64 size() const override;
+    virtual bool seek(qint64 pos) override;
+    virtual bool atEnd() const override;
+    virtual bool reset() override;
+    virtual qint64 bytesAvailable() const override;
+    virtual qint64 bytesToWrite() const override;
+    virtual bool canReadLine() const override;
+    virtual bool waitForReadyRead(int msecs) override;
+    virtual bool waitForBytesWritten(int msecs) override;
+
+protected:
+    virtual qint64 readData(char* data, qint64 maxlen) override;
+    virtual qint64 readLineData(char* data, qint64 maxlen) override;
+    virtual qint64 writeData(const char* data, qint64 len) override;
+
+private:
+    OpenMode m_openMode = NotOpen;
+    qint64 m_fileSize = 0;
+};
+
+bool PDFSizeCounterIODevice::isSequential() const
+{
+    return true;
+}
+
+bool PDFSizeCounterIODevice::open(OpenMode mode)
+{
+    if (m_openMode == NotOpen)
+    {
+        setOpenMode(mode);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void PDFSizeCounterIODevice::close()
+{
+    setOpenMode(NotOpen);
+}
+
+qint64 PDFSizeCounterIODevice::pos() const
+{
+    return m_fileSize;
+}
+
+qint64 PDFSizeCounterIODevice::size() const
+{
+    return m_fileSize;
+}
+
+bool PDFSizeCounterIODevice::seek(qint64 pos)
+{
+    Q_UNUSED(pos);
+
+    return false;
+}
+
+bool PDFSizeCounterIODevice::atEnd() const
+{
+    return true;
+}
+
+bool PDFSizeCounterIODevice::reset()
+{
+    return false;
+}
+
+qint64 PDFSizeCounterIODevice::bytesAvailable() const
+{
+    return 0;
+}
+
+qint64 PDFSizeCounterIODevice::bytesToWrite() const
+{
+    return 0;
+}
+
+bool PDFSizeCounterIODevice::canReadLine() const
+{
+    return false;
+}
+
+bool PDFSizeCounterIODevice::waitForReadyRead(int msecs)
+{
+    Q_UNUSED(msecs);
+
+    return false;
+}
+
+bool PDFSizeCounterIODevice::waitForBytesWritten(int msecs)
+{
+    Q_UNUSED(msecs);
+
+    return false;
+}
+
+qint64 PDFSizeCounterIODevice::readData(char* data, qint64 maxlen)
+{
+    Q_UNUSED(data);
+    Q_UNUSED(maxlen);
+
+    return 0;
+}
+
+qint64 PDFSizeCounterIODevice::readLineData(char* data, qint64 maxlen)
+{
+    Q_UNUSED(data);
+    Q_UNUSED(maxlen);
+
+    return 0;
+}
+
+qint64 PDFSizeCounterIODevice::writeData(const char* data, qint64 len)
+{
+    Q_UNUSED(data);
+
+    m_fileSize += len;
+    return len;
+}
+
+qint64 PDFDocumentWriter::getDocumentFileSize(const PDFDocument* document)
+{
+    PDFSizeCounterIODevice device(nullptr);
+    PDFDocumentWriter writer(nullptr);
+
+    device.open(QIODevice::WriteOnly);
+
+    if (writer.write(&device, document))
+    {
+        device.close();
+        return device.pos();
+    }
+
+    device.close();
+    return -1;
+}
+
 }   // namespace pdf

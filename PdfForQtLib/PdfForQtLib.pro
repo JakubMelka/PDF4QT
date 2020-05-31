@@ -51,6 +51,8 @@ SOURCES += \
     sources/pdfjbig2decoder.cpp \
     sources/pdfmultimedia.cpp \
     sources/pdfobject.cpp \
+    sources/pdfobjectutils.cpp \
+    sources/pdfoptimizer.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
     sources/pdfpagetransition.cpp \
@@ -102,6 +104,8 @@ HEADERS += \
     sources/pdfmultimedia.h \
     sources/pdfnametreeloader.h \
     sources/pdfobject.h \
+    sources/pdfobjectutils.h \
+    sources/pdfoptimizer.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
     sources/pdfpagetransition.h \

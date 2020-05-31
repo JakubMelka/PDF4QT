@@ -37,6 +37,7 @@ SOURCES += \
         pdfaboutdialog.cpp \
         pdfadvancedfindwidget.cpp \
         pdfdocumentpropertiesdialog.cpp \
+        pdfoptimizedocumentdialog.cpp \
         pdfrecentfilemanager.cpp \
         pdfrendertoimagesdialog.cpp \
         pdfsendmail.cpp \
@@ -51,6 +52,7 @@ HEADERS += \
         pdfaboutdialog.h \
         pdfadvancedfindwidget.h \
         pdfdocumentpropertiesdialog.h \
+        pdfoptimizedocumentdialog.h \
         pdfrecentfilemanager.h \
         pdfrendertoimagesdialog.h \
         pdfsendmail.h \
@@ -65,6 +67,7 @@ FORMS += \
         pdfaboutdialog.ui \
         pdfadvancedfindwidget.ui \
         pdfdocumentpropertiesdialog.ui \
+        pdfoptimizedocumentdialog.ui \
         pdfrendertoimagesdialog.ui \
         pdfsidebarwidget.ui \
         pdfviewermainwindow.ui \

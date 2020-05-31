@@ -461,6 +461,7 @@ public:
 private:
     friend class PDFDocumentReader;
     friend class PDFDocumentBuilder;
+    friend class PDFOptimizer;
 
     explicit PDFDocument(PDFObjectStorage&& storage, PDFVersion version) :
         m_pdfObjectStorage(std::move(storage))

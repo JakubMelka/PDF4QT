@@ -124,6 +124,8 @@
     <addaction name="actionSelectTextAll"/>
     <addaction name="actionDeselectText"/>
     <addaction name="separator"/>
+    <addaction name="actionOptimize"/>
+    <addaction name="separator"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -527,6 +529,11 @@
    </property>
    <property name="text">
     <string>Redo</string>
+   </property>
+  </action>
+  <action name="actionOptimize">
+   <property name="text">
+    <string>Optimize</string>
    </property>
   </action>
  </widget>
