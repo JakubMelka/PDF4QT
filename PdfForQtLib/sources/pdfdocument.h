@@ -94,6 +94,9 @@ public:
     /// Returns array of objects stored in this storage
     const PDFObjects& getObjects() const { return m_objects; }
 
+    /// Returns array of objects stored in this storage
+    PDFObjects& getObjects() { return m_objects; }
+
     /// Returns trailer dictionary
     const PDFObject& getTrailerDictionary() const { return m_trailerDictionary; }
 
