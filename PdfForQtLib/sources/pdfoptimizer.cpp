@@ -18,16 +18,17 @@
 #include "pdfoptimizer.h"
 #include "pdfvisitor.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfobjectutils.h"
+#include "pdfutils.h"
 
 namespace pdf
 {
 
-class PDFRemoveSimpleObjectsVisitor : public PDFAbstractVisitor
+class PDFUpdateObjectVisitor : public PDFAbstractVisitor
 {
 public:
-    explicit PDFRemoveSimpleObjectsVisitor(const PDFObjectStorage* storage, std::atomic<PDFInteger>* counter) :
-        m_storage(storage),
-        m_counter(counter)
+    explicit inline PDFUpdateObjectVisitor(const PDFObjectStorage* storage) :
+        m_storage(storage)
     {
         m_objectStack.reserve(32);
     }
@@ -45,43 +46,42 @@ public:
 
     PDFObject getObject();
 
-private:
+protected:
     const PDFObjectStorage* m_storage;
-    std::atomic<PDFInteger>* m_counter;
     std::vector<PDFObject> m_objectStack;
 };
 
-void PDFRemoveSimpleObjectsVisitor::visitNull()
+void PDFUpdateObjectVisitor::visitNull()
 {
     m_objectStack.push_back(PDFObject::createNull());
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitBool(bool value)
+void PDFUpdateObjectVisitor::visitBool(bool value)
 {
     m_objectStack.push_back(PDFObject::createBool(value));
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitInt(PDFInteger value)
+void PDFUpdateObjectVisitor::visitInt(PDFInteger value)
 {
     m_objectStack.push_back(PDFObject::createInteger(value));
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitReal(PDFReal value)
+void PDFUpdateObjectVisitor::visitReal(PDFReal value)
 {
     m_objectStack.push_back(PDFObject::createReal(value));
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitString(PDFStringRef string)
+void PDFUpdateObjectVisitor::visitString(PDFStringRef string)
 {
     m_objectStack.push_back(PDFObject::createString(string));
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitName(PDFStringRef name)
+void PDFUpdateObjectVisitor::visitName(PDFStringRef name)
 {
     m_objectStack.push_back(PDFObject::createName(name));
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitArray(const PDFArray* array)
+void PDFUpdateObjectVisitor::visitArray(const PDFArray* array)
 {
     acceptArray(array);
 
@@ -95,7 +95,7 @@ void PDFRemoveSimpleObjectsVisitor::visitArray(const PDFArray* array)
     m_objectStack.push_back(object);
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitDictionary(const PDFDictionary* dictionary)
+void PDFUpdateObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
 {
     Q_ASSERT(dictionary);
 
@@ -105,6 +105,7 @@ void PDFRemoveSimpleObjectsVisitor::visitDictionary(const PDFDictionary* diction
     for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
     {
         dictionary->getValue(i).accept(this);
+        Q_ASSERT(!m_objectStack.empty());
         entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
         m_objectStack.pop_back();
     }
@@ -112,15 +113,46 @@ void PDFRemoveSimpleObjectsVisitor::visitDictionary(const PDFDictionary* diction
     m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
 }
 
-void PDFRemoveSimpleObjectsVisitor::visitStream(const PDFStream* stream)
+void PDFUpdateObjectVisitor::visitStream(const PDFStream* stream)
 {
     const PDFDictionary* dictionary = stream->getDictionary();
 
     visitDictionary(dictionary);
+
+    Q_ASSERT(!m_objectStack.empty());
     PDFObject dictionaryObject = m_objectStack.back();
     m_objectStack.pop_back();
-    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*dictionaryObject.getDictionary()), QByteArray(*stream->getContent()))));
+
+    PDFDictionary newDictionary(*dictionaryObject.getDictionary());
+    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(newDictionary), QByteArray(*stream->getContent()))));
 }
+
+void PDFUpdateObjectVisitor::visitReference(const PDFObjectReference reference)
+{
+    m_objectStack.push_back(PDFObject::createReference(reference));
+}
+
+PDFObject PDFUpdateObjectVisitor::getObject()
+{
+    Q_ASSERT(m_objectStack.size() == 1);
+    return qMove(m_objectStack.back());
+}
+
+class PDFRemoveSimpleObjectsVisitor : public PDFUpdateObjectVisitor
+{
+public:
+    explicit inline PDFRemoveSimpleObjectsVisitor(const PDFObjectStorage* storage, std::atomic<PDFInteger>* counter) :
+        PDFUpdateObjectVisitor(storage),
+        m_counter(counter)
+    {
+
+    }
+
+    virtual void visitReference(const PDFObjectReference reference) override;
+
+private:
+    std::atomic<PDFInteger>* m_counter;
+};
 
 void PDFRemoveSimpleObjectsVisitor::visitReference(const PDFObjectReference reference)
 {
@@ -144,10 +176,45 @@ void PDFRemoveSimpleObjectsVisitor::visitReference(const PDFObjectReference refe
     }
 }
 
-PDFObject PDFRemoveSimpleObjectsVisitor::getObject()
+class PDFRemoveNullDictionaryEntriesVisitor : public PDFUpdateObjectVisitor
 {
-    Q_ASSERT(m_objectStack.size() == 1);
-    return qMove(m_objectStack.back());
+public:
+    explicit PDFRemoveNullDictionaryEntriesVisitor(const PDFObjectStorage* storage, std::atomic<PDFInteger>* counter) :
+        PDFUpdateObjectVisitor(storage),
+        m_counter(counter)
+    {
+
+    }
+
+    virtual void visitDictionary(const PDFDictionary* dictionary) override;
+
+private:
+    std::atomic<PDFInteger>* m_counter;
+};
+
+void PDFRemoveNullDictionaryEntriesVisitor::visitDictionary(const PDFDictionary* dictionary)
+{
+    Q_ASSERT(dictionary);
+
+    std::vector<PDFDictionary::DictionaryEntry> entries;
+    entries.reserve(dictionary->getCount());
+
+    for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
+    {
+        dictionary->getValue(i).accept(this);
+        Q_ASSERT(!m_objectStack.empty());
+        if (!m_objectStack.back().isNull())
+        {
+            entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
+        }
+        else
+        {
+            ++*m_counter;
+        }
+        m_objectStack.pop_back();
+    }
+
+    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
 }
 
 PDFOptimizer::PDFOptimizer(OptimizationFlags flags, QObject* parent) :
@@ -226,7 +293,7 @@ bool PDFOptimizer::performDereferenceSimpleObjects()
 {
     std::atomic<PDFInteger> counter = 0;
 
-    PDFObjectStorage::PDFObjects& objects =  m_storage.getObjects();
+    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
     auto processEntry = [this, &counter](PDFObjectStorage::Entry& entry)
     {
         PDFRemoveSimpleObjectsVisitor visitor(&m_storage, &counter);
@@ -235,6 +302,7 @@ bool PDFOptimizer::performDereferenceSimpleObjects()
     };
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
+    m_storage.setObjects(qMove(objects));
     emit optimizationProgress(tr("Simple objects dereferenced and embedded: %1").arg(counter));
 
     return false;
@@ -242,11 +310,45 @@ bool PDFOptimizer::performDereferenceSimpleObjects()
 
 bool PDFOptimizer::performRemoveNullObjects()
 {
+    std::atomic<PDFInteger> counter = 0;
+
+    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
+    auto processEntry = [this, &counter](PDFObjectStorage::Entry& entry)
+    {
+        PDFRemoveNullDictionaryEntriesVisitor visitor(&m_storage, &counter);
+        entry.object.accept(&visitor);
+        entry.object = visitor.getObject();
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
+    m_storage.setObjects(qMove(objects));
+    emit optimizationProgress(tr("Null objects entries from dictionaries removed: %1").arg(counter));
+
     return false;
 }
 
 bool PDFOptimizer::performRemoveUnusedObjects()
 {
+    std::atomic<PDFInteger> counter = 0;
+    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
+    std::set<PDFObjectReference> references = PDFObjectUtils::getReferences({ m_storage.getTrailerDictionary() }, m_storage);
+
+    PDFIntegerRange<size_t> range(0, objects.size());
+    auto processEntry = [this, &counter, &objects, &references](size_t index)
+    {
+        PDFObjectStorage::Entry& entry = objects[index];
+        PDFObjectReference reference(PDFInteger(index), entry.generation);
+        if (!references.count(reference) && !entry.object.isNull())
+        {
+            entry.object = PDFObject();
+            ++counter;
+        }
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), processEntry);
+    m_storage.setObjects(qMove(objects));
+    emit optimizationProgress(tr("Unused objects removed: %1").arg(counter));
+
     return false;
 }
 

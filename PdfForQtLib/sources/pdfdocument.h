@@ -97,6 +97,9 @@ public:
     /// Returns array of objects stored in this storage
     PDFObjects& getObjects() { return m_objects; }
 
+    /// Sets array of objects
+    void setObjects(PDFObjects&& objects) { m_objects = qMove(objects); }
+
     /// Returns trailer dictionary
     const PDFObject& getTrailerDictionary() const { return m_trailerDictionary; }
 
