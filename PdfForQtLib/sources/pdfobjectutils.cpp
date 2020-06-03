@@ -159,7 +159,17 @@ void PDFReplaceReferencesVisitor::visitStream(const PDFStream* stream)
 
 void PDFReplaceReferencesVisitor::visitReference(const PDFObjectReference reference)
 {
-    m_objectStack.push_back(PDFObject::createReference(m_replacements.at(reference)));
+    auto it = m_replacements.find(reference);
+    if (it != m_replacements.cend())
+    {
+        // Replace the reference
+        m_objectStack.push_back(PDFObject::createReference(it->second));
+    }
+    else
+    {
+        // Preserve old reference
+        m_objectStack.push_back(PDFObject::createReference(reference));
+    }
 }
 
 PDFObject PDFReplaceReferencesVisitor::getObject()

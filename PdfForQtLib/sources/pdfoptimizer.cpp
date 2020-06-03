@@ -349,12 +349,57 @@ bool PDFOptimizer::performRemoveUnusedObjects()
     m_storage.setObjects(qMove(objects));
     emit optimizationProgress(tr("Unused objects removed: %1").arg(counter));
 
-    return false;
+    return counter > 0;
 }
 
 bool PDFOptimizer::performMergeIdenticalObjects()
 {
-    return false;
+    std::atomic<PDFInteger> counter = 0;
+    std::map<PDFObjectReference, PDFObjectReference> replacementMap;
+    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
+
+    // Find same objects
+    QMutex mutex;
+    PDFIntegerRange<size_t> range(0, objects.size());
+    auto processEntry = [this, &counter, &objects, &mutex, &replacementMap](size_t index)
+    {
+        const PDFObjectStorage::Entry& entry = objects[index];
+        for (size_t i = 0; i < index; ++i)
+        {
+            if (objects[i].object.isNull())
+            {
+                // Jakub Melka: we do not merge null objects, they are just removed
+                continue;
+            }
+
+            if (objects[i].object == entry.object)
+            {
+                QMutexLocker lock(&mutex);
+                PDFObjectReference oldReference = PDFObjectReference(PDFInteger(index), objects[index].generation);
+                PDFObjectReference newReference = PDFObjectReference(PDFInteger(i), objects[i].generation);
+                replacementMap[oldReference] = newReference;
+                ++counter;
+                break;
+            }
+        }
+    };
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), processEntry);
+
+    // Replace objects
+    if (!replacementMap.empty())
+    {
+        for (size_t i = 0; i < objects.size(); ++i)
+        {
+            objects[i].object = PDFObjectUtils::replaceReferences(objects[i].object, replacementMap);
+        }
+        PDFObject trailerDictionary = PDFObjectUtils::replaceReferences(m_storage.getTrailerDictionary(), replacementMap);
+        m_storage.setTrailerDictionary(trailerDictionary);
+    }
+
+    m_storage.setObjects(qMove(objects));
+    emit optimizationProgress(tr("Identical objects merged: %1").arg(counter));
+
+    return counter > 0;
 }
 
 bool PDFOptimizer::performShrinkObjectStorage()

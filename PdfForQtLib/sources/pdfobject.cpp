@@ -68,10 +68,30 @@ const PDFArray* PDFObject::getArray() const
     return static_cast<const PDFArray*>(objectContent.get());
 }
 
-bool PDFObject::operator==(const PDFObject &other) const
+bool PDFObject::operator==(const PDFObject& other) const
 {
     if (m_type == other.m_type)
     {
+        if (m_type == Type::String || m_type == Type::Name)
+        {
+            PDFStringRef leftString = getStringObject();
+            PDFStringRef rightString = other.getStringObject();
+
+            if (leftString.inplaceString && rightString.inplaceString)
+            {
+                return *leftString.inplaceString == *rightString.inplaceString;
+            }
+            else if (leftString.memoryString && rightString.memoryString)
+            {
+                return leftString.memoryString->equals(rightString.memoryString);
+            }
+
+            // We have inplace string in one object and memory string in the other.
+            // So they are not equal, because memory strings have always greater
+            // size, than inplace strings.
+            return false;
+        }
+
         Q_ASSERT(std::holds_alternative<PDFObjectContentPointer>(m_data) == std::holds_alternative<PDFObjectContentPointer>(other.m_data));
 
         // If we have content object defined, then use its equal operator,

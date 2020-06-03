@@ -131,6 +131,10 @@ public:
     /// \param stream Stream to be decoded
     QByteArray getDecodedStream(const PDFStream* stream) const;
 
+    /// Set trailer dictionary
+    /// \param object Object defining trailer dictionary
+    void setTrailerDictionary(const PDFObject& object) { m_trailerDictionary = object; }
+
 private:
     PDFObjects m_objects;
     PDFObject m_trailerDictionary;
