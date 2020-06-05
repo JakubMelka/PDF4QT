@@ -20,6 +20,8 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfobjectutils.h"
 #include "pdfutils.h"
+#include "pdfconstants.h"
+#include "pdfdocumentbuilder.h"
 
 namespace pdf
 {
@@ -404,6 +406,97 @@ bool PDFOptimizer::performMergeIdenticalObjects()
 
 bool PDFOptimizer::performShrinkObjectStorage()
 {
+    std::map<PDFObjectReference, PDFObjectReference> replacementMap;
+    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
+
+    auto isFree = [](const PDFObjectStorage::Entry& entry)
+    {
+        return entry.object.isNull() && entry.generation < PDF_MAX_OBJECT_GENERATION;
+    };
+    auto isOccupied = [](const PDFObjectStorage::Entry& entry)
+    {
+        return !entry.object.isNull();
+    };
+
+    // Make list of free usable indices
+    std::vector<size_t> freeIndices;
+    freeIndices.reserve(objects.size() / 8);
+
+    const size_t objectCount = objects.size();
+    for (size_t sourceIndex = 1; sourceIndex < objectCount; ++sourceIndex)
+    {
+        if (isFree(objects[sourceIndex]))
+        {
+            freeIndices.push_back(sourceIndex);
+        }
+    }
+    std::reverse(freeIndices.begin(), freeIndices.end());
+
+    // Move objects to free entries
+    for (size_t sourceIndex = objectCount - 1; sourceIndex > 0; --sourceIndex)
+    {
+        if (freeIndices.empty())
+        {
+            // Jakub Melka: We have run out of free indices
+            break;
+        }
+
+        PDFObjectStorage::Entry& sourceEntry = objects[sourceIndex];
+        if (isOccupied(sourceEntry))
+        {
+            size_t targetIndex = freeIndices.back();
+            freeIndices.pop_back();
+
+            if (targetIndex >= sourceIndex)
+            {
+                break;
+            }
+
+            PDFObjectStorage::Entry& targetEntry = objects[targetIndex];
+            Q_ASSERT(isFree(targetEntry));
+
+            ++targetEntry.generation;
+            targetEntry.object = qMove(sourceEntry.object);
+            sourceEntry.object = PDFObject();
+
+            replacementMap[PDFObjectReference(PDFInteger(sourceIndex), sourceEntry.generation)] = PDFObjectReference(PDFInteger(targetIndex), targetEntry.generation);
+        }
+    }
+
+    // Shrink objects array
+    for (size_t sourceIndex = objectCount - 1; sourceIndex > 0; --sourceIndex)
+    {
+        if (isOccupied(objects[sourceIndex]))
+        {
+            objects.resize(sourceIndex + 1);
+            break;
+        }
+    }
+
+    // Update objects
+    if (!replacementMap.empty())
+    {
+        for (size_t i = 0; i < objects.size(); ++i)
+        {
+            objects[i].object = PDFObjectUtils::replaceReferences(objects[i].object, replacementMap);
+        }
+        PDFObject trailerDictionary = PDFObjectUtils::replaceReferences(m_storage.getTrailerDictionary(), replacementMap);
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Size");
+        factory << PDFInteger(objects.size());
+        factory.endDictionaryItem();
+        factory.endDictionary();
+
+        trailerDictionary = PDFObjectManipulator::merge(trailerDictionary, factory.takeObject(), PDFObjectManipulator::NoFlag);
+        m_storage.setTrailerDictionary(trailerDictionary);
+    }
+
+    const size_t newObjectCount = objects.size();
+    m_storage.setObjects(qMove(objects));
+    emit optimizationProgress(tr("Object list shrinked by: %1").arg(objectCount - newObjectCount));
+
     return false;
 }
 

@@ -411,6 +411,7 @@ public:
 
     enum MergeFlag
     {
+        NoFlag            = 0x0000,
         RemoveNullObjects = 0x0001, ///< Remove null object from dictionaries
         ConcatenateArrays = 0x0002, ///< Concatenate arrays instead of replace
     };

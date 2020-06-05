@@ -58,6 +58,9 @@ static constexpr const char* PDF_XREF_OCCUPIED = "n";
 static constexpr const char* PDF_OBJECT_START_MARK = "obj";
 static constexpr const char* PDF_OBJECT_END_MARK = "endobj";
 
+// maximum generation limit
+static constexpr const int PDF_MAX_OBJECT_GENERATION = 65535;
+
 // Colors
 static constexpr const int PDF_MAX_COLOR_COMPONENTS = 32;
 
