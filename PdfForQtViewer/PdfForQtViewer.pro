@@ -11,6 +11,13 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = PdfForQtViewer
 TEMPLATE = app
 
+VERSION = 1.0.0
+
+RC_ICONS = $$PWD/resources/app-icon.ico
+
+QMAKE_TARGET_DESCRIPTION = "PDF viewer for Qt"
+QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2020"
+
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which has been marked as deprecated (the exact warnings
 # depend on your compiler). Please consult the documentation of the

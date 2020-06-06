@@ -1,4 +1,4 @@
-#    Copyright (C) 2018-2019 Jakub Melka
+#    Copyright (C) 2018-2020 Jakub Melka
 #
 #    This file is part of PdfForQt.
 #
@@ -19,6 +19,12 @@ QT       += gui widgets
 
 TARGET = PdfForQtLib
 TEMPLATE = lib
+
+win32:TARGET_EXT = .dll
+VERSION = 1.0.0
+
+QMAKE_TARGET_DESCRIPTION = "PDF rendering / editing library for Qt"
+QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2020"
 
 DEFINES += PDFFORQTLIB_LIBRARY
 
