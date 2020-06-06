@@ -22,6 +22,7 @@
 #include "pdfutils.h"
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfstreamfilters.h"
 
 namespace pdf
 {
@@ -502,6 +503,51 @@ bool PDFOptimizer::performShrinkObjectStorage()
 
 bool PDFOptimizer::performRecompressFlateStreams()
 {
+    std::atomic<PDFInteger> bytesSaved = 0;
+
+    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
+    auto processEntry = [this, &bytesSaved](PDFObjectStorage::Entry& entry)
+    {
+        if (entry.object.isStream())
+        {
+            const PDFStream* stream = entry.object.getStream();
+            const PDFDictionary* dictionary = stream->getDictionary();
+
+            if (dictionary->hasKey("F"))
+            {
+                // External file stream, we do not recompress it
+                return;
+            }
+
+            PDFStreamFilterStorage::StreamFilters streamFilters = PDFStreamFilterStorage::getStreamFilters(stream, std::bind(QOverload<const PDFObject&>::of(&PDFObjectStorage::getObject), &m_storage, std::placeholders::_1));
+
+            if (streamFilters.filterObjects.empty())
+            {
+                // No filters
+                return;
+            }
+
+            const PDFStreamFilter* streamFilter = streamFilters.filterObjects.front();
+            if (dynamic_cast<const PDFFlateDecodeFilter*>(streamFilter))
+            {
+                // Try to recompress. If we end with less data, then we use recompressed stream
+                QByteArray recompressedData = PDFFlateDecodeFilter::recompress(*stream->getContent());
+                const PDFInteger currentBytesSaved = stream->getContent()->size() - recompressedData.size();
+                if (currentBytesSaved > 0)
+                {
+                    bytesSaved += currentBytesSaved;
+                    PDFDictionary updatedDictionary = *dictionary;
+                    updatedDictionary.setEntry("Length", PDFObject::createInteger(recompressedData.size()));
+                    entry.object = PDFObject::createStream(std::make_shared<PDFStream>(qMove(updatedDictionary), qMove(recompressedData)));
+                }
+            }
+        }
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
+    m_storage.setObjects(qMove(objects));
+    emit optimizationProgress(tr("Bytes saved by recompressing stream: %1").arg(bytesSaved));
+
     return false;
 }
 

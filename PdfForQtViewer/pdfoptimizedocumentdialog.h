@@ -22,6 +22,8 @@ public:
     explicit PDFOptimizeDocumentDialog(const pdf::PDFDocument* document, QWidget* parent);
     virtual ~PDFOptimizeDocumentDialog() override;
 
+    pdf::PDFDocument takeOptimizedDocument() { return qMove(m_optimizedDocument); }
+
 signals:
     void displayOptimizationInfo();
 

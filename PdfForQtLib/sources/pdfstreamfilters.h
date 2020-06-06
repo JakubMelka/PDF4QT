@@ -54,6 +54,18 @@ public:
     /// \param securityHandler Security handler for Crypt filters
     static QByteArray getDecodedStream(const PDFStream* stream, const PDFSecurityHandler* securityHandler);
 
+    struct StreamFilters
+    {
+        bool valid = true;
+        std::vector<const PDFStreamFilter*> filterObjects;
+        std::vector<PDFObject> filterParameterObjects;
+    };
+
+    /// Returns stream filters along with it's parameters, for this stream
+    /// \param stream Stream containing data
+    /// \param objectFetcher Function which retrieves objects (for example, reads objects from reference)
+    static StreamFilters getStreamFilters(const PDFStream* stream, const PDFObjectFetcher& objectFetcher);
+
 private:
     explicit PDFStreamFilterStorage();
 
@@ -184,6 +196,11 @@ public:
                              const PDFObjectFetcher& objectFetcher,
                              const PDFObject& parameters,
                              const PDFSecurityHandler* securityHandler) const override;
+
+    /// Recompresses data. So, first, data are decompressed, and then
+    /// recompressed again with maximal compress ratio possible.
+    /// \param data Compressed data to be recompressed
+    static QByteArray recompress(const QByteArray& data);
 
 private:
     static QByteArray uncompress(const QByteArray& data);

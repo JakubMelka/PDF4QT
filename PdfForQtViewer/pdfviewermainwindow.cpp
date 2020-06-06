@@ -1417,7 +1417,9 @@ void PDFViewerMainWindow::on_actionOptimize_triggered()
 
     if (dialog.exec() == QDialog::Accepted)
     {
-
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeOptimizedDocument()));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        onDocumentModified(qMove(document));
     }
 }
 

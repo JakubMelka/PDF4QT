@@ -402,6 +402,61 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data,
     return predictor.apply(uncompress(data));
 }
 
+QByteArray PDFFlateDecodeFilter::recompress(const QByteArray& data)
+{
+    QByteArray result;
+    QByteArray decompressedData = uncompress(data);
+
+    z_stream stream = { };
+    stream.next_in = const_cast<Bytef*>(convertByteArrayToUcharPtr(decompressedData));
+    stream.avail_in = decompressedData.size();
+
+    std::array<Bytef, 1024> outputBuffer = { };
+
+    int error = deflateInit(&stream, Z_BEST_COMPRESSION);
+    if (error != Z_OK)
+    {
+        throw PDFException(PDFTranslationContext::tr("Failed to initialize flate compression stream."));
+    }
+
+    do
+    {
+        stream.next_out = outputBuffer.data();
+        stream.avail_out = static_cast<uInt>(outputBuffer.size());
+
+        error = deflate(&stream, Z_FINISH);
+
+        int bytesWritten = int(outputBuffer.size()) - stream.avail_out;
+        result.append(reinterpret_cast<const char*>(outputBuffer.data()), bytesWritten);
+    } while (error == Z_OK);
+
+    QString errorMessage;
+    if (stream.msg)
+    {
+        errorMessage = QString::fromLatin1(stream.msg);
+    }
+
+    deflateEnd(&stream);
+
+    switch (error)
+    {
+        case Z_STREAM_END:
+            break; // No error, normal behaviour
+
+        default:
+        {
+            if (errorMessage.isEmpty())
+            {
+                errorMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
+            }
+
+            throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+        }
+    }
+
+    return result;
+}
+
 QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
 {
     QByteArray result;
@@ -514,8 +569,9 @@ const PDFStreamFilter* PDFStreamFilterStorage::getFilter(const QByteArray& filte
     return nullptr;
 }
 
-QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler)
+PDFStreamFilterStorage::StreamFilters PDFStreamFilterStorage::getStreamFilters(const PDFStream* stream, const PDFObjectFetcher& objectFetcher)
 {
+    StreamFilters result;
     const PDFDictionary* dictionary = stream->getDictionary();
 
     // Retrieve filters
@@ -540,12 +596,9 @@ QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, con
         filterParameters = objectFetcher(dictionary->get(PDF_STREAM_DICT_FDECODE_PARMS));
     }
 
-    std::vector<const PDFStreamFilter*> filterObjects;
-    std::vector<PDFObject> filterParameterObjects;
-
     if (filters.isName())
     {
-        filterObjects.push_back(PDFStreamFilterStorage::getFilter(filters.getString()));
+        result.filterObjects.push_back(PDFStreamFilterStorage::getFilter(filters.getString()));
     }
     else if (filters.isArray())
     {
@@ -556,17 +609,19 @@ QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, con
             const PDFObject& object = objectFetcher(filterArray->getItem(i));
             if (object.isName())
             {
-                filterObjects.push_back(PDFStreamFilterStorage::getFilter(object.getString()));
+                result.filterObjects.push_back(PDFStreamFilterStorage::getFilter(object.getString()));
             }
             else
             {
-                return QByteArray();
+                result.valid = false;
+                return result;
             }
         }
     }
     else if (!filters.isNull())
     {
-        return QByteArray();
+        result.valid = false;
+        return result;
     }
 
     if (filterParameters.isArray())
@@ -576,24 +631,36 @@ QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, con
         for (size_t i = 0; i < filterParameterCount; ++i)
         {
             const PDFObject& object = objectFetcher(filterParameterArray->getItem(i));
-            filterParameterObjects.push_back(object);
+            result.filterParameterObjects.push_back(object);
         }
     }
     else
     {
-        filterParameterObjects.push_back(filterParameters);
+        result.filterParameterObjects.push_back(filterParameters);
     }
 
-    filterParameterObjects.resize(filterObjects.size());
-    std::reverse(filterObjects.begin(), filterObjects.end());
-    std::reverse(filterParameterObjects.begin(), filterParameterObjects.end());
+    result.filterParameterObjects.resize(result.filterObjects.size());
+    std::reverse(result.filterObjects.begin(), result.filterObjects.end());
+    std::reverse(result.filterParameterObjects.begin(), result.filterParameterObjects.end());
 
+    return result;
+}
+
+QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler)
+{
+    StreamFilters streamFilters = getStreamFilters(stream, objectFetcher);
     QByteArray result = *stream->getContent();
 
-    for (size_t i = 0, count = filterObjects.size(); i < count; ++i)
+    if (!streamFilters.valid)
     {
-        const PDFStreamFilter* streamFilter = filterObjects[i];
-        const PDFObject& streamFilterParameters = filterParameterObjects[i];
+        // Stream filters are invalid
+        return QByteArray();
+    }
+
+    for (size_t i = 0, count = streamFilters.filterObjects.size(); i < count; ++i)
+    {
+        const PDFStreamFilter* streamFilter = streamFilters.filterObjects[i];
+        const PDFObject& streamFilterParameters = streamFilters.filterParameterObjects[i];
 
         if (streamFilter)
         {
