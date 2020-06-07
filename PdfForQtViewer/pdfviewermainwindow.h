@@ -101,6 +101,10 @@ private slots:
 
     void on_actionOptimize_triggered();
 
+    void on_actionSave_As_triggered();
+
+    void on_actionSave_triggered();
+
 private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
@@ -139,8 +143,10 @@ private:
     void openDocument(const QString& fileName);
     void setDocument(pdf::PDFModifiedDocument document);
     void closeDocument();
+    void saveDocument(const QString& fileName);
 
     void setPageLayout(pdf::PageLayout pageLayout);
+    void updateFileInfo(const QString& fileName);
 
     std::vector<QAction*> getRenderingOptionActions() const;
     QList<QAction*> getActions() const;
@@ -160,7 +166,6 @@ private:
     PDFViewerSettings* m_settings;
     pdf::PDFWidget* m_pdfWidget;
     pdf::PDFDocumentPointer m_pdfDocument;
-    QString m_currentFile;
     PDFSidebarWidget* m_sidebarWidget;
     QDockWidget* m_sidebarDockWidget;
     PDFAdvancedFindWidget* m_advancedFindWidget;

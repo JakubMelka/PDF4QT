@@ -40,7 +40,20 @@ public:
 
     }
 
-    PDFOperationResult write(const QString& fileName, const PDFDocument* document);
+    /// Writes document to the file. If \p safeWrite is true, then document is first
+    /// written to the temporary file, and then renamed to original file name atomically,
+    /// so no data can be lost on, for example, power failure. If it is not possible to
+    /// create temporary file, then writing operation will attempt to write to the file
+    /// directly.
+    /// \param fileName File name
+    /// \param document Document
+    /// \param safeWrite Write document to the temporary file and then rename
+    PDFOperationResult write(const QString& fileName, const PDFDocument* document, bool safeWrite);
+
+    /// Write document to the output device. Device must be writable (i.e. opened
+    /// for writing).
+    /// \param device Output device
+    /// \param document Document
     PDFOperationResult write(QIODevice* device, const PDFDocument* document);
 
     /// Calculates document file size, as if it is written to the disk.

@@ -21,6 +21,7 @@
 #include "pdfparser.h"
 
 #include <QFile>
+#include <QSaveFile>
 
 namespace pdf
 {
@@ -170,19 +171,45 @@ void PDFWriteObjectVisitor::visitReference(const PDFObjectReference reference)
     m_device->write("R ");
 }
 
-PDFOperationResult PDFDocumentWriter::write(const QString& fileName, const PDFDocument* document)
+PDFOperationResult PDFDocumentWriter::write(const QString& fileName, const PDFDocument* document, bool safeWrite)
 {
-    QFile file(fileName);
-
-    if (file.open(QFile::WriteOnly | QFile::Truncate))
+    if (safeWrite)
     {
-        PDFOperationResult result = write(&file, document);
-        file.close();
-        return result;
+        QSaveFile file(fileName);
+        file.setDirectWriteFallback(true);
+
+        if (file.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            PDFOperationResult result = write(&file, document);
+            if (result)
+            {
+                file.commit();
+            }
+            else
+            {
+                file.cancelWriting();
+            }
+            return result;
+        }
+        else
+        {
+            return tr("File '%1' can't be opened for writing. %2").arg(fileName, file.errorString());
+        }
     }
     else
     {
-        return tr("File '%1' can't be opened for writing. %2").arg(fileName, file.errorString());
+        QFile file(fileName);
+
+        if (file.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            PDFOperationResult result = write(&file, document);
+            file.close();
+            return result;
+        }
+        else
+        {
+            return tr("File '%1' can't be opened for writing. %2").arg(fileName, file.errorString());
+        }
     }
 }
 

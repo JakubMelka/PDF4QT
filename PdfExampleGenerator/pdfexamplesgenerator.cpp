@@ -299,5 +299,5 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     // Write result to a file
     pdf::PDFDocument document = builder.build();
     pdf::PDFDocumentWriter writer(nullptr);
-    writer.write("Ex_Annotations.pdf", &document);
+    writer.write("Ex_Annotations.pdf", &document, false);
 }

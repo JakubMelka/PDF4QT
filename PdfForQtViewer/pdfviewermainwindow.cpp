@@ -38,6 +38,7 @@
 #include "pdfsendmail.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfwidgetutils.h"
+#include "pdfdocumentwriter.h"
 
 #include <QPainter>
 #include <QSettings>
@@ -56,6 +57,7 @@
 #include <QLabel>
 #include <QDoubleSpinBox>
 #include <QDesktopServices>
+#include <QFileDialog>
 #include <QtPrintSupport/QPrinter>
 #include <QtPrintSupport/QPrintDialog>
 #include <QtConcurrent/QtConcurrent>
@@ -122,6 +124,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->actionPrint->setShortcut(QKeySequence::Print);
     ui->actionUndo->setShortcut(QKeySequence::Undo);
     ui->actionRedo->setShortcut(QKeySequence::Redo);
+    ui->actionSave->setShortcut(QKeySequence::Save);
+    ui->actionSave_As->setShortcut(QKeySequence::SaveAs);
 
     for (QAction* action : m_recentFileManager->getActions())
     {
@@ -764,9 +768,9 @@ void PDFViewerMainWindow::updateTitle()
         QString title = m_pdfDocument->getInfo()->title;
         if (title.isEmpty())
         {
-            title = m_currentFile;
+            title = m_fileInfo.fileName;
         }
-        setWindowTitle(tr("%1 - PDF Viewer").arg(m_currentFile));
+        setWindowTitle(tr("%1 - PDF Viewer").arg(m_fileInfo.fileName));
     }
     else
     {
@@ -888,6 +892,8 @@ void PDFViewerMainWindow::updateActionsAvailability()
     ui->actionPrint->setEnabled(hasValidDocument && canPrint);
     ui->actionRender_to_Images->setEnabled(hasValidDocument && canPrint);
     ui->actionOptimize->setEnabled(hasValidDocument);
+    ui->actionSave->setEnabled(hasValidDocument);
+    ui->actionSave_As->setEnabled(hasValidDocument);
     setEnabled(!isBusy);
     updateUndoRedoActions();
 }
@@ -917,11 +923,8 @@ void PDFViewerMainWindow::onRenderingOptionTriggered(bool checked)
     m_settings->setFeatures(features);
 }
 
-void PDFViewerMainWindow::openDocument(const QString& fileName)
+void PDFViewerMainWindow::updateFileInfo(const QString& fileName)
 {
-    // First close old document
-    closeDocument();
-
     QFileInfo fileInfo(fileName);
     m_fileInfo.originalFileName = fileName;
     m_fileInfo.fileName = fileInfo.fileName();
@@ -931,6 +934,14 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
     m_fileInfo.creationTime = fileInfo.created();
     m_fileInfo.lastModifiedTime = fileInfo.lastModified();
     m_fileInfo.lastReadTime = fileInfo.lastRead();
+}
+
+void PDFViewerMainWindow::openDocument(const QString& fileName)
+{
+    // First close old document
+    closeDocument();
+
+    updateFileInfo(fileName);
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
     auto readDocument = [this, fileName]() -> AsyncReadingResult
@@ -981,7 +992,6 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             // Mark current directory as this
             QFileInfo fileInfo(m_fileInfo.originalFileName);
             m_settings->setDirectory(fileInfo.dir().absolutePath());
-            m_currentFile = fileInfo.fileName();
 
             // We add file to recent files only, if we have successfully read the document
             m_recentFileManager->addRecentFile(m_fileInfo.originalFileName);
@@ -1423,5 +1433,36 @@ void PDFViewerMainWindow::on_actionOptimize_triggered()
     }
 }
 
-}   // namespace pdfviewer
+void PDFViewerMainWindow::on_actionSave_As_triggered()
+{
 
+    QFileInfo fileInfo(m_fileInfo.originalFileName);
+    QString saveFileName = QFileDialog::getSaveFileName(this, tr("Save As"), fileInfo.dir().absoluteFilePath(m_fileInfo.originalFileName), tr("Portable Document (*.pdf);;All files (*.*)"));
+    if (!saveFileName.isEmpty())
+    {
+        saveDocument(saveFileName);
+    }
+}
+
+void PDFViewerMainWindow::on_actionSave_triggered()
+{
+    saveDocument(m_fileInfo.originalFileName);
+}
+
+void PDFViewerMainWindow::saveDocument(const QString& fileName)
+{
+    pdf::PDFDocumentWriter writer(nullptr);
+    pdf::PDFOperationResult result = writer.write(fileName, m_pdfDocument.data(), true);
+    if (result)
+    {
+        updateFileInfo(fileName);
+        updateTitle();
+        m_recentFileManager->addRecentFile(fileName);
+    }
+    else
+    {
+        QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
+    }
+}
+
+}   // namespace pdfviewer
