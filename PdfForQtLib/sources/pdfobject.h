@@ -63,6 +63,14 @@ struct PDFInplaceString
     static constexpr const int MAX_STRING_SIZE = sizeof(PDFObjectReference) - 1;
 
     constexpr PDFInplaceString() = default;
+
+    inline PDFInplaceString(const char* data, int size)
+    {
+        Q_ASSERT(size <= MAX_STRING_SIZE);
+        this->size = static_cast<uint8_t>(size);
+        std::copy(data, data + size, string.data());
+    }
+
     inline PDFInplaceString(const QByteArray& data)
     {
         Q_ASSERT(data.size() <= MAX_STRING_SIZE);
@@ -109,6 +117,44 @@ struct PDFStringRef
     const PDFString* memoryString = nullptr;
 
     QByteArray getString() const;
+};
+
+/// This class represents string, which can be inplace string (no memory allocation),
+/// or classic byte array string, if not enough space for embedded string.
+class PDFFORQTLIBSHARED_EXPORT PDFInplaceOrMemoryString
+{
+public:
+    constexpr PDFInplaceOrMemoryString() = default;
+    explicit PDFInplaceOrMemoryString(const char* string);
+    explicit PDFInplaceOrMemoryString(QByteArray string);
+
+    // Default destructor should be OK
+    inline ~PDFInplaceOrMemoryString() = default;
+
+    // Enforce default copy constructor and default move constructor
+    constexpr inline PDFInplaceOrMemoryString(const PDFInplaceOrMemoryString&) = default;
+    constexpr inline PDFInplaceOrMemoryString(PDFInplaceOrMemoryString&&) = default;
+
+    // Enforce default copy assignment operator and move assignment operator
+    constexpr inline PDFInplaceOrMemoryString& operator=(const PDFInplaceOrMemoryString&) = default;
+    constexpr inline PDFInplaceOrMemoryString& operator=(PDFInplaceOrMemoryString&&) = default;
+
+    bool equals(const char* value, size_t length) const;
+
+    inline bool operator==(const PDFInplaceOrMemoryString&) const = default;
+    inline bool operator!=(const PDFInplaceOrMemoryString&) const = default;
+
+    inline bool operator==(const QByteArray& value) const { return equals(value.constData(), value.size()); }
+    inline bool operator==(const char* value) const { return equals(value, std::strlen(value)); }
+
+    /// Returns true, if string is inplace (i.e. doesn't allocate memory)
+    bool isInplace() const;
+
+    /// Returns string. If string is inplace, byte array is constructed.
+    QByteArray getString() const;
+
+private:
+    std::variant<typename std::monostate, PDFInplaceString, QByteArray> m_value;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFObject
@@ -297,7 +343,7 @@ private:
 class PDFFORQTLIBSHARED_EXPORT PDFDictionary : public PDFObjectContent
 {
 public:
-    using DictionaryEntry = std::pair<QByteArray, PDFObject>;
+    using DictionaryEntry = std::pair<PDFInplaceOrMemoryString, PDFObject>;
 
     inline constexpr PDFDictionary() = default;
     inline PDFDictionary(std::vector<DictionaryEntry>&& dictionary) : m_dictionary(qMove(dictionary)) { }
@@ -315,6 +361,11 @@ public:
     /// \param key Key
     const PDFObject& get(const char* key) const;
 
+    /// Returns object for the key. If key is not found in the dictionary,
+    /// then valid reference to the null object is returned.
+    /// \param key Key
+    const PDFObject& get(const PDFInplaceOrMemoryString& key) const;
+
     /// Returns true, if dictionary contains a particular key
     /// \param key Key to be found in the dictionary
     bool hasKey(const QByteArray& key) const { return find(key) != m_dictionary.cend(); }
@@ -326,13 +377,18 @@ public:
     /// Adds a new entry to the dictionary.
     /// \param key Key
     /// \param value Value
-    void addEntry(QByteArray&& key, PDFObject&& value) { m_dictionary.emplace_back(std::move(key), std::move(value)); }
+    void addEntry(PDFInplaceOrMemoryString&& key, PDFObject&& value) { m_dictionary.emplace_back(std::move(key), std::move(value)); }
+
+    /// Adds a new entry to the dictionary.
+    /// \param key Key
+    /// \param value Value
+    void addEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value) { m_dictionary.emplace_back(key, std::move(value)); }
 
     /// Sets entry value. If entry with given key doesn't exist,
     /// then it is created.
     /// \param key Key
     /// \param value Value
-    void setEntry(const QByteArray& key, PDFObject&& value);
+    void setEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value);
 
     /// Returns count of items in the dictionary
     size_t getCount() const { return m_dictionary.size(); }
@@ -342,7 +398,7 @@ public:
 
     /// Returns n-th key of the dictionary
     /// \param index Zero-based index of key in the dictionary
-    const QByteArray& getKey(size_t index) const { return m_dictionary[index].first; }
+    const PDFInplaceOrMemoryString& getKey(size_t index) const { return m_dictionary[index].first; }
 
     /// Returns n-th value of the dictionary
     /// \param index Zero-based index of value in the dictionary
@@ -369,6 +425,16 @@ private:
     /// then end iterator is returned.
     /// \param key Key to be found
     std::vector<DictionaryEntry>::const_iterator find(const char* key) const;
+
+    /// Finds an item in the dictionary array, if the item is not in the dictionary,
+    /// then end iterator is returned.
+    /// \param key Key to be found
+    std::vector<DictionaryEntry>::const_iterator find(const PDFInplaceOrMemoryString& key) const;
+
+    /// Finds an item in the dictionary array, if the item is not in the dictionary,
+    /// then end iterator is returned.
+    /// \param key Key to be found
+    std::vector<DictionaryEntry>::iterator find(const PDFInplaceOrMemoryString& key);
 
     std::vector<DictionaryEntry> m_dictionary;
 };

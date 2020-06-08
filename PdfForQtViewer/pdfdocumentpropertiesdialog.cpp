@@ -307,7 +307,7 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
 
                                         if (fontName.isEmpty())
                                         {
-                                            fontName = QString::fromLatin1(fontsDictionary->getKey(i));
+                                            fontName = QString::fromLatin1(fontsDictionary->getKey(i).getString());
                                         }
 
                                         std::unique_ptr<QTreeWidgetItem> fontRootItemPtr = std::make_unique<QTreeWidgetItem>(QStringList({ fontName }));

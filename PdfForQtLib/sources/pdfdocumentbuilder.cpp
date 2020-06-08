@@ -67,7 +67,7 @@ void PDFObjectFactory::endDictionaryItem()
 
     Item& dictionaryItem = m_items.back();
     Q_ASSERT(dictionaryItem.type == ItemType::Dictionary);
-    std::get<PDFDictionary>(dictionaryItem.object).addEntry(qMove(topItem.itemName), qMove(std::get<PDFObject>(topItem.object)));
+    std::get<PDFDictionary>(dictionaryItem.object).addEntry(PDFInplaceOrMemoryString(qMove(topItem.itemName)), qMove(std::get<PDFObject>(topItem.object)));
 }
 
 PDFObjectFactory& PDFObjectFactory::operator<<(FileAttachmentIcon icon)

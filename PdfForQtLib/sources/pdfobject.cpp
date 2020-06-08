@@ -277,7 +277,21 @@ const PDFObject& PDFDictionary::get(const char* key) const
     }
 }
 
-void PDFDictionary::setEntry(const QByteArray& key, PDFObject&& value)
+const PDFObject& PDFDictionary::get(const PDFInplaceOrMemoryString& key) const
+{
+    auto it = find(key);
+    if (it != m_dictionary.cend())
+    {
+        return it->second;
+    }
+    else
+    {
+        static PDFObject dummy;
+        return dummy;
+    }
+}
+
+void PDFDictionary::setEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value)
 {
     auto it = find(key);
     if (it != m_dictionary.end())
@@ -286,7 +300,7 @@ void PDFDictionary::setEntry(const QByteArray& key, PDFObject&& value)
     }
     else
     {
-        addEntry(QByteArray(key), qMove(value));
+        addEntry(key, qMove(value));
     }
 }
 
@@ -299,11 +313,6 @@ void PDFDictionary::removeNullObjects()
 void PDFDictionary::optimize()
 {
     m_dictionary.shrink_to_fit();
-
-    for (DictionaryEntry& entry : m_dictionary)
-    {
-        entry.first.shrink_to_fit();
-    }
 }
 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const QByteArray& key) const
@@ -319,6 +328,16 @@ std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const char* key) const
 {
     return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+}
+
+std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const PDFInplaceOrMemoryString& key) const
+{
+    return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+}
+
+std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const PDFInplaceOrMemoryString& key)
+{
+    return std::find_if(m_dictionary.begin(), m_dictionary.end(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
 }
 
 bool PDFStream::equals(const PDFObjectContent* other) const
@@ -348,7 +367,7 @@ PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlag
 
         for (size_t i = 0, count = sourceDictionary.getCount(); i < count; ++i)
         {
-            const QByteArray& key = sourceDictionary.getKey(i);
+            const auto& key = sourceDictionary.getKey(i);
             PDFObject value = merge(targetDictionary.get(key), sourceDictionary.getValue(i), flags);
             targetDictionary.setEntry(key, qMove(value));
         }
@@ -369,7 +388,7 @@ PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlag
 
         for (size_t i = 0, count = sourceDictionary.getCount(); i < count; ++i)
         {
-            const QByteArray& key = sourceDictionary.getKey(i);
+            const auto& key = sourceDictionary.getKey(i);
             PDFObject value = merge(targetDictionary.get(key), sourceDictionary.getValue(i), flags);
             targetDictionary.setEntry(key, qMove(value));
         }
@@ -410,7 +429,78 @@ PDFObject PDFObjectManipulator::removeNullObjects(PDFObject object)
 
 QByteArray PDFStringRef::getString() const
 {
-    return inplaceString ? inplaceString->getString() : memoryString->getString();
+    if (inplaceString)
+    {
+        return inplaceString->getString();
+    }
+    if (memoryString)
+    {
+        return memoryString->getString();
+    }
+    return QByteArray();
+}
+
+PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(const char* string)
+{
+    const int size = static_cast<int>(qMin(std::strlen(string), size_t(std::numeric_limits<int>::max())));
+    if (size > PDFInplaceString::MAX_STRING_SIZE)
+    {
+        m_value = QByteArray(string, size);
+    }
+    else
+    {
+        m_value = PDFInplaceString(string, size);
+    }
+}
+
+PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(QByteArray string)
+{
+    const int size = string.size();
+    if (size > PDFInplaceString::MAX_STRING_SIZE)
+    {
+        m_value = qMove(string);
+    }
+    else
+    {
+        m_value = PDFInplaceString(qMove(string));
+    }
+}
+
+bool PDFInplaceOrMemoryString::equals(const char* value, size_t length) const
+{
+    if (std::holds_alternative<PDFInplaceString>(m_value))
+    {
+        const PDFInplaceString& string = std::get<PDFInplaceString>(m_value);
+        return std::equal(string.string.data(), string.string.data() + string.size, value, value + length);
+    }
+
+    if (std::holds_alternative<QByteArray>(m_value))
+    {
+        const QByteArray& string = std::get<QByteArray>(m_value);
+        return std::equal(string.constData(), string.constData() + string.size(), value, value + length);
+    }
+
+    return length == 0;
+}
+
+bool PDFInplaceOrMemoryString::isInplace() const
+{
+    return std::holds_alternative<PDFInplaceString>(m_value);
+}
+
+QByteArray PDFInplaceOrMemoryString::getString() const
+{
+    if (std::holds_alternative<PDFInplaceString>(m_value))
+    {
+        return std::get<PDFInplaceString>(m_value).getString();
+    }
+
+    if (std::holds_alternative<QByteArray>(m_value))
+    {
+        return std::get<QByteArray>(m_value);
+    }
+
+    return QByteArray();
 }
 
 }   // namespace pdf

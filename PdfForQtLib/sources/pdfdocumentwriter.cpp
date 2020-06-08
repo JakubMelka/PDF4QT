@@ -145,7 +145,7 @@ void PDFWriteObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
 
     for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
     {
-        writeName(dictionary->getKey(i));
+        writeName(dictionary->getKey(i).getString());
         dictionary->getValue(i).accept(this);
     }
 

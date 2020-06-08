@@ -537,7 +537,7 @@ bool PDFOptimizer::performRecompressFlateStreams()
                 {
                     bytesSaved += currentBytesSaved;
                     PDFDictionary updatedDictionary = *dictionary;
-                    updatedDictionary.setEntry("Length", PDFObject::createInteger(recompressedData.size()));
+                    updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(recompressedData.size()));
                     entry.object = PDFObject::createStream(std::make_shared<PDFStream>(qMove(updatedDictionary), qMove(recompressedData)));
                 }
             }

@@ -135,7 +135,7 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage
             const PDFDictionary* embeddedFilesDictionary = embeddedFiles.getDictionary();
             for (size_t i = 0; i < embeddedFilesDictionary->getCount(); ++i)
             {
-                result.m_embeddedFiles[embeddedFilesDictionary->getKey(i)] = PDFEmbeddedFile::parse(storage, embeddedFilesDictionary->getValue(i));
+                result.m_embeddedFiles[embeddedFilesDictionary->getKey(i).getString()] = PDFEmbeddedFile::parse(storage, embeddedFilesDictionary->getValue(i));
             }
         }
     }

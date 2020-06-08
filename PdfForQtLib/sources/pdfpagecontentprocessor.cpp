@@ -489,7 +489,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                                 }
                             }
 
-                            dictionary->addEntry(qMove(name), qMove(valueObject));
+                            dictionary->addEntry(PDFInplaceOrMemoryString(qMove(name)), qMove(valueObject));
                         }
 
                         PDFDocumentDataLoaderDecorator loader(m_document);

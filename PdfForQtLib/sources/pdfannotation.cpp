@@ -123,7 +123,7 @@ PDFAppeareanceStreams PDFAppeareanceStreams::parse(const PDFObjectStorage* stora
             const PDFDictionary* subdictionary = storage->getDictionaryFromObject(subdictionaryObject);
             for (size_t i = 0; i < subdictionary->getCount(); ++i)
             {
-                result.m_appearanceStreams[std::make_pair(appearance, subdictionary->getKey(i))] = subdictionary->getValue(i);
+                result.m_appearanceStreams[std::make_pair(appearance, subdictionary->getKey(i).getString())] = subdictionary->getValue(i);
             }
         }
         else if (!subdictionaryObject.isNull())

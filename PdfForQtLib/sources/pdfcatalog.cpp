@@ -158,7 +158,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         const size_t count = destsDictionary->getCount();
         for (size_t i = 0; i < count; ++i)
         {
-            catalogObject.m_destinations[destsDictionary->getKey(i)] = PDFDestination::parse(&document->getStorage(), destsDictionary->getValue(i));
+            catalogObject.m_destinations[destsDictionary->getKey(i).getString()] = PDFDestination::parse(&document->getStorage(), destsDictionary->getValue(i));
         }
     }
 

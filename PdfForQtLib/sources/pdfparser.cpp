@@ -802,7 +802,7 @@ PDFObject PDFParser::getObject()
                 // Second value should be a value
                 PDFObject object = getObject();
 
-                dictionary->addEntry(std::move(key), std::move(object));
+                dictionary->addEntry(PDFInplaceOrMemoryString(std::move(key)), std::move(object));
             }
 
             // Now, we should reach dictionary end. If it is not the case, then end of stream occured.

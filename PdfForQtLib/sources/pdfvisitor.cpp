@@ -162,10 +162,13 @@ void PDFStatisticsCollector::collectStatisticsOfDictionary(Statistics& statistic
 
     for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
     {
-        const QByteArray& key = dictionary->getKey(i);
+        if (!dictionary->getKey(i).isInplace())
+        {
+            QByteArray key = dictionary->getKey(i).getString();
 
-        consumptionEstimate += key.size() * sizeof(char);
-        overheadEstimate += (key.capacity() - key.size()) * sizeof(char);
+            consumptionEstimate += key.size() * sizeof(char);
+            overheadEstimate += (key.capacity() - key.size()) * sizeof(char);
+        }
     }
 
     statistics.memoryConsumptionEstimate += consumptionEstimate;

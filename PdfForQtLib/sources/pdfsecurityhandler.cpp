@@ -172,7 +172,7 @@ void PDFDecryptObjectVisitor::visitStream(const PDFStream* stream)
     else
     {
         decryptedData = *stream->getContent();
-        decryptedDictionary.addEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME, PDFObject::createReference(m_reference));
+        decryptedDictionary.addEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(m_reference));
     }
 
     m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(decryptedDictionary), qMove(decryptedData))));
@@ -358,7 +358,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
             const PDFDictionary* cryptFilters = cryptFilterObjects.getDictionary();
             for (size_t i = 0, cryptFilterCount = cryptFilters->getCount(); i < cryptFilterCount; ++i)
             {
-                handler.m_cryptFilters[cryptFilters->getKey(i)] = parseCryptFilter(cryptFilters->getValue(i));
+                handler.m_cryptFilters[cryptFilters->getKey(i).getString()] = parseCryptFilter(cryptFilters->getValue(i));
             }
         }
 

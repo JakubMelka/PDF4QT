@@ -199,7 +199,7 @@ void PDFDocument::initInfo()
                                                          PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE, PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE, PDF_DOCUMENT_INFO_ENTRY_TRAPPED };
             for (size_t i = 0; i < infoDictionary->getCount(); ++i)
             {
-                const QByteArray& key = infoDictionary->getKey(i);
+                QByteArray key = infoDictionary->getKey(i).getString();
                 if (std::none_of(std::begin(PREDEFINED_ITEMS), std::end(PREDEFINED_ITEMS), [&key](const char* item) { return item == key; }))
                 {
                     const PDFObject& value = getObject(infoDictionary->getValue(i));
