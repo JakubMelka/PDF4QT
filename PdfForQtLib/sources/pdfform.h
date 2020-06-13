@@ -22,6 +22,7 @@
 #include "pdfdocument.h"
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
+#include "pdfsignaturehandler.h"
 
 #include <QTextLayout>
 
@@ -395,9 +396,12 @@ class PDFFormFieldSignature : public PDFFormField
 public:
     explicit inline PDFFormFieldSignature() = default;
 
+    const PDFSignature& getSignature() const { return m_signature; }
+
 private:
     friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
+    PDFSignature m_signature;
 };
 
 /// This class represents interactive form. Interactive form fields can span multiple

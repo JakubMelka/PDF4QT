@@ -898,6 +898,11 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
             formFieldChoice->m_topIndex = loader.readIntegerFromDictionary(fieldDictionary, "TI", 0);
             formFieldChoice->m_selection = fieldDictionary->get("I");
         }
+
+        if (formFieldSignature)
+        {
+            formFieldSignature->m_signature = PDFSignature::parse(storage, fieldDictionary->get("V"));
+        }
     }
 
     return result;
@@ -1612,8 +1617,8 @@ PDFFormManager::MouseEventInfo PDFFormManager::getMouseEventInfo(QWidget* widget
 
             if (PDFFormField* formField = getFormFieldForWidget(pageAnnotation.annotation->getSelfReference()))
             {
-                const PDFFormFieldWidgetEditor* editor = getEditor(formField);
-                QRectF annotationRect = editor->getActiveEditorRectangle();
+                PDFFormFieldWidgetEditor* editor = getEditor(formField);
+                QRectF annotationRect = editor ? editor->getActiveEditorRectangle() : QRectF();
                 if (!annotationRect.isValid())
                 {
                     annotationRect = pageAnnotation.annotation->getRectangle();
@@ -1629,7 +1634,7 @@ PDFFormManager::MouseEventInfo PDFFormManager::getMouseEventInfo(QWidget* widget
                     result.formField = formField;
                     result.deviceToWidget = widgetToDevice.inverted();
                     result.mousePosition = result.deviceToWidget.map(point);
-                    result.editor = getEditor(formField);
+                    result.editor = editor;
                     return result;
                 }
             }
