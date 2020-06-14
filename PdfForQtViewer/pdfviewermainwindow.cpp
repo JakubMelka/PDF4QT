@@ -39,6 +39,7 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
+#include "pdfsignaturehandler.h"
 
 #include <QPainter>
 #include <QSettings>
@@ -964,6 +965,10 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
         result.result = reader.getReadingResult();
         if (result.result == pdf::PDFDocumentReader::Result::OK)
         {
+            // Verify signatures
+            pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
+            std::vector<pdf::PDFSignatureVerificationResult> signaturesVerifications = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource());
+
             result.document.reset(new pdf::PDFDocument(qMove(document)));
         }
 

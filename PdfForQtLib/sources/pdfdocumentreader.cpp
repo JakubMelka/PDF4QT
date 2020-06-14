@@ -107,6 +107,8 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 {
     try
     {
+        m_source = buffer;
+
         // FOOTER CHECKING
         //  1) Check, if EOF marking is present
         //  2) Find start of cross reference table

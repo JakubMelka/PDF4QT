@@ -72,6 +72,9 @@ public:
     /// Returns error message, if document reading was unsuccessfull
     const QString& getErrorMessage() const { return m_errorMessage; }
 
+    /// Get source data of the document
+    const QByteArray& getSource() const { return m_source; }
+
 private:
     static constexpr const int FIND_NOT_FOUND_RESULT = -1;
 
@@ -109,6 +112,9 @@ private:
 
     /// Progress indicator
     PDFProgress* m_progress;
+
+    /// Raw document data (byte array containing source data for created document)
+    QByteArray m_source;
 };
 
 }   // namespace pdf

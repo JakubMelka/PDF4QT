@@ -636,6 +636,14 @@ PDFFormField* PDFForm::getFormFieldForWidget(PDFObjectReference widget)
     return nullptr;
 }
 
+void PDFForm::apply(const std::function<void (const PDFFormField*)>& functor) const
+{
+    for (const PDFFormFieldPointer& childField : getFormFields())
+    {
+        childField->apply(functor);
+    }
+}
+
 void PDFFormField::fillWidgetToFormFieldMapping(PDFWidgetToFormFieldMapping& mapping)
 {
     for (const auto& childField : m_childFields)
@@ -1204,10 +1212,7 @@ PDFFormWidgets PDFFormManager::getWidgets() const
 
 void PDFFormManager::apply(const std::function<void (const PDFFormField*)>& functor) const
 {
-    for (const PDFFormFieldPointer& childField : m_form.getFormFields())
-    {
-        childField->apply(functor);
-    }
+    m_form.apply(functor);
 }
 
 void PDFFormManager::modify(const std::function<void (PDFFormField*)>& functor) const

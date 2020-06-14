@@ -18,8 +18,49 @@
 #ifndef PDFSIGNATUREHANDLER_IMPL_H
 #define PDFSIGNATUREHANDLER_IMPL_H
 
+#include "pdfsignaturehandler.h"
+
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/pkcs7.h>
+
 namespace pdf
 {
+
+/// PKCS7 public key signature handler
+class PDFPublicKeySignatureHandler : public PDFSignatureHandler
+{
+protected:
+    explicit PDFPublicKeySignatureHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData) :
+        m_signatureField(signatureField),
+        m_sourceData(sourceData)
+    {
+
+    }
+
+    void initializeResult(PDFSignatureVerificationResult& result) const;
+    void verifyCertificate(PDFSignatureVerificationResult& result) const;
+    void verifySignature(PDFSignatureVerificationResult& result) const;
+
+    /// Return a list of certificates from PKCS7 object
+    static STACK_OF(X509)* getCertificates(PKCS7* pkcs7);
+
+protected:
+    const PDFFormFieldSignature* m_signatureField;
+    QByteArray m_sourceData;
+};
+
+class PDFSignatureHandler_adbe_pkcs7_detached : public PDFPublicKeySignatureHandler
+{
+public:
+    explicit PDFSignatureHandler_adbe_pkcs7_detached(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData) :
+        PDFPublicKeySignatureHandler(signatureField, sourceData)
+    {
+
+    }
+
+    virtual PDFSignatureVerificationResult verify() const override;
+};
 
 }   // namespace pdf
 

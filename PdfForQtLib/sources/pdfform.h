@@ -409,7 +409,7 @@ private:
 /// Fields forms tree-like structure, where leafs are usually widgets. Fields include
 /// ordinary widgets, such as buttons, check boxes, combo boxes and text fields, and one
 /// special - signature field, which represents digital signature.
-class PDFForm
+class PDFFORQTLIBSHARED_EXPORT PDFForm
 {
 public:
     explicit inline PDFForm() = default;
@@ -453,6 +453,12 @@ public:
     /// then nullptr is returned.
     /// \param widget Widget annotation
     PDFFormField* getFormFieldForWidget(PDFObjectReference widget);
+
+    /// Applies function to all form fields present in the form,
+    /// in pre-order (first application is to the parent, following
+    /// calls to apply for children).
+    /// \param functor Functor to apply
+    void apply(const std::function<void(const PDFFormField*)>& functor) const;
 
     /// Parses form from the object. If some error occurs
     /// then empty form is returned, no exception is thrown.
