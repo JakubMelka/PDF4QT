@@ -315,6 +315,8 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
         Q_ASSERT(store);
         Q_ASSERT(context);
 
+        addTrustedCertificates(store);
+
         STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
         const int signerInfoCount = sk_PKCS7_SIGNER_INFO_num(signerInfo);
         STACK_OF(X509)* certificates = getCertificates(pkcs7);
@@ -332,7 +334,7 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
                     break;
                 }
 
-                if (!X509_STORE_CTX_init(context, store, signer, nullptr))
+                if (!X509_STORE_CTX_init(context, store, signer, certificates))
                 {
                     result.addCertificateGenericError();
                     break;
@@ -343,6 +345,8 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
                     result.addCertificateGenericError();
                     break;
                 }
+
+                X509_STORE_CTX_set_flags(context, X509_V_FLAG_TRUSTED_FIRST);
 
                 int verificationResult = X509_verify_cert(context);
                 if (verificationResult <= 0)
@@ -414,3 +418,32 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify()
 }
 
 }   // namespace pdf
+
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#include <wincrypt.h>
+#pragma comment(lib, "crypt32.lib")
+#endif
+
+void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store) const
+{
+#ifdef Q_OS_WIN
+    HCERTSTORE certStore = CertOpenSystemStore(NULL, L"ROOT");
+    PCCERT_CONTEXT context = nullptr;
+    if (certStore)
+    {
+        while (context = CertEnumCertificatesInStore(certStore, context))
+        {
+            const unsigned char* pointer = context->pbCertEncoded;
+            X509* certificate = d2i_X509(nullptr, &pointer, context->cbCertEncoded);
+            if (certificate)
+            {
+                X509_STORE_add_cert(store, certificate);
+                X509_free(certificate);
+            }
+        }
+
+        CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
+    }
+#endif
+}

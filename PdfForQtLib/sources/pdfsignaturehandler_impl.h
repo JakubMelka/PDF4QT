@@ -41,6 +41,7 @@ protected:
     void initializeResult(PDFSignatureVerificationResult& result) const;
     void verifyCertificate(PDFSignatureVerificationResult& result) const;
     void verifySignature(PDFSignatureVerificationResult& result) const;
+    void addTrustedCertificates(X509_STORE* store) const;
 
     /// Return a list of certificates from PKCS7 object
     static STACK_OF(X509)* getCertificates(PKCS7* pkcs7);
