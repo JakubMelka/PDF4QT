@@ -383,6 +383,23 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
                             result.addCertificateOtherError(error);
                             break;
                     }
+
+                    // We will add certificate info for all certificates
+                    const int count = sk_X509_num(certificates);
+                    for (int i = 0; i < count; ++i)
+                    {
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(certificates, i)));
+                    }
+                }
+                else
+                {
+                    STACK_OF(X509)* validChain = X509_STORE_CTX_get1_chain(context);
+                    const int count = sk_X509_num(validChain);
+                    for (int i = 0; i < count; ++i)
+                    {
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, i)));
+                    }
+                    sk_X509_pop_free(validChain, X509_free);
                 }
                 X509_STORE_CTX_cleanup(context);
             }
@@ -401,6 +418,11 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
     {
         result.addInvalidCertificateError();
     }
+
+    if (!result.hasCertificateError())
+    {
+        result.setFlag(PDFSignatureVerificationResult::Certificate_OK, true);
+    }
 }
 
 void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResult& result) const
@@ -414,6 +436,175 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify()
     initializeResult(result);
     verifyCertificate(result);
     verifySignature(result);
+    return result;
+}
+
+PDFCertificateInfo PDFPublicKeySignatureHandler::getCertificateInfo(X509* certificate)
+{
+    PDFCertificateInfo info;
+
+    if (X509_NAME* subjectName = X509_get_subject_name(certificate))
+    {
+        // List of these properties are in RFC 5280, section 4.1.2.4, these attributes
+        // are standard and all implementations must be prepared to process them.
+        QString countryName = getStringFromX509Name(subjectName, NID_countryName);
+        QString organizationName = getStringFromX509Name(subjectName, NID_organizationName);
+        QString organizationalUnitName = getStringFromX509Name(subjectName, NID_organizationalUnitName);
+        QString distinguishedName = getStringFromX509Name(subjectName, NID_distinguishedName);
+        QString stateOrProvinceName = getStringFromX509Name(subjectName, NID_stateOrProvinceName);
+        QString commonName = getStringFromX509Name(subjectName, NID_commonName);
+        QString serialNumber = getStringFromX509Name(subjectName, NID_serialNumber);
+
+        // These attributes are defined also in section 4.1.2.4, they are not mandatory,
+        // but application should be able to process them.
+        QString localityName = getStringFromX509Name(subjectName, NID_localityName);
+        QString title = getStringFromX509Name(subjectName, NID_title);
+        QString surname = getStringFromX509Name(subjectName, NID_surname);
+        QString givenName = getStringFromX509Name(subjectName, NID_givenName);
+        QString initials = getStringFromX509Name(subjectName, NID_initials);
+        QString pseudonym = getStringFromX509Name(subjectName, NID_pseudonym);
+        QString generationQualifier = getStringFromX509Name(subjectName, NID_generationQualifier);
+
+        // This entry is not defined in section 4.1.2.4, but is commonly used
+        QString email = getStringFromX509Name(subjectName, NID_pkcs9_emailAddress);
+
+        info.setName(PDFCertificateInfo::CountryName, qMove(countryName));
+        info.setName(PDFCertificateInfo::OrganizationName, qMove(organizationName));
+        info.setName(PDFCertificateInfo::OrganizationalUnitName, qMove(organizationalUnitName));
+        info.setName(PDFCertificateInfo::DistinguishedName, qMove(distinguishedName));
+        info.setName(PDFCertificateInfo::StateOrProvinceName, qMove(stateOrProvinceName));
+        info.setName(PDFCertificateInfo::CommonName, qMove(commonName));
+        info.setName(PDFCertificateInfo::SerialNumber, qMove(serialNumber));
+
+        info.setName(PDFCertificateInfo::LocalityName, qMove(localityName));
+        info.setName(PDFCertificateInfo::Title, qMove(title));
+        info.setName(PDFCertificateInfo::Surname, qMove(surname));
+        info.setName(PDFCertificateInfo::GivenName, qMove(givenName));
+        info.setName(PDFCertificateInfo::Initials, qMove(initials));
+        info.setName(PDFCertificateInfo::Pseudonym, qMove(pseudonym));
+        info.setName(PDFCertificateInfo::GenerationalQualifier, qMove(generationQualifier));
+
+        info.setName(PDFCertificateInfo::Email, qMove(email));
+
+        const long version = X509_get_version(certificate);
+        info.setVersion(version);
+
+        const ASN1_TIME* notBeforeTime = X509_get0_notBefore(certificate);
+        const ASN1_TIME* notAfterTime = X509_get0_notAfter(certificate);
+
+        info.setNotValidBefore(getDateTimeFromASN(notBeforeTime));
+        info.setNotValidAfter(getDateTimeFromASN(notAfterTime));
+
+        X509_PUBKEY* publicKey = X509_get_X509_PUBKEY(certificate);
+        EVP_PKEY* evpKey = X509_PUBKEY_get(publicKey);
+        const int keyType = EVP_PKEY_type(EVP_PKEY_base_id(evpKey));
+
+        PDFCertificateInfo::PublicKey key = PDFCertificateInfo::KeyUnknown;
+        switch (keyType)
+        {
+            case EVP_PKEY_RSA:
+                key = PDFCertificateInfo::KeyRSA;
+                break;
+
+            case EVP_PKEY_DSA:
+                key = PDFCertificateInfo::KeyDSA;
+                break;
+
+            case EVP_PKEY_DH:
+                key = PDFCertificateInfo::KeyDH;
+                break;
+
+            case EVP_PKEY_EC:
+                key = PDFCertificateInfo::KeyEC;
+                break;
+
+            default:
+                break;
+        }
+        info.setPublicKey(key);
+
+        EVP_PKEY_bits();
+        EVP_PKEY_security_bits();
+    }
+
+    return info;
+}
+
+QDateTime PDFCertificateInfo::getNotValidBefore() const
+{
+    return m_notValidBefore;
+}
+
+void PDFCertificateInfo::setNotValidBefore(const QDateTime& notValidBefore)
+{
+    m_notValidBefore = notValidBefore;
+}
+
+QDateTime PDFCertificateInfo::getNotValidAfter() const
+{
+    return m_notValidAfter;
+}
+
+void PDFCertificateInfo::setNotValidAfter(const QDateTime& notValidAfter)
+{
+    m_notValidAfter = notValidAfter;
+}
+
+long PDFCertificateInfo::getVersion() const
+{
+    return m_version;
+}
+
+void PDFCertificateInfo::setVersion(long version)
+{
+    m_version = version;
+}
+
+PDFCertificateInfo::PublicKey PDFCertificateInfo::getPublicKey() const
+{
+    return m_publicKey;
+}
+
+void PDFCertificateInfo::setPublicKey(const PublicKey& publicKey)
+{
+    m_publicKey = publicKey;
+}
+
+QString PDFPublicKeySignatureHandler::getStringFromX509Name(X509_NAME* name, int nid)
+{
+    QString result;
+
+    const int stringLocation = X509_NAME_get_index_by_NID(name, nid, -1);
+    X509_NAME_ENTRY* entry = X509_NAME_get_entry(name, stringLocation);
+    if (ASN1_STRING* string = X509_NAME_ENTRY_get_data(entry))
+    {
+        // Jakub Melka: we must convert entry to UTF8 encoding using function ASN1_STRING_to_UTF8
+        unsigned char* utf8Buffer = nullptr;
+        int errorCodeOrLength = ASN1_STRING_to_UTF8(&utf8Buffer, string);
+        if (errorCodeOrLength > 0)
+        {
+            result = QString::fromUtf8(reinterpret_cast<const char*>(utf8Buffer), errorCodeOrLength);
+        }
+        OPENSSL_free(utf8Buffer);
+    }
+
+    return result;
+}
+
+QDateTime pdf::PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME* time)
+{
+    QDateTime result;
+
+    if (time)
+    {
+        tm internalTime = { };
+        if (ASN1_TIME_to_tm(time, &internalTime) > 0)
+        {
+            time_t localTime = mktime(&internalTime);
+            result = QDateTime::fromSecsSinceEpoch(localTime, Qt::LocalTime);
+        }
+    }
+
     return result;
 }
 

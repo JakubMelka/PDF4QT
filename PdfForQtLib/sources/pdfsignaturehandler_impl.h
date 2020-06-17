@@ -46,6 +46,16 @@ protected:
     /// Return a list of certificates from PKCS7 object
     static STACK_OF(X509)* getCertificates(PKCS7* pkcs7);
 
+    /// Return certificate info for given certificate
+    static PDFCertificateInfo getCertificateInfo(X509* certificate);
+
+    /// Returns name converted to QString
+    static QString getStringFromX509Name(X509_NAME* name, int nid);
+
+    /// Converts ASN time to QDateTime. If conversion fails, then invalid
+    /// datetime is returned.
+    static QDateTime getDateTimeFromASN(const ASN1_TIME* time);
+
 protected:
     const PDFFormFieldSignature* m_signatureField;
     QByteArray m_sourceData;

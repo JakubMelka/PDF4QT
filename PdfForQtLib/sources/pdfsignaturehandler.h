@@ -21,6 +21,9 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 
+#include <QString>
+#include <QDateTime>
+
 #include <optional>
 
 namespace pdf
@@ -144,6 +147,69 @@ private:
     AuthentificationType m_propType = AuthentificationType::Invalid;
 };
 
+/// Info about certificate, various details etc.
+class PDFFORQTLIBSHARED_EXPORT PDFCertificateInfo
+{
+public:
+    explicit inline PDFCertificateInfo() = default;
+
+    /// These entries are taken from RFC 5280, section 4.1.2.4,
+    /// they are supported and loaded from the certificate, with
+    /// exception of Email entry.
+    enum NameEntry
+    {
+        CountryName,
+        OrganizationName,
+        OrganizationalUnitName,
+        DistinguishedName,
+        StateOrProvinceName,
+        CommonName,
+        SerialNumber,
+        LocalityName,
+        Title,
+        Surname,
+        GivenName,
+        Initials,
+        Pseudonym,
+        GenerationalQualifier,
+        Email,
+        NameEnd
+    };
+
+    enum PublicKey
+    {
+        KeyRSA,
+        KeyDSA,
+        KeyEC,
+        KeyDH,
+        KeyUnknown
+    };
+
+    const QString& getName(NameEntry name) const { return m_nameEntries[name]; }
+    void setName(NameEntry name, QString string) { m_nameEntries[name] = qMove(string); }
+
+    QDateTime getNotValidBefore() const;
+    void setNotValidBefore(const QDateTime& notValidBefore);
+
+    QDateTime getNotValidAfter() const;
+    void setNotValidAfter(const QDateTime& notValidAfter);
+
+    long getVersion() const;
+    void setVersion(long version);
+
+    PublicKey getPublicKey() const;
+    void setPublicKey(const PublicKey& publicKey);
+
+private:
+    long m_version = 0;
+    PublicKey m_publicKey = KeyUnknown;
+    std::array<QString, NameEnd> m_nameEntries;
+    QDateTime m_notValidBefore;
+    QDateTime m_notValidAfter;
+};
+
+using PDFCertificateInfos = std::vector<PDFCertificateInfo>;
+
 class PDFFORQTLIBSHARED_EXPORT PDFSignatureVerificationResult
 {
 public:
@@ -159,19 +225,25 @@ public:
     {
         None                                = 0x00000,  ///< Used only for initialization
         OK                                  = 0x00001,  ///< Both certificate and signature is OK
-        Error_NoHandler                     = 0x00002,  ///< No signature handler for given signature
-        Error_Generic                       = 0x00004,  ///< Generic error (uknown general error)
+        Certificate_OK                      = 0x00002,  ///< Certificate is OK
+        Signature_OK                        = 0x00004,  ///< Signature is OK
+        Error_NoHandler                     = 0x00008,  ///< No signature handler for given signature
+        Error_Generic                       = 0x00010,  ///< Generic error (uknown general error)
 
-        Error_Certificate_Invalid           = 0x00008,  ///< Certificate is invalid
-        Error_Certificate_NoSignatures      = 0x00010,  ///< No signature found in certificate data
-        Error_Certificate_Missing           = 0x00020,  ///< Certificate is missing
-        Error_Certificate_Generic           = 0x00040,  ///< Generic error during certificate verification
-        Error_Certificate_Expired           = 0x00080,  ///< Certificate has expired
-        Error_Certificate_SelfSigned        = 0x00100,  ///< Self signed certificate
-        Error_Certificate_SelfSignedChain   = 0x00200,  ///< Self signed certificate in chain
-        Error_Certificate_TrustedNotFound   = 0x00400,  ///< No trusted certificate was found
-        Error_Certificate_Revoked           = 0x00800,  ///< Certificate has been revoked
-        Error_Certificate_Other             = 0x01000,  ///< Other certificate error. See OpenSSL code for details.
+        Error_Certificate_Invalid           = 0x00020,  ///< Certificate is invalid
+        Error_Certificate_NoSignatures      = 0x00040,  ///< No signature found in certificate data
+        Error_Certificate_Missing           = 0x00080,  ///< Certificate is missing
+        Error_Certificate_Generic           = 0x00100,  ///< Generic error during certificate verification
+        Error_Certificate_Expired           = 0x00200,  ///< Certificate has expired
+        Error_Certificate_SelfSigned        = 0x00400,  ///< Self signed certificate
+        Error_Certificate_SelfSignedChain   = 0x00800,  ///< Self signed certificate in chain
+        Error_Certificate_TrustedNotFound   = 0x01000,  ///< No trusted certificate was found
+        Error_Certificate_Revoked           = 0x02000,  ///< Certificate has been revoked
+        Error_Certificate_Other             = 0x04000,  ///< Other certificate error. See OpenSSL code for details.
+
+        Error_Certificates_Mask = Error_Certificate_Invalid | Error_Certificate_NoSignatures | Error_Certificate_Missing | Error_Certificate_Generic |
+                                  Error_Certificate_Expired | Error_Certificate_SelfSigned | Error_Certificate_SelfSignedChain | Error_Certificate_TrustedNotFound |
+                                  Error_Certificate_Revoked | Error_Certificate_Other
     };
     Q_DECLARE_FLAGS(VerificationFlags, VerificationFlag)
 
@@ -191,8 +263,12 @@ public:
     void addCertificateOtherError(int error);
 
     bool isValid() const { return hasFlag(OK); }
+    bool isCertificateValid() const { return hasFlag(Certificate_OK); }
+    bool isSignatureValid() const { return hasFlag(Signature_OK); }
     bool hasError() const { return !isValid(); }
+    bool hasCertificateError() const { return m_flags & Error_Certificates_Mask; }
     bool hasFlag(VerificationFlag flag) const { return m_flags.testFlag(flag); }
+    void setFlag(VerificationFlag flag, bool value) { m_flags.setFlag(flag, value); }
 
     PDFObjectReference getSignatureFieldReference() const { return m_signatureFieldReference; }
     const QString& getSignatureFieldQualifiedName() const { return m_signatureFieldQualifiedName; }
@@ -201,11 +277,14 @@ public:
     void setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName);
     void setSignatureFieldReference(PDFObjectReference signatureFieldReference);
 
+    void addCertificateInfo(PDFCertificateInfo info) { m_certificateInfos.emplace_back(qMove(info)); }
+
 private:
     VerificationFlags m_flags = None;
     PDFObjectReference m_signatureFieldReference;
     QString m_signatureFieldQualifiedName;
     QStringList m_errors;
+    PDFCertificateInfos m_certificateInfos;
 };
 
 /// Signature handler. Can verify both certificate and signature validity.
