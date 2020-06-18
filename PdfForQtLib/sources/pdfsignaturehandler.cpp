@@ -523,8 +523,24 @@ PDFCertificateInfo PDFPublicKeySignatureHandler::getCertificateInfo(X509* certif
         }
         info.setPublicKey(key);
 
-        EVP_PKEY_bits();
-        EVP_PKEY_security_bits();
+        const int bits = EVP_PKEY_bits(evpKey);
+        info.setKeySize(bits);
+
+        const uint32_t keyUsage = X509_get_key_usage(certificate);
+        if (keyUsage != UINT32_MAX)
+        {
+            static_assert(PDFCertificateInfo::KeyUsageDigitalSignature    == KU_DIGITAL_SIGNATURE, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageNonRepudiation      == KU_NON_REPUDIATION, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageKeyEncipherment     == KU_KEY_ENCIPHERMENT, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageDataEncipherment    == KU_DATA_ENCIPHERMENT, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageAgreement           == KU_KEY_AGREEMENT, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageCertSign            == KU_KEY_CERT_SIGN, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageCrlSign             == KU_CRL_SIGN, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageEncipherOnly        == KU_ENCIPHER_ONLY, "Fix this code!");
+            static_assert(PDFCertificateInfo::KeyUsageDecipherOnly        == KU_DECIPHER_ONLY, "Fix this code!");
+
+            info.setKeyUsage(static_cast<PDFCertificateInfo::KeyUsageFlags>(keyUsage));
+        }
     }
 
     return info;
@@ -568,6 +584,26 @@ PDFCertificateInfo::PublicKey PDFCertificateInfo::getPublicKey() const
 void PDFCertificateInfo::setPublicKey(const PublicKey& publicKey)
 {
     m_publicKey = publicKey;
+}
+
+int PDFCertificateInfo::getKeySize() const
+{
+    return m_keySize;
+}
+
+void PDFCertificateInfo::setKeySize(int keySize)
+{
+    m_keySize = keySize;
+}
+
+PDFCertificateInfo::KeyUsageFlags PDFCertificateInfo::getKeyUsage() const
+{
+    return m_keyUsage;
+}
+
+void PDFCertificateInfo::setKeyUsage(KeyUsageFlags keyUsage)
+{
+    m_keyUsage = keyUsage;
 }
 
 QString PDFPublicKeySignatureHandler::getStringFromX509Name(X509_NAME* name, int nid)

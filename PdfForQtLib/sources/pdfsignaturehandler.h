@@ -185,6 +185,22 @@ public:
         KeyUnknown
     };
 
+    // This enum is defined in RFC 5280, chapter 4.2.1.3, Key Usage
+    enum KeyUsageFlag : uint32_t
+    {
+        KeyUsageNone                = 0x0000,
+        KeyUsageDigitalSignature    = 0x0080,
+        KeyUsageNonRepudiation      = 0x0040,
+        KeyUsageKeyEncipherment     = 0x0020,
+        KeyUsageDataEncipherment    = 0x0010,
+        KeyUsageAgreement           = 0x0008,
+        KeyUsageCertSign            = 0x0004,
+        KeyUsageCrlSign             = 0x0002,
+        KeyUsageEncipherOnly        = 0x0001,
+        KeyUsageDecipherOnly        = 0x8000,
+    };
+    Q_DECLARE_FLAGS(KeyUsageFlags, KeyUsageFlag)
+
     const QString& getName(NameEntry name) const { return m_nameEntries[name]; }
     void setName(NameEntry name, QString string) { m_nameEntries[name] = qMove(string); }
 
@@ -200,12 +216,20 @@ public:
     PublicKey getPublicKey() const;
     void setPublicKey(const PublicKey& publicKey);
 
+    int getKeySize() const;
+    void setKeySize(int keySize);
+
+    KeyUsageFlags getKeyUsage() const;
+    void setKeyUsage(KeyUsageFlags keyUsage);
+
 private:
     long m_version = 0;
+    int m_keySize = 0;
     PublicKey m_publicKey = KeyUnknown;
     std::array<QString, NameEnd> m_nameEntries;
     QDateTime m_notValidBefore;
     QDateTime m_notValidAfter;
+    KeyUsageFlags m_keyUsage;
 };
 
 using PDFCertificateInfos = std::vector<PDFCertificateInfo>;
