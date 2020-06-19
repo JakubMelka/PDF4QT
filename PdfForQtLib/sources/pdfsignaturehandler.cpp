@@ -21,6 +21,8 @@
 #include "pdfform.h"
 #include "pdfsignaturehandler_impl.h"
 
+#include <openssl/err.h>
+
 #include <QMutex>
 #include <QMutexLocker>
 
@@ -255,6 +257,36 @@ void PDFSignatureVerificationResult::addCertificateOtherError(int error)
     m_errors << PDFTranslationContext::tr("Certificate validation failed with code %1.").arg(error);
 }
 
+void PDFSignatureVerificationResult::addInvalidSignatureError()
+{
+    m_flags.setFlag(Error_Signature_Invalid);
+    m_errors << PDFTranslationContext::tr("Signature is invalid.");
+}
+
+void PDFSignatureVerificationResult::addSignatureNoSignaturesFoundError()
+{
+    m_flags.setFlag(Error_Signature_NoSignaturesFound);
+    m_errors << PDFTranslationContext::tr("No signatures found in certificate.");
+}
+
+void PDFSignatureVerificationResult::addSignatureCertificateMissingError()
+{
+    m_flags.setFlag(Error_Signature_SourceCertificateMissing);
+    m_errors << PDFTranslationContext::tr("Signature certificate is missing.");
+}
+
+void PDFSignatureVerificationResult::addSignatureDigestFailureError()
+{
+    m_flags.setFlag(Error_Signature_DigestFailure);
+    m_errors << PDFTranslationContext::tr("Signed data has different hash function digest.");
+}
+
+void PDFSignatureVerificationResult::addSignatureDataOtherError()
+{
+    m_flags.setFlag(Error_Signature_DataOther);
+    m_errors << PDFTranslationContext::tr("Signed data are invalid.");
+}
+
 void PDFSignatureVerificationResult::setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName)
 {
     m_signatureFieldQualifiedName = signatureFieldQualifiedName;
@@ -428,6 +460,92 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
 void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResult& result) const
 {
     PDFOpenSSLGlobalLock lock;
+
+    OpenSSL_add_all_algorithms();
+
+    const PDFSignature& signature = m_signatureField->getSignature();
+    const QByteArray& content = signature.getContents();
+
+    // Jakub Melka: we will try to get pkcs7 from signature, then
+    // verify signer certificates.
+    const unsigned char* data = reinterpret_cast<const unsigned char*>(content.data());
+    if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, content.size()))
+    {
+        if (BIO* inputBuffer = getSignedDataBuffer(result))
+        {
+            if (BIO* dataBio = PKCS7_dataInit(pkcs7, inputBuffer))
+            {
+                // Now, we must read from bio to calculate digests (digest is returned)
+                std::array<char, 16384> buffer = { };
+                int bytesRead = 0;
+                do
+                {
+                    bytesRead = BIO_read(dataBio, buffer.data(), int(buffer.size()));
+                } while (bytesRead > 0);
+
+                STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
+                const int signerInfoCount = sk_PKCS7_SIGNER_INFO_num(signerInfo);
+                STACK_OF(X509)* certificates = getCertificates(pkcs7);
+                if (signerInfo && signerInfoCount > 0 && certificates)
+                {
+                    for (int i = 0; i < signerInfoCount; ++i)
+                    {
+                        PKCS7_SIGNER_INFO* signerInfoValue = sk_PKCS7_SIGNER_INFO_value(signerInfo, i);
+                        PKCS7_ISSUER_AND_SERIAL* issuerAndSerial = signerInfoValue->issuer_and_serial;
+                        X509* signer = X509_find_by_issuer_and_serial(certificates, issuerAndSerial->issuer, issuerAndSerial->serial);
+
+                        if (!signer)
+                        {
+                            result.addSignatureCertificateMissingError();
+                            break;
+                        }
+
+                        const int verification = PKCS7_signatureVerify(dataBio, pkcs7, signerInfoValue, signer);
+                        if (verification <= 0)
+                        {
+                            const int reason = ERR_GET_REASON(ERR_get_error());
+                            switch (reason)
+                            {
+                                case PKCS7_R_DIGEST_FAILURE:
+                                    result.addSignatureDigestFailureError();
+                                    break;
+
+                                default:
+                                    result.addSignatureDataOtherError();
+                                    break;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    result.addSignatureNoSignaturesFoundError();
+                }
+
+                // According to the documentation, we should not call PKCS7_dataFinal
+                // at the end, when pkcs7 is populated.
+
+                BIO_free(dataBio);
+            }
+            else
+            {
+                result.addInvalidSignatureError();
+            }
+
+            BIO_free(inputBuffer);
+        }
+
+        PKCS7_free(pkcs7);
+    }
+    else
+    {
+        result.addInvalidSignatureError();
+    }
+
+    if (!result.hasSignatureError())
+    {
+        result.setFlag(PDFSignatureVerificationResult::Signature_OK, true);
+    }
 }
 
 PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify() const

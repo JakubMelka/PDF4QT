@@ -247,27 +247,36 @@ public:
 
     enum VerificationFlag
     {
-        None                                = 0x00000,  ///< Used only for initialization
-        OK                                  = 0x00001,  ///< Both certificate and signature is OK
-        Certificate_OK                      = 0x00002,  ///< Certificate is OK
-        Signature_OK                        = 0x00004,  ///< Signature is OK
-        Error_NoHandler                     = 0x00008,  ///< No signature handler for given signature
-        Error_Generic                       = 0x00010,  ///< Generic error (uknown general error)
+        None                                        = 0x00000,  ///< Used only for initialization
+        OK                                          = 0x00001,  ///< Both certificate and signature is OK
+        Certificate_OK                              = 0x00002,  ///< Certificate is OK
+        Signature_OK                                = 0x00004,  ///< Signature is OK
+        Error_NoHandler                             = 0x00008,  ///< No signature handler for given signature
+        Error_Generic                               = 0x00010,  ///< Generic error (uknown general error)
 
-        Error_Certificate_Invalid           = 0x00020,  ///< Certificate is invalid
-        Error_Certificate_NoSignatures      = 0x00040,  ///< No signature found in certificate data
-        Error_Certificate_Missing           = 0x00080,  ///< Certificate is missing
-        Error_Certificate_Generic           = 0x00100,  ///< Generic error during certificate verification
-        Error_Certificate_Expired           = 0x00200,  ///< Certificate has expired
-        Error_Certificate_SelfSigned        = 0x00400,  ///< Self signed certificate
-        Error_Certificate_SelfSignedChain   = 0x00800,  ///< Self signed certificate in chain
-        Error_Certificate_TrustedNotFound   = 0x01000,  ///< No trusted certificate was found
-        Error_Certificate_Revoked           = 0x02000,  ///< Certificate has been revoked
-        Error_Certificate_Other             = 0x04000,  ///< Other certificate error. See OpenSSL code for details.
+        Error_Certificate_Invalid                   = 0x00020,  ///< Certificate is invalid
+        Error_Certificate_NoSignatures              = 0x00040,  ///< No signature found in certificate data
+        Error_Certificate_Missing                   = 0x00080,  ///< Certificate is missing
+        Error_Certificate_Generic                   = 0x00100,  ///< Generic error during certificate verification
+        Error_Certificate_Expired                   = 0x00200,  ///< Certificate has expired
+        Error_Certificate_SelfSigned                = 0x00400,  ///< Self signed certificate
+        Error_Certificate_SelfSignedChain           = 0x00800,  ///< Self signed certificate in chain
+        Error_Certificate_TrustedNotFound           = 0x01000,  ///< No trusted certificate was found
+        Error_Certificate_Revoked                   = 0x02000,  ///< Certificate has been revoked
+        Error_Certificate_Other                     = 0x04000,  ///< Other certificate error. See OpenSSL code for details.
+
+        Error_Signature_Invalid                     = 0x08000,  ///< Signature is invalid for some reason
+        Error_Signature_SourceCertificateMissing    = 0x10000,  ///< Source certificate of signature is missing
+        Error_Signature_NoSignaturesFound           = 0x20000,  ///< No signatures found
+        Error_Signature_DigestFailure               = 0x40000,  ///< Digest failure
+        Error_Signature_DataOther                   = 0x80000,  ///< Signed data were not verified
 
         Error_Certificates_Mask = Error_Certificate_Invalid | Error_Certificate_NoSignatures | Error_Certificate_Missing | Error_Certificate_Generic |
                                   Error_Certificate_Expired | Error_Certificate_SelfSigned | Error_Certificate_SelfSignedChain | Error_Certificate_TrustedNotFound |
-                                  Error_Certificate_Revoked | Error_Certificate_Other
+                                  Error_Certificate_Revoked | Error_Certificate_Other,
+
+        Error_Signatures_Mask = Error_Signature_Invalid | Error_Signature_SourceCertificateMissing | Error_Signature_NoSignaturesFound |
+                                Error_Signature_DigestFailure | Error_Signature_DataOther,
     };
     Q_DECLARE_FLAGS(VerificationFlags, VerificationFlag)
 
@@ -285,12 +294,18 @@ public:
     void addCertificateTrustedNotFoundError();
     void addCertificateRevokedError();
     void addCertificateOtherError(int error);
+    void addInvalidSignatureError();
+    void addSignatureNoSignaturesFoundError();
+    void addSignatureCertificateMissingError();
+    void addSignatureDigestFailureError();
+    void addSignatureDataOtherError();
 
     bool isValid() const { return hasFlag(OK); }
     bool isCertificateValid() const { return hasFlag(Certificate_OK); }
     bool isSignatureValid() const { return hasFlag(Signature_OK); }
     bool hasError() const { return !isValid(); }
     bool hasCertificateError() const { return m_flags & Error_Certificates_Mask; }
+    bool hasSignatureError() const { return m_flags & Error_Signatures_Mask; }
     bool hasFlag(VerificationFlag flag) const { return m_flags.testFlag(flag); }
     void setFlag(VerificationFlag flag, bool value) { m_flags.setFlag(flag, value); }
 
