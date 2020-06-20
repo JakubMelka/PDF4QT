@@ -24,6 +24,7 @@
 #include "pdfdocument.h"
 #include "pdfitemmodels.h"
 #include "pdfexception.h"
+#include "pdfsignaturehandler.h"
 #include "pdfdrawspacecontroller.h"
 
 #include <QMenu>
@@ -97,6 +98,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpee
     m_pageInfo[Thumbnails] = { ui->thumbnailsButton, ui->thumbnailsPage };
     m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
     m_pageInfo[Speech] = { ui->speechButton, ui->speechPage };
+    m_pageInfo[Signatures] = { ui->signaturesButton, ui->signaturesPage };
 
     for (const auto& pageInfo : m_pageInfo)
     {
@@ -121,7 +123,7 @@ PDFSidebarWidget::~PDFSidebarWidget()
     delete ui;
 }
 
-void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document)
+void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, const std::vector<pdf::PDFSignatureVerificationResult>& signatures)
 {
     m_document = document;
     m_optionalContentActivity = document.getOptionalContentActivity();
@@ -196,6 +198,7 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document)
     // Update GUI
     updateGUI(preferred);
     updateButtons();
+    updateSignatures(signatures);
 }
 
 bool PDFSidebarWidget::isEmpty() const
@@ -232,6 +235,9 @@ bool PDFSidebarWidget::isEmpty(Page page) const
 
         case Speech:
             return !m_textToSpeech->isValid();
+
+        case Signatures:
+            return !m_signatures.empty();
 
         default:
             Q_ASSERT(false);
@@ -329,6 +335,201 @@ void PDFSidebarWidget::updateButtons()
             pageInfo.second.button->setEnabled(!isEmpty(pageInfo.first));
         }
     }
+}
+
+void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerificationResult>& signatures)
+{
+    ui->signatureTreeWidget->setUpdatesEnabled(false);
+    ui->signatureTreeWidget->clear();
+
+    QIcon okIcon(":/resources/result-ok.svg");
+    QIcon errorIcon(":/resources/result-error.svg");
+    QIcon warningIcon(":/resources/result-warning.svg");
+    QIcon infoIcon(":/resources/result-information.svg");
+
+    for (const pdf::PDFSignatureVerificationResult& signature : signatures)
+    {
+        const pdf::PDFCertificateInfos& certificateInfos = signature.getCertificateInfos();
+        const pdf::PDFCertificateInfo* certificateInfo = !certificateInfos.empty() ? &certificateInfos.front() : nullptr;
+
+        QString text = tr("Signed by - %1").arg(certificateInfo ? certificateInfo->getName(pdf::PDFCertificateInfo::CommonName) : tr("Unknown"));
+        QTreeWidgetItem* rootItem = new QTreeWidgetItem(QStringList(text));
+
+        if (signature.hasError())
+        {
+            rootItem->setIcon(0, errorIcon);
+        }
+        else if (signature.hasWarning())
+        {
+            rootItem->setIcon(0, warningIcon);
+        }
+        else
+        {
+            rootItem->setIcon(0, okIcon);
+        }
+
+        if (signature.isCertificateValid())
+        {
+            QTreeWidgetItem* certificateItem = new QTreeWidgetItem(rootItem, QStringList(tr("Certificate is valid.")));
+            certificateItem->setIcon(0, okIcon);
+        }
+
+        if (signature.isSignatureValid())
+        {
+            QTreeWidgetItem* signatureItem = new QTreeWidgetItem(rootItem, QStringList(tr("Signature is valid.")));
+            signatureItem->setIcon(0, okIcon);
+        }
+
+        for (const QString& error : signature.getErrors())
+        {
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(error));
+            item->setIcon(0, errorIcon);
+        }
+
+        for (const QString& error : signature.getWarnings())
+        {
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(error));
+            item->setIcon(0, warningIcon);
+        }
+
+        if (certificateInfo)
+        {
+            QTreeWidgetItem* certChainRoot = new QTreeWidgetItem(rootItem, QStringList(tr("Certificate validation chain")));
+            certChainRoot->setIcon(0, infoIcon);
+            for (const pdf::PDFCertificateInfo& currentCertificateInfo : certificateInfos)
+            {
+                QTreeWidgetItem* certRoot = new QTreeWidgetItem(certChainRoot, QStringList(currentCertificateInfo.getName(pdf::PDFCertificateInfo::CommonName)));
+                certRoot->setIcon(0, infoIcon);
+
+                auto addName = [certRoot, &currentCertificateInfo, &infoIcon](pdf::PDFCertificateInfo::NameEntry nameEntry, QString caption)
+                {
+                    QString text = currentCertificateInfo.getName(nameEntry);
+                    if (!text.isEmpty())
+                    {
+                        QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("%1: %2").arg(caption, text)));
+                        item->setIcon(0, infoIcon);
+                    }
+                };
+
+                QString publicKeyMethod;
+                switch (currentCertificateInfo.getPublicKey())
+                {
+                    case pdf::PDFCertificateInfo::KeyRSA:
+                        publicKeyMethod = tr("Protected by RSA method, %1-bit key").arg(currentCertificateInfo.getKeySize());
+                        break;
+
+                    case pdf::PDFCertificateInfo::KeyDSA:
+                        publicKeyMethod = tr("Protected by DSA method, %1-bit key").arg(currentCertificateInfo.getKeySize());
+                        break;
+
+                    case pdf::PDFCertificateInfo::KeyEC:
+                        publicKeyMethod = tr("Protected by EC method, %1-bit key").arg(currentCertificateInfo.getKeySize());
+                        break;
+
+                    case pdf::PDFCertificateInfo::KeyDH:
+                        publicKeyMethod = tr("Protected by DH method, %1-bit key").arg(currentCertificateInfo.getKeySize());
+                        break;
+
+                    case pdf::PDFCertificateInfo::KeyUnknown:
+                        publicKeyMethod = tr("Unknown protection method, %1-bit key").arg(currentCertificateInfo.getKeySize());
+                        break;
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+
+                addName(pdf::PDFCertificateInfo::CountryName, tr("Country"));
+                addName(pdf::PDFCertificateInfo::OrganizationName, tr("Organization"));
+                addName(pdf::PDFCertificateInfo::OrganizationalUnitName, tr("Org. unit"));
+                addName(pdf::PDFCertificateInfo::DistinguishedName, tr("Name"));
+                addName(pdf::PDFCertificateInfo::StateOrProvinceName, tr("State"));
+                addName(pdf::PDFCertificateInfo::SerialNumber, tr("Serial number"));
+                addName(pdf::PDFCertificateInfo::LocalityName, tr("Locality"));
+                addName(pdf::PDFCertificateInfo::Title, tr("Title"));
+                addName(pdf::PDFCertificateInfo::Surname, tr("Surname"));
+                addName(pdf::PDFCertificateInfo::GivenName, tr("Forename"));
+                addName(pdf::PDFCertificateInfo::Initials, tr("Initials"));
+                addName(pdf::PDFCertificateInfo::Pseudonym, tr("Pseudonym"));
+                addName(pdf::PDFCertificateInfo::GenerationalQualifier, tr("Qualifier"));
+                addName(pdf::PDFCertificateInfo::Email, tr("Email"));
+
+                QTreeWidgetItem* publicKeyItem = new QTreeWidgetItem(certRoot, QStringList(publicKeyMethod));
+                publicKeyItem->setIcon(0, infoIcon);
+
+                QDateTime notValidBefore = currentCertificateInfo.getNotValidBefore().toLocalTime();
+                QDateTime notValidAfter = currentCertificateInfo.getNotValidAfter().toLocalTime();
+
+                if (notValidBefore.isValid())
+                {
+                    QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("Valid from: %2").arg(notValidBefore.toString(Qt::DefaultLocaleShortDate))));
+                    item->setIcon(0, infoIcon);
+                }
+
+                if (notValidAfter.isValid())
+                {
+                    QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("Valid to: %2").arg(notValidAfter.toString(Qt::DefaultLocaleShortDate))));
+                    item->setIcon(0, infoIcon);
+                }
+
+                QStringList keyUsages;
+                pdf::PDFCertificateInfo::KeyUsageFlags keyUsageFlags = currentCertificateInfo.getKeyUsage();
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDigitalSignature))
+                {
+                    keyUsages << tr("Digital signatures");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageNonRepudiation))
+                {
+                    keyUsages << tr("Non-repudiation");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageKeyEncipherment))
+                {
+                    keyUsages << tr("Key encipherement");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDataEncipherment))
+                {
+                    keyUsages << tr("Application data encipherement");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageAgreement))
+                {
+                    keyUsages << tr("Key agreement");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageCertSign))
+                {
+                    keyUsages << tr("Verify signatures on certificates");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageCrlSign))
+                {
+                    keyUsages << tr("Verify signatures on revocation information");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageEncipherOnly))
+                {
+                    keyUsages << tr("Encipher data during key agreement");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDecipherOnly))
+                {
+                    keyUsages << tr("Decipher data during key agreement");
+                }
+
+                if (!keyUsages.isEmpty())
+                {
+                    QTreeWidgetItem* keyUsageRoot = new QTreeWidgetItem(certRoot, QStringList(tr("Key usages")));
+                    keyUsageRoot->setIcon(0, infoIcon);
+
+                    for (const QString& keyUsage : keyUsages)
+                    {
+                        QTreeWidgetItem* keyUsageItem = new QTreeWidgetItem(keyUsageRoot, QStringList(keyUsage));
+                        keyUsageItem->setIcon(0, infoIcon);
+                    }
+                }
+            }
+        }
+
+        ui->signatureTreeWidget->addTopLevelItem(rootItem);
+    }
+
+    ui->signatureTreeWidget->expandToDepth(1);
+    ui->signatureTreeWidget->setUpdatesEnabled(true);
 }
 
 void PDFSidebarWidget::onPageButtonClicked()

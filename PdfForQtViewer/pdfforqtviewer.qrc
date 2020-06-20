@@ -46,5 +46,9 @@
         <file>resources/form-settings.svg</file>
         <file>resources/undo.svg</file>
         <file>resources/redo.svg</file>
+        <file>resources/result-error.svg</file>
+        <file>resources/result-information.svg</file>
+        <file>resources/result-ok.svg</file>
+        <file>resources/result-warning.svg</file>
     </qresource>
 </RCC>

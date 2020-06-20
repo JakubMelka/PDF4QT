@@ -158,6 +158,7 @@ private:
         pdf::PDFDocumentPointer document;
         QString errorMessage;
         pdf::PDFDocumentReader::Result result = pdf::PDFDocumentReader::Result::Cancelled;
+        std::vector<pdf::PDFSignatureVerificationResult> signatures;
     };
 
     Ui::PDFViewerMainWindow* ui;
@@ -179,6 +180,7 @@ private:
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
     PDFFileInfo m_fileInfo;
+    std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
 
     QFuture<AsyncReadingResult> m_future;
     QFutureWatcher<AsyncReadingResult>* m_futureWatcher;

@@ -861,8 +861,8 @@ QDateTime pdf::PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME*
         tm internalTime = { };
         if (ASN1_TIME_to_tm(time, &internalTime) > 0)
         {
-            time_t localTime = mktime(&internalTime);
-            result = QDateTime::fromSecsSinceEpoch(localTime, Qt::LocalTime);
+            time_t localTime = _mkgmtime(&internalTime);
+            result = QDateTime::fromSecsSinceEpoch(localTime, Qt::UTC);
         }
     }
 

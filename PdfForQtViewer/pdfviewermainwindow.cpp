@@ -967,8 +967,7 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
         {
             // Verify signatures
             pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
-            std::vector<pdf::PDFSignatureVerificationResult> signaturesVerifications = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource());
-
+            result.signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource());
             result.document.reset(new pdf::PDFDocument(qMove(document)));
         }
 
@@ -1001,7 +1000,8 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             // We add file to recent files only, if we have successfully read the document
             m_recentFileManager->addRecentFile(m_fileInfo.originalFileName);
 
-            m_pdfDocument = result.document;
+            m_pdfDocument = qMove(result.document);
+            m_signatures = qMove(result.signatures);
             pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
             setDocument(document);
 
@@ -1072,7 +1072,7 @@ void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
     m_toolManager->setDocument(document);
     m_textToSpeech->setDocument(document);
     m_pdfWidget->setDocument(document);
-    m_sidebarWidget->setDocument(document);
+    m_sidebarWidget->setDocument(document, m_signatures);
     m_advancedFindWidget->setDocument(document);
 
     if (m_sidebarWidget->isEmpty())
@@ -1109,6 +1109,7 @@ void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
 
 void PDFViewerMainWindow::closeDocument()
 {
+    m_signatures.clear();
     setDocument(pdf::PDFModifiedDocument());
     m_pdfDocument.reset();
     updateActionsAvailability();

@@ -280,6 +280,8 @@ public:
 
         Error_Signatures_Mask = Error_Signature_Invalid | Error_Signature_SourceCertificateMissing | Error_Signature_NoSignaturesFound |
                                 Error_Signature_DigestFailure | Error_Signature_DataOther | Error_Signature_DataCoveredBySignatureMissing,
+
+        Warnings_Mask = Warning_Signature_NotCoveredBytes
     };
     Q_DECLARE_FLAGS(VerificationFlags, VerificationFlag)
 
@@ -309,6 +311,7 @@ public:
     bool isCertificateValid() const { return hasFlag(Certificate_OK); }
     bool isSignatureValid() const { return hasFlag(Signature_OK); }
     bool hasError() const { return !isValid(); }
+    bool hasWarning() const { return m_flags & Warnings_Mask; }
     bool hasCertificateError() const { return m_flags & Error_Certificates_Mask; }
     bool hasSignatureError() const { return m_flags & Error_Signatures_Mask; }
     bool hasFlag(VerificationFlag flag) const { return m_flags.testFlag(flag); }
@@ -318,6 +321,7 @@ public:
     const QString& getSignatureFieldQualifiedName() const { return m_signatureFieldQualifiedName; }
     const QStringList& getErrors() const { return m_errors; }
     const QStringList& getWarnings() const { return m_warnings; }
+    const PDFCertificateInfos& getCertificateInfos() const { return m_certificateInfos; }
 
     void setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName);
     void setSignatureFieldReference(PDFObjectReference signatureFieldReference);

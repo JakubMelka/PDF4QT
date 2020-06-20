@@ -37,10 +37,11 @@ class PDFAction;
 class PDFDocument;
 class PDFDrawWidgetProxy;
 class PDFModifiedDocument;
-class PDFOutlineTreeItemModel;
 class PDFThumbnailsItemModel;
-class PDFAttachmentsTreeItemModel;
+class PDFOutlineTreeItemModel;
 class PDFOptionalContentActivity;
+class PDFAttachmentsTreeItemModel;
+class PDFSignatureVerificationResult;
 class PDFOptionalContentTreeItemModel;
 }
 
@@ -67,10 +68,11 @@ public:
         OptionalContent,
         Attachments,
         Speech,
+        Signatures,
         _END
     };
 
-    void setDocument(const pdf::PDFModifiedDocument& document);
+    void setDocument(const pdf::PDFModifiedDocument& document, const std::vector<pdf::PDFSignatureVerificationResult>& signatures);
 
     /// Returns true, if all items in sidebar are empty
     bool isEmpty() const;
@@ -93,6 +95,7 @@ signals:
 private:
     void updateGUI(Page preferredPage);
     void updateButtons();
+    void updateSignatures(const std::vector<pdf::PDFSignatureVerificationResult>& signatures);
 
     void onPageButtonClicked();
     void onOutlineItemClicked(const QModelIndex& index);
@@ -116,6 +119,7 @@ private:
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     pdf::PDFAttachmentsTreeItemModel* m_attachmentsTreeModel;
     std::map<Page, PageInfo> m_pageInfo;
+    std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
 };
 
 }   // namespace pdfviewer

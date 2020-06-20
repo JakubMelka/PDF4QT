@@ -94,6 +94,19 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="signaturesButton">
+       <property name="text">
+        <string>Signatures</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="flat">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="buttonSpacer">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -111,7 +124,7 @@
    <item>
     <widget class="QStackedWidget" name="stackedWidget">
      <property name="currentIndex">
-      <number>5</number>
+      <number>6</number>
      </property>
      <widget class="QWidget" name="emptyPage"/>
      <widget class="QWidget" name="bookmarksPage">
@@ -389,6 +402,37 @@
        </item>
        <item>
         <widget class="QTextBrowser" name="speechActualTextEdit"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="signaturesPage">
+      <layout class="QVBoxLayout" name="signaturesPageLayout">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QTreeWidget" name="signatureTreeWidget">
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="headerHidden">
+          <bool>true</bool>
+         </property>
+         <column>
+          <property name="text">
+           <string notr="true">1</string>
+          </property>
+         </column>
+        </widget>
        </item>
       </layout>
      </widget>
