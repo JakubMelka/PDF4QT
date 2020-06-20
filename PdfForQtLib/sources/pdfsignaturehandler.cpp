@@ -19,6 +19,7 @@
 #include "pdfdocument.h"
 #include "pdfencoding.h"
 #include "pdfform.h"
+#include "pdfutils.h"
 #include "pdfsignaturehandler_impl.h"
 
 #include <openssl/err.h>
@@ -105,7 +106,7 @@ PDFSignature PDFSignature::parse(const PDFObjectStorage* storage, PDFObject obje
         result.m_byteRanges.reserve(byteRangeCount);
         for (size_t i = 0; i < byteRangeCount; ++i)
         {
-            ByteRange byteRange = { byteRangesArray[i], byteRangesArray[i + 1] };
+            ByteRange byteRange = { byteRangesArray[2 * i], byteRangesArray[2 * i + 1] };
             result.m_byteRanges.push_back(byteRange);
         }
 
@@ -287,6 +288,18 @@ void PDFSignatureVerificationResult::addSignatureDataOtherError()
     m_errors << PDFTranslationContext::tr("Signed data are invalid.");
 }
 
+void PDFSignatureVerificationResult::addSignatureDataCoveredBySignatureMissingError()
+{
+    m_flags.setFlag(Error_Signature_DataCoveredBySignatureMissing);
+    m_errors << PDFTranslationContext::tr("Data covered by signature are not present.");
+}
+
+void PDFSignatureVerificationResult::addSignatureNotCoveredBytesWarning(PDFInteger count)
+{
+    m_flags.setFlag(Warning_Signature_NotCoveredBytes);
+    m_warnings << PDFTranslationContext::tr("%1 bytes are not covered by signature.").arg(count);
+}
+
 void PDFSignatureVerificationResult::setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName)
 {
     m_signatureFieldQualifiedName = signatureFieldQualifiedName;
@@ -295,6 +308,14 @@ void PDFSignatureVerificationResult::setSignatureFieldQualifiedName(const QStrin
 void PDFSignatureVerificationResult::setSignatureFieldReference(PDFObjectReference signatureFieldReference)
 {
     m_signatureFieldReference = signatureFieldReference;
+}
+
+void PDFSignatureVerificationResult::validate()
+{
+    if (isCertificateValid() && isSignatureValid())
+    {
+        m_flags.setFlag(OK);
+    }
 }
 
 void PDFPublicKeySignatureHandler::initializeResult(PDFSignatureVerificationResult& result) const
@@ -457,6 +478,86 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
     }
 }
 
+BIO* PDFPublicKeySignatureHandler::getSignedDataBuffer(pdf::PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const
+{
+    const PDFSignature& signature = m_signatureField->getSignature();
+    const QByteArray& contents = signature.getContents();
+    const QByteArray& sourceData = m_sourceData;
+
+    PDFInteger size = 0;
+    const PDFSignature::ByteRanges& byteRanges = signature.getByteRanges();
+    for (const PDFSignature::ByteRange& byteRange : byteRanges)
+    {
+        size += byteRange.size;
+    }
+
+    // Sanity checks
+    if (size > sourceData.size())
+    {
+        result.addSignatureDataCoveredBySignatureMissingError();
+        return nullptr;
+    }
+
+    PDFClosedIntervalSet bytesCoveredBySignature;
+
+    outputBuffer.reserve(size);
+    for (const PDFSignature::ByteRange& byteRange : byteRanges)
+    {
+        PDFInteger startOffset = byteRange.offset; // Offset to the first data byte
+        PDFInteger endOffset = byteRange.offset + byteRange.size; // Offset to the byte following last data byte
+
+        if (startOffset == endOffset)
+        {
+            // This means byte range is zero
+            continue;
+        }
+
+        if (startOffset > endOffset || startOffset < 0 || endOffset < 0 || startOffset >= m_sourceData.size() || endOffset > m_sourceData.size())
+        {
+            result.addSignatureDataCoveredBySignatureMissingError();
+            return nullptr;
+        }
+
+        const int length = endOffset - startOffset;
+        outputBuffer.append(sourceData.constData() + startOffset, length);
+        bytesCoveredBySignature.addInterval(startOffset, endOffset - 1);
+    }
+
+    // Jakub Melka: We must find byte string, which corresponds to signature.
+    // We find only first occurence, because second one should not exist - because
+    // it will mean that signature must be covered by itself.
+    QByteArray hexContents = contents.toHex();
+    int index = sourceData.indexOf(hexContents);
+    if (index == -1)
+    {
+        index = sourceData.indexOf(hexContents.toUpper());
+    }
+    if (index != -1)
+    {
+        int firstByteIndex = index;
+        int lastByteIndex = index + hexContents.size() - 1;
+
+        if (firstByteIndex > 0 && sourceData[firstByteIndex - 1] == '<')
+        {
+            --firstByteIndex;
+        }
+        if (lastByteIndex + 1 < sourceData.size() && sourceData[lastByteIndex + 1] == '>')
+        {
+            ++lastByteIndex;
+        }
+        bytesCoveredBySignature.addInterval(firstByteIndex, lastByteIndex);
+    }
+
+    // We add a warning, that this signature doesn't cover whole source byte range
+    if (!bytesCoveredBySignature.isCovered(0, sourceData.size() - 1))
+    {
+        const PDFInteger notCoveredBytes = sourceData.size() - int(bytesCoveredBySignature.getTotalLength());
+        result.addSignatureNotCoveredBytesWarning(notCoveredBytes);
+    }
+
+    return BIO_new_mem_buf(outputBuffer.data(), outputBuffer.length());
+}
+
 void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResult& result) const
 {
     PDFOpenSSLGlobalLock lock;
@@ -471,7 +572,8 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
     const unsigned char* data = reinterpret_cast<const unsigned char*>(content.data());
     if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, content.size()))
     {
-        if (BIO* inputBuffer = getSignedDataBuffer(result))
+        QByteArray buffer;
+        if (BIO* inputBuffer = getSignedDataBuffer(result, buffer))
         {
             if (BIO* dataBio = PKCS7_dataInit(pkcs7, inputBuffer))
             {
@@ -534,6 +636,10 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
 
             BIO_free(inputBuffer);
         }
+        else
+        {
+            // There is no need for adding error, error is in this case added by getSignedDataBuffer function
+        }
 
         PKCS7_free(pkcs7);
     }
@@ -554,6 +660,7 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify()
     initializeResult(result);
     verifyCertificate(result);
     verifySignature(result);
+    result.validate();
     return result;
 }
 

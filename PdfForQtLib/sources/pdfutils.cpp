@@ -278,4 +278,75 @@ std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
     return result;
 }
 
+void PDFClosedIntervalSet::addInterval(PDFInteger low, PDFInteger high)
+{
+    m_intervals.emplace_back(low, high);
+    normalize();
+}
+
+bool PDFClosedIntervalSet::isCovered(PDFInteger low, PDFInteger high)
+{
+    PDFClosedIntervalSet temporary;
+    temporary.addInterval(low, high);
+    return *this == temporary;
+}
+
+PDFInteger PDFClosedIntervalSet::getTotalLength() const
+{
+    return std::accumulate(m_intervals.cbegin(), m_intervals.cend(), 0, [](PDFInteger count, const auto& b) { return count + b.second - b.first + 1; });
+}
+
+void PDFClosedIntervalSet::normalize()
+{
+    // Algorithm:
+    //   1) sort all ranges
+    //   2) merge adjacent ones
+
+    qSort(m_intervals);
+
+    std::vector<ClosedInterval> intervals;
+    auto it = m_intervals.cbegin();
+    auto itEnd = m_intervals.cend();
+
+    while (it != itEnd)
+    {
+        ClosedInterval interval = *it++;
+
+        while (it != itEnd && overlapsOrAdjacent(interval, *it))
+        {
+            interval = std::make_pair(qMin(interval.first, it->first), qMax(interval.second, it->second));
+            ++it;
+        }
+
+        intervals.push_back(interval);
+    }
+
+    m_intervals = qMove(intervals);
+}
+
+bool PDFClosedIntervalSet::overlapsOrAdjacent(ClosedInterval a, ClosedInterval b)
+{
+    if (a.first > b.first)
+    {
+        std::swap(a, b);
+    }
+
+    // There are 3 cases
+    //   a      b
+    // |---|  |---|      1)
+    //
+    //   a    b
+    // |---||---|        2)
+    //
+    //   a   b
+    // |---|             3)
+    //    |---|
+    //
+    // We cover cases 2) and 3) with following condition:
+    // [a1, a2], [b1, b2]
+    // b1 <= a2 + 1, because we can have intervals [1,2], [3,4] - these should be merged
+
+    return b.first <= a.second + 1;
+}
+
 }   // namespace pdf

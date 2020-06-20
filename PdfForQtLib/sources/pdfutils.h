@@ -526,6 +526,47 @@ private:
     QString m_errorMessage;
 };
 
+/// Set of closed intervals
+class PDFClosedIntervalSet
+{
+public:
+    explicit inline PDFClosedIntervalSet() = default;
+
+    bool operator ==(const PDFClosedIntervalSet&) const = default;
+
+    using ClosedInterval = std::pair<PDFInteger, PDFInteger>;
+
+    /// Adds closed interval, where \p low is lower bound
+    /// of the closed interval, and high is upper bound
+    /// of closed interval.
+    /// \param low Lower bound of interval
+    /// \param high Upper bound of interval
+    void addInterval(PDFInteger low, PDFInteger high);
+
+    /// Adds a single value to the interval (closed interval
+    /// of single value)
+    /// \param value Value
+    void addValue(PDFInteger value) { addInterval(value, value); }
+
+    /// Returns true, if given closed range is subset of
+    /// this interval set.
+    bool isCovered(PDFInteger low, PDFInteger high);
+
+    /// Returns sum of interval lengths
+    PDFInteger getTotalLength() const;
+
+private:
+    /// Normalizes interval ranges - merges adjacent intervals
+    void normalize();
+
+    /// Returns true, if interval overlaps, or is adjacent to the other one
+    /// \param a First interval
+    /// \param b Second interval
+    static bool overlapsOrAdjacent(ClosedInterval a, ClosedInterval b);
+
+    std::vector<ClosedInterval> m_intervals;
+};
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H

@@ -43,6 +43,8 @@ protected:
     void verifySignature(PDFSignatureVerificationResult& result) const;
     void addTrustedCertificates(X509_STORE* store) const;
 
+    BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const;
+
     /// Return a list of certificates from PKCS7 object
     static STACK_OF(X509)* getCertificates(PKCS7* pkcs7);
 
