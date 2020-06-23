@@ -2999,14 +2999,15 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
             PDFPageContentProcessorStateGuard guard(this);
 
-            QMatrix invertedFontMatrix = fontMatrix.inverted();
             PDFObject resources = parentFont->getResources();
             if (!resources.isNull())
             {
                 initDictionaries(resources);
             }
 
-            QMatrix fontAdjustedMatrix = invertedFontMatrix * adjustMatrix;
+            QMatrix scaleMatrix(fontSize, 0.0, 0.0, fontSize, 0.0, 0.0);
+            adjustMatrix = scaleMatrix * adjustMatrix;
+            QMatrix fontAdjustedMatrix = fontMatrix * adjustMatrix;
 
             for (const TextSequenceItem& item : textSequence.items)
             {

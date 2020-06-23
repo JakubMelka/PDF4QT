@@ -468,7 +468,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
 void PDFLexicalAnalyzer::seek(PDFInteger offset)
 {
     const PDFInteger limit = std::distance(m_begin, m_end);
-    if (offset >= 0 && offset < limit)
+    if (offset >= 0 && offset <= limit)
     {
         m_current = std::next(m_begin, offset);
     }
@@ -545,7 +545,7 @@ PDFInteger PDFLexicalAnalyzer::findSubstring(const char* str, PDFInteger positio
     const PDFInteger substringLength = qstrlen(str);
     const PDFInteger startPos = position;
     const PDFInteger endPos = length - substringLength;
-    for (PDFInteger i = startPos; i < endPos; ++i)
+    for (PDFInteger i = startPos; i <= endPos; ++i)
     {
         Q_ASSERT(std::distance(m_begin + i + substringLength - 1, m_end) >= 0);
         if (memcmp(m_begin + i, str, substringLength) == 0)
