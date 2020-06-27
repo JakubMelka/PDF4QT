@@ -86,6 +86,13 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_formAppearanceFlags = static_cast<pdf::PDFFormManager::FormAppearanceFlags>(settings.value("formAppearance", int(pdf::PDFFormManager::getDefaultApperanceFlags())).toInt());
     settings.endGroup();
 
+    settings.beginGroup("Signature");
+    m_settings.m_signatureVerificationEnabled = settings.value("signatureVerificationEnabled", defaultSettings.m_signatureVerificationEnabled).toBool();
+    m_settings.m_signatureTreatWarningsAsErrors = settings.value("signatureTreatWarningsAsErrors", defaultSettings.m_signatureTreatWarningsAsErrors).toBool();
+    m_settings.m_signatureIgnoreCertificateValidityTime = settings.value("signatureIgnoreCertificateValidityTime", defaultSettings.m_signatureIgnoreCertificateValidityTime).toBool();
+    m_settings.m_signatureUseSystemStore = settings.value("signatureUseSystemStore", defaultSettings.m_signatureUseSystemStore).toBool();
+    settings.endGroup();
+
     emit settingsChanged();
 }
 
@@ -138,6 +145,13 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
 
     settings.beginGroup("Forms");
     settings.setValue("formAppearance", int(m_settings.m_formAppearanceFlags));
+    settings.endGroup();
+
+    settings.beginGroup("Signature");
+    settings.setValue("signatureVerificationEnabled", m_settings.m_signatureVerificationEnabled);
+    settings.setValue("signatureTreatWarningsAsErrors", m_settings.m_signatureTreatWarningsAsErrors);
+    settings.setValue("signatureIgnoreCertificateValidityTime", m_settings.m_signatureIgnoreCertificateValidityTime);
+    settings.setValue("signatureUseSystemStore", m_settings.m_signatureUseSystemStore);
     settings.endGroup();
 }
 
@@ -247,7 +261,11 @@ PDFViewerSettings::Settings::Settings() :
     m_magnifierZoom(2.0),
     m_maximumUndoSteps(5),
     m_maximumRedoSteps(5),
-    m_formAppearanceFlags(pdf::PDFFormManager::getDefaultApperanceFlags())
+    m_formAppearanceFlags(pdf::PDFFormManager::getDefaultApperanceFlags()),
+    m_signatureVerificationEnabled(true),
+    m_signatureTreatWarningsAsErrors(false),
+    m_signatureIgnoreCertificateValidityTime(false),
+    m_signatureUseSystemStore(true)
 {
 
 }

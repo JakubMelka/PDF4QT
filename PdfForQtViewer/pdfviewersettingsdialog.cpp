@@ -59,6 +59,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/ui.svg"), tr("UI"), ui->optionsPagesWidget, UISettings);
     new QListWidgetItem(QIcon(":/resources/speech.svg"), tr("Speech"), ui->optionsPagesWidget, SpeechSettings);
     new QListWidgetItem(QIcon(":/resources/form-settings.svg"), tr("Forms"), ui->optionsPagesWidget, FormSettings);
+    new QListWidgetItem(QIcon(":/resources/signature.svg"), tr("Signature"), ui->optionsPagesWidget, SignatureSettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
@@ -198,6 +199,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
             ui->stackedWidget->setCurrentWidget(ui->formPage);
             break;
 
+        case SignatureSettings:
+            ui->stackedWidget->setCurrentWidget(ui->signaturePage);
+            break;
+
         default:
             Q_ASSERT(false);
             break;
@@ -327,6 +332,12 @@ void PDFViewerSettingsDialog::loadData()
     // Form Settings
     ui->formHighlightFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::HighlightFields));
     ui->formHighlightRequiredFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::HighlightRequiredFields));
+
+    // Signature Settings
+    ui->signatureVerificationEnableCheckBox->setChecked(m_settings.m_signatureVerificationEnabled);
+    ui->signatureStrictModeEnabledCheckBox->setChecked(m_settings.m_signatureTreatWarningsAsErrors);
+    ui->signatureIgnoreExpiredCheckBox->setChecked(m_settings.m_signatureIgnoreCertificateValidityTime);
+    ui->signatureUseSystemCertificateStoreCheckBox->setChecked(m_settings.m_signatureUseSystemStore);
 }
 
 void PDFViewerSettingsDialog::saveData()
@@ -513,6 +524,22 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->maximumRedoStepsEdit)
     {
         m_settings.m_maximumRedoSteps = ui->maximumRedoStepsEdit->value();
+    }
+    else if (sender == ui->signatureVerificationEnableCheckBox)
+    {
+        m_settings.m_signatureVerificationEnabled = ui->signatureVerificationEnableCheckBox->isChecked();
+    }
+    else if (sender == ui->signatureStrictModeEnabledCheckBox)
+    {
+        m_settings.m_signatureTreatWarningsAsErrors = ui->signatureStrictModeEnabledCheckBox->isChecked();
+    }
+    else if (sender == ui->signatureIgnoreExpiredCheckBox)
+    {
+        m_settings.m_signatureIgnoreCertificateValidityTime = ui->signatureIgnoreExpiredCheckBox->isChecked();
+    }
+    else if (sender == ui->signatureUseSystemCertificateStoreCheckBox)
+    {
+        m_settings.m_signatureUseSystemStore = ui->signatureUseSystemCertificateStoreCheckBox->isChecked();
     }
 
     const bool loadData = !qobject_cast<const QDoubleSpinBox*>(sender) && !qobject_cast<const QSpinBox*>(sender);

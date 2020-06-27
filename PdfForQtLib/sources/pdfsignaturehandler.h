@@ -26,10 +26,13 @@
 
 #include <optional>
 
+class QDataStream;
+
 namespace pdf
 {
 class PDFForm;
 class PDFObjectStorage;
+class PDFCertificateStore;
 class PDFFormFieldSignature;
 
 /// Signature reference dictionary.
@@ -153,6 +156,15 @@ class PDFFORQTLIBSHARED_EXPORT PDFCertificateInfo
 public:
     explicit inline PDFCertificateInfo() = default;
 
+    void serialize(QDataStream& stream) const;
+    void deserialize(QDataStream& stream);
+
+    friend inline QDataStream& operator<<(QDataStream& stream, const PDFCertificateInfo& info) { info.serialize(stream); return stream; }
+    friend inline QDataStream& operator>>(QDataStream& stream, PDFCertificateInfo& info) { info.deserialize(stream); return stream; }
+
+    bool operator ==(const PDFCertificateInfo&) const = default;
+    bool operator !=(const PDFCertificateInfo&) const = default;
+
     /// These entries are taken from RFC 5280, section 4.1.2.4,
     /// they are supported and loaded from the certificate, with
     /// exception of Email entry.
@@ -210,8 +222,8 @@ public:
     QDateTime getNotValidAfter() const;
     void setNotValidAfter(const QDateTime& notValidAfter);
 
-    long getVersion() const;
-    void setVersion(long version);
+    int32_t getVersion() const;
+    void setVersion(int32_t version);
 
     PublicKey getPublicKey() const;
     void setPublicKey(const PublicKey& publicKey);
@@ -222,14 +234,25 @@ public:
     KeyUsageFlags getKeyUsage() const;
     void setKeyUsage(KeyUsageFlags keyUsage);
 
+    QByteArray getCertificateData() const;
+    void setCertificateData(const QByteArray& certificateData);
+
+    /// Creates certificate info from binary data. Binary data must
+    /// contain DER-encoded certificate.
+    /// \param certificateData Data
+    static std::optional<PDFCertificateInfo> getCertificateInfo(const QByteArray& certificateData);
+
 private:
-    long m_version = 0;
+    static constexpr int persist_version = 1;
+
+    int32_t m_version = 0;
     int m_keySize = 0;
     PublicKey m_publicKey = KeyUnknown;
     std::array<QString, NameEnd> m_nameEntries;
     QDateTime m_notValidBefore;
     QDateTime m_notValidAfter;
     KeyUsageFlags m_keyUsage;
+    QByteArray m_certificateData;
 };
 
 using PDFCertificateInfos = std::vector<PDFCertificateInfo>;
@@ -349,11 +372,20 @@ public:
 
     virtual PDFSignatureVerificationResult verify() const = 0;
 
+    struct Parameters
+    {
+        const PDFCertificateStore* store = nullptr;
+        bool enableVerification = true;
+        bool ignoreExpirationDate = false;
+        bool useSystemCertificateStore = true;
+    };
+
     /// Tries to verify all signatures in the form. If form is invalid, then
     /// empty vector is returned.
     /// \param form Form
     /// \param sourceData Source data
-    static std::vector<PDFSignatureVerificationResult> verifySignatures(const PDFForm& form, const QByteArray& sourceData);
+    /// \param parameters Verification settings
+    static std::vector<PDFSignatureVerificationResult> verifySignatures(const PDFForm& form, const QByteArray& sourceData, const Parameters& parameters);
 
 private:
 
@@ -361,7 +393,71 @@ private:
     /// If signature format is unknown, then nullptr is returned.
     /// \param signatureField Signature field
     /// \param sourceData
-    static PDFSignatureHandler* createHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData);
+    /// \param parameters Verification settings
+    static PDFSignatureHandler* createHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters);
+};
+
+/// Trusted certificate store. Contains list of trusted certificates. Store
+/// can be persisted to the persistent storage trough serialization/deserialization.
+/// Persisting method is versioned.
+class PDFFORQTLIBSHARED_EXPORT PDFCertificateStore
+{
+public:
+    explicit inline PDFCertificateStore() = default;
+
+    void serialize(QDataStream& stream) const;
+    void deserialize(QDataStream& stream);
+
+    enum class EntryType : int
+    {
+        User,   ///< Certificate has been added manually by the user
+        EUTL    ///< Certificate comes EU trusted list
+    };
+
+    struct CertificateEntry
+    {
+        void serialize(QDataStream& stream) const;
+        void deserialize(QDataStream& stream);
+
+        friend inline QDataStream& operator<<(QDataStream& stream, const CertificateEntry& entry) { entry.serialize(stream); return stream; }
+        friend inline QDataStream& operator>>(QDataStream& stream, CertificateEntry& entry) { entry.deserialize(stream); return stream; }
+
+        static constexpr int persist_version = 1;
+        EntryType type = EntryType::User;
+        PDFCertificateInfo info;
+    };
+
+    using CertificateEntries = std::vector<CertificateEntry>;
+
+    /// Tries to add new certificate to the certificate store. If certificate
+    /// is already here, then nothing happens and function returns true.
+    /// Otherwise data are checked, if they really contains a certificate,
+    /// and if yes, then it is added. Function returns false if, and only if,
+    /// error occured and certificate was not added.
+    /// \param type Type
+    /// \param certificate Certificate
+    bool add(EntryType type, const QByteArray& certificate);
+
+    /// Tries to add new certificate to the certificate store. If certificate
+    /// is already here, then nothing happens and function returns true.
+    /// Otherwise data are checked, if they really contains a certificate,
+    /// and if yes, then it is added. Function returns false if, and only if,
+    /// error occured and certificate was not added.
+    /// \param type Type
+    /// \param info Certificate info
+    bool add(EntryType type, PDFCertificateInfo info);
+
+    /// Returns true, if storage contains given certificate
+    /// \param info Certificate info
+    bool contains(const PDFCertificateInfo& info);
+
+    /// Get certificates stored in the store
+    const CertificateEntries& getCertificates() const { return m_certificates; }
+
+private:
+    static constexpr int persist_version = 1;
+
+    CertificateEntries m_certificates;
 };
 
 } // namespace pdf

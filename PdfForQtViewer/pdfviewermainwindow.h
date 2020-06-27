@@ -98,11 +98,8 @@ private slots:
     void on_actionRotateLeft_triggered();
     void on_actionPrint_triggered();
     void on_actionRender_to_Images_triggered();
-
     void on_actionOptimize_triggered();
-
     void on_actionSave_As_triggered();
-
     void on_actionSave_triggered();
 
 private:
@@ -180,6 +177,7 @@ private:
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
     PDFFileInfo m_fileInfo;
+    pdf::PDFCertificateStore m_certificateStore;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
 
     QFuture<AsyncReadingResult> m_future;

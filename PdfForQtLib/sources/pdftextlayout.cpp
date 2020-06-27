@@ -248,55 +248,6 @@ size_t PDFTextCharacterSpatialIndex::queryImpl(size_t nodeIndex, const QRectF& r
     }
 }
 
-template<typename T>
-QDataStream& operator>>(QDataStream& stream, std::vector<T>& vector)
-{
-    std::vector<T>::size_type size = 0;
-    stream >> size;
-    vector.resize(size);
-    for (T& item : vector)
-    {
-        stream >> item;
-    }
-    return stream;
-}
-
-template<typename T>
-QDataStream& operator<<(QDataStream& stream, const std::vector<T>& vector)
-{
-    stream << vector.size();
-    for (const T& item : vector)
-    {
-        stream << item;
-    }
-    return stream;
-}
-
-template<typename T>
-QDataStream& operator>>(QDataStream& stream, std::set<T>& set)
-{
-    std::set<T>::size_type size = 0;
-    stream >> size;
-    for (size_t i = 0; i < size; ++i)
-    {
-        T item;
-        stream >> item;
-        set.insert(set.end(), qMove(item));
-    }
-    return stream;
-}
-
-template<typename T>
-QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
-{
-    stream << set.size();
-    for (const T& item : set)
-    {
-        stream << item;
-    }
-    return stream;
-}
-
 PDFTextLayout::PDFTextLayout()
 {
 

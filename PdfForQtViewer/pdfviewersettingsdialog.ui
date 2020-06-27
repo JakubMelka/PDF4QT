@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>1</number>
+        <number>10</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -1170,6 +1170,156 @@
                </size>
               </property>
              </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="signaturePage">
+        <layout class="QVBoxLayout" name="signaturePageLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="signatureGroupBox">
+           <property name="title">
+            <string>Digital Signature Verification</string>
+           </property>
+           <layout class="QVBoxLayout" name="signatureGroupBoxLayout">
+            <item>
+             <layout class="QGridLayout" name="signatureWidgetsLayout">
+              <item row="2" column="0">
+               <widget class="QLabel" name="signatureIgnoreExpiredLabel">
+                <property name="text">
+                 <string>Ignore expired certificates</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="signatureVerificationLabel">
+                <property name="text">
+                 <string>Signature verification</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="signatureStrictModeLabel">
+                <property name="text">
+                 <string>Strict mode</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="signatureVerificationEnableCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="signatureStrictModeEnabledCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="signatureUseSystemCertificateStoreLabel">
+                <property name="text">
+                 <string>Use system certificate store</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QCheckBox" name="signatureIgnoreExpiredCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QCheckBox" name="signatureUseSystemCertificateStoreCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="Line" name="line">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="signatureCertificatesTableLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QTableWidget" name="trustedCertificateStoreTableWidget"/>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="trustedCertificateStoreButtonsLayout">
+              <item>
+               <spacer name="trustedCertificateStoreButtonsSpacer">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QPushButton" name="removeCertificateButton">
+                <property name="text">
+                 <string>Remove</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="trustedCertificateStoreDownloadEUTLButton">
+                <property name="text">
+                 <string>Download EUTL</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="Line" name="line_2">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="signatureInfoLabel">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Settings for verification of digital signatures. Digital signatures are verified as strict, as possible, to avoid any malicious content or signature manipulation. Verification can also be turned off, if it is not wanted. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is turned on, every warning is treated as error. You can also ignore certificate expiration date, but do this only, if you know what you are doing, because it is dangerous. For verification, list of trusted certificates is used. System certificates can be inserted into the list, and also you can manage your own list of trusted certificates. Also, certificates from EUTL (EU trusted list) can be downloaded into the trusted certificate storage.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
             </item>
            </layout>
           </widget>

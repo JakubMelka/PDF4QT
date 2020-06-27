@@ -26,6 +26,7 @@
 
 #include <QMutex>
 #include <QMutexLocker>
+#include <QDataStream>
 
 #include <array>
 
@@ -139,24 +140,24 @@ PDFSignature PDFSignature::parse(const PDFObjectStorage* storage, PDFObject obje
     return result;
 }
 
-PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData)
+PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters)
 {
     Q_ASSERT(signatureField);
 
     const QByteArray& subfilter = signatureField->getSignature().getSubfilter();
     if (subfilter == "adbe.pkcs7.detached")
     {
-        return new PDFSignatureHandler_adbe_pkcs7_detached(signatureField, sourceData);
+        return new PDFSignatureHandler_adbe_pkcs7_detached(signatureField, sourceData, parameters);
     }
 
     return nullptr;
 }
 
-std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignatures(const PDFForm& form, const QByteArray& sourceData)
+std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignatures(const PDFForm& form, const QByteArray& sourceData, const Parameters& parameters)
 {
     std::vector<PDFSignatureVerificationResult> result;
 
-    if (form.isAcroForm() || form.isXFAForm())
+    if (parameters.enableVerification && (form.isAcroForm() || form.isXFAForm()))
     {
         std::vector<const PDFFormFieldSignature*> signatureFields;
         auto getSignatureFields = [&signatureFields](const PDFFormField* field)
@@ -173,7 +174,7 @@ std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignature
 
         for (const PDFFormFieldSignature* signatureField : signatureFields)
         {
-            if (const PDFSignatureHandler* signatureHandler = createHandler(signatureField, sourceData))
+            if (const PDFSignatureHandler* signatureHandler = createHandler(signatureField, sourceData, parameters))
             {
                 result.emplace_back(signatureHandler->verify());
                 delete signatureHandler;
@@ -399,7 +400,12 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
                     break;
                 }
 
-                X509_STORE_CTX_set_flags(context, X509_V_FLAG_TRUSTED_FIRST);
+                unsigned long flags = X509_V_FLAG_TRUSTED_FIRST;
+                if (m_parameters.ignoreExpirationDate)
+                {
+                    flags |= X509_V_FLAG_NO_CHECK_TIME;
+                }
+                X509_STORE_CTX_set_flags(context, flags);
 
                 int verificationResult = X509_verify_cert(context);
                 if (verificationResult <= 0)
@@ -766,9 +772,45 @@ PDFCertificateInfo PDFPublicKeySignatureHandler::getCertificateInfo(X509* certif
 
             info.setKeyUsage(static_cast<PDFCertificateInfo::KeyUsageFlags>(keyUsage));
         }
+
+        unsigned char* buffer = nullptr;
+        int length = i2d_X509(certificate, &buffer);
+        if (length >= 0)
+        {
+            Q_ASSERT(buffer);
+            info.setCertificateData(QByteArray(reinterpret_cast<const char*>(buffer), length));
+            OPENSSL_free(buffer);
+        }
     }
 
     return info;
+}
+
+void PDFCertificateInfo::serialize(QDataStream& stream) const
+{
+    stream << persist_version;
+    stream << m_version;
+    stream << m_keySize;
+    stream << m_publicKey;
+    stream << m_nameEntries;
+    stream << m_notValidBefore;
+    stream << m_notValidAfter;
+    stream << m_keyUsage;
+    stream << m_certificateData;
+}
+
+void PDFCertificateInfo::deserialize(QDataStream& stream)
+{
+    int persist_version = 0;
+    stream >> persist_version;
+    stream >> m_version;
+    stream >> m_keySize;
+    stream >> m_publicKey;
+    stream >> m_nameEntries;
+    stream >> m_notValidBefore;
+    stream >> m_notValidAfter;
+    stream >> m_keyUsage;
+    stream >> m_certificateData;
 }
 
 QDateTime PDFCertificateInfo::getNotValidBefore() const
@@ -791,12 +833,12 @@ void PDFCertificateInfo::setNotValidAfter(const QDateTime& notValidAfter)
     m_notValidAfter = notValidAfter;
 }
 
-long PDFCertificateInfo::getVersion() const
+int32_t PDFCertificateInfo::getVersion() const
 {
     return m_version;
 }
 
-void PDFCertificateInfo::setVersion(long version)
+void PDFCertificateInfo::setVersion(int32_t version)
 {
     m_version = version;
 }
@@ -831,6 +873,46 @@ void PDFCertificateInfo::setKeyUsage(KeyUsageFlags keyUsage)
     m_keyUsage = keyUsage;
 }
 
+std::optional<PDFCertificateInfo> PDFCertificateInfo::getCertificateInfo(const QByteArray& certificateData)
+{
+    std::optional<PDFCertificateInfo> result;
+
+    PDFOpenSSLGlobalLock lock;
+    const unsigned char* data = reinterpret_cast<const unsigned char*>(certificateData.constData());
+    if (X509* certificate = d2i_X509(nullptr, &data, certificateData.length()))
+    {
+        result = PDFPublicKeySignatureHandler::getCertificateInfo(certificate);
+        X509_free(certificate);
+    }
+
+    return result;
+}
+
+QByteArray PDFCertificateInfo::getCertificateData() const
+{
+    return m_certificateData;
+}
+
+void PDFCertificateInfo::setCertificateData(const QByteArray& certificateData)
+{
+    m_certificateData = certificateData;
+}
+
+void PDFCertificateStore::CertificateEntry::serialize(QDataStream& stream) const
+{
+    stream << persist_version;
+    stream << type;
+    stream << info;
+}
+
+void PDFCertificateStore::CertificateEntry::deserialize(QDataStream& stream)
+{
+    int persist_version = 0;
+    stream >> persist_version;
+    stream >> type;
+    stream >> info;
+}
+
 QString PDFPublicKeySignatureHandler::getStringFromX509Name(X509_NAME* name, int nid)
 {
     QString result;
@@ -852,7 +934,7 @@ QString PDFPublicKeySignatureHandler::getStringFromX509Name(X509_NAME* name, int
     return result;
 }
 
-QDateTime pdf::PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME* time)
+QDateTime PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME* time)
 {
     QDateTime result;
 
@@ -869,6 +951,45 @@ QDateTime pdf::PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME*
     return result;
 }
 
+void PDFCertificateStore::serialize(QDataStream& stream) const
+{
+    stream << persist_version;
+    stream << m_certificates;
+}
+
+void pdf::PDFCertificateStore::deserialize(QDataStream& stream)
+{
+    int persist_version = 0;
+    stream >> persist_version;
+    stream >> m_certificates;
+}
+
+bool PDFCertificateStore::add(EntryType type, const QByteArray& certificate)
+{
+    if (auto certificateInfo = PDFCertificateInfo::getCertificateInfo(certificate))
+    {
+        return add(type, qMove(*certificateInfo));
+    }
+
+    return false;
+}
+
+bool PDFCertificateStore::add(EntryType type, PDFCertificateInfo info)
+{
+    auto it = std::find_if(m_certificates.cbegin(), m_certificates.cend(), [&info](const auto& entry) { return entry.info == info; });
+    if (it == m_certificates.cend())
+    {
+        m_certificates.push_back({ type, qMove(info) });
+    }
+
+    return true;
+}
+
+bool pdf::PDFCertificateStore::contains(const pdf::PDFCertificateInfo& info)
+{
+    return std::find_if(m_certificates.cbegin(), m_certificates.cend(), [&info](const auto& entry) { return entry.info == info; }) != m_certificates.cend();
+}
+
 }   // namespace pdf
 
 #ifdef Q_OS_WIN
@@ -879,23 +1000,42 @@ QDateTime pdf::PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME*
 
 void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store) const
 {
-#ifdef Q_OS_WIN
-    HCERTSTORE certStore = CertOpenSystemStore(NULL, L"ROOT");
-    PCCERT_CONTEXT context = nullptr;
-    if (certStore)
+    if (m_parameters.store)
     {
-        while (context = CertEnumCertificatesInStore(certStore, context))
+        const PDFCertificateStore::CertificateEntries& certificates = m_parameters.store->getCertificates();
+        for (const auto& entry : certificates)
         {
-            const unsigned char* pointer = context->pbCertEncoded;
-            X509* certificate = d2i_X509(nullptr, &pointer, context->cbCertEncoded);
+            QByteArray certificateData = entry.info.getCertificateData();
+            const unsigned char* pointer = reinterpret_cast<const unsigned char*>(certificateData.constData());
+            X509* certificate = d2i_X509(nullptr, &pointer, certificateData.length());
             if (certificate)
             {
                 X509_STORE_add_cert(store, certificate);
                 X509_free(certificate);
             }
         }
+    }
 
-        CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
+#ifdef Q_OS_WIN
+    if (m_parameters.useSystemCertificateStore)
+    {
+        HCERTSTORE certStore = CertOpenSystemStore(NULL, L"ROOT");
+        PCCERT_CONTEXT context = nullptr;
+        if (certStore)
+        {
+            while (context = CertEnumCertificatesInStore(certStore, context))
+            {
+                const unsigned char* pointer = context->pbCertEncoded;
+                X509* certificate = d2i_X509(nullptr, &pointer, context->cbCertEncoded);
+                if (certificate)
+                {
+                    X509_STORE_add_cert(store, certificate);
+                    X509_free(certificate);
+                }
+            }
+
+            CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
+        }
     }
 #endif
 }

@@ -83,6 +83,12 @@ public:
 
         // Form settings
         pdf::PDFFormManager::FormAppearanceFlags m_formAppearanceFlags;
+
+        // Signature settings
+        bool m_signatureVerificationEnabled;
+        bool m_signatureTreatWarningsAsErrors;
+        bool m_signatureIgnoreCertificateValidityTime;
+        bool m_signatureUseSystemStore;
     };
 
     const Settings& getSettings() const { return m_settings; }

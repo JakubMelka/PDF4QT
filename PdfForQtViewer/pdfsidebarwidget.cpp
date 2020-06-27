@@ -18,6 +18,8 @@
 #include "pdfsidebarwidget.h"
 #include "ui_pdfsidebarwidget.h"
 
+#include "pdfviewersettings.h"
+
 #include "pdfwidgetutils.h"
 #include "pdftexttospeech.h"
 
@@ -45,11 +47,17 @@ constexpr const char* STYLESHEET =
         "QWidget#speechPage { background-color: #F0F0F0 }"
         "QWidget#PDFSidebarWidget { background-color: #404040; background: green;}";
 
-PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpeech* textToSpeech, QWidget* parent) :
+PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
+                                   PDFTextToSpeech* textToSpeech,
+                                   pdf::PDFCertificateStore* certificateStore,
+                                   PDFViewerSettings* settings,
+                                   QWidget* parent) :
     QWidget(parent),
     ui(new Ui::PDFSidebarWidget),
     m_proxy(proxy),
     m_textToSpeech(textToSpeech),
+    m_certificateStore(certificateStore),
+    m_settings(settings),
     m_outlineTreeModel(nullptr),
     m_thumbnailsModel(nullptr),
     m_optionalContentTreeModel(nullptr),
@@ -113,6 +121,9 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpee
                                  ui->speechPlayButton, ui->speechPauseButton, ui->speechStopButton, ui->speechSynchronizeButton,
                                  ui->speechRateValueLabel, ui->speechPitchValueLabel, ui->speechVolumeValueLabel,
                                  ui->speechActualTextEdit);
+
+    ui->signatureTreeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->signatureTreeWidget, &QTreeWidget::customContextMenuRequested, this, &PDFSidebarWidget::onSignatureCustomContextMenuRequested);
 
     selectPage(Invalid);
     updateButtons();
@@ -342,10 +353,17 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
     ui->signatureTreeWidget->setUpdatesEnabled(false);
     ui->signatureTreeWidget->clear();
 
+    m_certificateInfos.clear();
+
     QIcon okIcon(":/resources/result-ok.svg");
     QIcon errorIcon(":/resources/result-error.svg");
     QIcon warningIcon(":/resources/result-warning.svg");
     QIcon infoIcon(":/resources/result-information.svg");
+
+    if (m_settings->getSettings().m_signatureTreatWarningsAsErrors)
+    {
+        warningIcon = errorIcon;
+    }
 
     for (const pdf::PDFSignatureVerificationResult& signature : signatures)
     {
@@ -400,6 +418,13 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
             {
                 QTreeWidgetItem* certRoot = new QTreeWidgetItem(certChainRoot, QStringList(currentCertificateInfo.getName(pdf::PDFCertificateInfo::CommonName)));
                 certRoot->setIcon(0, infoIcon);
+
+                pdf::PDFCertificateInfo::KeyUsageFlags keyUsageFlags = currentCertificateInfo.getKeyUsage();
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageCertSign))
+                {
+                    m_certificateInfos.push_back(currentCertificateInfo);
+                    certRoot->setData(0, Qt::UserRole, m_certificateInfos.size() - 1);
+                }
 
                 auto addName = [certRoot, &currentCertificateInfo, &infoIcon](pdf::PDFCertificateInfo::NameEntry nameEntry, QString caption)
                 {
@@ -473,7 +498,6 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
                 }
 
                 QStringList keyUsages;
-                pdf::PDFCertificateInfo::KeyUsageFlags keyUsageFlags = currentCertificateInfo.getKeyUsage();
                 if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDigitalSignature))
                 {
                     keyUsages << tr("Digital signatures");
@@ -616,6 +640,37 @@ void PDFSidebarWidget::onThumbnailClicked(const QModelIndex& index)
     if (index.isValid())
     {
         m_proxy->goToPage(m_thumbnailsModel->getPageIndex(index));
+    }
+}
+
+void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
+{
+    if (QTreeWidgetItem* item = ui->signatureTreeWidget->itemAt(pos))
+    {
+        QVariant data = item->data(0, Qt::UserRole);
+        if (data.isValid())
+        {
+            const pdf::PDFCertificateInfo& info = m_certificateInfos.at(data.toInt());
+            if (!m_certificateStore->contains(info))
+            {
+                QMenu menu;
+                QAction* action = menu.addAction(tr("Add to trusted certificates"));
+
+                auto addCertificate = [this, info]()
+                {
+                    if (QMessageBox::question(this, tr("Add to Trusted Certificate Store"), tr("Are you sure want to add '%1' to the trusted certificate store?").arg(info.getName(pdf::PDFCertificateInfo::CommonName))) == QMessageBox::Yes)
+                    {
+                        if (!m_certificateStore->add(pdf::PDFCertificateStore::EntryType::User, info))
+                        {
+                            QMessageBox::critical(this, tr("Trusted Certificate Store Error"), tr("Failed to add certificate to the trusted certificate store."));
+                        }
+                    }
+                };
+                connect(action, &QAction::triggered, this, addCertificate);
+
+                menu.exec(ui->signatureTreeWidget->viewport()->mapToGlobal(pos));
+            }
+        }
     }
 }
 

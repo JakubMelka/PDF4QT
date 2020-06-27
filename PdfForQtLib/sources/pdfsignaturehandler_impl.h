@@ -31,9 +31,10 @@ namespace pdf
 class PDFPublicKeySignatureHandler : public PDFSignatureHandler
 {
 protected:
-    explicit PDFPublicKeySignatureHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData) :
+    explicit PDFPublicKeySignatureHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
         m_signatureField(signatureField),
-        m_sourceData(sourceData)
+        m_sourceData(sourceData),
+        m_parameters(parameters)
     {
 
     }
@@ -45,6 +46,7 @@ protected:
 
     BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const;
 
+public:
     /// Return a list of certificates from PKCS7 object
     static STACK_OF(X509)* getCertificates(PKCS7* pkcs7);
 
@@ -61,13 +63,14 @@ protected:
 protected:
     const PDFFormFieldSignature* m_signatureField;
     QByteArray m_sourceData;
+    Parameters m_parameters;
 };
 
 class PDFSignatureHandler_adbe_pkcs7_detached : public PDFPublicKeySignatureHandler
 {
 public:
-    explicit PDFSignatureHandler_adbe_pkcs7_detached(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData) :
-        PDFPublicKeySignatureHandler(signatureField, sourceData)
+    explicit PDFSignatureHandler_adbe_pkcs7_detached(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+        PDFPublicKeySignatureHandler(signatureField, sourceData, parameters)
     {
 
     }

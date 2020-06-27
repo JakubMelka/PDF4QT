@@ -71,7 +71,8 @@ public:
         SecuritySettings,
         UISettings,
         SpeechSettings,
-        FormSettings
+        FormSettings,
+        SignatureSettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }

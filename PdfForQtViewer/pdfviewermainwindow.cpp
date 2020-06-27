@@ -217,7 +217,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
     m_textToSpeech->setProxy(m_pdfWidget->getDrawWidgetProxy());
 
-    m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), m_textToSpeech, this);
+    m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), m_textToSpeech, &m_certificateStore, m_settings, this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
@@ -966,8 +966,14 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
         if (result.result == pdf::PDFDocumentReader::Result::OK)
         {
             // Verify signatures
+            pdf::PDFSignatureHandler::Parameters parameters;
+            parameters.store = &m_certificateStore;
+            parameters.enableVerification = m_settings->getSettings().m_signatureVerificationEnabled;
+            parameters.ignoreExpirationDate = m_settings->getSettings().m_signatureIgnoreCertificateValidityTime;
+            parameters.useSystemCertificateStore = m_settings->getSettings().m_signatureUseSystemStore;
+
             pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
-            result.signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource());
+            result.signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource(), parameters);
             result.document.reset(new pdf::PDFDocument(qMove(document)));
         }
 

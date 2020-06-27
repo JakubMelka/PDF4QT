@@ -35,7 +35,9 @@ namespace pdf
 {
 class PDFAction;
 class PDFDocument;
+class PDFCertificateInfo;
 class PDFDrawWidgetProxy;
+class PDFCertificateStore;
 class PDFModifiedDocument;
 class PDFThumbnailsItemModel;
 class PDFOutlineTreeItemModel;
@@ -48,13 +50,18 @@ class PDFOptionalContentTreeItemModel;
 namespace pdfviewer
 {
 class PDFTextToSpeech;
+class PDFViewerSettings;
 
 class PDFSidebarWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy, PDFTextToSpeech* textToSpeech, QWidget* parent);
+    explicit PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
+                              PDFTextToSpeech* textToSpeech,
+                              pdf::PDFCertificateStore* certificateStore,
+                              PDFViewerSettings* settings,
+                              QWidget* parent);
     virtual ~PDFSidebarWidget() override;
 
     virtual void paintEvent(QPaintEvent* event) override;
@@ -102,6 +109,7 @@ private:
     void onThumbnailsSizeChanged(int size);
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
     void onThumbnailClicked(const QModelIndex& index);
+    void onSignatureCustomContextMenuRequested(const QPoint &pos);
 
     struct PageInfo
     {
@@ -112,6 +120,8 @@ private:
     Ui::PDFSidebarWidget* ui;
     pdf::PDFDrawWidgetProxy* m_proxy;
     PDFTextToSpeech* m_textToSpeech;
+    pdf::PDFCertificateStore* m_certificateStore;
+    PDFViewerSettings* m_settings;
     pdf::PDFOutlineTreeItemModel* m_outlineTreeModel;
     pdf::PDFThumbnailsItemModel* m_thumbnailsModel;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
@@ -120,6 +130,7 @@ private:
     pdf::PDFAttachmentsTreeItemModel* m_attachmentsTreeModel;
     std::map<Page, PageInfo> m_pageInfo;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
+    std::vector<pdf::PDFCertificateInfo> m_certificateInfos;
 };
 
 }   // namespace pdfviewer

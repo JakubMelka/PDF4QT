@@ -50,5 +50,6 @@
         <file>resources/result-information.svg</file>
         <file>resources/result-ok.svg</file>
         <file>resources/result-warning.svg</file>
+        <file>resources/signature.svg</file>
     </qresource>
 </RCC>

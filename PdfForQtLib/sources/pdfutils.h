@@ -25,6 +25,7 @@
 #include <QByteArray>
 #include <QDataStream>
 
+#include <set>
 #include <vector>
 #include <iterator>
 #include <functional>
@@ -566,6 +567,94 @@ private:
 
     std::vector<ClosedInterval> m_intervals;
 };
+
+template<typename T>
+QDataStream& operator>>(QDataStream& stream, std::vector<T>& vector)
+{
+    std::vector<T>::size_type size = 0;
+    stream >> size;
+    vector.resize(size);
+    for (T& item : vector)
+    {
+        stream >> item;
+    }
+    return stream;
+}
+
+template<typename T>
+QDataStream& operator<<(QDataStream& stream, const std::vector<T>& vector)
+{
+    stream << vector.size();
+    for (const T& item : vector)
+    {
+        stream << item;
+    }
+    return stream;
+}
+
+template<typename T, size_t Size>
+QDataStream& operator>>(QDataStream& stream, std::array<T, Size>& array)
+{
+    std::array<T, Size>::size_type size = 0;
+    stream >> size;
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        if (i < array.size())
+        {
+            stream >> array[i];
+        }
+        else
+        {
+            T item;
+            stream >> item;
+        }
+    }
+
+    // If array size was changed, then fill in empty objects
+    for (size_t i = size; i < array.size(); ++i)
+    {
+        array[i] = T();
+    }
+
+    return stream;
+}
+
+template<typename T, size_t Size>
+QDataStream& operator<<(QDataStream& stream, const std::array<T, Size>& array)
+{
+    stream << array.size();
+    for (const T& item : array)
+    {
+        stream << item;
+    }
+    return stream;
+}
+
+template<typename T>
+QDataStream& operator>>(QDataStream& stream, std::set<T>& set)
+{
+    std::set<T>::size_type size = 0;
+    stream >> size;
+    for (size_t i = 0; i < size; ++i)
+    {
+        T item;
+        stream >> item;
+        set.insert(set.end(), qMove(item));
+    }
+    return stream;
+}
+
+template<typename T>
+QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
+{
+    stream << set.size();
+    for (const T& item : set)
+    {
+        stream << item;
+    }
+    return stream;
+}
 
 }   // namespace pdf
 
