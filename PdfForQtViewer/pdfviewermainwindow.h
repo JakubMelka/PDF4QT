@@ -148,6 +148,8 @@ private:
     std::vector<QAction*> getRenderingOptionActions() const;
     QList<QAction*> getActions() const;
 
+    QString getTrustedCertificateStoreFileName() const;
+
     int adjustDpiX(int value);
 
     struct AsyncReadingResult

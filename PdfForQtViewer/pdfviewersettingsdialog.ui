@@ -1271,7 +1271,11 @@
              </widget>
             </item>
             <item>
-             <widget class="QTableWidget" name="trustedCertificateStoreTableWidget"/>
+             <widget class="QTableWidget" name="trustedCertificateStoreTableWidget">
+              <property name="selectionBehavior">
+               <enum>QAbstractItemView::SelectRows</enum>
+              </property>
+             </widget>
             </item>
             <item>
              <layout class="QHBoxLayout" name="trustedCertificateStoreButtonsLayout">

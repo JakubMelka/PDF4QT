@@ -28,6 +28,9 @@
 #include <QFileDialog>
 #include <QListWidgetItem>
 #include <QTextToSpeech>
+#include <QNetworkReply>
+#include <QNetworkAccessManager>
+#include <QDomDocument>
 
 namespace pdfviewer
 {
@@ -35,15 +38,20 @@ namespace pdfviewer
 PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings,
                                                  const pdf::PDFCMSSettings& cmsSettings,
                                                  const OtherSettings& otherSettings,
+                                                 const pdf::PDFCertificateStore& certificateStore,
                                                  QList<QAction*> actions,
-                                                 pdf::PDFCMSManager* cmsManager, QWidget *parent) :
+                                                 pdf::PDFCMSManager* cmsManager,
+                                                 QWidget *parent) :
     QDialog(parent),
     ui(new Ui::PDFViewerSettingsDialog),
     m_settings(settings),
     m_cmsSettings(cmsSettings),
     m_otherSettings(otherSettings),
+    m_certificateStore(certificateStore),
     m_actions(),
-    m_isLoadingData(false)
+    m_isLoadingData(false),
+    m_networkAccessManager(nullptr),
+    m_downloadCertificatesFromEUTLReply(nullptr)
 {
     ui->setupUi(this);
 
@@ -142,10 +150,14 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
         ui->speechEnginesComboBox->addItem(engine, engine);
     }
 
+    connect(ui->trustedCertificateStoreTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updateTrustedCertificatesTableActions);
+
     ui->optionsPagesWidget->setCurrentRow(0);
     adjustSize();
     loadData();
     loadActionShortcutsTable();
+    updateTrustedCertificatesTable();
+    updateTrustedCertificatesTableActions();
 }
 
 PDFViewerSettingsDialog::~PDFViewerSettingsDialog()
@@ -549,6 +561,65 @@ void PDFViewerSettingsDialog::saveData()
     }
 }
 
+void PDFViewerSettingsDialog::updateTrustedCertificatesTable()
+{
+    ui->trustedCertificateStoreTableWidget->setUpdatesEnabled(false);
+    ui->trustedCertificateStoreTableWidget->clear();
+
+    const pdf::PDFCertificateStore::CertificateEntries& certificates = m_certificateStore.getCertificates();
+    ui->trustedCertificateStoreTableWidget->setRowCount(int(certificates.size()));
+    ui->trustedCertificateStoreTableWidget->setColumnCount(5);
+    ui->trustedCertificateStoreTableWidget->verticalHeader()->setVisible(true);
+    ui->trustedCertificateStoreTableWidget->setShowGrid(true);
+    ui->trustedCertificateStoreTableWidget->setEditTriggers(QTableWidget::NoEditTriggers);
+    ui->trustedCertificateStoreTableWidget->setHorizontalHeaderLabels(QStringList() << tr("Type") << tr("Certificate") << tr("Organization") << tr("Valid from") << tr("Valid to"));
+
+    for (int i = 0; i < certificates.size(); ++i)
+    {
+        QString type;
+        switch (certificates[i].type)
+        {
+            case pdf::PDFCertificateStore::EntryType::User:
+                type = tr("User");
+                break;
+
+            case pdf::PDFCertificateStore::EntryType::EUTL:
+                type = tr("EUTL");
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        const pdf::PDFCertificateInfo& info = certificates[i].info;
+        ui->trustedCertificateStoreTableWidget->setItem(i, 0, new QTableWidgetItem(type));
+        ui->trustedCertificateStoreTableWidget->setItem(i, 1, new QTableWidgetItem(info.getName(pdf::PDFCertificateInfo::CommonName)));
+        ui->trustedCertificateStoreTableWidget->setItem(i, 2, new QTableWidgetItem(info.getName(pdf::PDFCertificateInfo::OrganizationName)));
+
+        QDateTime notValidBefore = info.getNotValidBefore().toLocalTime();
+        QDateTime notValidAfter = info.getNotValidAfter().toLocalTime();
+
+        if (notValidBefore.isValid())
+        {
+            ui->trustedCertificateStoreTableWidget->setItem(i, 3, new QTableWidgetItem(notValidBefore.toString(Qt::DefaultLocaleShortDate)));
+        }
+
+        if (notValidAfter.isValid())
+        {
+            ui->trustedCertificateStoreTableWidget->setItem(i, 4, new QTableWidgetItem(notValidAfter.toString(Qt::DefaultLocaleShortDate)));
+        }
+    }
+
+    ui->trustedCertificateStoreTableWidget->resizeColumnsToContents();
+    ui->trustedCertificateStoreTableWidget->setUpdatesEnabled(true);
+}
+
+void PDFViewerSettingsDialog::updateTrustedCertificatesTableActions()
+{
+    ui->removeCertificateButton->setEnabled(!ui->trustedCertificateStoreTableWidget->selectionModel()->selectedRows().isEmpty());
+}
+
 void PDFViewerSettingsDialog::loadActionShortcutsTable()
 {
     ui->shortcutsTableWidget->setRowCount(m_actions.size());
@@ -630,11 +701,35 @@ void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine)
     ui->speechVoiceComboBox->setUpdatesEnabled(true);
 }
 
+bool PDFViewerSettingsDialog::canCloseDialog()
+{
+    if (m_downloadCertificatesFromEUTLReply)
+    {
+        QMessageBox::warning(this, tr("Download"), tr("Downloading certificates from EUTL didn't finish yet. Can't close the dialog."));
+        return false;
+    }
+
+    return true;
+}
+
 void PDFViewerSettingsDialog::accept()
 {
+    if (!canCloseDialog())
+    {
+        return;
+    }
+
     if (saveActionShortcutsTable())
     {
         QDialog::accept();
+    }
+}
+
+void PDFViewerSettingsDialog::reject()
+{
+    if (canCloseDialog())
+    {
+        QDialog::reject();
     }
 }
 
@@ -646,6 +741,84 @@ void PDFViewerSettingsDialog::on_cmsProfileDirectoryButton_clicked()
         m_cmsSettings.profileDirectory = directory;
         loadData();
     }
+}
+
+void PDFViewerSettingsDialog::on_trustedCertificateStoreDownloadEUTLButton_clicked()
+{
+    if (m_downloadCertificatesFromEUTLReply)
+    {
+        // Jakub Melka: We are already downloading the data
+        return;
+    }
+
+    if (QMessageBox::question(this, tr("Download EUTL"), tr("Do you want do download EU trusted certificates list from https://ec.europa.eu/information_society/policy/esignature/trusted-list/tl-mp.xml ?")) == QMessageBox::Yes)
+    {
+        if (!m_networkAccessManager)
+        {
+            m_networkAccessManager = new QNetworkAccessManager(this);
+        }
+
+        m_downloadCertificatesFromEUTLReply = m_networkAccessManager->get(QNetworkRequest(QUrl("https://ec.europa.eu/information_society/policy/esignature/trusted-list/tl-mp.xml")));
+
+        auto onFinished = [this]()
+        {
+            QNetworkReply::NetworkError error = m_downloadCertificatesFromEUTLReply->error();
+
+            if (error == QNetworkReply::NoError)
+            {
+                QByteArray data = m_downloadCertificatesFromEUTLReply->readAll();
+
+                QDomDocument document;
+                QString errorMessage;
+                if (document.setContent(data, &errorMessage))
+                {
+                    QDomNodeList certificateElements = document.elementsByTagName("X509Certificate");
+                    for (int i = 0; i < certificateElements.count(); ++i)
+                    {
+                        QDomElement certificateElement = certificateElements.at(i).toElement();
+                        QString certificateBase64Encoded = certificateElement.text();
+                        QByteArray certificateData = QByteArray::fromBase64(certificateBase64Encoded.toLatin1(), QByteArray::Base64Encoding);
+                        m_certificateStore.add(pdf::PDFCertificateStore::EntryType::EUTL, certificateData);
+                    }
+                    updateTrustedCertificatesTable();
+                }
+                else
+                {
+                    QMessageBox::critical(this, tr("Error"), errorMessage);
+                }
+            }
+            else
+            {
+                QMessageBox::critical(this, tr("Error"), m_downloadCertificatesFromEUTLReply->errorString());
+            }
+
+            m_downloadCertificatesFromEUTLReply->deleteLater();
+            m_downloadCertificatesFromEUTLReply = nullptr;
+        };
+        connect(m_downloadCertificatesFromEUTLReply, &QNetworkReply::finished, this, onFinished);
+    }
+}
+
+void PDFViewerSettingsDialog::on_removeCertificateButton_clicked()
+{
+    std::set<int> rows;
+    QModelIndexList selectedIndices = ui->trustedCertificateStoreTableWidget->selectionModel()->selectedRows();
+    for (const QModelIndex& index : selectedIndices)
+    {
+        rows.insert(index.row());
+    }
+
+    pdf::PDFCertificateStore::CertificateEntries newEntries;
+    const pdf::PDFCertificateStore::CertificateEntries& certificates = m_certificateStore.getCertificates();
+    for (int i = 0; i < int(certificates.size()); ++i)
+    {
+        if (!rows.count(i))
+        {
+            newEntries.push_back(certificates[i]);
+        }
+    }
+    m_certificateStore.setCertificates(qMove(newEntries));
+    updateTrustedCertificatesTable();
 }
 
 }   // namespace pdfviewer

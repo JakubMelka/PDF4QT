@@ -158,6 +158,7 @@ FORMS += \
     sources/pdfrenderingerrorswidget.ui
 
 PDFFORQT_DEPENDENCIES_PATH = K:\Programming\PDF\PDF_For_Qt\PDfForQt-Dependencies
+PDFFORQT_OPENSSL_PATH = K:\Programming\Qt\Tools\
 
 # Link to freetype library
 LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/FreeType/ -lfreetype
@@ -190,12 +191,12 @@ libjpeg.path = $$DESTDIR/install
 INSTALLS += libjpeg
 
 # Link OpenSSL
-LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/ -llibcrypto -llibssl
-INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/include
-DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/include
+LIBS += -L$$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/bin -L$$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/lib -llibcrypto -llibssl
+INCLUDEPATH += $$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/include
+DEPENDPATH += $$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/include
 
 # Add OpenSSL to installations
-openssl_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/libcrypto-3.dll $$PDFFORQT_DEPENDENCIES_PATH/OpenSSL/libssl-3.dll
+openssl_lib.files = $$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/bin/libcrypto-1_1-x64.dll $$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/bin/libssl-1_1-x64.dll
 openssl_lib.path = $$DESTDIR/install
 INSTALLS += openssl_lib
 
@@ -253,7 +254,9 @@ qt_libraries.files =    $$[QT_INSTALL_BINS]/Qt?Widgets$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?WinExtras$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?Svg$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?PrintSupport$${SUFFIX}.dll \
-                        $$[QT_INSTALL_BINS]/Qt?TextToSpeech$${SUFFIX}.dll
+                        $$[QT_INSTALL_BINS]/Qt?TextToSpeech$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?Network$${SUFFIX}.dll \
+                        $$[QT_INSTALL_BINS]/Qt?Xml$${SUFFIX}.dll
 qt_libraries.path = $$DESTDIR/install
 INSTALLS += qt_libraries
 

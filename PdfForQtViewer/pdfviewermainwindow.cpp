@@ -59,6 +59,7 @@
 #include <QDoubleSpinBox>
 #include <QDesktopServices>
 #include <QFileDialog>
+#include <QLockFile>
 #include <QtPrintSupport/QPrinter>
 #include <QtPrintSupport/QPrintDialog>
 #include <QtConcurrent/QtConcurrent>
@@ -732,6 +733,23 @@ void PDFViewerMainWindow::readActionSettings()
     m_recentFileManager->setRecentFilesLimit(settings.value("MaximumRecentFilesCount", PDFRecentFileManager::getDefaultRecentFiles()).toInt());
     m_recentFileManager->setRecentFiles(settings.value("RecentFileList", QStringList()).toStringList());
     settings.endGroup();
+
+    // Load trusted certificates
+    QString trustedCertificateStoreFileName = getTrustedCertificateStoreFileName();
+    QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
+
+    QLockFile lockFile(trustedCertificateStoreLockFileName);
+    if (lockFile.lock())
+    {
+        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
+        if (trustedCertificateStoreFile.open(QFile::ReadOnly))
+        {
+            QDataStream stream(&trustedCertificateStoreFile);
+            m_certificateStore.deserialize(stream);
+            trustedCertificateStoreFile.close();
+        }
+        lockFile.unlock();
+    }
 }
 
 void PDFViewerMainWindow::writeSettings()
@@ -760,6 +778,27 @@ void PDFViewerMainWindow::writeSettings()
     settings.setValue("MaximumRecentFilesCount", m_recentFileManager->getRecentFilesLimit());
     settings.setValue("RecentFileList", m_recentFileManager->getRecentFiles());
     settings.endGroup();
+
+    // Save trusted certificates
+    QString trustedCertificateStoreFileName = getTrustedCertificateStoreFileName();
+    QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
+
+    QFileInfo fileInfo(trustedCertificateStoreFileName);
+    QDir dir = fileInfo.dir();
+    dir.mkpath(dir.path());
+
+    QLockFile lockFile(trustedCertificateStoreLockFileName);
+    if (lockFile.lock())
+    {
+        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
+        if (trustedCertificateStoreFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QDataStream stream(&trustedCertificateStoreFile);
+            m_certificateStore.serialize(stream);
+            trustedCertificateStoreFile.close();
+        }
+        lockFile.unlock();
+    }
 }
 
 void PDFViewerMainWindow::updateTitle()
@@ -1143,6 +1182,11 @@ QList<QAction*> PDFViewerMainWindow::getActions() const
     return findChildren<QAction*>(QString(), Qt::FindChildrenRecursively);
 }
 
+QString PDFViewerMainWindow::getTrustedCertificateStoreFileName() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + "/TrustedCertStorage.bin";
+}
+
 int PDFViewerMainWindow::adjustDpiX(int value)
 {
     const int physicalDpiX = this->physicalDpiX();
@@ -1269,7 +1313,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
     PDFViewerSettingsDialog::OtherSettings otherSettings;
     otherSettings.maximumRecentFileCount = m_recentFileManager->getRecentFilesLimit();
 
-    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(), otherSettings, getActions(), m_CMSManager, this);
+    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(), otherSettings, m_certificateStore, getActions(), m_CMSManager, this);
     if (dialog.exec() == QDialog::Accepted)
     {
         m_settings->setSettings(dialog.getSettings());
@@ -1278,6 +1322,7 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
         m_recentFileManager->setRecentFilesLimit(dialog.getOtherSettings().maximumRecentFileCount);
         m_textToSpeech->setSettings(m_settings);
         m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
+        m_certificateStore = dialog.getCertificateStore();
         updateMagnifierToolSettings();
         updateUndoRedoSettings();
     }

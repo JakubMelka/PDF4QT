@@ -454,6 +454,9 @@ public:
     /// Get certificates stored in the store
     const CertificateEntries& getCertificates() const { return m_certificates; }
 
+    /// Set certificates
+    void setCertificates(CertificateEntries certificates) { m_certificates = qMove(certificates); }
+
 private:
     static constexpr int persist_version = 1;
 

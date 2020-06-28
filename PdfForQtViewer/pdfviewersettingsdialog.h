@@ -23,6 +23,8 @@
 #include <QDialog>
 
 class QListWidgetItem;
+class QNetworkReply;
+class QNetworkAccessManager;
 
 namespace Ui
 {
@@ -47,18 +49,21 @@ public:
     /// \param settings Viewer settings
     /// \param cmsSettings Color management system settings
     /// \param otherSettings Other settings
+    /// \param certificateStore Certificate store
     /// \param actions Actions
     /// \param cmsManager CMS manager
     /// \param parent Parent widget
     explicit PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings,
                                      const pdf::PDFCMSSettings& cmsSettings,
                                      const OtherSettings& otherSettings,
+                                     const pdf::PDFCertificateStore& certificateStore,
                                      QList<QAction*> actions,
                                      pdf::PDFCMSManager* cmsManager,
                                      QWidget* parent);
     virtual ~PDFViewerSettingsDialog() override;
 
     virtual void accept() override;
+    virtual void reject() override;
 
     enum Page : int
     {
@@ -78,19 +83,31 @@ public:
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }
     const pdf::PDFCMSSettings& getCMSSettings() const { return m_cmsSettings; }
     const OtherSettings& getOtherSettings() const { return m_otherSettings; }
+    const pdf::PDFCertificateStore& getCertificateStore() const { return m_certificateStore; }
 
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
     void on_cmsProfileDirectoryButton_clicked();
 
+    void on_trustedCertificateStoreDownloadEUTLButton_clicked();
+
+    void on_removeCertificateButton_clicked();
+
 private:
     void loadData();
     void saveData();
+
+    void updateTrustedCertificatesTable();
+    void updateTrustedCertificatesTableActions();
 
     void loadActionShortcutsTable();
     bool saveActionShortcutsTable();
 
     void setSpeechEngine(const QString& engine);
+
+    /// Returns true, if dialog can be closed. If not, then message is displayed
+    /// and false is returned.
+    bool canCloseDialog();
 
     Ui::PDFViewerSettingsDialog* ui;
     PDFViewerSettings::Settings m_settings;
@@ -100,6 +117,9 @@ private:
     bool m_isLoadingData;
     QStringList m_textToSpeechEngines;
     QString m_currentSpeechEngine;
+    pdf::PDFCertificateStore m_certificateStore;
+    QNetworkAccessManager* m_networkAccessManager;
+    QNetworkReply* m_downloadCertificatesFromEUTLReply;
 };
 
 }   // namespace pdfviewer
