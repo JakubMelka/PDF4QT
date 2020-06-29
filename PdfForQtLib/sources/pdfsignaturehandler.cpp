@@ -23,6 +23,7 @@
 #include "pdfsignaturehandler_impl.h"
 
 #include <openssl/err.h>
+#include <openssl/sha.h>
 
 #include <QMutex>
 #include <QMutexLocker>
@@ -148,6 +149,10 @@ PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignat
     if (subfilter == "adbe.pkcs7.detached")
     {
         return new PDFSignatureHandler_adbe_pkcs7_detached(signatureField, sourceData, parameters);
+    }
+    else if (subfilter == "adbe.pkcs7.sha1")
+    {
+        return new PDFSignatureHandler_adbe_pkcs7_sha1(signatureField, sourceData, parameters);
     }
 
     return nullptr;
@@ -668,6 +673,32 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify()
     verifySignature(result);
     result.validate();
     return result;
+}
+
+PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_sha1::verify() const
+{
+    PDFSignatureVerificationResult result;
+    initializeResult(result);
+    verifyCertificate(result);
+    verifySignature(result);
+    result.validate();
+    return result;
+}
+
+BIO* PDFSignatureHandler_adbe_pkcs7_sha1::getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const
+{
+    QByteArray temporaryBuffer;
+    if (BIO* bio = PDFPublicKeySignatureHandler::getSignedDataBuffer(result, temporaryBuffer))
+    {
+        // Calculate SHA1
+        outputBuffer.resize(SHA_DIGEST_LENGTH);
+        SHA1(reinterpret_cast<const unsigned char*>(temporaryBuffer.data()), temporaryBuffer.length(), reinterpret_cast<unsigned char*>(outputBuffer.data()));
+        BIO_free(bio);
+
+        return BIO_new_mem_buf(outputBuffer.data(), outputBuffer.length());
+    }
+
+    return nullptr;
 }
 
 PDFCertificateInfo PDFPublicKeySignatureHandler::getCertificateInfo(X509* certificate)

@@ -44,7 +44,7 @@ protected:
     void verifySignature(PDFSignatureVerificationResult& result) const;
     void addTrustedCertificates(X509_STORE* store) const;
 
-    BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const;
+    virtual BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const;
 
 public:
     /// Return a list of certificates from PKCS7 object
@@ -76,6 +76,21 @@ public:
     }
 
     virtual PDFSignatureVerificationResult verify() const override;
+};
+
+class PDFSignatureHandler_adbe_pkcs7_sha1 : public PDFPublicKeySignatureHandler
+{
+public:
+    explicit PDFSignatureHandler_adbe_pkcs7_sha1(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+        PDFPublicKeySignatureHandler(signatureField, sourceData, parameters)
+    {
+
+    }
+
+    virtual PDFSignatureVerificationResult verify() const override;
+
+protected:
+    virtual BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const override;
 };
 
 }   // namespace pdf
