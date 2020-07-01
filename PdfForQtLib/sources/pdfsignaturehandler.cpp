@@ -24,6 +24,8 @@
 
 #include <openssl/err.h>
 #include <openssl/sha.h>
+#include <openssl/rsa.h>
+#include <openssl/rsaerr.h>
 
 #include <QMutex>
 #include <QMutexLocker>
@@ -153,6 +155,10 @@ PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignat
     else if (subfilter == "adbe.pkcs7.sha1")
     {
         return new PDFSignatureHandler_adbe_pkcs7_sha1(signatureField, sourceData, parameters);
+    }
+    else if (subfilter == "adbe.x509.rsa_sha1")
+    {
+        return new PDFSignatureHandler_adbe_pkcs7_rsa_sha1(signatureField, sourceData, parameters);
     }
 
     return nullptr;
@@ -673,6 +679,187 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify()
     verifySignature(result);
     result.validate();
     return result;
+}
+
+PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verify() const
+{
+    PDFSignatureVerificationResult result;
+    initializeResult(result);
+
+    verifyRSASignature(result);
+
+
+    /*
+    verifyCertificate(result);
+    verifySignature(result);
+    */
+
+    result.validate();
+    return result;
+}
+
+X509* PDFSignatureHandler_adbe_pkcs7_rsa_sha1::createCertificate(size_t index) const
+{
+    const PDFSignature& signature = m_signatureField->getSignature();
+    const std::vector<QByteArray>* certificates = signature.getCertificates();
+    if (certificates && index < certificates->size())
+    {
+        const QByteArray& certificateSize = (*certificates)[index];
+        const unsigned char* data = reinterpret_cast<const unsigned char*>(certificateSize.data());
+        return d2i_X509(nullptr, &data, certificateSize.size());
+    }
+
+    return nullptr;
+}
+
+bool PDFSignatureHandler_adbe_pkcs7_rsa_sha1::getMessageDigest(const QByteArray& message,
+                                                               ASN1_OCTET_STRING* encryptedString,
+                                                               RSA* rsa,
+                                                               int& algorithmNID,
+                                                               QByteArray& digest) const
+{
+    if (!getMessageDigestAlgorithm(encryptedString, rsa, algorithmNID))
+    {
+        return false;
+    }
+
+    if (const EVP_MD* md = EVP_get_digestbynid(algorithmNID))
+    {
+        unsigned int messageDigestSize = EVP_MD_size(md);
+        digest.resize(messageDigestSize);
+
+        EVP_MD_CTX* context = EVP_MD_CTX_new();
+        Q_ASSERT(context);
+
+        EVP_DigestInit(context, md);
+        EVP_DigestUpdate(context, message.constData(), message.size());
+        EVP_DigestFinal(context, reinterpret_cast<unsigned char*>(digest.data()), &messageDigestSize);
+
+        EVP_MD_CTX_free(context);
+        return true;
+    }
+
+    return false;
+}
+
+bool PDFSignatureHandler_adbe_pkcs7_rsa_sha1::getMessageDigestAlgorithm(ASN1_OCTET_STRING* encryptedString,
+                                                                        RSA* rsa,
+                                                                        int& algorithmNID) const
+{
+    algorithmNID = 0;
+
+    int size = RSA_size(rsa);
+    std::vector<unsigned char> decryptedBuffer(size, 0);
+    const int signatureSize = RSA_public_decrypt(encryptedString->length, encryptedString->data, decryptedBuffer.data(), rsa, RSA_PKCS1_PADDING);
+
+    if (signatureSize <= 0)
+    {
+        return false;
+    }
+
+    Q_ASSERT(signatureSize < decryptedBuffer.size());
+
+    const unsigned char* decryptedBufferPtr = decryptedBuffer.data();
+    if (X509_SIG* x509_sig = d2i_X509_SIG(nullptr, &decryptedBufferPtr, signatureSize))
+    {
+        const X509_ALGOR* algorithm = nullptr;
+        const ASN1_OBJECT* algorithmDescriptor = nullptr;
+
+        X509_SIG_get0(x509_sig, &algorithm, nullptr);
+        X509_ALGOR_get0(&algorithmDescriptor, nullptr, nullptr, algorithm);
+        algorithmNID = OBJ_obj2nid(algorithmDescriptor);
+
+        X509_SIG_free(x509_sig);
+        return true;
+    }
+
+    return false;
+}
+
+void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVerificationResult& result) const
+{
+    // Jakub Melka: we will use first certificate to validate signature
+    X509* certificate = createCertificate(0);
+    if (!certificate)
+    {
+        result.addSignatureCertificateMissingError();
+        return;
+    }
+
+    EVP_PKEY* evpKey = X509_get0_pubkey(certificate);
+    if (!evpKey)
+    {
+        X509_free(certificate);
+        result.addSignatureCertificateMissingError();
+        return;
+    }
+
+    RSA* rsa = EVP_PKEY_get0_RSA(evpKey);
+    if (!rsa)
+    {
+        X509_free(certificate);
+        result.addSignatureCertificateMissingError();
+        return;
+    }
+
+    QByteArray outputBuffer;
+    if (BIO* bio = this->getSignedDataBuffer(result, outputBuffer))
+    {
+        const PDFSignature& signature = m_signatureField->getSignature();
+        const QByteArray& signKey = signature.getContents();
+
+        const unsigned char* encryptedSign = reinterpret_cast<const unsigned char*>(signKey.constData());
+        const unsigned int encryptedSignLength = signKey.length();
+        if (ASN1_OCTET_STRING* encryptedString = d2i_ASN1_OCTET_STRING(nullptr, &encryptedSign, encryptedSignLength))
+        {
+            int algorithmNID = 0;
+            QByteArray digestBuffer;
+            if (!getMessageDigest(outputBuffer, encryptedString, rsa, algorithmNID, digestBuffer))
+            {
+                BIO_free(bio);
+                X509_free(certificate);
+                ASN1_OCTET_STRING_free(encryptedString);
+                result.addSignatureDataOtherError();
+                return;
+            }
+
+            const unsigned char* digest = reinterpret_cast<const unsigned char*>(digestBuffer.constData());
+            const unsigned int digestLength = digestBuffer.length();
+
+            const int verifyValue = RSA_verify(algorithmNID, digest, digestLength, encryptedString->data, encryptedString->length, rsa);
+            ASN1_OCTET_STRING_free(encryptedString);
+
+            if (verifyValue == 0)
+            {
+                // We have failed, probably due to invalid signature
+                const unsigned long errorCode = ERR_GET_REASON(ERR_get_error());
+
+                switch (errorCode)
+                {
+                    case RSA_R_DIGEST_DOES_NOT_MATCH:
+                        result.addSignatureDigestFailureError();
+                        break;
+
+                    default:
+                        result.addSignatureDataOtherError();
+                        break;
+                }
+            }
+        }
+        else
+        {
+            result.addSignatureDataOtherError();
+        }
+
+        BIO_free(bio);
+    }
+
+    X509_free(certificate);
+
+    if (!result.hasSignatureError())
+    {
+        result.setFlag(PDFSignatureVerificationResult::Signature_OK, true);
+    }
 }
 
 PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_sha1::verify() const

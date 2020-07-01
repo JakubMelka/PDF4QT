@@ -78,6 +78,25 @@ public:
     virtual PDFSignatureVerificationResult verify() const override;
 };
 
+class PDFSignatureHandler_adbe_pkcs7_rsa_sha1 : public PDFPublicKeySignatureHandler
+{
+public:
+    explicit PDFSignatureHandler_adbe_pkcs7_rsa_sha1(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+        PDFPublicKeySignatureHandler(signatureField, sourceData, parameters)
+    {
+
+    }
+
+    virtual PDFSignatureVerificationResult verify() const override;
+
+private:
+    X509* createCertificate(size_t index) const;
+    bool getMessageDigest(const QByteArray& message, ASN1_OCTET_STRING* encryptedString, RSA* rsa, int& algorithmNID, QByteArray& digest) const;
+    bool getMessageDigestAlgorithm(ASN1_OCTET_STRING* encryptedString, RSA* rsa, int& algorithmNID) const;
+
+    void verifyRSASignature(PDFSignatureVerificationResult& result) const;
+};
+
 class PDFSignatureHandler_adbe_pkcs7_sha1 : public PDFPublicKeySignatureHandler
 {
 public:
