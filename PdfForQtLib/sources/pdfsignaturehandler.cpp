@@ -463,13 +463,12 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
                 }
                 else
                 {
-                    STACK_OF(X509)* validChain = X509_STORE_CTX_get1_chain(context);
+                    STACK_OF(X509)* validChain = X509_STORE_CTX_get0_chain(context);
                     const int count = sk_X509_num(validChain);
                     for (int i = 0; i < count; ++i)
                     {
                         result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, i)));
                     }
-                    sk_X509_pop_free(validChain, X509_free);
                 }
                 X509_STORE_CTX_cleanup(context);
             }
@@ -686,13 +685,8 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verify()
     PDFSignatureVerificationResult result;
     initializeResult(result);
 
+    verifyRSACertificate(result);
     verifyRSASignature(result);
-
-
-    /*
-    verifyCertificate(result);
-    verifySignature(result);
-    */
 
     result.validate();
     return result;
@@ -774,6 +768,129 @@ bool PDFSignatureHandler_adbe_pkcs7_rsa_sha1::getMessageDigestAlgorithm(ASN1_OCT
     }
 
     return false;
+}
+
+void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSACertificate(PDFSignatureVerificationResult& result) const
+{
+    if (X509* certificate = createCertificate(0))
+    {
+        STACK_OF(X509)* certificates = sk_X509_new_null();
+        sk_X509_push(certificates, certificate);
+
+        for (size_t i = 1;; ++i)
+        {
+            if (X509* currentCertificate = createCertificate(i))
+            {
+                sk_X509_push(certificates, currentCertificate);
+                X509_free(currentCertificate);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        X509_STORE* store = X509_STORE_new();
+        X509_STORE_CTX* context = X509_STORE_CTX_new();
+
+        // Above functions can fail only if not enough memory. But in this
+        // case, this library will crash anyway.
+        Q_ASSERT(store);
+        Q_ASSERT(context);
+
+        addTrustedCertificates(store);
+
+        X509* signer = certificate;
+        if (!X509_STORE_CTX_init(context, store, signer, certificates))
+        {
+            result.addCertificateGenericError();
+        }
+
+        if (!X509_STORE_CTX_set_purpose(context, X509_PURPOSE_SMIME_SIGN))
+        {
+            result.addCertificateGenericError();
+        }
+
+        if (!result.hasCertificateError())
+        {
+            unsigned long flags = X509_V_FLAG_TRUSTED_FIRST;
+            if (m_parameters.ignoreExpirationDate)
+            {
+                flags |= X509_V_FLAG_NO_CHECK_TIME;
+            }
+            X509_STORE_CTX_set_flags(context, flags);
+
+            int verificationResult = X509_verify_cert(context);
+            if (verificationResult <= 0)
+            {
+                int error = X509_STORE_CTX_get_error(context);
+                switch (error)
+                {
+                    case X509_V_OK:
+                        // Strange, this should not occur... when X509_verify_cert fails
+                        break;
+
+                    case X509_V_ERR_CERT_HAS_EXPIRED:
+                        result.addCertificateExpiredError();
+                        break;
+
+                    case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
+                        result.addCertificateSelfSignedError();
+                        break;
+
+                    case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
+                        result.addCertificateSelfSignedInChainError();
+                        break;
+
+                    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
+                    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
+                        result.addCertificateTrustedNotFoundError();
+                        break;
+
+                    case X509_V_ERR_CERT_REVOKED:
+                        result.addCertificateRevokedError();
+                        break;
+
+                    default:
+                        result.addCertificateOtherError(error);
+                        break;
+                }
+
+                // We will add certificate info for all certificates
+                const int count = sk_X509_num(certificates);
+                for (int i = 0; i < count; ++i)
+                {
+                    result.addCertificateInfo(getCertificateInfo(sk_X509_value(certificates, i)));
+                }
+            }
+            else
+            {
+                STACK_OF(X509)* validChain = X509_STORE_CTX_get0_chain(context);
+                const int count = sk_X509_num(validChain);
+                for (int i = 0; i < count; ++i)
+                {
+                    result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, i)));
+                }
+            }
+
+            X509_STORE_CTX_cleanup(context);
+        }
+
+        X509_STORE_CTX_free(context);
+        X509_STORE_free(store);
+
+        sk_X509_free(certificates);
+        X509_free(certificate);
+    }
+    else
+    {
+        result.addInvalidCertificateError();
+    }
+
+    if (!result.hasCertificateError())
+    {
+        result.setFlag(PDFSignatureVerificationResult::Certificate_OK, true);
+    }
 }
 
 void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVerificationResult& result) const

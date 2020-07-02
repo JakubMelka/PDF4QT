@@ -94,6 +94,7 @@ private:
     bool getMessageDigest(const QByteArray& message, ASN1_OCTET_STRING* encryptedString, RSA* rsa, int& algorithmNID, QByteArray& digest) const;
     bool getMessageDigestAlgorithm(ASN1_OCTET_STRING* encryptedString, RSA* rsa, int& algorithmNID) const;
 
+    void verifyRSACertificate(PDFSignatureVerificationResult& result) const;
     void verifyRSASignature(PDFSignatureVerificationResult& result) const;
 };
 
