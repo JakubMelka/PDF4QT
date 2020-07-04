@@ -834,6 +834,11 @@ void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatur
 
             if (allCertificates)
             {
+                for (int i = sk_X509_num(certificates); i < sk_X509_num(allCertificates); ++i)
+                {
+                    X509_free(sk_X509_value(allCertificates, i));
+                }
+
                 sk_X509_free(allCertificates);
             }
         }
@@ -1056,7 +1061,7 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSACertificate(PDFSignatureV
         X509_STORE_CTX_free(context);
         X509_STORE_free(store);
 
-        sk_X509_free(certificates);
+        sk_X509_pop_free(certificates, X509_free);
     }
     else
     {
