@@ -194,6 +194,37 @@ private:
     PDFInteger m_numberOfCopies = 1;
 };
 
+/// Document security store. Contains certificates, CRLs, OCSPs, and
+/// other data for signature validation.
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentSecurityStore
+{
+public:
+    explicit inline PDFDocumentSecurityStore() = default;
+
+    struct SecurityStoreItem
+    {
+        std::vector<QByteArray> Cert;
+        std::vector<QByteArray> CRL;
+        std::vector<QByteArray> OCSP;
+        QDateTime created;
+        QByteArray timestamp;
+    };
+
+    /// Returns master item. Return value is never nullptr.
+    const SecurityStoreItem* getMasterItem() const { return &m_master; }
+
+    /// Get item using hash. If item is not found, master item is returned.
+    const SecurityStoreItem* getItem(const QByteArray& hash) const;
+
+    /// Parses document security store from catalog dictionary. If object cannot be parsed, or error occurs,
+    /// then empty object is returned.
+    static PDFDocumentSecurityStore parse(const PDFObject& object, const PDFDocument* document);
+
+private:
+    SecurityStoreItem m_master;
+    std::map<QByteArray, SecurityStoreItem> m_VRI;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:
@@ -236,6 +267,7 @@ public:
     const QByteArray& getBaseURI() const { return m_baseURI; }
     const std::map<QByteArray, PDFFileSpecification>& getEmbeddedFiles() const { return m_embeddedFiles; }
     const PDFObject& getFormObject() const { return m_formObject; }
+    const PDFDocumentSecurityStore& getDocumentSecurityStore() const { return m_documentSecurityStore; }
 
     /// Returns destination using the key. If destination with the key is not found,
     /// then nullptr is returned.
@@ -259,6 +291,7 @@ private:
     PageMode m_pageMode = PageMode::UseNone;
     QByteArray m_baseURI;
     PDFObject m_formObject;
+    PDFDocumentSecurityStore m_documentSecurityStore;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;

@@ -160,6 +160,10 @@ PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignat
     {
         return new PDFSignatureHandler_adbe_pkcs7_rsa_sha1(signatureField, sourceData, parameters);
     }
+    else if (subfilter == "ETSI.CAdES.detached")
+    {
+        return new PDFSignatureHandler_ETSI_CAdES_detached(signatureField, sourceData, parameters);
+    }
 
     return nullptr;
 }
@@ -369,7 +373,7 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
 
     // Jakub Melka: we will try to get pkcs7 from signature, then
     // verify signer certificates.
-    const unsigned char* data = reinterpret_cast<const unsigned char*>(content.data());
+    const unsigned char* data = convertByteArrayToUcharPtr(content);
     if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, content.size()))
     {
         X509_STORE* store = X509_STORE_new();
@@ -585,7 +589,7 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
 
     // Jakub Melka: we will try to get pkcs7 from signature, then
     // verify signer certificates.
-    const unsigned char* data = reinterpret_cast<const unsigned char*>(content.data());
+    const unsigned char* data = convertByteArrayToUcharPtr(content);
     if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, content.size()))
     {
         QByteArray buffer;
@@ -680,6 +684,180 @@ PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_detached::verify()
     return result;
 }
 
+PDFSignatureVerificationResult PDFSignatureHandler_ETSI_CAdES_detached::verify() const
+{
+    PDFSignatureVerificationResult result;
+    initializeResult(result);
+    verifyCertificateCAdES(result);
+    verifySignature(result);
+    result.validate();
+    return result;
+}
+
+void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatureVerificationResult& result) const
+{
+    PDFOpenSSLGlobalLock lock;
+
+    OpenSSL_add_all_algorithms();
+
+    const PDFSignature& signature = m_signatureField->getSignature();
+    const QByteArray& content = signature.getContents();
+
+    // Jakub Melka: we will try to get pkcs7 from signature, then
+    // verify signer certificates.
+    const unsigned char* data = convertByteArrayToUcharPtr(content);
+    if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, content.size()))
+    {
+        X509_STORE* store = X509_STORE_new();
+        X509_STORE_CTX* context = X509_STORE_CTX_new();
+
+        // Above functions can fail only if not enough memory. But in this
+        // case, this library will crash anyway.
+        Q_ASSERT(store);
+        Q_ASSERT(context);
+
+        addTrustedCertificates(store);
+
+        STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
+        const int signerInfoCount = sk_PKCS7_SIGNER_INFO_num(signerInfo);
+        STACK_OF(X509)* certificates = getCertificates(pkcs7);
+        if (signerInfo && signerInfoCount > 0 && certificates)
+        {
+            STACK_OF(X509)* allCertificates = nullptr;
+            if (m_parameters.dss && !m_parameters.dss->getMasterItem()->Cert.empty())
+            {
+                allCertificates = sk_X509_new_null();
+
+                // First, add all certificates from pkcs7
+                for (int i = 0; i < sk_X509_num(certificates); ++i)
+                {
+                    sk_X509_push(allCertificates, sk_X509_value(certificates, i));
+                }
+
+                // Second, add all certificates from document's security store
+                for (const QByteArray& certificateData : m_parameters.dss->getMasterItem()->Cert)
+                {
+                    const unsigned char* certificateDataBuffer = convertByteArrayToUcharPtr(certificateData);
+                    if (X509* certificate = d2i_X509(nullptr, &certificateDataBuffer, certificateData.size()))
+                    {
+                        sk_X509_push(allCertificates, certificate);
+                    }
+                }
+            }
+            STACK_OF(X509)* usedCertificates = allCertificates ? allCertificates : certificates;
+
+            for (int i = 0; i < signerInfoCount; ++i)
+            {
+                PKCS7_SIGNER_INFO* signerInfoValue = sk_PKCS7_SIGNER_INFO_value(signerInfo, i);
+                PKCS7_ISSUER_AND_SERIAL* issuerAndSerial = signerInfoValue->issuer_and_serial;
+                X509* signer = X509_find_by_issuer_and_serial(usedCertificates, issuerAndSerial->issuer, issuerAndSerial->serial);
+
+                if (!signer)
+                {
+                    result.addCertificateMissingError();
+                    break;
+                }
+
+                if (!X509_STORE_CTX_init(context, store, signer, usedCertificates))
+                {
+                    result.addCertificateGenericError();
+                    break;
+                }
+
+                if (!X509_STORE_CTX_set_purpose(context, X509_PURPOSE_SMIME_SIGN))
+                {
+                    result.addCertificateGenericError();
+                    break;
+                }
+
+                unsigned long flags = X509_V_FLAG_TRUSTED_FIRST;
+                if (m_parameters.ignoreExpirationDate)
+                {
+                    flags |= X509_V_FLAG_NO_CHECK_TIME;
+                }
+                X509_STORE_CTX_set_flags(context, flags);
+
+                int verificationResult = X509_verify_cert(context);
+                if (verificationResult <= 0)
+                {
+                    int error = X509_STORE_CTX_get_error(context);
+                    switch (error)
+                    {
+                        case X509_V_OK:
+                            // Strange, this should not occur... when X509_verify_cert fails
+                            break;
+
+                        case X509_V_ERR_CERT_HAS_EXPIRED:
+                            result.addCertificateExpiredError();
+                            break;
+
+                        case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
+                            result.addCertificateSelfSignedError();
+                            break;
+
+                        case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
+                            result.addCertificateSelfSignedInChainError();
+                            break;
+
+                        case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
+                        case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
+                            result.addCertificateTrustedNotFoundError();
+                            break;
+
+                        case X509_V_ERR_CERT_REVOKED:
+                            result.addCertificateRevokedError();
+                            break;
+
+                        default:
+                            result.addCertificateOtherError(error);
+                            break;
+                    }
+
+                    // We will add certificate info for all certificates
+                    const int count = sk_X509_num(usedCertificates);
+                    for (int i = 0; i < count; ++i)
+                    {
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(usedCertificates, i)));
+                    }
+                }
+                else
+                {
+                    STACK_OF(X509)* validChain = X509_STORE_CTX_get0_chain(context);
+                    const int count = sk_X509_num(validChain);
+                    for (int i = 0; i < count; ++i)
+                    {
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, i)));
+                    }
+                }
+                X509_STORE_CTX_cleanup(context);
+            }
+
+            if (allCertificates)
+            {
+                sk_X509_free(allCertificates);
+            }
+        }
+        else
+        {
+            result.addNoSignaturesError();
+        }
+
+        X509_STORE_CTX_free(context);
+        X509_STORE_free(store);
+
+        PKCS7_free(pkcs7);
+    }
+    else
+    {
+        result.addInvalidCertificateError();
+    }
+
+    if (!result.hasCertificateError())
+    {
+        result.setFlag(PDFSignatureVerificationResult::Certificate_OK, true);
+    }
+}
+
 PDFSignatureVerificationResult PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verify() const
 {
     PDFSignatureVerificationResult result;
@@ -699,7 +877,7 @@ X509* PDFSignatureHandler_adbe_pkcs7_rsa_sha1::createCertificate(size_t index) c
     if (certificates && index < certificates->size())
     {
         const QByteArray& certificateSize = (*certificates)[index];
-        const unsigned char* data = reinterpret_cast<const unsigned char*>(certificateSize.data());
+        const unsigned char* data = convertByteArrayToUcharPtr(certificateSize);
         return d2i_X509(nullptr, &data, certificateSize.size());
     }
 
@@ -727,7 +905,7 @@ bool PDFSignatureHandler_adbe_pkcs7_rsa_sha1::getMessageDigest(const QByteArray&
 
         EVP_DigestInit(context, md);
         EVP_DigestUpdate(context, message.constData(), message.size());
-        EVP_DigestFinal(context, reinterpret_cast<unsigned char*>(digest.data()), &messageDigestSize);
+        EVP_DigestFinal(context, convertByteArrayToUcharPtr(digest), &messageDigestSize);
 
         EVP_MD_CTX_free(context);
         return true;
@@ -782,7 +960,6 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSACertificate(PDFSignatureV
             if (X509* currentCertificate = createCertificate(i))
             {
                 sk_X509_push(certificates, currentCertificate);
-                X509_free(currentCertificate);
             }
             else
             {
@@ -880,7 +1057,6 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSACertificate(PDFSignatureV
         X509_STORE_free(store);
 
         sk_X509_free(certificates);
-        X509_free(certificate);
     }
     else
     {
@@ -925,7 +1101,7 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVer
         const PDFSignature& signature = m_signatureField->getSignature();
         const QByteArray& signKey = signature.getContents();
 
-        const unsigned char* encryptedSign = reinterpret_cast<const unsigned char*>(signKey.constData());
+        const unsigned char* encryptedSign = convertByteArrayToUcharPtr(signKey);
         const unsigned int encryptedSignLength = signKey.length();
         if (ASN1_OCTET_STRING* encryptedString = d2i_ASN1_OCTET_STRING(nullptr, &encryptedSign, encryptedSignLength))
         {
@@ -940,7 +1116,7 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVer
                 return;
             }
 
-            const unsigned char* digest = reinterpret_cast<const unsigned char*>(digestBuffer.constData());
+            const unsigned char* digest = convertByteArrayToUcharPtr(digestBuffer);
             const unsigned int digestLength = digestBuffer.length();
 
             const int verifyValue = RSA_verify(algorithmNID, digest, digestLength, encryptedString->data, encryptedString->length, rsa);
@@ -996,7 +1172,7 @@ BIO* PDFSignatureHandler_adbe_pkcs7_sha1::getSignedDataBuffer(PDFSignatureVerifi
     {
         // Calculate SHA1
         outputBuffer.resize(SHA_DIGEST_LENGTH);
-        SHA1(reinterpret_cast<const unsigned char*>(temporaryBuffer.data()), temporaryBuffer.length(), reinterpret_cast<unsigned char*>(outputBuffer.data()));
+        SHA1(convertByteArrayToUcharPtr(temporaryBuffer), temporaryBuffer.length(), convertByteArrayToUcharPtr(outputBuffer));
         BIO_free(bio);
 
         return BIO_new_mem_buf(outputBuffer.data(), outputBuffer.length());
@@ -1213,7 +1389,7 @@ std::optional<PDFCertificateInfo> PDFCertificateInfo::getCertificateInfo(const Q
     std::optional<PDFCertificateInfo> result;
 
     PDFOpenSSLGlobalLock lock;
-    const unsigned char* data = reinterpret_cast<const unsigned char*>(certificateData.constData());
+    const unsigned char* data = convertByteArrayToUcharPtr(certificateData);
     if (X509* certificate = d2i_X509(nullptr, &data, certificateData.length()))
     {
         result = PDFPublicKeySignatureHandler::getCertificateInfo(certificate);
@@ -1292,7 +1468,7 @@ void PDFCertificateStore::serialize(QDataStream& stream) const
     stream << m_certificates;
 }
 
-void pdf::PDFCertificateStore::deserialize(QDataStream& stream)
+void PDFCertificateStore::deserialize(QDataStream& stream)
 {
     int persist_version = 0;
     stream >> persist_version;
@@ -1320,7 +1496,7 @@ bool PDFCertificateStore::add(EntryType type, PDFCertificateInfo info)
     return true;
 }
 
-bool pdf::PDFCertificateStore::contains(const pdf::PDFCertificateInfo& info)
+bool PDFCertificateStore::contains(const PDFCertificateInfo& info)
 {
     return std::find_if(m_certificates.cbegin(), m_certificates.cend(), [&info](const auto& entry) { return entry.info == info; }) != m_certificates.cend();
 }
@@ -1341,7 +1517,7 @@ void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store
         for (const auto& entry : certificates)
         {
             QByteArray certificateData = entry.info.getCertificateData();
-            const unsigned char* pointer = reinterpret_cast<const unsigned char*>(certificateData.constData());
+            const unsigned char* pointer = convertByteArrayToUcharPtr(certificateData);
             X509* certificate = d2i_X509(nullptr, &pointer, certificateData.length());
             if (certificate)
             {

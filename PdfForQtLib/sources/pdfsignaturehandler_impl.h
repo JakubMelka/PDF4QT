@@ -113,6 +113,21 @@ protected:
     virtual BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const override;
 };
 
+class PDFSignatureHandler_ETSI_CAdES_detached : public PDFPublicKeySignatureHandler
+{
+public:
+    explicit PDFSignatureHandler_ETSI_CAdES_detached(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+        PDFPublicKeySignatureHandler(signatureField, sourceData, parameters)
+    {
+
+    }
+
+    virtual PDFSignatureVerificationResult verify() const override;
+
+private:
+    void verifyCertificateCAdES(PDFSignatureVerificationResult& result) const;
+};
+
 }   // namespace pdf
 
 #endif // PDFSIGNATUREHANDLER_IMPL_H

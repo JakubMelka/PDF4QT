@@ -1007,6 +1007,7 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
             // Verify signatures
             pdf::PDFSignatureHandler::Parameters parameters;
             parameters.store = &m_certificateStore;
+            parameters.dss = &document.getCatalog()->getDocumentSecurityStore();
             parameters.enableVerification = m_settings->getSettings().m_signatureVerificationEnabled;
             parameters.ignoreExpirationDate = m_settings->getSettings().m_signatureIgnoreCertificateValidityTime;
             parameters.useSystemCertificateStore = m_settings->getSettings().m_signatureUseSystemStore;

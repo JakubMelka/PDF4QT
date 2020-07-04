@@ -20,6 +20,7 @@
 #include "pdfexception.h"
 #include "pdfnumbertreeloader.h"
 #include "pdfnametreeloader.h"
+#include "pdfencoding.h"
 
 namespace pdf
 {
@@ -169,6 +170,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     }
 
     catalogObject.m_formObject = catalogDictionary->get("AcroForm");
+    catalogObject.m_documentSecurityStore = PDFDocumentSecurityStore::parse(catalogDictionary->get("DSS"), document);
 
     return catalogObject;
 }
@@ -459,6 +461,82 @@ PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFDocument* docume
     }
 
     return PDFPageLabel();
+}
+
+const PDFDocumentSecurityStore::SecurityStoreItem* PDFDocumentSecurityStore::getItem(const QByteArray& hash) const
+{
+    auto it = m_VRI.find(hash);
+    if (it != m_VRI.cend())
+    {
+        return &it->second;
+    }
+
+    return getMasterItem();
+}
+
+PDFDocumentSecurityStore PDFDocumentSecurityStore::parse(const PDFObject& object, const PDFDocument* document)
+{
+    PDFDocumentSecurityStore store;
+
+    try
+    {
+        if (const PDFDictionary* dssDictionary = document->getDictionaryFromObject(object))
+        {
+            PDFDocumentDataLoaderDecorator loader(document);
+
+            auto getDecodedStreams = [document, &loader](const PDFObject& object) -> std::vector<QByteArray>
+            {
+                std::vector<QByteArray> result;
+
+                std::vector<PDFObjectReference> references = loader.readReferenceArray(object);
+                result.reserve(references.size());
+                for (const PDFObjectReference& reference : references)
+                {
+                    PDFObject object = document->getObjectByReference(reference);
+                    if (object.isStream())
+                    {
+                        result.emplace_back(document->getDecodedStream(object.getStream()));
+                    }
+                }
+
+                return result;
+            };
+
+            store.m_master.Cert = getDecodedStreams(dssDictionary->get("Certs"));
+            store.m_master.OCSP = getDecodedStreams(dssDictionary->get("OCSPs"));
+            store.m_master.CRL = getDecodedStreams(dssDictionary->get("CRLs"));
+
+            if (const PDFDictionary* vriDictionary = document->getDictionaryFromObject(dssDictionary->get("VRI")))
+            {
+                for (size_t i = 0, count = vriDictionary->getCount(); i < count; ++i)
+                {
+                    const PDFObject& vriItemObject = vriDictionary->getValue(i);
+                    if (const PDFDictionary* vriItemDictionary = document->getDictionaryFromObject(vriItemObject))
+                    {
+                        QByteArray key = vriDictionary->getKey(i).getString();
+
+                        SecurityStoreItem& item = store.m_VRI[key];
+                        item.Cert = getDecodedStreams(vriItemDictionary->get("Cert"));
+                        item.CRL = getDecodedStreams(vriItemDictionary->get("CRL"));
+                        item.OCSP = getDecodedStreams(vriItemDictionary->get("OCSP"));
+                        item.created = PDFEncoding::convertToDateTime(loader.readStringFromDictionary(vriDictionary, "TU"));
+
+                        PDFObject timestampObject = document->getObject(vriItemDictionary->get("TS"));
+                        if (timestampObject.isStream())
+                        {
+                            item.timestamp = document->getDecodedStream(timestampObject.getStream());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    catch (PDFException)
+    {
+        return PDFDocumentSecurityStore();
+    }
+
+    return store;
 }
 
 }   // namespace pdf

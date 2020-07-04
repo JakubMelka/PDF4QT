@@ -34,6 +34,7 @@ class PDFForm;
 class PDFObjectStorage;
 class PDFCertificateStore;
 class PDFFormFieldSignature;
+class PDFDocumentSecurityStore;
 
 /// Signature reference dictionary.
 class PDFSignatureReference
@@ -375,6 +376,7 @@ public:
     struct Parameters
     {
         const PDFCertificateStore* store = nullptr;
+        const PDFDocumentSecurityStore* dss = nullptr;
         bool enableVerification = true;
         bool ignoreExpirationDate = false;
         bool useSystemCertificateStore = true;
