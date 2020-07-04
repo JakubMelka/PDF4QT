@@ -297,6 +297,8 @@ public:
         Error_Signature_DataCoveredBySignatureMissing   = 0x00100000,  ///< Data covered by signature are not present
 
         Warning_Signature_NotCoveredBytes               = 0x00200000,  ///< Some bytes in source data are not covered by signature
+        Warning_Certificate_CRLValidityTimeExpired      = 0x00400000,  ///< Certificate revocation list was not checked, because it's validity expired
+        Warning_Certificate_QualifiedStatement          = 0x00800000,  ///< Qualified certificate statement not verified
 
         Error_Certificates_Mask = Error_Certificate_Invalid | Error_Certificate_NoSignatures | Error_Certificate_Missing | Error_Certificate_Generic |
                                   Error_Certificate_Expired | Error_Certificate_SelfSigned | Error_Certificate_SelfSignedChain | Error_Certificate_TrustedNotFound |
@@ -305,7 +307,7 @@ public:
         Error_Signatures_Mask = Error_Signature_Invalid | Error_Signature_SourceCertificateMissing | Error_Signature_NoSignaturesFound |
                                 Error_Signature_DigestFailure | Error_Signature_DataOther | Error_Signature_DataCoveredBySignatureMissing,
 
-        Warnings_Mask = Warning_Signature_NotCoveredBytes
+        Warnings_Mask = Warning_Signature_NotCoveredBytes | Warning_Certificate_CRLValidityTimeExpired | Warning_Certificate_QualifiedStatement
     };
     Q_DECLARE_FLAGS(VerificationFlags, VerificationFlag)
 
@@ -329,7 +331,10 @@ public:
     void addSignatureDigestFailureError();
     void addSignatureDataOtherError();
     void addSignatureDataCoveredBySignatureMissingError();
+
     void addSignatureNotCoveredBytesWarning(PDFInteger count);
+    void addCertificateCRLValidityTimeExpiredWarning();
+    void addCertificateQualifiedStatementNotVerifiedWarning();
 
     bool isValid() const { return hasFlag(OK); }
     bool isCertificateValid() const { return hasFlag(Certificate_OK); }

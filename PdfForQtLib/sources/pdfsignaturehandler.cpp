@@ -312,8 +312,29 @@ void PDFSignatureVerificationResult::addSignatureDataCoveredBySignatureMissingEr
 
 void PDFSignatureVerificationResult::addSignatureNotCoveredBytesWarning(PDFInteger count)
 {
-    m_flags.setFlag(Warning_Signature_NotCoveredBytes);
-    m_warnings << PDFTranslationContext::tr("%1 bytes are not covered by signature.").arg(count);
+    if (!m_flags.testFlag(Warning_Signature_NotCoveredBytes))
+    {
+        m_flags.setFlag(Warning_Signature_NotCoveredBytes);
+        m_warnings << PDFTranslationContext::tr("%1 bytes are not covered by signature.").arg(count);
+    }
+}
+
+void PDFSignatureVerificationResult::addCertificateCRLValidityTimeExpiredWarning()
+{
+    if (!m_flags.testFlag(Warning_Certificate_CRLValidityTimeExpired))
+    {
+        m_flags.setFlag(Warning_Certificate_CRLValidityTimeExpired);
+        m_warnings << PDFTranslationContext::tr("Certificate revocation list (CRL) not checked, validity time has expired.");
+    }
+}
+
+void PDFSignatureVerificationResult::addCertificateQualifiedStatementNotVerifiedWarning()
+{
+    if (!m_flags.testFlag(Warning_Certificate_QualifiedStatement))
+    {
+        m_flags.setFlag(Warning_Certificate_QualifiedStatement);
+        m_warnings << PDFTranslationContext::tr("Qualified certificate statement not verified.");
+    }
 }
 
 void PDFSignatureVerificationResult::setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName)
@@ -694,9 +715,78 @@ PDFSignatureVerificationResult PDFSignatureHandler_ETSI_CAdES_detached::verify()
     return result;
 }
 
+// This is protected by global mutex, but it is ugly
+static PDFSignatureVerificationResult* s_ETSI_CAdES_detached_currentResult = nullptr;
+
+int PDFSignatureHandler_ETSI_CAdES_detached::verifyCallback(int ok, X509_STORE_CTX* context)
+{
+    const int errorCode = X509_STORE_CTX_get_error(context);
+
+    switch (errorCode)
+    {
+        case X509_V_ERR_CRL_NOT_YET_VALID:
+        case X509_V_ERR_CRL_HAS_EXPIRED:
+        {
+            // We will treat this as only warning
+            s_ETSI_CAdES_detached_currentResult->addCertificateCRLValidityTimeExpiredWarning();
+            X509_STORE_CTX_set_error(context, X509_V_OK);
+            return 1;
+        }
+
+        case X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION:
+        {
+            // We must handle all critical extensions manually
+            X509* certificate = X509_STORE_CTX_get_current_cert(context);
+            const STACK_OF(X509_EXTENSION)* extensions = X509_get0_extensions(certificate);
+            for (int i = 0, extensionsCount = sk_X509_EXTENSION_num(extensions); i < extensionsCount; ++i)
+            {
+                X509_EXTENSION* extension = sk_X509_EXTENSION_value(extensions, i);
+
+                // Skip non-critical extensions
+                if (!X509_EXTENSION_get_critical(extension))
+                {
+                    continue;
+                }
+
+                const ASN1_OBJECT* object = X509_EXTENSION_get_object(extension);
+                const int nid = OBJ_obj2nid(object);
+
+                switch (nid)
+                {
+                    case NID_basic_constraints:
+                    case NID_key_usage:
+                        // These are handled by OpenSSL
+                        continue;
+
+                    case NID_qcStatements:
+                    {
+                        // We will treat this as only warning
+                        s_ETSI_CAdES_detached_currentResult->addCertificateQualifiedStatementNotVerifiedWarning();
+                        X509_STORE_CTX_set_error(context, X509_V_OK);
+                        continue;
+                    }
+
+                    default:
+                        return ok;
+                }
+            }
+
+            X509_STORE_CTX_set_error(context, X509_V_OK);
+            return 1;
+        }
+
+        default:
+            break;
+    }
+
+    return ok;
+}
+
 void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatureVerificationResult& result) const
 {
     PDFOpenSSLGlobalLock lock;
+
+    s_ETSI_CAdES_detached_currentResult = &result;
 
     OpenSSL_add_all_algorithms();
 
@@ -746,6 +836,20 @@ void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatur
             }
             STACK_OF(X509)* usedCertificates = allCertificates ? allCertificates : certificates;
 
+            // Jakub Melka: add certificate revocation lists
+            if (m_parameters.dss && !m_parameters.dss->getMasterItem()->CRL.empty())
+            {
+                for (const QByteArray& crlData : m_parameters.dss->getMasterItem()->CRL)
+                {
+                    const unsigned char* crlDataBuffer = convertByteArrayToUcharPtr(crlData);
+                    if (X509_CRL* crl = d2i_X509_CRL(nullptr, &crlDataBuffer, crlData.size()))
+                    {
+                        X509_STORE_add_crl(store, crl);
+                        X509_CRL_free(crl);
+                    }
+                }
+            }
+
             for (int i = 0; i < signerInfoCount; ++i)
             {
                 PKCS7_SIGNER_INFO* signerInfoValue = sk_PKCS7_SIGNER_INFO_value(signerInfo, i);
@@ -770,12 +874,13 @@ void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatur
                     break;
                 }
 
-                unsigned long flags = X509_V_FLAG_TRUSTED_FIRST;
+                unsigned long flags = X509_V_FLAG_TRUSTED_FIRST | X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL | X509_V_FLAG_EXTENDED_CRL_SUPPORT;
                 if (m_parameters.ignoreExpirationDate)
                 {
                     flags |= X509_V_FLAG_NO_CHECK_TIME;
                 }
                 X509_STORE_CTX_set_flags(context, flags);
+                X509_STORE_CTX_set_verify_cb(context, &PDFSignatureHandler_ETSI_CAdES_detached::verifyCallback);
 
                 int verificationResult = X509_verify_cert(context);
                 if (verificationResult <= 0)
@@ -1435,7 +1540,14 @@ QString PDFPublicKeySignatureHandler::getStringFromX509Name(X509_NAME* name, int
 
     const int stringLocation = X509_NAME_get_index_by_NID(name, nid, -1);
     X509_NAME_ENTRY* entry = X509_NAME_get_entry(name, stringLocation);
-    if (ASN1_STRING* string = X509_NAME_ENTRY_get_data(entry))
+    return getStringFromASN1_STRING(X509_NAME_ENTRY_get_data(entry));
+}
+
+QString pdf::PDFPublicKeySignatureHandler::getStringFromASN1_STRING(ASN1_STRING* string)
+{
+    QString result;
+
+    if (string)
     {
         // Jakub Melka: we must convert entry to UTF8 encoding using function ASN1_STRING_to_UTF8
         unsigned char* utf8Buffer = nullptr;

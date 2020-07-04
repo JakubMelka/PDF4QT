@@ -56,6 +56,9 @@ public:
     /// Returns name converted to QString
     static QString getStringFromX509Name(X509_NAME* name, int nid);
 
+    /// Returns ASN1 string converted to QString
+    static QString getStringFromASN1_STRING(ASN1_STRING* string);
+
     /// Converts ASN time to QDateTime. If conversion fails, then invalid
     /// datetime is returned.
     static QDateTime getDateTimeFromASN(const ASN1_TIME* time);
@@ -126,6 +129,7 @@ public:
 
 private:
     void verifyCertificateCAdES(PDFSignatureVerificationResult& result) const;
+    static int verifyCallback(int ok, X509_STORE_CTX* context);
 };
 
 }   // namespace pdf
