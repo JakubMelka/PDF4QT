@@ -198,19 +198,30 @@ public:
         KeyUnknown
     };
 
-    // This enum is defined in RFC 5280, chapter 4.2.1.3, Key Usage
+    // This enum is defined in RFC 5280, chapter 4.2.1.3, Key Usage. Second part,
+    // are defined in extended key usage entry, if it is defined.
     enum KeyUsageFlag : uint32_t
     {
-        KeyUsageNone                = 0x0000,
-        KeyUsageDigitalSignature    = 0x0080,
-        KeyUsageNonRepudiation      = 0x0040,
-        KeyUsageKeyEncipherment     = 0x0020,
-        KeyUsageDataEncipherment    = 0x0010,
-        KeyUsageAgreement           = 0x0008,
-        KeyUsageCertSign            = 0x0004,
-        KeyUsageCrlSign             = 0x0002,
-        KeyUsageEncipherOnly        = 0x0001,
-        KeyUsageDecipherOnly        = 0x8000,
+        KeyUsageNone                = 0x00000000,
+        KeyUsageDigitalSignature    = 0x00000080,
+        KeyUsageNonRepudiation      = 0x00000040,
+        KeyUsageKeyEncipherment     = 0x00000020,
+        KeyUsageDataEncipherment    = 0x00000010,
+        KeyUsageAgreement           = 0x00000008,
+        KeyUsageCertSign            = 0x00000004,
+        KeyUsageCrlSign             = 0x00000002,
+        KeyUsageEncipherOnly        = 0x00000001,
+        KeyUsageDecipherOnly        = 0x00008000,
+
+        KeyUsageExtended_SSL_SERVER = 0x1    << 16,
+        KeyUsageExtended_SSL_CLIENT = 0x2    << 16,
+        KeyUsageExtended_SMIME      = 0x4    << 16,
+        KeyUsageExtended_CODE_SIGN  = 0x8    << 16,
+        KeyUsageExtended_SGC        = 0x10   << 16,
+        KeyUsageExtended_OCSP_SIGN  = 0x20   << 16,
+        KeyUsageExtended_TIMESTAMP  = 0x40   << 16,
+        KeyUsageExtended_DVCS       = 0x80   << 16,
+        KeyUsageExtended_ANYEKU     = 0x100  << 16,
     };
     Q_DECLARE_FLAGS(KeyUsageFlags, KeyUsageFlag)
 

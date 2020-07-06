@@ -138,6 +138,7 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
 {
     m_document = document;
     m_optionalContentActivity = document.getOptionalContentActivity();
+    m_signatures = signatures;
 
     // Update outline
     m_outlineTreeModel->setDocument(document);
@@ -248,7 +249,7 @@ bool PDFSidebarWidget::isEmpty(Page page) const
             return !m_textToSpeech->isValid();
 
         case Signatures:
-            return !m_signatures.empty();
+            return m_signatures.empty();
 
         default:
             Q_ASSERT(false);
@@ -533,6 +534,10 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
                 if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDecipherOnly))
                 {
                     keyUsages << tr("Decipher data during key agreement");
+                }
+                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageExtended_TIMESTAMP))
+                {
+                    keyUsages << tr("Trusted timestamping");
                 }
 
                 if (!keyUsages.isEmpty())

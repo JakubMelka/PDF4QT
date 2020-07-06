@@ -164,6 +164,10 @@ PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignat
     {
         return new PDFSignatureHandler_ETSI_CAdES_detached(signatureField, sourceData, parameters);
     }
+    else if (subfilter == "ETSI.RFC3161")
+    {
+        return new PDFSignatureHandler_ETSI_RFC3161(signatureField, sourceData, parameters);
+    }
 
     return nullptr;
 }
@@ -709,16 +713,26 @@ PDFSignatureVerificationResult PDFSignatureHandler_ETSI_CAdES_detached::verify()
 {
     PDFSignatureVerificationResult result;
     initializeResult(result);
-    verifyCertificateCAdES(result);
+    verifyCertificateCAdES(result, X509_PURPOSE_SMIME_SIGN);
+    verifySignature(result);
+    result.validate();
+    return result;
+}
+
+PDFSignatureVerificationResult PDFSignatureHandler_ETSI_RFC3161::verify() const
+{
+    PDFSignatureVerificationResult result;
+    initializeResult(result);
+    verifyCertificateCAdES(result, X509_PURPOSE_TIMESTAMP_SIGN);
     verifySignature(result);
     result.validate();
     return result;
 }
 
 // This is protected by global mutex, but it is ugly
-static PDFSignatureVerificationResult* s_ETSI_CAdES_detached_currentResult = nullptr;
+static PDFSignatureVerificationResult* s_ETSI_currentResult = nullptr;
 
-int PDFSignatureHandler_ETSI_CAdES_detached::verifyCallback(int ok, X509_STORE_CTX* context)
+int PDFSignatureHandler_ETSI_base::verifyCallback(int ok, X509_STORE_CTX* context)
 {
     const int errorCode = X509_STORE_CTX_get_error(context);
 
@@ -728,7 +742,7 @@ int PDFSignatureHandler_ETSI_CAdES_detached::verifyCallback(int ok, X509_STORE_C
         case X509_V_ERR_CRL_HAS_EXPIRED:
         {
             // We will treat this as only warning
-            s_ETSI_CAdES_detached_currentResult->addCertificateCRLValidityTimeExpiredWarning();
+            s_ETSI_currentResult->addCertificateCRLValidityTimeExpiredWarning();
             X509_STORE_CTX_set_error(context, X509_V_OK);
             return 1;
         }
@@ -761,7 +775,7 @@ int PDFSignatureHandler_ETSI_CAdES_detached::verifyCallback(int ok, X509_STORE_C
                     case NID_qcStatements:
                     {
                         // We will treat this as only warning
-                        s_ETSI_CAdES_detached_currentResult->addCertificateQualifiedStatementNotVerifiedWarning();
+                        s_ETSI_currentResult->addCertificateQualifiedStatementNotVerifiedWarning();
                         X509_STORE_CTX_set_error(context, X509_V_OK);
                         continue;
                     }
@@ -782,11 +796,11 @@ int PDFSignatureHandler_ETSI_CAdES_detached::verifyCallback(int ok, X509_STORE_C
     return ok;
 }
 
-void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatureVerificationResult& result) const
+void PDFSignatureHandler_ETSI_base::verifyCertificateCAdES(PDFSignatureVerificationResult& result, int purpose) const
 {
     PDFOpenSSLGlobalLock lock;
 
-    s_ETSI_CAdES_detached_currentResult = &result;
+    s_ETSI_currentResult = &result;
 
     OpenSSL_add_all_algorithms();
 
@@ -868,7 +882,7 @@ void PDFSignatureHandler_ETSI_CAdES_detached::verifyCertificateCAdES(PDFSignatur
                     break;
                 }
 
-                if (!X509_STORE_CTX_set_purpose(context, X509_PURPOSE_SMIME_SIGN))
+                if (!X509_STORE_CTX_set_purpose(context, purpose))
                 {
                     result.addCertificateGenericError();
                     break;
@@ -1378,7 +1392,7 @@ PDFCertificateInfo PDFPublicKeySignatureHandler::getCertificateInfo(X509* certif
         const int bits = EVP_PKEY_bits(evpKey);
         info.setKeySize(bits);
 
-        const uint32_t keyUsage = X509_get_key_usage(certificate);
+        uint32_t keyUsage = X509_get_key_usage(certificate);
         if (keyUsage != UINT32_MAX)
         {
             static_assert(PDFCertificateInfo::KeyUsageDigitalSignature    == KU_DIGITAL_SIGNATURE, "Fix this code!");
@@ -1390,6 +1404,24 @@ PDFCertificateInfo PDFPublicKeySignatureHandler::getCertificateInfo(X509* certif
             static_assert(PDFCertificateInfo::KeyUsageCrlSign             == KU_CRL_SIGN, "Fix this code!");
             static_assert(PDFCertificateInfo::KeyUsageEncipherOnly        == KU_ENCIPHER_ONLY, "Fix this code!");
             static_assert(PDFCertificateInfo::KeyUsageDecipherOnly        == KU_DECIPHER_ONLY, "Fix this code!");
+
+            if (X509_get_extension_flags(certificate) & EXFLAG_XKUSAGE)
+            {
+                const uint32_t extendedKeyUsage = X509_get_extended_key_usage(certificate);
+                Q_ASSERT(extendedKeyUsage != UINT32_MAX);
+
+                static_assert(PDFCertificateInfo::KeyUsageExtended_SSL_SERVER  >> 16 == XKU_SSL_SERVER, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_SSL_CLIENT  >> 16 == XKU_SSL_CLIENT, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_SMIME       >> 16 == XKU_SMIME, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_CODE_SIGN   >> 16 == XKU_CODE_SIGN, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_SGC         >> 16 == XKU_SGC, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_OCSP_SIGN   >> 16 == XKU_OCSP_SIGN, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_TIMESTAMP   >> 16 == XKU_TIMESTAMP, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_DVCS        >> 16 == XKU_DVCS, "Fix this code!");
+                static_assert(PDFCertificateInfo::KeyUsageExtended_ANYEKU      >> 16 == XKU_ANYEKU, "Fix this code!");
+
+                keyUsage = keyUsage | (extendedKeyUsage << 16);
+            }
 
             info.setKeyUsage(static_cast<PDFCertificateInfo::KeyUsageFlags>(keyUsage));
         }

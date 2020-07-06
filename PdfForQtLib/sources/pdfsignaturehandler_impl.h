@@ -116,20 +116,42 @@ protected:
     virtual BIO* getSignedDataBuffer(PDFSignatureVerificationResult& result, QByteArray& outputBuffer) const override;
 };
 
-class PDFSignatureHandler_ETSI_CAdES_detached : public PDFPublicKeySignatureHandler
+class PDFSignatureHandler_ETSI_base : public PDFPublicKeySignatureHandler
 {
 public:
-    explicit PDFSignatureHandler_ETSI_CAdES_detached(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+    explicit PDFSignatureHandler_ETSI_base(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
         PDFPublicKeySignatureHandler(signatureField, sourceData, parameters)
     {
 
     }
 
-    virtual PDFSignatureVerificationResult verify() const override;
-
-private:
-    void verifyCertificateCAdES(PDFSignatureVerificationResult& result) const;
+protected:
+    void verifyCertificateCAdES(PDFSignatureVerificationResult& result, int purpose) const;
     static int verifyCallback(int ok, X509_STORE_CTX* context);
+};
+
+class PDFSignatureHandler_ETSI_CAdES_detached : public PDFSignatureHandler_ETSI_base
+{
+public:
+    explicit PDFSignatureHandler_ETSI_CAdES_detached(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+        PDFSignatureHandler_ETSI_base(signatureField, sourceData, parameters)
+    {
+
+    }
+
+    virtual PDFSignatureVerificationResult verify() const override;
+};
+
+class PDFSignatureHandler_ETSI_RFC3161: public PDFSignatureHandler_ETSI_base
+{
+public:
+    explicit PDFSignatureHandler_ETSI_RFC3161(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters) :
+        PDFSignatureHandler_ETSI_base(signatureField, sourceData, parameters)
+    {
+
+    }
+
+    virtual PDFSignatureVerificationResult verify() const override;
 };
 
 }   // namespace pdf
