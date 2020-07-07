@@ -272,9 +272,12 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         };
 
         // Now, we are ready to scan all objects
-        progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Reading contents of document..."));
-        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
-        progressFinish();
+        if (!occupiedEntries.empty())
+        {
+            progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Reading contents of document..."));
+            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
+            progressFinish();
+        }
 
         if (m_result != Result::OK)
         {

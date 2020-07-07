@@ -116,7 +116,7 @@ PDFSignature PDFSignature::parse(const PDFObjectStorage* storage, PDFObject obje
             result.m_byteRanges.push_back(byteRange);
         }
 
-        result.m_references = loader.readObjectList<PDFSignatureReference>(dictionary->get("References"));
+        result.m_references = loader.readObjectList<PDFSignatureReference>(dictionary->get("Reference"));
         std::vector<PDFInteger> changes = loader.readIntegerArrayFromDictionary(dictionary, "Changes");
 
         if (changes.size() == 3)
