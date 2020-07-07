@@ -371,7 +371,23 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
         const pdf::PDFCertificateInfos& certificateInfos = signature.getCertificateInfos();
         const pdf::PDFCertificateInfo* certificateInfo = !certificateInfos.empty() ? &certificateInfos.front() : nullptr;
 
-        QString text = tr("Signed by - %1").arg(certificateInfo ? certificateInfo->getName(pdf::PDFCertificateInfo::CommonName) : tr("Unknown"));
+        QString templateString;
+        switch (signature.getType())
+        {
+            case pdf::PDFSignature::Type::Sig:
+                templateString = tr("Signed by - %1");
+                break;
+
+            case pdf::PDFSignature::Type::DocTimeStamp:
+                templateString = tr("Timestamped by - %1");
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        QString text = templateString.arg(certificateInfo ? certificateInfo->getName(pdf::PDFCertificateInfo::CommonName) : tr("Unknown"));
         QTreeWidgetItem* rootItem = new QTreeWidgetItem(QStringList(text));
 
         if (signature.hasError())

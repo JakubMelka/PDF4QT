@@ -152,6 +152,9 @@ public:
     }
 
     virtual PDFSignatureVerificationResult verify() const override;
+
+private:
+    void verifySignatureTimestamp(PDFSignatureVerificationResult& result) const;
 };
 
 }   // namespace pdf

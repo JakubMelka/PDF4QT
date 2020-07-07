@@ -26,6 +26,8 @@
 #include <openssl/sha.h>
 #include <openssl/rsa.h>
 #include <openssl/rsaerr.h>
+#include <openssl/ts.h>
+#include <openssl/tserr.h>
 
 #include <QMutex>
 #include <QMutexLocker>
@@ -202,7 +204,7 @@ std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignature
             {
                 PDFObjectReference signatureFieldReference = signatureField->getSelfReference();
                 QString qualifiedName = signatureField->getName(PDFFormField::NameType::FullyQualified);
-                PDFSignatureVerificationResult verificationResult(signatureFieldReference, qMove(qualifiedName));
+                PDFSignatureVerificationResult verificationResult(signatureField->getSignature().getType(), signatureFieldReference, qMove(qualifiedName));
                 verificationResult.addNoHandlerError(signatureField->getSignature().getSubfilter());
                 result.emplace_back(qMove(verificationResult));
             }
@@ -359,10 +361,21 @@ void PDFSignatureVerificationResult::validate()
     }
 }
 
+PDFSignature::Type PDFSignatureVerificationResult::getType() const
+{
+    return m_type;
+}
+
+void PDFSignatureVerificationResult::setType(const PDFSignature::Type& type)
+{
+    m_type = type;
+}
+
 void PDFPublicKeySignatureHandler::initializeResult(PDFSignatureVerificationResult& result) const
 {
     PDFObjectReference signatureFieldReference = m_signatureField->getSelfReference();
     QString signatureFieldQualifiedName = m_signatureField->getName(PDFFormField::NameType::FullyQualified);
+    result.setType(m_signatureField->getSignature().getType());
     result.setSignatureFieldReference(signatureFieldReference);
     result.setSignatureFieldQualifiedName(signatureFieldQualifiedName);
 }
@@ -724,9 +737,106 @@ PDFSignatureVerificationResult PDFSignatureHandler_ETSI_RFC3161::verify() const
     PDFSignatureVerificationResult result;
     initializeResult(result);
     verifyCertificateCAdES(result, X509_PURPOSE_TIMESTAMP_SIGN);
-    verifySignature(result);
+    verifySignatureTimestamp(result);
     result.validate();
     return result;
+}
+
+void PDFSignatureHandler_ETSI_RFC3161::verifySignatureTimestamp(PDFSignatureVerificationResult& result) const
+{
+    PDFOpenSSLGlobalLock lock;
+
+    OpenSSL_add_all_algorithms();
+
+    const PDFSignature& signature = m_signatureField->getSignature();
+    const QByteArray& content = signature.getContents();
+
+    // Jakub Melka: we will try to get pkcs7 from signature, then
+    // verify signer certificates.
+    const unsigned char* data = convertByteArrayToUcharPtr(content);
+    if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, content.size()))
+    {
+        QByteArray buffer;
+        if (BIO* inputBuffer = getSignedDataBuffer(result, buffer))
+        {
+            X509_STORE* store = X509_STORE_new();
+
+            // Above function can fail only if not enough memory. But in this
+            // case, this library will crash anyway.
+            Q_ASSERT(store);
+
+            addTrustedCertificates(store);
+
+            // Add certificates from DSS store
+            STACK_OF(X509)* certificatesFromPkcs7 = getCertificates(pkcs7);
+            STACK_OF(X509)* usedCertificates = sk_X509_new_null();
+
+            // First, add all certificates from pkcs7
+            for (int i = 0; i < sk_X509_num(certificatesFromPkcs7); ++i)
+            {
+                X509* certificate = sk_X509_value(certificatesFromPkcs7, i);
+                sk_X509_push(usedCertificates, certificate);
+                X509_up_ref(certificate);
+            }
+
+            if (m_parameters.dss && !m_parameters.dss->getMasterItem()->Cert.empty())
+            {
+                // Second, add all certificates from document's security store
+                for (const QByteArray& certificateData : m_parameters.dss->getMasterItem()->Cert)
+                {
+                    const unsigned char* certificateDataBuffer = convertByteArrayToUcharPtr(certificateData);
+                    if (X509* certificate = d2i_X509(nullptr, &certificateDataBuffer, certificateData.size()))
+                    {
+                        sk_X509_push(usedCertificates, certificate);
+                    }
+                }
+            }
+
+            // Initialization of verification context
+            TS_VERIFY_CTX* ts_context = TS_VERIFY_CTX_new();
+            TS_VERIFY_CTX_init(ts_context);
+            TS_VERIFY_CTX_set_data(ts_context, inputBuffer);
+            TS_VERIFY_CTX_set_flags(ts_context, TS_VFY_ALL_DATA & ~TS_VFY_POLICY & ~TS_VFY_NONCE & ~TS_VFY_TSA_NAME);
+            TS_VERIFY_CTX_set_store(ts_context, store);
+            TS_VERIFY_CTS_set_certs(ts_context, usedCertificates);
+
+            const int verifyValue = TS_RESP_verify_token(ts_context, pkcs7);
+            if (verifyValue <= 0)
+            {
+                const int reason = ERR_GET_REASON(ERR_get_error());
+                switch (reason)
+                {
+                    case TS_R_MESSAGE_IMPRINT_MISMATCH:
+                        result.addSignatureDigestFailureError();
+                        break;
+
+                    default:
+                        result.addSignatureDataOtherError();
+                        break;
+                }
+            }
+
+            // Finalization of verification context. Function TS_VERIFY_CTX_cleanup also
+            // frees all data, such as context, store, etc.
+            TS_VERIFY_CTX_cleanup(ts_context);
+            TS_VERIFY_CTX_free(ts_context);
+        }
+        else
+        {
+            // There is no need for adding error, error is in this case added by getSignedDataBuffer function
+        }
+
+        PKCS7_free(pkcs7);
+    }
+    else
+    {
+        result.addInvalidSignatureError();
+    }
+
+    if (!result.hasSignatureError())
+    {
+        result.setFlag(PDFSignatureVerificationResult::Signature_OK, true);
+    }
 }
 
 // This is protected by global mutex, but it is ugly

@@ -273,7 +273,8 @@ class PDFFORQTLIBSHARED_EXPORT PDFSignatureVerificationResult
 {
 public:
     explicit PDFSignatureVerificationResult() = default;
-    explicit PDFSignatureVerificationResult(PDFObjectReference signatureFieldReference, QString qualifiedName) :
+    explicit PDFSignatureVerificationResult(PDFSignature::Type type, PDFObjectReference signatureFieldReference, QString qualifiedName) :
+        m_type(type),
         m_signatureFieldReference(signatureFieldReference),
         m_signatureFieldQualifiedName(qualifiedName)
     {
@@ -321,6 +322,9 @@ public:
         Warnings_Mask = Warning_Signature_NotCoveredBytes | Warning_Certificate_CRLValidityTimeExpired | Warning_Certificate_QualifiedStatement
     };
     Q_DECLARE_FLAGS(VerificationFlags, VerificationFlag)
+
+    PDFSignature::Type getType() const;
+    void setType(const PDFSignature::Type& type);
 
     /// Adds no handler error for given signature format
     /// \param format Signature format
@@ -372,6 +376,7 @@ public:
     void validate();
 
 private:
+    PDFSignature::Type m_type = PDFSignature::Type::Invalid;
     VerificationFlags m_flags = None;
     PDFObjectReference m_signatureFieldReference;
     QString m_signatureFieldQualifiedName;
