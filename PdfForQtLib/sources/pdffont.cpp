@@ -252,6 +252,12 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
     ReleaseDC(NULL, hdc);
 #endif
 
+    if (result.isEmpty() && standardFontType == StandardFontType::Invalid)
+    {
+        reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by standard font Times New Roman.").arg(fontName));
+        result = loadFont(descriptor, StandardFontType::TimesRoman, reporter);
+    }
+
     return result;
 }
 
