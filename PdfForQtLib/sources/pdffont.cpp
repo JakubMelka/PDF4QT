@@ -332,7 +332,7 @@ QString PDFSystemFontInfoStorage::getFontPostscriptName(QString fontName)
         fontName.remove(QLatin1String(string), Qt::CaseInsensitive);
     }
 
-    return fontName.remove(QChar(' ')).remove(QChar('-')).trimmed();
+    return fontName.remove(QChar(' ')).remove(QChar('-')).remove(QChar(',')).trimmed();
 }
 
 #endif
