@@ -213,7 +213,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     PDFExecutionPolicy::startProcessingContentStream();
 
     QPainterPath pageRectPath;
-    pageRectPath.addRect(m_page->getRotatedMediaBox());
+    pageRectPath.addRect(m_page->getMediaBox());
     m_pageBoundingRectDeviceSpace = pagePointToDevicePointMatrix.map(pageRectPath).boundingRect();
 
     initDictionaries(m_page->getResources());
@@ -2659,7 +2659,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
 {
     if (isContentKindSuppressed(ContentKind::Shading))
     {
-        // Images are suppressed
+        // Shadings are suppressed
         return;
     }
 
