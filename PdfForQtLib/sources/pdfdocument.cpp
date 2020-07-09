@@ -187,6 +187,10 @@ void PDFDocument::initInfo()
                         throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
                     }
                 }
+                else if (nameObject.isBool())
+                {
+                    m_info.trapped = nameObject.getBool() ? Info::Trapped::True : Info::Trapped::False;
+                }
                 else
                 {
                     throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
