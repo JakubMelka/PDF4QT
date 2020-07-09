@@ -937,6 +937,10 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
             QMatrix transformationMatrix = baseTransformationMatrix;
             transformationMatrix.translate(tilingArea.left(), tilingArea.top());
             transformationMatrix.translate(column * xStep, row * yStep);
+
+            QMatrix patternMatrix = transformationMatrix * m_pagePointToDevicePointMatrix;
+            PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, patternMatrix);
+
             m_graphicState.setCurrentTransformationMatrix(transformationMatrix);
             updateGraphicState();
 
