@@ -48,16 +48,18 @@ constexpr const char CHAR_SPACE             = 0x20;
 
 // Group of delimiter characters
 
-constexpr const char CHAR_LEFT_BRACKET  = '(';
-constexpr const char CHAR_RIGHT_BRACKET = ')';
-constexpr const char CHAR_LEFT_ANGLE    = '<';
-constexpr const char CHAR_RIGHT_ANGLE   = '>';
-constexpr const char CHAR_ARRAY_START   = '[';
-constexpr const char CHAR_ARRAY_END     = ']';
-constexpr const char CHAR_SLASH         = '/';
-constexpr const char CHAR_PERCENT       = '%';
-constexpr const char CHAR_BACKSLASH     = '\\';
-constexpr const char CHAR_MARK          = '#';
+constexpr const char CHAR_LEFT_BRACKET          = '(';
+constexpr const char CHAR_RIGHT_BRACKET         = ')';
+constexpr const char CHAR_LEFT_ANGLE            = '<';
+constexpr const char CHAR_RIGHT_ANGLE           = '>';
+constexpr const char CHAR_ARRAY_START           = '[';
+constexpr const char CHAR_ARRAY_END             = ']';
+constexpr const char CHAR_LEFT_CURLY_BRACKET    = '{';
+constexpr const char CHAR_RIGHT_CURLY_BRACKET   = '}';
+constexpr const char CHAR_SLASH                 = '/';
+constexpr const char CHAR_PERCENT               = '%';
+constexpr const char CHAR_BACKSLASH             = '\\';
+constexpr const char CHAR_MARK                  = '#';
 
 // These constants reserves memory while reading string or name
 
@@ -371,6 +373,8 @@ constexpr bool PDFLexicalAnalyzer::isDelimiter(char character)
         case CHAR_RIGHT_ANGLE:
         case CHAR_ARRAY_START:
         case CHAR_ARRAY_END:
+        case CHAR_LEFT_CURLY_BRACKET:
+        case CHAR_RIGHT_CURLY_BRACKET:
         case CHAR_SLASH:
         case CHAR_PERCENT:
             return true;

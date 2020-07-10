@@ -531,11 +531,10 @@ private:
 
 class PDFICCBasedColorSpace : public PDFAbstractColorSpace
 {
-private:
+public:
     static constexpr const size_t MAX_COLOR_COMPONENTS = 4;
     using Ranges = std::array<PDFColorComponent, MAX_COLOR_COMPONENTS * 2>;
 
-public:
     explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData);
     virtual ~PDFICCBasedColorSpace() = default;
 

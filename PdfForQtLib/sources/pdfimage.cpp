@@ -461,6 +461,14 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                             imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Unknown color space for JPEG 2000 image.")));
                             break;
                     }
+
+                    // Jakub Melka: Try to use ICC profile, if image has it
+                    if (jpegImage->icc_profile_buf && jpegImage->icc_profile_len > 0 && image.m_colorSpace)
+                    {
+                        QByteArray iccProfileData(reinterpret_cast<const char*>(jpegImage->icc_profile_buf), jpegImage->icc_profile_len);
+                        PDFICCBasedColorSpace::Ranges ranges = { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 };
+                        image.m_colorSpace.reset(new PDFICCBasedColorSpace(image.m_colorSpace, ranges, qMove(iccProfileData)));
+                    }
                 }
 
                 // First we must check, if all components are valid (i.e has same width/height/precision)
