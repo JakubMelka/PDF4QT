@@ -25,6 +25,8 @@
 #include <QImage>
 #include <QSharedPointer>
 
+#include <set>
+
 namespace pdf
 {
 class PDFCMS;
@@ -332,20 +334,24 @@ protected:
     /// \param document Document (for loading objects)
     /// \param colorSpace Identification of color space (either name or array), must be a direct object
     /// \param recursion Recursion guard
+    /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
                                                      const PDFDocument* document,
                                                      const PDFObject& colorSpace,
-                                                     int recursion);
+                                                     int recursion,
+                                                     std::set<QByteArray>& usedNames);
 
     /// Creates device color space by name. Color space can be created by this function only, if
     /// it is simple - one of the basic device color spaces (gray, RGB or CMYK).
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page
     /// \param document Document (for loading objects)
     /// \param name Name of the color space
+    /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
                                                                  const PDFDocument* document,
                                                                  const QByteArray& name,
-                                                                 int recursion);
+                                                                 int recursion,
+                                                                 std::set<QByteArray>& usedNames);
 
     /// Converts XYZ value to the standard RGB value (linear). No gamma correction is applied.
     /// Default transformation matrix is applied.
@@ -536,14 +542,19 @@ public:
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual size_t getColorComponentCount() const override;
-    virtual void fillRGBBuffer(const std::vector<float>& colors,unsigned char* outputBuffer, RenderingIntent intent, const PDFCMS* cms, PDFRenderErrorReporter* reporter) const override;
+    virtual void fillRGBBuffer(const std::vector<float>& colors, unsigned char* outputBuffer, RenderingIntent intent, const PDFCMS* cms, PDFRenderErrorReporter* reporter) const override;
 
     /// Creates ICC based color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
     /// \param stream Stream with ICC profile
     /// \param recursion Recursion guard
-    static PDFColorSpacePointer createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFStream* stream, int recursion);
+    /// \param usedNames Names, which were already parsed
+    static PDFColorSpacePointer createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                         const PDFDocument* document,
+                                                         const PDFStream* stream,
+                                                         int recursion,
+                                                         std::set<QByteArray>& usedNames);
 
 private:
     PDFColorSpacePointer m_alternateColorSpace;
@@ -572,7 +583,12 @@ public:
     /// \param document Document
     /// \param array Array with indexed color space definition
     /// \param recursion Recursion guard
-    static PDFColorSpacePointer createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFArray* array, int recursion);
+    /// \param usedNames Names, which were already parsed
+    static PDFColorSpacePointer createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                        const PDFDocument* document,
+                                                        const PDFArray* array,
+                                                        int recursion,
+                                                        std::set<QByteArray>& usedNames);
 
 private:
     static constexpr const int MIN_VALUE = 0;
@@ -598,7 +614,12 @@ public:
     /// \param document Document
     /// \param array Array with separation color space definition
     /// \param recursion Recursion guard
-    static PDFColorSpacePointer createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFArray* array, int recursion);
+    /// \param usedNames Names, which were already parsed
+    static PDFColorSpacePointer createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                           const PDFDocument* document,
+                                                           const PDFArray* array,
+                                                           int recursion,
+                                                           std::set<QByteArray>& usedNames);
 
 private:
     QByteArray m_colorName;
@@ -647,7 +668,12 @@ public:
     /// \param document Document
     /// \param array Array with DeviceN color space definition
     /// \param recursion Recursion guard
-    static PDFColorSpacePointer createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFDocument* document, const PDFArray* array, int recursion);
+    /// \param usedNames Names, which were already parsed
+    static PDFColorSpacePointer createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary,
+                                                        const PDFDocument* document,
+                                                        const PDFArray* array,
+                                                        int recursion,
+                                                        std::set<QByteArray>& usedNames);
 
 private:
     Type m_type;

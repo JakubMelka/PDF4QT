@@ -492,14 +492,16 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpace(const PDFDictionary
                                                              const PDFDocument* document,
                                                              const PDFObject& colorSpace)
 {
-    return createColorSpaceImpl(colorSpaceDictionary, document, colorSpace, COLOR_SPACE_MAX_LEVEL_OF_RECURSION);
+    std::set<QByteArray> usedNames;
+    return createColorSpaceImpl(colorSpaceDictionary, document, colorSpace, COLOR_SPACE_MAX_LEVEL_OF_RECURSION, usedNames);
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByName(const PDFDictionary* colorSpaceDictionary,
                                                                          const PDFDocument* document,
                                                                          const QByteArray& name)
 {
-    return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, name, COLOR_SPACE_MAX_LEVEL_OF_RECURSION);
+    std::set<QByteArray> usedNames;
+    return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, name, COLOR_SPACE_MAX_LEVEL_OF_RECURSION, usedNames);
 }
 
 PDFColor PDFAbstractColorSpace::convertToColor(const std::vector<PDFReal>& components)
@@ -551,7 +553,8 @@ PDFColor PDFAbstractColorSpace::mixColors(const PDFColor& color1, const PDFColor
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
                                                                  const PDFDocument* document,
                                                                  const PDFObject& colorSpace,
-                                                                 int recursion)
+                                                                 int recursion,
+                                                                 std::set<QByteArray>& usedNames)
 {
     if (--recursion <= 0)
     {
@@ -560,7 +563,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 
     if (colorSpace.isName())
     {
-        return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, colorSpace.getString(), recursion);
+        return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, colorSpace.getString(), recursion, usedNames);
     }
     else if (colorSpace.isArray())
     {
@@ -596,7 +599,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     PDFColorSpacePointer uncoloredPatternColorSpace;
                     if (count == 2)
                     {
-                        uncoloredPatternColorSpace = createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion);
+                        uncoloredPatternColorSpace = createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion, usedNames);
                     }
 
                     return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>(), qMove(uncoloredPatternColorSpace), PDFColor()));
@@ -620,26 +623,26 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 
                 if (stream && name == COLOR_SPACE_NAME_ICCBASED)
                 {
-                    return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, stream, recursion);
+                    return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, stream, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_INDEXED && count == 4)
                 {
-                    return PDFIndexedColorSpace::createIndexedColorSpace(colorSpaceDictionary, document, array, recursion);
+                    return PDFIndexedColorSpace::createIndexedColorSpace(colorSpaceDictionary, document, array, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_SEPARATION && count == 4)
                 {
-                    return PDFSeparationColorSpace::createSeparationColorSpace(colorSpaceDictionary, document, array, recursion);
+                    return PDFSeparationColorSpace::createSeparationColorSpace(colorSpaceDictionary, document, array, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_DEVICE_N && count >= 4)
                 {
-                    return PDFDeviceNColorSpace::createDeviceNColorSpace(colorSpaceDictionary, document, array, recursion);
+                    return PDFDeviceNColorSpace::createDeviceNColorSpace(colorSpaceDictionary, document, array, recursion, usedNames);
                 }
 
                 // Try to just load by standard way - we can have "standard" color space stored in array
-                return createColorSpaceImpl(colorSpaceDictionary, document, colorSpaceIdentifier, recursion);
+                return createColorSpaceImpl(colorSpaceDictionary, document, colorSpaceIdentifier, recursion, usedNames);
             }
         }
     }
@@ -651,12 +654,21 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
                                                                              const PDFDocument* document,
                                                                              const QByteArray& name,
-                                                                             int recursion)
+                                                                             int recursion,
+                                                                             std::set<QByteArray>& usedNames)
 {
     if (--recursion <= 0)
     {
         throw PDFException(PDFTranslationContext::tr("Can't load color space, because color space structure is too complex."));
     }
+
+    // Jakub Melka: This flag is set  when we are already parsing the name. This can occur
+    // for example by this way: we have DefaultRGB, which is ICC profile. In this ICC profile,
+    // we create alternate alternate RGB color space also from DefaultRGB name. But in this time,
+    // we must use generic RGB color space, not DefaultRGB from color space dictionary, because
+    // it will be cyclical dependency.
+    bool isNameAlreadyProcessed = usedNames.count(name);
+    usedNames.insert(name);
 
     if (name == COLOR_SPACE_NAME_PATTERN)
     {
@@ -665,9 +677,9 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
 
     if (name == COLOR_SPACE_NAME_DEVICE_GRAY || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_GRAY)
     {
-        if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_GRAY))
+        if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_GRAY) && !isNameAlreadyProcessed)
         {
-            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_GRAY)), recursion);
+            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_GRAY)), recursion, usedNames);
         }
         else
         {
@@ -676,9 +688,9 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     }
     else if (name == COLOR_SPACE_NAME_DEVICE_RGB || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_RGB)
     {
-        if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_RGB))
+        if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_RGB) && !isNameAlreadyProcessed)
         {
-            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_RGB)), recursion);
+            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_RGB)), recursion, usedNames);
         }
         else
         {
@@ -687,9 +699,9 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     }
     else if (name == COLOR_SPACE_NAME_DEVICE_CMYK || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_CMYK)
     {
-        if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_CMYK))
+        if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_CMYK) && !isNameAlreadyProcessed)
         {
-            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_CMYK)), recursion);
+            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_CMYK)), recursion, usedNames);
         }
         else
         {
@@ -698,7 +710,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     }
     else if (colorSpaceDictionary && colorSpaceDictionary->hasKey(name))
     {
-        return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(name)), recursion);
+        return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(name)), recursion, usedNames);
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid color space."));
@@ -1083,7 +1095,8 @@ void PDFICCBasedColorSpace::fillRGBBuffer(const std::vector<float>& colors, unsi
 PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                      const PDFDocument* document,
                                                                      const PDFStream* stream,
-                                                                     int recursion)
+                                                                     int recursion,
+                                                                     std::set<QByteArray>& usedNames)
 {
     // First, try to load alternate color space, if it is present
     const PDFDictionary* dictionary = stream->getDictionary();
@@ -1093,7 +1106,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     PDFColorSpacePointer alternateColorSpace;
     if (dictionary->hasKey(ICCBASED_ALTERNATE))
     {
-        alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(dictionary->get(ICCBASED_ALTERNATE)), recursion);
+        alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(dictionary->get(ICCBASED_ALTERNATE)), recursion, usedNames);
     }
     else
     {
@@ -1104,19 +1117,19 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
         {
             case 1:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_GRAY), recursion);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_GRAY), recursion, usedNames);
                 break;
             }
 
             case 3:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_RGB), recursion);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_RGB), recursion, usedNames);
                 break;
             }
 
             case 4:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_CMYK), recursion);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_CMYK), recursion, usedNames);
                 break;
             }
 
@@ -1304,12 +1317,13 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                    const PDFDocument* document,
                                                                    const PDFArray* array,
-                                                                   int recursion)
+                                                                   int recursion,
+                                                                   std::set<QByteArray>& usedNames)
 {
     Q_ASSERT(array->getCount() == 4);
 
     // Read base color space
-    PDFColorSpacePointer baseColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion);
+    PDFColorSpacePointer baseColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion, usedNames);
 
     if (!baseColorSpace)
     {
@@ -1392,7 +1406,8 @@ size_t PDFSeparationColorSpace::getColorComponentCount() const
 PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                          const PDFDocument* document,
                                                                          const PDFArray* array,
-                                                                         int recursion)
+                                                                         int recursion,
+                                                                         std::set<QByteArray>& usedNames)
 {
     Q_ASSERT(array->getCount() == 4);
 
@@ -1405,7 +1420,7 @@ PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const P
     QByteArray colorName = colorNameObject.getString();
 
     // Read alternate color space
-    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion);
+    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion, usedNames);
     if (!alternateColorSpace)
     {
         throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for separation color space."));
@@ -1512,7 +1527,8 @@ size_t PDFDeviceNColorSpace::getColorComponentCount() const
 PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                    const PDFDocument* document,
                                                                    const PDFArray* array,
-                                                                   int recursion)
+                                                                   int recursion,
+                                                                   std::set<QByteArray>& usedNames)
 {
     Q_ASSERT(array->getCount() >= 4);
 
@@ -1532,7 +1548,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
     }
 
     // Read alternate color space
-    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion);
+    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion, usedNames);
     if (!alternateColorSpace)
     {
         throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for DeviceN color space."));
@@ -1572,7 +1588,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
                 {
                     if (colorantsDictionary->hasKey(colorantInfo.name))
                     {
-                        colorantInfo.separationColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorantsDictionary->get(colorantInfo.name)), recursion);
+                        colorantInfo.separationColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorantsDictionary->get(colorantInfo.name)), recursion, usedNames);
                     }
                 }
             }
@@ -1621,7 +1637,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
                 const PDFObject& processColorSpaceObject = document->getObject(processDictionary->get("ColorSpace"));
                 if (!processColorSpaceObject.isNull())
                 {
-                    processColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, processColorSpaceObject, recursion);
+                    processColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, processColorSpaceObject, recursion, usedNames);
                     processColorSpaceComponents = loader.readNameArrayFromDictionary(processDictionary, "Components");
                 }
             }
