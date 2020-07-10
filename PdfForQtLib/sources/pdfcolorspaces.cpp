@@ -251,10 +251,8 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                     throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
                 }
 
-                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
-
-                PDFColor color;
-                color.resize(componentCount);
+                const unsigned int imageWidth = imageData.getWidth();
+                const unsigned int imageHeight = imageData.getHeight();
 
                 QImage alphaMask = createAlphaMask(softMask);
                 if (alphaMask.size() != image.size())
@@ -263,39 +261,70 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                     alphaMask = alphaMask.scaled(image.size());
                 }
 
-                const double max = reader.max();
-                const double coefficient = 1.0 / max;
-                for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+                QMutex exceptionMutex;
+                std::optional<PDFException> exception;
+
+                auto transformPixelLine = [&](unsigned int i)
                 {
-                    reader.seek(i * imageData.getStride());
-                    unsigned char* outputLine = image.scanLine(i);
-                    unsigned char* alphaLine = alphaMask.scanLine(i);
-
-                    for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                    try
                     {
-                        for (unsigned int k = 0; k < componentCount; ++k)
-                        {
-                            PDFReal value = reader.read();
+                        PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+                        reader.seek(i * imageData.getStride());
 
-                            // Interpolate value, if it is not empty
-                            if (!decode.empty())
+                        const double max = reader.max();
+                        const double coefficient = 1.0 / max;
+                        unsigned char* outputLine = image.scanLine(i);
+                        unsigned char* alphaLine = alphaMask.scanLine(i);
+
+                        std::vector<float> inputColors(imageWidth * componentCount, 0.0f);
+                        std::vector<unsigned char> outputColors(imageWidth * componentCount, 0);
+
+                        auto itInputColor = inputColors.begin();
+                        for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                        {
+                            for (unsigned int k = 0; k < componentCount; ++k)
                             {
-                                color[k] = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
-                            }
-                            else
-                            {
-                                color[k] = value * coefficient;
+                                PDFReal value = reader.read();
+
+                                // Interpolate value, if it is not empty
+                                if (!decode.empty())
+                                {
+                                    *itInputColor++ = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                                }
+                                else
+                                {
+                                    *itInputColor++ = value * coefficient;
+                                }
                             }
                         }
 
-                        QColor transformedColor = getColor(color, cms, intent, reporter);
-                        QRgb rgb = transformedColor.rgb();
+                        fillRGBBuffer(inputColors, outputColors.data(), intent, cms, reporter);
 
-                        *outputLine++ = qRed(rgb);
-                        *outputLine++ = qGreen(rgb);
-                        *outputLine++ = qBlue(rgb);
-                        *outputLine++ = *alphaLine++;
+                        const unsigned char* transformedLine = outputColors.data();
+                        for (unsigned int i = 0; i < imageWidth; ++i)
+                        {
+                            *outputLine++ = *transformedLine++;
+                            *outputLine++ = *transformedLine++;
+                            *outputLine++ = *transformedLine++;
+                            *outputLine++ = *alphaLine++;
+                        }
                     }
+                    catch (PDFException lineException)
+                    {
+                        QMutexLocker lock(&exceptionMutex);
+                        if (!exception)
+                        {
+                            exception = lineException;
+                        }
+                    }
+                };
+
+                auto range = PDFIntegerRange<unsigned int>(0, imageHeight);
+                PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), transformPixelLine);
+
+                if (exception)
+                {
+                    throw *exception;
                 }
 
                 return image;
