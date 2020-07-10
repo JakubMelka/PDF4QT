@@ -2331,7 +2331,21 @@ const encoding::EncodingTable* PDFEncoding::getTableForEncoding(Encoding encodin
 
 bool PDFEncoding::hasUnicodeLeadMarkings(const QByteArray& stream)
 {
-    return (stream.size() >= 2 && static_cast<unsigned char>(stream[0]) == 0xFE && static_cast<unsigned char>(stream[1]) == 0xFF);
+    if (stream.size() >= 2)
+    {
+        if (static_cast<unsigned char>(stream[0]) == 0xFE && static_cast<unsigned char>(stream[1]) == 0xFF)
+        {
+            // UTF 16-BE
+            return true;
+        }
+        if (static_cast<unsigned char>(stream[0]) == 0xFF && static_cast<unsigned char>(stream[1]) == 0xFE)
+        {
+            // UTF 16-LE, forbidden in PDF 2.0 standard, but used in some PDF producers (wrongly)
+            return true;
+        }
+    }
+
+    return false;
 }
 
 } // namespace pdf
