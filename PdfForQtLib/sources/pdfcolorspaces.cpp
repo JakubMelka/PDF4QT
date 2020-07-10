@@ -277,7 +277,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                         unsigned char* alphaLine = alphaMask.scanLine(i);
 
                         std::vector<float> inputColors(imageWidth * componentCount, 0.0f);
-                        std::vector<unsigned char> outputColors(imageWidth * componentCount, 0);
+                        std::vector<unsigned char> outputColors(imageWidth * 3, 0);
 
                         auto itInputColor = inputColors.begin();
                         for (unsigned int j = 0; j < imageData.getWidth(); ++j)
