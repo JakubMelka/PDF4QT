@@ -170,6 +170,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     }
 
     catalogObject.m_formObject = catalogDictionary->get("AcroForm");
+    catalogObject.m_extensions = PDFDeveloperExtensions::parse(catalogDictionary->get("Extensions"), document);
     catalogObject.m_documentSecurityStore = PDFDocumentSecurityStore::parse(catalogDictionary->get("DSS"), document);
 
     return catalogObject;
@@ -537,6 +538,39 @@ PDFDocumentSecurityStore PDFDocumentSecurityStore::parse(const PDFObject& object
     }
 
     return store;
+}
+
+PDFDeveloperExtensions PDFDeveloperExtensions::parse(const PDFObject& object, const PDFDocument* document)
+{
+    PDFDeveloperExtensions extensions;
+
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        const size_t extensionsCount = dictionary->getCount();
+        extensions.m_extensions.reserve(extensionsCount);
+        for (size_t i = 0; i < extensionsCount; ++i)
+        {
+            // Skip type entry
+            if (dictionary->getKey(i) == "Type")
+            {
+                continue;
+            }
+
+            if (const PDFDictionary* extensionsDictionary = document->getDictionaryFromObject(dictionary->getValue(i)))
+            {
+                PDFDocumentDataLoaderDecorator loader(document);
+
+                Extension extension;
+                extension.name = dictionary->getKey(i).getString();
+                extension.baseVersion = loader.readNameFromDictionary(extensionsDictionary, "BaseName");
+                extension.extensionLevel = loader.readIntegerFromDictionary(extensionsDictionary, "ExtensionLevel", 0);
+                extension.url = loader.readStringFromDictionary(extensionsDictionary, "URL");
+                extensions.m_extensions.emplace_back(qMove(extension));
+            }
+        }
+    }
+
+    return extensions;
 }
 
 }   // namespace pdf

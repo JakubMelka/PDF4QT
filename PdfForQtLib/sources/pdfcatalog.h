@@ -225,6 +225,36 @@ private:
     std::map<QByteArray, SecurityStoreItem> m_VRI;
 };
 
+/// Document extensions. Contains information about developer's extensions
+/// used in document.
+class PDFFORQTLIBSHARED_EXPORT PDFDeveloperExtensions
+{
+public:
+    explicit PDFDeveloperExtensions() = default;
+
+    struct Extension
+    {
+        QByteArray name;
+        QByteArray baseVersion;
+        PDFInteger extensionLevel = 0;
+        QByteArray url;
+    };
+
+    using Extensions = std::vector<Extension>;
+
+    /// Returns list of extensions
+    const Extensions& getExtensions() const { return m_extensions; }
+
+    /// Parses extensions from catalog dictionary. If object cannot be parsed, or error occurs,
+    /// then empty object is returned, no exception is thrown.
+    /// \param object Extensions dictionary
+    /// \param document Document
+    static PDFDeveloperExtensions parse(const PDFObject& object, const PDFDocument* document);
+
+private:
+    Extensions m_extensions;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:
@@ -267,6 +297,7 @@ public:
     const QByteArray& getBaseURI() const { return m_baseURI; }
     const std::map<QByteArray, PDFFileSpecification>& getEmbeddedFiles() const { return m_embeddedFiles; }
     const PDFObject& getFormObject() const { return m_formObject; }
+    const PDFDeveloperExtensions& getExtensions() const { return m_extensions; }
     const PDFDocumentSecurityStore& getDocumentSecurityStore() const { return m_documentSecurityStore; }
 
     /// Returns destination using the key. If destination with the key is not found,
@@ -291,6 +322,7 @@ private:
     PageMode m_pageMode = PageMode::UseNone;
     QByteArray m_baseURI;
     PDFObject m_formObject;
+    PDFDeveloperExtensions m_extensions;
     PDFDocumentSecurityStore m_documentSecurityStore;
 
     // Maps from Names dictionary

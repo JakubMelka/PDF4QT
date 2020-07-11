@@ -811,7 +811,7 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
             const int keyByteLength = m_keyLength / 8;
             if (keyByteLength > MD5_DIGEST_LENGTH)
             {
-                throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
+                throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of %2.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
             }
 
             if (m_R >= 3)
