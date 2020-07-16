@@ -408,35 +408,8 @@ public:
 
     const PDFObjectStorage& getStorage() const { return m_pdfObjectStorage; }
 
-    /// Info about the document. Title, Author, Keywords... It also stores "extra"
-    /// values, which are in info dictionary. They can be either strings, or date
-    /// time (QString or QDateTime).
-    struct Info
-    {
-        /// Indicates, that document was modified that it includes trapping information.
-        /// See PDF Reference 1.7, Section 10.10.5 "Trapping Support".
-        enum class Trapped
-        {
-            True,       ///< Fully trapped
-            False,      ///< Not yet trapped
-            Unknown     ///< Either unknown, or it has been trapped partly, not fully
-        };
-
-        QString title;
-        QString author;
-        QString subject;
-        QString keywords;
-        QString creator;
-        QString producer;
-        QDateTime creationDate;
-        QDateTime modifiedDate;
-        Trapped trapped = Trapped::Unknown;
-        PDFVersion version;
-        std::map<QByteArray, QVariant> extra;
-    };
-
     /// Returns info about the document (title, author, etc.)
-    const Info* getInfo() const { return &m_info; }
+    const PDFDocumentInfo* getInfo() const { return &m_info; }
 
     /// If object is reference, the dereference attempt is performed
     /// and object is returned. If it is not a reference, then self
@@ -494,7 +467,7 @@ private:
     PDFObjectStorage m_pdfObjectStorage;
 
     /// Info about the PDF document
-    Info m_info;
+    PDFDocumentInfo m_info;
 
     /// Catalog object
     PDFCatalog m_catalog;

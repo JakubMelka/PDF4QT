@@ -70,6 +70,7 @@ SOURCES += \
     sources/pdfsecurityhandler.cpp \
     sources/pdfsignaturehandler.cpp \
     sources/pdfsnapper.cpp \
+    sources/pdfstructuretree.cpp \
     sources/pdftextlayout.cpp \
     sources/pdfutils.cpp \
     sources/pdfwidgettool.cpp \
@@ -128,6 +129,7 @@ HEADERS += \
     sources/pdfsignaturehandler.h \
     sources/pdfsignaturehandler_impl.h \
     sources/pdfsnapper.h \
+    sources/pdfstructuretree.h \
     sources/pdftextlayout.h \
     sources/pdfwidgettool.h \
     sources/pdfwidgetutils.h \

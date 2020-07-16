@@ -70,7 +70,7 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
     // Initialize document properties
     QTreeWidgetItem* propertiesRoot = new QTreeWidgetItem({ tr("Properties") });
 
-    const pdf::PDFDocument::Info* info = document->getInfo();
+    const pdf::PDFDocumentInfo* info = document->getInfo();
     const pdf::PDFCatalog* catalog = document->getCatalog();
     new QTreeWidgetItem(propertiesRoot, { tr("PDF version"), QString::fromLatin1(document->getVersion()) });
     new QTreeWidgetItem(propertiesRoot, { tr("Title"), info->title });
@@ -85,15 +85,15 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
     QString trapped;
     switch (info->trapped)
     {
-        case pdf::PDFDocument::Info::Trapped::True:
+        case pdf::PDFDocumentInfo::Trapped::True:
             trapped = tr("True");
             break;
 
-        case pdf::PDFDocument::Info::Trapped::False:
+        case pdf::PDFDocumentInfo::Trapped::False:
             trapped = tr("False");
             break;
 
-        case pdf::PDFDocument::Info::Trapped::Unknown:
+        case pdf::PDFDocumentInfo::Trapped::Unknown:
             trapped = tr("Unknown");
             break;
 

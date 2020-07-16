@@ -25,6 +25,20 @@
 namespace pdf
 {
 
+// Entries for "Info" entry in trailer dictionary
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TITLE = "Title";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_AUTHOR = "Author";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_SUBJECT = "Subject";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_KEYWORDS = "Keywords";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_CREATOR = "Creator";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_PRODUCER = "Producer";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE = "CreationDate";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE = "ModDate";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED = "Trapped";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_TRUE = "True";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_FALSE = "False";
+static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown";
+
 static constexpr const char* PDF_VIEWER_PREFERENCES_DICTIONARY = "ViewerPreferences";
 static constexpr const char* PDF_VIEWER_PREFERENCES_HIDE_TOOLBAR = "HideToolbar";
 static constexpr const char* PDF_VIEWER_PREFERENCES_HIDE_MENUBAR = "HideMenubar";
@@ -133,6 +147,15 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         catalogObject.m_pageMode = loader.readEnumByName(catalogDictionary->get("PageMode"), pageModes.begin(), pageModes.end(), PageMode::UseNone);
     }
 
+    if (const PDFDictionary* actionDictionary = document->getDictionaryFromObject(catalogDictionary->get("AA")))
+    {
+        catalogObject.m_documentActions[WillClose] = PDFAction::parse(&document->getStorage(), actionDictionary->get("WC"));
+        catalogObject.m_documentActions[WillSave] = PDFAction::parse(&document->getStorage(), actionDictionary->get("WS"));
+        catalogObject.m_documentActions[DidSave] = PDFAction::parse(&document->getStorage(), actionDictionary->get("DS"));
+        catalogObject.m_documentActions[WillPrint] = PDFAction::parse(&document->getStorage(), actionDictionary->get("WP"));
+        catalogObject.m_documentActions[DidPrint] = PDFAction::parse(&document->getStorage(), actionDictionary->get("DP"));
+    }
+
     catalogObject.m_version = loader.readNameFromDictionary(catalogDictionary, "Version");
 
     if (const PDFDictionary* namesDictionary = document->getDictionaryFromObject(catalogDictionary->get("Names")))
@@ -172,6 +195,8 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     catalogObject.m_formObject = catalogDictionary->get("AcroForm");
     catalogObject.m_extensions = PDFDeveloperExtensions::parse(catalogDictionary->get("Extensions"), document);
     catalogObject.m_documentSecurityStore = PDFDocumentSecurityStore::parse(catalogDictionary->get("DSS"), document);
+    catalogObject.m_threads = loader.readObjectList<PDFArticleThread>(catalogDictionary->get("Threads"));
+    catalogObject.m_metadata = catalogDictionary->get("Metadata");
 
     return catalogObject;
 }
@@ -571,6 +596,165 @@ PDFDeveloperExtensions PDFDeveloperExtensions::parse(const PDFObject& object, co
     }
 
     return extensions;
+}
+
+PDFDocumentInfo PDFDocumentInfo::parse(const PDFObject& object, const PDFObjectStorage* storage)
+{
+    PDFDocumentInfo info;
+
+    if (const PDFDictionary* infoDictionary = storage->getDictionaryFromObject(object))
+    {
+        auto readTextString = [storage, infoDictionary](const char* entry, QString& fillEntry)
+        {
+            if (infoDictionary->hasKey(entry))
+            {
+                const PDFObject& stringObject = storage->getObject(infoDictionary->get(entry));
+                if (stringObject.isString())
+                {
+                    // We have succesfully read the string, convert it according to encoding
+                    fillEntry = PDFEncoding::convertTextString(stringObject.getString());
+                }
+                else if (!stringObject.isNull())
+                {
+                    throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. String expected."));
+                }
+            }
+        };
+        readTextString(PDF_DOCUMENT_INFO_ENTRY_TITLE, info.title);
+        readTextString(PDF_DOCUMENT_INFO_ENTRY_AUTHOR, info.author);
+        readTextString(PDF_DOCUMENT_INFO_ENTRY_SUBJECT, info.subject);
+        readTextString(PDF_DOCUMENT_INFO_ENTRY_KEYWORDS, info.keywords);
+        readTextString(PDF_DOCUMENT_INFO_ENTRY_CREATOR, info.creator);
+        readTextString(PDF_DOCUMENT_INFO_ENTRY_PRODUCER, info.producer);
+
+        auto readDate= [storage, infoDictionary](const char* entry, QDateTime& fillEntry)
+        {
+            if (infoDictionary->hasKey(entry))
+            {
+                const PDFObject& stringObject = storage->getObject(infoDictionary->get(entry));
+                if (stringObject.isString())
+                {
+                    // We have succesfully read the string, convert it to date time
+                    fillEntry = PDFEncoding::convertToDateTime(stringObject.getString());
+
+                    if (!fillEntry.isValid())
+                    {
+                        throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
+                    }
+                }
+                else if (!stringObject.isNull())
+                {
+                    throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
+                }
+            }
+        };
+        readDate(PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE, info.creationDate);
+        readDate(PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE, info.modifiedDate);
+
+        if (infoDictionary->hasKey(PDF_DOCUMENT_INFO_ENTRY_TRAPPED))
+        {
+            const PDFObject& nameObject = storage->getObject(infoDictionary->get(PDF_DOCUMENT_INFO_ENTRY_TRAPPED));
+            if (nameObject.isName())
+            {
+                const QByteArray& name = nameObject.getString();
+                if (name == PDF_DOCUMENT_INFO_ENTRY_TRAPPED_TRUE)
+                {
+                    info.trapped = Trapped::True;
+                }
+                else if (name == PDF_DOCUMENT_INFO_ENTRY_TRAPPED_FALSE)
+                {
+                    info.trapped = Trapped::False;
+                }
+                else if (name == PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN)
+                {
+                    info.trapped = Trapped::Unknown;
+                }
+                else
+                {
+                    throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
+                }
+            }
+            else if (nameObject.isBool())
+            {
+                info.trapped = nameObject.getBool() ? Trapped::True : Trapped::False;
+            }
+            else
+            {
+                throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
+            }
+        }
+
+        // Scan for extra items
+        constexpr const char* PREDEFINED_ITEMS[] = { PDF_DOCUMENT_INFO_ENTRY_TITLE, PDF_DOCUMENT_INFO_ENTRY_AUTHOR, PDF_DOCUMENT_INFO_ENTRY_SUBJECT,
+                                                     PDF_DOCUMENT_INFO_ENTRY_KEYWORDS, PDF_DOCUMENT_INFO_ENTRY_CREATOR, PDF_DOCUMENT_INFO_ENTRY_PRODUCER,
+                                                     PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE, PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE, PDF_DOCUMENT_INFO_ENTRY_TRAPPED };
+        for (size_t i = 0; i < infoDictionary->getCount(); ++i)
+        {
+            QByteArray key = infoDictionary->getKey(i).getString();
+            if (std::none_of(std::begin(PREDEFINED_ITEMS), std::end(PREDEFINED_ITEMS), [&key](const char* item) { return item == key; }))
+            {
+                const PDFObject& value = storage->getObject(infoDictionary->getValue(i));
+                if (value.isString())
+                {
+                    const QByteArray& stringValue = value.getString();
+                    QDateTime dateTime = PDFEncoding::convertToDateTime(stringValue);
+                    if (dateTime.isValid())
+                    {
+                        info.extra[key] = dateTime;
+                    }
+                    else
+                    {
+                        info.extra[key] = PDFEncoding::convertTextString(stringValue);
+                    }
+                }
+            }
+        }
+    }
+
+    return info;
+}
+
+PDFArticleThread PDFArticleThread::parse(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    PDFArticleThread result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        PDFObjectReference firstBeadReference = loader.readReferenceFromDictionary(dictionary, "F");
+
+        std::set<PDFObjectReference> visitedBeads;
+        PDFObjectReference currentBead = firstBeadReference;
+
+        while (!visitedBeads.count(currentBead))
+        {
+            visitedBeads.insert(currentBead);
+
+            // Read bead
+            if (const PDFDictionary* beadDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(currentBead)))
+            {
+                Bead bead;
+                bead.self = currentBead;
+                bead.thread = loader.readReferenceFromDictionary(beadDictionary, "T");
+                bead.next = loader.readReferenceFromDictionary(beadDictionary, "N");
+                bead.previous = loader.readReferenceFromDictionary(beadDictionary, "V");
+                bead.page = loader.readReferenceFromDictionary(beadDictionary, "P");
+                bead.rect = loader.readRectangle(beadDictionary->get("R"), QRectF());
+
+                currentBead = bead.next;
+                result.m_beads.push_back(bead);
+            }
+            else
+            {
+                // current bead will be the same, the cycle will break
+            }
+        }
+
+        result.m_information = PDFDocumentInfo::parse(dictionary->get("I"), storage);
+        result.m_metadata = loader.readReferenceFromDictionary(dictionary, "Metadata");
+    }
+
+    return result;
 }
 
 }   // namespace pdf

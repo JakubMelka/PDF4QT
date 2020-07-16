@@ -25,20 +25,7 @@
 namespace pdf
 {
 
-// Entries for "Info" entry in trailer dictionary
 static constexpr const char* PDF_DOCUMENT_INFO_ENTRY = "Info";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TITLE = "Title";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_AUTHOR = "Author";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_SUBJECT = "Subject";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_KEYWORDS = "Keywords";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_CREATOR = "Creator";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_PRODUCER = "Producer";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE = "CreationDate";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE = "ModDate";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED = "Trapped";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_TRUE = "True";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_FALSE = "False";
-static constexpr const char* PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN = "Unknown";
 
 QByteArray PDFObjectStorage::getDecodedStream(const PDFStream* stream) const
 {
@@ -110,123 +97,7 @@ void PDFDocument::initInfo()
 
     if (dictionary->hasKey(PDF_DOCUMENT_INFO_ENTRY))
     {
-        const PDFObject& info = getObject(dictionary->get(PDF_DOCUMENT_INFO_ENTRY));
-
-        if (info.isDictionary())
-        {
-            const PDFDictionary* infoDictionary = info.getDictionary();
-            Q_ASSERT(infoDictionary);
-
-            auto readTextString = [this, infoDictionary](const char* entry, QString& fillEntry)
-            {
-                if (infoDictionary->hasKey(entry))
-                {
-                    const PDFObject& stringObject = getObject(infoDictionary->get(entry));
-                    if (stringObject.isString())
-                    {
-                        // We have succesfully read the string, convert it according to encoding
-                        fillEntry = PDFEncoding::convertTextString(stringObject.getString());
-                    }
-                    else if (!stringObject.isNull())
-                    {
-                        throw PDFException(tr("Bad format of document info entry in trailer dictionary. String expected."));
-                    }
-                }
-            };
-            readTextString(PDF_DOCUMENT_INFO_ENTRY_TITLE, m_info.title);
-            readTextString(PDF_DOCUMENT_INFO_ENTRY_AUTHOR, m_info.author);
-            readTextString(PDF_DOCUMENT_INFO_ENTRY_SUBJECT, m_info.subject);
-            readTextString(PDF_DOCUMENT_INFO_ENTRY_KEYWORDS, m_info.keywords);
-            readTextString(PDF_DOCUMENT_INFO_ENTRY_CREATOR, m_info.creator);
-            readTextString(PDF_DOCUMENT_INFO_ENTRY_PRODUCER, m_info.producer);
-
-            auto readDate= [this, infoDictionary](const char* entry, QDateTime& fillEntry)
-            {
-                if (infoDictionary->hasKey(entry))
-                {
-                    const PDFObject& stringObject = getObject(infoDictionary->get(entry));
-                    if (stringObject.isString())
-                    {
-                        // We have succesfully read the string, convert it to date time
-                        fillEntry = PDFEncoding::convertToDateTime(stringObject.getString());
-
-                        if (!fillEntry.isValid())
-                        {
-                            throw PDFException(tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
-                        }
-                    }
-                    else if (!stringObject.isNull())
-                    {
-                        throw PDFException(tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
-                    }
-                }
-            };
-            readDate(PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE, m_info.creationDate);
-            readDate(PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE, m_info.modifiedDate);
-
-            if (infoDictionary->hasKey(PDF_DOCUMENT_INFO_ENTRY_TRAPPED))
-            {
-                const PDFObject& nameObject = getObject(infoDictionary->get(PDF_DOCUMENT_INFO_ENTRY_TRAPPED));
-                if (nameObject.isName())
-                {
-                    const QByteArray& name = nameObject.getString();
-                    if (name == PDF_DOCUMENT_INFO_ENTRY_TRAPPED_TRUE)
-                    {
-                        m_info.trapped = Info::Trapped::True;
-                    }
-                    else if (name == PDF_DOCUMENT_INFO_ENTRY_TRAPPED_FALSE)
-                    {
-                        m_info.trapped = Info::Trapped::False;
-                    }
-                    else if (name == PDF_DOCUMENT_INFO_ENTRY_TRAPPED_UNKNOWN)
-                    {
-                        m_info.trapped = Info::Trapped::Unknown;
-                    }
-                    else
-                    {
-                        throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
-                    }
-                }
-                else if (nameObject.isBool())
-                {
-                    m_info.trapped = nameObject.getBool() ? Info::Trapped::True : Info::Trapped::False;
-                }
-                else
-                {
-                    throw PDFException(tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
-                }
-            }
-
-            // Scan for extra items
-            constexpr const char* PREDEFINED_ITEMS[] = { PDF_DOCUMENT_INFO_ENTRY_TITLE, PDF_DOCUMENT_INFO_ENTRY_AUTHOR, PDF_DOCUMENT_INFO_ENTRY_SUBJECT,
-                                                         PDF_DOCUMENT_INFO_ENTRY_KEYWORDS, PDF_DOCUMENT_INFO_ENTRY_CREATOR, PDF_DOCUMENT_INFO_ENTRY_PRODUCER,
-                                                         PDF_DOCUMENT_INFO_ENTRY_CREATION_DATE, PDF_DOCUMENT_INFO_ENTRY_MODIFIED_DATE, PDF_DOCUMENT_INFO_ENTRY_TRAPPED };
-            for (size_t i = 0; i < infoDictionary->getCount(); ++i)
-            {
-                QByteArray key = infoDictionary->getKey(i).getString();
-                if (std::none_of(std::begin(PREDEFINED_ITEMS), std::end(PREDEFINED_ITEMS), [&key](const char* item) { return item == key; }))
-                {
-                    const PDFObject& value = getObject(infoDictionary->getValue(i));
-                    if (value.isString())
-                    {
-                        const QByteArray& stringValue = value.getString();
-                        QDateTime dateTime = PDFEncoding::convertToDateTime(stringValue);
-                        if (dateTime.isValid())
-                        {
-                            m_info.extra[key] = dateTime;
-                        }
-                        else
-                        {
-                            m_info.extra[key] = PDFEncoding::convertTextString(stringValue);
-                        }
-                    }
-                }
-            }
-        }
-        else if (!info.isNull()) // Info may be invalid...
-        {
-            throw PDFException(tr("Bad format of document info entry in trailer dictionary."));
-        }
+        m_info = PDFDocumentInfo::parse(dictionary->get(PDF_DOCUMENT_INFO_ENTRY), &m_pdfObjectStorage);
     }
 }
 

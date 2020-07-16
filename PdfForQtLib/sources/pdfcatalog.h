@@ -104,6 +104,39 @@ private:
     PDFInteger m_startNumber;
 };
 
+/// Info about the document. Title, Author, Keywords... It also stores "extra"
+/// values, which are in info dictionary. They can be either strings, or date
+/// time (QString or QDateTime).
+struct PDFDocumentInfo
+{
+    /// Indicates, that document was modified that it includes trapping information.
+    /// See PDF Reference 1.7, Section 10.10.5 "Trapping Support".
+    enum class Trapped
+    {
+        True,       ///< Fully trapped
+        False,      ///< Not yet trapped
+        Unknown     ///< Either unknown, or it has been trapped partly, not fully
+    };
+
+    /// Parses info from catalog dictionary. If object cannot be parsed, or error occurs,
+    /// then exception is thrown. This function may throw exceptions, if error occured.
+    /// \param object Object containing info dictionary
+    /// \param storage Storage of objects
+    static PDFDocumentInfo parse(const PDFObject& object, const PDFObjectStorage* storage);
+
+    QString title;
+    QString author;
+    QString subject;
+    QString keywords;
+    QString creator;
+    QString producer;
+    QDateTime creationDate;
+    QDateTime modifiedDate;
+    Trapped trapped = Trapped::Unknown;
+    PDFVersion version;
+    std::map<QByteArray, QVariant> extra;
+};
+
 class PDFViewerPreferences
 {
 public:
@@ -225,6 +258,40 @@ private:
     std::map<QByteArray, SecurityStoreItem> m_VRI;
 };
 
+/// Article thread. Each thread contains beads, which can be across multiple pages.
+class PDFArticleThread
+{
+public:
+    explicit inline PDFArticleThread() = default;
+
+    struct Bead
+    {
+        PDFObjectReference self;
+        PDFObjectReference thread;
+        PDFObjectReference next;
+        PDFObjectReference previous;
+        PDFObjectReference page;
+        QRectF rect;
+    };
+    using Beads = std::vector<Bead>;
+    using Information = PDFDocumentInfo;
+
+    const Beads& getBeads() const { return m_beads; }
+    const Information& getInformation() const { return m_information; }
+    const PDFObjectReference& getMetadata() const { return m_metadata; }
+
+    /// Parses article thread from object. If object cannot be parsed, or error occurs,
+    /// then empty object is returned.
+    /// \param storage Storage
+    /// \param object Object
+    static PDFArticleThread parse(const PDFObjectStorage* storage, const PDFObject& object);
+
+private:
+    Beads m_beads;
+    Information m_information;
+    PDFObjectReference m_metadata;
+};
+
 /// Document extensions. Contains information about developer's extensions
 /// used in document.
 class PDFFORQTLIBSHARED_EXPORT PDFDeveloperExtensions
@@ -268,6 +335,16 @@ public:
 
     static constexpr const size_t INVALID_PAGE_INDEX = std::numeric_limits<size_t>::max();
 
+    enum DocumentAction
+    {
+        WillClose,
+        WillSave,
+        DidSave,
+        WillPrint,
+        DidPrint,
+        LastDocumentAction
+    };
+
     /// Returns viewer preferences of the application
     const PDFViewerPreferences* getViewerPreferences() const { return &m_viewerPreferences; }
 
@@ -299,6 +376,9 @@ public:
     const PDFObject& getFormObject() const { return m_formObject; }
     const PDFDeveloperExtensions& getExtensions() const { return m_extensions; }
     const PDFDocumentSecurityStore& getDocumentSecurityStore() const { return m_documentSecurityStore; }
+    const std::vector<PDFArticleThread>& getArticleThreads() const { return m_threads; }
+    const PDFAction* getDocumentAction(DocumentAction action) const { return m_documentActions.at(action).get(); }
+    const PDFObject& getMetadata() const { return m_metadata; }
 
     /// Returns destination using the key. If destination with the key is not found,
     /// then nullptr is returned.
@@ -318,12 +398,15 @@ private:
     PDFOptionalContentProperties m_optionalContentProperties;
     QSharedPointer<PDFOutlineItem> m_outlineRoot;
     PDFActionPtr m_openAction;
+    std::array<PDFActionPtr, LastDocumentAction> m_documentActions;
     PageLayout m_pageLayout = PageLayout::SinglePage;
     PageMode m_pageMode = PageMode::UseNone;
     QByteArray m_baseURI;
     PDFObject m_formObject;
     PDFDeveloperExtensions m_extensions;
     PDFDocumentSecurityStore m_documentSecurityStore;
+    std::vector<PDFArticleThread> m_threads;
+    PDFObject m_metadata;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;
