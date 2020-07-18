@@ -332,6 +332,12 @@ public:
     /// Optimizes the array for memory consumption
     virtual void optimize() override;
 
+    auto begin() { return m_objects.begin(); }
+    auto end() { return m_objects.end(); }
+
+    auto begin() const { return m_objects.begin(); }
+    auto end() const { return m_objects.end(); }
+
 private:
     std::vector<PDFObject> m_objects;
 };

@@ -93,7 +93,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     PDFCatalog catalogObject;
     catalogObject.m_viewerPreferences = PDFViewerPreferences::parse(catalog, document);
     catalogObject.m_pages = PDFPage::parse(document, catalogDictionary->get("Pages"));
-    catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(document, catalogDictionary->get("PageLabels"));
+    catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(&document->getStorage(), catalogDictionary->get("PageLabels"));
 
     if (catalogDictionary->hasKey("OCProperties"))
     {
@@ -197,6 +197,15 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     catalogObject.m_documentSecurityStore = PDFDocumentSecurityStore::parse(catalogDictionary->get("DSS"), document);
     catalogObject.m_threads = loader.readObjectList<PDFArticleThread>(catalogDictionary->get("Threads"));
     catalogObject.m_metadata = catalogDictionary->get("Metadata");
+
+    // Examine mark info dictionary
+    catalogObject.m_markInfoFlags = MarkInfo_None;
+    if (const PDFDictionary* markInfoDictionary = document->getDictionaryFromObject(catalogDictionary->get("MarkInfo")))
+    {
+        catalogObject.m_markInfoFlags.setFlag(MarkInfo_Marked, loader.readBooleanFromDictionary(markInfoDictionary, "Marked", false));
+        catalogObject.m_markInfoFlags.setFlag(MarkInfo_UserProperties, loader.readBooleanFromDictionary(markInfoDictionary, "UserProperties", false));
+        catalogObject.m_markInfoFlags.setFlag(MarkInfo_Suspects, loader.readBooleanFromDictionary(markInfoDictionary, "Suspects", false));
+    }
 
     return catalogObject;
 }
@@ -463,9 +472,9 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
     return result;
 }
 
-PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFDocument* document, const PDFObject& object)
+PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFObjectStorage* storage, const PDFObject& object)
 {
-    const PDFObject& dereferencedObject = document->getObject(object);
+    const PDFObject& dereferencedObject = storage->getObject(object);
     if (dereferencedObject.isDictionary())
     {
         std::array<std::pair<const char*, NumberingStyle>, 5> numberingStyles = { std::pair<const char*, NumberingStyle>{ "D", NumberingStyle::DecimalArabic},
@@ -475,7 +484,7 @@ PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFDocument* docume
                                                                                   std::pair<const char*, NumberingStyle>{ "a", NumberingStyle::LowercaseLetters} };
 
         const PDFDictionary* dictionary = dereferencedObject.getDictionary();
-        const PDFDocumentDataLoaderDecorator loader(document);
+        const PDFDocumentDataLoaderDecorator loader(storage);
         const NumberingStyle numberingStyle = loader.readEnumByName(dictionary->get("S"), numberingStyles.cbegin(), numberingStyles.cend(), NumberingStyle::None);
         const QString prefix = loader.readTextString(dictionary->get("P"), QString());
         const PDFInteger startNumber = loader.readInteger(dictionary->get("St"), 1);

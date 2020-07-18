@@ -37,12 +37,12 @@ public:
 
     /// Parses the number tree and loads its items into the array. Some errors are ignored,
     /// e.g. when kid is null. Type must contain methods to load object array.
-    static Objects parse(const PDFDocument* document, const PDFObject& root)
+    static Objects parse(const PDFObjectStorage* storage, const PDFObject& root)
     {
         Objects result;
 
         // First, try to load items from the tree into the array
-        parseImpl(result, document, root);
+        parseImpl(result, storage, root);
 
         // Array may not be sorted. Sort it using comparison operator for Type.
         std::stable_sort(result.begin(), result.end());
@@ -51,12 +51,12 @@ public:
     }
 
 private:
-    static void parseImpl(Objects& objects, const PDFDocument* document, const PDFObject& root)
+    static void parseImpl(Objects& objects, const PDFObjectStorage* storage, const PDFObject& root)
     {
-        if (const PDFDictionary* dictionary = document->getDictionaryFromObject(root))
+        if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(root))
         {
             // First, load the objects into the array
-            const PDFObject& numberedItems = document->getObject(dictionary->get("Nums"));
+            const PDFObject& numberedItems = storage->getObject(dictionary->get("Nums"));
             if (numberedItems.isArray())
             {
                 const PDFArray* numberedItemsArray = numberedItems.getArray();
@@ -67,25 +67,25 @@ private:
                     const size_t numberIndex = 2 * i;
                     const size_t valueIndex = 2 * i + 1;
 
-                    const PDFObject& number = document->getObject(numberedItemsArray->getItem(numberIndex));
+                    const PDFObject& number = storage->getObject(numberedItemsArray->getItem(numberIndex));
                     if (!number.isInt())
                     {
                         continue;
                     }
 
-                    objects.emplace_back(Type::parse(number.getInteger(), document, numberedItemsArray->getItem(valueIndex)));
+                    objects.emplace_back(Type::parse(number.getInteger(), storage, numberedItemsArray->getItem(valueIndex)));
                 }
             }
 
             // Then, follow the kids
-            const PDFObject&  kids = document->getObject(dictionary->get("Kids"));
+            const PDFObject&  kids = storage->getObject(dictionary->get("Kids"));
             if (kids.isArray())
             {
                 const PDFArray* kidsArray = kids.getArray();
                 const size_t count = kidsArray->getCount();
                 for (size_t i = 0; i < count; ++i)
                 {
-                    parseImpl(objects, document, kidsArray->getItem(i));
+                    parseImpl(objects, storage, kidsArray->getItem(i));
                 }
             }
         }

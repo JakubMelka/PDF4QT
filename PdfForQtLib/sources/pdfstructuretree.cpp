@@ -16,6 +16,9 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfstructuretree.h"
+#include "pdfdocument.h"
+#include "pdfnametreeloader.h"
+#include "pdfnumbertreeloader.h"
 
 #include <array>
 
@@ -158,6 +161,168 @@ PDFStructureTreeAttribute::Owner PDFStructureTreeAttributeDefinition::getOwnerFr
     }
 
     return PDFStructureTreeAttribute::Owner::User;
+}
+
+PDFStructureTreeAttribute::PDFStructureTreeAttribute() :
+    m_definition(&s_attributeDefinitions.front()),
+    m_owner(Owner::Invalid),
+    m_revision(0),
+    m_namespace(),
+    m_value()
+{
+
+}
+
+PDFStructureTreeAttribute::Attribute PDFStructureTreeAttribute::getType() const
+{
+    Q_ASSERT(m_definition);
+    return m_definition->type;
+}
+
+bool PDFStructureTreeAttribute::isInheritable() const
+{
+    Q_ASSERT(m_definition);
+    return m_definition->inheritable;
+}
+
+QString PDFStructureTreeAttribute::getUserPropertyName(const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* value = storage->getDictionaryFromObject(m_value))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        return loader.readTextStringFromDictionary(value, "N", QString());
+    }
+
+    return QString();
+}
+
+PDFObject PDFStructureTreeAttribute::getUserPropertyValue(const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* value = storage->getDictionaryFromObject(m_value))
+    {
+        return value->get("V");
+    }
+
+    return PDFObject();
+}
+
+QString PDFStructureTreeAttribute::getUserPropertyFormattedValue(const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* value = storage->getDictionaryFromObject(m_value))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        return loader.readTextStringFromDictionary(value, "F", QString());
+    }
+
+    return QString();
+}
+
+bool PDFStructureTreeAttribute::getUserPropertyIsHidden(const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* value = storage->getDictionaryFromObject(m_value))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        return loader.readBooleanFromDictionary(value, "H", false);
+    }
+
+    return false;
+}
+
+std::vector<PDFObjectReference> PDFStructureTree::getParents(PDFInteger id) const
+{
+    std::vector<PDFObjectReference> result;
+    ParentTreeEntry entry{ id, PDFObjectReference() };
+
+    Q_ASSERT(std::is_sorted(m_parentTreeEntries.cbegin(), m_parentTreeEntries.cend()));
+    auto iterators = std::equal_range(m_parentTreeEntries.cbegin(), m_parentTreeEntries.cend(), entry);
+    result.reserve(std::distance(iterators.first, iterators.second));
+    std::transform(iterators.first, iterators.second, std::back_inserter(result), [](const auto& item) { return item.reference; });
+    return result;
+}
+
+PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFStructureTree tree;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFMarkedObjectsContext context;
+        PDFObject kids = dictionary->get("K");
+
+        if (kids.isArray())
+        {
+            const PDFArray* kidsArray = kids.getArray();
+            for (const PDFObject& object : *kidsArray)
+            {
+                PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, &context);
+                if (item)
+                {
+                    tree.m_children.emplace_back(qMove(item));
+                }
+            }
+        }
+        else
+        {
+            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, &context);
+            if (item)
+            {
+                tree.m_children.emplace_back(qMove(item));
+            }
+        }
+
+        if (dictionary->hasKey("IDTree"))
+        {
+            tree.m_idTreeMap = PDFNameTreeLoader<PDFObjectReference>::parse(storage, dictionary->get("IDTree"), [](const PDFObjectStorage*, const PDFObject& object) { return object.isReference() ? object.getReference() : PDFObjectReference(); });
+        }
+
+        if (dictionary->hasKey("ParentTree"))
+        {
+            struct ParentTreeParseEntry
+            {
+                PDFInteger id = 0;
+                std::vector<PDFObjectReference> references;
+
+                bool operator<(const ParentTreeParseEntry& other) const
+                {
+                    return id < other.id;
+                }
+
+                static ParentTreeParseEntry parse(PDFInteger id, const PDFObjectStorage*, const PDFObject& object)
+                {
+                    if (object.isReference())
+                    {
+                        return ParentTreeParseEntry{ id, { object.getReference() } };
+                    }
+                    else if (object.isArray())
+                    {
+                        std::vector<PDFObjectReference> references;
+                        for (const PDFObject& object : *object.getArray())
+                        {
+                            if (object.isReference())
+                            {
+                                references.emplace_back(object.getReference());
+                            }
+                        }
+
+                        return ParentTreeParseEntry{ id, qMove(references) };
+                    }
+
+                    return ParentTreeParseEntry{ id, { } };
+                }
+            };
+            auto entries = PDFNumberTreeLoader<ParentTreeParseEntry>::parse(storage, dictionary->get("ParentTree"));
+            for (const auto& entry : entries)
+            {
+                for (const PDFObjectReference& reference : entry.references)
+                {
+                    tree.m_parentTreeEntries.emplace_back(ParentTreeEntry{entry.id, reference});
+                }
+            }
+            std::stable_sort(tree.m_parentTreeEntries.begin(), tree.m_parentTreeEntries.end());
+        }
+    }
+
+    return tree;
 }
 
 }   // namespace pdf

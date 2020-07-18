@@ -95,7 +95,7 @@ public:
     bool operator<(const PDFPageLabel& other) const { return m_pageIndex < other.m_pageIndex; }
 
     /// Parses page label object from PDF object, according to PDF Reference 1.7, Table 8.10
-    static PDFPageLabel parse(PDFInteger pageIndex, const PDFDocument* document, const PDFObject& object);
+    static PDFPageLabel parse(PDFInteger pageIndex, const PDFObjectStorage* storage, const PDFObject& object);
 
 private:
     NumberingStyle m_numberingType;
@@ -380,6 +380,15 @@ public:
     const PDFAction* getDocumentAction(DocumentAction action) const { return m_documentActions.at(action).get(); }
     const PDFObject& getMetadata() const { return m_metadata; }
 
+    /// Is document marked to have structure tree conforming to tagged document convention?
+    bool isLogicalStructureMarked() const { return m_markInfoFlags.testFlag(MarkInfo_Marked); }
+
+    /// Is document marked to have structure tree with user attributes?
+    bool isLogicalStructureUserPropertiesUsed() const { return m_markInfoFlags.testFlag(MarkInfo_UserProperties); }
+
+    /// Is document marked to have structure tree not completely conforming to standard?
+    bool isLogicalStructureSuspects() const { return m_markInfoFlags.testFlag(MarkInfo_Suspects); }
+
     /// Returns destination using the key. If destination with the key is not found,
     /// then nullptr is returned.
     /// \param key Destination key
@@ -391,6 +400,16 @@ public:
     static PDFCatalog parse(const PDFObject& catalog, const PDFDocument* document);
 
 private:
+
+    enum MarkInfoFlag : uint8_t
+    {
+        MarkInfo_None           = 0x0000,
+        MarkInfo_Marked         = 0x0001,   ///< Document conforms to tagged PDF convention
+        MarkInfo_UserProperties = 0x0002,   ///< Structure tree contains user properties
+        MarkInfo_Suspects       = 0x0004,   ///< Suspects
+    };
+    Q_DECLARE_FLAGS(MarkInfoFlags, MarkInfoFlag)
+
     QByteArray m_version;
     PDFViewerPreferences m_viewerPreferences;
     std::vector<PDFPage> m_pages;
@@ -407,6 +426,7 @@ private:
     PDFDocumentSecurityStore m_documentSecurityStore;
     std::vector<PDFArticleThread> m_threads;
     PDFObject m_metadata;
+    MarkInfoFlags m_markInfoFlags = MarkInfo_None;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;
