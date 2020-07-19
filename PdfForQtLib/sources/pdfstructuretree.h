@@ -20,6 +20,7 @@
 
 #include "pdfobject.h"
 #include "pdfobjectutils.h"
+#include "pdffile.h"
 
 namespace pdf
 {
@@ -30,14 +31,13 @@ struct PDFStructureTreeAttributeDefinition;
 class  PDFFORQTLIBSHARED_EXPORT PDFStructureTreeAttribute
 {
 public:
-    explicit PDFStructureTreeAttribute();
 
     enum class Owner
     {
         Invalid,
 
         /// Defined for user owner
-        User,
+        UserProperties,
 
         /// Defined for NSO (namespace owner)
         NSO,
@@ -61,6 +61,13 @@ public:
         RDFa_1_10,
         ARIA_1_1,
     };
+
+    explicit PDFStructureTreeAttribute();
+    explicit PDFStructureTreeAttribute(const PDFStructureTreeAttributeDefinition* definition,
+                                       Owner owner,
+                                       PDFInteger revision,
+                                       PDFObjectReference namespaceReference,
+                                       PDFObject value);
 
     enum Attribute
     {
@@ -138,6 +145,9 @@ public:
     /// Returns attribute revision number
     PDFInteger getRevision() const { return m_revision; }
 
+    /// Sets attribute revision number
+    void setRevision(PDFInteger revision) { m_revision = revision; }
+
     /// Returns namespace for this attribute (or empty reference, if it doesn't exists)
     PDFObjectReference getNamespace() const { return m_namespace; }
 
@@ -167,7 +177,21 @@ public:
     /// \param storage Storage (for resolving of indirect objects)
     bool getUserPropertyIsHidden(const PDFObjectStorage* storage) const;
 
+    /// Parses attributes and adds them into \p attributes array. Invalid
+    /// attributes are not added. New attributes are appended to the end
+    /// of the array.
+    /// \param storage Storage
+    /// \param object Container of attributes
+    /// \param attributes[in,out] Attributes
+    static void parseAttributes(const PDFObjectStorage* storage, PDFObject object, std::vector<PDFStructureTreeAttribute>& attributes);
+
 private:
+    /// Parses single attribute dictionary and appends new attributes to the end of the list.
+    /// \param storage Storage
+    /// \param object Container of attributes
+    /// \param attributes[in,out] Attributes
+    static void parseAttributeDictionary(const PDFObjectStorage* storage, PDFObject object, std::vector<PDFStructureTreeAttribute>& attributes);
+
     const PDFStructureTreeAttributeDefinition* m_definition = nullptr;
 
     /// Attribute owner
@@ -200,7 +224,37 @@ public:
     {
 
     }
+
     virtual ~PDFStructureItem() = default;
+
+    enum Type
+    {
+        Invalid,
+
+        // Document level types - chapter 14.8.4.3 of PDF 2.0 specification
+        Document, DocumentFragment,
+
+        // Grouping types - chapter 14.8.4.4 of PDF 2.0 specification
+        Part, Div, Aside,
+
+        // Block level structure types - chapter 14.8.4.5 of PDF 2.0 specification
+        P, H1, H2, H3, H4, H5, H6, H7, H, Title, FENote,
+
+        // Subblock level structure types - chapter 14.8.4.6 of PDF 2.0 specification
+        Sub,
+
+        // Inline structure types - chapter 14.8.4.7 of PDF 2.0 specification
+        Lbl, Span, Em, Strong, Link, Annot, Form, Ruby, RB, RT, RP, Warichu, WR, WP,
+
+        // Other structure types - chapter 14.8.4.7 of PDF 2.0 specification
+        L, LI, LBody, Table, TR, TH, TD, THead, TBody, TFoot, Caption, Figure, Formula, Artifact,
+
+        // PDF 1.7 backward compatibility types
+        Sect, Art, BlockQuote, TOC, TOCI, Index, NonStruct, Private, Quote, Note, Reference, BibEntry, Code,
+
+        // Last type identifier
+        LastType,
+    };
 
     virtual PDFStructureTree* asStructureTree() { return nullptr; }
     virtual const PDFStructureTree* asStructureTree() const { return nullptr; }
@@ -217,11 +271,37 @@ public:
     /// \param context Parsing context
     static PDFStructureItemPointer parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context);
 
+    /// Get structure tree type from name
+    /// \param name Name
+    static Type getTypeFromName(const QByteArray& name);
+
 protected:
     PDFStructureItem* m_parent;
     PDFStructureTree* m_root;
     std::vector<PDFStructureItemPointer> m_children;
 };
+
+/// Structure tree namespace
+class PDFStructureTreeNamespace
+{
+public:
+    explicit inline PDFStructureTreeNamespace() = default;
+
+    const PDFObjectReference& getSelfReference() const { return m_selfReference; }
+    const QString& getNamespace() const { return m_namespace; }
+    const PDFFileSpecification& getSchema() const { return m_schema; }
+    const PDFObject& getRoleMapNS() const { return m_roleMapNS; }
+
+    static PDFStructureTreeNamespace parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    PDFObjectReference m_selfReference;
+    QString m_namespace;
+    PDFFileSpecification m_schema;
+    PDFObject m_roleMapNS;
+};
+
+using PDFStructureTreeNamespaces = std::vector<PDFStructureTreeNamespace>;
 
 /// Structure tree, contains structure element hierarchy
 class PDFStructureTree : public PDFStructureItem
@@ -236,6 +316,25 @@ public:
     /// is not found, then empty vector is returned.
     /// \param id Id
     std::vector<PDFObjectReference> getParents(PDFInteger id) const;
+
+    /// Returns type from role. Role can be an entry in RoleMap dictionary,
+    /// or one of the standard roles.
+    /// \param role Role
+    Type getTypeFromRole(const QByteArray& role) const;
+
+    /// Returns class attributes for given class. If class is not found,
+    /// then empty attributes are returned.
+    /// \param className Class name
+    const std::vector<PDFStructureTreeAttribute>& getClassAttributes(const QByteArray& className) const;
+
+    /// Returns a list of namespaces
+    const PDFStructureTreeNamespaces& getNamespaces() const { return m_namespaces; }
+
+    /// Returns a list of pronunciation lexicons
+    const std::vector<PDFFileSpecification>& getPronunciationLexicons() const { return m_pronunciationLexicons; }
+
+    /// Returns a list of associated files
+    const std::vector<PDFFileSpecification>& getAssociatedFiles() const { return m_associatedFiles; }
 
     /// Parses structure tree from the object. If error occurs, empty structure
     /// tree is returned.
@@ -259,6 +358,12 @@ private:
 
     std::map<QByteArray, PDFObjectReference> m_idTreeMap;
     ParentTreeEntries m_parentTreeEntries;
+    PDFInteger m_parentNextKey = 0;
+    std::map<QByteArray, Type> m_roleMap;
+    std::map<QByteArray, std::vector<PDFStructureTreeAttribute>> m_classMap;
+    PDFStructureTreeNamespaces m_namespaces;
+    std::vector<PDFFileSpecification> m_pronunciationLexicons;
+    std::vector<PDFFileSpecification> m_associatedFiles;
 };
 
 }   // namespace pdf

@@ -43,9 +43,12 @@ struct PDFStructureTreeAttributeDefinition
     /// always returns valid pointer. For uknown attribute, it returns
     /// user attribute definition.
     /// \param name Attribute name
-    const PDFStructureTreeAttributeDefinition* getDefinition(const QByteArray& name);
+    static const PDFStructureTreeAttributeDefinition* getDefinition(const QByteArray& name);
 
-    PDFStructureTreeAttribute::Owner getOwnerFromString(const QByteArray& string);
+    /// Returns owner from string. If owner is not valid, then invalid
+    /// owner is returned.
+    /// \param string String
+    static PDFStructureTreeAttribute::Owner getOwnerFromString(const QByteArray& string);
 
     PDFStructureTreeAttribute::Attribute type = PDFStructureTreeAttribute::Attribute::User;
     const char* name = nullptr;
@@ -136,6 +139,67 @@ static constexpr std::array<const PDFStructureTreeAttributeDefinition, PDFStruct
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::Subtype, "Subtype", false)
 };
 
+static constexpr std::pair<PDFStructureItem::Type, const char*> s_structureTreeItemTypes[] = {
+    std::make_pair(PDFStructureItem::Document, "Document"),
+    std::make_pair(PDFStructureItem::DocumentFragment, "DocumentFragment"),
+    std::make_pair(PDFStructureItem::Part, "Part"),
+    std::make_pair(PDFStructureItem::Div, "Div"),
+    std::make_pair(PDFStructureItem::Aside, "Aside"),
+    std::make_pair(PDFStructureItem::P, "P"),
+    std::make_pair(PDFStructureItem::H1, "H1"),
+    std::make_pair(PDFStructureItem::H2, "H2"),
+    std::make_pair(PDFStructureItem::H3, "H3"),
+    std::make_pair(PDFStructureItem::H4, "H4"),
+    std::make_pair(PDFStructureItem::H5, "H5"),
+    std::make_pair(PDFStructureItem::H6, "H6"),
+    std::make_pair(PDFStructureItem::H7, "H7"),
+    std::make_pair(PDFStructureItem::H, "H"),
+    std::make_pair(PDFStructureItem::Title, "Title"),
+    std::make_pair(PDFStructureItem::FENote, "FENote"),
+    std::make_pair(PDFStructureItem::Sub, "Sub"),
+    std::make_pair(PDFStructureItem::Lbl, "Lbl"),
+    std::make_pair(PDFStructureItem::Span, "Span"),
+    std::make_pair(PDFStructureItem::Em, "Em"),
+    std::make_pair(PDFStructureItem::Strong, "Strong"),
+    std::make_pair(PDFStructureItem::Link, "Link"),
+    std::make_pair(PDFStructureItem::Annot, "Annot"),
+    std::make_pair(PDFStructureItem::Form, "Form"),
+    std::make_pair(PDFStructureItem::Ruby, "Ruby"),
+    std::make_pair(PDFStructureItem::RB, "RB"),
+    std::make_pair(PDFStructureItem::RT, "RT"),
+    std::make_pair(PDFStructureItem::RP, "RP"),
+    std::make_pair(PDFStructureItem::Warichu, "Warichu"),
+    std::make_pair(PDFStructureItem::WR, "WR"),
+    std::make_pair(PDFStructureItem::WP, "WP"),
+    std::make_pair(PDFStructureItem::L, "L"),
+    std::make_pair(PDFStructureItem::LI, "LI"),
+    std::make_pair(PDFStructureItem::LBody, "LBody"),
+    std::make_pair(PDFStructureItem::Table, "Table"),
+    std::make_pair(PDFStructureItem::TR, "TR"),
+    std::make_pair(PDFStructureItem::TH, "TH"),
+    std::make_pair(PDFStructureItem::TD, "TD"),
+    std::make_pair(PDFStructureItem::THead, "THead"),
+    std::make_pair(PDFStructureItem::TBody, "TBody"),
+    std::make_pair(PDFStructureItem::TFoot, "TFoot"),
+    std::make_pair(PDFStructureItem::Caption, "Caption"),
+    std::make_pair(PDFStructureItem::Figure, "Figure"),
+    std::make_pair(PDFStructureItem::Formula, "Formula"),
+    std::make_pair(PDFStructureItem::Artifact, "Artifact"),
+    std::make_pair(PDFStructureItem::Sect, "Sect"),
+    std::make_pair(PDFStructureItem::Art, "Art"),
+    std::make_pair(PDFStructureItem::BlockQuote, "BlockQuote"),
+    std::make_pair(PDFStructureItem::TOC, "TOC"),
+    std::make_pair(PDFStructureItem::TOCI, "TOCI"),
+    std::make_pair(PDFStructureItem::Index, "Index"),
+    std::make_pair(PDFStructureItem::NonStruct, "NonStruct"),
+    std::make_pair(PDFStructureItem::Private, "Private"),
+    std::make_pair(PDFStructureItem::Quote, "Quote"),
+    std::make_pair(PDFStructureItem::Note, "Note"),
+    std::make_pair(PDFStructureItem::Reference, "Reference"),
+    std::make_pair(PDFStructureItem::BibEntry, "BibEntry"),
+    std::make_pair(PDFStructureItem::Code, "Code")
+};
+
 const PDFStructureTreeAttributeDefinition* PDFStructureTreeAttributeDefinition::getDefinition(const QByteArray& name)
 {
     for (const PDFStructureTreeAttributeDefinition& definition : s_attributeDefinitions)
@@ -160,7 +224,7 @@ PDFStructureTreeAttribute::Owner PDFStructureTreeAttributeDefinition::getOwnerFr
         }
     }
 
-    return PDFStructureTreeAttribute::Owner::User;
+    return PDFStructureTreeAttribute::Owner::Invalid;
 }
 
 PDFStructureTreeAttribute::PDFStructureTreeAttribute() :
@@ -169,6 +233,20 @@ PDFStructureTreeAttribute::PDFStructureTreeAttribute() :
     m_revision(0),
     m_namespace(),
     m_value()
+{
+
+}
+
+PDFStructureTreeAttribute::PDFStructureTreeAttribute(const PDFStructureTreeAttributeDefinition* definition,
+                                                     PDFStructureTreeAttribute::Owner owner,
+                                                     PDFInteger revision,
+                                                     PDFObjectReference namespaceReference,
+                                                     PDFObject value) :
+    m_definition(definition),
+    m_owner(owner),
+    m_revision(revision),
+    m_namespace(namespaceReference),
+    m_value(qMove(value))
 {
 
 }
@@ -228,6 +306,76 @@ bool PDFStructureTreeAttribute::getUserPropertyIsHidden(const PDFObjectStorage* 
     return false;
 }
 
+void PDFStructureTreeAttribute::parseAttributes(const PDFObjectStorage* storage, PDFObject object, std::vector<PDFStructureTreeAttribute>& attributes)
+{
+    object = storage->getObject(object);
+    if (object.isDictionary())
+    {
+        parseAttributeDictionary(storage, object, attributes);
+    }
+    else if (object.isArray())
+    {
+        size_t startIndex = attributes.size();
+
+        for (PDFObject itemObject : *object.getArray())
+        {
+            itemObject = storage->getObject(itemObject);
+            if (itemObject.isInt())
+            {
+                // It is revision number
+                const PDFInteger revision = itemObject.getInteger();
+                for (; startIndex < attributes.size(); ++startIndex)
+                {
+                    attributes[startIndex].setRevision(revision);
+                }
+            }
+            else if (itemObject.isDictionary())
+            {
+                // It is attribute
+                parseAttributeDictionary(storage, itemObject, attributes);
+            }
+        }
+    }
+}
+
+void PDFStructureTreeAttribute::parseAttributeDictionary(const PDFObjectStorage* storage, PDFObject object, std::vector<PDFStructureTreeAttribute>& attributes)
+{
+    Q_ASSERT(object.isDictionary());
+    const PDFDictionary* attributeDictionary = object.getDictionary();
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    const QByteArray ownerName = loader.readNameFromDictionary(attributeDictionary, "O");
+    const Owner owner = PDFStructureTreeAttributeDefinition::getOwnerFromString(ownerName);
+    if (owner == Owner::UserProperties)
+    {
+        // User properties
+        PDFObject userPropertiesArrayObject = storage->getObject(attributeDictionary->get("P"));
+        if (userPropertiesArrayObject.isArray())
+        {
+            const PDFArray* userPropertiesArray = userPropertiesArrayObject.getArray();
+            for (const PDFObject& userPropertyObject : *userPropertiesArray)
+            {
+                attributes.emplace_back(&s_attributeDefinitions.front(), owner, 0, PDFObjectReference(), userPropertyObject);
+            }
+        }
+    }
+    else
+    {
+        const PDFObjectReference namespaceReference = loader.readReferenceFromDictionary(attributeDictionary, "NS");
+        const size_t count = attributeDictionary->getCount();
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFInplaceOrMemoryString& key = attributeDictionary->getKey(i);
+            if (key == "O" || key == "NS")
+            {
+                continue;
+            }
+
+            attributes.emplace_back(PDFStructureTreeAttributeDefinition::getDefinition(key.getString()), owner, 0, namespaceReference, attributeDictionary->getValue(i));
+        }
+    }
+}
+
 std::vector<PDFObjectReference> PDFStructureTree::getParents(PDFInteger id) const
 {
     std::vector<PDFObjectReference> result;
@@ -240,15 +388,39 @@ std::vector<PDFObjectReference> PDFStructureTree::getParents(PDFInteger id) cons
     return result;
 }
 
+PDFStructureItem::Type PDFStructureTree::getTypeFromRole(const QByteArray& role) const
+{
+    auto it = m_roleMap.find(role);
+    if (it != m_roleMap.cend())
+    {
+        return it->second;
+    }
+
+    return getTypeFromName(role);
+}
+
+const std::vector<PDFStructureTreeAttribute>& PDFStructureTree::getClassAttributes(const QByteArray& className) const
+{
+    auto it = m_classMap.find(className);
+    if (it != m_classMap.cend())
+    {
+        return it->second;
+    }
+
+    static const std::vector<PDFStructureTreeAttribute> dummy;
+    return dummy;
+}
+
 PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFStructureTree tree;
 
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
         PDFMarkedObjectsContext context;
         PDFObject kids = dictionary->get("K");
-
         if (kids.isArray())
         {
             const PDFArray* kidsArray = kids.getArray();
@@ -320,9 +492,78 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
             }
             std::stable_sort(tree.m_parentTreeEntries.begin(), tree.m_parentTreeEntries.end());
         }
+
+        tree.m_parentNextKey = loader.readIntegerFromDictionary(dictionary, "ParentTreeNextKey", 0);
+
+        if (const PDFDictionary* roleMapDictionary = storage->getDictionaryFromObject(dictionary->get("RoleMap")))
+        {
+            const size_t size = roleMapDictionary->getCount();
+            for (size_t i = 0; i < size; ++i)
+            {
+                tree.m_roleMap[roleMapDictionary->getKey(i).getString()] = getTypeFromName(loader.readName(roleMapDictionary->getValue(i)));
+            }
+        }
+
+        if (const PDFDictionary* classMapDictionary = storage->getDictionaryFromObject(dictionary->get("ClassMap")))
+        {
+            const size_t size = classMapDictionary->getCount();
+            for (size_t i = 0; i < size; ++i)
+            {
+                PDFStructureTreeAttribute::parseAttributes(storage, classMapDictionary->getValue(i), tree.m_classMap[classMapDictionary->getKey(i).getString()]);
+            }
+        }
+
+        if (dictionary->hasKey("Namespaces"))
+        {
+            tree.m_namespaces = loader.readObjectList<PDFStructureTreeNamespace>(dictionary->get("Namespaces"));
+        }
+
+        if (dictionary->hasKey("PronunciationLexicon"))
+        {
+            tree.m_pronunciationLexicons = loader.readObjectList<PDFFileSpecification>(dictionary->get("PronunciationLexicon"));
+        }
+
+        if (dictionary->hasKey("AF"))
+        {
+            tree.m_associatedFiles = loader.readObjectList<PDFFileSpecification>(dictionary->get("AF"));
+        }
     }
 
     return tree;
+}
+
+PDFStructureItem::Type PDFStructureItem::getTypeFromName(const QByteArray& name)
+{
+    for (const auto& item : s_structureTreeItemTypes)
+    {
+        if (name == item.second)
+        {
+            return item.first;
+        }
+    }
+
+    return Invalid;
+}
+
+PDFStructureTreeNamespace PDFStructureTreeNamespace::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFStructureTreeNamespace result;
+
+    if (object.isReference())
+    {
+        result.m_selfReference = object.getReference();
+    }
+    object = storage->getObject(object);
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_namespace = loader.readTextStringFromDictionary(dictionary, "NS", QString());
+        result.m_schema = PDFFileSpecification::parse(storage, dictionary->get("Schema"));
+        result.m_roleMapNS = dictionary->get("RoleMapNS");
+    }
+
+    return result;
 }
 
 }   // namespace pdf
