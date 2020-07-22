@@ -211,6 +211,7 @@ private:
 
 class PDFStructureTree;
 class PDFStructureItem;
+class PDFStructureElement;
 
 using PDFStructureItemPointer = QSharedPointer<PDFStructureItem>;
 
@@ -259,8 +260,12 @@ public:
     virtual PDFStructureTree* asStructureTree() { return nullptr; }
     virtual const PDFStructureTree* asStructureTree() const { return nullptr; }
 
+    virtual PDFStructureElement* asStructureElement() { return nullptr; }
+    virtual const PDFStructureElement* asStructureElement() const { return nullptr; }
+
     const PDFStructureItem* getParent() const { return m_parent; }
     const PDFStructureTree* getTree() const { return m_root; }
+    PDFObjectReference getSelfReference() const { return m_selfReference; }
     std::size_t getChildCount() const { return m_children.size(); }
     const PDFStructureItem* getChild(size_t i) const { return m_children.at(i).get(); }
 
@@ -276,8 +281,20 @@ public:
     static Type getTypeFromName(const QByteArray& name);
 
 protected:
+    /// Parses kids of the item. Invalid items aren't added
+    /// to the kid list.
+    /// \param storage Storage
+    /// \param parentItem Parent item, where children are inserted
+    /// \param dictionary Dictionary
+    /// \param context Context
+    static void parseKids(const PDFObjectStorage* storage,
+                          PDFStructureItem* parentItem,
+                          const PDFDictionary* dictionary,
+                          PDFMarkedObjectsContext* context);
+
     PDFStructureItem* m_parent;
     PDFStructureTree* m_root;
+    PDFObjectReference m_selfReference;
     std::vector<PDFStructureItemPointer> m_children;
 };
 
@@ -364,6 +381,68 @@ private:
     PDFStructureTreeNamespaces m_namespaces;
     std::vector<PDFFileSpecification> m_pronunciationLexicons;
     std::vector<PDFFileSpecification> m_associatedFiles;
+};
+
+/// Structure element
+class PDFStructureElement : public PDFStructureItem
+{
+public:
+    explicit inline PDFStructureElement(PDFStructureItem* parent, PDFStructureTree* root) :
+        PDFStructureItem(parent, root)
+    {
+
+    }
+
+    enum StringValue
+    {
+        Title,
+        Language,
+        AlternativeDescription,
+        ExpandedForm,
+        ActualText,
+        Phoneme,
+        LastStringValue
+    };
+
+    virtual PDFStructureElement* asStructureElement() override { return this; }
+    virtual const PDFStructureElement* asStructureElement() const override { return this; }
+
+    const QByteArray& getTypeName() const { return m_typeName; }
+    Type getStandardType() const { return m_standardType; }
+    const QByteArray& getId() const { return m_id; }
+    const std::vector<PDFObjectReference>& getReferences() const { return m_references; }
+    const PDFObjectReference& getPageReference() const { return m_pageReference; }
+    const std::vector<PDFStructureTreeAttribute>& getAttributes() const { return m_attributes; }
+    PDFInteger getRevision() const { return m_revision; }
+    const QString& getText(StringValue stringValue) const { return m_texts.at(stringValue); }
+    const std::vector<PDFFileSpecification>& getAssociatedFiles() const { return m_associatedFiles; }
+    const PDFObjectReference& getNamespace() const { return m_namespace; }
+    const QByteArray& getPhoneticAlphabet() const { return m_phoneticAlphabet; }
+
+    /// Parses structure element from the object. If error occurs, nullptr is returned.
+    /// \param storage Storage
+    /// \param object Structure element object
+    /// \param context Visited elements context
+    /// \param parent Parent structure tree item
+    /// \param root Structure tree root
+    static PDFStructureItemPointer parseElement(const PDFObjectStorage* storage,
+                                                PDFObject object,
+                                                PDFMarkedObjectsContext* context,
+                                                PDFStructureItem* parent,
+                                                PDFStructureTree* root);
+
+private:
+    QByteArray m_typeName;
+    Type m_standardType;
+    QByteArray m_id;
+    std::vector<PDFObjectReference> m_references;
+    PDFObjectReference m_pageReference;
+    std::vector<PDFStructureTreeAttribute> m_attributes;
+    PDFInteger m_revision = 0;
+    std::array<QString, LastStringValue> m_texts;
+    std::vector<PDFFileSpecification> m_associatedFiles;
+    PDFObjectReference m_namespace;
+    QByteArray m_phoneticAlphabet;
 };
 
 }   // namespace pdf

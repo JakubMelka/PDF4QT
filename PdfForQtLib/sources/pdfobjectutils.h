@@ -67,17 +67,23 @@ public:
     explicit inline PDFMarkedObjectsLock(PDFMarkedObjectsContext* context, PDFObjectReference reference) :
         m_context(context),
         m_reference(reference),
-        m_locked(!context->isMarked(reference))
+        m_locked(!reference.isValid() || !context->isMarked(reference))
     {
-        if (m_locked)
+        if (m_locked && reference.isValid())
         {
             context->mark(reference);
         }
     }
 
+    explicit inline PDFMarkedObjectsLock(PDFMarkedObjectsContext* context, const PDFObject& object) :
+        PDFMarkedObjectsLock(context, object.isReference() ? object.getReference() : PDFObjectReference())
+    {
+
+    }
+
     inline ~PDFMarkedObjectsLock()
     {
-        if (m_locked)
+        if (m_locked && m_reference.isValid())
         {
             m_context->unmark(m_reference);
         }

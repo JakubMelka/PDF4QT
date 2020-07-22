@@ -420,27 +420,7 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
         PDFDocumentDataLoaderDecorator loader(storage);
 
         PDFMarkedObjectsContext context;
-        PDFObject kids = dictionary->get("K");
-        if (kids.isArray())
-        {
-            const PDFArray* kidsArray = kids.getArray();
-            for (const PDFObject& object : *kidsArray)
-            {
-                PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, &context);
-                if (item)
-                {
-                    tree.m_children.emplace_back(qMove(item));
-                }
-            }
-        }
-        else
-        {
-            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, &context);
-            if (item)
-            {
-                tree.m_children.emplace_back(qMove(item));
-            }
-        }
+        parseKids(storage, &tree, dictionary, &context);
 
         if (dictionary->hasKey("IDTree"))
         {
@@ -545,6 +525,31 @@ PDFStructureItem::Type PDFStructureItem::getTypeFromName(const QByteArray& name)
     return Invalid;
 }
 
+void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureItem* parentItem, const PDFDictionary* dictionary, PDFMarkedObjectsContext* context)
+{
+    PDFObject kids = dictionary->get("K");
+    if (kids.isArray())
+    {
+        const PDFArray* kidsArray = kids.getArray();
+        for (const PDFObject& object : *kidsArray)
+        {
+            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, context);
+            if (item)
+            {
+                parentItem->m_children.emplace_back(qMove(item));
+            }
+        }
+    }
+    else if (!kids.isNull())
+    {
+        PDFStructureItemPointer item = PDFStructureItem::parse(storage, kids, context);
+        if (item)
+        {
+            parentItem->m_children.emplace_back(qMove(item));
+        }
+    }
+}
+
 PDFStructureTreeNamespace PDFStructureTreeNamespace::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFStructureTreeNamespace result;
@@ -564,6 +569,90 @@ PDFStructureTreeNamespace PDFStructureTreeNamespace::parse(const PDFObjectStorag
     }
 
     return result;
+}
+
+PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage* storage,
+                                                          PDFObject object,
+                                                          PDFMarkedObjectsContext* context,
+                                                          PDFStructureItem* parent,
+                                                          PDFStructureTree* root)
+{
+    PDFStructureItemPointer pointer;
+
+    Q_ASSERT(root);
+
+    if (auto lock = PDFMarkedObjectsLock(context, object))
+    {
+        if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+        {
+            PDFStructureElement* item = new PDFStructureElement(parent, root);
+            pointer.reset(item);
+
+            if (object.isReference())
+            {
+                item->m_selfReference = object.getReference();
+            }
+
+            PDFDocumentDataLoaderDecorator loader(storage);
+            item->m_typeName = loader.readNameFromDictionary(dictionary, "S");
+            item->m_standardType = root->getTypeFromRole(item->m_typeName);
+            item->m_id = loader.readStringFromDictionary(dictionary, "ID");
+            item->m_references = loader.readReferenceArrayFromDictionary(dictionary, "Ref");
+            item->m_pageReference = loader.readReferenceFromDictionary(dictionary, "Pg");
+
+            std::vector<PDFStructureTreeAttribute> attributes;
+            PDFObject classObject = storage->getObject(dictionary->get("C"));
+            if (classObject.isName())
+            {
+                QByteArray name = classObject.getString();
+                const std::vector<PDFStructureTreeAttribute>& classAttributes = root->getClassAttributes(name);
+                attributes.insert(attributes.end(), classAttributes.begin(), classAttributes.end());
+            }
+            else if (classObject.isArray())
+            {
+                size_t startIndex = attributes.size();
+
+                for (PDFObject itemObject : *classObject.getArray())
+                {
+                    itemObject = storage->getObject(itemObject);
+                    if (itemObject.isInt())
+                    {
+                        // It is revision number
+                        const PDFInteger revision = itemObject.getInteger();
+                        for (; startIndex < attributes.size(); ++startIndex)
+                        {
+                            attributes[startIndex].setRevision(revision);
+                        }
+                    }
+                    else if (itemObject.isName())
+                    {
+                        // It is class name
+                        QByteArray name = itemObject.getString();
+                        const std::vector<PDFStructureTreeAttribute>& classAttributes = root->getClassAttributes(name);
+                        attributes.insert(attributes.end(), classAttributes.begin(), classAttributes.end());
+                    }
+                }
+            }
+            PDFStructureTreeAttribute::parseAttributes(storage, dictionary->get("A"), attributes);
+            std::reverse(attributes.begin(), attributes.end());
+            item->m_attributes = qMove(attributes);
+            item->m_revision = loader.readIntegerFromDictionary(dictionary, "R", 0);
+            item->m_texts[Title] = loader.readTextStringFromDictionary(dictionary, "T", QString());
+            item->m_texts[Language] = loader.readTextStringFromDictionary(dictionary, "Lang", QString());
+            item->m_texts[AlternativeDescription] = loader.readTextStringFromDictionary(dictionary, "Alt", QString());
+            item->m_texts[ExpandedForm] = loader.readTextStringFromDictionary(dictionary, "E", QString());
+            item->m_texts[ActualText] = loader.readTextStringFromDictionary(dictionary, "ActualText", QString());
+            item->m_texts[Phoneme] = loader.readTextStringFromDictionary(dictionary, "Phoneme", QString());
+
+            item->m_associatedFiles = loader.readObjectList<PDFFileSpecification>(dictionary->get("AF"));
+            item->m_namespace = loader.readReferenceFromDictionary(dictionary, "NS");
+            item->m_phoneticAlphabet = loader.readNameFromDictionary(dictionary, "PhoneticAlphabet");
+
+            parseKids(storage, item, dictionary, context);
+        }
+    }
+
+    return pointer;
 }
 
 }   // namespace pdf
