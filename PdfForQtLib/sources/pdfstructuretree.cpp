@@ -512,6 +512,30 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
     return tree;
 }
 
+PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context)
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        QByteArray typeName = loader.readNameFromDictionary(dictionary, "Type");
+
+        if (typeName == "MCR")
+        {
+            return PDFStructureMarkedContentReference::parse(storage, object, context);
+        }
+        else if (typeName == "OBJR")
+        {
+            return PDFStructureObjectReference::parse(storage, object, context);
+        }
+        else
+        {
+            return PDFStructureElement::parse(storage, object, context);
+        }
+    }
+
+    return nullptr;
+}
+
 PDFStructureItem::Type PDFStructureItem::getTypeFromName(const QByteArray& name)
 {
     for (const auto& item : s_structureTreeItemTypes)
@@ -649,6 +673,70 @@ PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage
             item->m_phoneticAlphabet = loader.readNameFromDictionary(dictionary, "PhoneticAlphabet");
 
             parseKids(storage, item, dictionary, context);
+        }
+    }
+
+    return pointer;
+}
+
+PDFStructureItemPointer PDFStructureMarkedContentReference::parseMarkedContentReference(const PDFObjectStorage* storage,
+                                                                                        PDFObject object,
+                                                                                        PDFMarkedObjectsContext* context,
+                                                                                        PDFStructureItem* parent,
+                                                                                        PDFStructureTree* root)
+{
+    PDFStructureItemPointer pointer;
+
+    Q_ASSERT(root);
+
+    if (auto lock = PDFMarkedObjectsLock(context, object))
+    {
+        if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+        {
+            PDFStructureMarkedContentReference* item = new PDFStructureMarkedContentReference(parent, root);
+            pointer.reset(item);
+
+            if (object.isReference())
+            {
+                item->m_selfReference = object.getReference();
+            }
+
+            PDFDocumentDataLoaderDecorator loader(storage);
+            item->m_pageReference = loader.readReferenceFromDictionary(dictionary, "Pg");
+            item->m_contentStreamReference = loader.readReferenceFromDictionary(dictionary, "Stm");
+            item->m_contentStreamOwnerReference = loader.readReferenceFromDictionary(dictionary, "StmOwn");
+            item->m_markedContentIdentifier = loader.readIntegerFromDictionary(dictionary, "MCID", 0);
+        }
+    }
+
+    return pointer;
+}
+
+PDFStructureItemPointer PDFStructureObjectReference::parseObjectReference(const PDFObjectStorage* storage,
+                                                                          PDFObject object,
+                                                                          PDFMarkedObjectsContext* context,
+                                                                          PDFStructureItem* parent,
+                                                                          PDFStructureTree* root)
+{
+    PDFStructureItemPointer pointer;
+
+    Q_ASSERT(root);
+
+    if (auto lock = PDFMarkedObjectsLock(context, object))
+    {
+        if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+        {
+            PDFStructureObjectReference* item = new PDFStructureObjectReference(parent, root);
+            pointer.reset(item);
+
+            if (object.isReference())
+            {
+                item->m_selfReference = object.getReference();
+            }
+
+            PDFDocumentDataLoaderDecorator loader(storage);
+            item->m_pageReference = loader.readReferenceFromDictionary(dictionary, "Pg");
+            item->m_objectReference = loader.readReferenceFromDictionary(dictionary, "Obj");
         }
     }
 

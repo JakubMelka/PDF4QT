@@ -212,6 +212,8 @@ private:
 class PDFStructureTree;
 class PDFStructureItem;
 class PDFStructureElement;
+class PDFStructureObjectReference;
+class PDFStructureMarkedContentReference;
 
 using PDFStructureItemPointer = QSharedPointer<PDFStructureItem>;
 
@@ -262,6 +264,12 @@ public:
 
     virtual PDFStructureElement* asStructureElement() { return nullptr; }
     virtual const PDFStructureElement* asStructureElement() const { return nullptr; }
+
+    virtual PDFStructureMarkedContentReference* asStructureMarkedContentReference() { return nullptr; }
+    virtual const PDFStructureMarkedContentReference* asStructureMarkedContentReference() const { return nullptr; }
+
+    virtual PDFStructureObjectReference* asStructureObjectReference() { return nullptr; }
+    virtual const PDFStructureObjectReference* asStructureObjectReference() const { return nullptr; }
 
     const PDFStructureItem* getParent() const { return m_parent; }
     const PDFStructureTree* getTree() const { return m_root; }
@@ -443,6 +451,76 @@ private:
     std::vector<PDFFileSpecification> m_associatedFiles;
     PDFObjectReference m_namespace;
     QByteArray m_phoneticAlphabet;
+};
+
+/// Structure marked content reference
+class PDFStructureMarkedContentReference : public PDFStructureItem
+{
+public:
+    explicit inline PDFStructureMarkedContentReference(PDFStructureItem* parent, PDFStructureTree* root) :
+        PDFStructureItem(parent, root)
+    {
+
+    }
+
+    virtual PDFStructureMarkedContentReference* asStructureMarkedContentReference() override { return this; }
+    virtual const PDFStructureMarkedContentReference* asStructureMarkedContentReference() const override { return this; }
+
+    const PDFObjectReference& getPageReference() const { return m_pageReference; }
+    const PDFObjectReference& getContentStreamReference() const { return m_contentStreamReference; }
+    const PDFObjectReference& getContentStreamOwnerReference() const { return m_contentStreamOwnerReference; }
+    PDFInteger getMarkedContentIdentifier() const { return m_markedContentIdentifier; }
+
+    /// Parses structure marked content reference from the object. If error occurs, nullptr is returned.
+    /// \param storage Storage
+    /// \param object Structure marked content reference
+    /// \param context Visited items context
+    /// \param parent Parent structure tree item
+    /// \param root Structure tree root
+    static PDFStructureItemPointer parseMarkedContentReference(const PDFObjectStorage* storage,
+                                                               PDFObject object,
+                                                               PDFMarkedObjectsContext* context,
+                                                               PDFStructureItem* parent,
+                                                               PDFStructureTree* root);
+
+private:
+    PDFObjectReference m_pageReference;
+    PDFObjectReference m_contentStreamReference;
+    PDFObjectReference m_contentStreamOwnerReference;
+    PDFInteger m_markedContentIdentifier = 0;
+};
+
+/// Structure object reference
+class PDFStructureObjectReference : public PDFStructureItem
+{
+public:
+    explicit inline PDFStructureObjectReference(PDFStructureItem* parent, PDFStructureTree* root) :
+        PDFStructureItem(parent, root)
+    {
+
+    }
+
+    virtual PDFStructureObjectReference* asStructureObjectReference() override { return this; }
+    virtual const PDFStructureObjectReference* asStructureObjectReference() const override { return this; }
+
+    const PDFObjectReference& getPageReference() const { return m_pageReference; }
+    const PDFObjectReference& getObjectReference() const { return m_objectReference; }
+
+    /// Parses structure object reference from the object. If error occurs, nullptr is returned.
+    /// \param storage Storage
+    /// \param object Structure marked content reference
+    /// \param context Visited items context
+    /// \param parent Parent structure tree item
+    /// \param root Structure tree root
+    static PDFStructureItemPointer parseObjectReference(const PDFObjectStorage* storage,
+                                                        PDFObject object,
+                                                        PDFMarkedObjectsContext* context,
+                                                        PDFStructureItem* parent,
+                                                        PDFStructureTree* root);
+
+private:
+    PDFObjectReference m_pageReference;
+    PDFObjectReference m_objectReference;
 };
 
 }   // namespace pdf
