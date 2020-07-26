@@ -272,7 +272,9 @@ public:
     virtual const PDFStructureObjectReference* asStructureObjectReference() const { return nullptr; }
 
     const PDFStructureItem* getParent() const { return m_parent; }
+    PDFStructureItem* getParent() { return m_parent; }
     const PDFStructureTree* getTree() const { return m_root; }
+    PDFStructureTree* getTree() { return m_root; }
     PDFObjectReference getSelfReference() const { return m_selfReference; }
     std::size_t getChildCount() const { return m_children.size(); }
     const PDFStructureItem* getChild(size_t i) const { return m_children.at(i).get(); }
@@ -282,7 +284,8 @@ public:
     /// \param storage Storage
     /// \param object Structure tree item object
     /// \param context Parsing context
-    static PDFStructureItemPointer parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context);
+    /// \param parent Parent item
+    static PDFStructureItemPointer parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context, PDFStructureItem* parent);
 
     /// Get structure tree type from name
     /// \param name Name
@@ -427,6 +430,23 @@ public:
     const PDFObjectReference& getNamespace() const { return m_namespace; }
     const QByteArray& getPhoneticAlphabet() const { return m_phoneticAlphabet; }
 
+    enum class RevisionPolicy
+    {
+        Ignore,
+        Match
+    };
+
+    using Attribute = PDFStructureTreeAttribute::Attribute;
+    using AttributeOwner = PDFStructureTreeAttribute::Owner;
+
+    /// Finds attribute matching given owner and revision policy. If attribute with given
+    /// owner is not found, then any matching attribute is returned. If none is found,
+    /// then nullptr is returned.
+    /// \param attribute Attribute
+    /// \param owner Owner
+    /// \param policy Revision number policy
+    const PDFStructureTreeAttribute* findAttribute(Attribute attribute, AttributeOwner owner, RevisionPolicy policy) const;
+
     /// Parses structure element from the object. If error occurs, nullptr is returned.
     /// \param storage Storage
     /// \param object Structure element object
@@ -440,6 +460,18 @@ public:
                                                 PDFStructureTree* root);
 
 private:
+    /// Finds attribute matching given owner and revision policy. If attribute with given
+    /// owner is not found, then any matching attribute is returned. If none is found,
+    /// then nullptr is returned.
+    /// \param attribute Attribute
+    /// \param owner Owner
+    /// \param policy Revision number policy
+    /// \param definition Definition
+    const PDFStructureTreeAttribute* findAttributeImpl(Attribute attribute,
+                                                       AttributeOwner owner,
+                                                       RevisionPolicy policy,
+                                                       const PDFStructureTreeAttributeDefinition* definition) const;
+
     QByteArray m_typeName;
     Type m_standardType;
     QByteArray m_id;

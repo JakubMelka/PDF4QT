@@ -207,6 +207,11 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         catalogObject.m_markInfoFlags.setFlag(MarkInfo_Suspects, loader.readBooleanFromDictionary(markInfoDictionary, "Suspects", false));
     }
 
+    catalogObject.m_structureTreeRoot = catalogDictionary->get("StructTreeRoot");
+    catalogObject.m_language = loader.readTextStringFromDictionary(catalogDictionary, "Lang", QString());
+    catalogObject.m_webCaptureInfo = PDFWebCaptureInfo::parse(catalogDictionary->get("SpiderInfo"), &document->getStorage());
+    catalogObject.m_outputIntents = loader.readObjectList<PDFOutputIntent>(catalogDictionary->get("OutputIntents"));
+
     return catalogObject;
 }
 
@@ -761,6 +766,59 @@ PDFArticleThread PDFArticleThread::parse(const PDFObjectStorage* storage, const 
 
         result.m_information = PDFDocumentInfo::parse(dictionary->get("I"), storage);
         result.m_metadata = loader.readReferenceFromDictionary(dictionary, "Metadata");
+    }
+
+    return result;
+}
+
+PDFWebCaptureInfo PDFWebCaptureInfo::parse(const PDFObject& object, const PDFObjectStorage* storage)
+{
+    PDFWebCaptureInfo result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_version = loader.readNameFromDictionary(dictionary, "V");
+        result.m_commands = loader.readReferenceArrayFromDictionary(dictionary, "C");
+    }
+
+    return result;
+}
+
+PDFOutputIntent PDFOutputIntent::parse(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    PDFOutputIntent result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_subtype = loader.readNameFromDictionary(dictionary, "S");
+        result.m_outputCondition = loader.readTextStringFromDictionary(dictionary, "OutputCondition", QString());
+        result.m_outputConditionIdentifier = loader.readTextStringFromDictionary(dictionary, "OutputConditionIdentifier", QString());
+        result.m_registryName = loader.readTextStringFromDictionary(dictionary, "RegistryName", QString());
+        result.m_info = loader.readTextStringFromDictionary(dictionary, "Info", QString());
+        result.m_destOutputProfile = dictionary->get("DestOutputProfile");
+        result.m_destOutputProfileRef = PDFOutputIntentICCProfileInfo::parse(dictionary->get("DestOutputProfileRef"), storage);
+        result.m_mixingHints = dictionary->get("MixingHints");
+        result.m_spectralData = dictionary->get("SpectralData");
+    }
+
+    return result;
+}
+
+PDFOutputIntentICCProfileInfo PDFOutputIntentICCProfileInfo::parse(const PDFObject& object, const PDFObjectStorage* storage)
+{
+    PDFOutputIntentICCProfileInfo result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_checkSum = loader.readStringFromDictionary(dictionary, "CheckSum");
+        result.m_colorants = loader.readNameArrayFromDictionary(dictionary, "ColorantTable");
+        result.m_iccVersion = loader.readStringFromDictionary(dictionary, "ICCVersion");
+        result.m_signature = loader.readStringFromDictionary(dictionary, "ProfileCS");
+        result.m_profileName = loader.readTextStringFromDictionary(dictionary, "ProfileName", QString());
+        result.m_urls = dictionary->get("URLs");
     }
 
     return result;

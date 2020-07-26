@@ -322,6 +322,87 @@ private:
     Extensions m_extensions;
 };
 
+/// Web capture info
+class PDFFORQTLIBSHARED_EXPORT PDFWebCaptureInfo
+{
+public:
+    explicit PDFWebCaptureInfo() = default;
+
+    const QByteArray& getVersion() const { return m_version; }
+    const std::vector<PDFObjectReference>& getCommands() const { return m_commands; }
+
+    /// Parses web capture info from catalog dictionary. If object cannot be parsed, or error occurs,
+    /// then empty object is returned, no exception is thrown.
+    /// \param object Spider info dictionary
+    /// \param storage Storage
+    static PDFWebCaptureInfo parse(const PDFObject& object, const PDFObjectStorage* storage);
+
+private:
+    QByteArray m_version;
+    std::vector<PDFObjectReference> m_commands;
+};
+
+class PDFFORQTLIBSHARED_EXPORT PDFOutputIntentICCProfileInfo
+{
+public:
+    explicit PDFOutputIntentICCProfileInfo() = default;
+
+    const QByteArray& getChecksum() const { return m_checkSum; }
+    const std::vector<QByteArray>& getColorants() const { return m_colorants; }
+    const QByteArray& getIccVersion() const { return m_iccVersion; }
+    const QByteArray& getSignature() const { return m_signature; }
+    const QString& getProfileName() const { return m_profileName; }
+    const PDFObject& getUrls() const { return m_urls; }
+
+    /// Parses icc profile info from object. If object cannot be parsed, or error occurs,
+    /// then empty object is returned, no exception is thrown.
+    /// \param object Output intent dictionary
+    /// \param storage Storage
+    static PDFOutputIntentICCProfileInfo parse(const PDFObject& object, const PDFObjectStorage* storage);
+
+private:
+    QByteArray m_checkSum;
+    std::vector<QByteArray> m_colorants;
+    QByteArray m_iccVersion;
+    QByteArray m_signature;
+    QString m_profileName;
+    PDFObject m_urls;
+};
+
+/// Output intent
+class PDFFORQTLIBSHARED_EXPORT PDFOutputIntent
+{
+public:
+    explicit PDFOutputIntent() = default;
+
+    const QByteArray& getSubtype() const { return m_subtype; }
+    const QString& getOutputCondition() const { return m_outputCondition; }
+    const QString& getOutputConditionIdentifier() const { return m_outputConditionIdentifier; }
+    const QString& getRegistryName() const { return m_registryName; }
+    const QString& getInfo() const { return m_info; }
+    const PDFObject& getOutputProfile() const { return m_destOutputProfile; }
+    const PDFOutputIntentICCProfileInfo& getOutputProfileInfo() const { return m_destOutputProfileRef; }
+    const PDFObject& getMixingHints() const { return m_mixingHints; }
+    const PDFObject& getSpectralData() const { return m_spectralData; }
+
+    /// Parses output intent from object. If object cannot be parsed, or error occurs,
+    /// then empty object is returned, no exception is thrown.
+    /// \param object Output intent dictionary
+    /// \param storage Storage
+    static PDFOutputIntent parse(const PDFObjectStorage* storage, const PDFObject& object);
+
+private:
+    QByteArray m_subtype;
+    QString m_outputCondition;
+    QString m_outputConditionIdentifier;
+    QString m_registryName;
+    QString m_info;
+    PDFObject m_destOutputProfile;
+    PDFOutputIntentICCProfileInfo m_destOutputProfileRef;
+    PDFObject m_mixingHints;
+    PDFObject m_spectralData;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:
@@ -379,6 +460,10 @@ public:
     const std::vector<PDFArticleThread>& getArticleThreads() const { return m_threads; }
     const PDFAction* getDocumentAction(DocumentAction action) const { return m_documentActions.at(action).get(); }
     const PDFObject& getMetadata() const { return m_metadata; }
+    const PDFObject& getStructureTreeRoot() const { return m_structureTreeRoot; }
+    const QString& getLanguage() const { return m_language; }
+    const PDFWebCaptureInfo& getWebCaptureInfo() const { return m_webCaptureInfo; }
+    const std::vector<PDFOutputIntent>& getOutputIntents() const { return m_outputIntents; }
 
     /// Is document marked to have structure tree conforming to tagged document convention?
     bool isLogicalStructureMarked() const { return m_markInfoFlags.testFlag(MarkInfo_Marked); }
@@ -422,11 +507,15 @@ private:
     PageMode m_pageMode = PageMode::UseNone;
     QByteArray m_baseURI;
     PDFObject m_formObject;
+    PDFObject m_structureTreeRoot;
     PDFDeveloperExtensions m_extensions;
     PDFDocumentSecurityStore m_documentSecurityStore;
     std::vector<PDFArticleThread> m_threads;
     PDFObject m_metadata;
     MarkInfoFlags m_markInfoFlags = MarkInfo_None;
+    QString m_language;
+    PDFWebCaptureInfo m_webCaptureInfo;
+    std::vector<PDFOutputIntent> m_outputIntents;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;

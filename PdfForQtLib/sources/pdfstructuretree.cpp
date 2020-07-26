@@ -45,6 +45,12 @@ struct PDFStructureTreeAttributeDefinition
     /// \param name Attribute name
     static const PDFStructureTreeAttributeDefinition* getDefinition(const QByteArray& name);
 
+    /// Returns attribute definition for given attribute type. This function
+    /// always returns valid pointer. For uknown attribute, it returns
+    /// user attribute definition.
+    /// \param name Attribute name
+    static const PDFStructureTreeAttributeDefinition* getDefinition(PDFStructureTreeAttribute::Attribute type);
+
     /// Returns owner from string. If owner is not valid, then invalid
     /// owner is returned.
     /// \param string String
@@ -205,6 +211,20 @@ const PDFStructureTreeAttributeDefinition* PDFStructureTreeAttributeDefinition::
     for (const PDFStructureTreeAttributeDefinition& definition : s_attributeDefinitions)
     {
         if (name == definition.name)
+        {
+            return &definition;
+        }
+    }
+
+    Q_ASSERT(s_attributeDefinitions.front().type == PDFStructureTreeAttribute::Attribute::User);
+    return &s_attributeDefinitions.front();
+}
+
+const PDFStructureTreeAttributeDefinition* PDFStructureTreeAttributeDefinition::getDefinition(PDFStructureTreeAttribute::Attribute type)
+{
+    for (const PDFStructureTreeAttributeDefinition& definition : s_attributeDefinitions)
+    {
+        if (type == definition.type)
         {
             return &definition;
         }
@@ -512,7 +532,7 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
     return tree;
 }
 
-PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context)
+PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context, PDFStructureItem* parent)
 {
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
@@ -521,15 +541,15 @@ PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage,
 
         if (typeName == "MCR")
         {
-            return PDFStructureMarkedContentReference::parse(storage, object, context);
+            return PDFStructureMarkedContentReference::parseMarkedContentReference(storage, object, context, parent, parent->getTree());
         }
         else if (typeName == "OBJR")
         {
-            return PDFStructureObjectReference::parse(storage, object, context);
+            return PDFStructureObjectReference::parseObjectReference(storage, object, context, parent, parent->getTree());
         }
         else
         {
-            return PDFStructureElement::parse(storage, object, context);
+            return PDFStructureElement::parseElement(storage, object, context, parent, parent->getTree());
         }
     }
 
@@ -557,7 +577,7 @@ void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureIt
         const PDFArray* kidsArray = kids.getArray();
         for (const PDFObject& object : *kidsArray)
         {
-            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, context);
+            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, context, parentItem);
             if (item)
             {
                 parentItem->m_children.emplace_back(qMove(item));
@@ -566,7 +586,7 @@ void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureIt
     }
     else if (!kids.isNull())
     {
-        PDFStructureItemPointer item = PDFStructureItem::parse(storage, kids, context);
+        PDFStructureItemPointer item = PDFStructureItem::parse(storage, kids, context, parentItem);
         if (item)
         {
             parentItem->m_children.emplace_back(qMove(item));
@@ -593,6 +613,56 @@ PDFStructureTreeNamespace PDFStructureTreeNamespace::parse(const PDFObjectStorag
     }
 
     return result;
+}
+
+const PDFStructureTreeAttribute* PDFStructureElement::findAttribute(Attribute attribute,
+                                                                    AttributeOwner owner,
+                                                                    RevisionPolicy policy) const
+{
+    const PDFStructureTreeAttributeDefinition* definition = PDFStructureTreeAttributeDefinition::getDefinition(attribute);
+
+    if (const PDFStructureTreeAttribute* result = findAttributeImpl(attribute, owner, policy, definition))
+    {
+        return result;
+    }
+
+    if (owner != AttributeOwner::Invalid)
+    {
+        return findAttributeImpl(attribute, AttributeOwner::Invalid, policy, definition);
+    }
+
+    return nullptr;
+}
+
+const PDFStructureTreeAttribute* PDFStructureElement::findAttributeImpl(Attribute attribute,
+                                                                        AttributeOwner owner,
+                                                                        RevisionPolicy policy,
+                                                                        const PDFStructureTreeAttributeDefinition* definition) const
+{
+    // We do not search for user properties
+    if (attribute == Attribute::User)
+    {
+        return nullptr;
+    }
+
+    // Try to search for attribute in attribute list
+    for (const PDFStructureTreeAttribute& attributeObject : m_attributes)
+    {
+        if ((attributeObject.getType() == attribute) &&
+            (attributeObject.getOwner() == owner || owner == AttributeOwner::Invalid) &&
+            (attributeObject.getRevision() == m_revision || policy == RevisionPolicy::Ignore))
+        {
+            return &attributeObject;
+        }
+    }
+
+    // Check, if attribute is inheritable and then search for it in parent
+    if (definition->inheritable && m_parent && m_parent->asStructureElement())
+    {
+        return m_parent->asStructureElement()->findAttributeImpl(attribute, owner, policy, definition);
+    }
+
+    return nullptr;
 }
 
 PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage* storage,
