@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="pdf::PDFInplaceString">
+    <DisplayString>{string._Elems,s}</DisplayString>
+    <StringView>string._Elems,s</StringView>
+  </Type>
+  <Type Name="pdf::PDFObjectReference">
+    <DisplayString>"{objectNumber} {generation} R"</DisplayString>
+  </Type>
+  <Type Name="pdf::PDFDictionary">
+    <DisplayString>Dictionary {m_dictionary}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>m_dictionary.size()</Size>
+        <ValuePointer>&amp;m_dictionary[0]</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="pdf::PDFArray">
+    <DisplayString>Array {m_objects}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>m_objects.size()</Size>
+        <ValuePointer>&amp;m_objects[0]</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="pdf::PDFObject">
+    <DisplayString Condition="(int)m_type==0" Optional="true">Null</DisplayString>
+    <DisplayString Condition="(int)m_type==1" Optional="true">Bool "{m_data._Tail._Head}"</DisplayString>
+    <DisplayString Condition="(int)m_type==2" Optional="true">Int {m_data._Tail._Tail._Head}</DisplayString>
+    <DisplayString Condition="(int)m_type==3" Optional="true">Real {m_data._Tail._Tail._Tail._Head}</DisplayString>
+    <DisplayString Condition="(int)m_type==4 &amp;&amp; m_data._Which == 5" Optional="true">String {m_data._Tail._Tail._Tail._Tail._Tail._Head._Ptr}</DisplayString>
+    <DisplayString Condition="(int)m_type==4 &amp;&amp; m_data._Which == 6" Optional="true">String {m_data._Tail._Tail._Tail._Tail._Tail._Tail._Head}</DisplayString>
+    <DisplayString Condition="(int)m_type==5 &amp;&amp; m_data._Which == 5" Optional="true">Name {m_data._Tail._Tail._Tail._Tail._Tail._Head._Ptr}</DisplayString>
+    <DisplayString Condition="(int)m_type==5 &amp;&amp; m_data._Which == 6" Optional="true">Name {m_data._Tail._Tail._Tail._Tail._Tail._Tail._Head}</DisplayString>
+    <DisplayString Condition="(int)m_type==6" Optional="true">Array {m_data._Tail._Tail._Tail._Tail._Tail._Head._Ptr}</DisplayString>
+    <DisplayString Condition="(int)m_type==7" Optional="true">Dictionary {m_data._Tail._Tail._Tail._Tail._Tail._Head._Ptr}</DisplayString>
+    <DisplayString Condition="(int)m_type==8" Optional="true">Stream {m_data}</DisplayString>
+    <DisplayString Condition="(int)m_type==9" Optional="true">Reference {m_data._Tail._Tail._Tail._Tail._Head}</DisplayString>
+
+    <Expand>
+      <Item Name="Value" Condition="m_data._Which == 5">m_data._Tail._Tail._Tail._Tail._Tail._Head._Ptr</Item>
+      <Item Name="StringValue" Condition="m_data._Which == 6">m_data._Tail._Tail._Tail._Tail._Tail._Tail._Head</Item>
+    </Expand>
+  </Type>
+  <Type Name="pdf::PDFInplaceOrMemoryString">
+    <DisplayString Condition="(int)m_value._Which==0" Optional="true">Null</DisplayString>
+    <DisplayString Condition="(int)m_value._Which==1" Optional="true">Inplace string {m_value._Tail._Head}</DisplayString>
+    <DisplayString Condition="(int)m_value._Which==2" Optional="true">Memory string "{m_value._Tail._Tail._Head}"</DisplayString>
+    <Expand>
+      <ExpandedItem>m_value</ExpandedItem>
+    </Expand>
+  </Type>
+</AutoVisualizer>
