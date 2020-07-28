@@ -211,6 +211,9 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     catalogObject.m_language = loader.readTextStringFromDictionary(catalogDictionary, "Lang", QString());
     catalogObject.m_webCaptureInfo = PDFWebCaptureInfo::parse(catalogDictionary->get("SpiderInfo"), &document->getStorage());
     catalogObject.m_outputIntents = loader.readObjectList<PDFOutputIntent>(catalogDictionary->get("OutputIntents"));
+    catalogObject.m_pieceInfo = catalogDictionary->get("PieceInfo");
+    catalogObject.m_perms = catalogDictionary->get("Perms");
+    catalogObject.m_legalAttestation = PDFLegalAttestation::parse(&document->getStorage(), catalogDictionary->get("Legal"));
 
     return catalogObject;
 }
@@ -819,6 +822,42 @@ PDFOutputIntentICCProfileInfo PDFOutputIntentICCProfileInfo::parse(const PDFObje
         result.m_signature = loader.readStringFromDictionary(dictionary, "ProfileCS");
         result.m_profileName = loader.readTextStringFromDictionary(dictionary, "ProfileName", QString());
         result.m_urls = dictionary->get("URLs");
+    }
+
+    return result;
+}
+
+std::optional<PDFLegalAttestation> PDFLegalAttestation::parse(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    std::optional<PDFLegalAttestation> result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        result = PDFLegalAttestation();
+
+        result->m_entries[JavaScriptActions] = loader.readIntegerFromDictionary(dictionary, "JavaScriptActions", 0);
+        result->m_entries[LaunchActions] = loader.readIntegerFromDictionary(dictionary, "LaunchActions", 0);
+        result->m_entries[URIActions] = loader.readIntegerFromDictionary(dictionary, "URIActions", 0);
+        result->m_entries[MovieActions] = loader.readIntegerFromDictionary(dictionary, "MovieActions", 0);
+        result->m_entries[SoundActions] = loader.readIntegerFromDictionary(dictionary, "SoundActions", 0);
+        result->m_entries[HideAnnotationActions] = loader.readIntegerFromDictionary(dictionary, "HideAnnotationActions", 0);
+        result->m_entries[GoToRemoteActions] = loader.readIntegerFromDictionary(dictionary, "GoToRemoteActions", 0);
+        result->m_entries[AlternateImages] = loader.readIntegerFromDictionary(dictionary, "AlternateImages", 0);
+        result->m_entries[ExternalStreams] = loader.readIntegerFromDictionary(dictionary, "ExternalStreams", 0);
+        result->m_entries[TrueTypeFonts] = loader.readIntegerFromDictionary(dictionary, "TrueTypeFonts", 0);
+        result->m_entries[ExternalRefXobjects] = loader.readIntegerFromDictionary(dictionary, "ExternalRefXobjects", 0);
+        result->m_entries[ExternalOPIdicts] = loader.readIntegerFromDictionary(dictionary, "ExternalOPIdicts", 0);
+        result->m_entries[NonEmbeddedFonts] = loader.readIntegerFromDictionary(dictionary, "NonEmbeddedFonts", 0);
+        result->m_entries[DevDepGS_OP] = loader.readIntegerFromDictionary(dictionary, "DevDepGS_OP", 0);
+        result->m_entries[DevDepGS_HT] = loader.readIntegerFromDictionary(dictionary, "DevDepGS_HT", 0);
+        result->m_entries[DevDepGS_TR] = loader.readIntegerFromDictionary(dictionary, "DevDepGS_TR", 0);
+        result->m_entries[DevDepGS_UCR] = loader.readIntegerFromDictionary(dictionary, "DevDepGS_UCR", 0);
+        result->m_entries[DevDepGS_BG] = loader.readIntegerFromDictionary(dictionary, "DevDepGS_BG", 0);
+        result->m_entries[DevDepGS_FL] = loader.readIntegerFromDictionary(dictionary, "DevDepGS_FL", 0);
+        result->m_hasOptionalContent = loader.readBooleanFromDictionary(dictionary, "OptionalContent", false);
+        result->m_attestation = loader.readTextStringFromDictionary(dictionary, "Attestation", QString());
     }
 
     return result;

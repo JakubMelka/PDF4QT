@@ -403,6 +403,52 @@ private:
     PDFObject m_spectralData;
 };
 
+/// Legal attestations
+class PDFFORQTLIBSHARED_EXPORT PDFLegalAttestation
+{
+public:
+    explicit inline PDFLegalAttestation() = default;
+
+    enum Entry
+    {
+        JavaScriptActions,
+        LaunchActions,
+        URIActions,
+        MovieActions,
+        SoundActions,
+        HideAnnotationActions,
+        GoToRemoteActions,
+        AlternateImages,
+        ExternalStreams,
+        TrueTypeFonts,
+        ExternalRefXobjects,
+        ExternalOPIdicts,
+        NonEmbeddedFonts,
+        DevDepGS_OP,
+        DevDepGS_HT,
+        DevDepGS_TR,
+        DevDepGS_UCR,
+        DevDepGS_BG,
+        DevDepGS_FL,
+        LastEntry
+    };
+
+    PDFInteger getEntry(Entry entry) const { return m_entries.at(entry); }
+    bool hasOptionalContent() const { return m_hasOptionalContent; }
+    const QString& getAttestationText() const { return m_attestation; }
+
+    /// Parses legal attestation from object. If object cannot be parsed, or error occurs,
+    /// then no object is returned, no exception is thrown.
+    /// \param object Legal attestation dictionary
+    /// \param storage Storage
+    static std::optional<PDFLegalAttestation> parse(const PDFObjectStorage* storage, const PDFObject& object);
+
+private:
+    std::array<PDFInteger, LastEntry> m_entries = { };
+    bool m_hasOptionalContent = false;
+    QString m_attestation;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:
@@ -464,6 +510,9 @@ public:
     const QString& getLanguage() const { return m_language; }
     const PDFWebCaptureInfo& getWebCaptureInfo() const { return m_webCaptureInfo; }
     const std::vector<PDFOutputIntent>& getOutputIntents() const { return m_outputIntents; }
+    const PDFObject& getPieceInfo() const { return m_pieceInfo; }
+    const PDFObject& getPerms() const { return m_perms; }
+    const PDFLegalAttestation* getLegalAttestation() const { return m_legalAttestation.has_value() ? &m_legalAttestation.value() : nullptr; }
 
     /// Is document marked to have structure tree conforming to tagged document convention?
     bool isLogicalStructureMarked() const { return m_markInfoFlags.testFlag(MarkInfo_Marked); }
@@ -516,6 +565,9 @@ private:
     QString m_language;
     PDFWebCaptureInfo m_webCaptureInfo;
     std::vector<PDFOutputIntent> m_outputIntents;
+    PDFObject m_pieceInfo;
+    PDFObject m_perms;
+    std::optional<PDFLegalAttestation> m_legalAttestation;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;
