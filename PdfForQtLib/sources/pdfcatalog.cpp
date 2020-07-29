@@ -214,6 +214,11 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     catalogObject.m_pieceInfo = catalogDictionary->get("PieceInfo");
     catalogObject.m_perms = catalogDictionary->get("Perms");
     catalogObject.m_legalAttestation = PDFLegalAttestation::parse(&document->getStorage(), catalogDictionary->get("Legal"));
+    catalogObject.m_requirements = catalogDictionary->get("Requirements");
+    catalogObject.m_collection = catalogDictionary->get("Collection");
+    catalogObject.m_xfaNeedsRendering = loader.readBooleanFromDictionary(catalogDictionary, "NeedsRendering", false);
+    catalogObject.m_associatedFiles = catalogDictionary->get("AF");
+    catalogObject.m_documentPartRoot = catalogDictionary->get("DPartRoot");
 
     return catalogObject;
 }

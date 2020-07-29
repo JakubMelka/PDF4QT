@@ -513,6 +513,11 @@ public:
     const PDFObject& getPieceInfo() const { return m_pieceInfo; }
     const PDFObject& getPerms() const { return m_perms; }
     const PDFLegalAttestation* getLegalAttestation() const { return m_legalAttestation.has_value() ? &m_legalAttestation.value() : nullptr; }
+    const PDFObject& getRequirements() const { return m_requirements; }
+    const PDFObject& getCollection() const { return m_collection; }
+    bool isXFANeedsRendering() const { return m_xfaNeedsRendering; }
+    const PDFObject& getAssociatedFiles() const { return m_associatedFiles; }
+    const PDFObject& getDocumentPartRoot() const { return m_documentPartRoot; }
 
     /// Is document marked to have structure tree conforming to tagged document convention?
     bool isLogicalStructureMarked() const { return m_markInfoFlags.testFlag(MarkInfo_Marked); }
@@ -568,6 +573,11 @@ private:
     PDFObject m_pieceInfo;
     PDFObject m_perms;
     std::optional<PDFLegalAttestation> m_legalAttestation;
+    PDFObject m_requirements;
+    PDFObject m_collection;
+    bool m_xfaNeedsRendering = false;
+    PDFObject m_associatedFiles;
+    PDFObject m_documentPartRoot;
 
     // Maps from Names dictionary
     std::map<QByteArray, PDFDestination> m_destinations;
