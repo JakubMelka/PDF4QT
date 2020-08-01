@@ -69,15 +69,103 @@ size_t PDFCatalog::getPageIndexFromPageReference(PDFObjectReference reference) c
     return INVALID_PAGE_INDEX;
 }
 
-const PDFDestination* PDFCatalog::getDestination(const QByteArray& key) const
+const PDFDestination* PDFCatalog::getNamedDestination(const QByteArray& key) const
 {
-    auto it = m_destinations.find(key);
-    if (it != m_destinations.cend())
+    auto it = m_namedDestinations.find(key);
+    if (it != m_namedDestinations.cend())
     {
         return &it->second;
     }
 
     return nullptr;
+}
+
+PDFActionPtr PDFCatalog::getNamedJavaScriptAction(const QByteArray& key) const
+{
+    auto it = m_namedJavaScriptActions.find(key);
+    if (it != m_namedJavaScriptActions.cend())
+    {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
+PDFObject PDFCatalog::getNamedAppearanceStream(const QByteArray& key) const
+{
+    auto it = m_namedAppearanceStreams.find(key);
+    if (it != m_namedAppearanceStreams.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFCatalog::getNamedPage(const QByteArray& key) const
+{
+    auto it = m_namedPages.find(key);
+    if (it != m_namedPages.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFCatalog::getNamedTemplate(const QByteArray& key) const
+{
+    auto it = m_namedTemplates.find(key);
+    if (it != m_namedTemplates.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFCatalog::getNamedDigitalIdentifier(const QByteArray& key) const
+{
+    auto it = m_namedDigitalIdentifiers.find(key);
+    if (it != m_namedDigitalIdentifiers.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFCatalog::getNamedUrl(const QByteArray& key) const
+{
+    auto it = m_namedUniformResourceLocators.find(key);
+    if (it != m_namedUniformResourceLocators.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFCatalog::getNamedAlternateRepresentation(const QByteArray& key) const
+{
+    auto it = m_namedAlternateRepresentations.find(key);
+    if (it != m_namedAlternateRepresentations.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFCatalog::getNamedRendition(const QByteArray& key) const
+{
+    auto it = m_namedRenditions.find(key);
+    if (it != m_namedRenditions.cend())
+    {
+        return it->second;
+    }
+
+    return PDFObject();
 }
 
 PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* document)
@@ -171,9 +259,21 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
             return PDFDestination::parse(storage, qMove(object));
         };
 
-        catalogObject.m_destinations = PDFNameTreeLoader<PDFDestination>::parse(&document->getStorage(), namesDictionary->get("Dests"), parseDestination);
-        catalogObject.m_javaScriptActions = PDFNameTreeLoader<PDFActionPtr>::parse(&document->getStorage(), namesDictionary->get("JavaScript"), &PDFAction::parse);
-        catalogObject.m_embeddedFiles = PDFNameTreeLoader<PDFFileSpecification>::parse(&document->getStorage(), namesDictionary->get("EmbeddedFiles"), &PDFFileSpecification::parse);
+        auto getObject = [](const PDFObjectStorage*, PDFObject object)
+        {
+            return qMove(object);
+        };
+
+        catalogObject.m_namedDestinations = PDFNameTreeLoader<PDFDestination>::parse(&document->getStorage(), namesDictionary->get("Dests"), parseDestination);
+        catalogObject.m_namedAppearanceStreams = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("AP"), getObject);
+        catalogObject.m_namedJavaScriptActions = PDFNameTreeLoader<PDFActionPtr>::parse(&document->getStorage(), namesDictionary->get("JavaScript"), &PDFAction::parse);
+        catalogObject.m_namedPages = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("Pages"), getObject);
+        catalogObject.m_namedTemplates = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("Templates"), getObject);
+        catalogObject.m_namedDigitalIdentifiers = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("IDS"), getObject);
+        catalogObject.m_namedUniformResourceLocators = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("URLS"), getObject);
+        catalogObject.m_namedEmbeddedFiles = PDFNameTreeLoader<PDFFileSpecification>::parse(&document->getStorage(), namesDictionary->get("EmbeddedFiles"), &PDFFileSpecification::parse);
+        catalogObject.m_namedAlternateRepresentations = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("AlternatePresentations"), getObject);
+        catalogObject.m_namedRenditions = PDFNameTreeLoader<PDFObject>::parse(&document->getStorage(), namesDictionary->get("Renditions"), getObject);
     }
 
     // Examine "Dests" dictionary
@@ -182,7 +282,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         const size_t count = destsDictionary->getCount();
         for (size_t i = 0; i < count; ++i)
         {
-            catalogObject.m_destinations[destsDictionary->getKey(i).getString()] = PDFDestination::parse(&document->getStorage(), destsDictionary->getValue(i));
+            catalogObject.m_namedDestinations[destsDictionary->getKey(i).getString()] = PDFDestination::parse(&document->getStorage(), destsDictionary->getValue(i));
         }
     }
 

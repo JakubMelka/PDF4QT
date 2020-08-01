@@ -59,6 +59,11 @@ PDFPageInheritableAttributes PDFPageInheritableAttributes::parse(const PDFPageIn
                 rotation = rotation - fullCircles * 360;
             }
 
+            if (rotation < 0)
+            {
+                rotation += 360;
+            }
+
             switch (rotation)
             {
                 case 0:

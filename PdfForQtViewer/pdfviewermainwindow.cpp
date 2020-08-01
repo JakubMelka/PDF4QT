@@ -405,7 +405,7 @@ void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
                 pdf::PDFDestination destination = typedAction->getDestination();
                 if (destination.getDestinationType() == pdf::DestinationType::Named)
                 {
-                    if (const pdf::PDFDestination* targetDestination = m_pdfDocument->getCatalog()->getDestination(destination.getName()))
+                    if (const pdf::PDFDestination* targetDestination = m_pdfDocument->getCatalog()->getNamedDestination(destination.getName()))
                     {
                         destination = *targetDestination;
                     }

@@ -499,7 +499,7 @@ public:
     PageLayout getPageLayout() const { return m_pageLayout; }
     PageMode getPageMode() const { return m_pageMode; }
     const QByteArray& getBaseURI() const { return m_baseURI; }
-    const std::map<QByteArray, PDFFileSpecification>& getEmbeddedFiles() const { return m_embeddedFiles; }
+    const std::map<QByteArray, PDFFileSpecification>& getEmbeddedFiles() const { return m_namedEmbeddedFiles; }
     const PDFObject& getFormObject() const { return m_formObject; }
     const PDFDeveloperExtensions& getExtensions() const { return m_extensions; }
     const PDFDocumentSecurityStore& getDocumentSecurityStore() const { return m_documentSecurityStore; }
@@ -532,7 +532,57 @@ public:
     /// then nullptr is returned.
     /// \param key Destination key
     /// \returns Pointer to the destination, or nullptr
-    const PDFDestination* getDestination(const QByteArray& key) const;
+    const PDFDestination* getNamedDestination(const QByteArray& key) const;
+
+    /// Returns javascript action using the key. If javascript action is not found,
+    /// then nullptr is returned.
+    /// \param key Action key
+    /// \returns Javascript action, or nullptr
+    PDFActionPtr getNamedJavaScriptAction(const QByteArray& key) const;
+
+    /// Returns appearance stream using the key. If appearance stream is not found,
+    /// then empty object is returned.
+    /// \param key Appearance stream key
+    /// \returns Appearance, or nullptr
+    PDFObject getNamedAppearanceStream(const QByteArray& key) const;
+
+    /// Returns named page using the key. If named page is not found,
+    /// then empty object is returned.
+    /// \param key Page key
+    /// \returns Page, or nullptr
+    PDFObject getNamedPage(const QByteArray& key) const;
+
+    /// Returns named template using the key. If named template is not found,
+    /// then empty object is returned.
+    /// \param key Template key
+    /// \returns Template, or nullptr
+    PDFObject getNamedTemplate(const QByteArray& key) const;
+
+    /// Returns named digital identifier using the key. If named digital identifier is not found,
+    /// then empty object is returned. Digital identifiers are used in Web Capture functionality.
+    /// See also PDF 2.0 specification.
+    /// \param key Digital identifier key
+    /// \returns Digital identifier, or nullptr
+    PDFObject getNamedDigitalIdentifier(const QByteArray& key) const;
+
+    /// Returns named url using the key. If named url is not found,
+    /// then empty object is returned. Urls are used in Web Capture functionality.
+    /// See also PDF 2.0 specification.
+    /// \param key Url key
+    /// \returns Url, or nullptr
+    PDFObject getNamedUrl(const QByteArray& key) const;
+
+    /// Returns named alternate representation using the key. If named alternate representation is not found,
+    /// then empty object is returned.
+    /// \param key Alternate representation key
+    /// \returns Alternate representation, or nullptr
+    PDFObject getNamedAlternateRepresentation(const QByteArray& key) const;
+
+    /// Returns named rendition using the key. If named rendition is not found,
+    /// then empty object is returned.
+    /// \param key Rendition key
+    /// \returns Rendition, or nullptr
+    PDFObject getNamedRendition(const QByteArray& key) const;
 
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.
@@ -580,9 +630,16 @@ private:
     PDFObject m_documentPartRoot;
 
     // Maps from Names dictionary
-    std::map<QByteArray, PDFDestination> m_destinations;
-    std::map<QByteArray, PDFActionPtr> m_javaScriptActions;
-    std::map<QByteArray, PDFFileSpecification> m_embeddedFiles;
+    std::map<QByteArray, PDFDestination> m_namedDestinations;
+    std::map<QByteArray, PDFObject> m_namedAppearanceStreams;
+    std::map<QByteArray, PDFActionPtr> m_namedJavaScriptActions;
+    std::map<QByteArray, PDFObject> m_namedPages;
+    std::map<QByteArray, PDFObject> m_namedTemplates;
+    std::map<QByteArray, PDFObject> m_namedDigitalIdentifiers;
+    std::map<QByteArray, PDFObject> m_namedUniformResourceLocators;
+    std::map<QByteArray, PDFFileSpecification> m_namedEmbeddedFiles;
+    std::map<QByteArray, PDFObject> m_namedAlternateRepresentations;
+    std::map<QByteArray, PDFObject> m_namedRenditions;
 };
 
 }   // namespace pdf
