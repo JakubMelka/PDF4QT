@@ -28,6 +28,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFObjectStorage;
 
 /// This enum represents number of degree, which should be page rotated CLOCKWISE,
 /// when being displayed or printed.
@@ -37,6 +38,16 @@ enum class PageRotation
     Rotate90,
     Rotate180,
     Rotate270
+};
+
+enum class PageTabOrder
+{
+    Invalid,
+    Row,
+    Column,
+    Structure,
+    Array,
+    Widget
 };
 
 constexpr PageRotation getPageRotationRotatedRight(PageRotation rotation)
@@ -129,12 +140,106 @@ public:
     inline QRectF getArtBoxMM() const { return getRectMM(m_artBox); }
 
     inline PDFObjectReference getPageReference() const { return m_pageReference; }
+    inline PDFObjectReference getThumbnailReference() const { return m_thumbnailReference; }
+    inline PDFObjectReference getDocumentPart() const { return m_documentPart; }
 
     QRectF getRotatedMediaBox() const;
     QRectF getRotatedMediaBoxMM() const;
     QRectF getRotatedCropBox() const;
 
     inline const std::vector<PDFObjectReference>& getAnnotations() const { return m_annots; }
+    inline const std::vector<PDFObjectReference>& getBeads() const { return m_beads; }
+    inline const QDateTime& getLastModifiedDateTime() const { return m_lastModified; }
+
+    /// Returns box color info dictionary, if it is present. This dictionary
+    /// describes appearance of page boundaries. Empty object can be returned,
+    /// if dictionary doesn't exist.
+    /// \param storage Storage
+    PDFObject getBoxColorInfo(const PDFObjectStorage* storage) const;
+
+    /// Returns page transparency group (attributes for the
+    /// transparent imaging model). Empty object can be returned,
+    /// if dictionary doesn't exist.
+    /// \param storage Storage
+    PDFObject getTransparencyGroup(const PDFObjectStorage* storage) const;
+
+    /// Returns page thumbnail. Empty object can be returned,
+    /// if thumbnail doesn't exist.
+    /// \param storage Storage
+    PDFObject getThumbnail(const PDFObjectStorage* storage) const;
+
+    /// Returns page transition. Page transition object defines,
+    /// what should be done during presentations, how pages are switched etc.
+    /// Empty object can be returned, if thumbnail doesn't exist.
+    /// \param storage Storage
+    PDFObject getTransition(const PDFObjectStorage* storage) const;
+
+    /// Returns page additional actions dictionary. If no additional
+    /// actions are defined, then empty object is returned.
+    /// \param storage Storage
+    PDFObject getAdditionalActions(const PDFObjectStorage* storage) const;
+
+    /// Returns page metadata stream. If no metadata stream is defined,
+    /// then empty object is returned.
+    /// \param storage Storage
+    PDFObject getMetadata(const PDFObjectStorage* storage) const;
+
+    /// Returns page piece dictionary associated with the page.
+    /// Empty object can be returned, if no piece dictionary is found.
+    /// \param storage Storage
+    PDFObject getPieceDictionary(const PDFObjectStorage* storage) const;
+
+    /// Returns color separation info. This information is required
+    /// to generate color separations for the page.
+    /// \param storage Storage
+    PDFObject getColorSeparationInfo(const PDFObjectStorage* storage) const;
+
+    /// Returns first navigation node on the page, or null object,
+    /// if no navigation nodes are present.
+    /// \param storage Storage
+    PDFObject getFirstSubpageNavigationNode(const PDFObjectStorage* storage) const;
+
+    /// Returns array of viewport dictionaries, that shall specify
+    /// rectangular regions on the page.
+    /// \param storage Storage
+    PDFObject getViewports(const PDFObjectStorage* storage) const;
+
+    /// Returns array of associated files.
+    /// \param storage Storage
+    PDFObject getAssociatedFiles(const PDFObjectStorage* storage) const;
+
+    /// Returns array of output intents. Output intents define color
+    /// characteristics of output devices on which this page
+    /// will be rendered.
+    /// \param storage Storage
+    PDFObject getOutputIntents(const PDFObjectStorage* storage) const;
+
+    /// Returns page transition time. During presentations, this specifies a time window,
+    /// in which is page displayed, until it is advanced to the next page. Time
+    /// is specified in seconds.
+    inline PDFInteger getDuration() const { return m_duration; }
+
+    /// Returns integer key of structure parent of the page, in the structure tree.
+    /// If no structure tree exists, or page doesn't define it, then zero is returned.
+    inline PDFInteger getStructureParentKey() const { return m_structParent; }
+
+    /// Returns web capture content set id.
+    inline const QByteArray& getWebCaptureContentSetId() const { return m_webCaptureContentSetId; }
+
+    /// Returns preferred zoom. If zero is returned, no preferred zoom is returned.
+    inline PDFReal getPreferredZoom() const { return m_preferredZoom; }
+
+    /// Returns page tab order (if it is defined). Page tab order defines
+    /// sequence of tab stops for annotations. If no tab order is defined,
+    /// then Invalid is returned.
+    inline PageTabOrder getTabOrder() const { return m_pageTabOrder; }
+
+    /// Returns name of template, from which this page was generated
+    inline const QByteArray& getTemplateName() const { return m_templateName; }
+
+    /// Returns page user space unit. User space units are multiplies
+    /// of 1 / 72 inch. Default value is 1.0.
+    inline PDFReal getUserUnit() const { return m_userUnit; }
 
     static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);
 
@@ -151,6 +256,15 @@ private:
                           const PDFObject& root,
                           const PDFDocument* document);
 
+    /// Returns object from page dictionary. This function requires,
+    /// that storage of object is present, for object fetching. Objects
+    /// are not stored in this class, because it will have too large
+    /// memory requirements.
+    /// \param storage Storage
+    /// \param key Page dictionary key
+    PDFObject getObjectFromPageDictionary(const PDFObjectStorage* storage, const char* key) const;
+
+    PDFObject m_pageObject;
     QRectF m_mediaBox;
     QRectF m_cropBox;
     QRectF m_bleedBox;
@@ -160,7 +274,18 @@ private:
     PDFObject m_resources;
     PDFObject m_contents;
     PDFObjectReference m_pageReference;
+    PDFObjectReference m_thumbnailReference;
+    PDFObjectReference m_documentPart;
     std::vector<PDFObjectReference> m_annots;
+    std::vector<PDFObjectReference> m_beads;
+    QDateTime m_lastModified;
+    PDFInteger m_duration = 0;
+    PDFInteger m_structParent = 0;
+    PDFReal m_preferredZoom = 0.0;
+    PDFReal m_userUnit = 1.0;
+    PageTabOrder m_pageTabOrder = PageTabOrder::Invalid;
+    QByteArray m_webCaptureContentSetId;
+    QByteArray m_templateName;
 };
 
 }   // namespace pdf

@@ -18,6 +18,7 @@
 #include "pdfpage.h"
 #include "pdfdocument.h"
 #include "pdfexception.h"
+#include "pdfencoding.h"
 
 namespace pdf
 {
@@ -131,6 +132,76 @@ QRectF PDFPage::getRotatedCropBox() const
     return getRotatedBox(getCropBox(), getPageRotation());
 }
 
+PDFObject PDFPage::getObjectFromPageDictionary(const PDFObjectStorage* storage, const char* key) const
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(m_pageObject))
+    {
+        return dictionary->get(key);
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFPage::getBoxColorInfo(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "BoxColorInfo");
+}
+
+PDFObject PDFPage::getTransparencyGroup(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "Group");
+}
+
+PDFObject PDFPage::getThumbnail(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "Thumb");
+}
+
+PDFObject PDFPage::getTransition(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "Trans");
+}
+
+PDFObject PDFPage::getAdditionalActions(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "AA");
+}
+
+PDFObject PDFPage::getMetadata(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "Metadata");
+}
+
+PDFObject PDFPage::getPieceDictionary(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "PieceInfo");
+}
+
+PDFObject PDFPage::getColorSeparationInfo(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "SeparationInfo");
+}
+
+PDFObject PDFPage::getFirstSubpageNavigationNode(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "PresSteps");
+}
+
+PDFObject PDFPage::getViewports(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "VP");
+}
+
+PDFObject PDFPage::getAssociatedFiles(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "AF");
+}
+
+PDFObject PDFPage::getOutputIntents(const PDFObjectStorage* storage) const
+{
+    return getObjectFromPageDictionary(storage, "OutputIntents");
+}
+
 QRectF PDFPage::getRotatedBox(const QRectF& rect, PageRotation rotation)
 {
     switch (rotation)
@@ -204,6 +275,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
             {
                 PDFPage page;
 
+                page.m_pageObject = dereferenced;
                 page.m_pageReference = objectReference;
                 page.m_mediaBox = currentInheritableAttributes.getMediaBox();
                 page.m_cropBox = currentInheritableAttributes.getCropBox();
@@ -221,6 +293,27 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                 page.m_artBox = loader.readRectangle(dictionary->get("ArtBox"), page.getCropBox());
                 page.m_contents = document->getObject(dictionary->get("Contents"));
                 page.m_annots = loader.readReferenceArrayFromDictionary(dictionary, "Annots");
+                page.m_lastModified = PDFEncoding::convertToDateTime(loader.readStringFromDictionary(dictionary, "LastModified"));
+                page.m_thumbnailReference = loader.readReferenceFromDictionary(dictionary, "Thumb");
+                page.m_beads = loader.readReferenceArrayFromDictionary(dictionary, "B");
+                page.m_duration = loader.readIntegerFromDictionary(dictionary, "Dur", 0);
+                page.m_structParent = loader.readIntegerFromDictionary(dictionary, "StructParents", 0);
+                page.m_webCaptureContentSetId = loader.readStringFromDictionary(dictionary, "ID");
+                page.m_preferredZoom = loader.readNumberFromDictionary(dictionary, "PZ", 0.0);
+
+                constexpr const std::array<std::pair<const char*, PageTabOrder>, 5> tabStops =
+                {
+                    std::pair<const char*, PageTabOrder>{ "R", PageTabOrder::Row },
+                    std::pair<const char*, PageTabOrder>{ "C", PageTabOrder::Column },
+                    std::pair<const char*, PageTabOrder>{ "S", PageTabOrder::Structure },
+                    std::pair<const char*, PageTabOrder>{ "A", PageTabOrder::Array },
+                    std::pair<const char*, PageTabOrder>{ "W", PageTabOrder::Widget }
+                };
+
+                page.m_pageTabOrder = loader.readEnumByName(dictionary->get("Tabs"), tabStops.cbegin(), tabStops.cend(), PageTabOrder::Invalid);
+                page.m_templateName = loader.readNameFromDictionary(dictionary, "TemplateInstantiated");
+                page.m_userUnit = loader.readNumberFromDictionary(dictionary, "UserUnit", 1.0);
+                page.m_documentPart = loader.readReferenceFromDictionary(dictionary, "DPart");
 
                 pages.emplace_back(std::move(page));
             }
