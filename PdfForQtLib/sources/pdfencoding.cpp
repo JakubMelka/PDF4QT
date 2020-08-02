@@ -2193,6 +2193,10 @@ QString PDFEncoding::convertTextString(const QByteArray& stream)
     {
         return convertFromUnicode(stream);
     }
+    else if (hasUTF8LeadMarkings(stream))
+    {
+        return QString::fromUtf8(stream);
+    }
     else
     {
         return convert(stream, Encoding::PDFDoc);
@@ -2341,6 +2345,22 @@ bool PDFEncoding::hasUnicodeLeadMarkings(const QByteArray& stream)
         if (static_cast<unsigned char>(stream[0]) == 0xFF && static_cast<unsigned char>(stream[1]) == 0xFE)
         {
             // UTF 16-LE, forbidden in PDF 2.0 standard, but used in some PDF producers (wrongly)
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool PDFEncoding::hasUTF8LeadMarkings(const QByteArray& stream)
+{
+    if (stream.size() >= 3)
+    {
+        if (static_cast<unsigned char>(stream[0]) == 239 &&
+            static_cast<unsigned char>(stream[1]) == 187 &&
+            static_cast<unsigned char>(stream[2]) == 191)
+        {
+            // UTF-8
             return true;
         }
     }

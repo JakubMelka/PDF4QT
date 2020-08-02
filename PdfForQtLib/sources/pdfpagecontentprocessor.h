@@ -197,6 +197,18 @@ public:
         Invalid                             ///< Invalid operator, use for error reporting
     };
 
+    enum ProcedureSet
+    {
+        EmptyProcSet    = 0x0000,
+        NoProcSet       = 0x0001,
+        PDF             = 0x0002,
+        Text            = 0x0004,
+        ImageB          = 0x0008,
+        ImageC          = 0x0010,
+        ImageI          = 0x0020
+    };
+    Q_DECLARE_FLAGS(ProcedureSets, ProcedureSet)
+
     /// Process the contents of the page
     QList<PDFRenderError> processContents();
 
@@ -547,6 +559,10 @@ protected:
     /// Returns page bounding rectangle in device space
     const QRectF& getPageBoundingRectDeviceSpace() const { return m_pageBoundingRectDeviceSpace; }
 
+    /// Returns current procedure sets. Procedure sets are deprecated in PDF 2.0 and are here
+    /// only for compatibility purposes. See chapter 14.2 in PDF 2.0 specification.
+    ProcedureSets getProcedureSets() const { return m_procedureSets; }
+
 private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
@@ -621,6 +637,7 @@ private:
         const PDFDictionary* m_propertiesDictionary;
         const PDFDictionary* m_shadingDictionary;
         const PDFDictionary* m_patternDictionary;
+        ProcedureSets m_procedureSets;
     };
 
     class PDFPageContentProcessorGraphicStateSaveRestoreGuard
@@ -878,6 +895,7 @@ private:
     const PDFDictionary* m_propertiesDictionary;
     const PDFDictionary* m_shadingDictionary;
     const PDFDictionary* m_patternDictionary;
+    ProcedureSets m_procedureSets;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;

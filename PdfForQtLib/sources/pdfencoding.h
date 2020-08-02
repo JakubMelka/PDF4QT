@@ -105,11 +105,18 @@ public:
     static const encoding::EncodingTable* getTableForEncoding(Encoding encoding);
 
 private:
-    /// Returns true, if byte array has UTF-16BE unicode marking bytes at the
+    /// Returns true, if byte array has UTF-16BE/LE unicode marking bytes at the
     /// stream start. If they are present, then byte stream is probably encoded
     /// as unicode.
     /// \param stream Stream to be tested
     static bool hasUnicodeLeadMarkings(const QByteArray& stream);
+
+    /// Returns true, if byte array has UTF-8 unicode marking bytes at the stream
+    /// start. If they are present, then byte stream is probably encoded
+    /// as UTF-8 string.
+    /// \note UTF-8 strings were added in PDF 2.0 specification
+    /// \param stream Stream to be tested
+    static bool hasUTF8LeadMarkings(const QByteArray& stream);
 };
 
 }   // namespace pdf

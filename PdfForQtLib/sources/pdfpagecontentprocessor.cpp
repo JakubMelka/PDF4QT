@@ -157,9 +157,9 @@ static constexpr const std::pair<const char*, PDFPageContentProcessor::Operator>
 
 void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
 {
-    auto getDictionary = [this, &resourcesObject](const char* resourceName) -> const pdf::PDFDictionary*
+    const PDFObject& resources = m_document->getObject(resourcesObject);
+    auto getDictionary = [this, &resources](const char* resourceName) -> const pdf::PDFDictionary*
     {
-        const PDFObject& resources = m_document->getObject(resourcesObject);
         if (resources.isDictionary() && resources.getDictionary()->hasKey(resourceName))
         {
             const PDFObject& resourceDictionary = m_document->getObject(resources.getDictionary()->get(resourceName));
@@ -179,6 +179,43 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     m_propertiesDictionary = getDictionary("Properties");
     m_shadingDictionary = getDictionary("Shading");
     m_patternDictionary = getDictionary("Pattern");
+    m_procedureSets = NoProcSet;
+
+    if (resources.isDictionary() && resources.getDictionary()->hasKey("ProcSet"))
+    {
+        PDFDocumentDataLoaderDecorator loader(m_document);
+        std::vector<QByteArray> procedureSetNames = loader.readNameArrayFromDictionary(resources.getDictionary(), "ProcSet");
+
+        ProcedureSets newProcSet = EmptyProcSet;
+        for (const QByteArray& procedureSetName : procedureSetNames)
+        {
+           if (procedureSetName == "PDF")
+           {
+               newProcSet.setFlag(PDF);
+           }
+           else if (procedureSetName == "Text")
+           {
+               newProcSet.setFlag(Text);
+           }
+           else if (procedureSetName == "ImageB")
+           {
+               newProcSet.setFlag(ImageB);
+           }
+           else if (procedureSetName == "ImageC")
+           {
+               newProcSet.setFlag(ImageC);
+           }
+           else if (procedureSetName == "ImageI")
+           {
+               newProcSet.setFlag(ImageI);
+           }
+        }
+
+        if (newProcSet)
+        {
+            m_procedureSets = newProcSet;
+        }
+    }
 }
 
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
@@ -200,6 +237,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_propertiesDictionary(nullptr),
     m_shadingDictionary(nullptr),
     m_patternDictionary(nullptr),
+    m_procedureSets(NoProcSet),
     m_textBeginEndState(0),
     m_compatibilityBeginEndState(0),
     m_drawingUncoloredTilingPatternState(0),
@@ -3501,7 +3539,8 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::PDFPageContentProces
     m_extendedGraphicStateDictionary(processor->m_extendedGraphicStateDictionary),
     m_propertiesDictionary(processor->m_propertiesDictionary),
     m_shadingDictionary(processor->m_shadingDictionary),
-    m_patternDictionary(processor->m_patternDictionary)
+    m_patternDictionary(processor->m_patternDictionary),
+    m_procedureSets(processor->m_procedureSets)
 {
     m_processor->operatorSaveGraphicState();
 }
@@ -3516,6 +3555,7 @@ PDFPageContentProcessor::PDFPageContentProcessorStateGuard::~PDFPageContentProce
     m_processor->m_propertiesDictionary = m_propertiesDictionary;
     m_processor->m_shadingDictionary = m_shadingDictionary;
     m_processor->m_patternDictionary = m_patternDictionary;
+    m_processor->m_procedureSets = m_procedureSets;
 
     m_processor->operatorRestoreGraphicState();
 }
