@@ -26,6 +26,25 @@ namespace pdf
 {
 class PDFObjectStorage;
 
+/// File identifier according section 14.4 of PDF 2.0 specification.
+/// Each identifier consists of two parts - permanent identifier, which
+/// is unique identifier based on original document, and changing identifier,
+/// which is updated when document is being modified.
+class PDFFileIdentifier
+{
+public:
+    explicit inline PDFFileIdentifier() = default;
+
+    const QByteArray& getPermanentIdentifier() const { return m_permanentIdentifier; }
+    const QByteArray& getChangingIdentifier() const { return m_changingIdentifier; }
+
+    static PDFFileIdentifier parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    QByteArray m_permanentIdentifier;
+    QByteArray m_changingIdentifier;
+};
+
 class PDFEmbeddedFile
 {
 public:
@@ -70,6 +89,7 @@ public:
     const QByteArray& getDOS() const { return m_DOS; }
     const QByteArray& getMac() const { return m_Mac; }
     const QByteArray& getUnix() const { return m_Unix; }
+    const PDFFileIdentifier& getFileIdentifier() const { return m_id; }
     bool isVolatile() const { return m_volatile; }
     const QString& getDescription() const { return m_description; }
     PDFObjectReference getCollection() const { return m_collection; }
@@ -92,6 +112,8 @@ private:
     QByteArray m_DOS;
     QByteArray m_Mac;
     QByteArray m_Unix;
+
+    PDFFileIdentifier m_id;
 
     /// Is file volatile? I.e it is, for example, link to a video file from online camera?
     /// If this boolean is true, then file should never be cached.

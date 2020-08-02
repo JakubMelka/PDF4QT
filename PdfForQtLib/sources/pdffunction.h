@@ -162,6 +162,7 @@ public:
     /// \param encoder Array of 2 x m variables of encoding range - [x1 min, x1 max, x2 min, x2 max, ... ]
     /// \param decoder Array of 2 x n variables of decoding range - [y1 min, y1 max, y2 min, y2 max, ... ]
     /// \param sampleMaximalValue Maximal value of the sample
+    /// \param order Interpolation order
     explicit PDFSampledFunction(uint32_t m,
                                 uint32_t n,
                                 std::vector<PDFReal>&& domain,
@@ -170,7 +171,8 @@ public:
                                 std::vector<PDFReal>&& samples,
                                 std::vector<PDFReal>&& encoder,
                                 std::vector<PDFReal>&& decoder,
-                                PDFReal sampleMaximalValue);
+                                PDFReal sampleMaximalValue,
+                                PDFInteger order);
     virtual ~PDFSampledFunction() = default;
 
     /// Transforms input values to the output values.
@@ -179,6 +181,8 @@ public:
     /// \param y_1 Iterator to the first output value
     /// \param y_n Iterator to the end of the output values (one item after last value)
     virtual FunctionResult apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const override;
+
+    PDFInteger getOrder() const { return m_order; }
 
 private:
     /// Number of nodes in m-dimensional hypercube (it is 2^m).
@@ -203,6 +207,9 @@ private:
 
     /// Maximal value of the sample (determined by number of the bits of the sample)
     PDFReal m_sampleMaximalValue;
+
+    /// Interpolation order (1 = linear, 2 = quadratic, 3 = cubic)
+    PDFInteger m_order;
 };
 
 /// Exponential function (Type 2 function)

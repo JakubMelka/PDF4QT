@@ -182,7 +182,7 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
             std::vector<uint32_t> sizeAsUint;
             std::transform(size.cbegin(), size.cend(), std::back_inserter(sizeAsUint), [](PDFInteger integer) { return static_cast<uint32_t>(integer); });
 
-            return std::make_shared<PDFSampledFunction>(static_cast<uint32_t>(m), static_cast<uint32_t>(n), std::move(domain), std::move(range), std::move(sizeAsUint), std::move(samples), std::move(encode), std::move(decode), sampleMaxValue);
+            return std::make_shared<PDFSampledFunction>(static_cast<uint32_t>(m), static_cast<uint32_t>(n), std::move(domain), std::move(range), std::move(sizeAsUint), std::move(samples), std::move(encode), std::move(decode), sampleMaxValue, loader.readIntegerFromDictionary(dictionary, "Order", 1));
         }
         case 2:
         {
@@ -336,14 +336,16 @@ PDFSampledFunction::PDFSampledFunction(uint32_t m, uint32_t n,
                                        std::vector<PDFReal>&& samples,
                                        std::vector<PDFReal>&& encoder,
                                        std::vector<PDFReal>&& decoder,
-                                       PDFReal sampleMaximalValue) :
+                                       PDFReal sampleMaximalValue,
+                                       PDFInteger order) :
     PDFFunction(m, n, std::move(domain), std::move(range)),
     m_hypercubeNodeCount(1 << m_m),
     m_size(std::move(size)),
     m_samples(std::move(samples)),
     m_encoder(std::move(encoder)),
     m_decoder(std::move(decoder)),
-    m_sampleMaximalValue(sampleMaximalValue)
+    m_sampleMaximalValue(sampleMaximalValue),
+    m_order(order)
 {
     // Asserts, that we get sane input
     Q_ASSERT(m > 0);

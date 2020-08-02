@@ -125,6 +125,7 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage
         result.m_DOS = loader.readStringFromDictionary(dictionary, "DOS");
         result.m_Mac = loader.readStringFromDictionary(dictionary, "Mac");
         result.m_Unix = loader.readStringFromDictionary(dictionary, "Unix");
+        result.m_id = PDFFileIdentifier::parse(storage, dictionary->get("ID"));
         result.m_volatile = loader.readBooleanFromDictionary(dictionary, "V", false);
         result.m_description = loader.readTextStringFromDictionary(dictionary, "Desc", QString());
         result.m_collection = collectionObject.isReference() ? collectionObject.getReference() : PDFObjectReference();
@@ -175,6 +176,25 @@ PDFEmbeddedFile PDFEmbeddedFile::parse(const PDFObjectStorage* storage, PDFObjec
             result.m_modifiedDate = getDateTime("ModDate");
             result.m_checksum = loader.readStringFromDictionary(paramsDictionary, "CheckSum");
         }
+    }
+
+    return result;
+}
+
+PDFFileIdentifier PDFFileIdentifier::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFFileIdentifier result;
+    PDFDocumentDataLoaderDecorator loader(storage);
+    std::vector<QByteArray> identifiers = loader.readStringArray(object);
+
+    if (identifiers.size() >= 1)
+    {
+        result.m_permanentIdentifier = qMove(identifiers[0]);
+    }
+
+    if (identifiers.size() >= 2)
+    {
+        result.m_changingIdentifier = qMove(identifiers[1]);
     }
 
     return result;
