@@ -107,6 +107,12 @@ const PDFEmbeddedFile* PDFFileSpecification::getPlatformFile() const
 PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFFileSpecification result;
+
+    if (object.isReference())
+    {
+        result.m_selfReference = object.getReference();
+    }
+
     object = storage->getObject(object);
 
     if (object.isString())
@@ -117,7 +123,6 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage
     {
         PDFDocumentDataLoaderDecorator loader(storage);
         const PDFDictionary* dictionary = object.getDictionary();
-        PDFObject collectionObject = dictionary->get("Cl");
 
         result.m_fileSystem = loader.readNameFromDictionary(dictionary, "FS");
         result.m_F = loader.readStringFromDictionary(dictionary, "F");
@@ -128,15 +133,53 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage
         result.m_id = PDFFileIdentifier::parse(storage, dictionary->get("ID"));
         result.m_volatile = loader.readBooleanFromDictionary(dictionary, "V", false);
         result.m_description = loader.readTextStringFromDictionary(dictionary, "Desc", QString());
-        result.m_collection = collectionObject.isReference() ? collectionObject.getReference() : PDFObjectReference();
+        result.m_collection = loader.readReferenceFromDictionary(dictionary, "CI");
+        result.m_thumbnailReference = loader.readReferenceFromDictionary(dictionary, "Thumb");
+        result.m_encryptedPayload = dictionary->get("EP");
+
+        constexpr const std::array relationships = {
+            std::pair<const char*, AssociatedFileRelationship>{ "Unspecified", AssociatedFileRelationship::Unspecified },
+            std::pair<const char*, AssociatedFileRelationship>{ "Source", AssociatedFileRelationship::Source },
+            std::pair<const char*, AssociatedFileRelationship>{ "Data", AssociatedFileRelationship::Data },
+            std::pair<const char*, AssociatedFileRelationship>{ "Alternative", AssociatedFileRelationship::Alternative },
+            std::pair<const char*, AssociatedFileRelationship>{ "Supplement", AssociatedFileRelationship::Supplement },
+            std::pair<const char*, AssociatedFileRelationship>{ "EncryptedPayload", AssociatedFileRelationship::EncryptedPayload },
+            std::pair<const char*, AssociatedFileRelationship>{ "FormData", AssociatedFileRelationship::FormData },
+            std::pair<const char*, AssociatedFileRelationship>{ "Schema", AssociatedFileRelationship::Schema },
+        };
+
+        result.m_associatedFileRelationship = loader.readEnumByName(dictionary->get("AFRelationship"), relationships.begin(), relationships.end(), AssociatedFileRelationship::Unspecified);
 
         PDFObject embeddedFiles = storage->getObject(dictionary->get("EF"));
+        PDFObject relatedFiles = storage->getObject(dictionary->get("RF"));
         if (embeddedFiles.isDictionary())
         {
             const PDFDictionary* embeddedFilesDictionary = embeddedFiles.getDictionary();
+            const PDFDictionary* relatedFilesDictionary = relatedFiles.isDictionary() ? relatedFiles.getDictionary() : nullptr;
             for (size_t i = 0; i < embeddedFilesDictionary->getCount(); ++i)
             {
-                result.m_embeddedFiles[embeddedFilesDictionary->getKey(i).getString()] = PDFEmbeddedFile::parse(storage, embeddedFilesDictionary->getValue(i));
+                QByteArray key = embeddedFilesDictionary->getKey(i).getString();
+                result.m_embeddedFiles[key] = PDFEmbeddedFile::parse(storage, embeddedFilesDictionary->getValue(i));
+
+                if (relatedFilesDictionary)
+                {
+                    PDFObject relatedFileArrayObject = storage->getObject(relatedFilesDictionary->get(key));
+                    if (relatedFileArrayObject.isArray())
+                    {
+                        const PDFArray* relatedFileArray = relatedFileArrayObject.getArray();
+                        const size_t relatedFilesCount = relatedFileArray->getCount() / 2;
+
+                        RelatedFiles& relatedFiles = result.m_relatedFiles[key];
+                        relatedFiles.reserve(relatedFilesCount);
+                        for (size_t i = 0; i < relatedFilesCount; ++i)
+                        {
+                            RelatedFile relatedFile;
+                            relatedFile.name = loader.readString(relatedFileArray->getItem(2 * i));
+                            relatedFile.fileReference = loader.readReference(relatedFileArray->getItem(2 * i + 1));
+                            relatedFiles.emplace_back(qMove(relatedFile));
+                        }
+                    }
+                }
             }
         }
     }

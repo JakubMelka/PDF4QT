@@ -307,6 +307,10 @@ public:
     /// \param object Object containing array of numbers
     std::vector<PDFInteger> readIntegerArray(const PDFObject& object) const;
 
+    /// Reads reference. If error occurs, then invalid reference is returned.
+    /// \param object Object containing reference
+    PDFObjectReference readReference(const PDFObject& object) const;
+
     /// Reads reference from dictionary. If error occurs, then invalid reference is returned.
     /// \param dictionary Dictionary containing desired data
     /// \param key Entry key

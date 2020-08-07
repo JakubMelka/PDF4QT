@@ -75,6 +75,26 @@ class PDFFORQTLIBSHARED_EXPORT PDFFileSpecification
 public:
     explicit PDFFileSpecification() = default;
 
+    struct RelatedFile
+    {
+        QByteArray name;
+        PDFObjectReference fileReference;
+    };
+
+    using RelatedFiles = std::vector<RelatedFile>;
+
+    enum class AssociatedFileRelationship
+    {
+        Unspecified,
+        Source,
+        Data,
+        Alternative,
+        Supplement,
+        EncryptedPayload,
+        FormData,
+        Schema
+    };
+
     /// Returns platform file name as string. It looks into the UF, F,
     /// and platform names and selects the appropriate one. If error
     /// occurs. then empty string is returned.
@@ -92,8 +112,13 @@ public:
     const PDFFileIdentifier& getFileIdentifier() const { return m_id; }
     bool isVolatile() const { return m_volatile; }
     const QString& getDescription() const { return m_description; }
+    PDFObjectReference getSelfReference() const { return m_selfReference; }
     PDFObjectReference getCollection() const { return m_collection; }
+    PDFObjectReference getThumbnail() const { return m_thumbnailReference; }
     const std::map<QByteArray, PDFEmbeddedFile>& getEmbeddedFiles() const { return m_embeddedFiles; }
+    const std::map<QByteArray, RelatedFiles>& getRelatedFiles() const { return m_relatedFiles; }
+    const PDFObject& getEncryptedPayloadDictionary() const { return m_encryptedPayload; }
+    AssociatedFileRelationship getAssociatedFileRelationship() const { return m_associatedFileRelationship; }
 
     static PDFFileSpecification parse(const PDFObjectStorage* storage, PDFObject object);
 
@@ -122,11 +147,25 @@ private:
     /// Description of the file (for example, if file is embedded file stream)
     QString m_description;
 
+    /// Self reference
+    PDFObjectReference m_selfReference;
+
     /// Collection item dictionary reference
     PDFObjectReference m_collection;
 
+    /// Thumbnail reference
+    PDFObjectReference m_thumbnailReference;
+
     /// Embedded files
     std::map<QByteArray, PDFEmbeddedFile> m_embeddedFiles;
+
+    /// Related files for embedded files
+    std::map<QByteArray, RelatedFiles> m_relatedFiles;
+
+    /// Encrypted payload dictionary (used in document wrapper)
+    PDFObject m_encryptedPayload;
+
+    AssociatedFileRelationship m_associatedFileRelationship = AssociatedFileRelationship::Unspecified;
 };
 
 }   // namespace pdf
