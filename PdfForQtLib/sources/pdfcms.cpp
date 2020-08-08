@@ -81,7 +81,7 @@ private:
     /// \param isRGB888Buffer If true, 8-bit RGB output buffer is used, otherwise FLOAT RGB output buffer is used
     cmsHTRANSFORM getTransformFromICCProfile(const QByteArray& iccData, const QByteArray& iccID, RenderingIntent renderingIntent, bool isRGB888Buffer) const;
 
-    /// Returns transformation flags accordint to the current settings
+    /// Returns transformation flags according to the current settings
     cmsUInt32Number getTransformationFlags() const;
 
     /// Calculates effective rendering intent. If rendering intent is auto,

@@ -558,6 +558,21 @@ QStringList PDFDocumentDataLoaderDecorator::readTextStringList(const PDFObject& 
     return result;
 }
 
+QColor PDFDocumentDataLoaderDecorator::readRGBColorFromDictionary(const PDFDictionary* dictionary, const char* key, QColor defaultColor)
+{
+    std::vector<PDFReal> colors = readNumberArrayFromDictionary(dictionary, key);
+
+    if (colors.size() == 3)
+    {
+        const PDFReal red = qBound(0.0, colors[0], 1.0);
+        const PDFReal green = qBound(0.0, colors[1], 1.0);
+        const PDFReal blue = qBound(0.0, colors[2], 1.0);
+        return QColor::fromRgbF(red, green, blue);
+    }
+
+    return defaultColor;
+}
+
 std::optional<QByteArray> PDFDocumentDataLoaderDecorator::readOptionalStringFromDictionary(const PDFDictionary* dictionary, const char* key) const
 {
     if (dictionary->hasKey(key))

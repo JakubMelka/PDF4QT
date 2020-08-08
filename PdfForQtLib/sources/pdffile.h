@@ -20,6 +20,7 @@
 
 #include "pdfobject.h"
 
+#include <QColor>
 #include <QDateTime>
 
 namespace pdf
@@ -30,7 +31,7 @@ class PDFObjectStorage;
 /// Each identifier consists of two parts - permanent identifier, which
 /// is unique identifier based on original document, and changing identifier,
 /// which is updated when document is being modified.
-class PDFFileIdentifier
+class PDFFORQTLIBSHARED_EXPORT PDFFileIdentifier
 {
 public:
     explicit inline PDFFileIdentifier() = default;
@@ -45,7 +46,275 @@ private:
     QByteArray m_changingIdentifier;
 };
 
-class PDFEmbeddedFile
+/// Provides description of collection item property field. It describes it's
+/// kind, data type, if content of the property should be presented to the user,
+/// and ordering, visibility and editability.
+class PDFFORQTLIBSHARED_EXPORT PDFCollectionField
+{
+public:
+    explicit inline PDFCollectionField() = default;
+
+    enum class Kind
+    {
+        Invalid,
+        TextField,
+        DateField,
+        NumberField,
+        FileName,
+        Description,
+        ModifiedDate,
+        CreationDate,
+        Size,
+        CompressedSize
+    };
+
+    enum class Value
+    {
+        Invalid,
+        TextString,
+        DateTime,
+        Number
+    };
+
+    Kind getKind() const { return m_kind; }
+    Value getValue() const { return m_value; }
+    QString getFieldName() const { return m_fieldName; }
+    PDFInteger getOrder() const { return m_order; }
+    bool isVisible() const { return m_visible; }
+    bool isEditable() const { return m_editable; }
+
+    static PDFCollectionField parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Kind m_kind = Kind::Invalid;
+    Value m_value = Value::Invalid;
+    QString m_fieldName;
+    PDFInteger m_order = 0;
+    bool m_visible = true;
+    bool m_editable = false;
+};
+
+/// Collection schema. Contains a list of defined fields.
+/// Schema can be queried for field definition.
+class PDFFORQTLIBSHARED_EXPORT PDFCollectionSchema
+{
+public:
+    explicit inline PDFCollectionSchema() = default;
+
+    /// Returns true, if schema is valid, i.e. some fields
+    /// are defined.
+    bool isValid() const { return !m_fields.empty(); }
+
+    /// Returns collection field. This function always returns
+    /// valid field definition. If field can't be found, then
+    /// default field (invalid) is returned.
+    /// \param key Key
+    const PDFCollectionField* getField(const QByteArray& key) const;
+
+    /// Returns true, if field definition with given key is valid.
+    /// \param key Key
+    bool isFieldValid(const QByteArray& key) const { return getField(key)->getKind() != PDFCollectionField::Kind::Invalid;}
+
+    static PDFCollectionSchema parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    std::map<QByteArray, PDFCollectionField> m_fields;
+};
+
+/// Collection of file attachments. In the PDF file, attached files
+/// can be grouped in collection (if they are related to each other).
+class PDFFORQTLIBSHARED_EXPORT PDFCollection
+{
+public:
+    explicit inline PDFCollection() = default;
+
+    enum class ViewMode
+    {
+        /// Collection items should be displayed in details mode,
+        /// for example, multi-column table, which contains icon,
+        /// file name, and all properties listed in the schema.
+        Details,
+
+        /// Collection should be presented in tile mode, each file
+        /// should have icon, and some information from the schema
+        /// dictionary.
+        Tiles,
+
+        /// Collection should be initially hidden and should be presented
+        /// to the user if user performs some explicit action.
+        Hidden,
+
+        /// Collection should be presented via Navigation entry
+        Navigation
+    };
+
+    enum class SplitMode
+    {
+        /// List of files nad preview should be splitted horizontally
+        Horizontally,
+        /// List of files and preview should be splitted vertically
+        Vertically,
+        /// No preview should be shown
+        None
+    };
+
+    enum ColorRole
+    {
+        Background,
+        CardBackground,
+        CardBorder,
+        PrimaryText,
+        SecondaryText,
+        LastColorRole
+    };
+
+    struct SortColumn
+    {
+        QByteArray field;
+        bool ascending = true;
+    };
+    using SortColumns = std::vector<SortColumn>;
+
+    /// Returns true, if collection schema is valid. If not,
+    /// default file properties should be used.
+    /// \returns true, if collection's schema is valid
+    bool isSchemaValid() const { return m_schema.isValid(); }
+
+    /// Returns collection field. This function always returns
+    /// valid field definition. If field can't be found, then
+    /// default field (invalid) is returned.
+    /// \param key Key
+    const PDFCollectionField* getField(const QByteArray& key) const { return m_schema.getField(key); }
+
+    /// Returns true, if field definition with given key is valid.
+    /// \param key Key
+    bool isFieldValid(const QByteArray& key) const { return m_schema.isFieldValid(key); }
+
+    /// Returns file field schema. Fields are properties of the files,
+    /// such as size, description, date/time etc.
+    const PDFCollectionSchema& getSchema() const { return m_schema; }
+
+    /// Returns initial document, which shall be presented to the user
+    /// in the ui (so interactive processor should display this file first).
+    const QByteArray& getDocument() const { return m_document; }
+
+    /// Returns view mode of the collection. It defines how collection
+    /// should appear in user interface.
+    ViewMode getViewMode() const { return m_viewMode; }
+
+    /// Returns reference to a navigator (if it exists)
+    PDFObjectReference getNavigator() const { return m_navigator; }
+
+    /// Returns color for given role. Invalid color can be returned.
+    /// If this occurs, default color should be used.
+    /// \param role Color role
+    QColor getColor(ColorRole role) const { return m_colors.at(role); }
+
+    /// Returns sorting information (list of columns, defining
+    /// sort key). If it is empty, default sorting should occur.
+    const SortColumns& getSortColumns() const { return m_sortColumns; }
+
+    /// If sort columns are empty, then is default sorting ascending?
+    bool isSortAscending() const { return m_sortAscending; }
+
+    /// Returns folder root (if collection has folders)
+    PDFObjectReference getFolderRoot() const { return m_folderRoot; }
+
+    /// Returns split mode of list of files and preview
+    SplitMode getSplitMode() const { return m_splitMode; }
+
+    /// Returns split proportion
+    PDFReal getSplitPropertion() const { return m_splitProportion; }
+
+    static PDFCollection parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    PDFCollectionSchema m_schema;
+    QByteArray m_document;
+    ViewMode m_viewMode = ViewMode::Details;
+    PDFObjectReference m_navigator;
+    std::array<QColor, LastColorRole> m_colors;
+    SortColumns m_sortColumns;
+    bool m_sortAscending = true;
+    PDFObjectReference m_folderRoot;
+    SplitMode m_splitMode = SplitMode::None;
+    PDFReal m_splitProportion = 30;
+};
+
+/// Collection folder. Can contain subfolders and files.
+class PDFFORQTLIBSHARED_EXPORT PDFCollectionFolder
+{
+public:
+    explicit inline PDFCollectionFolder() = default;
+
+    PDFInteger getInteger() const { return m_ID; }
+    const QString& getName() const { return m_name; }
+    const QString& getDescription() const { return m_description; }
+    PDFObjectReference getParent() const { return m_parent; }
+    PDFObjectReference getChild() const { return m_child; }
+    PDFObjectReference getNext() const { return m_next; }
+    PDFObjectReference getCollection() const { return m_collection; }
+    PDFObjectReference getThumbnail() const { return m_thumbnail; }
+    const QDateTime& getCreatedDate() const { return m_created; }
+    const QDateTime& getModifiedDate() const { return m_modified; }
+    const std::vector<PDFInteger>& getFreeIds() const { return m_freeIds; }
+
+    static PDFCollectionFolder parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    PDFInteger m_ID = 0;
+    QString m_name;
+    QString m_description;
+    PDFObjectReference m_parent;
+    PDFObjectReference m_child;
+    PDFObjectReference m_next;
+    PDFObjectReference m_collection;
+    PDFObjectReference m_thumbnail;
+    QDateTime m_created;
+    QDateTime m_modified;
+    std::vector<PDFInteger> m_freeIds;
+};
+
+/// Collection item. Contains properties of the collection item,
+/// for example, embedded file.
+class PDFFORQTLIBSHARED_EXPORT PDFCollectionItem
+{
+public:
+    explicit inline PDFCollectionItem() = default;
+    explicit inline PDFCollectionItem(const PDFObject& object) : m_object(object) { }
+
+    /// Returns true, if collection item entry is valid
+    bool isValid() const { return m_object.isDictionary(); }
+
+    /// Returns string from property key. If property is invalid, empty
+    /// string is returned, no exception is thrown.
+    /// \param key Key
+    /// \param storage Storage
+    QString getString(const QByteArray& key, const PDFObjectStorage* storage) const;
+
+    /// Returns date/time from property key. If property is invalid, invalid
+    /// QDateTime is returned, no exception is thrown.
+    /// \param key Key
+    /// \param storage Storage
+    QDateTime getDateTime(const QByteArray& key, const PDFObjectStorage* storage) const;
+
+    /// Returns integer from property key. If property is invalid, zero
+    /// integer is returned, no exception is thrown.
+    /// \param key Key
+    /// \param storage Storage
+    PDFInteger getNumber(const QByteArray& key, const PDFObjectStorage* storage) const;
+
+    /// Returns prefix string from property key. If property is invalid, empty
+    /// string is returned, no exception is thrown.
+    /// \param key Key
+    /// \param storage Storage
+    QString getPrefixString(const QByteArray& key, const PDFObjectStorage* storage) const;
+
+private:
+    PDFObject m_object;
+};
+
+class PDFFORQTLIBSHARED_EXPORT PDFEmbeddedFile
 {
 public:
     explicit PDFEmbeddedFile() = default;

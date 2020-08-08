@@ -25,6 +25,7 @@
 #include "pdfsecurityhandler.h"
 
 #include <QtCore>
+#include <QColor>
 #include <QMatrix>
 #include <QDateTime>
 
@@ -361,6 +362,9 @@ public:
 
     /// Reads string list. If error occurs, empty list is returned.
     QStringList readTextStringList(const PDFObject& object);
+
+    /// Reads RGB color from dictionary
+    QColor readRGBColorFromDictionary(const PDFDictionary* dictionary, const char* key, QColor defaultColor);
 
     /// Reads list of object, using parse function defined in object
     template<typename Object>

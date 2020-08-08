@@ -243,4 +243,304 @@ PDFFileIdentifier PDFFileIdentifier::parse(const PDFObjectStorage* storage, PDFO
     return result;
 }
 
+PDFCollectionField PDFCollectionField::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFCollectionField result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        constexpr const std::array fieldKinds = {
+            std::pair<const char*, Kind>{ "S", Kind::TextField },
+            std::pair<const char*, Kind>{ "D", Kind::DateField },
+            std::pair<const char*, Kind>{ "N", Kind::NumberField },
+            std::pair<const char*, Kind>{ "F", Kind::FileName },
+            std::pair<const char*, Kind>{ "Desc", Kind::Description },
+            std::pair<const char*, Kind>{ "ModDate", Kind::ModifiedDate },
+            std::pair<const char*, Kind>{ "CreationDate", Kind::CreationDate },
+            std::pair<const char*, Kind>{ "Size", Kind::Size },
+            std::pair<const char*, Kind>{ "CompressedSize", Kind::CompressedSize },
+        };
+
+        result.m_kind = loader.readEnumByName(dictionary->get("Subtype"), fieldKinds.begin(), fieldKinds.end(), Kind::Invalid);
+
+        switch (result.m_kind)
+        {
+            case Kind::Invalid:
+                result.m_value = Value::Invalid;
+                break;
+
+            case Kind::TextField:
+                result.m_value = Value::TextString;
+                break;
+
+            case Kind::DateField:
+                result.m_value = Value::DateTime;
+                break;
+
+            case Kind::NumberField:
+                result.m_value = Value::Number;
+                break;
+
+            case Kind::FileName:
+                result.m_value = Value::TextString;
+                break;
+
+            case Kind::Description:
+                result.m_value = Value::TextString;
+                break;
+
+            case Kind::ModifiedDate:
+                result.m_value = Value::DateTime;
+                break;
+
+            case Kind::CreationDate:
+                result.m_value = Value::DateTime;
+                break;
+
+            case Kind::Size:
+                result.m_value = Value::Number;
+                break;
+
+            case Kind::CompressedSize:
+                result.m_value = Value::Number;
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        result.m_fieldName = loader.readTextStringFromDictionary(dictionary, "N", QString());
+        result.m_order = loader.readIntegerFromDictionary(dictionary, "O", 0);
+        result.m_visible = loader.readBooleanFromDictionary(dictionary, "V", true);
+        result.m_editable = loader.readBooleanFromDictionary(dictionary, "E", false);
+    }
+
+    return result;
+}
+
+const PDFCollectionField* PDFCollectionSchema::getField(const QByteArray& key) const
+{
+    auto it = m_fields.find(key);
+    if (it != m_fields.cend())
+    {
+        return &it->second;
+    }
+    else
+    {
+        static PDFCollectionField dummy;
+        return &dummy;
+    }
+}
+
+PDFCollectionSchema PDFCollectionSchema::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFCollectionSchema result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        const size_t count = dictionary->getCount();
+        for (size_t i = 0; i < count; ++i)
+        {
+            QByteArray key = dictionary->getKey(i).getString();
+
+            if (key == "Type")
+            {
+                continue;
+            }
+
+            result.m_fields[key] = PDFCollectionField::parse(storage, dictionary->getValue(i));
+        }
+    }
+
+    return result;
+}
+
+PDFCollection PDFCollection::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFCollection result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        constexpr const std::array viewModes = {
+            std::pair<const char*, ViewMode>{ "D", ViewMode::Details },
+            std::pair<const char*, ViewMode>{ "T", ViewMode::Tiles },
+            std::pair<const char*, ViewMode>{ "H", ViewMode::Hidden },
+            std::pair<const char*, ViewMode>{ "C", ViewMode::Navigation }
+        };
+
+        result.m_schema = PDFCollectionSchema::parse(storage, dictionary->get("Schema"));
+        result.m_document = loader.readStringFromDictionary(dictionary, "D");
+        result.m_viewMode = loader.readEnumByName(dictionary->get("View"), viewModes.begin(), viewModes.end(), ViewMode::Details);
+        result.m_navigator = loader.readReferenceFromDictionary(dictionary, "Navigator");
+
+        const PDFDictionary* colorDictionary = storage->getDictionaryFromObject(dictionary->get("Colors"));
+        if (colorDictionary)
+        {
+            result.m_colors[Background] = loader.readRGBColorFromDictionary(colorDictionary, "Background", Qt::white);
+            result.m_colors[CardBackground] = loader.readRGBColorFromDictionary(colorDictionary, "CardBackground", Qt::white);
+            result.m_colors[CardBorder] = loader.readRGBColorFromDictionary(colorDictionary, "CardBorder", Qt::white);
+            result.m_colors[PrimaryText] = loader.readRGBColorFromDictionary(colorDictionary, "PrimaryText", Qt::black);
+            result.m_colors[SecondaryText] = loader.readRGBColorFromDictionary(colorDictionary, "SecondaryText", Qt::black);
+        }
+
+        const PDFDictionary* sortDictionary = storage->getDictionaryFromObject(dictionary->get("Sort"));
+        if (sortDictionary)
+        {
+            result.m_sortAscending = loader.readBooleanFromDictionary(sortDictionary, "A", true);
+            const PDFObject& columns = storage->getObject(sortDictionary->get("S"));
+            if (columns.isName())
+            {
+                result.m_sortColumns.emplace_back(SortColumn{loader.readName(columns), result.m_sortAscending});
+            }
+            else
+            {
+                std::vector<QByteArray> names = loader.readNameArray(columns);
+                for (QByteArray& name : names)
+                {
+                    result.m_sortColumns.emplace_back(SortColumn{qMove(name), result.m_sortAscending});
+                }
+            }
+
+            const PDFObject& sortDirection = storage->getObject(sortDictionary->get("A"));
+            if (sortDirection.isArray())
+            {
+                const PDFArray* sortDirectionArray = sortDirection.getArray();
+                const size_t size = qMin(result.m_sortColumns.size(), sortDirectionArray->getCount());
+                for (size_t i = 0; i < size; ++i)
+                {
+                    result.m_sortColumns[i].ascending = loader.readBoolean(sortDirectionArray->getItem(i), result.m_sortAscending);
+                }
+            }
+        }
+
+        result.m_folderRoot = loader.readReferenceFromDictionary(dictionary, "Folders");
+
+        const PDFDictionary* splitDictionary = storage->getDictionaryFromObject(dictionary->get("Split"));
+        if (splitDictionary)
+        {
+            constexpr const std::array splitModes = {
+                std::pair<const char*, SplitMode>{ "H", SplitMode::Horizontally },
+                std::pair<const char*, SplitMode>{ "V", SplitMode::Vertically },
+                std::pair<const char*, SplitMode>{ "N", SplitMode::None }
+            };
+
+            result.m_splitMode = loader.readEnumByName(splitDictionary->get("Direction"), splitModes.begin(), splitModes.end(), SplitMode::None);
+            result.m_splitProportion = loader.readNumberFromDictionary(splitDictionary, "Position", 30);
+        }
+    }
+
+    return result;
+}
+
+PDFCollectionFolder PDFCollectionFolder::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFCollectionFolder result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_ID = loader.readIntegerFromDictionary(dictionary, "ID", 0);
+        result.m_name = loader.readTextStringFromDictionary(dictionary, "Name", QString());
+        result.m_parent = loader.readReferenceFromDictionary(dictionary, "Parent");
+        result.m_child = loader.readReferenceFromDictionary(dictionary, "Child");
+        result.m_next = loader.readReferenceFromDictionary(dictionary, "Next");
+        result.m_collection = loader.readReferenceFromDictionary(dictionary, "CI");
+        result.m_description = loader.readTextStringFromDictionary(dictionary, "Desc", QString());
+
+        QByteArray createdString = loader.readStringFromDictionary(dictionary, "CreationDate");
+        if (!createdString.isEmpty())
+        {
+            result.m_created = PDFEncoding::convertToDateTime(createdString);
+        }
+        QByteArray modifiedString = loader.readStringFromDictionary(dictionary, "ModDate");
+        if (!modifiedString.isEmpty())
+        {
+            result.m_modified = PDFEncoding::convertToDateTime(modifiedString);
+        }
+
+        result.m_thumbnail = loader.readReferenceFromDictionary(dictionary, "Thumb");
+        result.m_freeIds = loader.readIntegerArrayFromDictionary(dictionary, "Free");
+    }
+
+    return result;
+}
+
+QString PDFCollectionItem::getString(const QByteArray& key, const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(m_object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        PDFObject valueObject = storage->getObject(dictionary->get(key));
+
+        if (valueObject.isDictionary())
+        {
+            return loader.readTextString(valueObject.getDictionary()->get("D"), QString());
+        }
+
+        return loader.readTextString(valueObject, QString());
+    }
+
+    return QString();
+}
+
+QDateTime PDFCollectionItem::getDateTime(const QByteArray& key, const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(m_object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        PDFObject valueObject = storage->getObject(dictionary->get(key));
+
+        if (valueObject.isDictionary())
+        {
+            valueObject = storage->getObject(valueObject.getDictionary()->get("D"));
+        }
+
+        if (valueObject.isString())
+        {
+            return PDFEncoding::convertToDateTime(valueObject.getString());
+        }
+    }
+
+    return QDateTime();
+}
+
+PDFInteger PDFCollectionItem::getNumber(const QByteArray& key, const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(m_object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        PDFObject valueObject = storage->getObject(dictionary->get(key));
+
+        if (valueObject.isDictionary())
+        {
+            return loader.readInteger(valueObject.getDictionary()->get("D"), 0);
+        }
+
+        return loader.readInteger(valueObject, 0);
+    }
+
+    return 0;
+}
+
+QString PDFCollectionItem::getPrefixString(const QByteArray& key, const PDFObjectStorage* storage) const
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(m_object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        PDFObject valueObject = storage->getObject(dictionary->get(key));
+
+        if (valueObject.isDictionary())
+        {
+            return loader.readTextString(valueObject.getDictionary()->get("P"), QString());
+        }
+    }
+
+    return QString();
+}
+
 }   // namespace pdf
