@@ -306,6 +306,8 @@ protected:
             StateRenderingIntent                = 0x08000000,
             StateOverprint                      = 0x10000000,
             StateAlphaIsShape                   = 0x20000000,
+            StateStrokeAdjustment               = 0x40000000,
+            StateSoftMask                       = 0x80000000,
             StateAll                            = 0xFFFFFFFF
         };
 
@@ -410,6 +412,12 @@ protected:
         bool getAlphaIsShape() const { return m_alphaIsShape; }
         void setAlphaIsShape(bool alphaIsShape);
 
+        bool getStrokeAdjustment() const;
+        void setStrokeAdjustment(bool strokeAdjustment);
+
+        const PDFDictionary* getSoftMask() const;
+        void setSoftMask(const PDFDictionary* softMask);
+
     private:
         QMatrix m_currentTransformationMatrix;
         PDFColorSpacePointer m_strokeColorSpace;
@@ -441,6 +449,8 @@ protected:
         RenderingIntent m_renderingIntent;
         PDFOverprintMode m_overprintMode;
         bool m_alphaIsShape;
+        bool m_strokeAdjustment;
+        const PDFDictionary* m_softMask;
         StateFlags m_stateFlags;
     };
 

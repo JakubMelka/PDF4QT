@@ -1743,6 +1743,20 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     QByteArray blendModeName = loader.readNameFromDictionary(graphicStateDictionary, "BM");
     QByteArray renderingIntentName = loader.readNameFromDictionary(graphicStateDictionary, "RI");
     const bool alphaIsShape = loader.readBooleanFromDictionary(graphicStateDictionary, "AIS", m_graphicState.getAlphaIsShape());
+    const bool strokeAdjustment = loader.readBooleanFromDictionary(graphicStateDictionary, "SA", m_graphicState.getStrokeAdjustment());
+    const PDFDictionary* softMask = m_document->getDictionaryFromObject(graphicStateDictionary->get("SMask"));
+
+    // We will try to get blend mode name from the array (if BM is array). First supported blend mode should
+    // be used. In PDF 2.0, array is deprecated, so for backward compatibility, we extract first blend mode
+    // name from the array and try to use it.
+    if (blendModeName.isEmpty())
+    {
+        std::vector<QByteArray> blendModeNames = loader.readNameArrayFromDictionary(graphicStateDictionary, "BM");
+        if (!blendModeNames.empty())
+        {
+            blendModeName = qMove(blendModeNames.front());
+        }
+    }
 
     if (!blendModeName.isEmpty())
     {
@@ -1781,6 +1795,8 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     m_graphicState.setAlphaFilling(fillingAlpha);
     m_graphicState.setOverprintMode(overprintMode);
     m_graphicState.setAlphaIsShape(alphaIsShape);
+    m_graphicState.setStrokeAdjustment(strokeAdjustment);
+    m_graphicState.setSoftMask(softMask);
     updateGraphicState();
 
     if (graphicStateDictionary->hasKey("Font"))
@@ -1795,17 +1811,6 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
                 operandName.name = loader.readName(fontObjectArray->getItem(0));
                 operatorTextSetFontAndFontSize(operandName, loader.readNumber(fontObjectArray->getItem(1), 1.0));
             }
-        }
-    }
-
-    if (graphicStateDictionary->hasKey("SMask"))
-    {
-        const PDFObject& softMaskObject = m_document->getObject(graphicStateDictionary->get("SMask"));
-
-        bool isNone = (softMaskObject.isName() && softMaskObject.getString() == "None");
-        if (!isNone)
-        {
-            reportRenderErrorOnce(RenderErrorType::NotSupported, PDFTranslationContext::tr("Soft masks not supported."));
         }
     }
 }
@@ -3201,6 +3206,8 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_renderingIntent(RenderingIntent::Perceptual),
     m_overprintMode(),
     m_alphaIsShape(false),
+    m_strokeAdjustment(false),
+    m_softMask(nullptr),
     m_stateFlags(StateUnchanged)
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
@@ -3244,6 +3251,8 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setRenderingIntent(other.getRenderingIntent());
     setOverprintMode(other.getOverprintMode());
     setAlphaIsShape(other.getAlphaIsShape());
+    setStrokeAdjustment(other.getStrokeAdjustment());
+    setSoftMask(other.getSoftMask());
     return *this;
 }
 
@@ -3465,6 +3474,34 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setAlphaIsShape(bool
     {
         m_alphaIsShape = alphaIsShape;
         m_stateFlags |= StateAlphaIsShape;
+    }
+}
+
+bool PDFPageContentProcessor::PDFPageContentProcessorState::getStrokeAdjustment() const
+{
+    return m_strokeAdjustment;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeAdjustment(bool strokeAdjustment)
+{
+    if (m_strokeAdjustment != strokeAdjustment)
+    {
+        m_strokeAdjustment = strokeAdjustment;
+        m_stateFlags |= StateStrokeAdjustment;
+    }
+}
+
+const PDFDictionary* PDFPageContentProcessor::PDFPageContentProcessorState::getSoftMask() const
+{
+    return m_softMask;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setSoftMask(const PDFDictionary* softMask)
+{
+    if (m_softMask != softMask)
+    {
+        m_softMask = softMask;
+        m_stateFlags |= StateSoftMask;
     }
 }
 

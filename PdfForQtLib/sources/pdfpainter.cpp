@@ -89,6 +89,11 @@ void PDFPainterBase::performUpdateGraphicsState(const PDFPageContentProcessorSta
         }
     }
 
+    if (flags.testFlag(PDFPageContentProcessorState::StateSoftMask) && state.getSoftMask())
+    {
+        reportRenderErrorOnce(RenderErrorType::NotSupported, PDFTranslationContext::tr("Soft masks not supported."));
+    }
+
     BaseClass::performUpdateGraphicsState(state);
 }
 
