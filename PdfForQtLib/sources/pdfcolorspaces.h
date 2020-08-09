@@ -79,6 +79,13 @@ static constexpr const char* ICCBASED_ALTERNATE = "Alternate";
 static constexpr const char* ICCBASED_N = "N";
 static constexpr const char* ICCBASED_RANGE = "Range";
 
+enum class BlackPointCompensationMode
+{
+    Default,
+    ON,
+    OFF
+};
+
 /// Image raw data - containing data for image. Image data are row-ordered, and by components.
 /// So the row can be for 3-components RGB like 'RGBRGBRGB...RGB', where size of row in bytes is 3 * width of image.
 class PDFImageData

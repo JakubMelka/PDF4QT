@@ -527,6 +527,61 @@ private:
     QString m_errorMessage;
 };
 
+template<typename Enum>
+class PDFFlags
+{
+public:
+    using Integer = typename std::underlying_type<Enum>::type;
+
+    constexpr inline PDFFlags() noexcept = default;
+    constexpr inline PDFFlags(Integer flags) noexcept : m_flags(flags) { }
+    constexpr inline PDFFlags(Enum flag) noexcept : m_flags(flag) { }
+
+    constexpr inline PDFFlags& operator|=(Integer flags) { m_flags |= flags; return *this; }
+    constexpr inline PDFFlags& operator|=(PDFFlags flags) { m_flags |= flags.m_flags; return *this; }
+    constexpr inline PDFFlags& operator|=(Enum flag) { m_flags |= flag; return *this; }
+    constexpr inline PDFFlags& operator&=(Integer flags) { m_flags &= flags; return *this; }
+    constexpr inline PDFFlags& operator&=(PDFFlags flags) { m_flags &= flags.m_flags; return *this; }
+    constexpr inline PDFFlags& operator&=(Enum flag) { m_flags &= flag; return *this; }
+    constexpr inline PDFFlags& operator^=(Integer flags) { m_flags ^= flags; return *this; }
+    constexpr inline PDFFlags& operator^=(PDFFlags flags) { m_flags ^= flags.m_flags; return *this; }
+    constexpr inline PDFFlags& operator^=(Enum flag) { m_flags ^= flag; return *this; }
+
+    constexpr inline operator Integer() const { return m_flags; }
+
+    constexpr inline PDFFlags operator|(Integer flags) const { return PDFFlags(m_flags | flags); }
+    constexpr inline PDFFlags operator|(PDFFlags flags) const { return PDFFlags(m_flags | flags.m_flags); }
+    constexpr inline PDFFlags operator|(Enum flag) const { return PDFFlags(m_flags | flag); }
+    constexpr inline PDFFlags operator&(Integer flags) const { return PDFFlags(m_flags & flags); }
+    constexpr inline PDFFlags operator&(PDFFlags flags) const { return PDFFlags(m_flags & flags.m_flags); }
+    constexpr inline PDFFlags operator&(Enum flag) const { return PDFFlags(m_flags & flag); }
+    constexpr inline PDFFlags operator^(Integer flags) const { return PDFFlags(m_flags ^ flags); }
+    constexpr inline PDFFlags operator^(PDFFlags flags) const { return PDFFlags(m_flags ^ flags.m_flags); }
+    constexpr inline PDFFlags operator^(Enum flag) const { return PDFFlags(m_flags ^ flag); }
+    constexpr inline PDFFlags operator~() const { return PDFFlags(~m_flags); }
+
+    // Explicit bool operator to disallow implicit conversion
+    constexpr inline explicit operator bool() const { return m_flags != 0; }
+    constexpr inline bool operator!() const { return m_flags == 0; }
+
+    constexpr inline bool testFlag(Enum flag) const { return (m_flags & flag) == flag; }
+    constexpr inline PDFFlags& setFlag(Enum flag, bool on = true)
+    {
+        if (on)
+        {
+            m_flags |= Integer(flag);
+        }
+        else
+        {
+            m_flags &= ~Integer(flag);
+        }
+        return *this;
+    }
+
+private:
+    Integer m_flags = Integer();
+};
+
 /// Set of closed intervals
 class PDFClosedIntervalSet
 {

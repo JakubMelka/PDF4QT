@@ -1722,7 +1722,7 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
     const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
     const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
-    const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "MT", m_graphicState.getMitterLimit());
+    const PDFReal mitterLimit = loader.readNumberFromDictionary(graphicStateDictionary, "ML", m_graphicState.getMitterLimit());
 
     const PDFObject& lineDashPatternObject = m_document->getObject(graphicStateDictionary->get("D"));
     if (lineDashPatternObject.isArray())
@@ -1731,6 +1731,7 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
         if (lineDashPatternDefinitionArray->getCount() == 2)
         {
             PDFLineDashPattern pattern(loader.readNumberArray(lineDashPatternDefinitionArray->getItem(0)), loader.readNumber(lineDashPatternDefinitionArray->getItem(1), 0.0));
+            pattern.fix();
             m_graphicState.setLineDashPattern(pattern);
         }
     }
@@ -1744,7 +1745,7 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     QByteArray renderingIntentName = loader.readNameFromDictionary(graphicStateDictionary, "RI");
     const bool alphaIsShape = loader.readBooleanFromDictionary(graphicStateDictionary, "AIS", m_graphicState.getAlphaIsShape());
     const bool strokeAdjustment = loader.readBooleanFromDictionary(graphicStateDictionary, "SA", m_graphicState.getStrokeAdjustment());
-    const PDFDictionary* softMask = m_document->getDictionaryFromObject(graphicStateDictionary->get("SMask"));
+    const PDFDictionary* softMask = graphicStateDictionary->hasKey("SMask") ? m_document->getDictionaryFromObject(graphicStateDictionary->get("SMask")) : m_graphicState.getSoftMask();
 
     // We will try to get blend mode name from the array (if BM is array). First supported blend mode should
     // be used. In PDF 2.0, array is deprecated, so for backward compatibility, we extract first blend mode
@@ -1777,11 +1778,63 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
 
     PDFOverprintMode overprintMode = m_graphicState.getOverprintMode();
     overprintMode.overprintMode = loader.readIntegerFromDictionary(graphicStateDictionary, "OPM", overprintMode.overprintMode);
-    if (graphicStateDictionary->hasKey("OP"))
+
+    // Overprint for filling is ruled by overprint for stroking, if "op" is not present, according to the specification
+    overprintMode.overprintStroking = loader.readBooleanFromDictionary(graphicStateDictionary, "OP", overprintMode.overprintStroking);
+    overprintMode.overprintFilling = loader.readBooleanFromDictionary(graphicStateDictionary, "op", overprintMode.overprintStroking);
+
+    constexpr std::array blackPointCompensationModes = {
+        std::pair<const char*, BlackPointCompensationMode>{ "Default", BlackPointCompensationMode::Default },
+        std::pair<const char*, BlackPointCompensationMode>{ "ON", BlackPointCompensationMode::ON },
+        std::pair<const char*, BlackPointCompensationMode>{ "OFF", BlackPointCompensationMode::OFF },
+    };
+
+    BlackPointCompensationMode blackPointCompensationMode = m_graphicState.getBlackPointCompensationMode();
+    if (graphicStateDictionary->hasKey("UseBlackPtComp"))
     {
-        // Overprint for filling is ruled by overprint for stroking, if "op" is not present, according to the specification
-        overprintMode.overprintStroking = loader.readBooleanFromDictionary(graphicStateDictionary, "OP", overprintMode.overprintStroking);
-        overprintMode.overprintFilling = loader.readBooleanFromDictionary(graphicStateDictionary, "op", overprintMode.overprintStroking);
+        blackPointCompensationMode = loader.readEnumByName(graphicStateDictionary->get("UseBlackPtComp"), blackPointCompensationModes.cbegin(), blackPointCompensationModes.cend(), BlackPointCompensationMode::Default);
+    }
+
+    PDFObject blackGenerationFunctionObject = m_graphicState.getBlackGenerationFunction();
+    if (graphicStateDictionary->hasKey("BG") || graphicStateDictionary->hasKey("BG2"))
+    {
+        blackGenerationFunctionObject = m_document->getObject(graphicStateDictionary->get("BG2"));
+        if (blackGenerationFunctionObject.isNull())
+        {
+            blackGenerationFunctionObject = m_document->getObject(graphicStateDictionary->get("BG"));
+        }
+    }
+
+    PDFObject undercolorRemovalFunctionObject = m_graphicState.getUndercolorRemovalFunction();
+    if (graphicStateDictionary->hasKey("UCR") || graphicStateDictionary->hasKey("UCR2"))
+    {
+        undercolorRemovalFunctionObject = m_document->getObject(graphicStateDictionary->get("UCR2"));
+        if (undercolorRemovalFunctionObject.isNull())
+        {
+            undercolorRemovalFunctionObject = m_document->getObject(graphicStateDictionary->get("UCR"));
+        }
+    }
+
+    PDFObject transferFunctionObject = m_graphicState.getTransferFunction();
+    if (graphicStateDictionary->hasKey("TR") || graphicStateDictionary->hasKey("TR2"))
+    {
+        transferFunctionObject = m_document->getObject(graphicStateDictionary->get("TR2"));
+        if (transferFunctionObject.isNull())
+        {
+            transferFunctionObject = m_document->getObject(graphicStateDictionary->get("TR"));
+        }
+    }
+
+    PDFObject halftoneObject = graphicStateDictionary->hasKey("HT") ? m_document->getObject(graphicStateDictionary->get("HT")) : m_graphicState.getHalftone();
+
+    QPointF halftoneOrigin = m_graphicState.getHalftoneOrigin();
+    if (graphicStateDictionary->hasKey("HTO"))
+    {
+        std::vector<PDFReal> halftoneOriginArray = loader.readNumberArrayFromDictionary(graphicStateDictionary, "HTO");
+        if (halftoneOriginArray.size() >= 2)
+        {
+            halftoneOrigin = QPointF(halftoneOriginArray[0], halftoneOriginArray[1]);
+        }
     }
 
     m_graphicState.setLineWidth(lineWidth);
@@ -1797,6 +1850,12 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     m_graphicState.setAlphaIsShape(alphaIsShape);
     m_graphicState.setStrokeAdjustment(strokeAdjustment);
     m_graphicState.setSoftMask(softMask);
+    m_graphicState.setBlackPointCompensationMode(blackPointCompensationMode);
+    m_graphicState.setBlackGenerationFunction(qMove(blackGenerationFunctionObject));
+    m_graphicState.setUndercolorRemovalFunction(qMove(undercolorRemovalFunctionObject));
+    m_graphicState.setTransferFunction(qMove(transferFunctionObject));
+    m_graphicState.setHalftone(qMove(halftoneObject));
+    m_graphicState.setHalftoneOrigin(halftoneOrigin);
     updateGraphicState();
 
     if (graphicStateDictionary->hasKey("Font"))
@@ -3208,6 +3267,7 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_alphaIsShape(false),
     m_strokeAdjustment(false),
     m_softMask(nullptr),
+    m_blackPointCompensationMode(BlackPointCompensationMode::Default),
     m_stateFlags(StateUnchanged)
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
@@ -3253,6 +3313,12 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setAlphaIsShape(other.getAlphaIsShape());
     setStrokeAdjustment(other.getStrokeAdjustment());
     setSoftMask(other.getSoftMask());
+    setBlackPointCompensationMode(other.getBlackPointCompensationMode());
+    setBlackGenerationFunction(other.getBlackGenerationFunction());
+    setUndercolorRemovalFunction(other.getUndercolorRemovalFunction());
+    setTransferFunction(other.getTransferFunction());
+    setHalftone(other.getHalftone());
+    setHalftoneOrigin(other.getHalftoneOrigin());
     return *this;
 }
 
@@ -3505,6 +3571,90 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setSoftMask(const PD
     }
 }
 
+BlackPointCompensationMode PDFPageContentProcessor::PDFPageContentProcessorState::getBlackPointCompensationMode() const
+{
+    return m_blackPointCompensationMode;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setBlackPointCompensationMode(BlackPointCompensationMode blackPointCompensationMode)
+{
+    if (m_blackPointCompensationMode != blackPointCompensationMode)
+    {
+        m_blackPointCompensationMode = blackPointCompensationMode;
+        m_stateFlags |= StateBlackPointCompensation;
+    }
+}
+
+PDFObject PDFPageContentProcessor::PDFPageContentProcessorState::getHalftone() const
+{
+    return m_halftone;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setHalftone(const PDFObject& halftone)
+{
+    if (m_halftone != halftone)
+    {
+        m_halftone = halftone;
+        m_stateFlags |= StateHalftone;
+    }
+}
+
+QPointF PDFPageContentProcessor::PDFPageContentProcessorState::getHalftoneOrigin() const
+{
+    return m_halftoneOrigin;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setHalftoneOrigin(const QPointF& halftoneOrigin)
+{
+    if (m_halftoneOrigin != halftoneOrigin)
+    {
+        m_halftoneOrigin = halftoneOrigin;
+        m_stateFlags |= StateHalftoneOrigin;
+    }
+}
+
+PDFObject PDFPageContentProcessor::PDFPageContentProcessorState::getTransferFunction() const
+{
+    return m_transferFunction;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTransferFunction(const PDFObject& transferFunction)
+{
+    if (m_transferFunction != transferFunction)
+    {
+        m_transferFunction = transferFunction;
+        m_stateFlags |= StateTransferFunction;
+    }
+}
+
+PDFObject PDFPageContentProcessor::PDFPageContentProcessorState::getUndercolorRemovalFunction() const
+{
+    return m_undercolorRemovalFunction;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setUndercolorRemovalFunction(const PDFObject& undercolorRemovalFunction)
+{
+    if (m_undercolorRemovalFunction != undercolorRemovalFunction)
+    {
+        m_undercolorRemovalFunction = undercolorRemovalFunction;
+        m_stateFlags |= StateUndercolorRemovalFunction;
+    }
+}
+
+PDFObject PDFPageContentProcessor::PDFPageContentProcessorState::getBlackGenerationFunction() const
+{
+    return m_blackGenerationFunction;
+}
+
+void PDFPageContentProcessor::PDFPageContentProcessorState::setBlackGenerationFunction(const PDFObject& blackGenerationFunction)
+{
+    if (m_blackGenerationFunction != blackGenerationFunction)
+    {
+        m_blackGenerationFunction = blackGenerationFunction;
+        m_stateFlags |= StateBlackGenerationFunction;
+    }
+}
+
 void PDFPageContentProcessor::PDFPageContentProcessorState::setTextMatrix(const QMatrix& textMatrix)
 {
     if (m_textMatrix != textMatrix)
@@ -3611,6 +3761,37 @@ PDFPageContentProcessor::PDFTransparencyGroupGuard::~PDFTransparencyGroupGuard()
     PDFTransparencyGroup group = qMove(m_processor->m_transparencyGroupStack.top());
     m_processor->m_transparencyGroupStack.pop();
     m_processor->performEndTransparencyGroup(ProcessOrder::AfterOperation, group);
+}
+
+PDFLineDashPattern::PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset) :
+    m_dashArray(dashArray),
+    m_dashOffset(dashOffset)
+{
+    if (m_dashArray.size() % 2 == 1)
+    {
+        m_dashArray.push_back(m_dashArray.back());
+    }
+}
+
+void PDFLineDashPattern::fix()
+{
+    if (m_dashOffset < 0.0)
+    {
+        // According to the PDF 2.0 specification, if dash offset is negative,
+        // then twice of sum of lengths in the dash array should be added
+        // so dash offset will become positive.
+
+        const PDFReal totalLength = 2 * std::accumulate(m_dashArray.cbegin(), m_dashArray.cend(), 0.0);
+        if (totalLength > 0.0)
+        {
+            m_dashOffset += (std::floor(std::abs(m_dashOffset / totalLength)) + 1.0) * totalLength;
+        }
+        else
+        {
+            // Reset to default solid line, dash pattern is invalid
+            *this = PDFLineDashPattern();
+        }
+    }
 }
 
 }   // namespace pdf

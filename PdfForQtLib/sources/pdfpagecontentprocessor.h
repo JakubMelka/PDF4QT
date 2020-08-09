@@ -48,15 +48,7 @@ class PDFLineDashPattern
 {
 public:
     explicit inline PDFLineDashPattern() = default;
-    explicit inline PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset) :
-        m_dashArray(dashArray),
-        m_dashOffset(dashOffset)
-    {
-        if (m_dashArray.size() % 2 == 1)
-        {
-            m_dashArray.push_back(m_dashArray.back());
-        }
-    }
+    explicit PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset);
 
     inline const std::vector<PDFReal>& getDashArray() const { return m_dashArray; }
     inline void setDashArray(const std::vector<PDFReal>& dashArray) { m_dashArray = dashArray; }
@@ -69,6 +61,9 @@ public:
 
     /// Is line solid? Function returns true, if yes.
     bool isSolid() const { return m_dashArray.empty(); }
+
+    /// Fix line dash pattern according to the specification
+    void fix();
 
 private:
     std::vector<PDFReal> m_dashArray;
@@ -273,45 +268,51 @@ protected:
         PDFPageContentProcessorState& operator=(PDFPageContentProcessorState&&) = delete;
         PDFPageContentProcessorState& operator=(const PDFPageContentProcessorState& other);
 
-        enum StateFlag : uint32_t
+        enum StateFlag : uint64_t
         {
-            StateUnchanged                      = 0x00000000,
-            StateCurrentTransformationMatrix    = 0x00000001,
-            StateStrokeColorSpace               = 0x00000002,
-            StateFillColorSpace                 = 0x00000004,
-            StateStrokeColor                    = 0x00000008,
-            StateFillColor                      = 0x00000010,
-            StateLineWidth                      = 0x00000020,
-            StateLineCapStyle                   = 0x00000040,
-            StateLineJoinStyle                  = 0x00000080,
-            StateMitterLimit                    = 0x00000100,
-            StateLineDashPattern                = 0x00000200,
-            StateRenderingIntentName            = 0x00000400,
-            StateFlatness                       = 0x00000800,
-            StateSmoothness                     = 0x00001000,
-            StateTextMatrix                     = 0x00002000,
-            StateTextLineMatrix                 = 0x00004000,
-            StateTextCharacterSpacing           = 0x00008000,
-            StateTextWordSpacing                = 0x00010000,
-            StateTextHorizontalScaling          = 0x00020000,
-            StateTextLeading                    = 0x00040000,
-            StateTextFont                       = 0x00080000,
-            StateTextFontSize                   = 0x00100000,
-            StateTextRenderingMode              = 0x00200000,
-            StateTextRise                       = 0x00400000,
-            StateTextKnockout                   = 0x00800000,
-            StateAlphaStroking                  = 0x01000000,
-            StateAlphaFilling                   = 0x02000000,
-            StateBlendMode                      = 0x04000000,
-            StateRenderingIntent                = 0x08000000,
-            StateOverprint                      = 0x10000000,
-            StateAlphaIsShape                   = 0x20000000,
-            StateStrokeAdjustment               = 0x40000000,
-            StateSoftMask                       = 0x80000000,
-            StateAll                            = 0xFFFFFFFF
+            StateUnchanged                      = 0x0000000000000000,
+            StateCurrentTransformationMatrix    = 0x0000000000000001,
+            StateStrokeColorSpace               = 0x0000000000000002,
+            StateFillColorSpace                 = 0x0000000000000004,
+            StateStrokeColor                    = 0x0000000000000008,
+            StateFillColor                      = 0x0000000000000010,
+            StateLineWidth                      = 0x0000000000000020,
+            StateLineCapStyle                   = 0x0000000000000040,
+            StateLineJoinStyle                  = 0x0000000000000080,
+            StateMitterLimit                    = 0x0000000000000100,
+            StateLineDashPattern                = 0x0000000000000200,
+            StateRenderingIntentName            = 0x0000000000000400,
+            StateFlatness                       = 0x0000000000000800,
+            StateSmoothness                     = 0x0000000000001000,
+            StateTextMatrix                     = 0x0000000000002000,
+            StateTextLineMatrix                 = 0x0000000000004000,
+            StateTextCharacterSpacing           = 0x0000000000008000,
+            StateTextWordSpacing                = 0x0000000000010000,
+            StateTextHorizontalScaling          = 0x0000000000020000,
+            StateTextLeading                    = 0x0000000000040000,
+            StateTextFont                       = 0x0000000000080000,
+            StateTextFontSize                   = 0x0000000000100000,
+            StateTextRenderingMode              = 0x0000000000200000,
+            StateTextRise                       = 0x0000000000400000,
+            StateTextKnockout                   = 0x0000000000800000,
+            StateAlphaStroking                  = 0x0000000001000000,
+            StateAlphaFilling                   = 0x0000000002000000,
+            StateBlendMode                      = 0x0000000004000000,
+            StateRenderingIntent                = 0x0000000008000000,
+            StateOverprint                      = 0x0000000010000000,
+            StateAlphaIsShape                   = 0x0000000020000000,
+            StateStrokeAdjustment               = 0x0000000040000000,
+            StateSoftMask                       = 0x0000000080000000,
+            StateBlackPointCompensation         = 0x0000000100000000,
+            StateBlackGenerationFunction        = 0x0000000200000000,
+            StateUndercolorRemovalFunction      = 0x0000000400000000,
+            StateTransferFunction               = 0x0000000800000000,
+            StateHalftone                       = 0x0000001000000000,
+            StateHalftoneOrigin                 = 0x0000002000000000,
+            StateAll                            = 0xFFFFFFFFFFFFFFFF
         };
 
-        Q_DECLARE_FLAGS(StateFlags, StateFlag)
+        using StateFlags = PDFFlags<StateFlag>;
 
         const QMatrix& getCurrentTransformationMatrix() const { return m_currentTransformationMatrix; }
         void setCurrentTransformationMatrix(const QMatrix& currentTransformationMatrix);
@@ -418,6 +419,24 @@ protected:
         const PDFDictionary* getSoftMask() const;
         void setSoftMask(const PDFDictionary* softMask);
 
+        BlackPointCompensationMode getBlackPointCompensationMode() const;
+        void setBlackPointCompensationMode(BlackPointCompensationMode blackPointCompensationMode);
+
+        PDFObject getBlackGenerationFunction() const;
+        void setBlackGenerationFunction(const PDFObject& blackGenerationFunction);
+
+        PDFObject getUndercolorRemovalFunction() const;
+        void setUndercolorRemovalFunction(const PDFObject& undercolorRemovalFunction);
+
+        PDFObject getTransferFunction() const;
+        void setTransferFunction(const PDFObject& transferFunction);
+
+        PDFObject getHalftone() const;
+        void setHalftone(const PDFObject& halftone);
+
+        QPointF getHalftoneOrigin() const;
+        void setHalftoneOrigin(const QPointF& halftoneOrigin);
+
     private:
         QMatrix m_currentTransformationMatrix;
         PDFColorSpacePointer m_strokeColorSpace;
@@ -451,6 +470,12 @@ protected:
         bool m_alphaIsShape;
         bool m_strokeAdjustment;
         const PDFDictionary* m_softMask;
+        BlackPointCompensationMode m_blackPointCompensationMode;
+        PDFObject m_blackGenerationFunction;
+        PDFObject m_undercolorRemovalFunction;
+        PDFObject m_transferFunction;
+        PDFObject m_halftone;
+        QPointF m_halftoneOrigin;
         StateFlags m_stateFlags;
     };
 
