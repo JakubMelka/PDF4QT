@@ -467,7 +467,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                     {
                         QByteArray iccProfileData(reinterpret_cast<const char*>(jpegImage->icc_profile_buf), jpegImage->icc_profile_len);
                         PDFICCBasedColorSpace::Ranges ranges = { 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 };
-                        image.m_colorSpace.reset(new PDFICCBasedColorSpace(image.m_colorSpace, ranges, qMove(iccProfileData)));
+                        image.m_colorSpace.reset(new PDFICCBasedColorSpace(image.m_colorSpace, ranges, qMove(iccProfileData), PDFObjectReference()));
                     }
                 }
 

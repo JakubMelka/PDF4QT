@@ -726,7 +726,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
             return PDFColorSpacePointer(new PDFDeviceRGBColorSpace());
         }
     }
-    else if (name == COLOR_SPACE_NAME_DEVICE_CMYK || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_CMYK)
+    else if (name == COLOR_SPACE_NAME_DEVICE_CMYK || name == COLOR_SPACE_NAME_ABBREVIATION_DEVICE_CMYK || name == COLOR_SPACE_NAME_ABBREVIATION_CAL_CMYK)
     {
         if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_CMYK) && !isNameAlreadyProcessed)
         {
@@ -1053,10 +1053,11 @@ PDFColorSpacePointer PDFLabColorSpace::createLabColorSpace(const PDFDocument* do
     return PDFColorSpacePointer(new PDFLabColorSpace(whitePoint, blackPoint, minMax[0], minMax[1], minMax[2], minMax[3]));
 }
 
-PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData) :
+PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, PDFObjectReference metadata) :
     m_alternateColorSpace(qMove(alternateColorSpace)),
     m_range(range),
-    m_iccProfileData(qMove(iccProfileData))
+    m_iccProfileData(qMove(iccProfileData)),
+    m_metadata(metadata)
 {
     // Compute checksum
     m_iccProfileDataChecksum = QCryptographicHash::hash(m_iccProfileData, QCryptographicHash::Md5);
@@ -1190,7 +1191,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     auto itEnd = std::next(itStart, rangeSize);
     loader.readNumberArrayFromDictionary(dictionary, ICCBASED_RANGE, itStart, itEnd);
 
-    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(iccProfileData)));
+    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(iccProfileData), loader.readReferenceFromDictionary(dictionary, "Metadata")));
 }
 
 PDFIndexedColorSpace::PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue) :
@@ -1391,7 +1392,9 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
 PDFSeparationColorSpace::PDFSeparationColorSpace(QByteArray&& colorName, PDFColorSpacePointer alternateColorSpace, PDFFunctionPtr tintTransform) :
     m_colorName(qMove(colorName)),
     m_alternateColorSpace(qMove(alternateColorSpace)),
-    m_tintTransform(qMove(tintTransform))
+    m_tintTransform(qMove(tintTransform)),
+    m_isNone(m_colorName == "None"),
+    m_isAll(m_colorName == "All")
 {
 
 }
@@ -1406,8 +1409,24 @@ QColor PDFSeparationColorSpace::getColor(const PDFColor& color, const PDFCMS* cm
     // Separation color space value must have exactly one component!
     Q_ASSERT(color.size() == 1);
 
+    // According to the PDF 2.0 specification, separation color space, with colorant name "None"
+    // should not produce any visible output.
+    if (m_isNone)
+    {
+        return Qt::transparent;
+    }
+
     // Input value
     double tint = color.back();
+
+    // Jakub Melka: According to the PDF 2.0 specification, separation color space, with colorant name "All"
+    // should apply tint value to all output colorants, alternate color space and tint function should
+    // be ignored, and because QColor is aditive, we must invert the tint value.
+    if (m_isAll)
+    {
+        const double inversedTint = qBound(0.0, 1.0 - tint, 1.0);
+        return QColor::fromRgbF(inversedTint, inversedTint, inversedTint);
+    }
 
     // Output values
     std::vector<double> outputColor;
@@ -1518,6 +1537,14 @@ QColor PDFDeviceNColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent 
 {
     PDFColor color;
     color.resize(getColorComponentCount());
+
+    // Jakub Melka: According to the PDF 2.0 specification, each channel should
+    // be initially set to 1.0.
+    for (size_t i = 0, colorComponentCount = color.size(); i < colorComponentCount; ++i)
+    {
+        color[i] = 1.0;
+    }
+
     return getColor(color, cms, intent, reporter);
 }
 
