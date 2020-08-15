@@ -282,26 +282,38 @@ public:
     PDFObjectReference getReference() const { return m_reference; }
     const QString& getName() const { return m_name; }
     const std::vector<QByteArray>& getIntents() const { return m_intents; }
-    PDFObject getCreatorInfo() const { return m_creatorInfo; }
-    PDFObject getLanguage() const { return m_language; }
+    const PDFObject& getCreatorInfo() const { return m_creatorInfo; }
+    const QString& getCreator() const { return m_creator; }
+    const QByteArray& getSubtype() const { return m_subtype; }
+    const QString& getLanguage() const { return m_language; }
+    bool isLanguagePreferred() const { return m_languagePreferred; }
     PDFReal getUsageZoomMin() const { return m_usageZoomMin; }
     PDFReal getUsageZoomMax() const { return m_usageZoomMax; }
     OCState getUsagePrintState() const { return m_usagePrintState; }
     OCState getUsageViewState() const { return m_usageViewState; }
     OCState getUsageExportState() const { return m_usageExportState; }
     OCState getUsageState(OCUsage usage) const;
+    const QByteArray& getUserType() const { return m_userType; }
+    const QStringList& getUserNames() const { return m_userNames; }
+    const PDFObject& getPageElement() const { return m_pageElement; }
 
 private:
     PDFObjectReference m_reference;
     QString m_name;
     std::vector<QByteArray> m_intents;
     PDFObject m_creatorInfo;
-    PDFObject m_language;
+    QString m_creator;
+    QByteArray m_subtype;
+    QString m_language;
+    QByteArray m_userType;
+    QStringList m_userNames;
+    bool m_languagePreferred;
     PDFReal m_usageZoomMin;
     PDFReal m_usageZoomMax;
     OCState m_usagePrintState;
     OCState m_usageViewState;
     OCState m_usageExportState;
+    PDFObject m_pageElement;
 };
 
 /// Object containing properties of the optional content of the PDF document. It contains

@@ -206,6 +206,7 @@ PDFOptionalContentConfiguration::UsageApplication PDFOptionalContentConfiguratio
 }
 
 PDFOptionalContentGroup::PDFOptionalContentGroup() :
+    m_languagePreferred(false),
     m_usageZoomMin(0),
     m_usageZoomMax(std::numeric_limits<PDFReal>::infinity()),
     m_usagePrintState(OCState::Unknown),
@@ -253,14 +254,23 @@ PDFOptionalContentGroup PDFOptionalContentGroup::create(const PDFDocument* docum
     {
         const PDFDictionary* usageDictionary = usageDictionaryObject.getDictionary();
 
-        result.m_creatorInfo = document->getObject(usageDictionary->get("CreatorInfo"));
-        result.m_language = document->getObject(usageDictionary->get("Language"));
-
-        const PDFObject& zoomDictionary = document->getObject(usageDictionary->get("Zoom"));
-        if (zoomDictionary.isDictionary())
+        if (const PDFDictionary* creatorDictionary = document->getDictionaryFromObject(usageDictionary->get("CreatorInfo")))
         {
-            result.m_usageZoomMin = loader.readNumberFromDictionary(usageDictionary, "min", result.m_usageZoomMin);
-            result.m_usageZoomMax = loader.readNumberFromDictionary(usageDictionary, "max", result.m_usageZoomMax);
+            result.m_creator = loader.readTextStringFromDictionary(creatorDictionary, "Creator", QString());
+            result.m_subtype = loader.readNameFromDictionary(creatorDictionary, "Subtype");
+        }
+        result.m_creatorInfo = document->getObject(usageDictionary->get("CreatorInfo"));
+
+        if (const PDFDictionary* languageDictionary = document->getDictionaryFromObject(usageDictionary->get("Language")))
+        {
+            result.m_language = loader.readTextStringFromDictionary(languageDictionary, "Lang", QString());
+            result.m_languagePreferred = loader.readNameFromDictionary(languageDictionary, "Preferred") == "ON";
+        }
+
+        if (const PDFDictionary* zoomDictionary = document->getDictionaryFromObject(usageDictionary->get("Zoom")))
+        {
+            result.m_usageZoomMin = loader.readNumberFromDictionary(zoomDictionary, "min", result.m_usageZoomMin);
+            result.m_usageZoomMax = loader.readNumberFromDictionary(zoomDictionary, "max", result.m_usageZoomMax);
         }
 
         auto readState = [document, usageDictionary, &loader](const char* dictionaryKey, const char* key) -> OCState
@@ -287,6 +297,27 @@ PDFOptionalContentGroup PDFOptionalContentGroup::create(const PDFDocument* docum
         result.m_usageViewState = readState("View", "ViewState");
         result.m_usagePrintState = readState("Print", "PrintState");
         result.m_usageExportState = readState("Export", "ExportState");
+
+        if (const PDFDictionary* userDictionary = document->getDictionaryFromObject(usageDictionary->get("User")))
+        {
+            result.m_userType = loader.readNameFromDictionary(userDictionary, "Type");
+
+            PDFObject namesObject = document->getObject(userDictionary->get("Name"));
+            if (namesObject.isArray())
+            {
+                result.m_userNames = loader.readTextStringList(userDictionary->get("Name"));
+            }
+            else
+            {
+                QString name = loader.readStringFromDictionary(userDictionary, "Name");
+                if (!name.isEmpty())
+                {
+                    result.m_userNames.append(qMove(name));
+                }
+            }
+        }
+
+        result.m_pageElement = usageDictionary->get("PageElement");
     }
 
     return result;

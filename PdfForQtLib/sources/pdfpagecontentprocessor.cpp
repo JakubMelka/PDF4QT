@@ -659,6 +659,7 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix,
         m_graphicState.setBlendMode(BlendMode::Normal);
         m_graphicState.setAlphaFilling(1.0);
         m_graphicState.setAlphaStroking(1.0);
+        m_graphicState.setSoftMask(nullptr);
     }
 
     QMatrix formMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
