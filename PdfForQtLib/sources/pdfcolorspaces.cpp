@@ -1401,7 +1401,7 @@ PDFSeparationColorSpace::PDFSeparationColorSpace(QByteArray&& colorName, PDFColo
 
 QColor PDFSeparationColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    return getColor(PDFColor(0.0f), cms, intent, reporter);
+    return getColor(PDFColor(1.0f), cms, intent, reporter);
 }
 
 QColor PDFSeparationColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
@@ -1528,9 +1528,10 @@ PDFDeviceNColorSpace::PDFDeviceNColorSpace(PDFDeviceNColorSpace::Type type,
     m_processColorSpace(qMove(processColorSpace)),
     m_tintTransform(qMove(tintTransform)),
     m_colorantsPrintingOrder(qMove(colorantsPrintingOrder)),
-    m_processColorSpaceComponents(qMove(processColorSpaceComponents))
+    m_processColorSpaceComponents(qMove(processColorSpaceComponents)),
+    m_isNone(false)
 {
-
+    m_isNone = std::all_of(m_colorants.cbegin(), m_colorants.cend(), [](const auto& colorant) { return colorant.name == "None"; });
 }
 
 QColor PDFDeviceNColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
@@ -1550,6 +1551,13 @@ QColor PDFDeviceNColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent 
 
 QColor PDFDeviceNColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
+    // According to the PDF 2.0 specification, DeviceN color space, with all colorant name "None"
+    // should not produce any visible output.
+    if (m_isNone)
+    {
+        return Qt::transparent;
+    }
+
     // Input values
     std::vector<double> inputColor(color.size(), 0.0);
     for (size_t i = 0, count = inputColor.size(); i < count; ++i)

@@ -73,6 +73,17 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
     bool imageMask = loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
     std::vector<PDFReal> matte = loader.readNumberArrayFromDictionary(dictionary, "Matte");
     PDFInteger sMaskInData = loader.readIntegerFromDictionary(dictionary, "SMaskInData", 0);
+    image.m_interpolate = loader.readBooleanFromDictionary(dictionary, "Interpolate", false);
+    image.m_alternates = loader.readObjectList<PDFAlternateImage>(dictionary->get("Alternates"));
+    image.m_name = loader.readNameFromDictionary(dictionary, "Name");
+    image.m_structuralParent = loader.readIntegerFromDictionary(dictionary, "StructParent", 0);
+    image.m_webCaptureContentSetId = loader.readStringFromDictionary(dictionary, "ID");
+    image.m_OPI = dictionary->get("OPI");
+    image.m_OC = dictionary->get("OC");
+    image.m_metadata = dictionary->get("Metadata");
+    image.m_associatedFiles = dictionary->get("AF");
+    image.m_measure = dictionary->get("Measure");
+    image.m_pointData = dictionary->get("PtData");
 
     if (isSoftMask && (imageMask || dictionary->hasKey("Mask") || dictionary->hasKey("SMask")))
     {
@@ -706,9 +717,9 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
     }
     else if (imageMask)
     {
-        // We intentionally have 8 bits in the following code, because if ImageMask is set to true, then "BitsPerComponent"
-        // should have always value of 1.
-        const unsigned int bitsPerComponent = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8));
+        // If ImageMask is set to true, then "BitsPerComponent" should have always value of 1.
+        // If this entry is not specified, then the value should be implicitly 1.
+        const unsigned int bitsPerComponent = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 1));
 
         if (bitsPerComponent != 1)
         {
@@ -840,6 +851,19 @@ OPJ_OFF_T PDFJPEG2000ImageData::skip(OPJ_OFF_T p_nb_bytes, void* p_user_data)
     return length;
 }
 
-// Implement image rendering intent
+PDFAlternateImage PDFAlternateImage::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFAlternateImage result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+        result.m_image = loader.readReferenceFromDictionary(dictionary, "Image");
+        result.m_oc = loader.readReferenceFromDictionary(dictionary, "OC");
+        result.m_defaultForPrinting = loader.readBooleanFromDictionary(dictionary, "DefaultForPrinting", false);
+    }
+
+    return result;
+}
 
 }   // namespace pdf

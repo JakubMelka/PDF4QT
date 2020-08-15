@@ -500,7 +500,11 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                             { "H", "Height" },
                             { "IM", "ImageMask" },
                             { "I", "Interpolate" },
-                            { "W", "Width" }
+                            { "W", "Width" },
+                            { "L", "Length" },
+                            { "G", "DeviceGray" },
+                            { "RGB", "DeviceRGB" },
+                            { "CMYK", "DeviceCMYK" }
                         };
 
                         std::shared_ptr<PDFDictionary> dictionarySharedPointer = std::make_shared<PDFDictionary>();

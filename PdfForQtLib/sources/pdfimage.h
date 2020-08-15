@@ -18,6 +18,7 @@
 #ifndef PDFIMAGE_H
 #define PDFIMAGE_H
 
+#include "pdfobject.h"
 #include "pdfcolorspaces.h"
 
 #include <QByteArray>
@@ -28,7 +29,30 @@ namespace pdf
 {
 class PDFStream;
 class PDFDocument;
+class PDFObjectStorage;
 class PDFRenderErrorReporter;
+
+/// Alternate image object. Defines alternate image, which
+/// can be shown in some circumstances instead of main image.
+class PDFAlternateImage
+{
+public:
+    explicit inline PDFAlternateImage() = default;
+
+    /// Parses alternate image dictionary object.
+    /// \param storage Object storage
+    /// \param object Alternate image object
+    static PDFAlternateImage parse(const PDFObjectStorage* storage, PDFObject object);
+
+    PDFObjectReference getImage() const { return m_image; }
+    PDFObjectReference getOc() const { return m_oc; }
+    bool isDefaultForPrinting() const { return m_defaultForPrinting; }
+
+private:
+    PDFObjectReference m_image;
+    PDFObjectReference m_oc;
+    bool m_defaultForPrinting = false;
+};
 
 class PDFImage
 {
@@ -54,6 +78,33 @@ public:
     /// Returns rendering intent of the image
     RenderingIntent getRenderingIntent() const { return m_renderingIntent; }
 
+    /// Color space of image samples
+    const PDFColorSpacePointer& getColorSpace() const { return m_colorSpace; }
+
+    /// Should PDF processor perform interpolation on this image?
+    bool isInterpolated() const { return m_interpolate; }
+
+    /// Array of alternate images
+    const std::vector<PDFAlternateImage>& getAlternates() const { return m_alternates; }
+
+    /// Returns name of image, under which is referenced in resources dictionary.
+    /// It was mandatory in PDF 1.0, otherwise it is optional and now it is deprecated
+    /// in PDF 2.0 specification.
+    const QByteArray& getName() const { return m_name; }
+
+    /// Returns idenfitier to structural parent in structure tree
+    PDFInteger getStructuralParent() const { return m_structuralParent; }
+
+    /// Web capture content set identifier
+    const QByteArray& getWebCaptureContentSetID() const { return m_webCaptureContentSetId; }
+
+    const PDFObject& getOPI() const { return m_OPI; }
+    const PDFObject& getOC() const { return m_OC; }
+    const PDFObject& getMetadata() const { return m_metadata; }
+    const PDFObject& getAssociatedFiles() const { return m_associatedFiles; }
+    const PDFObject& getMeasure() const { return m_measure; }
+    const PDFObject& getPointData() const { return m_pointData; }
+
 private:
     PDFImage() = default;
 
@@ -61,6 +112,17 @@ private:
     PDFImageData m_softMask;
     PDFColorSpacePointer m_colorSpace;
     RenderingIntent m_renderingIntent = RenderingIntent::Perceptual;
+    bool m_interpolate = false;
+    std::vector<PDFAlternateImage> m_alternates;
+    QByteArray m_name;
+    QByteArray m_webCaptureContentSetId;
+    PDFInteger m_structuralParent = 0;
+    PDFObject m_OPI;
+    PDFObject m_OC;
+    PDFObject m_metadata;
+    PDFObject m_associatedFiles;
+    PDFObject m_measure;
+    PDFObject m_pointData;
 };
 
 }   // namespace pdf

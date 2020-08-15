@@ -678,6 +678,14 @@ public:
     /// Returns type of DeviceN color space
     Type getType() const { return m_type; }
 
+    const Colorants& getColorants() const { return m_colorants; }
+    const PDFColorSpacePointer& getAlternateColorSpace() const { return m_alternateColorSpace; }
+    const PDFColorSpacePointer& getProcessColorSpace() const { return m_processColorSpace; }
+    const PDFFunctionPtr& getTintTransform() const { return m_tintTransform; }
+    const std::vector<QByteArray>& getPrintingOrder() const { return m_colorantsPrintingOrder; }
+    const std::vector<QByteArray>& getProcessColorSpaceComponents() const { return m_processColorSpaceComponents; }
+    bool isNone() const { return m_isNone; }
+
     /// Creates DeviceN color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
@@ -698,6 +706,7 @@ private:
     PDFFunctionPtr m_tintTransform;
     std::vector<QByteArray> m_colorantsPrintingOrder;
     std::vector<QByteArray> m_processColorSpaceComponents;
+    bool m_isNone;
 };
 
 class PDFPatternColorSpace : public PDFAbstractColorSpace
