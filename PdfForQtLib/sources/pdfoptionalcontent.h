@@ -221,7 +221,7 @@ public:
     struct UsageApplication
     {
         QByteArray event;
-        std::vector<PDFObjectReference> optionalContengGroups;
+        std::vector<PDFObjectReference> optionalContentGroups;
         std::vector<QByteArray> categories;
     };
 

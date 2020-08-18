@@ -129,6 +129,7 @@ enum class FontType
     Invalid,
     Type0,
     Type1,
+    MMType1,
     TrueType,
     Type3
 };
@@ -321,7 +322,8 @@ class PDFType1Font : public PDFSimpleFont
     using BaseClass = PDFSimpleFont;
 
 public:
-    explicit PDFType1Font(FontDescriptor fontDescriptor,
+    explicit PDFType1Font(FontType fontType,
+                          FontDescriptor fontDescriptor,
                           QByteArray name,
                           QByteArray baseFont,
                           PDFInteger firstChar,
@@ -340,6 +342,7 @@ public:
     StandardFontType getStandardFontType() const { return m_standardFontType; }
 
 private:
+    FontType m_fontType;
     StandardFontType m_standardFontType; ///< Type of the standard font (or invalid, if it is not a standard font)
 };
 

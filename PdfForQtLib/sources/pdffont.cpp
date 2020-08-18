@@ -480,6 +480,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
     {
         case FontType::Type1:
         case FontType::TrueType:
+        case FontType::MMType1:
         {
             // We can use encoding
             Q_ASSERT(dynamic_cast<PDFSimpleFont*>(m_parentFont.get()));
@@ -808,7 +809,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
         else
         {
             StandardFontType standardFontType = StandardFontType::Invalid;
-            if (font->getFontType() == FontType::Type1)
+            if (font->getFontType() == FontType::Type1 || font->getFontType() == FontType::MMType1)
             {
                 Q_ASSERT(dynamic_cast<const PDFType1Font*>(font.get()));
                 const PDFType1Font* type1Font = static_cast<const PDFType1Font*>(font.get());
@@ -905,11 +906,12 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     PDFDocumentDataLoaderDecorator fontLoader(document);
 
     // First, determine the font subtype
-    constexpr const std::array<std::pair<const char*, FontType>, 4> fontTypes = {
+    constexpr const std::array fontTypes = {
         std::pair<const char*, FontType>{ "Type0", FontType::Type0 },
         std::pair<const char*, FontType>{ "Type1", FontType::Type1 },
         std::pair<const char*, FontType>{ "TrueType", FontType::TrueType },
-        std::pair<const char*, FontType>{ "Type3", FontType::Type3}
+        std::pair<const char*, FontType>{ "Type3", FontType::Type3},
+        std::pair<const char*, FontType>{ "MMType1", FontType::MMType1 }
     };
 
     const FontType fontType = fontLoader.readEnumByName(fontDictionary->get("Subtype"), fontTypes.cbegin(), fontTypes.cend(), FontType::Invalid);
@@ -966,6 +968,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     switch (fontType)
     {
         case FontType::Type1:
+        case FontType::MMType1:
         case FontType::TrueType:
         {
             bool hasDifferences = false;
@@ -1417,7 +1420,8 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     switch (fontType)
     {
         case FontType::Type1:
-            return PDFFontPointer(new PDFType1Font(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, standardFont, glyphIndexArray));
+        case FontType::MMType1:
+            return PDFFontPointer(new PDFType1Font(fontType, qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, standardFont, glyphIndexArray));
 
         case FontType::TrueType:
             return PDFFontPointer(new PDFTrueTypeFont(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, glyphIndexArray));
@@ -1524,7 +1528,8 @@ void PDFSimpleFont::dumpFontToTreeItem(QTreeWidgetItem* item) const
     new QTreeWidgetItem(item, { PDFTranslationContext::tr("Encoding"), encodingTypeString });
 }
 
-PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
+PDFType1Font::PDFType1Font(FontType fontType,
+                           FontDescriptor fontDescriptor,
                            QByteArray name,
                            QByteArray baseFont,
                            PDFInteger firstChar,
@@ -1535,6 +1540,7 @@ PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
                            StandardFontType standardFontType,
                            GlyphIndices glyphIndices) :
     PDFSimpleFont(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encodingType, encoding, glyphIndices),
+    m_fontType(fontType),
     m_standardFontType(standardFontType)
 {
 
@@ -1542,7 +1548,7 @@ PDFType1Font::PDFType1Font(FontDescriptor fontDescriptor,
 
 FontType PDFType1Font::getFontType() const
 {
-    return FontType::Type1;
+    return m_fontType;
 }
 
 void PDFType1Font::dumpFontToTreeItem(QTreeWidgetItem* item) const

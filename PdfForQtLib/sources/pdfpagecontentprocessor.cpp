@@ -3131,7 +3131,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     fontAdjustedMatrix.map(item.advance, 0.0, &displacementX, &ry);
                 }
 
-                if (item.characterContentStream)
+                if (item.characterContentStream && (fill || stroke))
                 {
                     PDFPageContentProcessorStateGuard guard(this);
 

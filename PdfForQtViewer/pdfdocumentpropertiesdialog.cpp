@@ -328,6 +328,10 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
                                                 fontTypeString = tr("Type1 (8 bit keyed)");
                                                 break;
 
+                                            case pdf::FontType::MMType1:
+                                                fontTypeString = tr("MMType1 (8 bit keyed)");
+                                                break;
+
                                             case pdf::FontType::Type3:
                                                 fontTypeString = tr("Type3 (content streams for font glyphs)");
                                                 break;

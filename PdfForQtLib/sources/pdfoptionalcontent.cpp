@@ -198,7 +198,7 @@ PDFOptionalContentConfiguration::UsageApplication PDFOptionalContentConfiguratio
         PDFDocumentDataLoaderDecorator loader(document);
         const PDFDictionary* dictionary = dereferencedObject.getDictionary();
         result.event = loader.readNameFromDictionary(dictionary, "Event");
-        result.optionalContengGroups = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
+        result.optionalContentGroups = loader.readReferenceArrayFromDictionary(dictionary, "OCGs");
         result.categories = loader.readNameArrayFromDictionary(dictionary, "Category");
     }
 
@@ -451,7 +451,7 @@ void PDFOptionalContentActivity::applyConfiguration(const PDFOptionalContentConf
 
         if (usage == m_usage)
         {
-            for (PDFObjectReference ocg : usageApplication.optionalContengGroups)
+            for (PDFObjectReference ocg : usageApplication.optionalContentGroups)
             {
                 if (!m_properties->hasOptionalContentGroup(ocg))
                 {
