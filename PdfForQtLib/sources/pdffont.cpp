@@ -514,7 +514,8 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                     reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for simple font character code '%1' not found.").arg(static_cast<uint8_t>(byteArray[i])));
                     if (glyphWidth > 0)
                     {
-                        textSequence.items.emplace_back(nullptr, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER);
+                        const QPainterPath* nullpath = nullptr;
+                        textSequence.items.emplace_back(nullpath, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER);
                     }
                 }
             }
@@ -555,7 +556,8 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                     {
                         // We do not multiply advance with font size and FONT_WIDTH_MULTIPLIER, because in the code,
                         // "advance" is treated as in font space.
-                        textSequence.items.emplace_back(nullptr, QChar(), -glyphWidth);
+                        const QPainterPath* nullpath = nullptr;
+                        textSequence.items.emplace_back(nullpath, QChar(), -glyphWidth);
                     }
                 }
             }
@@ -1406,8 +1408,21 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                 }
             }
 
+            PDFFontCMap toUnicodeCMap;
+            const PDFObject& toUnicode = document->getObject(fontDictionary->get("ToUnicode"));
+            if (toUnicode.isName())
+            {
+                toUnicodeCMap = PDFFontCMap::createFromName(toUnicode.getString());
+            }
+            else if (toUnicode.isStream())
+            {
+                const PDFStream* stream = toUnicode.getStream();
+                QByteArray decodedStream = document->getDecodedStream(stream);
+                toUnicodeCMap = PDFFontCMap::createFromData(decodedStream);
+            }
+
             std::vector<PDFReal> widths = fontLoader.readNumberArrayFromDictionary(fontDictionary, "Widths");
-            return PDFFontPointer(new PDFType3Font(qMove(fontDescriptor), firstChar, lastChar, fontMatrix, qMove(characterContentStreams), qMove(widths), document->getObject(fontDictionary->get("Resources"))));
+            return PDFFontPointer(new PDFType3Font(qMove(fontDescriptor), firstChar, lastChar, fontMatrix, qMove(characterContentStreams), qMove(widths), document->getObject(fontDictionary->get("Resources")), qMove(toUnicodeCMap)));
         }
 
         default:
@@ -2146,14 +2161,16 @@ PDFType3Font::PDFType3Font(FontDescriptor fontDescriptor,
                            QMatrix fontMatrix,
                            std::map<int, QByteArray>&& characterContentStreams,
                            std::vector<double>&& widths,
-                           const PDFObject& resources) :
+                           const PDFObject& resources,
+                           PDFFontCMap toUnicode) :
     PDFFont(qMove(fontDescriptor)),
     m_firstCharacterIndex(firstCharacterIndex),
     m_lastCharacterIndex(lastCharacterIndex),
     m_fontMatrix(fontMatrix),
     m_characterContentStreams(qMove(characterContentStreams)),
     m_widths(qMove(widths)),
-    m_resources(resources)
+    m_resources(resources),
+    m_toUnicode(qMove(toUnicode))
 {
 
 }
@@ -2203,11 +2220,12 @@ void PDFRealizedType3FontImpl::fillTextSequence(const QByteArray& byteArray, Tex
     {
         int index = static_cast<uint8_t>(byteArray[i]);
         const QByteArray* contentStream = parentFont->getContentStream(index);
+        QChar character = parentFont->getUnicode(index);
         const double width = parentFont->getWidth(index);
 
         if (contentStream)
         {
-            textSequence.items.emplace_back(contentStream, width);
+            textSequence.items.emplace_back(contentStream, character, width);
         }
         else
         {

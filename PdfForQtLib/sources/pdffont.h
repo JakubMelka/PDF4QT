@@ -61,7 +61,7 @@ struct TextSequenceItem
     inline explicit TextSequenceItem() = default;
     inline explicit TextSequenceItem(const QPainterPath* glyph, QChar character, PDFReal advance) : glyph(glyph), character(character), advance(advance) { }
     inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
-    inline explicit TextSequenceItem(const QByteArray* characterContentStream, double advance) : characterContentStream(characterContentStream), advance(advance) { }
+    inline explicit TextSequenceItem(const QByteArray* characterContentStream, QChar character, PDFReal advance) : characterContentStream(characterContentStream), character(character), advance(advance) { }
 
     inline bool isContentStream() const { return characterContentStream; }
     inline bool isCharacter() const { return glyph; }
@@ -354,39 +354,6 @@ public:
     virtual FontType getFontType() const override;
 };
 
-class PDFType3Font : public PDFFont
-{
-public:
-    explicit PDFType3Font(FontDescriptor fontDescriptor,
-                          int firstCharacterIndex,
-                          int lastCharacterIndex,
-                          QMatrix fontMatrix,
-                          std::map<int, QByteArray>&& characterContentStreams,
-                          std::vector<double>&& widths,
-                          const PDFObject& resources);
-
-    virtual FontType getFontType() const override;
-    virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
-
-    /// Returns width of the character. If character doesn't exist, then zero is returned.
-    double getWidth(int characterIndex) const;
-
-    /// Return content stream for the character. If character doesn't exist, then nullptr
-    /// is returned.
-    const QByteArray* getContentStream(int characterIndex) const;
-
-    const QMatrix& getFontMatrix() const { return m_fontMatrix; }
-    const PDFObject& getResources() const { return m_resources; }
-
-private:
-    int m_firstCharacterIndex;
-    int m_lastCharacterIndex;
-    QMatrix m_fontMatrix;
-    std::map<int, QByteArray> m_characterContentStreams;
-    std::vector<double> m_widths;
-    PDFObject m_resources;
-};
-
 /// Font cache which caches both fonts, and realized fonts. Cache has individual limit
 /// for fonts, and realized fonts.
 class PDFFontCache
@@ -540,6 +507,46 @@ private:
     Entries m_entries;
     unsigned int m_maxKeyLength = 0;
     bool m_vertical = false;
+};
+
+class PDFType3Font : public PDFFont
+{
+public:
+    explicit PDFType3Font(FontDescriptor fontDescriptor,
+                          int firstCharacterIndex,
+                          int lastCharacterIndex,
+                          QMatrix fontMatrix,
+                          std::map<int, QByteArray>&& characterContentStreams,
+                          std::vector<double>&& widths,
+                          const PDFObject& resources,
+                          PDFFontCMap toUnicode);
+
+    virtual FontType getFontType() const override;
+    virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
+
+    /// Returns width of the character. If character doesn't exist, then zero is returned.
+    double getWidth(int characterIndex) const;
+
+    /// Return content stream for the character. If character doesn't exist, then nullptr
+    /// is returned.
+    const QByteArray* getContentStream(int characterIndex) const;
+
+    const QMatrix& getFontMatrix() const { return m_fontMatrix; }
+    const PDFObject& getResources() const { return m_resources; }
+    const PDFFontCMap& getToUnicode() const { return m_toUnicode; }
+
+    /// Returns unicode character for given character index. If unicode mapping is not
+    /// present, empty (null) character is returned.
+    QChar getUnicode(int characterIndex) const { return m_toUnicode.getToUnicode(characterIndex); }
+
+private:
+    int m_firstCharacterIndex;
+    int m_lastCharacterIndex;
+    QMatrix m_fontMatrix;
+    std::map<int, QByteArray> m_characterContentStreams;
+    std::vector<double> m_widths;
+    PDFObject m_resources;
+    PDFFontCMap m_toUnicode;
 };
 
 /// Composite font (CID-keyed font)
