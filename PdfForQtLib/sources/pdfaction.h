@@ -73,7 +73,10 @@ enum class DestinationType
 };
 
 /// Destination to the specific location of the document. Destination can also be 'Named' type,
-/// in this case, destination in name tree is found and used.
+/// in this case, destination in name tree is found and used. Important note: because structure
+/// destination has almost exactly same syntax as page destination, it should be checked,
+/// if indirect reference returned by function \p getPageReference references really page,
+/// or some structure element.
 class PDFDestination
 {
 public:

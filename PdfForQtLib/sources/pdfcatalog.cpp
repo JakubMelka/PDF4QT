@@ -575,6 +575,11 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                     throw PDFException(PDFTranslationContext::tr("Expected integer."));
                 }
             }
+
+            // Enforce
+            PDFDocumentDataLoaderDecorator loader(document);
+            std::vector<QByteArray> enforce = loader.readNameArrayFromDictionary(viewerPreferencesDictionary, "Enforce");
+            result.m_optionFlags.setFlag(EnforcePrintScaling, std::find(enforce.cbegin(), enforce.cend(), "PrintScaling") != enforce.cend());
         }
         else if (!viewerPreferencesObject.isNull())
         {

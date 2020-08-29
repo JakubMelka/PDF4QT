@@ -470,6 +470,48 @@ PDFCollectionFolder PDFCollectionFolder::parse(const PDFObjectStorage* storage, 
     return result;
 }
 
+PDFCollectionNavigator PDFCollectionNavigator::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFCollectionNavigator result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        auto getLayout = [&loader](const PDFObject& object)
+        {
+            constexpr const std::array layouts = {
+                std::pair<const char*, Layout>{ "D", Layout::Details },
+                std::pair<const char*, Layout>{ "T", Layout::Tile },
+                std::pair<const char*, Layout>{ "H", Layout::Hidden },
+                std::pair<const char*, Layout>{ "FilmStrip", Layout::FilmStrip },
+                std::pair<const char*, Layout>{ "FreeForm", Layout::FreeForm },
+                std::pair<const char*, Layout>{ "Linear", Layout::Linear },
+                std::pair<const char*, Layout>{ "Tree", Layout::Tree }
+            };
+
+            return loader.readEnumByName(object, layouts.begin(), layouts.end(), Layout::Invalid);
+        };
+
+        result.m_layouts = None;
+
+        PDFObject layoutObject = storage->getObject(dictionary->get("Layout"));
+        if (layoutObject.isArray())
+        {
+            for (const PDFObject& object : *layoutObject.getArray())
+            {
+                result.m_layouts |= getLayout(object);
+            }
+        }
+        else
+        {
+            result.m_layouts = getLayout(layoutObject);
+        }
+    }
+
+    return result;
+}
+
 QString PDFCollectionItem::getString(const QByteArray& key, const PDFObjectStorage* storage) const
 {
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(m_object))

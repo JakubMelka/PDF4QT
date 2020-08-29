@@ -150,7 +150,8 @@ public:
         FitWindow           = 0x0008,   ///< Resize window to fit first displayed page
         CenterWindow        = 0x0010,   ///< Position of the document's window should be centered on the screen
         DisplayDocTitle     = 0x0020,   ///< Display documents title instead of file name (introduced in PDF 1.4)
-        PickTrayByPDFSize   = 0x0040    ///< Pick tray by PDF size (printing option)
+        PickTrayByPDFSize   = 0x0040,   ///< Pick tray by PDF size (printing option)
+        EnforcePrintScaling = 0x0080    ///< Enforce print scaling settings
     };
 
     Q_DECLARE_FLAGS(OptionFlags, OptionFlag)

@@ -314,6 +314,39 @@ private:
     PDFObject m_object;
 };
 
+/// Collection navigator. It contains modes of display. Interactive
+/// PDF processor should display first layout it is capable of.
+class PDFFORQTLIBSHARED_EXPORT PDFCollectionNavigator
+{
+public:
+    explicit inline PDFCollectionNavigator() = default;
+
+    enum Layout
+    {
+        None        = 0x0000,
+        Invalid     = 0x0001,
+        Details     = 0x0002,
+        Tile        = 0x0004,
+        Hidden      = 0x0008,
+        FilmStrip   = 0x0010,
+        FreeForm    = 0x0020,
+        Linear      = 0x0040,
+        Tree        = 0x0080
+    };
+    Q_DECLARE_FLAGS(Layouts, Layout)
+
+    /// Returns true, if navigator has valid layout
+    bool hasLayout() const { return (m_layouts != None) && !m_layouts.testFlag(Invalid); }
+
+    /// Returns current layouts
+    Layouts getLayout() const { return m_layouts; }
+
+    static PDFCollectionNavigator parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    Layouts m_layouts = None;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFEmbeddedFile
 {
 public:

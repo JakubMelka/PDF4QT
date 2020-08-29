@@ -61,6 +61,7 @@ SOURCES += \
     sources/pdfoptimizer.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
+    sources/pdfpagenavigation.cpp \
     sources/pdfpagetransition.cpp \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
@@ -116,6 +117,7 @@ HEADERS += \
     sources/pdfoptimizer.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
+    sources/pdfpagenavigation.h \
     sources/pdfpagetransition.h \
     sources/pdfpainterutils.h \
     sources/pdfparser.h \
