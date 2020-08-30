@@ -491,7 +491,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         PDFStampAnnotation* annotation = new PDFStampAnnotation();
         result.reset(annotation);
 
-        constexpr const std::array<std::pair<const char*, Stamp>, 14> stamps = {
+        constexpr const std::array stamps = {
             std::pair<const char*, Stamp>{ "Approved", Stamp::Approved },
             std::pair<const char*, Stamp>{ "AsIs", Stamp::AsIs },
             std::pair<const char*, Stamp>{ "Confidential", Stamp::Confidential },
@@ -509,6 +509,14 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         };
 
         annotation->m_stamp = loader.readEnumByName(dictionary->get("Name"), stamps.begin(), stamps.end(), Stamp::Draft);
+
+        constexpr const std::array stampsIntents = {
+            std::pair<const char*, StampIntent>{ "Stamp", StampIntent::Stamp },
+            std::pair<const char*, StampIntent>{ "StampImage", StampIntent::StampImage },
+            std::pair<const char*, StampIntent>{ "StampSnapshot", StampIntent::StampSnapshot },
+        };
+
+        annotation->m_intent = loader.readEnumByName(dictionary->get("IT"), stampsIntents.begin(), stampsIntents.end(), StampIntent::Stamp);
     }
     else if (subtype == "Ink")
     {

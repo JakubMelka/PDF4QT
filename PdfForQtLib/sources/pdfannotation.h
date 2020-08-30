@@ -1035,6 +1035,13 @@ enum class Stamp
     TopSecret
 };
 
+enum class StampIntent
+{
+    Stamp,
+    StampImage,
+    StampSnapshot
+};
+
 /// Annotation for stamps. Displays text or graphics intended to look
 /// as if they were stamped on the paper.
 class PDFStampAnnotation : public PDFMarkupAnnotation
@@ -1046,11 +1053,13 @@ public:
     virtual void draw(AnnotationDrawParameters& parameters) const override;
 
     Stamp getStamp() const { return m_stamp; }
+    StampIntent getIntent() const { return m_intent; }
 
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
 
     Stamp m_stamp = Stamp::Draft;
+    StampIntent m_intent = StampIntent::Stamp;
 };
 
 /// Ink annotation. Represents a path composed of disjoint polygons.
