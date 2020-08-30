@@ -27,6 +27,7 @@
 #include "pdfmeshqualitysettings.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfrenderer.h"
+#include "pdfblendfunction.h"
 
 #include <QCursor>
 #include <QPainterPath>
@@ -527,6 +528,15 @@ public:
     const std::vector<PDFReal>& getColor() const { return m_color; }
     PDFInteger getStructuralParent() const { return m_structParent; }
     PDFObjectReference getOptionalContent() const { return m_optionalContentReference; }
+    const PDFObject& getAssociatedFiles() const { return m_associatedFiles; }
+    PDFReal getFillOpacity() const { return m_fillingOpacity; }
+    PDFReal getStrokeOpacity() const { return m_strokingOpacity; }
+    BlendMode getBlendMode() const { return m_blendMode; }
+    const QString& getLanguage() const { return m_language; }
+
+    /// Returns current composition mode. If blend mode is not supported by Qt,
+    /// then normal composition mode is returned.
+    QPainter::CompositionMode getCompositionMode() const;
 
     /// Parses annotation from the object. If error occurs, then nullptr is returned.
     /// \param storage Object storage
@@ -546,8 +556,11 @@ public:
     /// \param name Name of the line ending
     static AnnotationLineEnding convertNameToLineEnding(const QByteArray& name);
 
-    /// Returns draw color from defined annotation color
-    static QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color);
+    /// Returns draw color from defined annotation color. If color is incorrectly
+    /// defined, then black color is returned.
+    /// \param color Color (can have 1, 3 and 4 components)
+    /// \param opacity Opacity
+    static QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color, PDFReal opacity);
 
 protected:
     virtual QColor getStrokeColor() const;
@@ -579,6 +592,29 @@ protected:
     /// Returns brush from interior color. If annotation doesn't have
     /// a brush, then empty brush is returned.
     QBrush getBrush() const;
+
+    /// Draw line ending at given point, using parameters. Line ending appearance
+    /// is constructed given parameters \p lineEndingSize, \p arrowAxisLength
+    /// and \p ending. Parameter \p flipAxis controls, if we are drawing at the
+    /// start (false), or at the end (true) of the line. User can specify matrix,
+    /// which maps from local coordinate system of the line to the global coordinate
+    /// system. Also, bouding path is updated.
+    /// \param painter Painter
+    /// \param point Point, at which line ending is being drawn
+    /// \param lineEndingSize Line ending size
+    /// \param arrowAxisLength Length of the arrow
+    /// \param ending Type of ending
+    /// \param flipAxis Flip axis to draw end of line?
+    /// \param LCStoGCS Transformation from local coordinate system of line to global coordinate system
+    /// \pram boundingPath Bounding path to be updated
+    void drawLineEnding(QPainter* painter,
+                        QPointF point,
+                        PDFReal lineEndingSize,
+                        PDFReal arrowAxisLength,
+                        AnnotationLineEnding ending,
+                        bool flipAxis,
+                        const QMatrix& LCStoGCS,
+                        QPainterPath& boundingPath) const;
 
     /// Draw line using given parameters and painter. Line is specified
     /// by its geometry information. Painter must be set to global coordinates.
@@ -626,6 +662,11 @@ private:
     std::vector<PDFReal> m_color; ///< Color (for example, title bar of popup window), "C" entry
     PDFInteger m_structParent; ///< Structural parent identifier, "StructParent" entry
     PDFObjectReference m_optionalContentReference; ///< Reference to optional content, "OC" entry
+    PDFObject m_associatedFiles;
+    PDFReal m_fillingOpacity = 1.0;
+    PDFReal m_strokingOpacity = 1.0;
+    BlendMode m_blendMode = BlendMode::Normal;
+    QString m_language;
 };
 
 /// Markup annotation object, used to mark up contents of PDF documents. Markup annotations
@@ -648,7 +689,6 @@ public:
 
     const QString& getWindowTitle() const { return m_windowTitle; }
     PDFObjectReference getPopupAnnotation() const { return m_popupAnnotation; }
-    PDFReal getOpacity() const { return m_opacity; }
     const QString& getRichTextString() const { return m_richTextString; }
     const QDateTime& getCreationDate() const { return m_creationDate; }
     PDFObjectReference getInReplyTo() const { return m_inReplyTo; }
@@ -657,16 +697,11 @@ public:
     const QByteArray& getIntent() const { return m_intent; }
     const PDFObject& getExternalData() const { return m_externalData; }
 
-protected:
-    virtual QColor getStrokeColor() const override;
-    virtual QColor getFillColor() const override;
-
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
 
     QString m_windowTitle;
     PDFObjectReference m_popupAnnotation;
-    PDFReal m_opacity = 1.0;
     QString m_richTextString;
     QDateTime m_creationDate;
     PDFObjectReference m_inReplyTo;
@@ -915,6 +950,7 @@ public:
     const PDFAnnotationBorderEffect& getBorderEffect() const { return m_effect; }
     Intent getIntent() const { return m_intent; }
     const PDFObject& getMeasure() const { return m_measure; }
+    const QPainterPath& getPath() const { return m_path; }
 
 protected:
     virtual QColor getFillColor() const override;
@@ -930,6 +966,7 @@ private:
     PDFAnnotationBorderEffect m_effect;
     Intent m_intent;
     PDFObject m_measure;
+    QPainterPath m_path;
 };
 
 /// Annotation for text highlighting. Can highlight, underline, strikeout,

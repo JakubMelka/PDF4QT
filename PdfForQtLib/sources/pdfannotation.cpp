@@ -209,6 +209,16 @@ std::vector<PDFAppeareanceStreams::Key> PDFAnnotation::getDrawKeys(const PDFForm
     return { PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() } };
 }
 
+QPainter::CompositionMode PDFAnnotation::getCompositionMode() const
+{
+    if (PDFBlendModeInfo::isSupportedByQt(getBlendMode()))
+    {
+        return PDFBlendModeInfo::getCompositionModeFromBlendMode(getBlendMode());
+    }
+
+    return PDFBlendModeInfo::getCompositionModeFromBlendMode(BlendMode::Normal);
+}
+
 PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference)
 {
     PDFObject object = storage->getObjectByReference(reference);
@@ -374,6 +384,66 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
 
         annotation->m_intent = loader.readEnumByName(dictionary->get("IT"), intents.begin(), intents.end(), PDFPolygonalGeometryAnnotation::Intent::None);
         annotation->m_measure = storage->getObject(dictionary->get("Measure"));
+
+        PDFObject pathObject = storage->getObject(dictionary->get("Path"));
+        if (pathObject.isArray())
+        {
+            QPainterPath path;
+            for (const PDFObject& pathItemObject : *pathObject.getArray())
+            {
+                std::vector<PDFReal> pathItem = loader.readNumberArray(pathItemObject);
+                switch (pathItem.size())
+                {
+                    case 2:
+                    {
+                        QPointF point(pathItem[0], pathItem[1]);
+                        if (path.isEmpty())
+                        {
+                            path.moveTo(point);
+                        }
+                        else
+                        {
+                            path.lineTo(point);
+                        }
+                        break;
+                    }
+
+                    case 4:
+                    {
+                        if (path.isEmpty())
+                        {
+                            // First path item must be 'Move to' command
+                            continue;
+                        }
+
+                        path.quadTo(pathItem[0], pathItem[1], pathItem[2], pathItem[3]);
+                        break;
+                    }
+
+                    case 6:
+                    {
+                        if (path.isEmpty())
+                        {
+                            // First path item must be 'Move to' command
+                            continue;
+                        }
+
+                        path.cubicTo(pathItem[0], pathItem[1], pathItem[2], pathItem[3], pathItem[4], pathItem[5]);
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+
+            if (subtype == "Polygon")
+            {
+                path.closeSubpath();
+            }
+
+            annotation->m_path = qMove(path);
+        }
     }
     else if (subtype == "Highlight" ||
              subtype == "Underline" ||
@@ -655,12 +725,21 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
     result->m_color = loader.readNumberArrayFromDictionary(dictionary, "C");
     result->m_structParent = loader.readIntegerFromDictionary(dictionary, "StructParent", 0);
     result->m_optionalContentReference = loader.readReferenceFromDictionary(dictionary, "OC");
+    result->m_strokingOpacity = loader.readNumberFromDictionary(dictionary, "CA", 1.0);
+    result->m_fillingOpacity = loader.readNumberFromDictionary(dictionary, "ca", result->m_strokingOpacity);
+    result->m_blendMode = PDFBlendModeInfo::getBlendMode(loader.readNameFromDictionary(dictionary, "BM"));
+
+    if (result->m_blendMode == BlendMode::Invalid)
+    {
+        result->m_blendMode = BlendMode::Normal;
+    }
+
+    result->m_language = loader.readTextStringFromDictionary(dictionary, "Lang", QString());
 
     if (PDFMarkupAnnotation* markupAnnotation = result->asMarkupAnnotation())
     {
         markupAnnotation->m_windowTitle = loader.readTextStringFromDictionary(dictionary, "T", QString());
         markupAnnotation->m_popupAnnotation = loader.readReferenceFromDictionary(dictionary, "Popup");
-        markupAnnotation->m_opacity = loader.readNumberFromDictionary(dictionary, "CA", 1.0);
         markupAnnotation->m_richTextString = loader.readTextStringFromDictionary(dictionary, "RC", QString());
         markupAnnotation->m_creationDate = PDFEncoding::convertToDateTime(loader.readStringFromDictionary(dictionary, "CreationDate"));
         markupAnnotation->m_inReplyTo = loader.readReferenceFromDictionary(dictionary, "IRT");
@@ -737,7 +816,7 @@ AnnotationLineEnding PDFAnnotation::convertNameToLineEnding(const QByteArray& na
 
 QColor PDFAnnotation::getStrokeColor() const
 {
-    return getDrawColorFromAnnotationColor(getColor());
+    return getDrawColorFromAnnotationColor(getColor(), getStrokeOpacity());
 }
 
 QColor PDFAnnotation::getFillColor() const
@@ -745,14 +824,14 @@ QColor PDFAnnotation::getFillColor() const
     return QColor();
 }
 
-QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color)
+QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color, PDFReal opacity)
 {
     switch (color.size())
     {
         case 1:
         {
             const PDFReal gray = color.back();
-            return QColor::fromRgbF(gray, gray, gray, 1.0);
+            return QColor::fromRgbF(gray, gray, gray, opacity);
         }
 
         case 3:
@@ -760,7 +839,7 @@ QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>
             const PDFReal r = color[0];
             const PDFReal g = color[1];
             const PDFReal b = color[2];
-            return QColor::fromRgbF(r, g, b, 1.0);
+            return QColor::fromRgbF(r, g, b, opacity);
         }
 
         case 4:
@@ -769,14 +848,16 @@ QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>
             const PDFReal m = color[1];
             const PDFReal y = color[2];
             const PDFReal k = color[3];
-            return QColor::fromCmykF(c, m, y, k, 1.0);
+            return QColor::fromCmykF(c, m, y, k, opacity);
         }
 
         default:
             break;
     }
 
-    return QColor(Qt::black);
+    QColor black(Qt::black);
+    black.setAlphaF(opacity);
+    return black;
 }
 
 QPen PDFAnnotation::getPen() const
@@ -1683,7 +1764,7 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
     scrollArea->setWidget(frameWidget);
 
     const PDFMarkupAnnotation* markupMainAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
-    QColor color = markupMainAnnotation->getDrawColorFromAnnotationColor(markupMainAnnotation->getColor());
+    QColor color = markupMainAnnotation->getDrawColorFromAnnotationColor(markupMainAnnotation->getColor(), 1.0);
     QColor titleColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.2, 1.0);
     QColor backgroundColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.9, 1.0);
 
@@ -1749,6 +1830,7 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
     QPainter& painter = *parameters.painter;
     painter.setPen(getPen());
     painter.setBrush(getBrush());
+    painter.setCompositionMode(getCompositionMode());
 
     switch (getType())
     {
@@ -1791,37 +1873,12 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
 
 QColor PDFSimpleGeometryAnnotation::getFillColor() const
 {
-    QColor color = getDrawColorFromAnnotationColor(getInteriorColor());
-    if (color.isValid())
-    {
-        color.setAlphaF(getOpacity());
-    }
-    return color;
+    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 bool PDFMarkupAnnotation::isReplyTo() const
 {
     return m_inReplyTo.isValid() && m_replyType == ReplyType::Reply;
-}
-
-QColor PDFMarkupAnnotation::getStrokeColor() const
-{
-    QColor color = PDFAnnotation::getStrokeColor();
-    if (color.isValid())
-    {
-        color.setAlphaF(m_opacity);
-    }
-    return color;
-}
-
-QColor PDFMarkupAnnotation::getFillColor() const
-{
-    QColor color = PDFAnnotation::getFillColor();
-    if (color.isValid())
-    {
-        color.setAlphaF(m_opacity);
-    }
-    return color;
 }
 
 std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys(const PDFFormManager* formManager) const
@@ -1835,15 +1892,15 @@ std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys(const PDF
 
 void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
-    const PDFReal opacity = getOpacity();
-    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
-    QColor fillColor = (parameters.key.first == PDFAppeareanceStreams::Appearance::Normal) ? QColor::fromRgbF(1.0, 1.0, 0.0, opacity) :
-                                                                                             QColor::fromRgbF(1.0, 0.0, 0.0, opacity);
+    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, getStrokeOpacity());
+    QColor fillColor = (parameters.key.first == PDFAppeareanceStreams::Appearance::Normal) ? QColor::fromRgbF(1.0, 1.0, 0.0, getFillOpacity()) :
+                                                                                             QColor::fromRgbF(1.0, 0.0, 0.0, getFillOpacity());
 
     constexpr const PDFReal rectSize = 32.0;
     constexpr const PDFReal penWidth = 2.0;
 
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
     QRectF rectangle = getRectangle();
     rectangle.setSize(QSizeF(rectSize, rectSize));
 
@@ -1918,6 +1975,7 @@ void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const
     }
 
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
     painter.setPen(getPen());
     painter.setBrush(getBrush());
 
@@ -1974,12 +2032,7 @@ void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const
 
 QColor PDFLineAnnotation::getFillColor() const
 {
-    QColor color = getDrawColorFromAnnotationColor(getInteriorColor());
-    if (color.isValid())
-    {
-        color.setAlphaF(getOpacity());
-    }
-    return color;
+    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const
@@ -1991,6 +2044,7 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
     }
 
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
     painter.setPen(getPen());
     painter.setBrush(getBrush());
 
@@ -1999,20 +2053,30 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
     {
         case AnnotationType::Polygon:
         {
-            QPolygonF polygon;
-            polygon.reserve(int(m_vertices.size() + 1));
-            for (const QPointF& point : m_vertices)
+            if (m_path.isEmpty())
             {
-                polygon << point;
+                QPolygonF polygon;
+                polygon.reserve(int(m_vertices.size() + 1));
+                for (const QPointF& point : m_vertices)
+                {
+                    polygon << point;
+                }
+                if (!polygon.isClosed())
+                {
+                    polygon << m_vertices.front();
+                }
+
+                painter.drawPolygon(polygon, Qt::OddEvenFill);
+                parameters.boundingRectangle = polygon.boundingRect();
+                parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
             }
-            if (!polygon.isClosed())
+            else
             {
-                polygon << m_vertices.front();
+                painter.drawPath(m_path);
+                parameters.boundingRectangle = m_path.boundingRect();
+                parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
             }
 
-            painter.drawPolygon(polygon, Qt::OddEvenFill);
-            parameters.boundingRectangle = polygon.boundingRect();
-            parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
             break;
         }
 
@@ -2021,27 +2085,45 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
             const PDFReal lineEndingSize = painter.pen().widthF() * 5.0;
             QPainterPath boundingPath;
 
-            const size_t pointCount = m_vertices.size();
-            const size_t lastPoint = pointCount - 1;
-            for (size_t i = 1; i < pointCount; ++i)
+            if (m_path.isEmpty())
             {
-                if (i == 1)
+                const size_t pointCount = m_vertices.size();
+                const size_t lastPoint = pointCount - 1;
+                for (size_t i = 1; i < pointCount; ++i)
                 {
-                    // We draw first line
-                    drawLine(LineGeometryInfo::create(QLineF(m_vertices[i - 1], m_vertices[i])), painter, lineEndingSize, getStartLineEnding(), AnnotationLineEnding::None, boundingPath, QPointF(), QString(), true);
+                    if (i == 1)
+                    {
+                        // We draw first line
+                        drawLine(LineGeometryInfo::create(QLineF(m_vertices[i - 1], m_vertices[i])), painter, lineEndingSize, getStartLineEnding(), AnnotationLineEnding::None, boundingPath, QPointF(), QString(), true);
+                    }
+                    else if (i == lastPoint)
+                    {
+                        // We draw last line
+                        drawLine(LineGeometryInfo::create(QLineF(m_vertices[i - 1], m_vertices[i])), painter, lineEndingSize, AnnotationLineEnding::None, getEndLineEnding(), boundingPath, QPointF(), QString(), true);
+                    }
+                    else
+                    {
+                        QLineF line(m_vertices[i - 1], m_vertices[i]);
+                        boundingPath.moveTo(line.p1());
+                        boundingPath.lineTo(line.p2());
+                        painter.drawLine(line);
+                    }
                 }
-                else if (i == lastPoint)
-                {
-                    // We draw last line
-                    drawLine(LineGeometryInfo::create(QLineF(m_vertices[i - 1], m_vertices[i])), painter, lineEndingSize, AnnotationLineEnding::None, getEndLineEnding(), boundingPath, QPointF(), QString(), true);
-                }
-                else
-                {
-                    QLineF line(m_vertices[i - 1], m_vertices[i]);
-                    boundingPath.moveTo(line.p1());
-                    boundingPath.lineTo(line.p2());
-                    painter.drawLine(line);
-                }
+            }
+            else
+            {
+                const PDFReal angle = 30;
+                const PDFReal lineEndingHalfSize = lineEndingSize * 0.5;
+                const PDFReal arrowAxisLength = lineEndingHalfSize / qTan(qDegreesToRadians(angle));
+
+                boundingPath = m_path;
+                painter.drawPath(m_path);
+
+                QMatrix LCStoGCS_start = LineGeometryInfo::create(QLineF(m_path.pointAtPercent(0.00), m_path.pointAtPercent(0.01))).LCStoGCS;
+                QMatrix LCStoGCS_end = LineGeometryInfo::create(QLineF(m_path.pointAtPercent(0.99), m_path.pointAtPercent(1.00))).LCStoGCS;
+
+                drawLineEnding(&painter, m_path.pointAtPercent(0), lineEndingSize, arrowAxisLength, getStartLineEnding(), false, LCStoGCS_start, boundingPath);
+                drawLineEnding(&painter, m_path.pointAtPercent(1), lineEndingSize, arrowAxisLength, getEndLineEnding(), true, LCStoGCS_end, boundingPath);
             }
 
             parameters.boundingRectangle = boundingPath.boundingRect();
@@ -2057,12 +2139,7 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
 
 QColor PDFPolygonalGeometryAnnotation::getFillColor() const
 {
-    QColor color = getDrawColorFromAnnotationColor(getInteriorColor());
-    if (color.isValid())
-    {
-        color.setAlphaF(getOpacity());
-    }
-    return color;
+    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 PDFAnnotation::LineGeometryInfo PDFAnnotation::LineGeometryInfo::create(QLineF line)
@@ -2086,6 +2163,120 @@ PDFAnnotation::LineGeometryInfo PDFAnnotation::LineGeometryInfo::create(QLineF l
     result.GCStoLCS = result.LCStoGCS.inverted();
 
     return result;
+}
+
+void PDFAnnotation::drawLineEnding(QPainter* painter,
+                                   QPointF point,
+                                   PDFReal lineEndingSize,
+                                   PDFReal arrowAxisLength,
+                                   AnnotationLineEnding ending,
+                                   bool flipAxis,
+                                   const QMatrix& LCStoGCS,
+                                   QPainterPath& boundingPath) const
+{
+    QPainterPath path;
+    const PDFReal lineEndingHalfSize = lineEndingSize * 0.5;
+
+    switch (ending)
+    {
+        case AnnotationLineEnding::None:
+            break;
+
+        case AnnotationLineEnding::Square:
+        {
+            path.addRect(-lineEndingHalfSize, -lineEndingHalfSize, lineEndingSize, lineEndingSize);
+            break;
+        }
+
+        case AnnotationLineEnding::Circle:
+        {
+            path.addEllipse(QPointF(0, 0), lineEndingHalfSize, lineEndingHalfSize);
+            break;
+        }
+
+        case AnnotationLineEnding::Diamond:
+        {
+            path.moveTo(0.0, -lineEndingHalfSize);
+            path.lineTo(lineEndingHalfSize, 0.0);
+            path.lineTo(0.0, +lineEndingHalfSize);
+            path.lineTo(-lineEndingHalfSize, 0.0);
+            path.closeSubpath();
+            break;
+        }
+
+        case AnnotationLineEnding::OpenArrow:
+        {
+            path.moveTo(0.0, 0.0);
+            path.lineTo(arrowAxisLength, lineEndingHalfSize);
+            path.moveTo(0.0, 0.0);
+            path.lineTo(arrowAxisLength, -lineEndingHalfSize);
+            break;
+        }
+
+        case AnnotationLineEnding::ClosedArrow:
+        {
+            path.moveTo(0.0, 0.0);
+            path.lineTo(arrowAxisLength, lineEndingHalfSize);
+            path.lineTo(arrowAxisLength, -lineEndingHalfSize);
+            path.closeSubpath();
+            break;
+        }
+
+        case AnnotationLineEnding::Butt:
+        {
+            path.moveTo(0.0, -lineEndingHalfSize);
+            path.lineTo(0.0, lineEndingHalfSize);
+            break;
+        }
+
+        case AnnotationLineEnding::ROpenArrow:
+        {
+            path.moveTo(0.0, 0.0);
+            path.lineTo(-arrowAxisLength, lineEndingHalfSize);
+            path.moveTo(0.0, 0.0);
+            path.lineTo(-arrowAxisLength, -lineEndingHalfSize);
+            break;
+        }
+
+        case AnnotationLineEnding::RClosedArrow:
+        {
+            path.moveTo(0.0, 0.0);
+            path.lineTo(-arrowAxisLength, lineEndingHalfSize);
+            path.lineTo(-arrowAxisLength, -lineEndingHalfSize);
+            path.closeSubpath();
+            break;
+        }
+
+        case AnnotationLineEnding::Slash:
+        {
+            const PDFReal angle = 60;
+            const PDFReal lineEndingHalfSizeForSlash = lineEndingSize * 0.5;
+            const PDFReal slashAxisLength = lineEndingHalfSizeForSlash / qTan(qDegreesToRadians(angle));
+
+            path.moveTo(-slashAxisLength, -lineEndingHalfSizeForSlash);
+            path.lineTo(slashAxisLength, lineEndingHalfSizeForSlash);
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if (!path.isEmpty())
+    {
+        // Flip the x-axis (we are drawing endpoint)
+        if (flipAxis && ending != AnnotationLineEnding::Slash)
+        {
+            QMatrix matrix;
+            matrix.scale(-1.0, 1.0);
+            path = matrix.map(path);
+        }
+
+        path.translate(point);
+        path = LCStoGCS.map(path);
+        painter->drawPath(path);
+        boundingPath.addPath(path);
+    }
 }
 
 void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
@@ -2120,112 +2311,6 @@ void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
         return 0.0;
     };
 
-    auto drawLineEnding = [&](QPointF point, AnnotationLineEnding ending, bool flipAxis)
-    {
-        QPainterPath path;
-
-        switch (ending)
-        {
-            case AnnotationLineEnding::None:
-                break;
-
-            case AnnotationLineEnding::Square:
-            {
-                path.addRect(-lineEndingHalfSize, -lineEndingHalfSize, lineEndingSize, lineEndingSize);
-                break;
-            }
-
-            case AnnotationLineEnding::Circle:
-            {
-                path.addEllipse(QPointF(0, 0), lineEndingHalfSize, lineEndingHalfSize);
-                break;
-            }
-
-            case AnnotationLineEnding::Diamond:
-            {
-                path.moveTo(0.0, -lineEndingHalfSize);
-                path.lineTo(lineEndingHalfSize, 0.0);
-                path.lineTo(0.0, +lineEndingHalfSize);
-                path.lineTo(-lineEndingHalfSize, 0.0);
-                path.closeSubpath();
-                break;
-            }
-
-            case AnnotationLineEnding::OpenArrow:
-            {
-                path.moveTo(0.0, 0.0);
-                path.lineTo(arrowAxisLength, lineEndingHalfSize);
-                path.moveTo(0.0, 0.0);
-                path.lineTo(arrowAxisLength, -lineEndingHalfSize);
-                break;
-            }
-
-            case AnnotationLineEnding::ClosedArrow:
-            {
-                path.moveTo(0.0, 0.0);
-                path.lineTo(arrowAxisLength, lineEndingHalfSize);
-                path.lineTo(arrowAxisLength, -lineEndingHalfSize);
-                path.closeSubpath();
-                break;
-            }
-
-            case AnnotationLineEnding::Butt:
-            {
-                path.moveTo(0.0, -lineEndingHalfSize);
-                path.lineTo(0.0, lineEndingHalfSize);
-                break;
-            }
-
-            case AnnotationLineEnding::ROpenArrow:
-            {
-                path.moveTo(0.0, 0.0);
-                path.lineTo(-arrowAxisLength, lineEndingHalfSize);
-                path.moveTo(0.0, 0.0);
-                path.lineTo(-arrowAxisLength, -lineEndingHalfSize);
-                break;
-            }
-
-            case AnnotationLineEnding::RClosedArrow:
-            {
-                path.moveTo(0.0, 0.0);
-                path.lineTo(-arrowAxisLength, lineEndingHalfSize);
-                path.lineTo(-arrowAxisLength, -lineEndingHalfSize);
-                path.closeSubpath();
-                break;
-            }
-
-            case AnnotationLineEnding::Slash:
-            {
-                const PDFReal angle = 60;
-                const PDFReal lineEndingHalfSize = lineEndingSize * 0.5;
-                const PDFReal slashAxisLength = lineEndingHalfSize / qTan(qDegreesToRadians(angle));
-
-                path.moveTo(-slashAxisLength, -lineEndingHalfSize);
-                path.lineTo(slashAxisLength, lineEndingHalfSize);
-                break;
-            }
-
-            default:
-                break;
-        }
-
-        if (!path.isEmpty())
-        {
-            // Flip the x-axis (we are drawing endpoint)
-            if (flipAxis && ending != AnnotationLineEnding::Slash)
-            {
-                QMatrix matrix;
-                matrix.scale(-1.0, 1.0);
-                path = matrix.map(path);
-            }
-
-            path.translate(point);
-            path = info.LCStoGCS.map(path);
-            painter.drawPath(path);
-            boundingPath.addPath(path);
-        }
-    };
-
     // Remove the offset from start/end
     const PDFReal startOffset = getOffsetFromLineEnding(p1Ending);
     const PDFReal endOffset = getOffsetFromLineEnding(p2Ending);
@@ -2250,8 +2335,8 @@ void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
         textPath = QMatrix(1, 0, 0, -1, 0, 0).map(textPath);
     }
 
-    drawLineEnding(info.transformedLine.p1(), p1Ending, false);
-    drawLineEnding(info.transformedLine.p2(), p2Ending, true);
+    drawLineEnding(&painter, info.transformedLine.p1(), lineEndingSize, arrowAxisLength, p1Ending, false, info.LCStoGCS, boundingPath);
+    drawLineEnding(&painter, info.transformedLine.p2(), lineEndingSize, arrowAxisLength, p2Ending, true, info.LCStoGCS, boundingPath);
 
     if (drawText && !textIsAboveLine)
     {
@@ -2320,6 +2405,7 @@ void PDFHighlightAnnotation::draw(AnnotationDrawParameters& parameters) const
     }
 
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
     parameters.boundingRectangle = m_highlightArea.getPath().boundingRect();
 
     painter.setPen(getPen());
@@ -2450,6 +2536,7 @@ void PDFLinkAnnotation::draw(AnnotationDrawParameters& parameters) const
         case LinkHighlightMode::Push:
         {
             // Draw border
+            painter.setCompositionMode(getCompositionMode());
             painter.setPen(getPen());
             painter.setBrush(Qt::NoBrush);
             painter.drawPath(m_activationRegion.getPath());
@@ -2506,15 +2593,15 @@ PDFAnnotationDefaultAppearance PDFAnnotationDefaultAppearance::parse(const QByte
             }
             else if (command == "g" && i >= 1)
             {
-                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 1) });
+                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 1) }, 1.0);
             }
             else if (command == "rg" && i >= 3)
             {
-                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 3), readNumber(i - 2), readNumber(i - 1) });
+                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 3), readNumber(i - 2), readNumber(i - 1) }, 1.0);
             }
             else if (command == "k" && i >= 4)
             {
-                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 4), readNumber(i - 3), readNumber(i - 2), readNumber(i - 1) });
+                result.m_fontColor = PDFAnnotation::getDrawColorFromAnnotationColor({ readNumber(i - 4), readNumber(i - 3), readNumber(i - 2), readNumber(i - 1) }, 1.0);
             }
         }
     }
@@ -2525,6 +2612,7 @@ PDFAnnotationDefaultAppearance PDFAnnotationDefaultAppearance::parse(const QByte
 void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
     parameters.boundingRectangle = getRectangle();
 
     painter.setPen(getPen());
@@ -2628,6 +2716,7 @@ void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 void PDFCaretAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
     parameters.boundingRectangle = getRectangle();
 
     QRectF caretRect = getCaretRectangle();
@@ -2659,6 +2748,7 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     painter.setPen(getPen());
     painter.setBrush(getBrush());
+    painter.setCompositionMode(getCompositionMode());
 
     QPainterPath boundingPath;
     QPainterPath currentPath;
@@ -2729,6 +2819,7 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
 
     QString text;
     QColor color(Qt::red);
@@ -2882,7 +2973,8 @@ void PDFFileAttachmentAnnotation::draw(AnnotationDrawParameters& parameters) con
             break;
     }
 
-    drawCharacterSymbol(text, getOpacity(), parameters);
+    parameters.painter->setCompositionMode(getCompositionMode());
+    drawCharacterSymbol(text, getStrokeOpacity(), parameters);
 }
 
 void PDFSoundAnnotation::draw(AnnotationDrawParameters& parameters) const
@@ -2902,7 +2994,8 @@ void PDFSoundAnnotation::draw(AnnotationDrawParameters& parameters) const
             break;
     }
 
-    drawCharacterSymbol(text, getOpacity(), parameters);
+    parameters.painter->setCompositionMode(getCompositionMode());
+    drawCharacterSymbol(text, getStrokeOpacity(), parameters);
 }
 
 const PDFAnnotationManager::PageAnnotation* PDFAnnotationManager::PageAnnotations::getPopupAnnotation(const PageAnnotation& pageAnnotation) const
@@ -2979,6 +3072,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
     }
 
     PDFPainterStateGuard guard(parameters.painter);
+    parameters.painter->setCompositionMode(getCompositionMode());
 
     const PDFFormFieldWidgetEditor* editor = parameters.formManager->getEditor(formField);
     if (editor && editor->isEditorDrawEnabled())
@@ -3174,7 +3268,7 @@ std::vector<pdf::PDFAppeareanceStreams::Key> PDFWidgetAnnotation::getDrawKeys(co
             break;
 
         case PDFFormField::FieldType::Choice:
-            // TODO: Implement choice appearance
+            // Choices have always default appearance
             break;
 
         case PDFFormField::FieldType::Signature:
