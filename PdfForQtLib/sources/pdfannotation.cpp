@@ -219,6 +219,71 @@ QPainter::CompositionMode PDFAnnotation::getCompositionMode() const
     return PDFBlendModeInfo::getCompositionModeFromBlendMode(BlendMode::Normal);
 }
 
+QPainterPath PDFAnnotation::parsePath(const PDFObjectStorage* storage, const PDFDictionary* dictionary, bool closePath)
+{
+    QPainterPath path;
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    PDFObject pathObject = storage->getObject(dictionary->get("Path"));
+    if (pathObject.isArray())
+    {
+        for (const PDFObject& pathItemObject : *pathObject.getArray())
+        {
+            std::vector<PDFReal> pathItem = loader.readNumberArray(pathItemObject);
+            switch (pathItem.size())
+            {
+                case 2:
+                {
+                    QPointF point(pathItem[0], pathItem[1]);
+                    if (path.isEmpty())
+                    {
+                        path.moveTo(point);
+                    }
+                    else
+                    {
+                        path.lineTo(point);
+                    }
+                    break;
+                }
+
+                case 4:
+                {
+                    if (path.isEmpty())
+                    {
+                        // First path item must be 'Move to' command
+                        continue;
+                    }
+
+                    path.quadTo(pathItem[0], pathItem[1], pathItem[2], pathItem[3]);
+                    break;
+                }
+
+                case 6:
+                {
+                    if (path.isEmpty())
+                    {
+                        // First path item must be 'Move to' command
+                        continue;
+                    }
+
+                    path.cubicTo(pathItem[0], pathItem[1], pathItem[2], pathItem[3], pathItem[4], pathItem[5]);
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    if (closePath)
+    {
+        path.closeSubpath();
+    }
+
+    return path;
+}
+
 PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference)
 {
     PDFObject object = storage->getObjectByReference(reference);
@@ -384,66 +449,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
 
         annotation->m_intent = loader.readEnumByName(dictionary->get("IT"), intents.begin(), intents.end(), PDFPolygonalGeometryAnnotation::Intent::None);
         annotation->m_measure = storage->getObject(dictionary->get("Measure"));
-
-        PDFObject pathObject = storage->getObject(dictionary->get("Path"));
-        if (pathObject.isArray())
-        {
-            QPainterPath path;
-            for (const PDFObject& pathItemObject : *pathObject.getArray())
-            {
-                std::vector<PDFReal> pathItem = loader.readNumberArray(pathItemObject);
-                switch (pathItem.size())
-                {
-                    case 2:
-                    {
-                        QPointF point(pathItem[0], pathItem[1]);
-                        if (path.isEmpty())
-                        {
-                            path.moveTo(point);
-                        }
-                        else
-                        {
-                            path.lineTo(point);
-                        }
-                        break;
-                    }
-
-                    case 4:
-                    {
-                        if (path.isEmpty())
-                        {
-                            // First path item must be 'Move to' command
-                            continue;
-                        }
-
-                        path.quadTo(pathItem[0], pathItem[1], pathItem[2], pathItem[3]);
-                        break;
-                    }
-
-                    case 6:
-                    {
-                        if (path.isEmpty())
-                        {
-                            // First path item must be 'Move to' command
-                            continue;
-                        }
-
-                        path.cubicTo(pathItem[0], pathItem[1], pathItem[2], pathItem[3], pathItem[4], pathItem[5]);
-                        break;
-                    }
-
-                    default:
-                        break;
-                }
-            }
-
-            if (subtype == "Polygon")
-            {
-                path.closeSubpath();
-            }
-
-            annotation->m_path = qMove(path);
-        }
+        annotation->m_path = parsePath(storage, dictionary, subtype == "Polygon");
     }
     else if (subtype == "Highlight" ||
              subtype == "Underline" ||
@@ -523,26 +529,30 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         PDFInkAnnotation* annotation = new PDFInkAnnotation();
         result.reset(annotation);
 
-        PDFObject inkList = storage->getObject(dictionary->get("InkList"));
-        if (inkList.isArray())
+        annotation->m_inkPath = parsePath(storage, dictionary, false);
+        if (annotation->m_inkPath.isEmpty())
         {
-            const PDFArray* inkListArray = inkList.getArray();
-            for (size_t i = 0, count = inkListArray->getCount(); i < count; ++i)
+            PDFObject inkList = storage->getObject(dictionary->get("InkList"));
+            if (inkList.isArray())
             {
-                std::vector<PDFReal> points = loader.readNumberArray(inkListArray->getItem(i));
-                const size_t pointCount = points.size() / 2;
-
-                for (size_t j = 0; j < pointCount; ++j)
+                const PDFArray* inkListArray = inkList.getArray();
+                for (size_t i = 0, count = inkListArray->getCount(); i < count; ++i)
                 {
-                    QPointF point(points[j * 2], points[j * 2 + 1]);
+                    std::vector<PDFReal> points = loader.readNumberArray(inkListArray->getItem(i));
+                    const size_t pointCount = points.size() / 2;
 
-                    if (j == 0)
+                    for (size_t j = 0; j < pointCount; ++j)
                     {
-                        annotation->m_inkPath.moveTo(point);
-                    }
-                    else
-                    {
-                        annotation->m_inkPath.lineTo(point);
+                        QPointF point(points[j * 2], points[j * 2 + 1]);
+
+                        if (j == 0)
+                        {
+                            annotation->m_inkPath.moveTo(point);
+                        }
+                        else
+                        {
+                            annotation->m_inkPath.lineTo(point);
+                        }
                     }
                 }
             }
@@ -570,6 +580,19 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         };
 
         annotation->m_icon = loader.readEnumByName(dictionary->get("Name"), icons.begin(), icons.end(), FileAttachmentIcon::PushPin);
+    }
+    else if (subtype == "Redact")
+    {
+        PDFRedactAnnotation* annotation = new PDFRedactAnnotation();
+        result.reset(annotation);
+
+        annotation->m_redactionRegion = parseQuadrilaterals(storage, dictionary->get("QuadPoints"), annotationsRectangle);
+        annotation->m_interiorColor = loader.readNumberArrayFromDictionary(dictionary, "IC");
+        annotation->m_overlayForm = dictionary->get("RO");
+        annotation->m_overlayText = loader.readTextStringFromDictionary(dictionary, "OverlayText", QString());
+        annotation->m_repeat = loader.readBooleanFromDictionary(dictionary, "Repeat", false);
+        annotation->m_defaultAppearance = loader.readStringFromDictionary(dictionary, "DA");
+        annotation->m_justification = loader.readIntegerFromDictionary(dictionary, "Q", 0);
     }
     else if (subtype == "Sound")
     {
@@ -653,6 +676,11 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
             annotation->m_relativeHorizontalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "H", 0.0);
             annotation->m_relativeVerticalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "V", 0.0);
         }
+    }
+    else if (subtype == "Projection")
+    {
+        PDFProjectionAnnotation* annotation = new PDFProjectionAnnotation();
+        result.reset(annotation);
     }
     else if (subtype == "3D")
     {
@@ -2761,6 +2789,7 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
     QPainterPath boundingPath;
     QPainterPath currentPath;
     const int elementCount = path.elementCount();
+    bool hasSpline = false;
     for (int i = 0; i < elementCount; ++i)
     {
         QPainterPath::Element element = path.elementAt(i);
@@ -2805,9 +2834,20 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 
             case QPainterPath::CurveToElement:
             case QPainterPath::CurveToDataElement:
+                hasSpline = true;
+                break;
+
             default:
                 Q_ASSERT(false);
                 break;
+        }
+
+        // Jakub Melka: If we have a spline, then we don't do anything...
+        // Just copy the spline path.
+        if (hasSpline)
+        {
+            currentPath = path;
+            break;
         }
     }
 
@@ -3290,6 +3330,31 @@ std::vector<pdf::PDFAppeareanceStreams::Key> PDFWidgetAnnotation::getDrawKeys(co
     }
 
     return result;
+}
+
+void PDFRedactAnnotation::draw(AnnotationDrawParameters& parameters) const
+{
+    if (m_redactionRegion.isEmpty())
+    {
+        // Jakub Melka: do not draw empty redact area
+        return;
+    }
+
+    QPainter& painter = *parameters.painter;
+    painter.setCompositionMode(getCompositionMode());
+    parameters.boundingRectangle = m_redactionRegion.getPath().boundingRect();
+
+    painter.setPen(getPen());
+    painter.setBrush(getBrush());
+    painter.drawPath(m_redactionRegion.getPath());
+
+    const qreal penWidth = painter.pen().widthF();
+    parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
+}
+
+QColor PDFRedactAnnotation::getFillColor() const
+{
+    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 }   // namespace pdf

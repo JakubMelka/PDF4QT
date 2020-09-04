@@ -79,6 +79,8 @@ enum class AnnotationType
     PrinterMark,
     TrapNet,
     Watermark,
+    Redact,
+    Projection,
     _3D,
     RichMedia
 };
@@ -646,6 +648,12 @@ protected:
     /// \param opacity Opacity
     /// \param parameters Draw parameters
     void drawCharacterSymbol(QString text, PDFReal opacity, AnnotationDrawParameters& parameters) const;
+
+    /// Parses path. If path is incorrect, empty path is returned.
+    /// \param storage Storage
+    /// \param dictionary Annotation's dictionary
+    /// \param closePath Close path when finishing?
+    static QPainterPath parsePath(const PDFObjectStorage* storage, const PDFDictionary* dictionary, bool closePath);
 
 private:
     PDFObjectReference m_selfReference; ///< Reference to self
@@ -1272,6 +1280,50 @@ private:
     QMatrix m_matrix;
     PDFReal m_relativeHorizontalOffset = 0.0;
     PDFReal m_relativeVerticalOffset = 0.0;
+};
+
+/// Redaction annotation represents content selection, which should
+/// be removed from the document.
+class PDFRedactAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFRedactAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Redact; }
+    virtual void draw(AnnotationDrawParameters& parameters) const override;
+
+    const PDFAnnotationQuadrilaterals& getRedactionRegion() const { return m_redactionRegion; }
+    const std::vector<PDFReal>& getInteriorColor() const { return m_interiorColor; }
+    const PDFObject& getOverlay() const { return m_overlayForm; }
+    const QString& getOverlayText() const { return m_overlayText; }
+    bool isRepeat() const { return m_repeat; }
+    const QByteArray& getDefaultAppearance() const { return m_defaultAppearance; }
+    PDFInteger getJustification() const { return m_justification; }
+
+protected:
+    virtual QColor getFillColor() const override;
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
+
+    PDFAnnotationQuadrilaterals m_redactionRegion;
+    std::vector<PDFReal> m_interiorColor;
+    PDFObject m_overlayForm; ///< Overlay form object
+    QString m_overlayText;
+    bool m_repeat = false;
+    QByteArray m_defaultAppearance;
+    PDFInteger m_justification = 0;
+};
+
+class PDFProjectionAnnotation : public PDFMarkupAnnotation
+{
+public:
+    inline explicit PDFProjectionAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Projection; }
+
+private:
+    friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
 };
 
 /// 3D annotations represents 3D scene, which can be viewed in the application.
