@@ -319,7 +319,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         if (!linkAnnotation->m_action)
         {
             PDFDestination destination = PDFDestination::parse(storage, dictionary->get("Dest"));
-            linkAnnotation->m_action.reset(new PDFActionGoTo(destination));
+            linkAnnotation->m_action.reset(new PDFActionGoTo(destination, PDFDestination()));
         }
         linkAnnotation->m_previousAction = PDFAction::parse(storage, dictionary->get("PA"));
 

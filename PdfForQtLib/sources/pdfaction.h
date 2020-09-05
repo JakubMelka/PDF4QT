@@ -41,6 +41,7 @@ enum class ActionType
     GoTo,
     GoToR,
     GoToE,
+    GoToDp,
     Launch,
     Thread,
     URI,
@@ -55,7 +56,8 @@ enum class ActionType
     JavaScript,
     SubmitForm,
     ResetForm,
-    ImportDataForm
+    ImportDataForm,
+    RichMediaExecute
 };
 
 enum class DestinationType
@@ -146,24 +148,31 @@ private:
     std::vector<PDFActionPtr> m_nextActions;
 };
 
+/// Regular go-to action. Can contain also structure destinations, both regular page destination
+/// and structure destination are present, because if structure destination fails, then
+/// page destination can be used as fallback resolution.
 class PDFActionGoTo : public PDFAction
 {
 public:
-    explicit inline PDFActionGoTo(PDFDestination destination) : m_destination(qMove(destination)) { }
+    explicit inline PDFActionGoTo(PDFDestination destination, PDFDestination structureDestination) :
+        m_destination(qMove(destination)), m_structureDestination(qMove(structureDestination)) { }
 
     virtual ActionType getType() const override { return ActionType::GoTo; }
 
     const PDFDestination& getDestination() const { return m_destination; }
+    const PDFDestination& getStructureDestination() const { return m_structureDestination; }
 
 private:
     PDFDestination m_destination;
+    PDFDestination m_structureDestination;
 };
 
 class PDFActionGoToR : public PDFAction
 {
 public:
-    explicit inline PDFActionGoToR(PDFDestination destination, PDFFileSpecification fileSpecification, bool newWindow) :
+    explicit inline PDFActionGoToR(PDFDestination destination, PDFDestination structureDestination, PDFFileSpecification fileSpecification, bool newWindow) :
         m_destination(qMove(destination)),
+        m_structureDestination(qMove(structureDestination)),
         m_fileSpecification(qMove(fileSpecification)),
         m_newWindow(newWindow)
     {
@@ -173,11 +182,13 @@ public:
     virtual ActionType getType() const override { return ActionType::GoToR; }
 
     const PDFDestination& getDestination() const { return m_destination; }
+    const PDFDestination& getStructureDestination() const { return m_structureDestination; }
     const PDFFileSpecification& getFileSpecification() const { return m_fileSpecification; }
     bool isNewWindow() const { return m_newWindow; }
 
 private:
     PDFDestination m_destination;
+    PDFDestination m_structureDestination;
     PDFFileSpecification m_fileSpecification;
     bool m_newWindow = false;
 };
@@ -206,6 +217,21 @@ private:
     PDFFileSpecification m_fileSpecification;
     bool m_newWindow = false;
     PDFObject m_target;
+};
+
+/// Go to document part
+class PDFActionGoToDp : public PDFAction
+{
+public:
+    explicit inline PDFActionGoToDp(PDFObjectReference documentPart) :
+        m_documentPart(documentPart) { }
+
+    virtual ActionType getType() const override { return ActionType::GoToDp; }
+
+    PDFObjectReference getDocumentPart() const { return m_documentPart; }
+
+private:
+    PDFObjectReference m_documentPart;
 };
 
 class PDFActionLaunch : public PDFAction
@@ -281,6 +307,10 @@ public:
 
     const QByteArray& getURI() const { return m_URI; }
     bool isMap() const { return m_isMap; }
+
+    /// Returns URI as string in unicode. If pdf document conforms
+    /// to PDF specification, URI is UTF-8 encoded string.
+    QString getURIString() const;
 
 private:
     QByteArray m_URI;
@@ -519,6 +549,36 @@ public:
 private:
     QString m_javaScript;
 };
+
+class PDFActionRichMediaExecute : public PDFAction
+{
+public:
+    explicit PDFActionRichMediaExecute(PDFObjectReference richMediaAnnotation,
+                                       PDFObjectReference richMediaInstance,
+                                       QString command,
+                                       PDFObject arguments) :
+        m_richMediaAnnotation(richMediaAnnotation),
+        m_richMediaInstance(richMediaInstance),
+        m_command(qMove(command)),
+        m_arguments(qMove(arguments))
+    {
+
+    }
+
+    virtual ActionType getType() const override { return ActionType::RichMediaExecute; }
+
+    PDFObjectReference getRichMediaAnnotation() const { return m_richMediaAnnotation; }
+    PDFObjectReference getRichMediaInstance() const { return m_richMediaInstance; }
+    QString getCommand() const { return m_command; }
+    PDFObject getArguments() const { return m_arguments; }
+
+private:
+    PDFObjectReference m_richMediaAnnotation;
+    PDFObjectReference m_richMediaInstance;
+    QString m_command;
+    PDFObject m_arguments;
+};
+
 
 class PDFFormAction : public PDFAction
 {

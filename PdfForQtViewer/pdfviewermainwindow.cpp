@@ -516,7 +516,7 @@ void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
 
                 const pdf::PDFActionURI* typedAction = dynamic_cast<const pdf::PDFActionURI*>(currentAction);
                 QByteArray URI = m_pdfDocument->getCatalog()->getBaseURI() + typedAction->getURI();
-                QString urlString = QString::fromLatin1(URI);
+                QString urlString = QString::fromUtf8(URI);
                 QString message = tr("Would you like to open URL '%1'?").arg(urlString);
                 if (QMessageBox::question(this, tr("Open URL"), message) == QMessageBox::Yes)
                 {

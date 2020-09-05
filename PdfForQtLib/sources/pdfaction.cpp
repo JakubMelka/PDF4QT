@@ -76,19 +76,26 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
     if (name == "GoTo") // Goto action
     {
         PDFDestination destination = PDFDestination::parse(storage, dictionary->get("D"));
-        return PDFActionPtr(new PDFActionGoTo(qMove(destination)));
+        PDFDestination structureDestination = PDFDestination::parse(storage, dictionary->get("SD"));
+        return PDFActionPtr(new PDFActionGoTo(qMove(destination), qMove(structureDestination)));
     }
     else if (name == "GoToR")
     {
         PDFDestination destination = PDFDestination::parse(storage, dictionary->get("D"));
+        PDFDestination structureDestination = PDFDestination::parse(storage, dictionary->get("SD"));
         PDFFileSpecification fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
-        return PDFActionPtr(new PDFActionGoToR(qMove(destination), qMove(fileSpecification), loader.readBooleanFromDictionary(dictionary, "NewWindow", false)));
+        return PDFActionPtr(new PDFActionGoToR(qMove(destination), qMove(structureDestination), qMove(fileSpecification), loader.readBooleanFromDictionary(dictionary, "NewWindow", false)));
     }
     else if (name == "GoToE")
     {
         PDFDestination destination = PDFDestination::parse(storage, dictionary->get("D"));
         PDFFileSpecification fileSpecification = PDFFileSpecification::parse(storage, dictionary->get("F"));
         return PDFActionPtr(new PDFActionGoToE(qMove(destination), qMove(fileSpecification), loader.readBooleanFromDictionary(dictionary, "NewWindow", false), storage->getObject(dictionary->get("T"))));
+    }
+    else if (name == "GoToDp")
+    {
+        PDFObjectReference documentPart = loader.readReferenceFromDictionary(dictionary, "Dp");
+        return PDFActionPtr(new PDFActionGoToDp(documentPart));
     }
     else if (name == "Launch")
     {
@@ -294,6 +301,22 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
         }
         return PDFActionPtr(new PDFActionJavaScript(PDFEncoding::convertTextString(textJavaScript)));
     }
+    else if (name == "RichMediaExecute")
+    {
+        PDFObjectReference richMediaAnnotation = loader.readReferenceFromDictionary(dictionary, "TA");
+        PDFObjectReference richMediaInstance = loader.readReferenceFromDictionary(dictionary, "TI");
+
+        QString command;
+        PDFObject arguments;
+
+        if (const PDFDictionary* commandDictionary = storage->getDictionaryFromObject(dictionary->get("CMD")))
+        {
+            command = loader.readTextStringFromDictionary(commandDictionary, "C", QString());
+            arguments = commandDictionary->get("A");
+        }
+
+        return PDFActionPtr(new PDFActionRichMediaExecute(richMediaAnnotation, richMediaInstance, qMove(command), qMove(arguments)));
+    }
     else if (name == "SubmitForm")
     {
         PDFFormAction::FieldScope fieldScope = PDFFormAction::FieldScope::All;
@@ -476,6 +499,11 @@ PDFFormAction::FieldList PDFFormAction::parseFieldList(const PDFObjectStorage* s
     }
 
     return result;
+}
+
+QString PDFActionURI::getURIString() const
+{
+    return QString::fromUtf8(m_URI);
 }
 
 }   // namespace pdf

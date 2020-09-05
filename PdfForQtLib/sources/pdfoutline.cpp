@@ -73,7 +73,7 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
         currentOutlineItem->setAction(PDFAction::parse(&document->getStorage(), dictionary->get("A")));
         if (!currentOutlineItem->getAction() && dictionary->hasKey("Dest"))
         {
-            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), dictionary->get("Dest")))));
+            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), dictionary->get("Dest")), PDFDestination())));
         }
 
         PDFDocumentDataLoaderDecorator loader(document);

@@ -198,7 +198,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
         PDFObject openAction = document->getObject(catalogDictionary->get("OpenAction"));
         if (openAction.isArray())
         {
-            catalogObject.m_openAction.reset(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), openAction)));
+            catalogObject.m_openAction.reset(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), openAction), PDFDestination()));
         }
         if (openAction.isDictionary())
         {
