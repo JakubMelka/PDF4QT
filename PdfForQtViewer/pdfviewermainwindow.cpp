@@ -1051,6 +1051,23 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
             setDocument(document);
 
+            pdf::PDFDocumentRequirements requirements = pdf::PDFDocumentRequirements::parse(&m_pdfDocument->getStorage(), m_pdfDocument->getCatalog()->getRequirements());
+            constexpr pdf::PDFDocumentRequirements::Requirements requirementFlags = pdf::PDFDocumentRequirements::OCInteract |
+                                                                                    pdf::PDFDocumentRequirements::OCAutoStates |
+                                                                                    pdf::PDFDocumentRequirements::Navigation |
+                                                                                    pdf::PDFDocumentRequirements::Attachment |
+                                                                                    pdf::PDFDocumentRequirements::DigSigValidation |
+                                                                                    pdf::PDFDocumentRequirements::Encryption;
+            pdf::PDFDocumentRequirements::ValidationResult requirementResult = requirements.validate(requirementFlags);
+            if (requirementResult.isError())
+            {
+                QMessageBox::critical(this, tr("PDF Viewer"), requirementResult.message);
+            }
+            else if (requirementResult.isWarning())
+            {
+                QMessageBox::warning(this, tr("PDF Viewer"), requirementResult.message);
+            }
+
             statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(m_fileInfo.fileName), 4000);
             break;
         }

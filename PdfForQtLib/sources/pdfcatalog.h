@@ -450,6 +450,82 @@ private:
     QString m_attestation;
 };
 
+/// Document can contain requirements for viewer application. This class
+/// verifies, if this library and viewer application satisfies these requirements
+/// and returns result.
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentRequirements
+{
+public:
+
+    enum Requirement
+    {
+        None                    = 0x00000000,
+        OCInteract              = 0x00000001,
+        OCAutoStates            = 0x00000002,
+        AcroFormInteract        = 0x00000004,
+        Navigation              = 0x00000008,
+        Markup                  = 0x00000010,
+        _3DMarkup               = 0x00000020,
+        Multimedia              = 0x00000040,
+        U3D                     = 0x00000080,
+        PRC                     = 0x00000100,
+        Action                  = 0x00000200,
+        EnableJavaScripts       = 0x00000400,
+        Attachment              = 0x00000800,
+        AttachmentEditing       = 0x00001000,
+        Collection              = 0x00002000,
+        CollectionEditing       = 0x00004000,
+        DigSigValidation        = 0x00008000,
+        DigSig                  = 0x00010000,
+        DigSigMDP               = 0x00020000,
+        RichMedia               = 0x00040000,
+        Geospatial2D            = 0x00080000,
+        Geospatial3D            = 0x00100000,
+        DPartInteract           = 0x00200000,
+        SeparationSimulation    = 0x00400000,
+        Transitions             = 0x00800000,
+        Encryption              = 0x01000000
+    };
+
+    Q_DECLARE_FLAGS(Requirements, Requirement)
+
+    struct RequirementEntry
+    {
+        Requirement requirement = None;
+        PDFInteger penalty = 100;
+        QByteArray version;
+        PDFObject handler;
+
+        static RequirementEntry parse(const PDFObjectStorage* storage, const PDFObject& object);
+    };
+
+    struct ValidationResult
+    {
+        Requirements unsatisfied = None;
+        PDFInteger penalty = 0;
+        QString message;
+
+        bool isOk() const { return penalty < 100; }
+        bool isError() const { return !isOk(); }
+        bool isWarning() const { return isOk() && !message.isEmpty(); }
+    };
+
+    /// Validates requirements against supported requirements
+    ValidationResult validate(Requirements supported) const;
+
+    /// Returns string version of requirement
+    static QString getRequirementName(Requirement requirement);
+
+    /// Parses document requirements. If error occurs, empty
+    /// document requirements are returned.
+    /// \param storage Storage
+    /// \param object Object
+    static PDFDocumentRequirements parse(const PDFObjectStorage* storage, const PDFObject& object);
+
+private:
+    std::vector<RequirementEntry> m_requirements;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:

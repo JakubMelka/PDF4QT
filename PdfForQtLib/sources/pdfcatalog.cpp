@@ -973,4 +973,151 @@ std::optional<PDFLegalAttestation> PDFLegalAttestation::parse(const PDFObjectSto
     return result;
 }
 
+PDFDocumentRequirements::ValidationResult PDFDocumentRequirements::validate(Requirements supported) const
+{
+    ValidationResult result;
+
+    QStringList unsatisfiedRequirements;
+    for (const RequirementEntry& entry : m_requirements)
+    {
+        if (entry.requirement == None)
+        {
+            // Unrecognized entry, just add the penalty
+            result.penalty += entry.penalty;
+            continue;
+        }
+
+        if (!supported.testFlag(entry.requirement))
+        {
+            result.penalty += entry.penalty;
+            unsatisfiedRequirements << getRequirementName(entry.requirement);
+        }
+    }
+
+    if (!unsatisfiedRequirements.isEmpty())
+    {
+        result.message = PDFTranslationContext::tr("Required features %1 are unsupported. Document processing can be limited.").arg(unsatisfiedRequirements.join(", "));
+    }
+
+    return result;
+}
+
+QString PDFDocumentRequirements::getRequirementName(Requirement requirement)
+{
+    switch (requirement)
+    {
+       case OCInteract:
+            return PDFTranslationContext::tr("Optional Content User Interaction");
+       case OCAutoStates:
+            return PDFTranslationContext::tr("Optional Content Usage");
+       case AcroFormInteract:
+            return PDFTranslationContext::tr("Acrobat Forms");
+       case Navigation:
+            return PDFTranslationContext::tr("Navigation");
+       case Markup:
+            return PDFTranslationContext::tr("Markup Annotations");
+       case _3DMarkup:
+            return PDFTranslationContext::tr("Markup of 3D Content");
+       case Multimedia:
+            return PDFTranslationContext::tr("Multimedia");
+       case U3D:
+            return PDFTranslationContext::tr("U3D Format of PDF 3D");
+       case PRC:
+            return PDFTranslationContext::tr("PRC Format of PDF 3D");
+       case Action:
+            return PDFTranslationContext::tr("Actions");
+       case EnableJavaScripts:
+            return PDFTranslationContext::tr("JavaScript");
+       case Attachment:
+            return PDFTranslationContext::tr("Attached Files");
+       case AttachmentEditing:
+            return PDFTranslationContext::tr("Attached Files Modification");
+       case Collection:
+            return PDFTranslationContext::tr("Collections of Attached Files");
+       case CollectionEditing:
+            return PDFTranslationContext::tr("Collections of Attached Files (editation)");
+       case DigSigValidation:
+            return PDFTranslationContext::tr("Digital Signature Validation");
+       case DigSig:
+            return PDFTranslationContext::tr("Apply Digital Signature");
+       case DigSigMDP:
+            return PDFTranslationContext::tr("Digital Signature Validation (with MDP)");
+       case RichMedia:
+            return PDFTranslationContext::tr("Rich Media");
+       case Geospatial2D:
+            return PDFTranslationContext::tr("Geospatial 2D Features");
+       case Geospatial3D:
+            return PDFTranslationContext::tr("Geospatial 3D Features");
+       case DPartInteract:
+            return PDFTranslationContext::tr("Navigation for Document Parts");
+       case SeparationSimulation:
+            return PDFTranslationContext::tr("Separation Simulation");
+       case Transitions:
+            return PDFTranslationContext::tr("Transitions/Presentations");
+       case Encryption:
+            return PDFTranslationContext::tr("Encryption");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+PDFDocumentRequirements PDFDocumentRequirements::parse(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    PDFDocumentRequirements requirements;
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    requirements.m_requirements = loader.readObjectList<RequirementEntry>(object);
+
+    return requirements;
+}
+
+PDFDocumentRequirements::RequirementEntry PDFDocumentRequirements::RequirementEntry::parse(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    RequirementEntry entry;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        constexpr const std::array requirementTypes = {
+            std::pair<const char*, Requirement>{ "OCInteract", OCInteract },
+            std::pair<const char*, Requirement>{ "OCAutoStates", OCAutoStates },
+            std::pair<const char*, Requirement>{ "AcroFormInteract", AcroFormInteract },
+            std::pair<const char*, Requirement>{ "Navigation", Navigation },
+            std::pair<const char*, Requirement>{ "Markup", Markup },
+            std::pair<const char*, Requirement>{ "3DMarkup", _3DMarkup },
+            std::pair<const char*, Requirement>{ "Multimedia", Multimedia },
+            std::pair<const char*, Requirement>{ "U3D", U3D },
+            std::pair<const char*, Requirement>{ "PRC", PRC },
+            std::pair<const char*, Requirement>{ "Action", Action },
+            std::pair<const char*, Requirement>{ "EnableJavaScripts", EnableJavaScripts },
+            std::pair<const char*, Requirement>{ "Attachment", Attachment },
+            std::pair<const char*, Requirement>{ "AttachmentEditing", AttachmentEditing },
+            std::pair<const char*, Requirement>{ "Collection", Collection },
+            std::pair<const char*, Requirement>{ "CollectionEditing", CollectionEditing },
+            std::pair<const char*, Requirement>{ "DigSigValidation", DigSigValidation },
+            std::pair<const char*, Requirement>{ "DigSig", DigSig },
+            std::pair<const char*, Requirement>{ "DigSigMDP", DigSigMDP },
+            std::pair<const char*, Requirement>{ "RichMedia", RichMedia },
+            std::pair<const char*, Requirement>{ "Geospatial2D", Geospatial2D },
+            std::pair<const char*, Requirement>{ "Geospatial3D", Geospatial3D },
+            std::pair<const char*, Requirement>{ "DPartInteract", DPartInteract },
+            std::pair<const char*, Requirement>{ "SeparationSimulation", SeparationSimulation },
+            std::pair<const char*, Requirement>{ "Transitions", Transitions },
+            std::pair<const char*, Requirement>{ "Encryption", Encryption }
+        };
+
+        entry.requirement = loader.readEnumByName(dictionary->get("S"), requirementTypes.begin(), requirementTypes.end(), None);
+        entry.handler = dictionary->get("RH");
+        entry.version = loader.readNameFromDictionary(dictionary, "V");
+        entry.penalty = loader.readIntegerFromDictionary(dictionary, "Penalty", 100);
+    }
+
+    return entry;
+}
+
 }   // namespace pdf
