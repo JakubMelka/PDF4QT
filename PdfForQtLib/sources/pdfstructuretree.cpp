@@ -112,6 +112,7 @@ static constexpr std::array<const PDFStructureTreeAttributeDefinition, PDFStruct
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::TPadding, "TPadding", true),
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::LineHeight, "LineHeight", true),
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::BaselineShift, "BaselineShift", false),
+    PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::TextPosition, "TextPosition", false),
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::TextDecorationType, "TextDecorationType", true),
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::TextDecorationColor, "TextDecorationColor", true),
     PDFStructureTreeAttributeDefinition(PDFStructureTreeAttribute::Attribute::TextDecorationThickness, "TextDecorationThickness", true),
@@ -281,6 +282,65 @@ bool PDFStructureTreeAttribute::isInheritable() const
 {
     Q_ASSERT(m_definition);
     return m_definition->inheritable;
+}
+
+PDFObject PDFStructureTreeAttribute::getDefaultValue() const
+{
+    switch (m_definition->type)
+    {
+        case PDFStructureTreeAttribute::WritingMode:
+            return PDFObject::createName("LrTb");
+
+        case PDFStructureTreeAttribute::BorderStyle:
+        case PDFStructureTreeAttribute::TBorderStyle:
+        case PDFStructureTreeAttribute::TextDecorationType:
+        case PDFStructureTreeAttribute::ListNumbering:
+            return PDFObject::createName("None");
+
+        case PDFStructureTreeAttribute::BorderThickness:
+        case PDFStructureTreeAttribute::Padding:
+        case PDFStructureTreeAttribute::SpaceBefore:
+        case PDFStructureTreeAttribute::SpaceAfter:
+        case PDFStructureTreeAttribute::StartIndent:
+        case PDFStructureTreeAttribute::EndIndent:
+        case PDFStructureTreeAttribute::TextIndent:
+        case PDFStructureTreeAttribute::TPadding:
+        case PDFStructureTreeAttribute::BaselineShift:
+            return PDFObject::createReal(0.0);
+
+        case PDFStructureTreeAttribute::TextAlign:
+        case PDFStructureTreeAttribute::InlineAlign:
+            return PDFObject::createName("Start");
+
+        case PDFStructureTreeAttribute::Width:
+        case PDFStructureTreeAttribute::Height:
+        case PDFStructureTreeAttribute::GlyphOrientationVertical:
+            return PDFObject::createName("Auto");
+
+        case PDFStructureTreeAttribute::BlockAlign:
+        case PDFStructureTreeAttribute::RubyPosition:
+            return PDFObject::createName("Before");
+
+        case PDFStructureTreeAttribute::LineHeight:
+        case PDFStructureTreeAttribute::TextPosition:
+            return PDFObject::createName("Normal");
+
+        case PDFStructureTreeAttribute::RubyAlign:
+            return PDFObject::createName("Distribute");
+
+        case PDFStructureTreeAttribute::ColumnCount:
+        case PDFStructureTreeAttribute::RowSpan:
+        case PDFStructureTreeAttribute::ColSpan:
+            return PDFObject::createInteger(1);
+
+        case PDFStructureTreeAttribute::Checked:
+            return PDFObject::createName("off");
+
+        default:
+            break;
+    }
+
+    return PDFObject();
 }
 
 QString PDFStructureTreeAttribute::getUserPropertyName(const PDFObjectStorage* storage) const

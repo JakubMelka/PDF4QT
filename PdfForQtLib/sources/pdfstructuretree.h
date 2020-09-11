@@ -99,6 +99,7 @@ public:
         TPadding,
         LineHeight,
         BaselineShift,
+        TextPosition,
         TextDecorationType,
         TextDecorationColor,
         TextDecorationThickness,
@@ -154,7 +155,8 @@ public:
     /// Returns attribute value
     const PDFObject& getValue() const { return m_value; }
 
-    /// Returns default attribute value
+    /// Returns default attribute value. If default attribute value
+    /// cannot be determined, empty object is returned.
     PDFObject getDefaultValue() const;
 
     /// Returns user property name. This function should be called only for
