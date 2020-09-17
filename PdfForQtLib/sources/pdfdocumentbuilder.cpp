@@ -979,7 +979,7 @@ PDFContentStreamBuilder::ContentStream PDFContentStreamBuilder::end(QPainter* pa
     delete m_buffer;
     m_buffer = nullptr;
 
-    PDFDocumentReader reader(nullptr, nullptr);
+    PDFDocumentReader reader(nullptr, nullptr, false);
     result.document = reader.readFromBuffer(bufferData);
 
     if (result.document.getCatalog()->getPageCount() > 0)

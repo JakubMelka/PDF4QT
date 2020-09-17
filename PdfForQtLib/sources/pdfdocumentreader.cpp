@@ -34,10 +34,11 @@
 namespace pdf
 {
 
-PDFDocumentReader::PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback) :
+PDFDocumentReader::PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive) :
     m_result(Result::OK),
     m_getPasswordCallback(getPasswordCallback),
-    m_progress(progress)
+    m_progress(progress),
+    m_permissive(permissive)
 {
 
 }
@@ -103,6 +104,393 @@ PDFDocument PDFDocumentReader::readFromDevice(QIODevice* device)
     return PDFDocument();
 }
 
+void PDFDocumentReader::checkFooter(const QByteArray& buffer)
+{
+    if (findFromEnd(PDF_END_OF_FILE_MARK, buffer, PDF_FOOTER_SCAN_LIMIT) == FIND_NOT_FOUND_RESULT)
+    {
+        QString message = tr("End of file marking was not found.");
+        if (m_permissive)
+        {
+            QMutexLocker lock(&m_mutex);
+            m_warnings << message;
+        }
+        else
+        {
+            throw PDFException(message);
+        }
+    }
+}
+
+void PDFDocumentReader::checkHeader(const QByteArray& buffer)
+{
+    // According to PDF Reference 1.7, Appendix H, file header can have two formats:
+    //  - %PDF-x.x
+    //  - %!PS-Adobe-y.y PDF-x.x
+    // We will search for both of these formats.
+    std::regex headerRegExp(PDF_FILE_HEADER_REGEXP);
+    std::cmatch headerMatch;
+
+    auto itBegin = buffer.cbegin();
+    auto itEnd = std::next(buffer.cbegin(), qMin(buffer.size(), PDF_HEADER_SCAN_LIMIT));
+
+    if (std::regex_search(itBegin, itEnd, headerMatch, headerRegExp))
+    {
+        // Size depends on regular expression, not on the text (if regular expresion is matched)
+        Q_ASSERT(headerMatch.size() == 3);
+        Q_ASSERT(headerMatch[1].matched != headerMatch[2].matched);
+
+        for (int i : { 1, 2 })
+        {
+            if (headerMatch[i].matched)
+            {
+                Q_ASSERT(std::distance(headerMatch[i].first, headerMatch[i].second) == 3);
+                m_version = PDFVersion(*headerMatch[i].first - '0', *std::prev(headerMatch[i].second) - '0');
+                break;
+            }
+        }
+    }
+    else
+    {
+        throw PDFException(tr("Header of PDF file was not found."));
+    }
+
+    // Check, if version is valid
+    if (!m_version.isValid())
+    {
+        throw PDFException(tr("Version of the PDF file is not valid."));
+    }
+}
+
+const PDFInteger PDFDocumentReader::findXrefTableOffset(const QByteArray& buffer)
+{
+    const int startXRefPosition = findFromEnd(PDF_START_OF_XREF_MARK, buffer, PDF_FOOTER_SCAN_LIMIT);
+    if (startXRefPosition == FIND_NOT_FOUND_RESULT)
+    {
+        throw PDFException(tr("Start of object reference table not found."));
+    }
+
+    Q_ASSERT(startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK) < buffer.size());
+    PDFLexicalAnalyzer analyzer(buffer.constData() + startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK), buffer.constData() + buffer.size());
+    const PDFLexicalAnalyzer::Token token = analyzer.fetch();
+    if (token.type != PDFLexicalAnalyzer::TokenType::Integer)
+    {
+        throw PDFException(tr("Start of object reference table not found."));
+    }
+
+    const PDFInteger firstXrefTableOffset = token.data.toLongLong();
+    return firstXrefTableOffset;
+}
+
+PDFObject PDFDocumentReader::getObject(PDFParsingContext* context, PDFInteger offset, PDFObjectReference reference) const
+{
+    PDFParsingContext::PDFParsingContextGuard guard(context, reference);
+
+    PDFParser parser(m_source, context, PDFParser::AllowStreams);
+    parser.seek(offset);
+
+    PDFObject objectNumber = parser.getObject();
+    PDFObject generation = parser.getObject();
+
+    if (!objectNumber.isInt() || !generation.isInt())
+    {
+        throw PDFException(tr("Can't read object at position %1.").arg(offset));
+    }
+
+    if (!parser.fetchCommand(PDF_OBJECT_START_MARK))
+    {
+        throw PDFException(tr("Can't read object at position %1.").arg(offset));
+    }
+
+    PDFObject object = parser.getObject();
+
+    if (!parser.fetchCommand(PDF_OBJECT_END_MARK))
+    {
+        throw PDFException(tr("Can't read object at position %1.").arg(offset));
+    }
+
+    PDFObjectReference scannedReference(objectNumber.getInteger(), generation.getInteger());
+    if (scannedReference != reference)
+    {
+        throw PDFException(tr("Can't read object at position %1.").arg(offset));
+    }
+
+    return object;
+}
+
+PDFObject PDFDocumentReader::getObjectFromXrefTable(PDFXRefTable* xrefTable, PDFParsingContext* context, PDFObjectReference reference) const
+{
+    const PDFXRefTable::Entry& entry = xrefTable->getEntry(reference);
+    switch (entry.type)
+    {
+        case PDFXRefTable::EntryType::Free:
+            return PDFObject();
+
+        case PDFXRefTable::EntryType::Occupied:
+        {
+            Q_ASSERT(entry.reference == reference);
+            return getObject(context, entry.offset, reference);
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    return PDFObject();
+}
+
+PDFDocumentReader::Result PDFDocumentReader::processReferenceTableEntries(PDFXRefTable* xrefTable, const std::vector<PDFXRefTable::Entry>& occupiedEntries, PDFObjectStorage::PDFObjects& objects)
+{
+    auto objectFetcher = [this, xrefTable](PDFParsingContext* context, PDFObjectReference reference) { return getObjectFromXrefTable(xrefTable, context, reference); };
+    auto processEntry = [this, &objectFetcher, &objects](const PDFXRefTable::Entry& entry)
+    {
+        Q_ASSERT(entry.type == PDFXRefTable::EntryType::Occupied);
+
+        if (m_result == Result::OK)
+        {
+            try
+            {
+                PDFParsingContext context(objectFetcher);
+                PDFObject object = getObject(&context, entry.offset, entry.reference);
+
+                progressStep();
+
+                QMutexLocker lock(&m_mutex);
+                objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, object);
+            }
+            catch (PDFException exception)
+            {
+                QMutexLocker lock(&m_mutex);
+
+                if (m_permissive)
+                {
+                    m_warnings << exception.getMessage();
+                }
+                else
+                {
+                    m_result = Result::Failed;
+                    m_errorMessage = exception.getMessage();
+                }
+            }
+        }
+    };
+
+    // Now, we are ready to scan all objects
+    if (!occupiedEntries.empty())
+    {
+        progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Reading contents of document..."));
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
+        progressFinish();
+    }
+
+    return m_result;
+}
+
+PDFDocumentReader::Result PDFDocumentReader::processSecurityHandler(const PDFObject& trailerDictionaryObject,
+                                                                    const std::vector<PDFXRefTable::Entry>& occupiedEntries,
+                                                                    PDFObjectStorage::PDFObjects& objects)
+{
+    const PDFDictionary* trailerDictionary = nullptr;
+    if (trailerDictionaryObject.isDictionary())
+    {
+        trailerDictionary = trailerDictionaryObject.getDictionary();
+    }
+    else if (trailerDictionaryObject.isStream())
+    {
+        const PDFStream* stream = trailerDictionaryObject.getStream();
+        trailerDictionary = stream->getDictionary();
+    }
+    else
+    {
+        throw PDFException(tr("Invalid trailer dictionary."));
+    }
+
+    // Read the document ID
+    QByteArray id;
+    const PDFObject& idArrayObject = trailerDictionary->get("ID");
+    if (idArrayObject.isArray())
+    {
+        const PDFArray* idArray = idArrayObject.getArray();
+        if (idArray->getCount() > 0)
+        {
+            const PDFObject& idArrayItem = idArray->getItem(0);
+            if (idArrayItem.isString())
+            {
+                id = idArrayItem.getString();
+            }
+        }
+    }
+
+    PDFObjectReference encryptObjectReference;
+    PDFObject encryptObject = trailerDictionary->get("Encrypt");
+    if (encryptObject.isReference())
+    {
+        encryptObjectReference = encryptObject.getReference();
+        PDFObjectReference encryptObjectReference = encryptObject.getReference();
+        if (static_cast<size_t>(encryptObjectReference.objectNumber) < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
+        {
+            encryptObject = objects[encryptObjectReference.objectNumber].object;
+        }
+    }
+
+    // Read the security handler
+    m_securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject, id);
+    PDFSecurityHandler::AuthorizationResult authorizationResult = m_securityHandler->authenticate(m_getPasswordCallback);
+
+    if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
+    {
+        // User cancelled the document reading
+        m_result = Result::Cancelled;
+        return m_result;
+    }
+
+    if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Failed)
+    {
+        throw PDFException(PDFTranslationContext::tr("Authorization failed. Bad password provided."));
+    }
+
+    // Now, decrypt the document, if we are authorized. We must also check, if we have to decrypt the object.
+    // According to the PDF specification, following items are ommited from encryption:
+    //      1) Values for ID entry in the trailer dictionary
+    //      2) Any strings in Encrypt dictionary
+    //      3) String/streams in object streams (entire object streams are encrypted)
+    //      4) Hexadecimal strings in Content key in signature dictionary
+    //
+    // Trailer dictionary is not decrypted, because PDF specification provides no algorithm to decrypt it,
+    // because it needs object number and generation for generating the decrypt key. So 1) is handled
+    // automatically. 2) is handled in the code below. 3) is handled also automatically, because we do not
+    // decipher object streams here. 4) must be handled in the security handler.
+    if (m_securityHandler->getMode() != EncryptionMode::None)
+    {
+        auto decryptEntry = [this, encryptObjectReference, &objects](const PDFXRefTable::Entry& entry)
+        {
+            progressStep();
+
+            if (encryptObjectReference.objectNumber != 0 && encryptObjectReference == entry.reference)
+            {
+                // 2) - Encrypt dictionary
+                return;
+            }
+
+            objects[entry.reference.objectNumber].object = m_securityHandler->decryptObject(objects[entry.reference.objectNumber].object, entry.reference);
+        };
+
+        progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Decrypting encrypted contents of document..."));
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
+        progressFinish();
+    }
+
+    return m_result;
+}
+
+void PDFDocumentReader::processObjectStreams(PDFXRefTable* xrefTable, PDFObjectStorage::PDFObjects& objects)
+{
+    // Then process object streams
+    std::vector<PDFXRefTable::Entry> objectStreamEntries = xrefTable->getObjectStreamEntries();
+    std::set<PDFObjectReference> objectStreams;
+    for (const PDFXRefTable::Entry& entry : objectStreamEntries)
+    {
+        Q_ASSERT(entry.type == PDFXRefTable::EntryType::InObjectStream);
+        objectStreams.insert(entry.objectStream);
+    }
+
+    auto objectFetcher = [this, xrefTable](PDFParsingContext* context, PDFObjectReference reference) { return getObjectFromXrefTable(xrefTable, context, reference); };
+    auto processObjectStream = [this, &objectFetcher, &objects, &objectStreamEntries] (const PDFObjectReference& objectStreamReference)
+    {
+        if (m_result != Result::OK)
+        {
+            return;
+        }
+
+        try
+        {
+            PDFParsingContext context(objectFetcher);
+            if (objectStreamReference.objectNumber >= static_cast<PDFInteger>(objects.size()))
+            {
+                throw PDFException(PDFTranslationContext::tr("Object stream %1 not found.").arg(objectStreamReference.objectNumber));
+            }
+
+            const PDFObject& object = objects[objectStreamReference.objectNumber].object;
+            if (!object.isStream())
+            {
+                throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+            }
+
+            const PDFStream* objectStream = object.getStream();
+            const PDFDictionary* objectStreamDictionary = objectStream->getDictionary();
+
+            const PDFObject& objectStreamType = objectStreamDictionary->get("Type");
+            if (!objectStreamType.isName() || objectStreamType.getString() != "ObjStm")
+            {
+                throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+            }
+
+            const PDFObject& nObject = objectStreamDictionary->get("N");
+            const PDFObject& firstObject = objectStreamDictionary->get("First");
+            if (!nObject.isInt() || !firstObject.isInt())
+            {
+                throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+            }
+
+            // Number of objects in object stream dictionary
+            const PDFInteger n = nObject.getInteger();
+            const PDFInteger first = firstObject.getInteger();
+
+            QByteArray objectStreamData = PDFStreamFilterStorage::getDecodedStream(objectStream, m_securityHandler.data());
+
+            PDFParsingContext::PDFParsingContextGuard guard(&context, objectStreamReference);
+            PDFParser parser(objectStreamData, &context, PDFParser::AllowStreams);
+
+            std::vector<std::pair<PDFInteger, PDFInteger>> objectNumberAndOffset;
+            objectNumberAndOffset.reserve(n);
+            for (PDFInteger i = 0; i < n; ++i)
+            {
+                PDFObject currentObjectNumber = parser.getObject();
+                PDFObject currentOffset = parser.getObject();
+
+                if (!currentObjectNumber.isInt() || !currentOffset.isInt())
+                {
+                    throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
+                }
+
+                const PDFInteger objectNumber = currentObjectNumber.getInteger();
+                const PDFInteger offset = currentOffset.getInteger() + first;
+                objectNumberAndOffset.emplace_back(objectNumber, offset);
+            }
+
+            for (size_t i = 0; i < objectNumberAndOffset.size(); ++i)
+            {
+                const PDFInteger objectNumber = objectNumberAndOffset[i].first;
+                const PDFInteger offset = objectNumberAndOffset[i].second;
+                parser.seek(offset);
+
+                PDFObject object = parser.getObject();
+                auto predicate = [objectNumber, objectStreamReference](const PDFXRefTable::Entry& entry) -> bool { return entry.reference.objectNumber == objectNumber && entry.objectStream == objectStreamReference; };
+                if (std::find_if(objectStreamEntries.cbegin(), objectStreamEntries.cend(), predicate) != objectStreamEntries.cend())
+                {
+                    QMutexLocker lock(&m_mutex);
+                    objects[objectNumber].object = qMove(object);
+                }
+                else
+                {
+                    // Silently ignore this error. It is not critical, so, maybe this object will be null.
+                }
+            }
+        }
+        catch (PDFException exception)
+        {
+            QMutexLocker lock(&m_mutex);
+            m_result = Result::Failed;
+            m_errorMessage = exception.getMessage();
+        }
+    };
+
+    // Now, we are ready to scan all object streams
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
+}
+
 PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 {
     try
@@ -112,133 +500,17 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         // FOOTER CHECKING
         //  1) Check, if EOF marking is present
         //  2) Find start of cross reference table
-        if (findFromEnd(PDF_END_OF_FILE_MARK, buffer, PDF_FOOTER_SCAN_LIMIT) == FIND_NOT_FOUND_RESULT)
-        {
-            throw PDFException(tr("End of file marking was not found."));
-        }
-
-        const int startXRefPosition = findFromEnd(PDF_START_OF_XREF_MARK, buffer, PDF_FOOTER_SCAN_LIMIT);
-        if (startXRefPosition == FIND_NOT_FOUND_RESULT)
-        {
-            throw PDFException(tr("Start of object reference table not found."));
-        }
-
-        Q_ASSERT(startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK) < buffer.size());
-        PDFLexicalAnalyzer analyzer(buffer.constData() + startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK), buffer.constData() + buffer.size());
-        const PDFLexicalAnalyzer::Token token = analyzer.fetch();
-        if (token.type != PDFLexicalAnalyzer::TokenType::Integer)
-        {
-            throw PDFException(tr("Start of object reference table not found."));
-        }
-        const PDFInteger firstXrefTableOffset = token.data.toLongLong();
+        checkFooter(buffer);
+        const PDFInteger firstXrefTableOffset = findXrefTableOffset(buffer);
 
         // HEADER CHECKING
         //  1) Check if header is present
         //  2) Scan header version
-
-        // According to PDF Reference 1.7, Appendix H, file header can have two formats:
-        //  - %PDF-x.x
-        //  - %!PS-Adobe-y.y PDF-x.x
-        // We will search for both of these formats.
-
-        std::regex headerRegExp(PDF_FILE_HEADER_REGEXP);
-        std::cmatch headerMatch;
-
-        auto itBegin = buffer.cbegin();
-        auto itEnd = std::next(buffer.cbegin(), qMin(buffer.size(), PDF_HEADER_SCAN_LIMIT));
-
-        if (std::regex_search(itBegin, itEnd, headerMatch, headerRegExp))
-        {
-            // Size depends on regular expression, not on the text (if regular expresion is matched)
-            Q_ASSERT(headerMatch.size() == 3);
-            Q_ASSERT(headerMatch[1].matched != headerMatch[2].matched);
-
-            for (int i : { 1, 2 })
-            {
-                if (headerMatch[i].matched)
-                {
-                    Q_ASSERT(std::distance(headerMatch[i].first, headerMatch[i].second) == 3);
-                    m_version = PDFVersion(*headerMatch[i].first - '0', *std::prev(headerMatch[i].second) - '0');
-                    break;
-                }
-            }
-        }
-        else
-        {
-            throw PDFException(tr("Header of PDF file was not found."));
-        }
-
-        // Check, if version is valid
-        if (!m_version.isValid())
-        {
-            throw PDFException(tr("Version of the PDF file is not valid."));
-        }
+        checkHeader(buffer);
 
         // Now, we are ready to scan xref table
         PDFXRefTable xrefTable;
         xrefTable.readXRefTable(nullptr, buffer, firstXrefTableOffset);
-
-        // This lambda function fetches object from the buffer from the specified offset.
-        // Can throw exception, returns a pair of scanned reference and object content.
-        auto getObject = [&buffer](PDFParsingContext* context, PDFInteger offset, PDFObjectReference reference) -> PDFObject
-        {
-            PDFParsingContext::PDFParsingContextGuard guard(context, reference);
-
-            PDFParser parser(buffer, context, PDFParser::AllowStreams);
-            parser.seek(offset);
-
-            PDFObject objectNumber = parser.getObject();
-            PDFObject generation = parser.getObject();
-
-            if (!objectNumber.isInt() || !generation.isInt())
-            {
-                throw PDFException(tr("Can't read object at position %1.").arg(offset));
-            }
-
-            if (!parser.fetchCommand(PDF_OBJECT_START_MARK))
-            {
-                throw PDFException(tr("Can't read object at position %1.").arg(offset));
-            }
-
-            PDFObject object = parser.getObject();
-
-            if (!parser.fetchCommand(PDF_OBJECT_END_MARK))
-            {
-                throw PDFException(tr("Can't read object at position %1.").arg(offset));
-            }
-
-            PDFObjectReference scannedReference(objectNumber.getInteger(), generation.getInteger());
-            if (scannedReference != reference)
-            {
-                throw PDFException(tr("Can't read object at position %1.").arg(offset));
-            }
-
-            return object;
-        };
-
-        auto objectFetcher = [&getObject, &xrefTable](PDFParsingContext* context, PDFObjectReference reference) -> PDFObject
-        {
-            const PDFXRefTable::Entry& entry = xrefTable.getEntry(reference);
-            switch (entry.type)
-            {
-                case PDFXRefTable::EntryType::Free:
-                    return PDFObject();
-
-                case PDFXRefTable::EntryType::Occupied:
-                {
-                    Q_ASSERT(entry.reference == reference);
-                    return getObject(context, entry.offset, reference);
-                }
-
-                default:
-                {
-                    Q_ASSERT(false);
-                    break;
-                }
-            }
-
-            return PDFObject();
-        };
 
         PDFObjectStorage::PDFObjects objects;
         objects.resize(xrefTable.getSize());
@@ -246,253 +518,27 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         std::vector<PDFXRefTable::Entry> occupiedEntries = xrefTable.getOccupiedEntries();
 
         // First, process regular objects
-        auto processEntry = [this, &getObject, &objectFetcher, &objects](const PDFXRefTable::Entry& entry)
-        {
-            Q_ASSERT(entry.type == PDFXRefTable::EntryType::Occupied);
-
-            if (m_result == Result::OK)
-            {
-                try
-                {
-                    PDFParsingContext context(objectFetcher);
-                    PDFObject object = getObject(&context, entry.offset, entry.reference);
-
-                    progressStep();
-
-                    QMutexLocker lock(&m_mutex);
-                    objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, object);
-                }
-                catch (PDFException exception)
-                {
-                    QMutexLocker lock(&m_mutex);
-                    m_result = Result::Failed;
-                    m_errorMessage = exception.getMessage();
-                }
-            }
-        };
-
-        // Now, we are ready to scan all objects
-        if (!occupiedEntries.empty())
-        {
-            progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Reading contents of document..."));
-            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), processEntry);
-            progressFinish();
-        }
-
-        if (m_result != Result::OK)
+        if (processReferenceTableEntries(&xrefTable, occupiedEntries, objects) != Result::OK)
         {
             // Do not proceed further, if document loading failed
             return PDFDocument();
         }
 
-        // ------------------------------------------------------------------------------------------
-        //    SECURITY - handle encrypted documents
-        // ------------------------------------------------------------------------------------------
-        const PDFObject& trailerDictionaryObject = xrefTable.getTrailerDictionary();
-
-        const PDFDictionary* trailerDictionary = nullptr;
-        if (trailerDictionaryObject.isDictionary())
+        if (processSecurityHandler(xrefTable.getTrailerDictionary(), occupiedEntries, objects) == Result::Cancelled)
         {
-            trailerDictionary = trailerDictionaryObject.getDictionary();
-        }
-        else if (trailerDictionaryObject.isStream())
-        {
-            const PDFStream* stream = trailerDictionaryObject.getStream();
-            trailerDictionary = stream->getDictionary();
-        }
-        else
-        {
-            throw PDFException(tr("Invalid trailer dictionary."));
-        }
-
-        // Read the document ID
-        QByteArray id;
-        const PDFObject& idArrayObject = trailerDictionary->get("ID");
-        if (idArrayObject.isArray())
-        {
-            const PDFArray* idArray = idArrayObject.getArray();
-            if (idArray->getCount() > 0)
-            {
-                const PDFObject& idArrayItem = idArray->getItem(0);
-                if (idArrayItem.isString())
-                {
-                    id = idArrayItem.getString();
-                }
-            }
-        }
-
-        PDFObjectReference encryptObjectReference;
-        PDFObject encryptObject = trailerDictionary->get("Encrypt");
-        if (encryptObject.isReference())
-        {
-            encryptObjectReference = encryptObject.getReference();
-            PDFObjectReference encryptObjectReference = encryptObject.getReference();
-            if (static_cast<size_t>(encryptObjectReference.objectNumber) < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
-            {
-                encryptObject = objects[encryptObjectReference.objectNumber].object;
-            }
-        }
-
-        // Read the security handler
-        PDFSecurityHandlerPointer securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject, id);
-        PDFSecurityHandler::AuthorizationResult authorizationResult = securityHandler->authenticate(m_getPasswordCallback);
-
-        if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
-        {
-            // User cancelled the document reading
-            m_result = Result::Cancelled;
             return PDFDocument();
         }
 
-        if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Failed)
-        {
-            throw PDFException(PDFTranslationContext::tr("Authorization failed. Bad password provided."));
-        }
+        processObjectStreams(&xrefTable, objects);
 
-        // Now, decrypt the document, if we are authorized. We must also check, if we have to decrypt the object.
-        // According to the PDF specification, following items are ommited from encryption:
-        //      1) Values for ID entry in the trailer dictionary
-        //      2) Any strings in Encrypt dictionary
-        //      3) String/streams in object streams (entire object streams are encrypted)
-        //      4) Hexadecimal strings in Content key in signature dictionary
-        //
-        // Trailer dictionary is not decrypted, because PDF specification provides no algorithm to decrypt it,
-        // because it needs object number and generation for generating the decrypt key. So 1) is handled
-        // automatically. 2) is handled in the code below. 3) is handled also automatically, because we do not
-        // decipher object streams here. 4) must be handled in the security handler.
-        if (securityHandler->getMode() != EncryptionMode::None)
-        {
-            auto decryptEntry = [this, encryptObjectReference, &securityHandler, &objects](const PDFXRefTable::Entry& entry)
-            {
-                progressStep();
-
-                if (encryptObjectReference.objectNumber != 0 && encryptObjectReference == entry.reference)
-                {
-                    // 2) - Encrypt dictionary
-                    return;
-                }
-
-                objects[entry.reference.objectNumber].object = securityHandler->decryptObject(objects[entry.reference.objectNumber].object, entry.reference);
-            };
-
-            progressStart(occupiedEntries.size(), PDFTranslationContext::tr("Decrypting encrypted contents of document..."));
-            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, occupiedEntries.cbegin(), occupiedEntries.cend(), decryptEntry);
-            progressFinish();
-        }
-
-        // ------------------------------------------------------------------------------------------
-        //    SECURITY - security handler created
-        // ------------------------------------------------------------------------------------------
-
-        // Then process object streams
-        std::vector<PDFXRefTable::Entry> objectStreamEntries = xrefTable.getObjectStreamEntries();
-        std::set<PDFObjectReference> objectStreams;
-        for (const PDFXRefTable::Entry& entry : objectStreamEntries)
-        {
-            Q_ASSERT(entry.type == PDFXRefTable::EntryType::InObjectStream);
-            objectStreams.insert(entry.objectStream);
-        }
-
-        auto processObjectStream = [this, &getObject, &objectFetcher, &objects, &objectStreamEntries, &securityHandler] (const PDFObjectReference& objectStreamReference)
-        {
-            if (m_result != Result::OK)
-            {
-                return;
-            }
-
-            try
-            {
-                PDFParsingContext context(objectFetcher);
-                if (objectStreamReference.objectNumber >= static_cast<PDFInteger>(objects.size()))
-                {
-                    throw PDFException(PDFTranslationContext::tr("Object stream %1 not found.").arg(objectStreamReference.objectNumber));
-                }
-
-                const PDFObject& object = objects[objectStreamReference.objectNumber].object;
-                if (!object.isStream())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
-                }
-
-                const PDFStream* objectStream = object.getStream();
-                const PDFDictionary* objectStreamDictionary = objectStream->getDictionary();
-
-                const PDFObject& objectStreamType = objectStreamDictionary->get("Type");
-                if (!objectStreamType.isName() || objectStreamType.getString() != "ObjStm")
-                {
-                    throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
-                }
-
-                const PDFObject& nObject = objectStreamDictionary->get("N");
-                const PDFObject& firstObject = objectStreamDictionary->get("First");
-                if (!nObject.isInt() || !firstObject.isInt())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
-                }
-
-                // Number of objects in object stream dictionary
-                const PDFInteger n = nObject.getInteger();
-                const PDFInteger first = firstObject.getInteger();
-
-                QByteArray objectStreamData = PDFStreamFilterStorage::getDecodedStream(objectStream, securityHandler.data());
-
-                PDFParsingContext::PDFParsingContextGuard guard(&context, objectStreamReference);
-                PDFParser parser(objectStreamData, &context, PDFParser::AllowStreams);
-
-                std::vector<std::pair<PDFInteger, PDFInteger>> objectNumberAndOffset;
-                objectNumberAndOffset.reserve(n);
-                for (PDFInteger i = 0; i < n; ++i)
-                {
-                    PDFObject currentObjectNumber = parser.getObject();
-                    PDFObject currentOffset = parser.getObject();
-
-                    if (!currentObjectNumber.isInt() || !currentOffset.isInt())
-                    {
-                        throw PDFException(PDFTranslationContext::tr("Object stream %1 is invalid.").arg(objectStreamReference.objectNumber));
-                    }
-
-                    const PDFInteger objectNumber = currentObjectNumber.getInteger();
-                    const PDFInteger offset = currentOffset.getInteger() + first;
-                    objectNumberAndOffset.emplace_back(objectNumber, offset);
-                }
-
-                for (size_t i = 0; i < objectNumberAndOffset.size(); ++i)
-                {
-                    const PDFInteger objectNumber = objectNumberAndOffset[i].first;
-                    const PDFInteger offset = objectNumberAndOffset[i].second;
-                    parser.seek(offset);
-
-                    PDFObject object = parser.getObject();
-                    auto predicate = [objectNumber, objectStreamReference](const PDFXRefTable::Entry& entry) -> bool { return entry.reference.objectNumber == objectNumber && entry.objectStream == objectStreamReference; };
-                    if (std::find_if(objectStreamEntries.cbegin(), objectStreamEntries.cend(), predicate) != objectStreamEntries.cend())
-                    {
-                        QMutexLocker lock(&m_mutex);
-                        objects[objectNumber].object = qMove(object);
-                    }
-                    else
-                    {
-                        // Silently ignore this error. It is not critical, so, maybe this object will be null.
-                    }
-                }
-            }
-            catch (PDFException exception)
-            {
-                QMutexLocker lock(&m_mutex);
-                m_result = Result::Failed;
-                m_errorMessage = exception.getMessage();
-            }
-        };
-
-        // Now, we are ready to scan all object streams
-        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objectStreams.cbegin(), objectStreams.cend(), processObjectStream);
-
-        PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), std::move(securityHandler));
+        PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), qMove(m_securityHandler));
         return PDFDocument(std::move(storage), m_version);
     }
     catch (PDFException parserException)
     {
         m_result = Result::Failed;
         m_errorMessage = parserException.getMessage();
+        m_warnings << m_errorMessage;
     }
 
     return PDFDocument();
@@ -503,6 +549,8 @@ void PDFDocumentReader::reset()
     m_result = Result::OK;
     m_errorMessage = QString();
     m_version = PDFVersion();
+    m_source = QByteArray();
+    m_securityHandler = nullptr;
 }
 
 int PDFDocumentReader::findFromEnd(const char* what, const QByteArray& byteArray, int limit)

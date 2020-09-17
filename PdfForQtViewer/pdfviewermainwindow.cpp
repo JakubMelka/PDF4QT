@@ -997,7 +997,7 @@ void PDFViewerMainWindow::openDocument(const QString& fileName)
         };
 
         // Try to open a new document
-        pdf::PDFDocumentReader reader(m_progress, qMove(queryPassword));
+        pdf::PDFDocumentReader reader(m_progress, qMove(queryPassword), true);
         pdf::PDFDocument document = reader.readFromFile(fileName);
 
         result.errorMessage = reader.getErrorMessage();

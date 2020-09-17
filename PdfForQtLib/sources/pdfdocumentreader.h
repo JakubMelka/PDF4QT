@@ -22,12 +22,15 @@
 #include "pdfglobal.h"
 #include "pdfdocument.h"
 #include "pdfprogress.h"
+#include "pdfxreftable.h"
 
 #include <QtCore>
 #include <QIODevice>
 
 namespace pdf
 {
+class PDFXRefTable;
+class PDFParsingContext;
 
 /// This class is a reader of PDF document from various devices (file, io device,
 /// byte buffer). This class doesn't throw exceptions, to check errors, use
@@ -37,7 +40,7 @@ class PDFFORQTLIBSHARED_EXPORT PDFDocumentReader
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 
 public:
-    explicit PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback);
+    explicit PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive);
 
     constexpr inline PDFDocumentReader(const PDFDocumentReader&) = delete;
     constexpr inline PDFDocumentReader(PDFDocumentReader&&) = delete;
@@ -75,6 +78,9 @@ public:
     /// Get source data of the document
     const QByteArray& getSource() const { return m_source; }
 
+    /// Returns warning messages
+    const QStringList& getWarnings() const { return m_warnings; }
+
 private:
     static constexpr const int FIND_NOT_FOUND_RESULT = -1;
 
@@ -89,6 +95,20 @@ private:
     /// \param limit Scan up to this value bytes from the end
     /// \returns Position of string, or FIND_NOT_FOUND_RESULT
     int findFromEnd(const char* what, const QByteArray& byteArray, int limit);
+
+    void checkFooter(const QByteArray& buffer);
+    void checkHeader(const QByteArray& buffer);
+    const PDFInteger findXrefTableOffset(const QByteArray& buffer);
+    Result processReferenceTableEntries(PDFXRefTable* xrefTable, const std::vector<PDFXRefTable::Entry>& occupiedEntries, PDFObjectStorage::PDFObjects& objects);
+    Result processSecurityHandler(const PDFObject& trailerDictionaryObject, const std::vector<PDFXRefTable::Entry>& occupiedEntries, PDFObjectStorage::PDFObjects& objects);
+    void processObjectStreams(PDFXRefTable* xrefTable, PDFObjectStorage::PDFObjects& objects);
+
+    /// This function fetches object from the buffer from the specified offset.
+    /// Can throw exception, returns a pair of scanned reference and object content.
+    PDFObject getObject(PDFParsingContext* context, PDFInteger offset, PDFObjectReference reference) const;
+
+    /// Fetch object from reference table
+    PDFObject getObjectFromXrefTable(PDFXRefTable* xrefTable, PDFParsingContext* context, PDFObjectReference reference) const;
 
     void progressStart(size_t stepCount, QString text);
     void progressStep();
@@ -115,6 +135,15 @@ private:
 
     /// Raw document data (byte array containing source data for created document)
     QByteArray m_source;
+
+    /// Security handler
+    PDFSecurityHandlerPointer m_securityHandler;
+
+    /// Be permissive when reading, tolerate errors and try to fix broken document
+    bool m_permissive;
+
+    /// Warnings
+    QStringList m_warnings;
 };
 
 }   // namespace pdf
