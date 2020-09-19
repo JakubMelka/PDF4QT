@@ -1,0 +1,105 @@
+
+Conformance to PDF 2.0 specification notes and tasks:
+
+Section 1: OK
+Section 2: OK
+Section 3: OK
+Section 4: OK
+Section 5: OK
+Section 6: OK
+
+Section 7: Issues
+ - 7.4.7 JBIG2 decoder ammendments 1 and 2 not implemented
+ - 7.6.4 saving document with password not implemented
+ - 7.6.5 Public-key security handlers not implemented
+ - 7.6.7 Unencrypted wrapper document not implemented
+ - 7.10.2 Only linear interpolation for sampled function is performed
+
+Section 8: Issues
+ - 8.3.2.3 In user space, 1 / 72 inch is used, no UserUnit entry is used
+ - 8.6.3 transfer functions and halftones are not used at all, color
+   management system is used to convert colors
+ - 8.6.5.6 No device to default color space is performed. Device color
+   spaces can be set in color management system.
+ - 8.6.5.8 default rendering intent is perceptual instead of relative colorimetric
+ - 8.6.5.9 Black point compensation is user setting, graphic state setting
+   is not respected (it is ignored)
+ - 8.6.7 Overprint not implemented
+ - 8.10.2 Some form dictionary entries, in table 93, are not all being processed
+ - 8.10.4 Reference XObject is not supported. Instead, proxy is displayed.
+
+Section 9: Issues
+ - 9.3.2 Negative font size is not supported
+ - 9.3.8 Text knockout not implemented
+ - 9.5 Some type of fonts not supported yet (CIDFont, some others)
+ - 9.6.2.1 Missing width is not used for missing characters
+ - 9.6.4 d1 operator incorrectly doesn't ignore color/alpha operators
+ - 9.7.4 CIDSystemInfo ignored in Table 115
+
+Section 10: Issues
+ - Color management system is used for color conversions. This can
+   be turned of, and in that case, methods from 10.4.2 are used.
+   Undercolor removal and black generation are not used.
+ - 10.6 Halftoning is not implemented
+ - 10.7.2 Flatness is ignored
+ - 10.7.3 Smoothness is ignored
+ - 10.7.5 Automatic stroke adjustment is ignored
+ - 10.8 Separations are not produced
+ - 10.8.3 Separation simulation is not performed
+
+Section 11: Not implemented
+ - Transparency is not implemented, only a small fraction of pdf's 
+   transparency works
+
+Section 12: Issues
+ - 12.3.2.2 Destinations are used only to leap on specified page,
+   position on page or fit hints are ignored
+ - 12.3.5.2 File collection folders are ignored, files are
+   displayed in a single list
+ - 12.3.6 Navigator for file collections is ignored
+ - 12.4.2 Page indices are used instead of labels
+ - 12.4.4 Presentations are not implemented
+ - 12.5.5 Annotation's transparency group is ignored
+ - 12.5.6.3 Annotation's states are not implemented in viewer
+ - 12.5.6.22 Watermark annotation - matrix and fixed print entry is not used
+ - 12.6.3 Some trigger events are not executed or not implemented
+ - 12.6.4 Some action are not executed in viewer
+ - 12.6.4.8 URI actions doesn't use IsMap
+ - 12.7.4.3 Variable text is implemented by Qt's QTextLayout
+   and drawing, pdf's specific default appearance strings,
+   and rich text is not implemented. This doesn't conform
+   to PDF specification, but all unicode characters can be used.
+ - 12.7.5.5 Signature field locking not implemented and signature
+   seed dictionary is ignored
+ - 12.7.6.2 Sumbit form action not implemented in viewer
+ - 12.7.6.4 Import data action not implemented in viewer
+ - 12.7.8 Form data format not implemented
+ - 12.8 Modification detection using UR3/DocMDP method is not
+   used, if signature is not valid, then it is not checked for
+   modifications
+ - 12.8 OCSP (Online Certificate Status Protocol) is not performed
+ - 12.8.4 Long term validation of signatures not performed
+ - 12.8.4.5 Validation data in custom VRI are not used, instead of them,
+   validation data in DSS or embedded in the signature are used
+ - 12.8.5 Document timestamp dictionary not implemented
+ - 12.8.6 Permissions not implemented
+ - 12.9 Measure feature not implemented
+ - 12.10 Geospatial features not implemented
+
+Section 13: Not implemented
+ - Multimedia features not implemented (except some classes, which
+   can read the data for multimedia - movies, sounds...)
+
+Section 14: Issues
+ - 14.3 Document metadata stream is not processed
+ - 14.4 Modifiable file identifier is not updated
+ - 14.5 Page-piece dictionaries not implemented
+ - 14.9 Accessibility support not implemented
+ - 14.10 Web capture not implemented
+ - 14.11 Prepress support not implemented at all, only
+   basic functionality works (media box, crop box, or,
+   for example, reading output intents)
+ - 14.12 Document parts not implemented
+
+Annex F: Not implemented
+ - Linearized PDF not implemented

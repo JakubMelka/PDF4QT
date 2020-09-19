@@ -2298,7 +2298,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColor()
         {
             color.push_back(readOperand<PDFReal>(i));
         }
-        m_graphicState.setStrokeColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this));
+        m_graphicState.setStrokeColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this, true));
         updateGraphicState();
         checkStrokingColor();
     }
@@ -2376,7 +2376,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColor()
         {
             color.push_back(readOperand<PDFReal>(i));
         }
-        m_graphicState.setFillColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this));
+        m_graphicState.setFillColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this, true));
         updateGraphicState();
         checkFillingColor();
     }

@@ -733,7 +733,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
                     }
                 }
 
-                return m_colorSpace->getColor(PDFAbstractColorSpace::convertToColor(colorBuffer), cms, intent, reporter);
+                return m_colorSpace->getColor(PDFAbstractColorSpace::convertToColor(colorBuffer), cms, intent, reporter, true);
             };
 
             PDFMesh::Triangle triangle1;
@@ -966,7 +966,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings, cons
             uint32_t bottomRight = mesh.addVertex(QPointF(item.first, yb));
 
             PDFColor mixedColor = PDFAbstractColorSpace::mixColors(previousColor, item.second, 0.5);
-            QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter);
+            QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter, true);
             mesh.addQuad(topLeft, topRight, bottomRight, bottomLeft, color.rgb());
 
             topLeft = topRight;
@@ -1392,7 +1392,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings, con
                 uint32_t v3 = mesh.addVertex(p3);
                 uint32_t v4 = mesh.addVertex(p4);
 
-                QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter);
+                QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter, true);
                 mesh.addQuad(v1, v2, v3, v4, color.rgb());
 
                 angle0 = angle1;
@@ -1780,7 +1780,7 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             color[i] = (c1[i] + c2[i] + c3[i]) * coefficient;
         }
         Q_ASSERT(colorComponents == m_colorSpace->getColorComponentCount());
-        QColor transformedColor = m_colorSpace->getColor(color, cms, intent, reporter);
+        QColor transformedColor = m_colorSpace->getColor(color, cms, intent, reporter, true);
 
         PDFMesh::Triangle triangle;
         triangle.v1 = v1;
@@ -2392,7 +2392,7 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
 
         QPointF center = triangle.getCenter();
         PDFColor color = getColorForUV(center.x(), center.y());
-        QRgb rgbColor = m_colorSpace->getColor(color, cms, intent, reporter).rgb();
+        QRgb rgbColor = m_colorSpace->getColor(color, cms, intent, reporter, true).rgb();
 
         PDFMesh::Triangle meshTriangle;
         meshTriangle.v1 = static_cast<uint32_t>(vertexIndex++);

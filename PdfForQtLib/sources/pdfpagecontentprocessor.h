@@ -764,7 +764,7 @@ private:
         const size_t colorSpaceComponentCount = colorSpace->getColorComponentCount();
         if (operandCount == colorSpaceComponentCount)
         {
-            return colorSpace->getColor(PDFColor(static_cast<PDFColorComponent>(operands)...), m_CMS, m_graphicState.getRenderingIntent(), this);
+            return colorSpace->getColor(PDFColor(static_cast<PDFColorComponent>(operands)...), m_CMS, m_graphicState.getRenderingIntent(), this, true);
         }
         else
         {
