@@ -241,6 +241,44 @@ PDFObject PDFDocumentReader::getObjectFromXrefTable(PDFXRefTable* xrefTable, PDF
     return PDFObject();
 }
 
+PDFObject PDFDocumentReader::readDamagedTrailerDictionary() const
+{
+    PDFObject object = PDFObject::createDictionary(std::make_shared<PDFDictionary>(PDFDictionary()));
+    PDFParsingContext context([](PDFParsingContext*, PDFObjectReference){ return PDFObject(); });
+
+    int offset = 0;
+    while (offset < m_source.size())
+    {
+        offset = m_source.indexOf(PDF_XREF_TRAILER, offset);
+
+        if (offset == -1)
+        {
+            break;
+        }
+
+        offset += static_cast<int>(std::strlen(PDF_XREF_TRAILER));
+
+        // Try to read trailer dictioanry
+        try
+        {
+            PDFParser parser(m_source, &context, PDFParser::None);
+            parser.seek(offset);
+
+            PDFObject trailerDictionaryObject = parser.getObject();
+            if (trailerDictionaryObject.isDictionary())
+            {
+                object = PDFObjectManipulator::merge(object, trailerDictionaryObject, PDFObjectManipulator::RemoveNullObjects);
+            }
+        }
+        catch (PDFException)
+        {
+            // Do nothing...
+        }
+    }
+
+    return object;
+}
+
 PDFDocumentReader::Result PDFDocumentReader::processReferenceTableEntries(PDFXRefTable* xrefTable, const std::vector<PDFXRefTable::Entry>& occupiedEntries, PDFObjectStorage::PDFObjects& objects)
 {
     auto objectFetcher = [this, xrefTable](PDFParsingContext* context, PDFObjectReference reference) { return getObjectFromXrefTable(xrefTable, context, reference); };
@@ -493,6 +531,8 @@ void PDFDocumentReader::processObjectStreams(PDFXRefTable* xrefTable, PDFObjectS
 
 PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 {
+    bool shouldTryPermissiveReading = true;
+
     try
     {
         m_source = buffer;
@@ -512,6 +552,11 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         PDFXRefTable xrefTable;
         xrefTable.readXRefTable(nullptr, buffer, firstXrefTableOffset);
 
+        if (xrefTable.getSize() == 0)
+        {
+            throw PDFException(tr("Empty xref table."));
+        }
+
         PDFObjectStorage::PDFObjects objects;
         objects.resize(xrefTable.getSize());
 
@@ -529,6 +574,10 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             return PDFDocument();
         }
 
+        // We are past security inicialization. Do not attempt to restore damaged document from
+        // this point. After this point, security is decrypted. If something fails here,
+        // then document can't be restored (user can't be asked multiple times for password).
+        shouldTryPermissiveReading = !m_securityHandler || m_securityHandler->getMode() == EncryptionMode::None;
         processObjectStreams(&xrefTable, objects);
 
         PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), qMove(m_securityHandler));
@@ -539,6 +588,190 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         m_result = Result::Failed;
         m_errorMessage = parserException.getMessage();
         m_warnings << m_errorMessage;
+    }
+
+    if (m_result == Result::Failed && m_permissive && shouldTryPermissiveReading)
+    {
+        return readDamagedDocumentFromBuffer(buffer);
+    }
+
+    return PDFDocument();
+}
+
+std::vector<std::pair<int, int>> PDFDocumentReader::findObjectByteOffsets(const QByteArray& buffer) const
+{
+    std::vector<std::pair<int, int>> offsets;
+    int lastOffset = 0;
+    const int shift = static_cast<int>(std::strlen(PDF_OBJECT_END_MARK));
+    while (lastOffset < buffer.size())
+    {
+        int offset = buffer.indexOf(PDF_OBJECT_END_MARK, lastOffset);
+
+        // Object end mark was not found
+        if (offset == -1)
+        {
+            break;
+        }
+
+        offset += shift;
+
+        int startOffset = buffer.indexOf(PDF_OBJECT_START_MARK, lastOffset);
+        if (startOffset != -1 && startOffset < offset)
+        {
+            --startOffset;
+
+            // Skip whitespace between obj and generation number
+            while (startOffset >= 0 && PDFLexicalAnalyzer::isWhitespace(buffer[startOffset]))
+            {
+                --startOffset;
+            }
+
+            // Skip generation number
+            while (startOffset >= 0 && std::isdigit(buffer[startOffset]))
+            {
+                --startOffset;
+            }
+
+            // Skip whitespace between generation number and object number
+            while (startOffset >= 0 && PDFLexicalAnalyzer::isWhitespace(buffer[startOffset]))
+            {
+                --startOffset;
+            }
+
+            // Skip object number
+            while (startOffset >= 0 && std::isdigit(buffer[startOffset]))
+            {
+                --startOffset;
+            }
+
+            ++startOffset;
+
+            if (startOffset < offset)
+            {
+                offsets.emplace_back(startOffset, offset);
+            }
+        }
+
+        lastOffset = offset;
+    }
+
+    return offsets;
+}
+
+bool PDFDocumentReader::restoreObjects(std::map<PDFObjectReference, PDFObject>& restoredObjects, const std::vector<std::pair<int, int>>& offsets)
+{
+    QMutex restoredObjectsMutex;
+    std::atomic_bool succesfull = true;
+
+    auto getObject = [&restoredObjects, &restoredObjectsMutex](PDFParsingContext*, PDFObjectReference reference)
+    {
+        QMutexLocker lock(&restoredObjectsMutex);
+
+        auto it = restoredObjects.find(reference);
+        if (it != restoredObjects.cend())
+        {
+            return it->second;
+        }
+
+        return PDFObject();
+    };
+
+    auto processOffsetEntry = [&, this](const std::pair<int, int>& offset)
+    {
+        PDFParsingContext context(getObject);
+        const int startOffset = offset.first;
+        const int endOffset = offset.second;
+
+        Q_ASSERT(startOffset >= 0 && startOffset < m_source.size());
+        Q_ASSERT(endOffset >= 0 && endOffset <= m_source.size());
+        Q_ASSERT(startOffset <= endOffset);
+
+        try
+        {
+            const char* begin = m_source.constData() + startOffset;
+            const char* end = m_source.constData() + endOffset;
+
+            PDFParser parser(begin, end, &context, PDFParser::AllowStreams);
+            PDFObject objectNumberObject = parser.getObject();
+            PDFObject objectGenerationObject = parser.getObject();
+            parser.fetchCommand(PDF_OBJECT_START_MARK);
+            PDFObject object = parser.getObject();
+
+            if (objectNumberObject.isInt() && objectGenerationObject.isInt() && !object.isNull())
+            {
+                PDFObjectReference reference(objectNumberObject.getInteger(), objectGenerationObject.getInteger());
+                if (reference.isValid())
+                {
+                    QMutexLocker lock(&restoredObjectsMutex);
+                    if (!restoredObjects.count(reference))
+                    {
+                        restoredObjects[reference] = qMove(object);
+                    }
+                }
+            }
+        }
+        catch (PDFException)
+        {
+            // Do nothing
+            succesfull = false;
+        }
+    };
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, offsets.cbegin(), offsets.cend(), processOffsetEntry);
+    return succesfull;
+}
+
+PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& buffer)
+{
+    try
+    {
+        m_result = Result::OK;
+
+        // Try to reconstruct trailer dictionary
+        std::map<PDFObjectReference, PDFObject> restoredObjects;
+
+        PDFObject trailerDictionaryObject = readDamagedTrailerDictionary();
+        if (!trailerDictionaryObject.isDictionary())
+        {
+            throw PDFException(PDFTranslationContext::tr("Trailer dictionary is not valid."));
+        }
+
+        // Jakub Melka: Try to parse objects - read offsets of objects. We must probably
+        // try second pass, if some streams have referenced objects.
+        std::vector<std::pair<int, int>> offsets = findObjectByteOffsets(buffer);
+        if (!restoreObjects(restoredObjects, offsets))
+        {
+            restoreObjects(restoredObjects, offsets);
+        }
+
+        // We will create security handler.
+        PDFObjectStorage::PDFObjects objects;
+        std::vector<PDFXRefTable::Entry> occupiedEntries;
+
+        if (!restoredObjects.empty())
+        {
+            objects.resize(restoredObjects.rbegin()->first.objectNumber + 1);
+
+            for (auto& objectItem : restoredObjects)
+            {
+                PDFObjectReference reference = objectItem.first;
+                PDFObjectStorage::Entry& entry = objects[reference.objectNumber];
+                entry.generation = reference.generation;
+                entry.object = qMove(objectItem.second);
+            }
+        }
+
+        if (processSecurityHandler(trailerDictionaryObject, occupiedEntries, objects) == Result::Cancelled)
+        {
+            return PDFDocument();
+        }
+
+        PDFObjectStorage storage(std::move(objects), PDFObject(trailerDictionaryObject), qMove(m_securityHandler));
+        return PDFDocument(std::move(storage), m_version);
+    }
+    catch (PDFException parserException)
+    {
+        m_result = Result::Failed;
+        m_warnings << parserException.getMessage();
     }
 
     return PDFDocument();

@@ -382,6 +382,9 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
                 templateString = tr("Timestamped by - %1");
                 break;
 
+            case pdf::PDFSignature::Type::Invalid:
+                continue;
+
             default:
                 Q_ASSERT(false);
                 break;

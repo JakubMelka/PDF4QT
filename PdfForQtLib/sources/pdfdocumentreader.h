@@ -105,10 +105,34 @@ private:
 
     /// This function fetches object from the buffer from the specified offset.
     /// Can throw exception, returns a pair of scanned reference and object content.
+    /// \param context Context
+    /// \param offset Offset
+    /// \param reference Reference to parsed object
     PDFObject getObject(PDFParsingContext* context, PDFInteger offset, PDFObjectReference reference) const;
+
+    /// Tries to restore objects from object list. This function can be used in multiple pass, because
+    /// for example streams, can have length defined in referred object. If such is the case, then
+    /// second pass is needed. Returns true, if all object were correctly read.
+    /// \param restoredObjects Map of restored objects
+    /// \param offsets Offsets, from which are objects being read
+    bool restoreObjects(std::map<PDFObjectReference, PDFObject>& restoredObjects, const std::vector<std::pair<int, int>>& offsets);
 
     /// Fetch object from reference table
     PDFObject getObjectFromXrefTable(PDFXRefTable* xrefTable, PDFParsingContext* context, PDFObjectReference reference) const;
+
+    /// Tries to read damaged trailer dictionary
+    PDFObject readDamagedTrailerDictionary() const;
+
+    /// Attempts to read a damaged PDF document from the specified buffer (byte array). If incorrect
+    /// PDF is read, then empty PDF document is returned. No exception is thrown.
+    PDFDocument readDamagedDocumentFromBuffer(const QByteArray& buffer);
+
+    /// This function is used, when damaged pdf document is being restored. It returns
+    /// array of hints, where objects should appear. It constists of pair of start offset,
+    /// and end offset. Start offset is always a valid index to the buffer, end offset
+    /// can be one index after the buffers end (it is end iterator).
+    /// \param buffer Buffer
+    std::vector<std::pair<int, int>> findObjectByteOffsets(const QByteArray& buffer) const;
 
     void progressStart(size_t stepCount, QString text);
     void progressStep();
