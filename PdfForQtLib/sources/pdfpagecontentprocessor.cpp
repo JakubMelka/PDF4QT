@@ -456,9 +456,14 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
     while (!parser.isAtEnd())
     {
+        bool tokenFetched = false;
+        PDFInteger oldParserPosition = parser.pos();
+
         try
         {
             PDFLexicalAnalyzer::Token token = parser.fetch();
+            tokenFetched = true;
+
             switch (token.type)
             {
                 case PDFLexicalAnalyzer::TokenType::Command:
@@ -603,6 +608,13 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
         }
         catch (PDFException exception)
         {
+            // If we get exception when parsing, and parser position is not advanced,
+            // then we must advance it manually, otherwise we get infinite loop.
+            if (!tokenFetched && oldParserPosition == parser.pos() && !parser.isAtEnd())
+            {
+                parser.seek(parser.pos() + 1);
+            }
+
             m_operands.clear();
             m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
         }
