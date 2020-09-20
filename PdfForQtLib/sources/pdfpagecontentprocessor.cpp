@@ -21,6 +21,7 @@
 #include "pdfimage.h"
 #include "pdfpattern.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfstreamfilters.h"
 
 #include <QPainterPathStroker>
 
@@ -548,8 +549,21 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                         }
                         else if (dictionary->hasKey("Filter"))
                         {
-                            // We will use EI operator position to determine stream length
-                            dataLength = operatorEIPosition - startDataPosition;
+                            dataLength = -1;
+
+                            // We will try to use stream filter hint
+                            PDFDocumentDataLoaderDecorator loader(m_document);
+                            QByteArray filterName = loader.readNameFromDictionary(dictionary, "Filter");
+                            if (!filterName.isEmpty())
+                            {
+                                dataLength = PDFStreamFilterStorage::getStreamDataLength(content, filterName, startDataPosition);
+                            }
+
+                            if (dataLength == -1)
+                            {
+                                // We will use EI operator position to determine stream length
+                                dataLength = operatorEIPosition - startDataPosition;
+                            }
                         }
                         else
                         {

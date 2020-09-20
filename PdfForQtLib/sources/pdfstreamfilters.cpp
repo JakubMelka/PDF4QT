@@ -457,6 +457,44 @@ QByteArray PDFFlateDecodeFilter::recompress(const QByteArray& data)
     return result;
 }
 
+PDFInteger PDFFlateDecodeFilter::getStreamDataLength(const QByteArray& data, PDFInteger offset) const
+{
+    if (offset < 0 || offset >= data.size())
+    {
+        return -1;
+    }
+
+    z_stream stream = { };
+    stream.next_in = const_cast<Bytef*>(convertByteArrayToUcharPtr(data) + offset);
+    stream.avail_in = data.size() - offset;
+
+    std::array<Bytef, 1024> outputBuffer = { };
+
+    int error = inflateInit(&stream);
+    if (error != Z_OK)
+    {
+        return -1;
+    }
+
+    do
+    {
+        stream.next_out = outputBuffer.data();
+        stream.avail_out = static_cast<uInt>(outputBuffer.size());
+
+        error = inflate(&stream, Z_NO_FLUSH);
+    } while (error == Z_OK);
+
+    PDFInteger dataLength = stream.total_in;
+    inflateEnd(&stream);
+
+    if (error == Z_STREAM_END)
+    {
+        return dataLength;
+    }
+
+    return -1;
+}
+
 QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
 {
     QByteArray result;
@@ -674,6 +712,16 @@ QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, con
 QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFSecurityHandler* securityHandler)
 {
     return getDecodedStream(stream, [](const PDFObject& object) -> const PDFObject& { return object; }, securityHandler);
+}
+
+PDFInteger PDFStreamFilterStorage::getStreamDataLength(const QByteArray& data, const QByteArray& filterName, PDFInteger offset)
+{
+    if (const PDFStreamFilter* filter = getFilter(filterName))
+    {
+        return filter->getStreamDataLength(data, offset);
+    }
+
+    return -1;
 }
 
 PDFStreamFilterStorage::PDFStreamFilterStorage()
@@ -929,6 +977,14 @@ QByteArray PDFCryptFilter::apply(const QByteArray& data,
     }
 
     return securityHandler->decryptByFilter(data, cryptFilterName, objectReference);
+}
+
+PDFInteger PDFStreamFilter::getStreamDataLength(const QByteArray& data, PDFInteger offset) const
+{
+    Q_UNUSED(data);
+    Q_UNUSED(offset);
+
+    return -1;
 }
 
 }   // namespace pdf

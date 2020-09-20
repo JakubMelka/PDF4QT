@@ -54,6 +54,14 @@ public:
     /// \param securityHandler Security handler for Crypt filters
     static QByteArray getDecodedStream(const PDFStream* stream, const PDFSecurityHandler* securityHandler);
 
+    /// Tries to find stream data length using given filter. Stream will
+    /// start at given \p offset in \p data. If stream length cannot be determined,
+    /// then -1 is returned.
+    /// \param data Buffer data
+    /// \param filterName Filter name
+    /// \param offset Offset to buffer, at which stream data starts
+    static PDFInteger getStreamDataLength(const QByteArray& data, const QByteArray& filterName, PDFInteger offset);
+
     struct StreamFilters
     {
         bool valid = true;
@@ -148,6 +156,12 @@ public:
     {
         return apply(data, [](const PDFObject& object) -> const PDFObject& { return object; }, parameters, securityHandler);
     }
+
+    /// Tries to find stream data length. Stream will start at given \p offset in \p data.
+    /// If stream length cannot be determined, then -1 is returned.
+    /// \param data Buffer data
+    /// \param offset Offset to buffer, at which stream data starts
+    virtual PDFInteger getStreamDataLength(const QByteArray& data, PDFInteger offset) const;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
@@ -196,6 +210,8 @@ public:
                              const PDFObjectFetcher& objectFetcher,
                              const PDFObject& parameters,
                              const PDFSecurityHandler* securityHandler) const override;
+
+    virtual PDFInteger getStreamDataLength(const QByteArray& data, PDFInteger offset) const;
 
     /// Recompresses data. So, first, data are decompressed, and then
     /// recompressed again with maximal compress ratio possible.
