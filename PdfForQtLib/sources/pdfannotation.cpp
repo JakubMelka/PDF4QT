@@ -3147,47 +3147,96 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                     {
                         QRectF rectangle = getRectangle();
 
-                        QByteArray defaultAppearance = parameters.formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
-                        PDFAnnotationDefaultAppearance appearance = PDFAnnotationDefaultAppearance::parse(defaultAppearance);
-
-                        qreal fontSize = appearance.getFontSize();
-                        if (qFuzzyIsNull(fontSize))
+                        if (!getContents().isEmpty())
                         {
-                            fontSize = rectangle.height() * 0.6;
+                            QByteArray defaultAppearance = parameters.formManager->getForm()->getDefaultAppearance().value_or(QByteArray());
+                            PDFAnnotationDefaultAppearance appearance = PDFAnnotationDefaultAppearance::parse(defaultAppearance);
+
+                            qreal fontSize = appearance.getFontSize();
+                            if (qFuzzyIsNull(fontSize))
+                            {
+                                fontSize = rectangle.height() * 0.6;
+                            }
+
+                            QFont font(appearance.getFontName());
+                            font.setHintingPreference(QFont::PreferNoHinting);
+                            font.setPixelSize(qCeil(fontSize));
+                            font.setStyleStrategy(QFont::ForceOutline);
+
+                            QFontMetrics fontMetrics(font);
+
+                            QPainter* painter = parameters.painter;
+                            painter->translate(rectangle.bottomLeft());
+                            painter->scale(1.0, -1.0);
+                            painter->setFont(font);
+
+                            QStyleOptionButton option;
+                            option.state = QStyle::State_Enabled;
+                            option.rect = QRect(0, 0, qFloor(rectangle.width()), qFloor(rectangle.height()));
+                            option.palette = QApplication::palette();
+
+                            if (parameters.key.first == PDFAppeareanceStreams::Appearance::Rollover)
+                            {
+                                option.state |= QStyle::State_MouseOver;
+                            }
+
+                            if (parameters.key.first == PDFAppeareanceStreams::Appearance::Down)
+                            {
+                                option.state |= QStyle::State_Sunken;
+                            }
+
+                            option.features = QStyleOptionButton::None;
+                            option.text = getContents();
+                            option.fontMetrics = fontMetrics;
+
+                            QApplication::style()->drawControl(QStyle::CE_PushButton, &option, painter, nullptr);
                         }
-
-                        QFont font(appearance.getFontName());
-                        font.setHintingPreference(QFont::PreferNoHinting);
-                        font.setPixelSize(qCeil(fontSize));
-                        font.setStyleStrategy(QFont::ForceOutline);
-
-                        QFontMetrics fontMetrics(font);
-
-                        QPainter* painter = parameters.painter;
-                        painter->translate(rectangle.bottomLeft());
-                        painter->scale(1.0, -1.0);
-                        painter->setFont(font);
-
-                        QStyleOptionButton option;
-                        option.state = QStyle::State_Enabled;
-                        option.rect = QRect(0, 0, qFloor(rectangle.width()), qFloor(rectangle.height()));
-                        option.palette = QApplication::palette();
-
-                        if (parameters.key.first == PDFAppeareanceStreams::Appearance::Rollover)
+                        else
                         {
-                            option.state |= QStyle::State_MouseOver;
+                            // This is push button without text. Just mark the area as highlighted.
+                            QPainter* painter = parameters.painter;
+
+                            if (parameters.key.first == PDFAppeareanceStreams::Appearance::Rollover ||
+                                parameters.key.first == PDFAppeareanceStreams::Appearance::Down)
+                            {
+                                switch (m_highlightMode)
+                                {
+                                    case LinkHighlightMode::Invert:
+                                    {
+                                        // Invert all
+                                        painter->setCompositionMode(QPainter::CompositionMode_Difference);
+                                        painter->fillRect(rectangle, QBrush(Qt::white, Qt::SolidPattern));
+                                        break;
+                                    }
+
+                                    case LinkHighlightMode::Outline:
+                                    {
+                                        // Invert the border
+                                        painter->setCompositionMode(QPainter::CompositionMode_Difference);
+                                        QPen pen = getPen();
+                                        pen.setColor(Qt::white);
+                                        painter->setPen(pen);
+                                        painter->setBrush(Qt::NoBrush);
+                                        painter->drawRect(rectangle);
+                                        break;
+                                    }
+
+                                    case LinkHighlightMode::Push:
+                                    {
+                                        // Draw border
+                                        painter->setCompositionMode(getCompositionMode());
+                                        painter->setPen(getPen());
+                                        painter->setBrush(Qt::NoBrush);
+                                        painter->drawRect(rectangle);
+                                        break;
+                                    }
+
+                                    default:
+                                        Q_ASSERT(false);
+                                        break;
+                                }
+                            }
                         }
-
-                        if (parameters.key.first == PDFAppeareanceStreams::Appearance::Down)
-                        {
-                            option.state |= QStyle::State_Sunken;
-                        }
-
-                        option.features = QStyleOptionButton::None;
-                        option.text = getContents();
-                        option.fontMetrics = fontMetrics;
-
-                        QApplication::style()->drawControl(QStyle::CE_PushButton, &option, painter, nullptr);
                         break;
                     }
 
