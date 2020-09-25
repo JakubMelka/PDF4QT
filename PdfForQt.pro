@@ -22,6 +22,7 @@ SUBDIRS += \
     JBIG2_Viewer \
     PdfExampleGenerator \
     PdfForQtLib \
+    PdfTool \
     UnitTests \
     PdfForQtViewer
 

@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PDF Viewer");
-    QCoreApplication::setApplicationVersion("0.1");
+    QCoreApplication::setApplicationVersion("1.0.0");
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
