@@ -42,6 +42,7 @@ LIBS += -lPDFForQtLib
 
 SOURCES += \
         main.cpp \
+        pdfoutputformatter.cpp \
         pdftoolabstractapplication.cpp
 
 # Default rules for deployment.
@@ -54,4 +55,5 @@ application.path = $$DESTDIR/install
 INSTALLS += application
 
 HEADERS += \
+    pdfoutputformatter.h \
     pdftoolabstractapplication.h
