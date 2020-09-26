@@ -23,6 +23,10 @@
 
 #include <stack>
 
+#ifdef Q_OS_WIN
+#include "Windows.h"
+#endif
+
 namespace pdftool
 {
 
@@ -49,6 +53,9 @@ public:
 
     /// Get result string in unicode.
     virtual QString getString() const = 0;
+
+    /// Ends current line (for formatters, that support it)
+    virtual void endl() { }
 };
 
 class PDFTextOutputFormatterImpl : public PDFOutputFormatterImpl
@@ -59,6 +66,7 @@ public:
     virtual void beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference) override;
     virtual void endElement() override;
     virtual QString getString() const override;
+    virtual void endl() override;
 
 private:
     static constexpr const int INDENT_STEP = 2;
@@ -75,7 +83,6 @@ private:
 
     QString m_string;
     QTextStream m_streamWriter;
-    int m_depth;
     int m_indent;
     std::stack<PDFOutputFormatter::Element> m_elementStack;
     std::vector<std::vector<TableCell>> m_table;
@@ -106,6 +113,7 @@ public:
     virtual void beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference) override;
     virtual void endElement() override;
     virtual QString getString() const override;
+    virtual void endl() override;
 
 private:
     QString m_string;
@@ -118,7 +126,6 @@ private:
 PDFTextOutputFormatterImpl::PDFTextOutputFormatterImpl() :
     m_string(),
     m_streamWriter(&m_string, QIODevice::WriteOnly),
-    m_depth(0),
     m_elementStack()
 {
 
@@ -126,11 +133,14 @@ PDFTextOutputFormatterImpl::PDFTextOutputFormatterImpl() :
 
 void PDFTextOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference)
 {
+    Q_UNUSED(name);
     Q_UNUSED(reference);
+
     m_elementStack.push(type);
 
     switch (type)
     {
+        case PDFOutputFormatter::Element::Text:
         case PDFOutputFormatter::Element::Root:
         {
             m_streamWriter << description << Qt::endl;
@@ -172,19 +182,16 @@ void PDFTextOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, 
             break;
         }
     }
-
-    // Increment depth by one
-    ++m_depth;
 }
 
 void PDFTextOutputFormatterImpl::endElement()
 {
     PDFOutputFormatter::Element type = m_elementStack.top();
     m_elementStack.pop();
-    --m_depth;
 
     switch (type)
     {
+        case PDFOutputFormatter::Element::Text:
         case PDFOutputFormatter::Element::Root:
         {
             m_indent -= INDENT_STEP;
@@ -269,6 +276,11 @@ QString PDFTextOutputFormatterImpl::getString() const
     return m_string;
 }
 
+void PDFTextOutputFormatterImpl::endl()
+{
+    m_streamWriter << Qt::endl;
+}
+
 void PDFTextOutputFormatterImpl::writeIndent()
 {
     QString str(m_indent, QChar(QChar::Space));
@@ -348,6 +360,12 @@ void PDFHtmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, 
             m_streamWriter.writeStartElement("p");
             m_streamWriter.writeTextElement(headerTag, description);
             m_streamWriter.writeEndElement();
+            break;
+        }
+
+        case PDFOutputFormatter::Element::Text:
+        {
+            m_streamWriter.writeTextElement("p", description);
             break;
         }
 
@@ -431,6 +449,7 @@ void PDFHtmlOutputFormatterImpl::endElement()
 
         case PDFOutputFormatter::Element::TableHeaderColumn:
         case PDFOutputFormatter::Element::TableColumn:
+        case PDFOutputFormatter::Element::Text:
         {
             // Do nothing...
             break;
@@ -450,6 +469,12 @@ QString PDFHtmlOutputFormatterImpl::getString() const
     html.remove(0, html.indexOf("?>") + 2);
     html.prepend("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">");
     return html;
+}
+
+void PDFHtmlOutputFormatterImpl::endl()
+{
+    m_streamWriter.writeStartElement("br");
+    m_streamWriter.writeEndElement();
 }
 
 PDFXmlOutputFormatterImpl::PDFXmlOutputFormatterImpl() :
@@ -483,6 +508,7 @@ void PDFXmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, Q
             break;
         }
 
+        case PDFOutputFormatter::Element::Text:
         case PDFOutputFormatter::Element::TableColumn:
         case PDFOutputFormatter::Element::TableHeaderColumn:
         {
@@ -563,9 +589,23 @@ void PDFOutputFormatter::endElement()
     m_impl->endElement();
 }
 
+void PDFOutputFormatter::endl()
+{
+    m_impl->endl();
+}
+
 QString PDFOutputFormatter::getString() const
 {
     return m_impl->getString();
+}
+
+void PDFConsole::writeText(QString text)
+{
+#ifdef Q_OS_WIN
+    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), text.utf16(), text.size(), nullptr, nullptr);
+#else
+    QTextStream(stdout) << text;
+#endif
 }
 
 }   // pdftool

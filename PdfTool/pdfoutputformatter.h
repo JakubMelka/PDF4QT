@@ -44,6 +44,7 @@ public:
     {
         Root,               ///< Root element, this must be used only once at start/end of writing
         Header,             ///< Header
+        Text,               ///< Ordinary text
         Table,              ///< Table of rows/columns (2D grid)
         TableHeaderRow,     ///< Table header row (consists of columns)
         TableHeaderColumn,  ///< Table header column
@@ -66,11 +67,36 @@ public:
     /// Ends current element. Must match with a call of \p beginElement
     void endElement();
 
+    inline void beginDocument(QString name, QString description) { beginElement(Element::Root, name, description); }
+    inline void endDocument() { endElement(); }
+    inline void beginTable(QString name, QString description) { beginElement(Element::Table, name, description); }
+    inline void endTable() { endElement(); }
+    inline void beginTableHeaderRow(QString name) { beginElement(Element::TableHeaderRow, name); }
+    inline void endTableHeaderRow() { endElement(); }
+    inline void beginTableRow(QString name) { beginElement(Element::TableRow, name); }
+    inline void endTableRow() { endElement(); }
+    inline void writeTableHeaderColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignCenter) { beginElement(Element::TableHeaderColumn, name, description, alignment); endElement(); }
+    inline void writeTableColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableColumn, name, description, alignment); endElement(); }
+
+    /// Ends current line
+    void endl();
+
     /// Get result string in unicode.
     QString getString() const;
 
 private:
     PDFOutputFormatterImpl* m_impl;
+};
+
+class PDFConsole
+{
+public:
+
+    /// Writes text to the console
+    static void writeText(QString text);
+
+private:
+    explicit PDFConsole() = delete;
 };
 
 }   // namespace pdftool

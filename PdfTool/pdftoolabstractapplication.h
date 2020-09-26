@@ -18,6 +18,8 @@
 #ifndef PDFTOOLABSTRACTAPPLICATION_H
 #define PDFTOOLABSTRACTAPPLICATION_H
 
+#include "pdfoutputformatter.h"
+
 #include <QtGlobal>
 #include <QString>
 #include <QCoreApplication>
@@ -38,6 +40,7 @@ struct PDFToolOptions
 {
     QString document;
     QString password;
+    PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
 };
 
 /// Base class for all applications
@@ -47,6 +50,11 @@ public:
     explicit PDFToolAbstractApplication(bool isDefault = false);
     virtual ~PDFToolAbstractApplication() = default;
 
+    enum ExitCodes
+    {
+        ExitSuccess = EXIT_SUCCESS
+    };
+
     enum StandardString
     {
         Command,        ///< Command, by which is this application invoked
@@ -54,8 +62,15 @@ public:
         Description     ///< Description (what this application does)
     };
 
+    enum Option
+    {
+        ConsoleFormat = 0x0001,     ///< Set format of console output (text, xml or html)
+    };
+    Q_DECLARE_FLAGS(Options, Option)
+
     virtual QString getStandardString(StandardString standardString) const = 0;
     virtual int execute(const PDFToolOptions& options) = 0;
+    virtual Options getOptionsFlags() const = 0;
 
     void initializeCommandLineParser(QCommandLineParser* parser) const;
     PDFToolOptions getOptions(QCommandLineParser* parser) const;
@@ -82,6 +97,9 @@ public:
     /// Returns default application
     /// \returns Default application
     static PDFToolAbstractApplication* getDefaultApplication();
+
+    /// Returns a list of available applications
+    static const std::vector<PDFToolAbstractApplication*>& getApplications();
 
 private:
     PDFToolApplicationStorage() = default;

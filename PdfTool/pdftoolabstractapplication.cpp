@@ -17,6 +17,8 @@
 
 #include "pdftoolabstractapplication.h"
 
+#include <QCommandLineParser>
+
 namespace pdftool
 {
 
@@ -27,6 +29,7 @@ public:
 
     virtual QString getStandardString(StandardString standardString) const override;
     virtual int execute(const PDFToolOptions& options) override;
+    virtual Options getOptionsFlags() const override;
 };
 
 static PDFToolHelpApplication s_helpApplication;
@@ -54,7 +57,64 @@ QString PDFToolHelpApplication::getStandardString(StandardString standardString)
 
 int PDFToolHelpApplication::execute(const PDFToolOptions& options)
 {
-    return EXIT_SUCCESS;
+    PDFOutputFormatter formatter(options.outputStyle);
+    formatter.beginDocument("help", PDFToolTranslationContext::tr("PDFTool help"));
+    formatter.endl();
+
+    formatter.beginTable("commands", PDFToolTranslationContext::tr("List of available commands"));
+
+    // Table header
+    formatter.beginTableHeaderRow("header");
+    formatter.writeTableHeaderColumn("command", PDFToolTranslationContext::tr("Command"));
+    formatter.writeTableHeaderColumn("tool", PDFToolTranslationContext::tr("Tool"));
+    formatter.writeTableHeaderColumn("description", PDFToolTranslationContext::tr("Description"));
+    formatter.endTableHeaderRow();
+
+    struct Info
+    {
+        bool operator<(const Info& other) const
+        {
+            return command < other.command;
+        }
+
+        QString command;
+        QString name;
+        QString description;
+    };
+
+    std::vector<Info> infos;
+    for (PDFToolAbstractApplication* application : PDFToolApplicationStorage::getApplications())
+    {
+        Info info;
+
+        info.command = application->getStandardString(Command);
+        info.name = application->getStandardString(Name);
+        info.description = application->getStandardString(Description);
+
+        infos.emplace_back(qMove(info));
+    }
+    qSort(infos);
+
+    for (const Info& info : infos)
+    {
+        formatter.beginTableRow("command");
+        formatter.writeTableColumn("command", info.command);
+        formatter.writeTableColumn("name", info.name);
+        formatter.writeTableColumn("description", info.description);
+        formatter.endTableRow();
+    }
+
+    formatter.endTable();
+
+    formatter.endDocument();
+
+    PDFConsole::writeText(formatter.getString());
+    return ExitSuccess;
+}
+
+PDFToolAbstractApplication::Options PDFToolHelpApplication::getOptionsFlags() const
+{
+    return ConsoleFormat;
 }
 
 PDFToolAbstractApplication::PDFToolAbstractApplication(bool isDefault)
@@ -64,12 +124,39 @@ PDFToolAbstractApplication::PDFToolAbstractApplication(bool isDefault)
 
 void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser* parser) const
 {
+    Options optionFlags = getOptionsFlags();
 
+    if (optionFlags.testFlag(ConsoleFormat))
+    {
+        parser->addOption(QCommandLineOption("console-format", "Console output text format (valid values: text|xml|html).", "console-format", "text"));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
 {
     PDFToolOptions options;
+
+    Options optionFlags = getOptionsFlags();
+    if (optionFlags.testFlag(ConsoleFormat))
+    {
+        QString consoleFormat = parser->value("console-format");
+        if (consoleFormat == "text")
+        {
+            options.outputStyle = PDFOutputFormatter::Style::Text;
+        }
+        else if (consoleFormat == "xml")
+        {
+            options.outputStyle = PDFOutputFormatter::Style::Xml;
+        }
+        else if (consoleFormat == "html")
+        {
+            options.outputStyle = PDFOutputFormatter::Style::Html;
+        }
+        else
+        {
+            options.outputStyle = PDFOutputFormatter::Style::Text;
+        }
+    }
 
     return options;
 }
@@ -101,6 +188,11 @@ void PDFToolApplicationStorage::registerApplication(PDFToolAbstractApplication* 
 PDFToolAbstractApplication* PDFToolApplicationStorage::getDefaultApplication()
 {
     return getInstance()->m_defaultApplication;
+}
+
+const std::vector<PDFToolAbstractApplication*>& PDFToolApplicationStorage::getApplications()
+{
+    return getInstance()->m_applications;
 }
 
 PDFToolApplicationStorage* PDFToolApplicationStorage::getInstance()
