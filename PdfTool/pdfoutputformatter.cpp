@@ -103,6 +103,7 @@ private:
     QString m_prefix;
     QXmlStreamWriter m_streamWriter;
     int m_depth;
+    std::stack<PDFOutputFormatter::Element> m_elementStack;
 };
 
 class PDFHtmlOutputFormatterImpl : public PDFOutputFormatterImpl
@@ -126,6 +127,7 @@ private:
 PDFTextOutputFormatterImpl::PDFTextOutputFormatterImpl() :
     m_string(),
     m_streamWriter(&m_string, QIODevice::WriteOnly),
+    m_indent(0),
     m_elementStack()
 {
 
@@ -143,6 +145,7 @@ void PDFTextOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, 
         case PDFOutputFormatter::Element::Text:
         case PDFOutputFormatter::Element::Root:
         {
+            writeIndent();
             m_streamWriter << description << Qt::endl;
             m_indent += INDENT_STEP;
             break;
@@ -221,6 +224,9 @@ void PDFTextOutputFormatterImpl::endElement()
             {
                 for (size_t column = 0; column < columns; ++column)
                 {
+                    m_streamWriter.setFieldWidth(0);
+                    writeIndent();
+
                     const TableCell& tableCell = getTableCell(row, column);
                     m_streamWriter.setFieldWidth(columnSize[column]);
 
@@ -493,6 +499,8 @@ void PDFXmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, Q
 {
     Q_UNUSED(alignment);
 
+    m_elementStack.push(type);
+
     switch (type)
     {
         case PDFOutputFormatter::Element::Root:
@@ -539,10 +547,24 @@ void PDFXmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, Q
 
 void PDFXmlOutputFormatterImpl::endElement()
 {
-    m_streamWriter.writeEndElement();
+    PDFOutputFormatter::Element type = m_elementStack.top();
+    m_elementStack.pop();
+    --m_depth;
+
+    switch (type)
+    {
+        case PDFOutputFormatter::Element::Text:
+        case PDFOutputFormatter::Element::TableColumn:
+        case PDFOutputFormatter::Element::TableHeaderColumn:
+            break;
+
+        default:
+            m_streamWriter.writeEndElement();
+            break;
+    }
 
     // Do we finish the document? If yes, then tell stream writer to end the document
-    if (--m_depth == 0)
+    if (m_depth == 0)
     {
         m_streamWriter.writeEndDocument();
     }
