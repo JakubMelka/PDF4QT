@@ -365,12 +365,14 @@ public:
     const QString& getSignatureFieldQualifiedName() const { return m_signatureFieldQualifiedName; }
     const QStringList& getErrors() const { return m_errors; }
     const QStringList& getWarnings() const { return m_warnings; }
+    const QStringList& getHashAlgorithms() const { return m_hashAlgorithms; }
     const PDFCertificateInfos& getCertificateInfos() const { return m_certificateInfos; }
 
     void setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName);
     void setSignatureFieldReference(PDFObjectReference signatureFieldReference);
 
     void addCertificateInfo(PDFCertificateInfo info) { m_certificateInfos.emplace_back(qMove(info)); }
+    void addHashAlgorithm(const QString& algorithm);
 
     /// Adds OK flag, if both certificate and signature are valid
     void validate();
@@ -382,6 +384,7 @@ private:
     QString m_signatureFieldQualifiedName;
     QStringList m_errors;
     QStringList m_warnings;
+    QStringList m_hashAlgorithms;
     PDFCertificateInfos m_certificateInfos;
 };
 
@@ -479,6 +482,15 @@ public:
 
     /// Set certificates
     void setCertificates(CertificateEntries certificates) { m_certificates = qMove(certificates); }
+
+    /// Returns default certificate store file name
+    QString getDefaultCertificateStoreFileName() const;
+
+    /// Load from default user certificate storage
+    void loadDefaultUserCertificates();
+
+    /// Save to default user certificate storage
+    void saveDefaultUserCertificates();
 
 private:
     static constexpr int persist_version = 1;

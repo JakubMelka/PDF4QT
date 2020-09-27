@@ -38,9 +38,20 @@ struct PDFToolTranslationContext
 
 struct PDFToolOptions
 {
+    // For option 'ConsoleFormat'
+    PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
+
+    // For option 'OpenDocument'
     QString document;
     QString password;
-    PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
+    bool permissiveReading = true;
+
+    // For option 'SignatureVerification'
+    bool verificationUseUserCertificates = true;
+    bool verificationUseSystemCertificates = true;
+    bool verificationOmitCertificateCheck = false;
+    bool verificationPrintCertificateDetails = false;
+    bool verificationIgnoreExpirationDate = false;
 };
 
 /// Base class for all applications
@@ -52,7 +63,9 @@ public:
 
     enum ExitCodes
     {
-        ExitSuccess = EXIT_SUCCESS
+        ExitSuccess = EXIT_SUCCESS,
+        ErrorNoDocumentSpecified,
+        ErrorDocumentReading
     };
 
     enum StandardString
@@ -64,7 +77,9 @@ public:
 
     enum Option
     {
-        ConsoleFormat = 0x0001,     ///< Set format of console output (text, xml or html)
+        ConsoleFormat           = 0x0001,       ///< Set format of console output (text, xml or html)
+        OpenDocument            = 0x0002,       ///< Flags for document reading
+        SignatureVerification   = 0x0004,       ///< Flags for signature verification
     };
     Q_DECLARE_FLAGS(Options, Option)
 

@@ -430,6 +430,13 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
             item->setIcon(0, warningIcon);
         }
 
+        QString hashAlgorithms = signature.getHashAlgorithms().join(", ");
+        if (!hashAlgorithms.isEmpty())
+        {
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(tr("Hash algorithms: %1").arg(hashAlgorithms)));
+            item->setIcon(0, infoIcon);
+        }
+
         if (certificateInfo)
         {
             QTreeWidgetItem* certChainRoot = new QTreeWidgetItem(rootItem, QStringList(tr("Certificate validation chain")));

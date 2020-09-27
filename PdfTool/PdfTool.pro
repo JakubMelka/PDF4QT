@@ -15,8 +15,6 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-QT -= gui
-
 CONFIG += c++11 console
 CONFIG -= app_bundle
 
@@ -43,7 +41,8 @@ LIBS += -lPDFForQtLib
 SOURCES += \
         main.cpp \
         pdfoutputformatter.cpp \
-        pdftoolabstractapplication.cpp
+        pdftoolabstractapplication.cpp \
+        pdftoolverifysignatures.cpp
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -56,4 +55,5 @@ INSTALLS += application
 
 HEADERS += \
     pdfoutputformatter.h \
-    pdftoolabstractapplication.h
+    pdftoolabstractapplication.h \
+    pdftoolverifysignatures.h

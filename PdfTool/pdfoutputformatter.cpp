@@ -630,4 +630,13 @@ void PDFConsole::writeText(QString text)
 #endif
 }
 
+void PDFConsole::writeError(QString text)
+{
+#ifdef Q_OS_WIN
+    WriteConsoleW(GetStdHandle(STD_ERROR_HANDLE), text.utf16(), text.size(), nullptr, nullptr);
+#else
+    QTextStream(stdout) << text;
+#endif
+}
+
 }   // pdftool

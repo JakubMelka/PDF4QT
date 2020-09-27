@@ -130,11 +130,29 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     {
         parser->addOption(QCommandLineOption("console-format", "Console output text format (valid values: text|xml|html).", "console-format", "text"));
     }
+
+    if (optionFlags.testFlag(OpenDocument))
+    {
+        parser->addOption(QCommandLineOption("pswd", "Password for encrypted document.", "password"));
+        parser->addPositionalArgument("document", "Processed document.");
+        parser->addOption(QCommandLineOption("no-permissive-reading", "Do not attempt to fix damaged documents."));
+    }
+
+    if (optionFlags.testFlag(SignatureVerification))
+    {
+        parser->addOption(QCommandLineOption("ver-no-user-cert", "Disable user certificate store."));
+        parser->addOption(QCommandLineOption("ver-no-sys-cert", "Disable system certificate store."));
+        parser->addOption(QCommandLineOption("ver-no-cert-check", "Disable certificate validation."));
+        parser->addOption(QCommandLineOption("ver-cert-details", "Print certificate details (including chain, if found)."));
+        parser->addOption(QCommandLineOption("ver-ignore-exp-date", "Ignore certificate expiration date."));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
 {
     PDFToolOptions options;
+
+    QStringList positionalArguments = parser->positionalArguments();
 
     Options optionFlags = getOptionsFlags();
     if (optionFlags.testFlag(ConsoleFormat))
@@ -154,8 +172,29 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         }
         else
         {
+            if (!consoleFormat.isEmpty())
+            {
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console format '%1'. Defaulting to text console format.").arg(consoleFormat));
+            }
+
             options.outputStyle = PDFOutputFormatter::Style::Text;
         }
+    }
+
+    if (optionFlags.testFlag(OpenDocument))
+    {
+        options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
+        options.password = parser->value("password");
+        options.permissiveReading = !parser->isSet("no-permissive-reading");
+    }
+
+    if (optionFlags.testFlag(SignatureVerification))
+    {
+        options.verificationUseUserCertificates = !parser->isSet("ver-no-user-cert");
+        options.verificationUseSystemCertificates = !parser->isSet("ver-no-sys-cert");
+        options.verificationOmitCertificateCheck = parser->isSet("ver-no-cert-check");
+        options.verificationPrintCertificateDetails = parser->isSet("ver-cert-details");
+        options.verificationIgnoreExpirationDate = parser->isSet("ver-ignore-exp-date");
     }
 
     return options;

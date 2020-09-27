@@ -353,6 +353,14 @@ void PDFSignatureVerificationResult::setSignatureFieldReference(PDFObjectReferen
     m_signatureFieldReference = signatureFieldReference;
 }
 
+void PDFSignatureVerificationResult::addHashAlgorithm(const QString& algorithm)
+{
+    if (!m_hashAlgorithms.contains(algorithm))
+    {
+        m_hashAlgorithms << algorithm;
+    }
+}
+
 void PDFSignatureVerificationResult::validate()
 {
     if (isCertificateValid() && isSignatureValid())
@@ -658,6 +666,13 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
                         {
                             result.addSignatureCertificateMissingError();
                             break;
+                        }
+
+                        if (signerInfoValue->digest_alg && signerInfoValue->digest_alg->algorithm)
+                        {
+                            std::array<char, 64> buffer = { };
+                            OBJ_obj2txt(buffer.data(), int(buffer.size() - 1), signerInfoValue->digest_alg->algorithm, 0);
+                            result.addHashAlgorithm(QString::fromLatin1(buffer.data()));
                         }
 
                         const int verification = PKCS7_signatureVerify(dataBio, pkcs7, signerInfoValue, signer);
@@ -1339,7 +1354,7 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVer
         const unsigned int encryptedSignLength = signKey.length();
         if (ASN1_OCTET_STRING* encryptedString = d2i_ASN1_OCTET_STRING(nullptr, &encryptedSign, encryptedSignLength))
         {
-            int algorithmNID = 0;
+            int algorithmNID = NID_undef;
             QByteArray digestBuffer;
             if (!getMessageDigest(outputBuffer, encryptedString, rsa, algorithmNID, digestBuffer))
             {
@@ -1352,6 +1367,10 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVer
 
             const unsigned char* digest = convertByteArrayToUcharPtr(digestBuffer);
             const unsigned int digestLength = digestBuffer.length();
+
+            std::array<char, 64> buffer = { };
+            OBJ_obj2txt(buffer.data(), int(buffer.size() - 1), OBJ_nid2obj(algorithmNID), 0);
+            result.addHashAlgorithm(QString::fromLatin1(buffer.data()));
 
             const int verifyValue = RSA_verify(algorithmNID, digest, digestLength, encryptedString->data, encryptedString->length, rsa);
             ASN1_OCTET_STRING_free(encryptedString);
@@ -1758,6 +1777,53 @@ bool PDFCertificateStore::add(EntryType type, PDFCertificateInfo info)
 bool PDFCertificateStore::contains(const PDFCertificateInfo& info)
 {
     return std::find_if(m_certificates.cbegin(), m_certificates.cend(), [&info](const auto& entry) { return entry.info == info; }) != m_certificates.cend();
+}
+
+QString PDFCertificateStore::getDefaultCertificateStoreFileName() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + "/TrustedCertStorage.bin";
+}
+
+void PDFCertificateStore::loadDefaultUserCertificates()
+{
+    QString trustedCertificateStoreFileName = getDefaultCertificateStoreFileName();
+    QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
+
+    QLockFile lockFile(trustedCertificateStoreLockFileName);
+    if (lockFile.lock())
+    {
+        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
+        if (trustedCertificateStoreFile.open(QFile::ReadOnly))
+        {
+            QDataStream stream(&trustedCertificateStoreFile);
+            deserialize(stream);
+            trustedCertificateStoreFile.close();
+        }
+        lockFile.unlock();
+    }
+}
+
+void PDFCertificateStore::saveDefaultUserCertificates()
+{
+    QString trustedCertificateStoreFileName = getDefaultCertificateStoreFileName();
+    QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
+
+    QFileInfo fileInfo(trustedCertificateStoreFileName);
+    QDir dir = fileInfo.dir();
+    dir.mkpath(dir.path());
+
+    QLockFile lockFile(trustedCertificateStoreLockFileName);
+    if (lockFile.lock())
+    {
+        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
+        if (trustedCertificateStoreFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QDataStream stream(&trustedCertificateStoreFile);
+            serialize(stream);
+            trustedCertificateStoreFile.close();
+        }
+        lockFile.unlock();
+    }
 }
 
 }   // namespace pdf

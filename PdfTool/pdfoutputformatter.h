@@ -95,6 +95,9 @@ public:
     /// Writes text to the console
     static void writeText(QString text);
 
+    /// Writes error to the console
+    static void writeError(QString text);
+
 private:
     explicit PDFConsole() = delete;
 };

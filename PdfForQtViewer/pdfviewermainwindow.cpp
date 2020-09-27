@@ -735,21 +735,7 @@ void PDFViewerMainWindow::readActionSettings()
     settings.endGroup();
 
     // Load trusted certificates
-    QString trustedCertificateStoreFileName = getTrustedCertificateStoreFileName();
-    QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
-
-    QLockFile lockFile(trustedCertificateStoreLockFileName);
-    if (lockFile.lock())
-    {
-        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
-        if (trustedCertificateStoreFile.open(QFile::ReadOnly))
-        {
-            QDataStream stream(&trustedCertificateStoreFile);
-            m_certificateStore.deserialize(stream);
-            trustedCertificateStoreFile.close();
-        }
-        lockFile.unlock();
-    }
+    m_certificateStore.loadDefaultUserCertificates();
 }
 
 void PDFViewerMainWindow::writeSettings()
@@ -780,25 +766,7 @@ void PDFViewerMainWindow::writeSettings()
     settings.endGroup();
 
     // Save trusted certificates
-    QString trustedCertificateStoreFileName = getTrustedCertificateStoreFileName();
-    QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
-
-    QFileInfo fileInfo(trustedCertificateStoreFileName);
-    QDir dir = fileInfo.dir();
-    dir.mkpath(dir.path());
-
-    QLockFile lockFile(trustedCertificateStoreLockFileName);
-    if (lockFile.lock())
-    {
-        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
-        if (trustedCertificateStoreFile.open(QFile::WriteOnly | QFile::Truncate))
-        {
-            QDataStream stream(&trustedCertificateStoreFile);
-            m_certificateStore.serialize(stream);
-            trustedCertificateStoreFile.close();
-        }
-        lockFile.unlock();
-    }
+    m_certificateStore.saveDefaultUserCertificates();
 }
 
 void PDFViewerMainWindow::updateTitle()
@@ -1198,11 +1166,6 @@ std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
 QList<QAction*> PDFViewerMainWindow::getActions() const
 {
     return findChildren<QAction*>(QString(), Qt::FindChildrenRecursively);
-}
-
-QString PDFViewerMainWindow::getTrustedCertificateStoreFileName() const
-{
-    return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + "/TrustedCertStorage.bin";
 }
 
 int PDFViewerMainWindow::adjustDpiX(int value)
