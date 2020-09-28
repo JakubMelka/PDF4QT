@@ -377,14 +377,26 @@ public:
     /// Adds OK flag, if both certificate and signature are valid
     void validate();
 
+    QDateTime getSignatureDate() const;
+    void setSignatureDate(const QDateTime& signatureDate);
+
+    QDateTime getTimestampDate() const;
+    void setTimestampDate(const QDateTime& timestampDate);
+
+    QByteArray getSignatureFilter() const;
+    void setSignatureFilter(const QByteArray& signatureFilter);
+
 private:
     PDFSignature::Type m_type = PDFSignature::Type::Invalid;
     VerificationFlags m_flags = None;
     PDFObjectReference m_signatureFieldReference;
     QString m_signatureFieldQualifiedName;
+    QDateTime m_signatureDate;
+    QDateTime m_timestampDate;
     QStringList m_errors;
     QStringList m_warnings;
     QStringList m_hashAlgorithms;
+    QByteArray m_signatureFilter;
     PDFCertificateInfos m_certificateInfos;
 };
 

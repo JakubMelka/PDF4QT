@@ -64,6 +64,20 @@ public:
     static QDateTime getDateTimeFromASN(const ASN1_TIME* time);
 
 protected:
+    /// Add hash algorithm from signer info stack. If \p signerInfoStack is nullptr,
+    /// then nothing happens. If multiple signer hash algorithms are present,
+    /// then they are all added.
+    /// \param signerInfoStack Signer stack
+    /// \param result Result, to which algorithm is added
+    static void addHashAlgorithmFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result);
+
+    /// Add signing date/time from signer info stack. If there are multiple signature
+    /// infos, nothing is added (because we can't decide, which one is right).
+    /// \param signerInfoStack Signer info stack
+    /// \param result Verification, to which signature date is being set
+    static void addSignatureDateFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result);
+
+protected:
     const PDFFormFieldSignature* m_signatureField;
     QByteArray m_sourceData;
     Parameters m_parameters;

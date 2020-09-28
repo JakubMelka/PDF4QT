@@ -369,6 +369,36 @@ void PDFSignatureVerificationResult::validate()
     }
 }
 
+QDateTime PDFSignatureVerificationResult::getSignatureDate() const
+{
+    return m_signatureDate;
+}
+
+void PDFSignatureVerificationResult::setSignatureDate(const QDateTime& signatureDate)
+{
+    m_signatureDate = signatureDate;
+}
+
+QDateTime PDFSignatureVerificationResult::getTimestampDate() const
+{
+    return m_timestampDate;
+}
+
+void PDFSignatureVerificationResult::setTimestampDate(const QDateTime& timestampDate)
+{
+    m_timestampDate = timestampDate;
+}
+
+QByteArray PDFSignatureVerificationResult::getSignatureFilter() const
+{
+    return m_signatureFilter;
+}
+
+void PDFSignatureVerificationResult::setSignatureFilter(const QByteArray& signatureFilter)
+{
+    m_signatureFilter = signatureFilter;
+}
+
 PDFSignature::Type PDFSignatureVerificationResult::getType() const
 {
     return m_type;
@@ -386,6 +416,7 @@ void PDFPublicKeySignatureHandler::initializeResult(PDFSignatureVerificationResu
     result.setType(m_signatureField->getSignature().getType());
     result.setSignatureFieldReference(signatureFieldReference);
     result.setSignatureFieldQualifiedName(signatureFieldQualifiedName);
+    result.setSignatureFilter(m_signatureField->getSignature().getFilter());
 }
 
 STACK_OF(X509)* PDFPublicKeySignatureHandler::getCertificates(PKCS7* pkcs7)
@@ -652,6 +683,8 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
                 } while (bytesRead > 0);
 
                 STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
+                addHashAlgorithmFromSignerInfoStack(signerInfo, result);
+                addSignatureDateFromSignerInfoStack(signerInfo, result);
                 const int signerInfoCount = sk_PKCS7_SIGNER_INFO_num(signerInfo);
                 STACK_OF(X509)* certificates = getCertificates(pkcs7);
                 if (signerInfo && signerInfoCount > 0 && certificates)
@@ -666,13 +699,6 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
                         {
                             result.addSignatureCertificateMissingError();
                             break;
-                        }
-
-                        if (signerInfoValue->digest_alg && signerInfoValue->digest_alg->algorithm)
-                        {
-                            std::array<char, 64> buffer = { };
-                            OBJ_obj2txt(buffer.data(), int(buffer.size() - 1), signerInfoValue->digest_alg->algorithm, 0);
-                            result.addHashAlgorithm(QString::fromLatin1(buffer.data()));
                         }
 
                         const int verification = PKCS7_signatureVerify(dataBio, pkcs7, signerInfoValue, signer);
@@ -814,6 +840,18 @@ void PDFSignatureHandler_ETSI_RFC3161::verifySignatureTimestamp(PDFSignatureVeri
             TS_VERIFY_CTX_set_flags(ts_context, TS_VFY_ALL_DATA & ~TS_VFY_POLICY & ~TS_VFY_NONCE & ~TS_VFY_TSA_NAME);
             TS_VERIFY_CTX_set_store(ts_context, store);
             TS_VERIFY_CTS_set_certs(ts_context, usedCertificates);
+
+            // Get timestamp and hash algorithm
+            if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(pkcs7))
+            {
+                // Date/time of timestamp
+                const ASN1_GENERALIZEDTIME* time = TS_TST_INFO_get_time(info);
+                result.setTimestampDate(getDateTimeFromASN(time));
+            }
+
+            STACK_OF(PKCS7_SIGNER_INFO)* signerInfos = PKCS7_get_signer_info(pkcs7);
+            addHashAlgorithmFromSignerInfoStack(signerInfos, result);
+            addSignatureDateFromSignerInfoStack(signerInfos, result);
 
             const int verifyValue = TS_RESP_verify_token(ts_context, pkcs7);
             if (verifyValue <= 0)
@@ -1738,6 +1776,71 @@ QDateTime PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME* time
     }
 
     return result;
+}
+
+void PDFPublicKeySignatureHandler::addHashAlgorithmFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result)
+{
+    if (!signerInfoStack)
+    {
+        // No signature info provided
+        return;
+    }
+
+    const int count = sk_PKCS7_SIGNER_INFO_num(signerInfoStack);
+    for (int i = 0; i < count; ++i)
+    {
+        PKCS7_SIGNER_INFO* signerInfoValue = sk_PKCS7_SIGNER_INFO_value(signerInfoStack, i);
+        if (signerInfoValue && signerInfoValue->digest_alg && signerInfoValue->digest_alg->algorithm)
+        {
+            std::array<char, 64> buffer = { };
+            OBJ_obj2txt(buffer.data(), int(buffer.size() - 1), signerInfoValue->digest_alg->algorithm, 0);
+            result.addHashAlgorithm(QString::fromLatin1(buffer.data()));
+        }
+    }
+}
+
+void PDFPublicKeySignatureHandler::addSignatureDateFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result)
+{
+    if (!signerInfoStack)
+    {
+        // No signature info provided
+        return;
+    }
+
+    if (sk_PKCS7_SIGNER_INFO_num(signerInfoStack) != 1)
+    {
+        // Multiple signature infos, or no signature info
+        return;
+    }
+
+    // Jakub Melka: We will get signed attribute from signer info. If it fails,
+    // then try to get unsigned attribute.
+    PKCS7_SIGNER_INFO* signerInfo = sk_PKCS7_SIGNER_INFO_value(signerInfoStack, 0);
+    ASN1_TYPE* attribute = PKCS7_get_signed_attribute(signerInfo, NID_pkcs9_signingTime);
+
+    if (!attribute)
+    {
+        attribute = PKCS7_get_attribute(signerInfo, NID_pkcs9_signingTime);
+    }
+
+    if (!attribute)
+    {
+        return;
+    }
+
+    switch (attribute->type)
+    {
+        case V_ASN1_UTCTIME:
+            result.setSignatureDate(getDateTimeFromASN(attribute->value.utctime));
+            break;
+
+        case V_ASN1_GENERALIZEDTIME:
+            result.setSignatureDate(getDateTimeFromASN(attribute->value.generalizedtime));
+            break;
+
+        default:
+            break;
+    }
 }
 
 void PDFCertificateStore::serialize(QDataStream& stream) const

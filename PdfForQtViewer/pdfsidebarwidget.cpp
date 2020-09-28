@@ -375,11 +375,11 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
         switch (signature.getType())
         {
             case pdf::PDFSignature::Type::Sig:
-                templateString = tr("Signed by - %1");
+                templateString = tr("Signature - %1");
                 break;
 
             case pdf::PDFSignature::Type::DocTimeStamp:
-                templateString = tr("Timestamped by - %1");
+                templateString = tr("Timestamp - %1");
                 break;
 
             case pdf::PDFSignature::Type::Invalid:
@@ -433,7 +433,22 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
         QString hashAlgorithms = signature.getHashAlgorithms().join(", ");
         if (!hashAlgorithms.isEmpty())
         {
-            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(tr("Hash algorithms: %1").arg(hashAlgorithms)));
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(tr("Hash algorithm: %1").arg(hashAlgorithms.toUpper())));
+            item->setIcon(0, infoIcon);
+        }
+
+
+        QDateTime signingDate = signature.getSignatureDate();
+        if (signingDate.isValid())
+        {
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(QString("Signing date/time: %2").arg(signingDate.toString(Qt::DefaultLocaleShortDate))));
+            item->setIcon(0, infoIcon);
+        }
+
+        QDateTime timestampDate = signature.getTimestampDate();
+        if (timestampDate.isValid())
+        {
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(QString("Timestamp: %2").arg(timestampDate.toString(Qt::DefaultLocaleShortDate))));
             item->setIcon(0, infoIcon);
         }
 
