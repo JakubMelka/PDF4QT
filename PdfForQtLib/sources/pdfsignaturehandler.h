@@ -281,6 +281,13 @@ public:
 
     }
 
+    enum class Status
+    {
+        OK,
+        Warning,
+        Error
+    };
+
     enum VerificationFlag
     {
         None                                            = 0x00000000,  ///< Used only for initialization
@@ -319,7 +326,10 @@ public:
         Error_Signatures_Mask = Error_Signature_Invalid | Error_Signature_SourceCertificateMissing | Error_Signature_NoSignaturesFound |
                                 Error_Signature_DigestFailure | Error_Signature_DataOther | Error_Signature_DataCoveredBySignatureMissing,
 
-        Warnings_Mask = Warning_Signature_NotCoveredBytes | Warning_Certificate_CRLValidityTimeExpired | Warning_Certificate_QualifiedStatement
+        Warning_Certificates_Mask = Warning_Certificate_CRLValidityTimeExpired | Warning_Certificate_QualifiedStatement,
+        Warning_Signatures_Mask = Warning_Signature_NotCoveredBytes,
+
+        Warnings_Mask = Warning_Certificates_Mask | Warning_Signatures_Mask
     };
     Q_DECLARE_FLAGS(VerificationFlags, VerificationFlag)
 
@@ -358,6 +368,8 @@ public:
     bool hasWarning() const { return m_flags & Warnings_Mask; }
     bool hasCertificateError() const { return m_flags & Error_Certificates_Mask; }
     bool hasSignatureError() const { return m_flags & Error_Signatures_Mask; }
+    bool hasCertificateWarning() const { return m_flags & Warning_Certificates_Mask; }
+    bool hasSignatureWarning() const { return m_flags & Warning_Signatures_Mask; }
     bool hasFlag(VerificationFlag flag) const { return m_flags.testFlag(flag); }
     void setFlag(VerificationFlag flag, bool value) { m_flags.setFlag(flag, value); }
 
@@ -383,8 +395,16 @@ public:
     QDateTime getTimestampDate() const;
     void setTimestampDate(const QDateTime& timestampDate);
 
-    QByteArray getSignatureFilter() const;
-    void setSignatureFilter(const QByteArray& signatureFilter);
+    QByteArray getSignatureHandler() const;
+    void setSignatureHandler(const QByteArray& signatureFilter);
+
+    Status getCertificateStatus() const;
+    Status getSignatureStatus() const;
+
+    QString getCertificateStatusText() const { return getStatusText(getCertificateStatus()); }
+    QString getSignatureStatusText() const { return getStatusText(getSignatureStatus()); }
+
+    static QString getStatusText(Status status);
 
 private:
     PDFSignature::Type m_type = PDFSignature::Type::Invalid;
@@ -396,7 +416,7 @@ private:
     QStringList m_errors;
     QStringList m_warnings;
     QStringList m_hashAlgorithms;
-    QByteArray m_signatureFilter;
+    QByteArray m_signatureHandler;
     PDFCertificateInfos m_certificateInfos;
 };
 

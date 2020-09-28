@@ -389,14 +389,64 @@ void PDFSignatureVerificationResult::setTimestampDate(const QDateTime& timestamp
     m_timestampDate = timestampDate;
 }
 
-QByteArray PDFSignatureVerificationResult::getSignatureFilter() const
+QByteArray PDFSignatureVerificationResult::getSignatureHandler() const
 {
-    return m_signatureFilter;
+    return m_signatureHandler;
 }
 
-void PDFSignatureVerificationResult::setSignatureFilter(const QByteArray& signatureFilter)
+void PDFSignatureVerificationResult::setSignatureHandler(const QByteArray& signatureFilter)
 {
-    m_signatureFilter = signatureFilter;
+    m_signatureHandler = signatureFilter;
+}
+
+PDFSignatureVerificationResult::Status PDFSignatureVerificationResult::getCertificateStatus() const
+{
+    if (hasCertificateError())
+    {
+        return Status::Error;
+    }
+
+    if (hasCertificateWarning())
+    {
+        return Status::Warning;
+    }
+
+    return Status::OK;
+}
+
+PDFSignatureVerificationResult::Status PDFSignatureVerificationResult::getSignatureStatus() const
+{
+    if (hasSignatureError())
+    {
+        return Status::Error;
+    }
+
+    if (hasSignatureWarning())
+    {
+        return Status::Warning;
+    }
+
+    return Status::OK;
+}
+
+QString PDFSignatureVerificationResult::getStatusText(Status status)
+{
+    switch (status)
+    {
+        case Status::OK:
+            return PDFTranslationContext::tr("OK");
+
+        case Status::Warning:
+            return PDFTranslationContext::tr("Warning");
+
+        case Status::Error:
+            return PDFTranslationContext::tr("Error");
+
+        default:
+            break;
+    }
+
+    return QString();
 }
 
 PDFSignature::Type PDFSignatureVerificationResult::getType() const
@@ -416,7 +466,7 @@ void PDFPublicKeySignatureHandler::initializeResult(PDFSignatureVerificationResu
     result.setType(m_signatureField->getSignature().getType());
     result.setSignatureFieldReference(signatureFieldReference);
     result.setSignatureFieldQualifiedName(signatureFieldQualifiedName);
-    result.setSignatureFilter(m_signatureField->getSignature().getFilter());
+    result.setSignatureHandler(m_signatureField->getSignature().getSubfilter());
 }
 
 STACK_OF(X509)* PDFPublicKeySignatureHandler::getCertificates(PKCS7* pkcs7)
@@ -1813,15 +1863,9 @@ void PDFPublicKeySignatureHandler::addSignatureDateFromSignerInfoStack(STACK_OF(
         return;
     }
 
-    // Jakub Melka: We will get signed attribute from signer info. If it fails,
-    // then try to get unsigned attribute.
+    // Jakub Melka: We will get signed attribute from signer info.
     PKCS7_SIGNER_INFO* signerInfo = sk_PKCS7_SIGNER_INFO_value(signerInfoStack, 0);
     ASN1_TYPE* attribute = PKCS7_get_signed_attribute(signerInfo, NID_pkcs9_signingTime);
-
-    if (!attribute)
-    {
-        attribute = PKCS7_get_attribute(signerInfo, NID_pkcs9_signingTime);
-    }
 
     if (!attribute)
     {

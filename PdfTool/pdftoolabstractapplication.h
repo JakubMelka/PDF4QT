@@ -22,6 +22,7 @@
 
 #include <QtGlobal>
 #include <QString>
+#include <QDateTime>
 #include <QCoreApplication>
 
 #include <vector>
@@ -52,6 +53,7 @@ struct PDFToolOptions
     bool verificationOmitCertificateCheck = false;
     bool verificationPrintCertificateDetails = false;
     bool verificationIgnoreExpirationDate = false;
+    Qt::DateFormat verificationDateFormat = Qt::DefaultLocaleShortDate;
 };
 
 /// Base class for all applications

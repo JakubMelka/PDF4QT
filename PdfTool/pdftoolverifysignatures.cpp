@@ -107,6 +107,115 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
     pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
     std::vector<pdf::PDFSignatureVerificationResult> signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource(), parameters);
 
+    PDFOutputFormatter formatter(options.outputStyle);
+    formatter.beginDocument("signatures", PDFToolTranslationContext::tr("Digital signatures/timestamps verification of %1").arg(options.document));
+    formatter.endl();
+
+    auto getTypeName = [](const pdf::PDFSignatureVerificationResult& signature)
+    {
+        switch (signature.getType())
+        {
+            case pdf::PDFSignature::Type::Invalid:
+                return PDFToolTranslationContext::tr("Invalid");
+
+            case pdf::PDFSignature::Type::Sig:
+                return PDFToolTranslationContext::tr("Signature");
+
+            case pdf::PDFSignature::Type::DocTimeStamp:
+                return PDFToolTranslationContext::tr("Timestamp");
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        return QString();
+    };
+
+    if (!signatures.empty())
+    {
+        formatter.beginTable("overview", PDFToolTranslationContext::tr("Overview"));
+
+        formatter.beginTableHeaderRow("header");
+        formatter.writeTableHeaderColumn("no", PDFToolTranslationContext::tr("No."), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("type", PDFToolTranslationContext::tr("Type"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("common-name", PDFToolTranslationContext::tr("Signed by"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("cert-status", PDFToolTranslationContext::tr("Certificate"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("signature-status", PDFToolTranslationContext::tr("Signature"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("signing-date", PDFToolTranslationContext::tr("Signing date"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("timestamp-date", PDFToolTranslationContext::tr("Timestamp date"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("hash-algorithm", PDFToolTranslationContext::tr("Hash alg."), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("handler", PDFToolTranslationContext::tr("Handler"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("whole-signed", PDFToolTranslationContext::tr("Signed whole"), Qt::AlignLeft);
+        formatter.endTableHeaderRow();
+
+        int i = 1;
+        for (const pdf::PDFSignatureVerificationResult& signature : signatures)
+        {
+            const pdf::PDFCertificateInfos& certificateInfos = signature.getCertificateInfos();
+            const pdf::PDFCertificateInfo* certificateInfo = !certificateInfos.empty() ? &certificateInfos.front() : nullptr;
+
+            formatter.beginTableRow("signature", i);
+
+            formatter.writeTableColumn("no", QString::number(i), Qt::AlignRight);
+            formatter.writeTableColumn("type", getTypeName(signature));
+
+            QString commonName = certificateInfo ? certificateInfo->getName(pdf::PDFCertificateInfo::CommonName) : PDFToolTranslationContext::tr("Unknown");
+            formatter.writeTableColumn("common-name", commonName);
+            formatter.writeTableColumn("cert-status", options.verificationOmitCertificateCheck ? PDFToolTranslationContext::tr("Skipped") : signature.getCertificateStatusText());
+            formatter.writeTableColumn("signature-status", signature.getSignatureStatusText());
+            formatter.writeTableColumn("signing-date", signature.getSignatureDate().isValid() ? signature.getSignatureDate().toLocalTime().toString(options.verificationDateFormat) : QString());
+            formatter.writeTableColumn("timestamp-date", signature.getTimestampDate().isValid() ? signature.getTimestampDate().toLocalTime().toString(options.verificationDateFormat) : QString());
+            formatter.writeTableColumn("hash-algorithm", signature.getHashAlgorithms().join(", ").toUpper());
+            formatter.writeTableColumn("handler", QString::fromLatin1(signature.getSignatureHandler()));
+            formatter.writeTableColumn("whole-signed", signature.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes) ? PDFToolTranslationContext::tr("No") : PDFToolTranslationContext::tr("Yes"));
+
+            formatter.endTableRow();
+            ++i;
+        }
+
+        formatter.endTable();
+
+
+        if (options.verificationPrintCertificateDetails)
+        {
+            formatter.endl();
+            formatter.beginHeader("details", PDFToolTranslationContext::tr("Details"));
+
+            int i = 1;
+            for (const pdf::PDFSignatureVerificationResult& signature : signatures)
+            {
+                formatter.endl();
+                formatter.beginHeader("signature", PDFToolTranslationContext::tr("%1 #%2").arg(getTypeName(signature)).arg(i), i);
+
+                const pdf::PDFCertificateInfos& certificateInfos = signature.getCertificateInfos();
+                const pdf::PDFCertificateInfo* certificateInfo = !certificateInfos.empty() ? &certificateInfos.front() : nullptr;
+                QString commonName = certificateInfo ? certificateInfo->getName(pdf::PDFCertificateInfo::CommonName) : PDFToolTranslationContext::tr("Unknown");
+                formatter.writeText("common-name", PDFToolTranslationContext::tr("Signed by: %1").arg(commonName));
+                formatter.writeText("certificate-status", PDFToolTranslationContext::tr("Certificate status: %1").arg(options.verificationOmitCertificateCheck ? PDFToolTranslationContext::tr("Skipped") : signature.getCertificateStatusText()));
+                formatter.writeText("signature-status", PDFToolTranslationContext::tr("Signature status: %1").arg(signature.getSignatureStatusText()));
+                formatter.writeText("signing-date", PDFToolTranslationContext::tr("Signing date: %1").arg(signature.getSignatureDate().isValid() ? signature.getSignatureDate().toLocalTime().toString(options.verificationDateFormat) : QString()));
+                formatter.writeText("timestamp-date", PDFToolTranslationContext::tr("Timestamp date: %1").arg(signature.getTimestampDate().isValid() ? signature.getTimestampDate().toLocalTime().toString(options.verificationDateFormat) : QString()));
+                formatter.writeText("hash-algorithm", PDFToolTranslationContext::tr("Hash algorithm: %1").arg(signature.getHashAlgorithms().join(", ").toUpper()));
+                formatter.writeText("handler", PDFToolTranslationContext::tr("Handler: %1").arg(QString::fromLatin1(signature.getSignatureHandler())));
+                formatter.writeText("whole-signed", PDFToolTranslationContext::tr("Is whole document signed: %1").arg(signature.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes) ? PDFToolTranslationContext::tr("No") : PDFToolTranslationContext::tr("Yes")));
+
+                formatter.endHeader();
+                ++i;
+            }
+
+            formatter.endHeader();
+        }
+    }
+    else
+    {
+        formatter.writeText("no-signatures", PDFToolTranslationContext::tr("No digital signatures or timestamps found in the document."));
+    }
+
+    formatter.endDocument();
+
+    PDFConsole::writeText(formatter.getString());
     return ExitSuccess;
 }
 

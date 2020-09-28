@@ -143,8 +143,9 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("ver-no-user-cert", "Disable user certificate store."));
         parser->addOption(QCommandLineOption("ver-no-sys-cert", "Disable system certificate store."));
         parser->addOption(QCommandLineOption("ver-no-cert-check", "Disable certificate validation."));
-        parser->addOption(QCommandLineOption("ver-cert-details", "Print certificate details (including chain, if found)."));
+        parser->addOption(QCommandLineOption("ver-details", "Print details (including certificate chain, if found)."));
         parser->addOption(QCommandLineOption("ver-ignore-exp-date", "Ignore certificate expiration date."));
+        parser->addOption(QCommandLineOption("ver-date-format", "Console output date/time format (valid values: short|long|iso|rfc2822).", "ver-date-format", "short"));
     }
 }
 
@@ -184,7 +185,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     if (optionFlags.testFlag(OpenDocument))
     {
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
-        options.password = parser->value("password");
+        options.password = parser->isSet("pswd") ? parser->value("password") : QString();
         options.permissiveReading = !parser->isSet("no-permissive-reading");
     }
 
@@ -193,8 +194,30 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.verificationUseUserCertificates = !parser->isSet("ver-no-user-cert");
         options.verificationUseSystemCertificates = !parser->isSet("ver-no-sys-cert");
         options.verificationOmitCertificateCheck = parser->isSet("ver-no-cert-check");
-        options.verificationPrintCertificateDetails = parser->isSet("ver-cert-details");
+        options.verificationPrintCertificateDetails = parser->isSet("ver-details");
         options.verificationIgnoreExpirationDate = parser->isSet("ver-ignore-exp-date");
+
+        QString dateFormat = parser->value("ver-date-format");
+        if (dateFormat == "short")
+        {
+            options.verificationDateFormat = Qt::DefaultLocaleShortDate;
+        }
+        else if (dateFormat == "long")
+        {
+            options.verificationDateFormat = Qt::DefaultLocaleLongDate;
+        }
+        else if (dateFormat == "iso")
+        {
+            options.verificationDateFormat = Qt::ISODate;
+        }
+        else if (dateFormat == "rfc2822")
+        {
+            options.verificationDateFormat = Qt::RFC2822Date;
+        }
+        else if (!dateFormat.isEmpty())
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console date/time format '%1'. Defaulting to short date/time format.").arg(dateFormat));
+        }
     }
 
     return options;
