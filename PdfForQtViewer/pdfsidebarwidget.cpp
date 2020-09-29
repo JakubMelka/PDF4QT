@@ -437,7 +437,6 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
             item->setIcon(0, infoIcon);
         }
 
-
         QDateTime signingDate = signature.getSignatureDate();
         if (signingDate.isValid())
         {

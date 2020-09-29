@@ -177,7 +177,6 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
 
         formatter.endTable();
 
-
         if (options.verificationPrintCertificateDetails)
         {
             formatter.endl();
@@ -200,6 +199,152 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
                 formatter.writeText("hash-algorithm", PDFToolTranslationContext::tr("Hash algorithm: %1").arg(signature.getHashAlgorithms().join(", ").toUpper()));
                 formatter.writeText("handler", PDFToolTranslationContext::tr("Handler: %1").arg(QString::fromLatin1(signature.getSignatureHandler())));
                 formatter.writeText("whole-signed", PDFToolTranslationContext::tr("Is whole document signed: %1").arg(signature.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes) ? PDFToolTranslationContext::tr("No") : PDFToolTranslationContext::tr("Yes")));
+
+                formatter.endl();
+
+                if (!options.verificationOmitCertificateCheck)
+                {
+                    int certificateIndex = 1;
+                    for (const pdf::PDFCertificateInfo& currentInfo : certificateInfos)
+                    {
+                        formatter.beginTable("certificate", PDFToolTranslationContext::tr("Certificate No. #%1").arg(certificateIndex++));
+
+                        formatter.beginTableHeaderRow("header");
+                        formatter.writeTableHeaderColumn("description", PDFToolTranslationContext::tr("Description"));
+                        formatter.writeTableHeaderColumn("value", PDFToolTranslationContext::tr("Value"));
+                        formatter.endTableHeaderRow();
+
+                        auto addName = [&formatter, &currentInfo](pdf::PDFCertificateInfo::NameEntry nameEntry, QString caption)
+                        {
+                            QString text = currentInfo.getName(nameEntry);
+                            if (!text.isEmpty())
+                            {
+                                formatter.beginTableRow("info", int(nameEntry));
+                                formatter.writeTableColumn("description", caption);
+                                formatter.writeTableColumn("value", text);
+                                formatter.endTableRow();
+                            }
+                        };
+
+                        addName(pdf::PDFCertificateInfo::CountryName, PDFToolTranslationContext::tr("Country"));
+                        addName(pdf::PDFCertificateInfo::OrganizationName, PDFToolTranslationContext::tr("Organization"));
+                        addName(pdf::PDFCertificateInfo::OrganizationalUnitName, PDFToolTranslationContext::tr("Org. unit"));
+                        addName(pdf::PDFCertificateInfo::DistinguishedName, PDFToolTranslationContext::tr("Name"));
+                        addName(pdf::PDFCertificateInfo::StateOrProvinceName, PDFToolTranslationContext::tr("State"));
+                        addName(pdf::PDFCertificateInfo::SerialNumber, PDFToolTranslationContext::tr("Serial number"));
+                        addName(pdf::PDFCertificateInfo::LocalityName, PDFToolTranslationContext::tr("Locality"));
+                        addName(pdf::PDFCertificateInfo::Title, PDFToolTranslationContext::tr("Title"));
+                        addName(pdf::PDFCertificateInfo::Surname, PDFToolTranslationContext::tr("Surname"));
+                        addName(pdf::PDFCertificateInfo::GivenName, PDFToolTranslationContext::tr("Forename"));
+                        addName(pdf::PDFCertificateInfo::Initials, PDFToolTranslationContext::tr("Initials"));
+                        addName(pdf::PDFCertificateInfo::Pseudonym, PDFToolTranslationContext::tr("Pseudonym"));
+                        addName(pdf::PDFCertificateInfo::GenerationalQualifier, PDFToolTranslationContext::tr("Qualifier"));
+                        addName(pdf::PDFCertificateInfo::Email, PDFToolTranslationContext::tr("Email"));
+
+                        QString publicKeyMethod;
+                        switch (currentInfo.getPublicKey())
+                        {
+                            case pdf::PDFCertificateInfo::KeyRSA:
+                                publicKeyMethod = PDFToolTranslationContext::tr("RSA method, %1-bit key").arg(currentInfo.getKeySize());
+                                break;
+
+                            case pdf::PDFCertificateInfo::KeyDSA:
+                                publicKeyMethod = PDFToolTranslationContext::tr("DSA method, %1-bit key").arg(currentInfo.getKeySize());
+                                break;
+
+                            case pdf::PDFCertificateInfo::KeyEC:
+                                publicKeyMethod = PDFToolTranslationContext::tr("EC method, %1-bit key").arg(currentInfo.getKeySize());
+                                break;
+
+                            case pdf::PDFCertificateInfo::KeyDH:
+                                publicKeyMethod = PDFToolTranslationContext::tr("DH method, %1-bit key").arg(currentInfo.getKeySize());
+                                break;
+
+                            case pdf::PDFCertificateInfo::KeyUnknown:
+                                publicKeyMethod = PDFToolTranslationContext::tr("Unknown method, %1-bit key").arg(currentInfo.getKeySize());
+                                break;
+
+                            default:
+                                Q_ASSERT(false);
+                                break;
+                        }
+
+                        formatter.beginTableRow("protection-method");
+                        formatter.writeTableColumn("description", PDFToolTranslationContext::tr("Encryption method"));
+                        formatter.writeTableColumn("value", publicKeyMethod);
+                        formatter.endTableRow();
+
+                        QDateTime notValidBefore = currentInfo.getNotValidBefore().toLocalTime();
+                        QDateTime notValidAfter = currentInfo.getNotValidAfter().toLocalTime();
+
+                        if (notValidBefore.isValid())
+                        {
+                            formatter.beginTableRow("valid-from");
+                            formatter.writeTableColumn("description", PDFToolTranslationContext::tr("Valid from"));
+                            formatter.writeTableColumn("value", notValidBefore.toString(options.verificationDateFormat));
+                            formatter.endTableRow();
+                        }
+
+                        if (notValidAfter.isValid())
+                        {
+                            formatter.beginTableRow("valid-to");
+                            formatter.writeTableColumn("description", PDFToolTranslationContext::tr("Valid to"));
+                            formatter.writeTableColumn("value", notValidAfter.toString(options.verificationDateFormat));
+                            formatter.endTableRow();
+                        }
+
+                        pdf::PDFCertificateInfo::KeyUsageFlags keyUsageFlags = currentInfo.getKeyUsage();
+                        QStringList keyUsages;
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDigitalSignature))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Digital signatures");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageNonRepudiation))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Non-repudiation");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageKeyEncipherment))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Key encipherement");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDataEncipherment))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Application data encipherement");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageAgreement))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Key agreement");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageCertSign))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Verify signatures on certificates");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageCrlSign))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Verify signatures on revocation information");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageEncipherOnly))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Encipher data during key agreement");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDecipherOnly))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Decipher data during key agreement");
+                        }
+                        if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageExtended_TIMESTAMP))
+                        {
+                            keyUsages << PDFToolTranslationContext::tr("Trusted timestamping");
+                        }
+
+                        formatter.beginTableRow("key-usages");
+                        formatter.writeTableColumn("description", PDFToolTranslationContext::tr("Key usage"));
+                        formatter.writeTableColumn("value", keyUsages.join(", "));
+                        formatter.endTableRow();
+
+                        formatter.endTable();
+                        formatter.endl();
+                    }
+                }
 
                 formatter.endHeader();
                 ++i;
