@@ -42,7 +42,8 @@ SOURCES += \
         main.cpp \
         pdfoutputformatter.cpp \
         pdftoolabstractapplication.cpp \
-        pdftoolverifysignatures.cpp
+        pdftoolverifysignatures.cpp \
+        pdftoolxml.cpp
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -56,4 +57,5 @@ INSTALLS += application
 HEADERS += \
     pdfoutputformatter.h \
     pdftoolabstractapplication.h \
-    pdftoolverifysignatures.h
+    pdftoolverifysignatures.h \
+    pdftoolxml.h

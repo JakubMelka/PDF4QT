@@ -77,6 +77,13 @@ public:
     /// \param encoding Encoding used in verification of conversion
     static bool canConvertToEncoding(const QString& string, Encoding encoding);
 
+    /// Checks, if stream can be converted to string using encoding (i.e. all
+    /// characters are defined). If all characters are valid, then true is
+    /// returned. This is only guess.
+    /// \param stream Stream
+    /// \param encoding Target encoding
+    static bool canConvertFromEncoding(const QByteArray& stream, Encoding encoding);
+
     /// Convert text string to the unicode string, using either PDFDocEncoding,
     /// or UTF-16BE encoding. Please see PDF Reference 1.7, Chapter 3.8.1. If
     /// UTF-16BE encoding is used, then leading bytes should be 0xFE and 0xFF
@@ -103,6 +110,15 @@ public:
     /// Returns conversion table for particular encoding
     /// \param encoding Encoding
     static const encoding::EncodingTable* getTableForEncoding(Encoding encoding);
+
+    /// Tries to convert stream to unicode string. Stream can be binary.
+    /// If this is the case, then hexadecimal representation of stream is returned.
+    /// Function checks if stream can be converted to unicode by heuristic
+    /// way, it is not always reliable.
+    /// \param stream Stream
+    /// \param isBinary If specified, it is set to true if conversion failed
+    /// \returns Unicode string or string converted to hexadecimal representation
+    static QString convertSmartFromByteStringToUnicode(const QByteArray& stream, bool* isBinary);
 
 private:
     /// Returns true, if byte array has UTF-16BE/LE unicode marking bytes at the

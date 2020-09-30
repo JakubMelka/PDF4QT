@@ -111,7 +111,7 @@ struct PDFInplaceString
 };
 
 /// Reference to the string implementations
-struct PDFStringRef
+struct PDFFORQTLIBSHARED_EXPORT PDFStringRef
 {
     const PDFInplaceString* inplaceString = nullptr;
     const PDFString* memoryString = nullptr;

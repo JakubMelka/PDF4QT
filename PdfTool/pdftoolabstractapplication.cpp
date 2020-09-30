@@ -16,6 +16,7 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdftoolabstractapplication.h"
+#include "pdfdocumentreader.h"
 
 #include <QCommandLineParser>
 
@@ -147,6 +148,12 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("ver-ignore-exp-date", "Ignore certificate expiration date."));
         parser->addOption(QCommandLineOption("ver-date-format", "Console output date/time format (valid values: short|long|iso|rfc2822).", "ver-date-format", "short"));
     }
+
+    if (optionFlags.testFlag(XmlExport))
+    {
+        parser->addOption(QCommandLineOption("xml-export-streams", "Export streams as hexadecimally encoded data. By default, stream data are not exported."));
+        parser->addOption(QCommandLineOption("xml-export-streams-as-text", "Export streams as text, if possible. This flag enforces exporting stream data (possibly as hexadecimal strings)."));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -221,6 +228,50 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     }
 
     return options;
+}
+
+bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document)
+{
+    bool isFirstPasswordAttempt = true;
+    auto passwordCallback = [&options, &isFirstPasswordAttempt](bool* ok) -> QString
+    {
+        *ok = isFirstPasswordAttempt;
+        isFirstPasswordAttempt = false;
+        return options.password;
+    };
+    pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading);
+    document = reader.readFromFile(options.document);
+
+    switch (reader.getReadingResult())
+    {
+        case pdf::PDFDocumentReader::Result::OK:
+            break;
+
+        case pdf::PDFDocumentReader::Result::Cancelled:
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid password provided."));
+            return false;
+        }
+
+        case pdf::PDFDocumentReader::Result::Failed:
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Error occured during document reading. %1").arg(reader.getErrorMessage()));
+            return false;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            return false;
+        }
+    }
+
+    for (const QString& warning : reader.getWarnings())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: %1").arg(warning));
+    }
+
+    return true;
 }
 
 PDFToolAbstractApplication* PDFToolApplicationStorage::getApplicationByCommand(const QString& command)

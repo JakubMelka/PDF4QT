@@ -18,6 +18,7 @@
 #include "pdfencoding.h"
 
 #include <QTimeZone>
+#include <QTextCodec>
 
 #include <cctype>
 
@@ -2187,6 +2188,21 @@ bool PDFEncoding::canConvertToEncoding(const QString& string, PDFEncoding::Encod
     return true;
 }
 
+bool PDFEncoding::canConvertFromEncoding(const QByteArray& stream, PDFEncoding::Encoding encoding)
+{
+    const encoding::EncodingTable* table = getTableForEncoding(encoding);
+    for (const unsigned char index : stream)
+    {
+        QChar character = (*table)[index];
+        if (character == QChar(0xfffd))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 QString PDFEncoding::convertTextString(const QByteArray& stream)
 {
     if (hasUnicodeLeadMarkings(stream))
@@ -2331,6 +2347,60 @@ const encoding::EncodingTable* PDFEncoding::getTableForEncoding(Encoding encodin
     // Unknown encoding?
     Q_ASSERT(false);
     return nullptr;
+}
+
+QString PDFEncoding::convertSmartFromByteStringToUnicode(const QByteArray& stream, bool* isBinary)
+{
+    if (isBinary)
+    {
+        *isBinary = false;
+    }
+
+    if (hasUnicodeLeadMarkings(stream))
+    {
+        QTextCodec::ConverterState state = { };
+
+        {
+            QTextCodec* codec = QTextCodec::codecForName("UTF-16BE");
+            QString text = codec->toUnicode(stream.constData(), stream.length(), &state);
+            if (state.invalidChars == 0)
+            {
+                return text;
+            }
+        }
+
+        {
+            QTextCodec* codec = QTextCodec::codecForName("UTF-16LE");
+            QString text = codec->toUnicode(stream.constData(), stream.length(), &state);
+            if (state.invalidChars == 0)
+            {
+                return text;
+            }
+        }
+    }
+
+    if (hasUTF8LeadMarkings(stream))
+    {
+        QTextCodec::ConverterState state = { };
+
+        QTextCodec* codec = QTextCodec::codecForName("UTF-8");
+        QString text = codec->toUnicode(stream.constData(), stream.length(), &state);
+        if (state.invalidChars == 0)
+        {
+            return text;
+        }
+    }
+
+    if (canConvertFromEncoding(stream, Encoding::PDFDoc))
+    {
+        return convert(stream, Encoding::PDFDoc);
+    }
+
+    if (isBinary)
+    {
+        *isBinary = true;
+    }
+    return QString::fromLatin1(stream.toHex()).toUpper();
 }
 
 bool PDFEncoding::hasUnicodeLeadMarkings(const QByteArray& stream)

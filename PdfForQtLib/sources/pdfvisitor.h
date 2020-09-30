@@ -32,7 +32,7 @@ namespace pdf
 {
 
 /// Abstract visitor, can iterate trough object tree
-class PDFAbstractVisitor
+class PDFFORQTLIBSHARED_EXPORT PDFAbstractVisitor
 {
 public:
 

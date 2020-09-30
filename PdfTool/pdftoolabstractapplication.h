@@ -19,6 +19,7 @@
 #define PDFTOOLABSTRACTAPPLICATION_H
 
 #include "pdfoutputformatter.h"
+#include "pdfdocument.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -54,6 +55,12 @@ struct PDFToolOptions
     bool verificationPrintCertificateDetails = false;
     bool verificationIgnoreExpirationDate = false;
     Qt::DateFormat verificationDateFormat = Qt::DefaultLocaleShortDate;
+
+    // For option 'XMLExport'
+    bool xmlExportStreams = false; dodelat optiony
+    bool xmlExportStreamsAsText = false;
+    bool xmlUseIndent = true; dodelat
+    bool xmlAlwaysBinary = false; dodelat
 };
 
 /// Base class for all applications
@@ -81,7 +88,8 @@ public:
     {
         ConsoleFormat           = 0x0001,       ///< Set format of console output (text, xml or html)
         OpenDocument            = 0x0002,       ///< Flags for document reading
-        SignatureVerification   = 0x0004,       ///< Flags for signature verification
+        SignatureVerification   = 0x0004,       ///< Flags for signature verification,
+        XmlExport               = 0x0008,       ///< Flags for xml export
     };
     Q_DECLARE_FLAGS(Options, Option)
 
@@ -91,6 +99,8 @@ public:
 
     void initializeCommandLineParser(QCommandLineParser* parser) const;
     PDFToolOptions getOptions(QCommandLineParser* parser) const;
+
+    bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document);
 };
 
 /// This class stores information about all applications available. Application
