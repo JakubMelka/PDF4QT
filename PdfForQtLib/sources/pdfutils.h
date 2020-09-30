@@ -583,7 +583,7 @@ private:
 };
 
 /// Set of closed intervals
-class PDFClosedIntervalSet
+class PDFFORQTLIBSHARED_EXPORT PDFClosedIntervalSet
 {
 public:
     explicit inline PDFClosedIntervalSet() = default;
@@ -610,6 +610,9 @@ public:
 
     /// Returns sum of interval lengths
     PDFInteger getTotalLength() const;
+
+    /// Transforms interval set to readable text
+    QString toText() const;
 
 private:
     /// Normalizes interval ranges - merges adjacent intervals

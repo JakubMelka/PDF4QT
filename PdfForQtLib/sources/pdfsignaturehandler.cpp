@@ -32,6 +32,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QDataStream>
+#include <QFileInfo>
 
 #include <array>
 
@@ -449,6 +450,16 @@ QString PDFSignatureVerificationResult::getStatusText(Status status)
     return QString();
 }
 
+const PDFClosedIntervalSet& PDFSignatureVerificationResult::getBytesCoveredBySignature() const
+{
+    return m_bytesCoveredBySignature;
+}
+
+void PDFSignatureVerificationResult::setBytesCoveredBySignature(const PDFClosedIntervalSet& bytesCoveredBySignature)
+{
+    m_bytesCoveredBySignature = bytesCoveredBySignature;
+}
+
 PDFSignature::Type PDFSignatureVerificationResult::getType() const
 {
     return m_type;
@@ -701,6 +712,8 @@ BIO* PDFPublicKeySignatureHandler::getSignedDataBuffer(pdf::PDFSignatureVerifica
         const PDFInteger notCoveredBytes = sourceData.size() - int(bytesCoveredBySignature.getTotalLength());
         result.addSignatureNotCoveredBytesWarning(notCoveredBytes);
     }
+
+    result.setBytesCoveredBySignature(qMove(bytesCoveredBySignature));
 
     return BIO_new_mem_buf(outputBuffer.data(), outputBuffer.length());
 }
@@ -1933,6 +1946,7 @@ QString PDFCertificateStore::getDefaultCertificateStoreFileName() const
 
 void PDFCertificateStore::loadDefaultUserCertificates()
 {
+    createDirectoryForDefaultUserCertificatesStore();
     QString trustedCertificateStoreFileName = getDefaultCertificateStoreFileName();
     QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
 
@@ -1952,6 +1966,7 @@ void PDFCertificateStore::loadDefaultUserCertificates()
 
 void PDFCertificateStore::saveDefaultUserCertificates()
 {
+    createDirectoryForDefaultUserCertificatesStore();
     QString trustedCertificateStoreFileName = getDefaultCertificateStoreFileName();
     QString trustedCertificateStoreLockFileName = trustedCertificateStoreFileName + ".lock";
 
@@ -1971,6 +1986,13 @@ void PDFCertificateStore::saveDefaultUserCertificates()
         }
         lockFile.unlock();
     }
+}
+
+void PDFCertificateStore::createDirectoryForDefaultUserCertificatesStore()
+{
+    QFileInfo fileInfo(getDefaultCertificateStoreFileName());
+    QString path = fileInfo.path();
+    QDir().mkpath(path);
 }
 
 }   // namespace pdf

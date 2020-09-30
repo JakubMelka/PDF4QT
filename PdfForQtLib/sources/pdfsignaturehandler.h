@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfutils.h"
 
 #include <QString>
 #include <QDateTime>
@@ -406,6 +407,9 @@ public:
 
     static QString getStatusText(Status status);
 
+    const PDFClosedIntervalSet& getBytesCoveredBySignature() const;
+    void setBytesCoveredBySignature(const PDFClosedIntervalSet& bytesCoveredBySignature);
+
 private:
     PDFSignature::Type m_type = PDFSignature::Type::Invalid;
     VerificationFlags m_flags = None;
@@ -418,6 +422,7 @@ private:
     QStringList m_hashAlgorithms;
     QByteArray m_signatureHandler;
     PDFCertificateInfos m_certificateInfos;
+    PDFClosedIntervalSet m_bytesCoveredBySignature;
 };
 
 /// Signature handler. Can verify both certificate and signature validity.
@@ -523,6 +528,9 @@ public:
 
     /// Save to default user certificate storage
     void saveDefaultUserCertificates();
+
+    /// Creates default directory for certificate store
+    void createDirectoryForDefaultUserCertificatesStore();
 
 private:
     static constexpr int persist_version = 1;

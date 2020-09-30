@@ -296,6 +296,18 @@ PDFInteger PDFClosedIntervalSet::getTotalLength() const
     return std::accumulate(m_intervals.cbegin(), m_intervals.cend(), 0, [](PDFInteger count, const auto& b) { return count + b.second - b.first + 1; });
 }
 
+QString PDFClosedIntervalSet::toText() const
+{
+    QStringList intervals;
+
+    for (const ClosedInterval& interval : m_intervals)
+    {
+        intervals << QString("[%1 - %2]").arg(interval.first).arg(interval.second);
+    }
+
+    return intervals.join(", ");
+}
+
 void PDFClosedIntervalSet::normalize()
 {
     // Algorithm:

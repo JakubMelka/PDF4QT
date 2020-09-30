@@ -200,6 +200,32 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
                 formatter.writeText("handler", PDFToolTranslationContext::tr("Handler: %1").arg(QString::fromLatin1(signature.getSignatureHandler())));
                 formatter.writeText("whole-signed", PDFToolTranslationContext::tr("Is whole document signed: %1").arg(signature.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes) ? PDFToolTranslationContext::tr("No") : PDFToolTranslationContext::tr("Yes")));
 
+                // Signature range
+                const pdf::PDFClosedIntervalSet& bytesCoveredBySignature = signature.getBytesCoveredBySignature();
+                formatter.writeText("byte-range", PDFToolTranslationContext::tr("Byte range covered by signature: %1").arg(bytesCoveredBySignature.toText()));
+
+                if (signature.hasError())
+                {
+                    formatter.endl();
+                    formatter.beginHeader("errors", PDFToolTranslationContext::tr("Errors:"));
+                    for (const QString& error : signature.getErrors())
+                    {
+                        formatter.writeText("error", error);
+                    }
+                    formatter.endHeader();
+                }
+
+                if (signature.hasWarning())
+                {
+                    formatter.endl();
+                    formatter.beginHeader("warnings", PDFToolTranslationContext::tr("Warnings:"));
+                    for (const QString& warning : signature.getWarnings())
+                    {
+                        formatter.writeText("warning", warning);
+                    }
+                    formatter.endHeader();
+                }
+
                 formatter.endl();
 
                 if (!options.verificationOmitCertificateCheck)
