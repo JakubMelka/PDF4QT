@@ -37,7 +37,7 @@ public:
         Html
     };
 
-    explicit PDFOutputFormatter(Style style);
+    explicit PDFOutputFormatter(Style style, QString codecName);
     ~PDFOutputFormatter();
 
     enum class Element
@@ -97,10 +97,10 @@ class PDFConsole
 public:
 
     /// Writes text to the console
-    static void writeText(QString text);
+    static void writeText(QString text, QString codecName);
 
     /// Writes error to the console
-    static void writeError(QString text);
+    static void writeError(QString text, QString codecName);
 
 private:
     explicit PDFConsole() = delete;

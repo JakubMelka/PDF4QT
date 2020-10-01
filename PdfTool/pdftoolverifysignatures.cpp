@@ -52,7 +52,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
     // No document specified?
     if (options.document.isEmpty())
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("No document specified."));
+        PDFConsole::writeError(PDFToolTranslationContext::tr("No document specified."), options.outputCodec);
         return ErrorNoDocumentSpecified;
     }
 
@@ -76,7 +76,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
 
         case pdf::PDFDocumentReader::Result::Failed:
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Error occured during document reading. %1").arg(reader.getErrorMessage()));
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Error occured during document reading. %1").arg(reader.getErrorMessage()), options.outputCodec);
             return ErrorDocumentReading;
         }
 
@@ -87,7 +87,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
 
     for (const QString& warning : reader.getWarnings())
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: %1").arg(warning));
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: %1").arg(warning), options.outputCodec);
     }
 
     // Verify signatures
@@ -107,7 +107,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
     pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
     std::vector<pdf::PDFSignatureVerificationResult> signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource(), parameters);
 
-    PDFOutputFormatter formatter(options.outputStyle);
+    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
     formatter.beginDocument("signatures", PDFToolTranslationContext::tr("Digital signatures/timestamps verification of %1").arg(options.document));
     formatter.endl();
 
@@ -386,7 +386,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
 
     formatter.endDocument();
 
-    PDFConsole::writeText(formatter.getString());
+    PDFConsole::writeText(formatter.getString(), options.outputCodec);
     return ExitSuccess;
 }
 

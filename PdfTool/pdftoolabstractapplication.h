@@ -42,6 +42,7 @@ struct PDFToolOptions
 {
     // For option 'ConsoleFormat'
     PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
+    QString outputCodec;
 
     // For option 'OpenDocument'
     QString document;

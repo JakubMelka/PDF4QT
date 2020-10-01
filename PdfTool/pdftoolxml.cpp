@@ -210,6 +210,11 @@ int PDFToolXmlApplication::execute(const PDFToolOptions& options)
         writer.setAutoFormattingIndent(2);
     }
 
+    if (QTextCodec* codec = QTextCodec::codecForName(options.outputCodec.toLatin1()))
+    {
+        writer.setCodec(codec);
+    }
+
     QString comment = QString("Processed by %1 %2").arg(QCoreApplication::applicationName(), QCoreApplication::applicationVersion());
     writer.writeStartDocument();
     writer.writeComment(comment);
@@ -240,7 +245,7 @@ int PDFToolXmlApplication::execute(const PDFToolOptions& options)
     writer.writeEndElement();
     writer.writeEndDocument();
 
-    PDFConsole::writeText(xmlString);
+    PDFConsole::writeText(xmlString, options.outputCodec);
     return ExitSuccess;
 }
 

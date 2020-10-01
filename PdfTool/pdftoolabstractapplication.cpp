@@ -58,7 +58,7 @@ QString PDFToolHelpApplication::getStandardString(StandardString standardString)
 
 int PDFToolHelpApplication::execute(const PDFToolOptions& options)
 {
-    PDFOutputFormatter formatter(options.outputStyle);
+    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
     formatter.beginDocument("help", PDFToolTranslationContext::tr("PDFTool help"));
     formatter.endl();
 
@@ -107,9 +107,27 @@ int PDFToolHelpApplication::execute(const PDFToolOptions& options)
 
     formatter.endTable();
 
+    formatter.endl();
+    formatter.beginHeader("text-output", PDFToolTranslationContext::tr("Text Encoding"));
+
+    formatter.writeText("header", PDFToolTranslationContext::tr("When you redirect console to a file, then specific codec is used to transform output text to target encoding. UTF-8 encoding is used by default. For XML output, you should use only UTF-8 codec. Available codecs:"));
+    formatter.endl();
+
+    QList<QByteArray> codecs = QTextCodec::availableCodecs();
+    QStringList codecNames;
+    for (const QByteArray& codecName : codecs)
+    {
+        codecNames << QString::fromLatin1(codecName);
+    }
+    formatter.writeText("codecs", codecNames.join(", "));
+    formatter.endl();
+    formatter.writeText("default-codec", PDFToolTranslationContext::tr("Suggested codec: UTF-8 or %1").arg(QString::fromLatin1(QTextCodec::codecForLocale()->name())));
+
+    formatter.endHeader();
+
     formatter.endDocument();
 
-    PDFConsole::writeText(formatter.getString());
+    PDFConsole::writeText(formatter.getString(), options.outputCodec);
     return ExitSuccess;
 }
 
@@ -130,6 +148,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     if (optionFlags.testFlag(ConsoleFormat))
     {
         parser->addOption(QCommandLineOption("console-format", "Console output text format (valid values: text|xml|html).", "console-format", "text"));
+        parser->addOption(QCommandLineOption("text-codec", QString("Text codec used when writing text output to redirected standard output. UTF-8 is default."), "text-codec", "UTF-8"));
     }
 
     if (optionFlags.testFlag(OpenDocument))
@@ -184,11 +203,13 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         {
             if (!consoleFormat.isEmpty())
             {
-                PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console format '%1'. Defaulting to text console format.").arg(consoleFormat));
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console format '%1'. Defaulting to text console format.").arg(consoleFormat), options.outputCodec);
             }
 
             options.outputStyle = PDFOutputFormatter::Style::Text;
         }
+
+        options.outputCodec = parser->value("text-codec");
     }
 
     if (optionFlags.testFlag(OpenDocument))
@@ -225,7 +246,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         }
         else if (!dateFormat.isEmpty())
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console date/time format '%1'. Defaulting to short date/time format.").arg(dateFormat));
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console date/time format '%1'. Defaulting to short date/time format.").arg(dateFormat), options.outputCodec);
         }
     }
 
@@ -259,13 +280,13 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
 
         case pdf::PDFDocumentReader::Result::Cancelled:
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid password provided."));
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid password provided."), options.outputCodec);
             return false;
         }
 
         case pdf::PDFDocumentReader::Result::Failed:
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Error occured during document reading. %1").arg(reader.getErrorMessage()));
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Error occured during document reading. %1").arg(reader.getErrorMessage()), options.outputCodec);
             return false;
         }
 
@@ -278,7 +299,7 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
 
     for (const QString& warning : reader.getWarnings())
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: %1").arg(warning));
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: %1").arg(warning), options.outputCodec);
     }
 
     return true;

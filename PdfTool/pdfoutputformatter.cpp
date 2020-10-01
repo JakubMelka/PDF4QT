@@ -17,6 +17,7 @@
 
 #include "pdfoutputformatter.h"
 
+#include <QTextCodec>
 #include <QTextStream>
 #include <QXmlStreamWriter>
 #include <QCoreApplication>
@@ -91,7 +92,7 @@ private:
 class PDFXmlOutputFormatterImpl : public PDFOutputFormatterImpl
 {
 public:
-    PDFXmlOutputFormatterImpl();
+    PDFXmlOutputFormatterImpl(QString codec);
 
     virtual void beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference) override;
     virtual void endElement() override;
@@ -109,7 +110,7 @@ private:
 class PDFHtmlOutputFormatterImpl : public PDFOutputFormatterImpl
 {
 public:
-    PDFHtmlOutputFormatterImpl();
+    PDFHtmlOutputFormatterImpl(QString codecName);
 
     virtual void beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference) override;
     virtual void endElement() override;
@@ -308,14 +309,17 @@ const PDFTextOutputFormatterImpl::TableCell& PDFTextOutputFormatterImpl::getTabl
     return dummy;
 }
 
-PDFHtmlOutputFormatterImpl::PDFHtmlOutputFormatterImpl() :
+PDFHtmlOutputFormatterImpl::PDFHtmlOutputFormatterImpl(QString codecName) :
     m_string(),
     m_streamWriter(&m_string),
     m_depth(0),
     m_headerDepth(1),
     m_elementStack()
 {
-
+    if (QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1()))
+    {
+        m_streamWriter.setCodec(codec);
+    }
 }
 
 void PDFHtmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference)
@@ -483,13 +487,18 @@ void PDFHtmlOutputFormatterImpl::endl()
     m_streamWriter.writeEndElement();
 }
 
-PDFXmlOutputFormatterImpl::PDFXmlOutputFormatterImpl() :
+PDFXmlOutputFormatterImpl::PDFXmlOutputFormatterImpl(QString codecName) :
     m_string(),
     m_streamWriter(&m_string),
     m_depth(0)
 {
     m_streamWriter.setAutoFormatting(true);
     m_streamWriter.setAutoFormattingIndent(2);
+
+    if (QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1()))
+    {
+        m_streamWriter.setCodec(codec);
+    }
 
     m_namespace = "https://github.com/JakubMelka/PdfForQt";
     m_prefix = "pdftool";
@@ -575,7 +584,7 @@ QString PDFXmlOutputFormatterImpl::getString() const
     return m_string;
 }
 
-PDFOutputFormatter::PDFOutputFormatter(Style style) :
+PDFOutputFormatter::PDFOutputFormatter(Style style, QString codecName) :
     m_impl(nullptr)
 {
     switch (style)
@@ -585,11 +594,11 @@ PDFOutputFormatter::PDFOutputFormatter(Style style) :
             break;
 
         case Style::Xml:
-            m_impl = new PDFXmlOutputFormatterImpl();
+            m_impl = new PDFXmlOutputFormatterImpl(codecName);
             break;
 
         case Style::Html:
-            m_impl = new PDFHtmlOutputFormatterImpl();
+            m_impl = new PDFHtmlOutputFormatterImpl(codecName);
             break;
     }
 
@@ -621,19 +630,39 @@ QString PDFOutputFormatter::getString() const
     return m_impl->getString();
 }
 
-void PDFConsole::writeText(QString text)
+void PDFConsole::writeText(QString text, QString codecName)
 {
 #ifdef Q_OS_WIN
-    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), text.utf16(), text.size(), nullptr, nullptr);
+    HANDLE outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (!WriteConsoleW(outputHandle, text.utf16(), text.size(), nullptr, nullptr))
+    {
+        // Write console failed. This can happen only, if outputHandle is not handle
+        // to console screen buffer, but, for example a file or a pipe.
+        if (QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1()))
+        {
+            QByteArray encodedData = codec->fromUnicode(text);
+            WriteFile(outputHandle, encodedData.constData(), encodedData.size(), nullptr, nullptr);
+        }
+    }
 #else
     QTextStream(stdout) << text;
 #endif
 }
 
-void PDFConsole::writeError(QString text)
+void PDFConsole::writeError(QString text, QString codecName)
 {
 #ifdef Q_OS_WIN
-    WriteConsoleW(GetStdHandle(STD_ERROR_HANDLE), text.utf16(), text.size(), nullptr, nullptr);
+    HANDLE outputHandle = GetStdHandle(STD_ERROR_HANDLE);
+    if (!WriteConsoleW(outputHandle, text.utf16(), text.size(), nullptr, nullptr))
+    {
+        // Write console failed. This can happen only, if outputHandle is not handle
+        // to console screen buffer, but, for example a file or a pipe.
+        if (QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1()))
+        {
+            QByteArray encodedData = codec->fromUnicode(text);
+            WriteFile(outputHandle, encodedData.constData(), encodedData.size(), nullptr, nullptr);
+        }
+    }
 #else
     QTextStream(stdout) << text;
 #endif
