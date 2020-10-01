@@ -57,10 +57,10 @@ struct PDFToolOptions
     Qt::DateFormat verificationDateFormat = Qt::DefaultLocaleShortDate;
 
     // For option 'XMLExport'
-    bool xmlExportStreams = false; dodelat optiony
+    bool xmlExportStreams = false;
     bool xmlExportStreamsAsText = false;
-    bool xmlUseIndent = true; dodelat
-    bool xmlAlwaysBinary = false; dodelat
+    bool xmlUseIndent = false;
+    bool xmlAlwaysBinaryStrings = false;
 };
 
 /// Base class for all applications

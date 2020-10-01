@@ -152,7 +152,9 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     if (optionFlags.testFlag(XmlExport))
     {
         parser->addOption(QCommandLineOption("xml-export-streams", "Export streams as hexadecimally encoded data. By default, stream data are not exported."));
-        parser->addOption(QCommandLineOption("xml-export-streams-as-text", "Export streams as text, if possible. This flag enforces exporting stream data (possibly as hexadecimal strings)."));
+        parser->addOption(QCommandLineOption("xml-export-streams-as-text", "Export streams as text, if possible."));
+        parser->addOption(QCommandLineOption("xml-use-indent", "Use automatic indent when writing output xml file."));
+        parser->addOption(QCommandLineOption("xml-always-binary", "Do not try to attempt transform strings to text."));
     }
 }
 
@@ -225,6 +227,14 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         {
             PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console date/time format '%1'. Defaulting to short date/time format.").arg(dateFormat));
         }
+    }
+
+    if (optionFlags.testFlag(XmlExport))
+    {
+        options.xmlExportStreams = parser->isSet("xml-export-streams");
+        options.xmlExportStreamsAsText = parser->isSet("xml-export-streams-as-text");
+        options.xmlUseIndent = parser->isSet("xml-use-indent");
+        options.xmlAlwaysBinaryStrings = parser->isSet("xml-always-binary");
     }
 
     return options;

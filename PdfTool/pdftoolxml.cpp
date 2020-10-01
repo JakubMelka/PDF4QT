@@ -18,6 +18,7 @@
 #include "pdftoolxml.h"
 #include "pdfvisitor.h"
 #include "pdfencoding.h"
+#include "pdfexception.h"
 
 #include <QXmlStreamWriter>
 
@@ -29,8 +30,10 @@ static PDFToolXmlApplication s_xmlApplication;
 class PDFXmlExportVisitor : public pdf::PDFAbstractVisitor
 {
 public:
-    PDFXmlExportVisitor(QXmlStreamWriter* writer) :
-        m_writer(writer)
+    PDFXmlExportVisitor(QXmlStreamWriter* writer, const pdf::PDFDocument* document, const PDFToolOptions* options) :
+        m_writer(writer),
+        m_options(options),
+        m_document(document)
     {
 
     }
@@ -50,6 +53,8 @@ private:
     void writeTextOrBinary(const QByteArray& stream, QString name);
 
     QXmlStreamWriter* m_writer;
+    const PDFToolOptions* m_options;
+    const pdf::PDFDocument* m_document;
 };
 
 void PDFXmlExportVisitor::visitNull()
@@ -109,7 +114,32 @@ void PDFXmlExportVisitor::visitStream(const pdf::PDFStream* stream)
 {
     m_writer->writeStartElement("stream");
     visitDictionary(stream->getDictionary());
-    dodelat export dat
+
+    if (m_options->xmlExportStreams)
+    {
+        m_writer->writeTextElement("data", QString::fromLatin1(stream->getContent()->toHex()).toUpper());
+    }
+
+    if (m_options->xmlExportStreamsAsText)
+    {
+        try
+        {
+            // Attempt to decode the stream. Exception can be thrown.
+            QByteArray decodedData = m_document->getDecodedStream(stream);
+
+            bool isBinary = true;
+            QString text = pdf::PDFEncoding::convertSmartFromByteStringToUnicode(decodedData, &isBinary);
+            if (!isBinary)
+            {
+                m_writer->writeTextElement("text", text);
+            }
+        }
+        catch (pdf::PDFException)
+        {
+            // Do nothing
+        }
+    }
+
     m_writer->writeEndElement();
 }
 
@@ -124,9 +154,19 @@ void PDFXmlExportVisitor::visitReference(const pdf::PDFObjectReference reference
 
 void PDFXmlExportVisitor::writeTextOrBinary(const QByteArray& stream, QString name)
 {
-    bool isBinary = false;
+    bool isBinary = true;
     m_writer->writeStartElement(name);
-    QString text = pdf::PDFEncoding::convertSmartFromByteStringToUnicode(stream, &isBinary);
+
+    QString text;
+    if (!m_options->xmlAlwaysBinaryStrings)
+    {
+        text = pdf::PDFEncoding::convertSmartFromByteStringToUnicode(stream, &isBinary);
+    }
+    else
+    {
+        text = QString::fromLatin1(stream.toHex()).toUpper();
+    }
+
     m_writer->writeAttribute("form", isBinary ? "binary" : "text");
     m_writer->writeCharacters(text);
     m_writer->writeEndElement();
@@ -175,7 +215,7 @@ int PDFToolXmlApplication::execute(const PDFToolOptions& options)
     writer.writeComment(comment);
     writer.writeStartElement("document");
 
-    PDFXmlExportVisitor visitor(&writer);
+    PDFXmlExportVisitor visitor(&writer, &document, &options);
     writer.writeStartElement("trailer");
     document.getStorage().getTrailerDictionary().accept(&visitor);
     writer.writeEndElement();
