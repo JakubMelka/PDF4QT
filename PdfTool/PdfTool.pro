@@ -42,6 +42,7 @@ SOURCES += \
         main.cpp \
         pdfoutputformatter.cpp \
         pdftoolabstractapplication.cpp \
+        pdftoolattachments.cpp \
         pdftoolverifysignatures.cpp \
         pdftoolxml.cpp
 
@@ -57,5 +58,6 @@ INSTALLS += application
 HEADERS += \
     pdfoutputformatter.h \
     pdftoolabstractapplication.h \
+    pdftoolattachments.h \
     pdftoolverifysignatures.h \
     pdftoolxml.h

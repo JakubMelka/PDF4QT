@@ -147,8 +147,8 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
 
     if (optionFlags.testFlag(ConsoleFormat))
     {
-        parser->addOption(QCommandLineOption("console-format", "Console output text format (valid values: text|xml|html).", "console-format", "text"));
-        parser->addOption(QCommandLineOption("text-codec", QString("Text codec used when writing text output to redirected standard output. UTF-8 is default."), "text-codec", "UTF-8"));
+        parser->addOption(QCommandLineOption("console-format", "Console output text format (valid values: text|xml|html).", "format", "text"));
+        parser->addOption(QCommandLineOption("text-codec", QString("Text codec used when writing text output to redirected standard output. UTF-8 is default."), "text codec", "UTF-8"));
     }
 
     if (optionFlags.testFlag(OpenDocument))
@@ -174,6 +174,15 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("xml-export-streams-as-text", "Export streams as text, if possible."));
         parser->addOption(QCommandLineOption("xml-use-indent", "Use automatic indent when writing output xml file."));
         parser->addOption(QCommandLineOption("xml-always-binary", "Do not try to attempt transform strings to text."));
+    }
+
+    if (optionFlags.testFlag(Attachments))
+    {
+        parser->addOption(QCommandLineOption("att-save-n", "Save the specified file attached in document. File name is, by default, same as attachment, it can be changed by a switch.", "number", QString()));
+        parser->addOption(QCommandLineOption("att-save-file", "Save the specified file attached in document. File name is, by default, same as attachment, it can be changed by a switch.", "file", QString()));
+        parser->addOption(QCommandLineOption("att-save-all", "Save all attachments to target directory."));
+        parser->addOption(QCommandLineOption("att-target-dir", "Target directory to which is attachment saved.", "directory", QString()));
+        parser->addOption(QCommandLineOption("att-target-file", "File, to which is attachment saved.", "target", QString()));
     }
 }
 
@@ -215,7 +224,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     if (optionFlags.testFlag(OpenDocument))
     {
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
-        options.password = parser->isSet("pswd") ? parser->value("password") : QString();
+        options.password = parser->isSet("pswd") ? parser->value("pswd") : QString();
         options.permissiveReading = !parser->isSet("no-permissive-reading");
     }
 
@@ -256,6 +265,15 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.xmlExportStreamsAsText = parser->isSet("xml-export-streams-as-text");
         options.xmlUseIndent = parser->isSet("xml-use-indent");
         options.xmlAlwaysBinaryStrings = parser->isSet("xml-always-binary");
+    }
+
+    if (optionFlags.testFlag(Attachments))
+    {
+        options.attachmentsSaveNumber = parser->isSet("att-save-n") ? parser->value("att-save-n") : QString();
+        options.attachmentsSaveFileName = parser->isSet("att-save-file") ? parser->value("att-save-file") : QString();
+        options.attachmentsSaveAll = parser->isSet("att-save-all");
+        options.attachmentsOutputDirectory = parser->isSet("att-target-dir") ? parser->value("att-target-dir") : QString();
+        options.attachmentsTargetFile = parser->isSet("att-target-file") ? parser->value("att-target-file") : QString();
     }
 
     return options;

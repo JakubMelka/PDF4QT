@@ -62,6 +62,13 @@ struct PDFToolOptions
     bool xmlExportStreamsAsText = false;
     bool xmlUseIndent = false;
     bool xmlAlwaysBinaryStrings = false;
+
+    // For option 'Attachments'
+    QString attachmentsSaveNumber;
+    QString attachmentsSaveFileName;
+    QString attachmentsOutputDirectory;
+    QString attachmentsTargetFile;
+    bool attachmentsSaveAll = false;
 };
 
 /// Base class for all applications
@@ -75,7 +82,9 @@ public:
     {
         ExitSuccess = EXIT_SUCCESS,
         ErrorNoDocumentSpecified,
-        ErrorDocumentReading
+        ErrorDocumentReading,
+        ErrorInvalidArguments,
+        ErrorFailedWriteToFile
     };
 
     enum StandardString
@@ -91,6 +100,7 @@ public:
         OpenDocument            = 0x0002,       ///< Flags for document reading
         SignatureVerification   = 0x0004,       ///< Flags for signature verification,
         XmlExport               = 0x0008,       ///< Flags for xml export
+        Attachments             = 0x0010,       ///< Flags for attachments manipulating
     };
     Q_DECLARE_FLAGS(Options, Option)
 

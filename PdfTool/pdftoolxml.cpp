@@ -172,7 +172,7 @@ void PDFXmlExportVisitor::writeTextOrBinary(const QByteArray& stream, QString na
     m_writer->writeEndElement();
 }
 
-QString PDFToolXmlApplication::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
+QString PDFToolXmlApplication::getStandardString(StandardString standardString) const
 {
     switch (standardString)
     {
