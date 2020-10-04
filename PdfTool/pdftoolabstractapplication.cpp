@@ -151,6 +151,11 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("text-codec", QString("Text codec used when writing text output to redirected standard output. UTF-8 is default."), "text codec", "UTF-8"));
     }
 
+    if (optionFlags.testFlag(DateFormat))
+    {
+        parser->addOption(QCommandLineOption("date-format", "Console output date/time format (valid values: short|long|iso|rfc2822).", "date format", "short"));
+    }
+
     if (optionFlags.testFlag(OpenDocument))
     {
         parser->addOption(QCommandLineOption("pswd", "Password for encrypted document.", "password"));
@@ -165,7 +170,6 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("ver-no-cert-check", "Disable certificate validation."));
         parser->addOption(QCommandLineOption("ver-details", "Print details (including certificate chain, if found)."));
         parser->addOption(QCommandLineOption("ver-ignore-exp-date", "Ignore certificate expiration date."));
-        parser->addOption(QCommandLineOption("ver-date-format", "Console output date/time format (valid values: short|long|iso|rfc2822).", "ver-date-format", "short"));
     }
 
     if (optionFlags.testFlag(XmlExport))
@@ -183,6 +187,11 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("att-save-all", "Save all attachments to target directory."));
         parser->addOption(QCommandLineOption("att-target-dir", "Target directory to which is attachment saved.", "directory", QString()));
         parser->addOption(QCommandLineOption("att-target-file", "File, to which is attachment saved.", "target", QString()));
+    }
+
+    if (optionFlags.testFlag(ComputeHashes))
+    {
+        parser->addOption(QCommandLineOption("compute-hashes", "Compute hashes (MD5, SHA1, SHA256...) of document."));
     }
 }
 
@@ -221,6 +230,31 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.outputCodec = parser->value("text-codec");
     }
 
+    if (optionFlags.testFlag(DateFormat))
+    {
+        QString dateFormat = parser->value("date-format");
+        if (dateFormat == "short")
+        {
+            options.outputDateFormat = Qt::DefaultLocaleShortDate;
+        }
+        else if (dateFormat == "long")
+        {
+            options.outputDateFormat = Qt::DefaultLocaleLongDate;
+        }
+        else if (dateFormat == "iso")
+        {
+            options.outputDateFormat = Qt::ISODate;
+        }
+        else if (dateFormat == "rfc2822")
+        {
+            options.outputDateFormat = Qt::RFC2822Date;
+        }
+        else if (!dateFormat.isEmpty())
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console date/time format '%1'. Defaulting to short date/time format.").arg(dateFormat), options.outputCodec);
+        }
+    }
+
     if (optionFlags.testFlag(OpenDocument))
     {
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
@@ -235,28 +269,6 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.verificationOmitCertificateCheck = parser->isSet("ver-no-cert-check");
         options.verificationPrintCertificateDetails = parser->isSet("ver-details");
         options.verificationIgnoreExpirationDate = parser->isSet("ver-ignore-exp-date");
-
-        QString dateFormat = parser->value("ver-date-format");
-        if (dateFormat == "short")
-        {
-            options.verificationDateFormat = Qt::DefaultLocaleShortDate;
-        }
-        else if (dateFormat == "long")
-        {
-            options.verificationDateFormat = Qt::DefaultLocaleLongDate;
-        }
-        else if (dateFormat == "iso")
-        {
-            options.verificationDateFormat = Qt::ISODate;
-        }
-        else if (dateFormat == "rfc2822")
-        {
-            options.verificationDateFormat = Qt::RFC2822Date;
-        }
-        else if (!dateFormat.isEmpty())
-        {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown console date/time format '%1'. Defaulting to short date/time format.").arg(dateFormat), options.outputCodec);
-        }
     }
 
     if (optionFlags.testFlag(XmlExport))
@@ -276,10 +288,15 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.attachmentsTargetFile = parser->isSet("att-target-file") ? parser->value("att-target-file") : QString();
     }
 
+    if (optionFlags.testFlag(ComputeHashes))
+    {
+        options.computeHashes = parser->isSet("compute-hashes");
+    }
+
     return options;
 }
 
-bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document)
+bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData)
 {
     bool isFirstPasswordAttempt = true;
     auto passwordCallback = [&options, &isFirstPasswordAttempt](bool* ok) -> QString
@@ -294,7 +311,13 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
     switch (reader.getReadingResult())
     {
         case pdf::PDFDocumentReader::Result::OK:
+        {
+            if (sourceData)
+            {
+                *sourceData = reader.getSource();
+            }
             break;
+        }
 
         case pdf::PDFDocumentReader::Result::Cancelled:
         {

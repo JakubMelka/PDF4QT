@@ -487,7 +487,7 @@ public:
     const PDFRendition* getRendition() const { return m_rendition.has_value() ? &m_rendition.value() : nullptr; }
     PDFObjectReference getAnnotation() const { return m_annotation; }
     Operation getOperation() const { return m_operation; }
-    const QString& getJavascript() const { return m_javascript; }
+    const QString& getJavaScript() const { return m_javascript; }
 
 private:
     std::optional<PDFRendition> m_rendition;

@@ -394,6 +394,10 @@ public:
         PageClosed,
         PageShow,
         PageHide,
+        FormFieldModified,
+        FormFieldFormatted,
+        FormFieldValidated,
+        FormFieldCalculated,
         Default,
         End
     };
@@ -404,6 +408,9 @@ public:
     /// or not present, nullptr is returned.
     /// \param action Action type
     const PDFAction* getAction(Action action) const { return m_actions.at(action).get(); }
+
+    /// Returns array with all actions
+    const std::array<PDFActionPtr, End>& getActions() const { return m_actions; }
 
     /// Parses annotation additional actions from the object. If object is invalid, then
     /// empty additional actions is constructed.

@@ -165,8 +165,8 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
             formatter.writeTableColumn("common-name", commonName);
             formatter.writeTableColumn("cert-status", options.verificationOmitCertificateCheck ? PDFToolTranslationContext::tr("Skipped") : signature.getCertificateStatusText());
             formatter.writeTableColumn("signature-status", signature.getSignatureStatusText());
-            formatter.writeTableColumn("signing-date", signature.getSignatureDate().isValid() ? signature.getSignatureDate().toLocalTime().toString(options.verificationDateFormat) : QString());
-            formatter.writeTableColumn("timestamp-date", signature.getTimestampDate().isValid() ? signature.getTimestampDate().toLocalTime().toString(options.verificationDateFormat) : QString());
+            formatter.writeTableColumn("signing-date", signature.getSignatureDate().isValid() ? signature.getSignatureDate().toLocalTime().toString(options.outputDateFormat) : QString());
+            formatter.writeTableColumn("timestamp-date", signature.getTimestampDate().isValid() ? signature.getTimestampDate().toLocalTime().toString(options.outputDateFormat) : QString());
             formatter.writeTableColumn("hash-algorithm", signature.getHashAlgorithms().join(", ").toUpper());
             formatter.writeTableColumn("handler", QString::fromLatin1(signature.getSignatureHandler()));
             formatter.writeTableColumn("whole-signed", signature.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes) ? PDFToolTranslationContext::tr("No") : PDFToolTranslationContext::tr("Yes"));
@@ -194,8 +194,8 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
                 formatter.writeText("common-name", PDFToolTranslationContext::tr("Signed by: %1").arg(commonName));
                 formatter.writeText("certificate-status", PDFToolTranslationContext::tr("Certificate status: %1").arg(options.verificationOmitCertificateCheck ? PDFToolTranslationContext::tr("Skipped") : signature.getCertificateStatusText()));
                 formatter.writeText("signature-status", PDFToolTranslationContext::tr("Signature status: %1").arg(signature.getSignatureStatusText()));
-                formatter.writeText("signing-date", PDFToolTranslationContext::tr("Signing date: %1").arg(signature.getSignatureDate().isValid() ? signature.getSignatureDate().toLocalTime().toString(options.verificationDateFormat) : QString()));
-                formatter.writeText("timestamp-date", PDFToolTranslationContext::tr("Timestamp date: %1").arg(signature.getTimestampDate().isValid() ? signature.getTimestampDate().toLocalTime().toString(options.verificationDateFormat) : QString()));
+                formatter.writeText("signing-date", PDFToolTranslationContext::tr("Signing date: %1").arg(signature.getSignatureDate().isValid() ? signature.getSignatureDate().toLocalTime().toString(options.outputDateFormat) : QString()));
+                formatter.writeText("timestamp-date", PDFToolTranslationContext::tr("Timestamp date: %1").arg(signature.getTimestampDate().isValid() ? signature.getTimestampDate().toLocalTime().toString(options.outputDateFormat) : QString()));
                 formatter.writeText("hash-algorithm", PDFToolTranslationContext::tr("Hash algorithm: %1").arg(signature.getHashAlgorithms().join(", ").toUpper()));
                 formatter.writeText("handler", PDFToolTranslationContext::tr("Handler: %1").arg(QString::fromLatin1(signature.getSignatureHandler())));
                 formatter.writeText("whole-signed", PDFToolTranslationContext::tr("Is whole document signed: %1").arg(signature.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes) ? PDFToolTranslationContext::tr("No") : PDFToolTranslationContext::tr("Yes")));
@@ -307,7 +307,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
                         {
                             formatter.beginTableRow("valid-from");
                             formatter.writeTableColumn("description", PDFToolTranslationContext::tr("Valid from"));
-                            formatter.writeTableColumn("value", notValidBefore.toString(options.verificationDateFormat));
+                            formatter.writeTableColumn("value", notValidBefore.toString(options.outputDateFormat));
                             formatter.endTableRow();
                         }
 
@@ -315,7 +315,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
                         {
                             formatter.beginTableRow("valid-to");
                             formatter.writeTableColumn("description", PDFToolTranslationContext::tr("Valid to"));
-                            formatter.writeTableColumn("value", notValidAfter.toString(options.verificationDateFormat));
+                            formatter.writeTableColumn("value", notValidAfter.toString(options.outputDateFormat));
                             formatter.endTableRow();
                         }
 
@@ -392,7 +392,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
 
 PDFToolAbstractApplication::Options PDFToolVerifySignaturesApplication::getOptionsFlags() const
 {
-    return PDFToolAbstractApplication::ConsoleFormat | PDFToolAbstractApplication::OpenDocument | PDFToolAbstractApplication::SignatureVerification;
+    return PDFToolAbstractApplication::ConsoleFormat | PDFToolAbstractApplication::OpenDocument | PDFToolAbstractApplication::SignatureVerification | PDFToolAbstractApplication::DateFormat;
 }
 
 }   // namespace pdftool

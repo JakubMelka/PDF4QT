@@ -202,7 +202,7 @@ int PDFToolAttachmentsApplication::execute(const PDFToolOptions& options)
 
 PDFToolAbstractApplication::Options PDFToolAttachmentsApplication::getOptionsFlags() const
 {
-    return OpenDocument | Attachments;
+    return ConsoleFormat | OpenDocument | Attachments;
 }
 
 }   // namespace pdftool

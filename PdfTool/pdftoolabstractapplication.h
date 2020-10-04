@@ -44,6 +44,9 @@ struct PDFToolOptions
     PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
     QString outputCodec;
 
+    // For option 'DateFormat'
+    Qt::DateFormat outputDateFormat = Qt::DefaultLocaleShortDate;
+
     // For option 'OpenDocument'
     QString document;
     QString password;
@@ -55,7 +58,6 @@ struct PDFToolOptions
     bool verificationOmitCertificateCheck = false;
     bool verificationPrintCertificateDetails = false;
     bool verificationIgnoreExpirationDate = false;
-    Qt::DateFormat verificationDateFormat = Qt::DefaultLocaleShortDate;
 
     // For option 'XMLExport'
     bool xmlExportStreams = false;
@@ -69,6 +71,9 @@ struct PDFToolOptions
     QString attachmentsOutputDirectory;
     QString attachmentsTargetFile;
     bool attachmentsSaveAll = false;
+
+    // For option 'ComputeHashes'
+    bool computeHashes = false;
 };
 
 /// Base class for all applications
@@ -101,6 +106,8 @@ public:
         SignatureVerification   = 0x0004,       ///< Flags for signature verification,
         XmlExport               = 0x0008,       ///< Flags for xml export
         Attachments             = 0x0010,       ///< Flags for attachments manipulating
+        DateFormat              = 0x0020,       ///< Date format
+        ComputeHashes           = 0x0040,       ///< Compute hashes
     };
     Q_DECLARE_FLAGS(Options, Option)
 
@@ -111,7 +118,14 @@ public:
     void initializeCommandLineParser(QCommandLineParser* parser) const;
     PDFToolOptions getOptions(QCommandLineParser* parser) const;
 
-    bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document);
+protected:
+    /// Tries to read the document. If document is successfully read, true is returned,
+    /// if error occurs, then false is returned. Optionally, original document content
+    /// can also be retrieved.
+    /// \param options Options
+    /// \param document Document
+    /// \param[out] sourceData Pointer, to which source data are stored
+    bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData = nullptr);
 };
 
 /// This class stores information about all applications available. Application

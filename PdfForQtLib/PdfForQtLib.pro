@@ -54,6 +54,7 @@ SOURCES += \
     sources/pdffile.cpp \
     sources/pdfform.cpp \
     sources/pdfitemmodels.cpp \
+    sources/pdfjavascriptscanner.cpp \
     sources/pdfjbig2decoder.cpp \
     sources/pdfmultimedia.cpp \
     sources/pdfobject.cpp \
@@ -108,6 +109,7 @@ HEADERS += \
     sources/pdffile.h \
     sources/pdfform.h \
     sources/pdfitemmodels.h \
+    sources/pdfjavascriptscanner.h \
     sources/pdfjbig2decoder.h \
     sources/pdfmeshqualitysettings.h \
     sources/pdfmultimedia.h \

@@ -217,6 +217,9 @@ public:
     /// \param action Action type
     const PDFAction* getAction(PDFAnnotationAdditionalActions::Action action) const { return m_additionalActions.getAction(action); }
 
+    /// Returns container of actions
+    const PDFAnnotationAdditionalActions& getActions() const { return m_additionalActions; }
+
     /// Parses form field from the object reference. If some error occurs
     /// then null pointer is returned, no exception is thrown.
     /// \param storage Storage

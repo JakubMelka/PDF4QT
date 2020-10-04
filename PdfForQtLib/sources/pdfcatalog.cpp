@@ -1120,4 +1120,17 @@ PDFDocumentRequirements::RequirementEntry PDFDocumentRequirements::RequirementEn
     return entry;
 }
 
+PDFPageAdditionalActions PDFPageAdditionalActions::parse(const PDFObjectStorage* storage, PDFObject object)
+{
+    PDFPageAdditionalActions result;
+
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        result.m_actions[Open] = PDFAction::parse(storage, dictionary->get("O"));
+        result.m_actions[Close] = PDFAction::parse(storage, dictionary->get("C"));
+    }
+
+    return result;
+}
+
 }   // namespace pdf

@@ -526,6 +526,38 @@ private:
     std::vector<RequirementEntry> m_requirements;
 };
 
+/// Storage for page additional actions
+class PDFPageAdditionalActions
+{
+public:
+
+    enum Action
+    {
+        Open,
+        Close,
+        End
+    };
+
+    inline explicit PDFPageAdditionalActions() = default;
+
+    /// Returns action for given type. If action is invalid,
+    /// or not present, nullptr is returned.
+    /// \param action Action type
+    const PDFAction* getAction(Action action) const { return m_actions.at(action).get(); }
+
+    /// Returns array with all actions
+    const std::array<PDFActionPtr, End>& getActions() const { return m_actions; }
+
+    /// Parses page additional actions from the object. If object is invalid, then
+    /// empty additional actions is constructed.
+    /// \param storage Object storage
+    /// \param object Additional actions object
+    static PDFPageAdditionalActions parse(const PDFObjectStorage* storage, PDFObject object);
+
+private:
+    std::array<PDFActionPtr, End> m_actions;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFCatalog
 {
 public:
@@ -582,6 +614,7 @@ public:
     const PDFDocumentSecurityStore& getDocumentSecurityStore() const { return m_documentSecurityStore; }
     const std::vector<PDFArticleThread>& getArticleThreads() const { return m_threads; }
     const PDFAction* getDocumentAction(DocumentAction action) const { return m_documentActions.at(action).get(); }
+    const auto& getDocumentActions() const { return m_documentActions; }
     const PDFObject& getMetadata() const { return m_metadata; }
     const PDFObject& getStructureTreeRoot() const { return m_structureTreeRoot; }
     const QString& getLanguage() const { return m_language; }
@@ -660,6 +693,9 @@ public:
     /// \param key Rendition key
     /// \returns Rendition, or nullptr
     PDFObject getNamedRendition(const QByteArray& key) const;
+
+    /// Returns all named JavaScript actions
+    const std::map<QByteArray, PDFActionPtr>& getNamedJavaScriptActions() const { return m_namedJavaScriptActions; }
 
     /// Parses catalog from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.

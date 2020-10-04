@@ -1026,6 +1026,10 @@ PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFOb
         result.m_actions[PageClosed] = PDFAction::parse(storage, dictionary->get("PC"));
         result.m_actions[PageShow] = PDFAction::parse(storage, dictionary->get("PV"));
         result.m_actions[PageHide] = PDFAction::parse(storage, dictionary->get("PI"));
+        result.m_actions[FormFieldModified] = PDFAction::parse(storage, dictionary->get("K"));
+        result.m_actions[FormFieldFormatted] = PDFAction::parse(storage, dictionary->get("F"));
+        result.m_actions[FormFieldValidated] = PDFAction::parse(storage, dictionary->get("V"));
+        result.m_actions[FormFieldCalculated] = PDFAction::parse(storage, dictionary->get("C"));
     }
 
     result.m_actions[Default] = PDFAction::parse(storage, defaultAction);

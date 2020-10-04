@@ -86,11 +86,11 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
     switch (info->trapped)
     {
         case pdf::PDFDocumentInfo::Trapped::True:
-            trapped = tr("True");
+            trapped = tr("Yes");
             break;
 
         case pdf::PDFDocumentInfo::Trapped::False:
-            trapped = tr("False");
+            trapped = tr("No");
             break;
 
         case pdf::PDFDocumentInfo::Trapped::Unknown:
