@@ -74,6 +74,14 @@ struct PDFToolOptions
 
     // For option 'ComputeHashes'
     bool computeHashes = false;
+
+    // For option 'PageSelector'
+    QString pageSelectorFirstPage;
+    QString pageSelectorLastPage;
+    QString pageSelectorSelection;
+
+    /// Returns page range. If page range is invalid, then \p errorMessage is empty.
+    std::vector<pdf::PDFInteger> getPageRange(pdf::PDFInteger pageCount, QString& errorMessage) const;
 };
 
 /// Base class for all applications
@@ -86,6 +94,7 @@ public:
     enum ExitCodes
     {
         ExitSuccess = EXIT_SUCCESS,
+        ExitFailure = EXIT_FAILURE,
         ErrorNoDocumentSpecified,
         ErrorDocumentReading,
         ErrorInvalidArguments,
@@ -108,6 +117,7 @@ public:
         Attachments             = 0x0010,       ///< Flags for attachments manipulating
         DateFormat              = 0x0020,       ///< Date format
         ComputeHashes           = 0x0040,       ///< Compute hashes
+        PageSelector            = 0x0080,       ///< Select page range (or all pages)
     };
     Q_DECLARE_FLAGS(Options, Option)
 

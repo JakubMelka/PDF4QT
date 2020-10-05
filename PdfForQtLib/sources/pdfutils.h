@@ -614,6 +614,24 @@ public:
     /// Transforms interval set to readable text
     QString toText() const;
 
+    /// Returns all integers from the range
+    std::vector<PDFInteger> unfold() const;
+
+    /// Returns true, if interval set is empty
+    bool isEmpty() const { return m_intervals.empty(); }
+
+    /// Parses text into closed interval set, text should be in form "1,3,4,7,-11,12-,52-53,-",
+    /// where 1,3,4,7 means single pages, -11 means range from \p first to 11, 12- means range
+    /// from 12 to \p last, and 52-53 means closed interval [52, 53]. If text is not in this form,
+    /// then empty interval set is returned and if \p errorMessage is specified, then error message
+    /// is stored here. Parsed numbers must be equal or greater than \p first and lower or equal
+    /// to \p last, if overflow occurs, then error message is returned.
+    /// \param[in] first Lower bound of work range
+    /// \param[in] last Upper bound of work range
+    /// \param[in] text Text
+    /// \param[out] errorMessage Error message
+    static PDFClosedIntervalSet parse(PDFInteger first, PDFInteger last, const QString& text, QString* errorMessage);
+
 private:
     /// Normalizes interval ranges - merges adjacent intervals
     void normalize();

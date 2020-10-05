@@ -17,6 +17,7 @@
 
 #include "pdftoolabstractapplication.h"
 #include "pdfdocumentreader.h"
+#include "pdfutils.h"
 
 #include <QCommandLineParser>
 
@@ -193,6 +194,13 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     {
         parser->addOption(QCommandLineOption("compute-hashes", "Compute hashes (MD5, SHA1, SHA256...) of document."));
     }
+
+    if (optionFlags.testFlag(PageSelector))
+    {
+        parser->addOption(QCommandLineOption("page-first", "First page of page range.", "number"));
+        parser->addOption(QCommandLineOption("page-last", "Last page of page range.", "number"));
+        parser->addOption(QCommandLineOption("page-select", "Choose arbitrary pages, in form '1,5,3,7-11,-29,43-.'.", "number"));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -293,6 +301,13 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.computeHashes = parser->isSet("compute-hashes");
     }
 
+    if (optionFlags.testFlag(PageSelector))
+    {
+        options.pageSelectorFirstPage = parser->isSet("page-first") ? parser->value("page-first") : QString();
+        options.pageSelectorLastPage = parser->isSet("page-last") ? parser->value("page-last") : QString();
+        options.pageSelectorSelection = parser->isSet("page-select") ? parser->value("page-select") : QString();
+    }
+
     return options;
 }
 
@@ -384,6 +399,42 @@ PDFToolApplicationStorage* PDFToolApplicationStorage::getInstance()
 {
     static PDFToolApplicationStorage storage;
     return &storage;
+}
+
+std::vector<pdf::PDFInteger> PDFToolOptions::getPageRange(pdf::PDFInteger pageCount, QString& errorMessage) const
+{
+    QStringList parts;
+
+    const bool hasFirst = !pageSelectorFirstPage.isEmpty();
+    const bool hasLast = !pageSelectorLastPage.isEmpty();
+    const bool hasSelection = !pageSelectorSelection.isEmpty();
+
+    if (hasFirst && hasLast)
+    {
+        parts << QString("%1-%2").arg(pageSelectorFirstPage, pageSelectorLastPage);
+    }
+    else if (hasFirst)
+    {
+        parts << QString("%1-").arg(pageSelectorFirstPage);
+    }
+    else if (hasLast)
+    {
+        parts << QString("-%1").arg(pageSelectorLastPage);
+    }
+
+    if (hasSelection)
+    {
+        parts << pageSelectorSelection;
+    }
+
+    if (parts.empty())
+    {
+        parts << "-";
+    }
+
+    QString partsString = parts.join(",");
+    pdf::PDFClosedIntervalSet result = pdf::PDFClosedIntervalSet::parse(0, pageCount, partsString, &errorMessage);
+    return result.unfold();
 }
 
 }   // pdftool

@@ -63,6 +63,8 @@ public:
         ScanNamed       = 0x0008,   ///< Scan named javascript in catalog
         ScanForm        = 0x0010,   ///< Scan javascript in form actions
         ScanPage        = 0x0020,   ///< Scan javascript in page annotations
+
+        ScanMask = ScanDocument | ScanNamed | ScanForm | ScanPage
     };
     Q_DECLARE_FLAGS(Options, Option)
 

@@ -308,6 +308,94 @@ QString PDFClosedIntervalSet::toText() const
     return intervals.join(", ");
 }
 
+std::vector<PDFInteger> PDFClosedIntervalSet::unfold() const
+{
+    std::vector<PDFInteger> result(getTotalLength(), 0);
+
+    auto it = result.begin();
+    for (auto [first, last] : m_intervals)
+    {
+        PDFInteger rangeSize = last - first + 1;
+        std::iota(it, std::next(it, rangeSize), first);
+        std::advance(it, rangeSize);
+    }
+    Q_ASSERT(it == result.end());
+
+    return result;
+}
+
+PDFClosedIntervalSet PDFClosedIntervalSet::parse(PDFInteger first, PDFInteger last, const QString& text, QString* errorMessage)
+{
+    PDFClosedIntervalSet result;
+    *errorMessage = QString();
+
+    QStringList parts = text.split(",", Qt::SkipEmptyParts, Qt::CaseSensitive);
+    for (QString part : parts)
+    {
+        part = part.trimmed();
+
+        int separatorPos = part.indexOf(QChar('-'));
+        const bool isRange = separatorPos != -1;
+
+        if (isRange)
+        {
+            const bool isLowerBoundDefined = part.front() != QChar('-');
+            const bool isUpperBoundDefined = part.back() != QChar('-');
+
+            QString lowerString = part.left(separatorPos);
+            QString upperString = part.mid(separatorPos + 1);
+
+            bool ok1 = true;
+            bool ok2 = true;
+
+            PDFInteger lower = isLowerBoundDefined ? lowerString.toLongLong(&ok1) : first;
+            PDFInteger upper = isUpperBoundDefined ? upperString.toLongLong(&ok2) : last;
+
+            if (!ok1)
+            {
+                *errorMessage = PDFTranslationContext::tr("Can't convert '%1' to a number.").arg(lowerString);
+                break;
+            }
+
+            if (!ok2)
+            {
+                *errorMessage = PDFTranslationContext::tr("Can't convert '%1' to a number.").arg(upperString);
+                break;
+            }
+
+            if (lower > upper)
+            {
+                *errorMessage = PDFTranslationContext::tr("Closed interval [%1, %2] is invalid.").arg(lower).arg(upper);
+                break;
+            }
+
+            result.addInterval(lower, upper);
+        }
+        else
+        {
+            bool ok = true;
+            PDFInteger value = part.toLongLong(&ok);
+
+            if (!ok)
+            {
+                *errorMessage = PDFTranslationContext::tr("Can't convert '%1' to a number.").arg(part);
+                break;
+            }
+
+            result.addValue(value);
+        }
+    }
+
+    if (!errorMessage->isEmpty())
+    {
+        // Clear the result, error occured
+        result = PDFClosedIntervalSet();
+    }
+
+    result.normalize();
+    return result;
+}
+
 void PDFClosedIntervalSet::normalize()
 {
     // Algorithm:
