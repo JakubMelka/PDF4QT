@@ -42,6 +42,13 @@ struct PDFJavaScriptEntry
 
     }
 
+    bool operator <(const PDFJavaScriptEntry& other) const
+    {
+        return std::tie(type, pageIndex, javaScript) < std::tie(other.type, other.pageIndex, other.javaScript);
+    }
+
+    bool operator==(const PDFJavaScriptEntry&) const = default;
+
     Type type = Type::Invalid;
     PDFInteger pageIndex = -1;
     QString javaScript;
@@ -63,6 +70,7 @@ public:
         ScanNamed       = 0x0008,   ///< Scan named javascript in catalog
         ScanForm        = 0x0010,   ///< Scan javascript in form actions
         ScanPage        = 0x0020,   ///< Scan javascript in page annotations
+        Optimize        = 0x0040,   ///< Remove redundant entries
 
         ScanMask = ScanDocument | ScanNamed | ScanForm | ScanPage
     };

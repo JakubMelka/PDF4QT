@@ -188,6 +188,12 @@ PDFJavaScriptScanner::Entries PDFJavaScriptScanner::scan(const std::vector<PDFIn
         }
     }
 
+    qSort(result);
+    if (options.testFlag(Optimize))
+    {
+        result.erase(std::unique(result.begin(), result.end()), result.end());
+    }
+
     return result;
 }
 

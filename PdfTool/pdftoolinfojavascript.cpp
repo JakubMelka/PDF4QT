@@ -63,7 +63,87 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
     }
 
     pdf::PDFJavaScriptScanner scanner(&document);
-    pdf::PDFJavaScriptScanner::Entries javascripts = scanner.scan(pages, pdf::PDFJavaScriptScanner::ScanMask);
+    pdf::PDFJavaScriptScanner::Entries javascripts = scanner.scan(pages, pdf::PDFJavaScriptScanner::ScanMask | pdf::PDFJavaScriptScanner::Optimize);
+
+    QLocale locale;
+
+    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    formatter.beginDocument("info-javascripts", PDFToolTranslationContext::tr("JavaScript used in document %1").arg(options.document));
+    formatter.endl();
+
+    formatter.beginTable("overview", PDFToolTranslationContext::tr("JavaScript Usage Overview"));
+
+    formatter.beginTableHeaderRow("header");
+    formatter.writeTableHeaderColumn("no", PDFToolTranslationContext::tr("No."), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("context", PDFToolTranslationContext::tr("Context"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("page-number", PDFToolTranslationContext::tr("Page Number"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("code-size", PDFToolTranslationContext::tr("Code Size"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("code-snippet", PDFToolTranslationContext::tr("Code Snippet"), Qt::AlignLeft);
+    formatter.endTableHeaderRow();
+
+    int ref = 1;
+    for (const pdf::PDFJavaScriptEntry& entry : javascripts)
+    {
+        formatter.beginTableRow("javascript", ref);
+
+        QString contextText;
+        switch (entry.type)
+        {
+            case pdf::PDFJavaScriptEntry::Type::Document:
+                contextText = PDFToolTranslationContext::tr("Document");
+                break;
+
+            case pdf::PDFJavaScriptEntry::Type::Named:
+                contextText = PDFToolTranslationContext::tr("Named");
+                break;
+
+            case pdf::PDFJavaScriptEntry::Type::Form:
+                contextText = PDFToolTranslationContext::tr("Form");
+                break;
+
+            case pdf::PDFJavaScriptEntry::Type::Page:
+                contextText = PDFToolTranslationContext::tr("Page");
+                break;
+
+            case pdf::PDFJavaScriptEntry::Type::Annotation:
+                contextText = PDFToolTranslationContext::tr("Annotation");
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        formatter.writeTableColumn("no", locale.toString(ref), Qt::AlignRight);
+        formatter.writeTableColumn("context", contextText);
+        formatter.writeTableColumn("page-number", (entry.pageIndex != -1) ? locale.toString(entry.pageIndex + 1) : QString());
+        formatter.writeTableColumn("code-size", locale.toString(entry.javaScript.size()));
+        formatter.writeTableColumn("code-snippet", entry.javaScript.left(64));
+
+        formatter.endTableRow();
+        ++ref;
+    }
+
+    formatter.endTable();
+
+    formatter.endl();
+
+    formatter.beginHeader("details", PDFToolTranslationContext::tr("Details"));
+
+    ref = 1;
+    for (const pdf::PDFJavaScriptEntry& entry : javascripts)
+    {
+        formatter.endl();
+        formatter.beginHeader("javascript", PDFToolTranslationContext::tr("JavaScript #%1").arg(ref), ref);
+        formatter.writeText("code", entry.javaScript);
+        formatter.endHeader();
+        ++ref;
+    }
+
+    formatter.endHeader();
+
+    formatter.endDocument();
+    PDFConsole::writeText(formatter.getString(), options.outputCodec);
 
     return ExitSuccess;
 }
