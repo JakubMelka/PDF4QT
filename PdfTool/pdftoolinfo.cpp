@@ -211,45 +211,50 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     writeProperty("encryption", PDFToolTranslationContext::tr("Encryption"), modeString);
     writeProperty("authorized-as", PDFToolTranslationContext::tr("Authorization"), authorizationMode);
 
+    QStringList permissions;
     if (securityHandler->getAuthorizationResult() != pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired)
     {
         writeProperty("metadata-encrypted", PDFToolTranslationContext::tr("Metadata encrypted"), securityHandler->isMetadataEncrypted() ? PDFToolTranslationContext::tr("Yes") : PDFToolTranslationContext::tr("No"));
         writeProperty("version", PDFToolTranslationContext::tr("Version"), locale.toString(securityHandler->getVersion()));
+
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintLowResolution))
+        {
+            permissions << PDFToolTranslationContext::tr("Print (low resolution)");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution))
+        {
+            permissions << PDFToolTranslationContext::tr("Print");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent))
+        {
+            permissions << PDFToolTranslationContext::tr("Copy content");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Accessibility))
+        {
+            permissions << PDFToolTranslationContext::tr("Accessibility");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble))
+        {
+            permissions << PDFToolTranslationContext::tr("Page assembling");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify))
+        {
+            permissions << PDFToolTranslationContext::tr("Modify content");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems))
+        {
+            permissions << PDFToolTranslationContext::tr("Modify interactive items");
+        }
+        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::ModifyFormFields))
+        {
+            permissions << PDFToolTranslationContext::tr("Form filling");
+        }
+    }
+    else
+    {
+        permissions << PDFToolTranslationContext::tr("All");
     }
 
-    QStringList permissions;
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintLowResolution))
-    {
-        permissions << PDFToolTranslationContext::tr("Print (low resolution)");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution))
-    {
-        permissions << PDFToolTranslationContext::tr("Print");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent))
-    {
-        permissions << PDFToolTranslationContext::tr("Copy content");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Accessibility))
-    {
-        permissions << PDFToolTranslationContext::tr("Accessibility");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble))
-    {
-        permissions << PDFToolTranslationContext::tr("Page assembling");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify))
-    {
-        permissions << PDFToolTranslationContext::tr("Modify content");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems))
-    {
-        permissions << PDFToolTranslationContext::tr("Modify interactive items");
-    }
-    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::ModifyFormFields))
-    {
-        permissions << PDFToolTranslationContext::tr("Form filling");
-    }
     writeProperty("permissions", PDFToolTranslationContext::tr("Permissions"), permissions.join(", "));
 
     formatter.endTable();

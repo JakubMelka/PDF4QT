@@ -628,6 +628,7 @@ public:
     bool isXFANeedsRendering() const { return m_xfaNeedsRendering; }
     const PDFObject& getAssociatedFiles() const { return m_associatedFiles; }
     const PDFObject& getDocumentPartRoot() const { return m_documentPartRoot; }
+    const std::map<QByteArray, PDFDestination>& getNamedDestinations() const { return m_namedDestinations; }
 
     /// Is document marked to have structure tree conforming to tagged document convention?
     bool isLogicalStructureMarked() const { return m_markInfoFlags.testFlag(MarkInfo_Marked); }

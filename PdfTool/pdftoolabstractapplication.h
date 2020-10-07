@@ -81,7 +81,10 @@ struct PDFToolOptions
     QString pageSelectorSelection;
 
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
-    std::vector<pdf::PDFInteger> getPageRange(pdf::PDFInteger pageCount, QString& errorMessage) const;
+    /// \param pageCount Page count
+    /// \param[out] errorMessage Error message
+    /// \param zeroBased Convert to zero based page range?
+    std::vector<pdf::PDFInteger> getPageRange(pdf::PDFInteger pageCount, QString& errorMessage, bool zeroBased) const;
 };
 
 /// Base class for all applications

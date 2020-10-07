@@ -401,7 +401,7 @@ PDFToolApplicationStorage* PDFToolApplicationStorage::getInstance()
     return &storage;
 }
 
-std::vector<pdf::PDFInteger> PDFToolOptions::getPageRange(pdf::PDFInteger pageCount, QString& errorMessage) const
+std::vector<pdf::PDFInteger> PDFToolOptions::getPageRange(pdf::PDFInteger pageCount, QString& errorMessage, bool zeroBased) const
 {
     QStringList parts;
 
@@ -433,8 +433,15 @@ std::vector<pdf::PDFInteger> PDFToolOptions::getPageRange(pdf::PDFInteger pageCo
     }
 
     QString partsString = parts.join(",");
-    pdf::PDFClosedIntervalSet result = pdf::PDFClosedIntervalSet::parse(0, pageCount, partsString, &errorMessage);
-    return result.unfold();
+    pdf::PDFClosedIntervalSet result = pdf::PDFClosedIntervalSet::parse(1, pageCount, partsString, &errorMessage);
+    std::vector<pdf::PDFInteger> pageIndices = result.unfold();
+
+    if (zeroBased)
+    {
+        std::for_each(pageIndices.begin(), pageIndices.end(), [](auto& index) { --index; });
+    }
+
+    return pageIndices;
 }
 
 }   // pdftool

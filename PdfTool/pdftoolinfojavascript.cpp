@@ -23,7 +23,7 @@ namespace pdftool
 
 static PDFToolInfoJavaScriptApplication s_infoJavaScriptApplication;
 
-QString PDFToolInfoJavaScriptApplication::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
+QString PDFToolInfoJavaScriptApplication::getStandardString(StandardString standardString) const
 {
     switch (standardString)
     {
@@ -54,7 +54,7 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
     }
 
     QString parseError;
-    std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError);
+    std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError, true);
 
     if (!parseError.isEmpty())
     {
@@ -116,8 +116,8 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
 
         formatter.writeTableColumn("no", locale.toString(ref), Qt::AlignRight);
         formatter.writeTableColumn("context", contextText);
-        formatter.writeTableColumn("page-number", (entry.pageIndex != -1) ? locale.toString(entry.pageIndex + 1) : QString());
-        formatter.writeTableColumn("code-size", locale.toString(entry.javaScript.size()));
+        formatter.writeTableColumn("page-number", (entry.pageIndex != -1) ? locale.toString(entry.pageIndex + 1) : QString(), Qt::AlignRight);
+        formatter.writeTableColumn("code-size", locale.toString(entry.javaScript.size()), Qt::AlignRight);
         formatter.writeTableColumn("code-snippet", entry.javaScript.left(64));
 
         formatter.endTableRow();
