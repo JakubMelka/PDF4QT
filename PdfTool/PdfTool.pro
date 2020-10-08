@@ -46,6 +46,7 @@ SOURCES += \
         pdftoolinfo.cpp \
         pdftoolinfojavascript.cpp \
         pdftoolinfonameddestinations.cpp \
+        pdftoolinfopageboxes.cpp \
         pdftoolverifysignatures.cpp \
         pdftoolxml.cpp
 
@@ -65,5 +66,6 @@ HEADERS += \
     pdftoolinfo.h \
     pdftoolinfojavascript.h \
     pdftoolinfonameddestinations.h \
+    pdftoolinfopageboxes.h \
     pdftoolverifysignatures.h \
     pdftoolxml.h

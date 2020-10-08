@@ -604,6 +604,9 @@ public:
     /// \param value Value
     void addValue(PDFInteger value) { addInterval(value, value); }
 
+    /// Merge with other interval set
+    void merge(const PDFClosedIntervalSet& other);
+
     /// Returns true, if given closed range is subset of
     /// this interval set.
     bool isCovered(PDFInteger low, PDFInteger high);

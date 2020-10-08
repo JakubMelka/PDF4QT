@@ -284,6 +284,12 @@ void PDFClosedIntervalSet::addInterval(PDFInteger low, PDFInteger high)
     normalize();
 }
 
+void PDFClosedIntervalSet::merge(const PDFClosedIntervalSet& other)
+{
+    m_intervals.insert(m_intervals.end(), other.m_intervals.cbegin(), other.m_intervals.cend());
+    normalize();
+}
+
 bool PDFClosedIntervalSet::isCovered(PDFInteger low, PDFInteger high)
 {
     PDFClosedIntervalSet temporary;
