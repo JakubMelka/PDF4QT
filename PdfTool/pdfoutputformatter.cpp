@@ -21,6 +21,7 @@
 #include <QTextStream>
 #include <QXmlStreamWriter>
 #include <QCoreApplication>
+#include <QDataStream>
 
 #include <stack>
 
@@ -666,6 +667,15 @@ void PDFConsole::writeError(QString text, QString codecName)
 #else
     QTextStream(stdout) << text;
 #endif
+}
+
+void PDFConsole::writeData(const QByteArray& data)
+{
+    if (!data.isEmpty())
+    {
+        QTextStream stream(stdout);
+        stream.device()->write(data);
+    }
 }
 
 }   // pdftool

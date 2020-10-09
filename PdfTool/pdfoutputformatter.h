@@ -102,6 +102,9 @@ public:
     /// Writes error to the console
     static void writeError(QString text, QString codecName);
 
+    /// Writes binary data to the console
+    static void writeData(const QByteArray& data);
+
 private:
     explicit PDFConsole() = delete;
 };
