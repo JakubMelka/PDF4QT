@@ -168,6 +168,38 @@ private:
     QFutureWatcher<PDFTextLayoutStorage> m_textLayoutCompileFutureWatcher;
 };
 
+class PDFTextLayoutGenerator : public PDFPageContentProcessor
+{
+    using BaseClass = PDFPageContentProcessor;
+
+public:
+    explicit PDFTextLayoutGenerator(PDFRenderer::Features features,
+                                    const PDFPage* page,
+                                    const PDFDocument* document,
+                                    const PDFFontCache* fontCache,
+                                    const PDFCMS* cms,
+                                    const PDFOptionalContentActivity* optionalContentActivity,
+                                    QMatrix pagePointToDevicePointMatrix,
+                                    const PDFMeshQualitySettings& meshQualitySettings) :
+        BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+        m_features(features)
+    {
+
+    }
+
+    /// Creates text layout from the text
+    PDFTextLayout createTextLayout();
+
+protected:
+    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
+    virtual bool isContentKindSuppressed(ContentKind kind) const override;
+    virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
+
+private:
+    PDFRenderer::Features m_features;
+    PDFTextLayout m_textLayout;
+};
+
 }   // namespace pdf
 
 #endif // PDFCOMPILER_H

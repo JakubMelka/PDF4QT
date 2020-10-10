@@ -49,6 +49,7 @@ SOURCES += \
     sources/pdfcms.cpp \
     sources/pdfcompiler.cpp \
     sources/pdfdocumentbuilder.cpp \
+    sources/pdfdocumenttextflow.cpp \
     sources/pdfdocumentwriter.cpp \
     sources/pdfexecutionpolicy.cpp \
     sources/pdffile.cpp \
@@ -104,6 +105,7 @@ HEADERS += \
     sources/pdfcompiler.h \
     sources/pdfdocumentbuilder.h \
     sources/pdfdocumentdrawinterface.h \
+    sources/pdfdocumenttextflow.h \
     sources/pdfdocumentwriter.h \
     sources/pdfexecutionpolicy.h \
     sources/pdffile.h \
