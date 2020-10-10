@@ -530,7 +530,17 @@ void PDFXmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, Q
         case PDFOutputFormatter::Element::TableColumn:
         case PDFOutputFormatter::Element::TableHeaderColumn:
         {
-            m_streamWriter.writeTextElement(m_namespace, name, description);
+            if (reference != 0)
+            {
+                m_streamWriter.writeStartElement(m_namespace, name);
+                m_streamWriter.writeAttribute(m_namespace, "ref", QString::number(reference));
+                m_streamWriter.writeCharacters(description);
+                m_streamWriter.writeEndElement();
+            }
+            else
+            {
+                m_streamWriter.writeTextElement(m_namespace, name, description);
+            }
             break;
         }
 

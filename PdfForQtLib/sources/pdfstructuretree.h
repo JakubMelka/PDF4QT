@@ -28,6 +28,27 @@ namespace pdf
 class PDFObjectStorage;
 struct PDFStructureTreeAttributeDefinition;
 
+class PDFStructureItem;
+class PDFStructureTree;
+class PDFStructureElement;
+class PDFStructureMarkedContentReference;
+class PDFStructureObjectReference;
+
+class PDFFORQTLIBSHARED_EXPORT PDFStructureTreeAbstractVisitor
+{
+public:
+    inline PDFStructureTreeAbstractVisitor() = default;
+    virtual ~PDFStructureTreeAbstractVisitor() = default;
+
+    virtual void visitStructureTree(const PDFStructureTree* structureTree);
+    virtual void visitStructureElement(const PDFStructureElement* structureElement);
+    virtual void visitStructureMarkedContentReference(const PDFStructureMarkedContentReference* structureMarkedContentReference);
+    virtual void visitStructureObjectReference(const PDFStructureObjectReference* structureObjectReference);
+
+protected:
+    void acceptChildren(const PDFStructureItem* item);
+};
+
 class  PDFFORQTLIBSHARED_EXPORT PDFStructureTreeAttribute
 {
 public:
@@ -137,8 +158,14 @@ public:
     /// Returns attribute type
     Attribute getType() const;
 
+    /// Returns attribute type name
+    QString getTypeName(const PDFObjectStorage* storage) const;
+
     /// Returns attribute owner
     Owner getOwner() const { return m_owner; }
+
+    /// Returns owner name
+    QString getOwnerName() const;
 
     /// Returns true, if attribute is inheritable
     bool isInheritable() const;
@@ -159,13 +186,16 @@ public:
     /// cannot be determined, empty object is returned.
     PDFObject getDefaultValue() const;
 
+    /// Returns true, if attribute is user defined
+    bool isUser() const { return getType() == Attribute::User; }
+
     /// Returns user property name. This function should be called only for
     /// user properties. If error occurs, then empty string is returned.
     /// \param storage Storage (for resolving of indirect objects)
     QString getUserPropertyName(const PDFObjectStorage* storage) const;
 
     /// Returns user property value. This function should be called only for
-    /// user properties. If error occurs, then empty string is returned.
+    /// user properties. If error occurs, then empty object is returned.
     /// \param storage Storage (for resolving of indirect objects)
     PDFObject getUserPropertyValue(const PDFObjectStorage* storage) const;
 
@@ -220,7 +250,7 @@ class PDFStructureMarkedContentReference;
 using PDFStructureItemPointer = QSharedPointer<PDFStructureItem>;
 
 /// Root class for all structure tree items
-class PDFStructureItem
+class PDFFORQTLIBSHARED_EXPORT PDFStructureItem
 {
 public:
     explicit inline PDFStructureItem(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -273,6 +303,8 @@ public:
     virtual PDFStructureObjectReference* asStructureObjectReference() { return nullptr; }
     virtual const PDFStructureObjectReference* asStructureObjectReference() const { return nullptr; }
 
+    virtual void accept(PDFStructureTreeAbstractVisitor* visitor) const = 0;
+
     const PDFStructureItem* getParent() const { return m_parent; }
     PDFStructureItem* getParent() { return m_parent; }
     const PDFStructureTree* getTree() const { return m_root; }
@@ -312,7 +344,7 @@ protected:
 };
 
 /// Structure tree namespace
-class PDFStructureTreeNamespace
+class PDFFORQTLIBSHARED_EXPORT PDFStructureTreeNamespace
 {
 public:
     explicit inline PDFStructureTreeNamespace() = default;
@@ -334,13 +366,15 @@ private:
 using PDFStructureTreeNamespaces = std::vector<PDFStructureTreeNamespace>;
 
 /// Structure tree, contains structure element hierarchy
-class PDFStructureTree : public PDFStructureItem
+class PDFFORQTLIBSHARED_EXPORT PDFStructureTree : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureTree() : PDFStructureItem(nullptr, this) { }
 
     virtual PDFStructureTree* asStructureTree() override { return this; }
     virtual const PDFStructureTree* asStructureTree() const override { return this; }
+
+    virtual void accept(PDFStructureTreeAbstractVisitor* visitor) const override { visitor->visitStructureTree(this); }
 
     /// Returns parents from parent tree for given entry. If entry
     /// is not found, then empty vector is returned.
@@ -365,6 +399,9 @@ public:
 
     /// Returns a list of associated files
     const std::vector<PDFFileSpecification>& getAssociatedFiles() const { return m_associatedFiles; }
+
+    /// Returns true, if structure tree is valid
+    bool isValid() const { return getChildCount() > 0; }
 
     /// Parses structure tree from the object. If error occurs, empty structure
     /// tree is returned.
@@ -397,7 +434,7 @@ private:
 };
 
 /// Structure element
-class PDFStructureElement : public PDFStructureItem
+class PDFFORQTLIBSHARED_EXPORT PDFStructureElement : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureElement(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -419,6 +456,7 @@ public:
 
     virtual PDFStructureElement* asStructureElement() override { return this; }
     virtual const PDFStructureElement* asStructureElement() const override { return this; }
+    virtual void accept(PDFStructureTreeAbstractVisitor* visitor) const override { visitor->visitStructureElement(this); }
 
     const QByteArray& getTypeName() const { return m_typeName; }
     Type getStandardType() const { return m_standardType; }
@@ -488,7 +526,7 @@ private:
 };
 
 /// Structure marked content reference
-class PDFStructureMarkedContentReference : public PDFStructureItem
+class PDFFORQTLIBSHARED_EXPORT PDFStructureMarkedContentReference : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureMarkedContentReference(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -499,6 +537,7 @@ public:
 
     virtual PDFStructureMarkedContentReference* asStructureMarkedContentReference() override { return this; }
     virtual const PDFStructureMarkedContentReference* asStructureMarkedContentReference() const override { return this; }
+    virtual void accept(PDFStructureTreeAbstractVisitor* visitor) const override { visitor->visitStructureMarkedContentReference(this); }
 
     const PDFObjectReference& getPageReference() const { return m_pageReference; }
     const PDFObjectReference& getContentStreamReference() const { return m_contentStreamReference; }
@@ -525,7 +564,7 @@ private:
 };
 
 /// Structure object reference
-class PDFStructureObjectReference : public PDFStructureItem
+class PDFFORQTLIBSHARED_EXPORT PDFStructureObjectReference : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureObjectReference(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -536,6 +575,7 @@ public:
 
     virtual PDFStructureObjectReference* asStructureObjectReference() override { return this; }
     virtual const PDFStructureObjectReference* asStructureObjectReference() const override { return this; }
+    virtual void accept(PDFStructureTreeAbstractVisitor* visitor) const override { visitor->visitStructureObjectReference(this); }
 
     const PDFObjectReference& getPageReference() const { return m_pageReference; }
     const PDFObjectReference& getObjectReference() const { return m_objectReference; }

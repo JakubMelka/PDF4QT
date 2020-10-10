@@ -56,6 +56,10 @@ struct PDFStructureTreeAttributeDefinition
     /// \param string String
     static PDFStructureTreeAttribute::Owner getOwnerFromString(const QByteArray& string);
 
+    /// Returns string from owner. If owner is not valid, then invalid string is returned.
+    /// \param owner Owner
+    static QString getOwnerName(PDFStructureTreeAttribute::Owner owner);
+
     PDFStructureTreeAttribute::Attribute type = PDFStructureTreeAttribute::Attribute::User;
     const char* name = nullptr;
     bool inheritable = false;
@@ -248,6 +252,19 @@ PDFStructureTreeAttribute::Owner PDFStructureTreeAttributeDefinition::getOwnerFr
     return PDFStructureTreeAttribute::Owner::Invalid;
 }
 
+QString PDFStructureTreeAttributeDefinition::getOwnerName(PDFStructureTreeAttribute::Owner owner)
+{
+    for (const auto& item : s_ownerDefinitions)
+    {
+        if (owner == item.second)
+        {
+            return QString::fromLatin1(item.first);
+        }
+    }
+
+    return QString();
+}
+
 PDFStructureTreeAttribute::PDFStructureTreeAttribute() :
     m_definition(&s_attributeDefinitions.front()),
     m_owner(Owner::Invalid),
@@ -276,6 +293,22 @@ PDFStructureTreeAttribute::Attribute PDFStructureTreeAttribute::getType() const
 {
     Q_ASSERT(m_definition);
     return m_definition->type;
+}
+
+QString PDFStructureTreeAttribute::getTypeName(const PDFObjectStorage* storage) const
+{
+    if (isUser())
+    {
+        return getUserPropertyName(storage);
+    }
+
+    Q_ASSERT(m_definition);
+    return QString::fromLatin1(m_definition->name);
+}
+
+QString PDFStructureTreeAttribute::getOwnerName() const
+{
+    return PDFStructureTreeAttributeDefinition::getOwnerName(getOwner());
 }
 
 bool PDFStructureTreeAttribute::isInheritable() const
@@ -871,6 +904,35 @@ PDFStructureItemPointer PDFStructureObjectReference::parseObjectReference(const 
     }
 
     return pointer;
+}
+
+void PDFStructureTreeAbstractVisitor::visitStructureTree(const PDFStructureTree* structureTree)
+{
+    acceptChildren(structureTree);
+}
+
+void PDFStructureTreeAbstractVisitor::visitStructureElement(const PDFStructureElement* structureElement)
+{
+    acceptChildren(structureElement);
+}
+
+void PDFStructureTreeAbstractVisitor::visitStructureMarkedContentReference(const PDFStructureMarkedContentReference* structureMarkedContentReference)
+{
+    acceptChildren(structureMarkedContentReference);
+}
+
+void PDFStructureTreeAbstractVisitor::visitStructureObjectReference(const PDFStructureObjectReference* structureObjectReference)
+{
+    acceptChildren(structureObjectReference);
+}
+
+void PDFStructureTreeAbstractVisitor::acceptChildren(const PDFStructureItem* item)
+{
+    const size_t childCount = item->getChildCount();
+    for (size_t i = 0; i < childCount; ++i)
+    {
+        item->getChild(i)->accept(this);
+    }
 }
 
 }   // namespace pdf

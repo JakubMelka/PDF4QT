@@ -78,7 +78,7 @@ public:
     inline void endTableRow() { endElement(); }
     inline void writeTableHeaderColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableHeaderColumn, name, description, alignment); endElement(); }
     inline void writeTableColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableColumn, name, description, alignment); endElement(); }
-    inline void writeText(QString name, QString description) { beginElement(Element::Text, name, description); endElement(); }
+    inline void writeText(QString name, QString description, int reference = 0) { beginElement(Element::Text, name, description, Qt::AlignLeft, reference); endElement(); }
     inline void beginHeader(QString name, QString description, int reference = 0) { beginElement(Element::Header, name, description, Qt::AlignLeft, reference); }
     inline void endHeader() { endElement(); }
 
