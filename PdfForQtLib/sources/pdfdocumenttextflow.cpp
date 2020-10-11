@@ -60,13 +60,15 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
         case Algorithm::Layout:
         {
             PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-            fontCache.setCacheShrinkEnabled(nullptr, false);
 
             std::map<PDFInteger, PDFDocumentTextFlow::Items> items;
 
             PDFCMSGeneric cms;
             PDFMeshQualitySettings mqs;
             PDFOptionalContentActivity oca(document, OCUsage::Export, nullptr);
+            pdf::PDFModifiedDocument md(const_cast<PDFDocument*>(document), &oca);
+            fontCache.setDocument(md);
+            fontCache.setCacheShrinkEnabled(nullptr, false);
 
             auto generateTextLayout = [this, &items, &mutex, &fontCache, &cms, &mqs, &oca, document, catalog](PDFInteger pageIndex)
             {
@@ -85,7 +87,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);
 
                 PDFDocumentTextFlow::Items flowItems;
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ PDFDocumentTextFlow::PageStart, pageIndex, QString() });
+                flowItems.emplace_back(PDFDocumentTextFlow::Item{ PDFDocumentTextFlow::PageStart, pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1) });
                 for (const PDFTextFlow& textFlow : textFlows)
                 {
                     flowItems.emplace_back(PDFDocumentTextFlow::Item{ PDFDocumentTextFlow::Text, pageIndex, textFlow.getText() });

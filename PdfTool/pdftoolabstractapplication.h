@@ -20,6 +20,7 @@
 
 #include "pdfoutputformatter.h"
 #include "pdfdocument.h"
+#include "pdfdocumenttextflow.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -80,6 +81,9 @@ struct PDFToolOptions
     QString pageSelectorLastPage;
     QString pageSelectorSelection;
 
+    // For option 'TextAnalysis'
+    pdf::PDFDocumentTextFlowFactory::Algorithm textAnalysisAlgorithm = pdf::PDFDocumentTextFlowFactory::Algorithm::Auto;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -121,6 +125,7 @@ public:
         DateFormat              = 0x0020,       ///< Date format
         ComputeHashes           = 0x0040,       ///< Compute hashes
         PageSelector            = 0x0080,       ///< Select page range (or all pages)
+        TextAnalysis            = 0x0100,       ///< Text analysis options
     };
     Q_DECLARE_FLAGS(Options, Option)
 

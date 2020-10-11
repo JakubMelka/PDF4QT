@@ -201,6 +201,11 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("page-last", "Last page of page range.", "number"));
         parser->addOption(QCommandLineOption("page-select", "Choose arbitrary pages, in form '1,5,3,7-11,-29,43-.'.", "number"));
     }
+
+    if (optionFlags.testFlag(TextAnalysis))
+    {
+        parser->addOption(QCommandLineOption("text-analysis-alg", "Text analysis algorithm (auto - select automatically, layout - perform automatic layout algorithm, content - simple content stream reading order, structure - use tagged document structure", "algorithm", "auto"));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -306,6 +311,31 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.pageSelectorFirstPage = parser->isSet("page-first") ? parser->value("page-first") : QString();
         options.pageSelectorLastPage = parser->isSet("page-last") ? parser->value("page-last") : QString();
         options.pageSelectorSelection = parser->isSet("page-select") ? parser->value("page-select") : QString();
+    }
+
+    if (optionFlags.testFlag(TextAnalysis))
+    {
+        QString algoritm = parser->value("text-analysis-alg");
+        if (algoritm == "auto")
+        {
+            options.textAnalysisAlgorithm = pdf::PDFDocumentTextFlowFactory::Algorithm::Auto;
+        }
+        else if (algoritm == "layout")
+        {
+            options.textAnalysisAlgorithm = pdf::PDFDocumentTextFlowFactory::Algorithm::Layout;
+        }
+        else if (algoritm == "content")
+        {
+            options.textAnalysisAlgorithm = pdf::PDFDocumentTextFlowFactory::Algorithm::Content;
+        }
+        else if (algoritm == "structure")
+        {
+            options.textAnalysisAlgorithm = pdf::PDFDocumentTextFlowFactory::Algorithm::Structure;
+        }
+        else if (!algoritm.isEmpty())
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown text layout analysis algorithm '%1'. Defaulting to automatic algorithm selection.").arg(algoritm), options.outputCodec);
+        }
     }
 
     return options;

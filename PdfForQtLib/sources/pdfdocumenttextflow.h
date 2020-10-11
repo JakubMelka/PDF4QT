@@ -72,7 +72,7 @@ private:
 };
 
 /// This factory creates text flow for whole document
-class PDFDocumentTextFlowFactory
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentTextFlowFactory
 {
 public:
     explicit PDFDocumentTextFlowFactory() = default;

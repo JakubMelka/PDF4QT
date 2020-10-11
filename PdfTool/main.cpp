@@ -27,6 +27,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("PdfTool");
     QCoreApplication::setApplicationVersion("1.0.0");
 
+    QResource::registerResource(QString("cmaps.qrb"));
+
     QStringList arguments = QCoreApplication::arguments();
 
     QCommandLineParser parser;

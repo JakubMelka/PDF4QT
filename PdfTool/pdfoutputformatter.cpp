@@ -662,6 +662,13 @@ void PDFConsole::writeText(QString text, QString codecName)
 
 void PDFConsole::writeError(QString text, QString codecName)
 {
+    if (text.isEmpty())
+    {
+        return;
+    }
+
+    text += "\n";
+
 #ifdef Q_OS_WIN
     HANDLE outputHandle = GetStdHandle(STD_ERROR_HANDLE);
     if (!WriteConsoleW(outputHandle, text.utf16(), text.size(), nullptr, nullptr))
@@ -675,7 +682,9 @@ void PDFConsole::writeError(QString text, QString codecName)
         }
     }
 #else
-    QTextStream(stdout) << text;
+    QTextStream stream(stdout);
+    stream << text;
+    stream << endl;
 #endif
 }
 
