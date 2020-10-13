@@ -113,6 +113,20 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             break;
         }
 
+        case Algorithm::Structure:
+        {
+            if (!structureTree.isValid())
+            {
+                m_errors << PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Valid tagged document required."));
+                break;
+            }
+
+            PDFStructureTreeTextExtractor extractor(document, &structureTree);
+            extractor.perform(pageIndices);
+
+            break;
+        }
+
         default:
             Q_ASSERT(false);
             break;

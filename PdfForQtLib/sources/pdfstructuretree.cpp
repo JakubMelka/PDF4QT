@@ -19,6 +19,10 @@
 #include "pdfdocument.h"
 #include "pdfnametreeloader.h"
 #include "pdfnumbertreeloader.h"
+#include "pdfpagecontentprocessor.h"
+#include "pdfcms.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfconstants.h"
 
 #include <array>
 
@@ -933,6 +937,239 @@ void PDFStructureTreeAbstractVisitor::acceptChildren(const PDFStructureItem* ite
     {
         item->getChild(i)->accept(this);
     }
+}
+
+class PDFStructureTreeReferenceCollector : public PDFStructureTreeAbstractVisitor
+{
+public:
+    explicit inline PDFStructureTreeReferenceCollector(std::map<PDFObjectReference, const PDFStructureItem*>* mapping) :
+        m_mapping(mapping)
+    {
+
+    }
+
+    virtual void visitStructureTree(const PDFStructureTree* structureTree) override;
+    virtual void visitStructureElement(const PDFStructureElement* structureElement) override;
+    virtual void visitStructureMarkedContentReference(const PDFStructureMarkedContentReference* structureMarkedContentReference) override;
+    virtual void visitStructureObjectReference(const PDFStructureObjectReference* structureObjectReference) override;
+
+private:
+    void addReference(const PDFStructureItem* structureObjectReference);
+
+    std::map<PDFObjectReference, const PDFStructureItem*>* m_mapping;
+};
+
+void PDFStructureTreeReferenceCollector::visitStructureTree(const PDFStructureTree* structureTree)
+{
+    addReference(structureTree);
+    acceptChildren(structureTree);
+}
+
+void PDFStructureTreeReferenceCollector::visitStructureElement(const PDFStructureElement* structureElement)
+{
+    addReference(structureElement);
+    acceptChildren(structureElement);
+}
+
+void PDFStructureTreeReferenceCollector::visitStructureMarkedContentReference(const PDFStructureMarkedContentReference* structureMarkedContentReference)
+{
+    addReference(structureMarkedContentReference);
+    acceptChildren(structureMarkedContentReference);
+}
+
+void PDFStructureTreeReferenceCollector::visitStructureObjectReference(const PDFStructureObjectReference* structureObjectReference)
+{
+    addReference(structureObjectReference);
+    acceptChildren(structureObjectReference);
+}
+
+void PDFStructureTreeReferenceCollector::addReference(const PDFStructureItem* structureItem)
+{
+    if (structureItem->getSelfReference().isValid())
+    {
+        (*m_mapping)[structureItem->getSelfReference()] = structureItem;
+    }
+}
+
+class PDFStructureTreeTextContentProcessor : public PDFPageContentProcessor
+{
+    using BaseClass = PDFPageContentProcessor;
+
+public:
+    explicit PDFStructureTreeTextContentProcessor(PDFRenderer::Features features,
+                                                  const PDFPage* page,
+                                                  const PDFDocument* document,
+                                                  const PDFFontCache* fontCache,
+                                                  const PDFCMS* cms,
+                                                  const PDFOptionalContentActivity* optionalContentActivity,
+                                                  QMatrix pagePointToDevicePointMatrix,
+                                                  const PDFMeshQualitySettings& meshQualitySettings) :
+        BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+        m_features(features)
+    {
+
+    }
+
+    std::map<PDFInteger, QStringList>& takeTexts() { return m_text; }
+    QStringList& takeUnmatchedTexts() { return m_unmatchedText; }
+
+protected:
+    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
+    virtual bool isContentKindSuppressed(ContentKind kind) const override;
+    virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
+    virtual void performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties) override;
+    virtual void performMarkedContentEnd() override;
+
+private:
+    struct MarkedContentInfo
+    {
+        QByteArray tag;
+        PDFInteger mcid = -1;
+    };
+
+    PDFRenderer::Features m_features;
+    std::vector<MarkedContentInfo> m_markedContentInfoStack;
+    QString m_currentText;
+    std::map<PDFInteger, QStringList> m_text;
+    QStringList m_unmatchedText;
+};
+
+void PDFStructureTreeTextContentProcessor::performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties)
+{
+    MarkedContentInfo info;
+    info.tag = tag;
+
+    if (properties.isDictionary())
+    {
+        const PDFDictionary* dictionary = properties.getDictionary();
+        PDFObject mcid = dictionary->get("MCID");
+        if (mcid.isInt())
+        {
+            info.mcid = mcid.getInteger();
+        }
+    }
+
+    m_markedContentInfoStack.emplace_back(qMove(info));
+}
+
+void PDFStructureTreeTextContentProcessor::performMarkedContentEnd()
+{
+    MarkedContentInfo info = qMove(m_markedContentInfoStack.back());
+    m_markedContentInfoStack.pop_back();
+
+    if (info.mcid != -1)
+    {
+        if (!m_currentText.isEmpty())
+        {
+            m_text[info.mcid].push_back(qMove(m_currentText));
+        }
+        m_currentText = QString();
+    }
+
+    if (m_markedContentInfoStack.empty() && !m_currentText.isEmpty())
+    {
+        m_unmatchedText << qMove(m_currentText);
+        m_currentText = QString();
+    }
+}
+
+bool PDFStructureTreeTextContentProcessor::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
+{
+    if (m_features.testFlag(PDFRenderer::IgnoreOptionalContent))
+    {
+        return false;
+    }
+
+    return PDFPageContentProcessor::isContentSuppressedByOC(ocgOrOcmd);
+}
+
+bool PDFStructureTreeTextContentProcessor::isContentKindSuppressed(ContentKind kind) const
+{
+    switch (kind)
+    {
+        case ContentKind::Shapes:
+        case ContentKind::Text:
+        case ContentKind::Images:
+        case ContentKind::Shading:
+            return true;
+
+        case ContentKind::Tiling:
+            return false; // Tiling can have text
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    return false;
+}
+
+void PDFStructureTreeTextContentProcessor::performOutputCharacter(const PDFTextCharacterInfo& info)
+{
+    if (!isContentSuppressed())
+    {
+        if (!info.character.isNull())
+        {
+            m_currentText.push_back(info.character);
+        }
+    }
+}
+
+PDFStructureTreeTextExtractor::PDFStructureTreeTextExtractor(const PDFDocument* document, const PDFStructureTree* tree) :
+    m_document(document),
+    m_tree(tree)
+{
+
+}
+
+void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageIndices)
+{
+    std::map<PDFObjectReference, const PDFStructureItem*> mapping;
+    PDFStructureTreeReferenceCollector referenceCollector(&mapping);
+    m_tree->accept(&referenceCollector);
+
+    PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+
+    // Jakub Melka: maps text to structure tree items. Key is pair of (page index, mcid)
+    std::map<std::pair<PDFInteger, PDFInteger>, QStringList> extractedText;
+
+    QMutex mutex;
+    PDFCMSGeneric cms;
+    PDFMeshQualitySettings mqs;
+    PDFOptionalContentActivity oca(m_document, OCUsage::Export, nullptr);
+    pdf::PDFModifiedDocument md(const_cast<PDFDocument*>(m_document), &oca);
+    fontCache.setDocument(md);
+    fontCache.setCacheShrinkEnabled(nullptr, false);
+
+    auto generateTextLayout = [this, &mutex, &extractedText, &fontCache, &cms, &mqs, &oca](PDFInteger pageIndex)
+    {
+        const PDFCatalog* catalog = m_document->getCatalog();
+        if (!catalog->getPage(pageIndex))
+        {
+            // Invalid page index
+            return;
+        }
+
+        const PDFPage* page = catalog->getPage(pageIndex);
+        Q_ASSERT(page);
+
+        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QMatrix(), mqs);
+        QList<PDFRenderError> errors = processor.processContents();
+
+        QMutexLocker lock(&mutex);
+        for (auto& item : processor.takeTexts())
+        {
+            extractedText[std::make_pair(pageIndex, item.first)].append(qMove(item.second));
+        }
+        m_unmatchedText << qMove(processor.takeUnmatchedTexts());
+        m_errors.append(qMove(errors));
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), generateTextLayout);
+
+    fontCache.setCacheShrinkEnabled(nullptr, true);
 }
 
 }   // namespace pdf

@@ -21,10 +21,11 @@
 #include "pdfobject.h"
 #include "pdfobjectutils.h"
 #include "pdffile.h"
+#include "pdfexception.h"
 
 namespace pdf
 {
-
+class PDFDocument;
 class PDFObjectStorage;
 struct PDFStructureTreeAttributeDefinition;
 
@@ -595,6 +596,27 @@ public:
 private:
     PDFObjectReference m_pageReference;
     PDFObjectReference m_objectReference;
+};
+
+/// Text extractor for structure tree. Can extract text to fill structure tree contents.
+class PDFFORQTLIBSHARED_EXPORT PDFStructureTreeTextExtractor
+{
+public:
+    explicit PDFStructureTreeTextExtractor(const PDFDocument* document, const PDFStructureTree* tree);
+
+    /// Performs text extracting algorithm. Only \p pageIndices
+    /// pages are processed for text extraction.
+    /// \param pageIndices Page indices
+    void perform(const std::vector<PDFInteger>& pageIndices);
+
+    /// Returns a list of errors/warnings
+    const QList<PDFRenderError>& getErrors() const { return m_errors; }
+
+private:
+    QList<PDFRenderError> m_errors;
+    const PDFDocument* m_document;
+    const PDFStructureTree* m_tree;
+    QStringList m_unmatchedText;
 };
 
 }   // namespace pdf
