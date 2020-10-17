@@ -649,7 +649,14 @@ void PDFConsole::writeText(QString text, QString codecName)
     {
         // Write console failed. This can happen only, if outputHandle is not handle
         // to console screen buffer, but, for example a file or a pipe.
-        if (QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1()))
+        QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1());
+        if (!codec)
+        {
+            codec = QTextCodec::codecForName("UTF-8");
+            writeError(QString("No codec found for '%1'. Defaulting to text codec '%2'.").arg(codecName, QString::fromLatin1(codec->name())), codecName);
+        }
+
+        if (codec)
         {
             QByteArray encodedData = codec->fromUnicode(text);
             WriteFile(outputHandle, encodedData.constData(), encodedData.size(), nullptr, nullptr);
@@ -675,7 +682,13 @@ void PDFConsole::writeError(QString text, QString codecName)
     {
         // Write console failed. This can happen only, if outputHandle is not handle
         // to console screen buffer, but, for example a file or a pipe.
-        if (QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1()))
+        QTextCodec* codec = QTextCodec::codecForName(codecName.toLatin1());
+        if (!codec)
+        {
+            codec = QTextCodec::codecForName("UTF-8");
+        }
+
+        if (codec)
         {
             QByteArray encodedData = codec->fromUnicode(text);
             WriteFile(outputHandle, encodedData.constData(), encodedData.size(), nullptr, nullptr);

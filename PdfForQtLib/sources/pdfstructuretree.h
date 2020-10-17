@@ -382,6 +382,13 @@ public:
     /// \param id Id
     std::vector<PDFObjectReference> getParents(PDFInteger id) const;
 
+    /// Returns parent key for structural entry with given id,
+    /// and index. Id is, typically, structural tree parent key in page,
+    /// index is index into the marked content references array.
+    /// \param id Structural tree parent id
+    /// \param index Index into the subarray
+    PDFObjectReference getParent(PDFInteger id, PDFInteger index) const;
+
     /// Returns type from role. Role can be an entry in RoleMap dictionary,
     /// or one of the standard roles.
     /// \param role Role
@@ -410,8 +417,6 @@ public:
     /// \param object Structure tree root object
     static PDFStructureTree parse(const PDFObjectStorage* storage, PDFObject object);
 
-private:
-
     struct ParentTreeEntry
     {
         PDFInteger id = 0;
@@ -422,6 +427,13 @@ private:
             return id < other.id;
         }
     };
+
+    /// Returns given page tree entry. If index is invalid,
+    /// empty parent tree entry is returned.
+    /// \param index Index
+    ParentTreeEntry getParentTreeEntry(PDFInteger index) const;
+
+private:
     using ParentTreeEntries = std::vector<ParentTreeEntry>;
 
     std::map<QByteArray, PDFObjectReference> m_idTreeMap;
@@ -596,27 +608,6 @@ public:
 private:
     PDFObjectReference m_pageReference;
     PDFObjectReference m_objectReference;
-};
-
-/// Text extractor for structure tree. Can extract text to fill structure tree contents.
-class PDFFORQTLIBSHARED_EXPORT PDFStructureTreeTextExtractor
-{
-public:
-    explicit PDFStructureTreeTextExtractor(const PDFDocument* document, const PDFStructureTree* tree);
-
-    /// Performs text extracting algorithm. Only \p pageIndices
-    /// pages are processed for text extraction.
-    /// \param pageIndices Page indices
-    void perform(const std::vector<PDFInteger>& pageIndices);
-
-    /// Returns a list of errors/warnings
-    const QList<PDFRenderError>& getErrors() const { return m_errors; }
-
-private:
-    QList<PDFRenderError> m_errors;
-    const PDFDocument* m_document;
-    const PDFStructureTree* m_tree;
-    QStringList m_unmatchedText;
 };
 
 }   // namespace pdf

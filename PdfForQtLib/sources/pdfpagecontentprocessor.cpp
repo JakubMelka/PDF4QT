@@ -244,10 +244,13 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_drawingUncoloredTilingPatternState(0),
     m_patternBaseMatrix(pagePointToDevicePointMatrix),
     m_pagePointToDevicePointMatrix(pagePointToDevicePointMatrix),
-    m_meshQualitySettings(meshQualitySettings)
+    m_meshQualitySettings(meshQualitySettings),
+    m_structuralParentKey(0)
 {
     Q_ASSERT(page);
     Q_ASSERT(document);
+
+    m_structuralParentKey = page->getStructureParentKey();
 
     PDFExecutionPolicy::startProcessingContentStream();
 
@@ -338,6 +341,7 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
         }
     }
 
+    finishMarkedContent();
     return m_errorList;
 }
 
@@ -659,9 +663,11 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix,
                                           const QRectF& boundingBox,
                                           const PDFObject& resources,
                                           const PDFObject& transparencyGroup,
-                                          const QByteArray& content)
+                                          const QByteArray& content,
+                                          PDFInteger formStructuralParent)
 {
     PDFPageContentProcessorStateGuard guard(this);
+    PDFTemporaryValueChange structuralParentChangeGuard(&m_structuralParentKey, formStructuralParent);
 
     std::unique_ptr<PDFTransparencyGroupGuard> guard2;
     if (transparencyGroup.isDictionary())
@@ -1736,6 +1742,19 @@ void PDFPageContentProcessor::setRenderingIntentByName(QByteArray renderingInten
     }
     m_graphicState.setRenderingIntent(renderingIntent);
     m_graphicState.setRenderingIntentName(renderingIntentName);
+}
+
+void PDFPageContentProcessor::finishMarkedContent()
+{
+    if (!m_markedContentStack.empty())
+    {
+        m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Marked content is not well formed (not enough EMC operators).")));
+    }
+
+    while (!m_markedContentStack.empty())
+    {
+        operatorMarkedContentEnd();
+    }
 }
 
 void PDFPageContentProcessor::reportRenderErrorOnce(RenderErrorType type, QString message)
@@ -2936,7 +2955,10 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                 // Transparency group
                 PDFObject transparencyGroup = m_document->getObject(streamDictionary->get("Group"));
 
-                processForm(transformationMatrix, boundingBox, resources, transparencyGroup, content);
+                // Form structural parent key
+                const PDFInteger formStructuralParentKey = loader.readIntegerFromDictionary(streamDictionary, "StructParent", m_structuralParentKey);
+
+                processForm(transformationMatrix, boundingBox, resources, transparencyGroup, content, formStructuralParentKey);
             }
             else
             {
@@ -3075,31 +3097,33 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     if (item.glyph)
                     {
                         const QPainterPath& glyphPath = *item.glyph;
+
+                        QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
+                        QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
+
                         if (!glyphPath.isEmpty())
                         {
-                            QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
-                            QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
                             QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
                             processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
-
-                            if (!item.character.isNull() && !item.character.isSpace())
-                            {
-                                // Output character
-                                PDFTextCharacterInfo info;
-                                info.character = item.character;
-                                info.isVerticalWritingSystem = !isHorizontalWritingSystem;
-                                info.advance = item.advance;
-                                info.fontSize = fontSize;
-                                info.outline = glyphPath;
-                                info.matrix = toDeviceSpaceTransform;
-                                performOutputCharacter(info);
-                            }
 
                             if (clipped)
                             {
                                 // Clipping is enabled, we must transform to the device coordinates
                                 m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(glyphPath));
                             }
+                        }
+
+                        if (!item.character.isNull())
+                        {
+                            // Output character
+                            PDFTextCharacterInfo info;
+                            info.character = item.character;
+                            info.isVerticalWritingSystem = !isHorizontalWritingSystem;
+                            info.advance = item.advance;
+                            info.fontSize = fontSize;
+                            info.outline = glyphPath;
+                            info.matrix = toDeviceSpaceTransform;
+                            performOutputCharacter(info);
                         }
                     }
 
@@ -3170,7 +3194,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
                     processContent(*item.characterContentStream);
 
-                    if (!item.character.isNull() && !item.character.isSpace())
+                    if (!item.character.isNull())
                     {
                         // Output character
                         PDFTextCharacterInfo info;

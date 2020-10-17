@@ -227,7 +227,7 @@ bool PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) const
 
 void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& info)
 {
-    if (!isContentSuppressed())
+    if (!isContentSuppressed() && !info.character.isSpace())
     {
         m_textLayout.addCharacter(info);
     }

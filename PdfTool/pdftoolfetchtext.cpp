@@ -65,17 +65,48 @@ int PDFToolFetchTextApplication::execute(const PDFToolOptions& options)
     pdf::PDFDocumentTextFlowFactory factory;
     pdf::PDFDocumentTextFlow documentTextFlow = factory.create(&document, pages, options.textAnalysisAlgorithm);
 
+    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    formatter.beginDocument("text-extraction", QString());
+    formatter.endl();
+
+    for (const pdf::PDFDocumentTextFlow::Item& item : documentTextFlow.getItems())
+    {
+        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureItemStart))
+        {
+            formatter.beginHeader("item", item.text);
+        }
+
+        if (!item.text.isEmpty())
+        {
+            formatter.writeText("text", item.text);
+        }
+
+        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureItemEnd))
+        {
+            formatter.endHeader();
+        }
+
+        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageEnd))
+        {
+            formatter.endl();
+        }
+    }
+
+    formatter.endDocument();
+
     for (const pdf::PDFRenderError& error : factory.getErrors())
     {
         PDFConsole::writeError(error.message, options.outputCodec);
     }
+
+    PDFConsole::writeText(formatter.getString(), options.outputCodec);
 
     return ExitSuccess;
 }
 
 PDFToolAbstractApplication::Options PDFToolFetchTextApplication::getOptionsFlags() const
 {
-    return ConsoleFormat | OpenDocument | TextAnalysis;
+    return ConsoleFormat | OpenDocument | PageSelector | TextAnalysis;
 }
 
 }   // namespace pdftool

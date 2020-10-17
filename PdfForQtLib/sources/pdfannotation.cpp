@@ -1362,6 +1362,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
     QByteArray content = m_document->getDecodedStream(formStream);
     PDFObject resources = m_document->getObject(formDictionary->get("Resources"));
     PDFObject transparencyGroup = m_document->getObject(formDictionary->get("Group"));
+    const PDFInteger formStructuralParentKey = loader.readIntegerFromDictionary(formDictionary, "StructParent", page->getStructureParentKey());
 
     if (formBoundingBox.isEmpty() || annotationRectangle.isEmpty())
     {
@@ -1409,7 +1410,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
 
         if (isContentVisible)
         {
-            pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content);
+            pdfPainter.processForm(AA, formBoundingBox, resources, transparencyGroup, content, formStructuralParentKey);
         }
     }
 

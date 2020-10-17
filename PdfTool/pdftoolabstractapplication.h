@@ -43,7 +43,7 @@ struct PDFToolOptions
 {
     // For option 'ConsoleFormat'
     PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
-    QString outputCodec;
+    QString outputCodec = "UTF-8";
 
     // For option 'DateFormat'
     Qt::DateFormat outputDateFormat = Qt::DefaultLocaleShortDate;

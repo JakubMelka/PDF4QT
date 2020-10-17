@@ -219,7 +219,13 @@ public:
     /// \param resources Resources, assigned to the form
     /// \param transparencyGroup Transparency group object
     /// \param content Content stream of the form
-    void processForm(const QMatrix& matrix, const QRectF& boundingBox, const PDFObject& resources, const PDFObject& transparencyGroup, const QByteArray& content);
+    /// \param formStructuralParent Structural parent key for form
+    void processForm(const QMatrix& matrix,
+                     const QRectF& boundingBox,
+                     const PDFObject& resources,
+                     const PDFObject& transparencyGroup,
+                     const QByteArray& content,
+                     PDFInteger formStructuralParent);
 
     /// Initialize stream processor for processing content streams. For example,
     /// graphic state is initialized to default, and default color spaces are initialized.
@@ -572,6 +578,9 @@ protected:
     /// shading, images, ...)
     virtual bool isContentKindSuppressed(ContentKind kind) const;
 
+    /// Returns current structural parent key
+    PDFInteger getStructuralParentKey() const { return m_structuralParentKey; }
+
     /// Returns current graphic state
     const PDFPageContentProcessorState* getGraphicState() const { return &m_graphicState; }
 
@@ -918,6 +927,9 @@ private:
     /// Set rendering intent by name
     void setRenderingIntentByName(QByteArray renderingIntentName);
 
+    /// Finishes marked content (if end of marked content is missing)
+    void finishMarkedContent();
+
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
@@ -990,6 +1002,9 @@ private:
 
     /// Set with rendering errors, which were reported (and should be reported once)
     std::set<QString> m_onceReportedErrors;
+
+    /// Active structural parent key
+    PDFInteger m_structuralParentKey;
 };
 
 }   // namespace pdf
