@@ -171,11 +171,13 @@ public:
                                                   QMatrix pagePointToDevicePointMatrix,
                                                   const PDFMeshQualitySettings& meshQualitySettings,
                                                   const PDFStructureTree* tree,
-                                                  const std::map<PDFObjectReference, const PDFStructureItem*>* mapping) :
+                                                  const std::map<PDFObjectReference, const PDFStructureItem*>* mapping,
+                                                  PDFStructureTreeTextExtractor::Options extractorOptions) :
         BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
         m_features(features),
         m_tree(tree),
-        m_mapping(mapping)
+        m_mapping(mapping),
+        m_extractorOptions(extractorOptions)
     {
 
     }
@@ -194,11 +196,16 @@ private:
     const PDFStructureItem* getStructureTreeItemFromMCID(PDFInteger mcid) const;
     void finishText();
 
+    bool isArtifact() const;
+    bool isReversedText() const;
+
     struct MarkedContentInfo
     {
         QByteArray tag;
         PDFInteger mcid = -1;
         const PDFStructureItem* structureTreeItem = nullptr;
+        bool isArtifact = false;
+        bool isReversedText = false;
     };
 
     PDFRenderer::Features m_features;
@@ -208,16 +215,37 @@ private:
     QString m_currentText;
     PDFStructureTreeTextSequence m_textSequence;
     QStringList m_unmatchedText;
+    PDFStructureTreeTextExtractor::Options m_extractorOptions;
 };
 
 void PDFStructureTreeTextContentProcessor::finishText()
 {
     m_currentText = m_currentText.trimmed();
-    if (!m_currentText.isEmpty())
+    if (!m_currentText.isEmpty() && (!m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::SkipArtifact) || !isArtifact()))
     {
+        if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::AdjustReversedText) && isReversedText())
+        {
+            QString reversed;
+            reversed.reserve(m_currentText.size());
+            for (auto it = m_currentText.rbegin(); it != m_currentText.rend(); ++it)
+            {
+                reversed.push_back(*it);
+            }
+            m_currentText = qMove(reversed);
+        }
         m_textSequence.emplace_back(PDFStructureTreeTextItem::createText(qMove(m_currentText)));
     }
     m_currentText = QString();
+}
+
+bool PDFStructureTreeTextContentProcessor::isArtifact() const
+{
+    return std::any_of(m_markedContentInfoStack.cbegin(), m_markedContentInfoStack.cend(), [](const auto& item) { return item.isArtifact; });
+}
+
+bool PDFStructureTreeTextContentProcessor::isReversedText() const
+{
+    return std::any_of(m_markedContentInfoStack.cbegin(), m_markedContentInfoStack.cend(), [](const auto& item) { return item.isReversedText; });
 }
 
 void PDFStructureTreeTextContentProcessor::performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties)
@@ -238,6 +266,8 @@ void PDFStructureTreeTextContentProcessor::performMarkedContentBegin(const QByte
 
             info.mcid = mcid.getInteger();
             info.structureTreeItem = getStructureTreeItemFromMCID(info.mcid);
+            info.isArtifact = tag == "Artifact";
+            info.isReversedText = tag == "ReversedChars";
 
             if (!info.structureTreeItem)
             {
@@ -369,7 +399,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
         const PDFPage* page = catalog->getPage(pageIndex);
         Q_ASSERT(page);
 
-        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QMatrix(), mqs, m_tree, &mapping);
+        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QMatrix(), mqs, m_tree, &mapping, m_options);
         QList<PDFRenderError> errors = processor.processContents();
 
         QMutexLocker lock(&mutex);
