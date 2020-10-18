@@ -356,7 +356,7 @@ void PDFStructureTreeTextContentProcessor::performOutputCharacter(const PDFTextC
 {
     if (!isContentSuppressed())
     {
-        if (!info.character.isNull())
+        if (!info.character.isNull() && info.character != QChar(QChar::SoftHyphen))
         {
             m_currentText.push_back(info.character);
         }
@@ -480,6 +480,8 @@ public:
     virtual void visitStructureObjectReference(const PDFStructureObjectReference* structureObjectReference) override;
 
 private:
+    void markHasContent();
+
     PDFDocumentTextFlow::Items* m_items;
     const PDFStructureTreeTextExtractor* m_extractor;
     std::vector<bool> m_hasContentStack;
@@ -492,6 +494,14 @@ void PDFStructureTreeTextFlowCollector::visitStructureTree(const PDFStructureTre
     m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructureItemEnd, -1, QString()});
 }
 
+void PDFStructureTreeTextFlowCollector::markHasContent()
+{
+    for (size_t i = 0; i < m_hasContentStack.size(); ++i)
+    {
+        m_hasContentStack[i] = true;
+    }
+}
+
 void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructureElement* structureElement)
 {
     size_t index = m_items->size();
@@ -500,12 +510,52 @@ void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructure
     // Mark stack so we can delete unused items
     m_hasContentStack.push_back(false);
 
+    QString title = structureElement->getText(PDFStructureElement::Title);
+    QString language = structureElement->getText(PDFStructureElement::Language);
+    QString alternativeDescription = structureElement->getText(PDFStructureElement::AlternativeDescription);
+    QString expandedForm = structureElement->getText(PDFStructureElement::ExpandedForm);
+    QString actualText = structureElement->getText(PDFStructureElement::ActualText);
+    QString phoneme = structureElement->getText(PDFStructureElement::Phoneme);
+
+    if (!title.isEmpty())
+    {
+        markHasContent();
+        m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructureTitle, -1, });
+    }
+
+    if (!language.isEmpty())
+    {
+        markHasContent();
+        m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructureLanguage, -1, language });
+    }
+
+    if (!alternativeDescription.isEmpty())
+    {
+        markHasContent();
+        m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructureAlternativeDescription, -1, alternativeDescription });
+    }
+
+    if (!expandedForm.isEmpty())
+    {
+        markHasContent();
+        m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructureExpandedForm, -1, expandedForm });
+    }
+
+    if (!actualText.isEmpty())
+    {
+        markHasContent();
+        m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructureActualText, -1, actualText });
+    }
+
+    if (!phoneme.isEmpty())
+    {
+        markHasContent();
+        m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::StructurePhoneme, -1, phoneme });
+    }
+
     for (const QString& string : m_extractor->getText(structureElement))
     {
-        for (size_t i = 0; i < m_hasContentStack.size(); ++i)
-        {
-            m_hasContentStack[i] = true;
-        }
+        markHasContent();
         m_items->push_back(PDFDocumentTextFlow::Item{PDFDocumentTextFlow::Text, -1, string});
     }
 
@@ -539,7 +589,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
     PDFStructureTree structureTree;
 
     const PDFCatalog* catalog = document->getCatalog();
-    if (algorithm == Algorithm::Auto || algorithm == Algorithm::Structure)
+    if (algorithm != Algorithm::Layout)
     {
         structureTree = PDFStructureTree::parse(&document->getStorage(), catalog->getStructureTreeRoot());
     }
@@ -559,8 +609,6 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
 
     Q_ASSERT(algorithm != Algorithm::Auto);
 
-    QMutex mutex;
-
     // Perform algorithm to retrieve document text
     switch (algorithm)
     {
@@ -570,6 +618,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
 
             std::map<PDFInteger, PDFDocumentTextFlow::Items> items;
 
+            QMutex mutex;
             PDFCMSGeneric cms;
             PDFMeshQualitySettings mqs;
             PDFOptionalContentActivity oca(document, OCUsage::Export, nullptr);

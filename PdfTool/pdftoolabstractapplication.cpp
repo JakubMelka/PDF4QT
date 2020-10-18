@@ -204,7 +204,18 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
 
     if (optionFlags.testFlag(TextAnalysis))
     {
-        parser->addOption(QCommandLineOption("text-analysis-alg", "Text analysis algorithm (auto - select automatically, layout - perform automatic layout algorithm, content - simple content stream reading order, structure - use tagged document structure", "algorithm", "auto"));
+        parser->addOption(QCommandLineOption("text-analysis-alg", "Text analysis algorithm (auto - select automatically, layout - perform automatic layout algorithm, content - simple content stream reading order, structure - use tagged document structure).", "algorithm", "auto"));
+    }
+
+    if (optionFlags.testFlag(TextShow))
+    {
+        parser->addOption(QCommandLineOption("text-show-page-numbers", "Show page numbers in extracted text."));
+        parser->addOption(QCommandLineOption("text-show-struct-title", "Show title extracted from structure tree."));
+        parser->addOption(QCommandLineOption("text-show-struct-lang", "Show language extracted from structure tree."));
+        parser->addOption(QCommandLineOption("text-show-struct-alt-desc", "Show alternative description extracted from structure tree."));
+        parser->addOption(QCommandLineOption("text-show-struct-expanded-form", "Show expanded form extracted from structure tree."));
+        parser->addOption(QCommandLineOption("text-show-struct-act-text", "Show actual text extracted from structure tree."));
+        parser->addOption(QCommandLineOption("text-show-phoneme", "Show phoneme extracted from structure tree."));
     }
 }
 
@@ -336,6 +347,17 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         {
             PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown text layout analysis algorithm '%1'. Defaulting to automatic algorithm selection.").arg(algoritm), options.outputCodec);
         }
+    }
+
+    if (optionFlags.testFlag(TextShow))
+    {
+        options.textShowPageNumbers = parser->isSet("text-show-page-numbers");
+        options.textShowStructTitles = parser->isSet("text-show-struct-title");
+        options.textShowStructLanguage = parser->isSet("text-show-struct-lang");
+        options.textShowStructAlternativeDescription = parser->isSet("text-show-struct-alt-desc");
+        options.textShowStructExpandedForm = parser->isSet("text-show-struct-expanded-form");
+        options.textShowStructActualText = parser->isSet("text-show-struct-act-text");
+        options.textShowStructPhoneme = parser->isSet("text-show-phoneme");
     }
 
     return options;

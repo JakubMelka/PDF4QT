@@ -46,7 +46,6 @@ public:
         StructurePhoneme                    = 0x0100,   ///< Structure tree item  phoneme
         StructureItemStart                  = 0x0200,   ///< Start of structure tree item
         StructureItemEnd                    = 0x0400,   ///< End of structure tree item
-        StructureEmpty                      = 0x0800,   ///< Structure tree item doesn't contain any text
     };
     Q_DECLARE_FLAGS(Flags, Flag)
 

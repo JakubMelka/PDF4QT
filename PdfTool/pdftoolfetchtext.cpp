@@ -34,7 +34,7 @@ QString PDFToolFetchTextApplication::getStandardString(PDFToolAbstractApplicatio
             return PDFToolTranslationContext::tr("Fetch text");
 
         case Description:
-            return PDFToolTranslationContext::tr("Fetch text content from a document.");
+            return PDFToolTranslationContext::tr("Fetch text content from document.");
 
         default:
             Q_ASSERT(false);
@@ -51,6 +51,12 @@ int PDFToolFetchTextApplication::execute(const PDFToolOptions& options)
     if (!readDocument(options, document, &sourceData))
     {
         return ErrorDocumentReading;
+    }
+
+    if (!document.getStorage().getSecurityHandler()->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent))
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Document doesn't allow to copy content."), options.outputCodec);
+        return ErrorPermissions;
     }
 
     QString parseError;
@@ -78,7 +84,20 @@ int PDFToolFetchTextApplication::execute(const PDFToolOptions& options)
 
         if (!item.text.isEmpty())
         {
-            formatter.writeText("text", item.text);
+            bool showText = (item.flags.testFlag(pdf::PDFDocumentTextFlow::Text)) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textShowPageNumbers) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageEnd) && options.textShowPageNumbers) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureTitle) && options.textShowStructTitles) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureLanguage) && options.textShowStructLanguage) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureAlternativeDescription) && options.textShowStructAlternativeDescription) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureExpandedForm) && options.textShowStructExpandedForm) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureActualText) && options.textShowStructActualText) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructurePhoneme) && options.textShowStructPhoneme);
+
+            if (showText)
+            {
+                formatter.writeText("text", item.text);
+            }
         }
 
         if (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureItemEnd))
@@ -106,7 +125,7 @@ int PDFToolFetchTextApplication::execute(const PDFToolOptions& options)
 
 PDFToolAbstractApplication::Options PDFToolFetchTextApplication::getOptionsFlags() const
 {
-    return ConsoleFormat | OpenDocument | PageSelector | TextAnalysis;
+    return ConsoleFormat | OpenDocument | PageSelector | TextAnalysis | TextShow;
 }
 
 }   // namespace pdftool

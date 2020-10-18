@@ -84,6 +84,15 @@ struct PDFToolOptions
     // For option 'TextAnalysis'
     pdf::PDFDocumentTextFlowFactory::Algorithm textAnalysisAlgorithm = pdf::PDFDocumentTextFlowFactory::Algorithm::Auto;
 
+    // For option 'TextShow'
+    bool textShowPageNumbers = false;
+    bool textShowStructTitles = false;
+    bool textShowStructLanguage = false;
+    bool textShowStructAlternativeDescription = false;
+    bool textShowStructExpandedForm = false;
+    bool textShowStructActualText = false;
+    bool textShowStructPhoneme = false;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -105,7 +114,8 @@ public:
         ErrorNoDocumentSpecified,
         ErrorDocumentReading,
         ErrorInvalidArguments,
-        ErrorFailedWriteToFile
+        ErrorFailedWriteToFile,
+        ErrorPermissions
     };
 
     enum StandardString
@@ -126,6 +136,7 @@ public:
         ComputeHashes           = 0x0040,       ///< Compute hashes
         PageSelector            = 0x0080,       ///< Select page range (or all pages)
         TextAnalysis            = 0x0100,       ///< Text analysis options
+        TextShow                = 0x0200,       ///< Text extract and show options
     };
     Q_DECLARE_FLAGS(Options, Option)
 
