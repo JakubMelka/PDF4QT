@@ -43,6 +43,7 @@ SOURCES += \
         pdfoutputformatter.cpp \
         pdftoolabstractapplication.cpp \
         pdftoolattachments.cpp \
+        pdftoolaudiobook.cpp \
         pdftoolfetchtext.cpp \
         pdftoolinfo.cpp \
         pdftoolinfojavascript.cpp \
@@ -66,6 +67,7 @@ HEADERS += \
     pdfoutputformatter.h \
     pdftoolabstractapplication.h \
     pdftoolattachments.h \
+    pdftoolaudiobook.h \
     pdftoolfetchtext.h \
     pdftoolinfo.h \
     pdftoolinfojavascript.h \

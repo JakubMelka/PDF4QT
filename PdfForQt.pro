@@ -31,3 +31,4 @@ PdfForQtViewer.depends = PdfForQtLib
 JBIG2_Viewer.depends = PdfForQtLib
 PDFExampleGenerator.depends = PdfForQtLib
 CodeGenerator.depends = PdfForQtLib
+PdfTool.depends = PdfForQtLib

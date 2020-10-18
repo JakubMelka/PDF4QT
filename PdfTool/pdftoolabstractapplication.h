@@ -115,7 +115,9 @@ public:
         ErrorDocumentReading,
         ErrorInvalidArguments,
         ErrorFailedWriteToFile,
-        ErrorPermissions
+        ErrorPermissions,
+        ErrorCOM,
+        ErrorSAPI
     };
 
     enum StandardString
