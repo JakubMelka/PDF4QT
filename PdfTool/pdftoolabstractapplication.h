@@ -93,6 +93,22 @@ struct PDFToolOptions
     bool textShowStructActualText = false;
     bool textShowStructPhoneme = false;
 
+    // For option 'VoiceSelector'
+    QString textVoiceName;
+    QString textVoiceGender;
+    QString textVoiceAge;
+    QString textVoiceLangCode;
+
+    // For option 'TextSpeech'
+    bool textSpeechMarkPageNumbers = false;
+    bool textSpeechSayPageNumbers = false;
+    bool textSpeechSayStructTitles = false;
+    bool textSpeechSayStructLanguage = false;
+    bool textSpeechSayStructAlternativeDescription = false;
+    bool textSpeechSayStructExpandedForm = false;
+    bool textSpeechSayStructActualText = false;
+    bool textSpeechSayStructPhoneme = false;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -139,6 +155,8 @@ public:
         PageSelector            = 0x0080,       ///< Select page range (or all pages)
         TextAnalysis            = 0x0100,       ///< Text analysis options
         TextShow                = 0x0200,       ///< Text extract and show options
+        VoiceSelector           = 0x0400,       ///< Select voice from SAPI
+        TextSpeech              = 0x0800,       ///< Text speech options
     };
     Q_DECLARE_FLAGS(Options, Option)
 

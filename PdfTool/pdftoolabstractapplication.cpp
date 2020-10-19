@@ -217,6 +217,14 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("text-show-struct-act-text", "Show actual text extracted from structure tree."));
         parser->addOption(QCommandLineOption("text-show-phoneme", "Show phoneme extracted from structure tree."));
     }
+
+    if (optionFlags.testFlag(VoiceSelector))
+    {
+        parser->addOption(QCommandLineOption("voice-name", "Choose voice name for text-to-speech engine.", "name"));
+        parser->addOption(QCommandLineOption("voice-gender", "Choose voice gender for text-to-speech engine.", "gender"));
+        parser->addOption(QCommandLineOption("voice-age", "Choose voice age for text-to-speech engine.", "age"));
+        parser->addOption(QCommandLineOption("voice-lang-code", "Choose voice language code for text-to-speech engine.", "code"));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -358,6 +366,14 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.textShowStructExpandedForm = parser->isSet("text-show-struct-expanded-form");
         options.textShowStructActualText = parser->isSet("text-show-struct-act-text");
         options.textShowStructPhoneme = parser->isSet("text-show-phoneme");
+    }
+
+    if (optionFlags.testFlag(VoiceSelector))
+    {
+        options.textVoiceName = parser->isSet("voice-name") ? parser->value("voice-name") : QString();
+        options.textVoiceGender = parser->isSet("voice-gender") ? parser->value("voice-gender") : QString();
+        options.textVoiceAge = parser->isSet("voice-age") ? parser->value("voice-age") : QString();
+        options.textVoiceLangCode = parser->isSet("voice-lang-code") ? parser->value("voice-lang-code") : QString();
     }
 
     return options;

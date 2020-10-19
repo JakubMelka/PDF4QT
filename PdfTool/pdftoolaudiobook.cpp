@@ -28,6 +28,7 @@ namespace pdftool
 {
 
 static PDFToolAudioBook s_audioBookApplication;
+static PDFToolAudioBookVoices s_audioBookVoicesApplication;
 
 PDFVoiceInfo::PDFVoiceInfo(std::map<QString, QString> properties, ISpVoice* voice) :
     m_properties(qMove(properties)),
@@ -51,11 +52,19 @@ QLocale PDFVoiceInfo::getLocale() const
 
     if (ok)
     {
+        // Language name
         int count = GetLocaleInfoW(locale, LOCALE_SISO639LANGNAME, NULL, 0);
-        std::vector<wchar_t> localeString(count, wchar_t());
-        GetLocaleInfoW(locale, LOCALE_SISO639LANGNAME, localeString.data(), int(localeString.size()));
-        QString isoCode = QString::fromWCharArray(localeString.data());
-        return QLocale(isoCode);
+        std::vector<wchar_t> buffer(count, wchar_t());
+        GetLocaleInfoW(locale, LOCALE_SISO639LANGNAME, buffer.data(), int(buffer.size()));
+        QString languageCode = QString::fromWCharArray(buffer.data());
+
+        // Country name
+        count = GetLocaleInfoW(locale, LOCALE_SISO3166CTRYNAME, NULL, 0);
+        buffer.resize(count, wchar_t());
+        GetLocaleInfoW(locale, LOCALE_SISO3166CTRYNAME, buffer.data(), int(buffer.size()));
+        QString countryCode = QString::fromWCharArray(buffer.data());
+
+        return QLocale(QString("%1_%2").arg(languageCode, countryCode));
     }
 
     return QLocale();
@@ -72,49 +81,29 @@ QString PDFVoiceInfo::getStringValue(QString key) const
     return QString();
 }
 
-QString PDFToolAudioBook::getStandardString(StandardString standardString) const
-{
-    switch (standardString)
-    {
-        case Command:
-            return "audio-book";
-
-        case Name:
-            return PDFToolTranslationContext::tr("Audio book convertor");
-
-        case Description:
-            return PDFToolTranslationContext::tr("Convert your document to a simple audio book.");
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    return QString();
-}
-
-int PDFToolAudioBook::execute(const PDFToolOptions& options)
-{
-    if (!SUCCEEDED(::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)))
-    {
-        return ErrorCOM;
-    }
-
-    int returnCode = showVoiceList(options);
-
-    ::CoUninitialize();
-
-    return returnCode;
-}
-
-PDFToolAbstractApplication::Options PDFToolAudioBook::getOptionsFlags() const
-{
-    return ConsoleFormat | OpenDocument | PageSelector | TextAnalysis;
-}
-
-int PDFToolAudioBook::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoicePointers)
+int PDFToolAudioBookBase::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoicePointers)
 {
     int result = ExitSuccess;
+
+    QStringList voiceSelector;
+    if (!options.textVoiceName.isEmpty())
+    {
+        voiceSelector << QString("Name=%1").arg(options.textVoiceName);
+    }
+    if (!options.textVoiceGender.isEmpty())
+    {
+        voiceSelector << QString("Gender=%1").arg(options.textVoiceGender);
+    }
+    if (!options.textVoiceAge.isEmpty())
+    {
+        voiceSelector << QString("Age=%1").arg(options.textVoiceAge);
+    }
+    if (!options.textVoiceLangCode.isEmpty())
+    {
+        voiceSelector << QString("Language=%1").arg(options.textVoiceLangCode);
+    }
+    QString voiceSelectorString = voiceSelector.join(";");
+    LPCWSTR requiredAttributes = !voiceSelectorString.isEmpty() ? (LPCWSTR)voiceSelectorString.utf16() : nullptr;
 
     ISpObjectTokenCategory* category = nullptr;
     if (!SUCCEEDED(::CoCreateInstance(CLSID_SpObjectTokenCategory, NULL, CLSCTX_ALL, __uuidof(ISpObjectTokenCategory), (LPVOID*)&category)))
@@ -130,7 +119,7 @@ int PDFToolAudioBook::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList
     }
 
     IEnumSpObjectTokens* enumTokensObject = nullptr;
-    if (SUCCEEDED(category->EnumTokens(NULL, NULL, &enumTokensObject)))
+    if (SUCCEEDED(category->EnumTokens(requiredAttributes, NULL, &enumTokensObject)))
     {
         ISpObjectToken* token = nullptr;
         while (SUCCEEDED(enumTokensObject->Next(1, &token, NULL)))
@@ -212,7 +201,7 @@ int PDFToolAudioBook::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList
     return result;
 }
 
-int PDFToolAudioBook::showVoiceList(const PDFToolOptions& options)
+int PDFToolAudioBookBase::showVoiceList(const PDFToolOptions& options)
 {
     PDFVoiceInfoList voices;
     int result = fillVoices(options, voices, false);
@@ -227,22 +216,27 @@ int PDFToolAudioBook::showVoiceList(const PDFToolOptions& options)
     formatter.writeTableHeaderColumn("name", PDFToolTranslationContext::tr("Name"), Qt::AlignLeft);
     formatter.writeTableHeaderColumn("gender", PDFToolTranslationContext::tr("Gender"), Qt::AlignLeft);
     formatter.writeTableHeaderColumn("age", PDFToolTranslationContext::tr("Age"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("language", PDFToolTranslationContext::tr("Language"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("language-code", PDFToolTranslationContext::tr("Lang. Code"), Qt::AlignLeft);
     formatter.writeTableHeaderColumn("locale", PDFToolTranslationContext::tr("Locale"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("language", PDFToolTranslationContext::tr("Language"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("country", PDFToolTranslationContext::tr("Country"), Qt::AlignLeft);
     formatter.writeTableHeaderColumn("vendor", PDFToolTranslationContext::tr("Vendor"), Qt::AlignLeft);
     formatter.writeTableHeaderColumn("version", PDFToolTranslationContext::tr("Version"), Qt::AlignLeft);
     formatter.endTableHeaderRow();
 
     for (const PDFVoiceInfo& voice : voices)
     {
+        QLocale locale = voice.getLocale();
         formatter.beginTableRow("voice");
-        formatter.writeTableHeaderColumn("name", voice.getName(), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("gender", voice.getGender(), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("age", voice.getAge(), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("language", voice.getLanguage(), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("locale", voice.getLocale().name(), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("vendor", voice.getVendor(), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("version", voice.getVersion(), Qt::AlignLeft);
+        formatter.writeTableColumn("name", voice.getName(), Qt::AlignLeft);
+        formatter.writeTableColumn("gender", voice.getGender(), Qt::AlignLeft);
+        formatter.writeTableColumn("age", voice.getAge(), Qt::AlignLeft);
+        formatter.writeTableColumn("language", voice.getLanguage(), Qt::AlignLeft);
+        formatter.writeTableColumn("locale", locale.name(), Qt::AlignLeft);
+        formatter.writeTableColumn("language", locale.nativeLanguageName(), Qt::AlignLeft);
+        formatter.writeTableColumn("country", locale.nativeCountryName(), Qt::AlignLeft);
+        formatter.writeTableColumn("vendor", voice.getVendor(), Qt::AlignLeft);
+        formatter.writeTableColumn("version", voice.getVersion(), Qt::AlignLeft);
         formatter.endTableRow();
     }
 
@@ -252,6 +246,84 @@ int PDFToolAudioBook::showVoiceList(const PDFToolOptions& options)
     PDFConsole::writeText(formatter.getString(), options.outputCodec);
 
     return result;
+}
+
+QString PDFToolAudioBookVoices::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
+{
+    switch (standardString)
+    {
+        case Command:
+            return "audio-book-voices";
+
+        case Name:
+            return PDFToolTranslationContext::tr("Audio book voices");
+
+        case Description:
+            return PDFToolTranslationContext::tr("List of available voices for audio book conversion.");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+int PDFToolAudioBookVoices::execute(const PDFToolOptions& options)
+{
+    if (!SUCCEEDED(::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)))
+    {
+        return ErrorCOM;
+    }
+
+    int returnCode = showVoiceList(options);
+
+    ::CoUninitialize();
+
+    return returnCode;
+}
+
+PDFToolAbstractApplication::Options PDFToolAudioBookVoices::getOptionsFlags() const
+{
+    return ConsoleFormat | VoiceSelector;
+}
+
+QString PDFToolAudioBook::getStandardString(StandardString standardString) const
+{
+    switch (standardString)
+    {
+        case Command:
+            return "audio-book";
+
+        case Name:
+            return PDFToolTranslationContext::tr("Audio book convertor");
+
+        case Description:
+            return PDFToolTranslationContext::tr("Convert your document to a simple audio book.");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+int PDFToolAudioBook::execute(const PDFToolOptions& options)
+{
+    if (!SUCCEEDED(::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)))
+    {
+        return ErrorCOM;
+    }
+
+    ::CoUninitialize();
+
+    return ExitSuccess;
+}
+
+PDFToolAbstractApplication::Options PDFToolAudioBook::getOptionsFlags() const
+{
+    return ConsoleFormat | OpenDocument | PageSelector | VoiceSelector | TextAnalysis;
 }
 
 }   // namespace pdftool

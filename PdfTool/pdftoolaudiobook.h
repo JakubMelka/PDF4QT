@@ -58,16 +58,30 @@ private:
 
 using PDFVoiceInfoList = std::vector<PDFVoiceInfo>;
 
-class PDFToolAudioBook : public PDFToolAbstractApplication
+class PDFToolAudioBookBase : public PDFToolAbstractApplication
+{
+public:
+    PDFToolAudioBookBase() = default;
+
+protected:
+    int fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoicePointers);
+    int showVoiceList(const PDFToolOptions& options);
+};
+
+class PDFToolAudioBookVoices : public PDFToolAudioBookBase
 {
 public:
     virtual QString getStandardString(StandardString standardString) const override;
     virtual int execute(const PDFToolOptions& options) override;
     virtual Options getOptionsFlags() const override;
+};
 
-private:
-    int fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoicePointers);
-    int showVoiceList(const PDFToolOptions& options);
+class PDFToolAudioBook : public PDFToolAudioBookBase
+{
+public:
+    virtual QString getStandardString(StandardString standardString) const override;
+    virtual int execute(const PDFToolOptions& options) override;
+    virtual Options getOptionsFlags() const override;
 };
 
 }   // namespace pdftool
