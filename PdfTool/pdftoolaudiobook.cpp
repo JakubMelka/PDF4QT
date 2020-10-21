@@ -19,8 +19,9 @@
 
 #ifdef Q_OS_WIN
 
+#include <QFileInfo>
+
 #include <sapi.h>
-//#include <sphelper.h>
 
 #pragma comment(lib, "ole32")
 
@@ -309,21 +310,138 @@ QString PDFToolAudioBook::getStandardString(StandardString standardString) const
     return QString();
 }
 
+
+int PDFToolAudioBook::getDocumentTextFlow(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow)
+{
+    pdf::PDFDocument document;
+    QByteArray sourceData;
+    if (!readDocument(options, document, &sourceData))
+    {
+        return ErrorDocumentReading;
+    }
+
+    QString parseError;
+    std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError, true);
+
+    if (!parseError.isEmpty())
+    {
+        PDFConsole::writeError(parseError, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
+    pdf::PDFDocumentTextFlowFactory factory;
+    flow = factory.create(&document, pages, options.textAnalysisAlgorithm);
+
+    return ExitSuccess;
+}
+
+int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow)
+{
+    QString audioString;
+    QTextStream textStream(&audioString);
+
+    for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+    {
+        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textSpeechMarkPageNumbers)
+        {
+            textStream << QString("<bookmark mark=\"%1\"/>").arg(item.text) << endl;
+        }
+
+        if (!item.text.isEmpty())
+        {
+            bool showText = (item.flags.testFlag(pdf::PDFDocumentTextFlow::Text)) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textSpeechSayPageNumbers) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageEnd) && options.textSpeechSayPageNumbers) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureTitle) && options.textSpeechSayStructTitles) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureAlternativeDescription) && options.textSpeechSayStructAlternativeDescription) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureExpandedForm) && options.textSpeechSayStructExpandedForm) ||
+                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureActualText) && options.textSpeechSayStructActualText);
+
+            if (showText)
+            {
+                textStream << item.text << endl;
+            }
+        }
+    }
+
+    PDFVoiceInfoList voices;
+    fillVoices(options, voices, true);
+
+    // Do we have any voice?
+    if (voices.empty())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid voice."), options.outputCodec);
+        return ErrorSAPI;
+    }
+
+    if (!voices.front().getVoice())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid voice."), options.outputCodec);
+        return ErrorSAPI;
+    }
+
+    QFileInfo info(options.document);
+    QString outputFile = QString("%1/%2.mp3").arg(info.path(), info.completeBaseName());
+    BSTR outputFileName = (BSTR)outputFile.utf16();
+
+    ISpeechFileStream* stream = nullptr;
+    if (!SUCCEEDED(::CoCreateInstance(CLSID_SpFileStream, NULL, CLSCTX_ALL, __uuidof(ISpeechFileStream), (LPVOID*)&stream)))
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
+        return ErrorSAPI;
+    }
+    if (!SUCCEEDED(stream->Open(outputFileName, SSFMCreateForWrite)))
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
+        stream->Release();
+        return ErrorSAPI;
+    }
+
+    ISpVoice* voice = voices.front().getVoice();
+    voice->AddRef();
+    voices.clear();
+
+    LPCWSTR stringToSpeak = (LPCWSTR)audioString.utf16();
+
+    voice->SetOutput(stream, FALSE);
+    voice->Speak(stringToSpeak, SPF_PURGEBEFORESPEAK | SPF_PARSE_SAPI, NULL);
+
+    voice->Release();
+    stream->Release();
+
+    return ExitSuccess;
+}
+
 int PDFToolAudioBook::execute(const PDFToolOptions& options)
 {
+    pdf::PDFDocumentTextFlow textFlow;
+    int result = getDocumentTextFlow(options, textFlow);
+    if (result != ExitSuccess)
+    {
+        return result;
+    }
+
+    if (textFlow.isEmpty())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("No text extracted to be converted to audio book."), options.outputCodec);
+        return ErrorNoText;
+    }
+
     if (!SUCCEEDED(::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)))
     {
         return ErrorCOM;
     }
 
+    result = createAudioBook(options, textFlow);
+
     ::CoUninitialize();
 
-    return ExitSuccess;
+    return result;
 }
 
 PDFToolAbstractApplication::Options PDFToolAudioBook::getOptionsFlags() const
 {
-    return ConsoleFormat | OpenDocument | PageSelector | VoiceSelector | TextAnalysis;
+    return ConsoleFormat | OpenDocument | PageSelector | VoiceSelector | TextAnalysis | TextSpeech;
 }
 
 }   // namespace pdftool

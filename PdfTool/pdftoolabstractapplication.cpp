@@ -225,6 +225,16 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("voice-age", "Choose voice age for text-to-speech engine.", "age"));
         parser->addOption(QCommandLineOption("voice-lang-code", "Choose voice language code for text-to-speech engine.", "code"));
     }
+
+    if (optionFlags.testFlag(TextSpeech))
+    {
+        parser->addOption(QCommandLineOption("mark-page-numbers", "Mark page numbers in audio stream."));
+        parser->addOption(QCommandLineOption("say-page-numbers", "Say page numbers."));
+        parser->addOption(QCommandLineOption("say-struct-titles", "Say titles extracted from structure tree (only for tagged pdf)."));
+        parser->addOption(QCommandLineOption("say-struct-alt-desc", "Say alternative descriptions extracted from structure tree (only for tagged pdf)."));
+        parser->addOption(QCommandLineOption("say-struct-exp-form", "Say expanded form extracted from structure tree (only for tagged pdf)."));
+        parser->addOption(QCommandLineOption("say-struct-act-text", "Say actual text extracted from structure tree (only for tagged pdf)."));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -374,6 +384,16 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.textVoiceGender = parser->isSet("voice-gender") ? parser->value("voice-gender") : QString();
         options.textVoiceAge = parser->isSet("voice-age") ? parser->value("voice-age") : QString();
         options.textVoiceLangCode = parser->isSet("voice-lang-code") ? parser->value("voice-lang-code") : QString();
+    }
+
+    if (optionFlags.testFlag(TextSpeech))
+    {
+        options.textSpeechMarkPageNumbers = parser->isSet("mark-page-numbers");
+        options.textSpeechSayPageNumbers = parser->isSet("say-page-numbers");
+        options.textSpeechSayStructTitles = parser->isSet("say-struct-titles");
+        options.textSpeechSayStructAlternativeDescription = parser->isSet("say-struct-alt-desc");
+        options.textSpeechSayStructExpandedForm = parser->isSet("say-struct-exp-form");
+        options.textSpeechSayStructActualText = parser->isSet("say-struct-act-text");
     }
 
     return options;

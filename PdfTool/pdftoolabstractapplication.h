@@ -103,11 +103,9 @@ struct PDFToolOptions
     bool textSpeechMarkPageNumbers = false;
     bool textSpeechSayPageNumbers = false;
     bool textSpeechSayStructTitles = false;
-    bool textSpeechSayStructLanguage = false;
     bool textSpeechSayStructAlternativeDescription = false;
     bool textSpeechSayStructExpandedForm = false;
     bool textSpeechSayStructActualText = false;
-    bool textSpeechSayStructPhoneme = false;
 
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
@@ -132,6 +130,7 @@ public:
         ErrorInvalidArguments,
         ErrorFailedWriteToFile,
         ErrorPermissions,
+        ErrorNoText,
         ErrorCOM,
         ErrorSAPI
     };

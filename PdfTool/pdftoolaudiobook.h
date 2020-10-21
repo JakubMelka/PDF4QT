@@ -24,6 +24,11 @@
 
 struct ISpVoice;
 
+namespace pdf
+{
+class PDFDocumentTextFlow;
+}
+
 namespace pdftool
 {
 
@@ -82,6 +87,10 @@ public:
     virtual QString getStandardString(StandardString standardString) const override;
     virtual int execute(const PDFToolOptions& options) override;
     virtual Options getOptionsFlags() const override;
+
+private:
+    int getDocumentTextFlow(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow);
+    int createAudioBook(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow);
 };
 
 }   // namespace pdftool

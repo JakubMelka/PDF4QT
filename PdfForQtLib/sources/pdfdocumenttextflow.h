@@ -66,6 +66,9 @@ public:
 
     const Items& getItems() const { return m_items; }
 
+    /// Returns true, if text flow is empty
+    bool isEmpty() const { return m_items.empty(); }
+
 private:
     Items m_items;
 };
