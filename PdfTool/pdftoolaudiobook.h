@@ -22,7 +22,7 @@
 
 #ifdef Q_OS_WIN
 
-struct ISpVoice;
+struct ISpObjectToken;
 
 namespace pdf
 {
@@ -36,12 +36,12 @@ class PDFVoiceInfo
 {
 public:
     PDFVoiceInfo() = default;
-    PDFVoiceInfo(std::map<QString, QString> properties, ISpVoice* voice);
+    PDFVoiceInfo(std::map<QString, QString> properties, ISpObjectToken* voiceToken);
 
     PDFVoiceInfo(const PDFVoiceInfo&) = delete;
-    PDFVoiceInfo(PDFVoiceInfo&&) = default;
+    PDFVoiceInfo(PDFVoiceInfo&& other);
     PDFVoiceInfo& operator=(const PDFVoiceInfo&) = delete;
-    PDFVoiceInfo& operator=(PDFVoiceInfo&&) = default;
+    PDFVoiceInfo& operator=(PDFVoiceInfo&&other);
 
     ~PDFVoiceInfo();
 
@@ -54,11 +54,11 @@ public:
     QLocale getLocale() const;
 
     QString getStringValue(QString key) const;
-    ISpVoice* getVoice() const { return m_voice; }
+    ISpObjectToken* getVoiceToken() const { return m_voiceToken; }
 
 private:
     std::map<QString, QString> m_properties;
-    ISpVoice* m_voice = nullptr;
+    ISpObjectToken* m_voiceToken = nullptr;
 };
 
 using PDFVoiceInfoList = std::vector<PDFVoiceInfo>;
@@ -69,7 +69,7 @@ public:
     PDFToolAudioBookBase() = default;
 
 protected:
-    int fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoicePointers);
+    int fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoiceTokenPointers);
     int showVoiceList(const PDFToolOptions& options);
 };
 

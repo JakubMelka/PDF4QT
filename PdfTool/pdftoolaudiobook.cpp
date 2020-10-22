@@ -31,18 +31,34 @@ namespace pdftool
 static PDFToolAudioBook s_audioBookApplication;
 static PDFToolAudioBookVoices s_audioBookVoicesApplication;
 
-PDFVoiceInfo::PDFVoiceInfo(std::map<QString, QString> properties, ISpVoice* voice) :
+PDFVoiceInfo::PDFVoiceInfo(std::map<QString, QString> properties, ISpObjectToken* voiceToken) :
     m_properties(qMove(properties)),
-    m_voice(voice)
+    m_voiceToken(voiceToken)
 {
+    if (m_voiceToken)
+    {
+        m_voiceToken->AddRef();
+    }
+}
 
+PDFVoiceInfo::PDFVoiceInfo(PDFVoiceInfo&& other)
+{
+    std::swap(m_properties, other.m_properties);
+    std::swap(m_voiceToken, other.m_voiceToken);
+}
+
+PDFVoiceInfo& PDFVoiceInfo::operator=(PDFVoiceInfo&& other)
+{
+    std::swap(m_properties, other.m_properties);
+    std::swap(m_voiceToken, other.m_voiceToken);
+    return *this;
 }
 
 PDFVoiceInfo::~PDFVoiceInfo()
 {
-    if (m_voice)
+    if (m_voiceToken)
     {
-        m_voice->Release();
+        m_voiceToken->Release();
     }
 }
 
@@ -82,7 +98,7 @@ QString PDFVoiceInfo::getStringValue(QString key) const
     return QString();
 }
 
-int PDFToolAudioBookBase::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoicePointers)
+int PDFToolAudioBookBase::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoiceTokenPointers)
 {
     int result = ExitSuccess;
 
@@ -167,13 +183,14 @@ int PDFToolAudioBookBase::fillVoices(const PDFToolOptions& options, PDFVoiceInfo
                     attributes->Release();
                 }
 
-                ISpVoice* voice = nullptr;
-                if (fillVoicePointers)
+                if (fillVoiceTokenPointers)
                 {
-                    token->QueryInterface(__uuidof(ISpVoice), (void**)&voice);
+                    list.emplace_back(qMove(properties), token);
                 }
-
-                list.emplace_back(qMove(properties), voice);
+                else
+                {
+                    list.emplace_back(qMove(properties), nullptr);
+                }
 
                 token->Release();
             }
@@ -370,18 +387,18 @@ int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDoc
     // Do we have any voice?
     if (voices.empty())
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid voice."), options.outputCodec);
+        PDFConsole::writeError(PDFToolTranslationContext::tr("No suitable voice found."), options.outputCodec);
         return ErrorSAPI;
     }
 
-    if (!voices.front().getVoice())
+    if (!voices.front().getVoiceToken())
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid voice."), options.outputCodec);
         return ErrorSAPI;
     }
 
     QFileInfo info(options.document);
-    QString outputFile = QString("%1/%2.mp3").arg(info.path(), info.completeBaseName());
+    QString outputFile = QString("%1/%2.wav").arg(info.path(), info.completeBaseName());
     BSTR outputFileName = (BSTR)outputFile.utf16();
 
     ISpeechFileStream* stream = nullptr;
@@ -390,15 +407,28 @@ int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDoc
         PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
         return ErrorSAPI;
     }
-    if (!SUCCEEDED(stream->Open(outputFileName, SSFMCreateForWrite)))
+
+    ISpVoice* voice = nullptr;
+    if (!SUCCEEDED(::CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, __uuidof(ISpVoice), (LPVOID*)&voice)))
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create voice."), options.outputCodec);
         stream->Release();
         return ErrorSAPI;
     }
 
-    ISpVoice* voice = voices.front().getVoice();
-    voice->AddRef();
+    if (!SUCCEEDED(stream->Open(outputFileName, SSFMCreateForWrite)))
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
+        voice->Release();
+        stream->Release();
+        return ErrorSAPI;
+    }
+
+    ISpObjectToken* voiceToken = voices.front().getVoiceToken();
+    if (!SUCCEEDED(voice->SetVoice(voiceToken)))
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Failed to set requested voice. Default voice will be used."), options.outputCodec);
+    }
     voices.clear();
 
     LPCWSTR stringToSpeak = (LPCWSTR)audioString.utf16();
