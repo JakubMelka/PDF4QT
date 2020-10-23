@@ -398,7 +398,7 @@ int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDoc
     }
 
     QFileInfo info(options.document);
-    QString outputFile = QString("%1/%2.wav").arg(info.path(), info.completeBaseName());
+    QString outputFile = QString("%1/%2.%3").arg(info.path(), info.completeBaseName(), options.textSpeechAudioFormat);
     BSTR outputFileName = (BSTR)outputFile.utf16();
 
     ISpeechFileStream* stream = nullptr;

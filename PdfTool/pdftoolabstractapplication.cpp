@@ -228,6 +228,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
 
     if (optionFlags.testFlag(TextSpeech))
     {
+        parser->addOption(QCommandLineOption("audio-format", "Audio fromat, valid values are wav/mp3.", "audio format", "mp3"));
         parser->addOption(QCommandLineOption("mark-page-numbers", "Mark page numbers in audio stream."));
         parser->addOption(QCommandLineOption("say-page-numbers", "Say page numbers."));
         parser->addOption(QCommandLineOption("say-struct-titles", "Say titles extracted from structure tree (only for tagged pdf)."));
@@ -388,6 +389,13 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
 
     if (optionFlags.testFlag(TextSpeech))
     {
+        options.textSpeechAudioFormat = parser->value("audio-format");
+        if (options.textSpeechAudioFormat != "wav" && options.textSpeechAudioFormat != "mp3")
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown audio format '%1'. Defaulting to mp3 audio format.").arg(options.textSpeechAudioFormat), options.outputCodec);
+            options.textSpeechAudioFormat = "mp3";
+        }
+
         options.textSpeechMarkPageNumbers = parser->isSet("mark-page-numbers");
         options.textSpeechSayPageNumbers = parser->isSet("say-page-numbers");
         options.textSpeechSayStructTitles = parser->isSet("say-struct-titles");

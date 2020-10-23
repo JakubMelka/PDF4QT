@@ -106,6 +106,7 @@ struct PDFToolOptions
     bool textSpeechSayStructAlternativeDescription = false;
     bool textSpeechSayStructExpandedForm = false;
     bool textSpeechSayStructActualText = false;
+    QString textSpeechAudioFormat = "mp3";
 
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
