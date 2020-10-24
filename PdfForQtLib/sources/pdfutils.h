@@ -615,7 +615,7 @@ public:
     PDFInteger getTotalLength() const;
 
     /// Transforms interval set to readable text
-    QString toText() const;
+    QString toText(bool withoutBrackets) const;
 
     /// Returns all integers from the range
     std::vector<PDFInteger> unfold() const;

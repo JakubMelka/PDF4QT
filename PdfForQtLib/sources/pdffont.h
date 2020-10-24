@@ -25,18 +25,19 @@
 #include <QFont>
 #include <QMatrix>
 #include <QSharedPointer>
-#include <QTreeWidgetItem>
 
 #include <set>
 #include <unordered_map>
 
 class QPainterPath;
+class QTreeWidgetItem;
 
 namespace pdf
 {
 class PDFDocument;
 class PDFModifiedDocument;
 class PDFRenderErrorReporter;
+class PDFFontCMap;
 
 using CID = unsigned int;
 using GID = unsigned int;
@@ -259,6 +260,9 @@ public:
     /// Returns the font type
     virtual FontType getFontType() const = 0;
 
+    /// Returns ToUnicode mapping (or nullptr, if font has no mapping to unicode)
+    virtual const PDFFontCMap* getToUnicode() const { return nullptr; }
+
     /// Returns font descriptor
     const FontDescriptor* getFontDescriptor() const { return &m_fontDescriptor; }
 
@@ -298,6 +302,7 @@ public:
                            GlyphIndices glyphIndices);
     virtual ~PDFSimpleFont() override = default;
 
+    const PDFEncoding::Encoding getEncodingType() const { return m_encodingType; }
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
 
@@ -523,6 +528,7 @@ public:
 
     virtual FontType getFontType() const override;
     virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
+    virtual const PDFFontCMap* getToUnicode() const override { return &m_toUnicode; }
 
     /// Returns width of the character. If character doesn't exist, then zero is returned.
     double getWidth(int characterIndex) const;
@@ -533,7 +539,6 @@ public:
 
     const QMatrix& getFontMatrix() const { return m_fontMatrix; }
     const PDFObject& getResources() const { return m_resources; }
-    const PDFFontCMap& getToUnicode() const { return m_toUnicode; }
 
     /// Returns unicode character for given character index. If unicode mapping is not
     /// present, empty (null) character is returned.
@@ -567,9 +572,9 @@ public:
     virtual ~PDFType0Font() = default;
 
     virtual FontType getFontType() const override { return FontType::Type0; }
+    virtual const PDFFontCMap* getToUnicode() const override { return &m_toUnicode; }
 
     const PDFFontCMap* getCMap() const { return &m_cmap; }
-    const PDFFontCMap* getToUnicode() const { return &m_toUnicode; }
     const PDFCIDtoGIDMapper* getCIDtoGIDMapper() const { return &m_mapper; }
 
     /// Returns the glyph advance, if it can be obtained, or zero, if it cannot

@@ -130,7 +130,7 @@ int PDFToolInfoPageBoxesApplication::execute(const PDFToolOptions& options)
     for (const PDFPageBoxInfo& info : infos)
     {
         formatter.endl();
-        formatter.beginTable("page-range", PDFToolTranslationContext::tr("Pages %1").arg(info.pages.toText()));
+        formatter.beginTable("page-range", PDFToolTranslationContext::tr("Pages %1").arg(info.pages.toText(true)));
 
         formatter.beginTableHeaderRow("header");
         formatter.writeTableHeaderColumn("box", PDFToolTranslationContext::tr("Box"), Qt::AlignLeft);

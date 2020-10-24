@@ -27,6 +27,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QClipboard>
+#include <QStyleOption>
 
 namespace pdf
 {

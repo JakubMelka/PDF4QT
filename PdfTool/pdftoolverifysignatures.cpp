@@ -202,7 +202,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
 
                 // Signature range
                 const pdf::PDFClosedIntervalSet& bytesCoveredBySignature = signature.getBytesCoveredBySignature();
-                formatter.writeText("byte-range", PDFToolTranslationContext::tr("Byte range covered by signature: %1").arg(bytesCoveredBySignature.toText()));
+                formatter.writeText("byte-range", PDFToolTranslationContext::tr("Byte range covered by signature: %1").arg(bytesCoveredBySignature.toText(false)));
 
                 if (signature.hasError())
                 {

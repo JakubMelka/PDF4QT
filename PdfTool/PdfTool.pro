@@ -46,6 +46,7 @@ SOURCES += \
         pdftoolaudiobook.cpp \
         pdftoolfetchtext.cpp \
         pdftoolinfo.cpp \
+        pdftoolinfofonts.cpp \
         pdftoolinfojavascript.cpp \
         pdftoolinfometadata.cpp \
         pdftoolinfonameddestinations.cpp \
@@ -70,6 +71,7 @@ HEADERS += \
     pdftoolaudiobook.h \
     pdftoolfetchtext.h \
     pdftoolinfo.h \
+    pdftoolinfofonts.h \
     pdftoolinfojavascript.h \
     pdftoolinfometadata.h \
     pdftoolinfonameddestinations.h \

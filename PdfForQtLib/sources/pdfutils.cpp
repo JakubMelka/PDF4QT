@@ -302,13 +302,30 @@ PDFInteger PDFClosedIntervalSet::getTotalLength() const
     return std::accumulate(m_intervals.cbegin(), m_intervals.cend(), 0, [](PDFInteger count, const auto& b) { return count + b.second - b.first + 1; });
 }
 
-QString PDFClosedIntervalSet::toText() const
+QString PDFClosedIntervalSet::toText(bool withoutBrackets) const
 {
     QStringList intervals;
 
-    for (const ClosedInterval& interval : m_intervals)
+    if (withoutBrackets)
     {
-        intervals << QString("[%1 - %2]").arg(interval.first).arg(interval.second);
+        for (const ClosedInterval& interval : m_intervals)
+        {
+            if (interval.first == interval.second)
+            {
+                intervals << QString::number(interval.first);
+            }
+            else
+            {
+                intervals << QString("%1-%2").arg(interval.first).arg(interval.second);
+            }
+        }
+    }
+    else
+    {
+        for (const ClosedInterval& interval : m_intervals)
+        {
+            intervals << QString("[%1 - %2]").arg(interval.first).arg(interval.second);
+        }
     }
 
     return intervals.join(", ");

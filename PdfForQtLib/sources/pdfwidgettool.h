@@ -26,6 +26,7 @@
 #include <QCursor>
 
 class QCheckBox;
+class QLineEdit;
 
 namespace pdf
 {
