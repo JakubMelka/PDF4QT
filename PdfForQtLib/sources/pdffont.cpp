@@ -360,6 +360,9 @@ public:
 
     /// Dumps information about the font
     virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const { Q_UNUSED(item); }
+
+    /// Returns postscript name of the font
+    virtual QString getPostScriptName() const { return QString(); }
 };
 
 /// Implementation of the PDFRealizedFont class using PIMPL pattern for Type 3 fonts
@@ -390,6 +393,7 @@ public:
     virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) override;
     virtual bool isHorizontalWritingSystem() const override { return !m_isVertical; }
     virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const override;
+    virtual QString getPostScriptName() const override { return m_postScriptName; }
 
     static constexpr const PDFReal PIXEL_SIZE_MULTIPLIER = 100.0;
 
@@ -446,6 +450,9 @@ private:
 
     /// True, if font has vertical writing system
     bool m_isVertical;
+
+    /// Postscript name of the font
+    QString m_postScriptName;
 };
 
 PDFRealizedFontImpl::PDFRealizedFontImpl() :
@@ -774,6 +781,11 @@ void PDFRealizedFont::dumpFontToTreeItem(QTreeWidgetItem* item) const
     m_impl->dumpFontToTreeItem(item);
 }
 
+QString PDFRealizedFont::getPostScriptName() const
+{
+    return m_impl->getPostScriptName();
+}
+
 PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter)
 {
     PDFRealizedFontPointer result;
@@ -832,6 +844,10 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
             impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
             impl->m_isEmbedded = false;
+            if (const char* postScriptName = FT_Get_Postscript_Name(impl->m_face))
+            {
+                impl->m_postScriptName = QString::fromLatin1(postScriptName);
+            }
             result.reset(new PDFRealizedFont(implPtr.release()));
         }
     }

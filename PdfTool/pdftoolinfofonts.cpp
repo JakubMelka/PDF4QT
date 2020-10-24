@@ -57,6 +57,7 @@ struct FontInfo
     bool isSubset = false;
     bool isToUnicodePresent = false;
     pdf::PDFObjectReference reference;
+    QString substitutedFont;
 };
 
 int PDFToolInfoFonts::execute(const PDFToolOptions& options)
@@ -191,10 +192,11 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
                                     info.fontName = fontName;
                                     info.pages.addValue(pageIndex + 1);
                                     info.fontTypeName = fontTypeName;
-                                    info.isEmbedded = fontDescriptor->isEmbedded();
+                                    info.isEmbedded = fontDescriptor->isEmbedded() || fontType == pdf::FontType::Type3;
                                     info.isSubset = isSubset;
                                     info.isToUnicodePresent = toUnicode && toUnicode->isValid();
                                     info.reference = fontReference;
+                                    info.substitutedFont = realizedFont->getPostScriptName();
 
                                     const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.data());
                                     if (simpleFont)
@@ -290,6 +292,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
     QString noText = PDFToolTranslationContext::tr("No");
     QString noRef = PDFToolTranslationContext::tr("--");
 
+    bool hasSubstitutions = false;
     int ref = 1;
     for (const FontInfo& info : directFonts)
     {
@@ -315,11 +318,61 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
             formatter.writeTableColumn("generation-no", noRef, Qt::AlignRight);
         }
 
+        hasSubstitutions = hasSubstitutions || !info.isEmbedded;
+
         formatter.endTableRow();
         ++ref;
     }
 
     formatter.endTable();
+
+    formatter.endl();
+
+    if (hasSubstitutions)
+    {
+        formatter.beginTable("fonts-substitutions", PDFToolTranslationContext::tr("Substitutions"));
+
+        formatter.beginTableHeaderRow("header");
+        formatter.writeTableHeaderColumn("no", PDFToolTranslationContext::tr("No."), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("font-name", PDFToolTranslationContext::tr("Font Name"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("font-substitute", PDFToolTranslationContext::tr("Substituted by Font"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("match", PDFToolTranslationContext::tr("Match"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("object-no", PDFToolTranslationContext::tr("Object"), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn("generation-no", PDFToolTranslationContext::tr("Gen."), Qt::AlignLeft);
+        formatter.endTableHeaderRow();
+
+        ref = 1;
+        for (const FontInfo& info : directFonts)
+        {
+            if (info.isEmbedded)
+            {
+                continue;
+            }
+
+            formatter.beginTableRow("substitution", ref);
+
+            formatter.writeTableColumn("no", locale.toString(ref), Qt::AlignRight);
+            formatter.writeTableColumn("font-name", info.fontName);
+            formatter.writeTableColumn("font-substitute", !info.substitutedFont.isEmpty() ? info.substitutedFont : PDFToolTranslationContext::tr("??"));
+            formatter.writeTableColumn("match", (info.fontName == info.substitutedFont) ? yesText : noText);
+
+            if (info.reference.isValid())
+            {
+                formatter.writeTableColumn("object-no", locale.toString(info.reference.objectNumber), Qt::AlignRight);
+                formatter.writeTableColumn("generation-no", locale.toString(info.reference.generation), Qt::AlignRight);
+            }
+            else
+            {
+                formatter.writeTableColumn("object-no", noRef, Qt::AlignRight);
+                formatter.writeTableColumn("generation-no", noRef, Qt::AlignRight);
+            }
+
+            formatter.endTableRow();
+            ++ref;
+        }
+
+        formatter.endTable();
+    }
 
     formatter.endDocument();
     PDFConsole::writeText(formatter.getString(), options.outputCodec);

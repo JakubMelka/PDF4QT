@@ -239,6 +239,9 @@ public:
     /// Adds information about the font into tree item
     void dumpFontToTreeItem(QTreeWidgetItem* item) const;
 
+    /// Returns postscript name of the font
+    QString getPostScriptName() const;
+
     /// Creates new realized font from the standard font. If font can't be created,
     /// then exception is thrown.
     static PDFRealizedFontPointer createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter);
