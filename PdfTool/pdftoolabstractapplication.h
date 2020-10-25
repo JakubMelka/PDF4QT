@@ -21,6 +21,8 @@
 #include "pdfoutputformatter.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttextflow.h"
+#include "pdfrenderer.h"
+#include "pdfcms.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -111,6 +113,15 @@ struct PDFToolOptions
     // For option 'CharacterMaps'
     bool showCharacterMapsForEmbeddedFonts = false;
 
+    // For option 'ImageWriterSettings'
+    pdf::PDFImageWriterSettings imageWriterSettings;
+
+    // For option 'ImageExportSettings'
+    pdf::PDFPageImageExportSettings imageExportSettings;
+
+    // For option 'ColorManagementSystem'
+    pdf::PDFCMSSettings cmsSettings;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -148,19 +159,24 @@ public:
 
     enum Option
     {
-        ConsoleFormat           = 0x0001,       ///< Set format of console output (text, xml or html)
-        OpenDocument            = 0x0002,       ///< Flags for document reading
-        SignatureVerification   = 0x0004,       ///< Flags for signature verification,
-        XmlExport               = 0x0008,       ///< Flags for xml export
-        Attachments             = 0x0010,       ///< Flags for attachments manipulating
-        DateFormat              = 0x0020,       ///< Date format
-        ComputeHashes           = 0x0040,       ///< Compute hashes
-        PageSelector            = 0x0080,       ///< Select page range (or all pages)
-        TextAnalysis            = 0x0100,       ///< Text analysis options
-        TextShow                = 0x0200,       ///< Text extract and show options
-        VoiceSelector           = 0x0400,       ///< Select voice from SAPI
-        TextSpeech              = 0x0800,       ///< Text speech options
-        CharacterMaps           = 0x1000,       ///< Character maps for embedded fonts
+        ConsoleFormat                   = 0x00000001,       ///< Set format of console output (text, xml or html)
+        OpenDocument                    = 0x00000002,       ///< Flags for document reading
+        SignatureVerification           = 0x00000004,       ///< Flags for signature verification,
+        XmlExport                       = 0x00000008,       ///< Flags for xml export
+        Attachments                     = 0x00000010,       ///< Flags for attachments manipulating
+        DateFormat                      = 0x00000020,       ///< Date format
+        ComputeHashes                   = 0x00000040,       ///< Compute hashes
+        PageSelector                    = 0x00000080,       ///< Select page range (or all pages)
+        TextAnalysis                    = 0x00000100,       ///< Text analysis options
+        TextShow                        = 0x00000200,       ///< Text extract and show options
+        VoiceSelector                   = 0x00000400,       ///< Select voice from SAPI
+        TextSpeech                      = 0x00000800,       ///< Text speech options
+        CharacterMaps                   = 0x00001000,       ///< Character maps for embedded fonts
+        ImageWriterSettings             = 0x00002000,       ///< Settings for writing images (for example, format, etc.)
+        ImageExportSettingsFiles        = 0x00004000,       ///< Settings for exporting page images to files
+        ImageExportSettingsResolution   = 0x00008000,       ///< Settings for resolution of exported images
+        ColorManagementSystem           = 0x00010000,       ///< Color management system settings
+        RenderFlags                     = 0x00020000,       ///< Render flags for page image rasterizer
     };
     Q_DECLARE_FLAGS(Options, Option)
 

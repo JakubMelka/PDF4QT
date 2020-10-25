@@ -301,6 +301,7 @@ private:
 class PDFFORQTLIBSHARED_EXPORT PDFPageImageExportSettings
 {
 public:
+    explicit PDFPageImageExportSettings() : PDFPageImageExportSettings(nullptr) { }
     explicit PDFPageImageExportSettings(const PDFDocument* document);
 
     enum class PageSelectionMode
