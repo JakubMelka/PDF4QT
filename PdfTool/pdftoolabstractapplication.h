@@ -108,6 +108,9 @@ struct PDFToolOptions
     bool textSpeechSayStructActualText = false;
     QString textSpeechAudioFormat = "mp3";
 
+    // For option 'CharacterMaps'
+    bool showCharacterMapsForEmbeddedFonts = false;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -157,6 +160,7 @@ public:
         TextShow                = 0x0200,       ///< Text extract and show options
         VoiceSelector           = 0x0400,       ///< Select voice from SAPI
         TextSpeech              = 0x0800,       ///< Text speech options
+        CharacterMaps           = 0x1000,       ///< Character maps for embedded fonts
     };
     Q_DECLARE_FLAGS(Options, Option)
 

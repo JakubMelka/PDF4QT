@@ -363,6 +363,9 @@ public:
 
     /// Returns postscript name of the font
     virtual QString getPostScriptName() const { return QString(); }
+
+    /// Returns character info
+    virtual CharacterInfos getCharacterInfos() const = 0;
 };
 
 /// Implementation of the PDFRealizedFont class using PIMPL pattern for Type 3 fonts
@@ -374,6 +377,7 @@ public:
 
     virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) override;
     virtual bool isHorizontalWritingSystem() const override;
+    virtual CharacterInfos getCharacterInfos() const override;
 
 private:
     /// Pixel size of the font
@@ -394,6 +398,7 @@ public:
     virtual bool isHorizontalWritingSystem() const override { return !m_isVertical; }
     virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const override;
     virtual QString getPostScriptName() const override { return m_postScriptName; }
+    virtual CharacterInfos getCharacterInfos() const override;
 
     static constexpr const PDFReal PIXEL_SIZE_MULTIPLIER = 100.0;
 
@@ -579,6 +584,107 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
             break;
         }
     }
+}
+
+CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
+{
+    CharacterInfos result;
+
+    switch (m_parentFont->getFontType())
+    {
+        case FontType::Type1:
+        case FontType::TrueType:
+        case FontType::MMType1:
+        {
+            // We can use encoding
+            Q_ASSERT(dynamic_cast<PDFSimpleFont*>(m_parentFont.get()));
+            const PDFSimpleFont* font = static_cast<PDFSimpleFont*>(m_parentFont.get());
+            const encoding::EncodingTable* encoding = font->getEncoding();
+            const GlyphIndices* glyphIndices = font->getGlyphIndices();
+
+            for (size_t i = 0; i < encoding->size(); ++i)
+            {
+                QChar character = (*encoding)[i];
+                GID glyphIndex = (*glyphIndices)[static_cast<uint8_t>(i)];
+
+                if (!glyphIndex)
+                {
+                    // Try to obtain glyph index from unicode
+                    if (m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE)
+                    {
+                        glyphIndex = FT_Get_Char_Index(m_face, character.unicode());
+                    }
+                }
+
+                if (glyphIndex)
+                {
+                    CharacterInfo info;
+                    info.gid = glyphIndex;
+                    info.character = character;
+                    result.emplace_back(qMove(info));
+                }
+            }
+
+            break;
+        }
+
+        case FontType::Type0:
+        {
+            Q_ASSERT(dynamic_cast<PDFType0Font*>(m_parentFont.get()));
+            const PDFType0Font* font = static_cast<PDFType0Font*>(m_parentFont.get());
+
+            const PDFFontCMap* toUnicode = font->getToUnicode();
+            const PDFCIDtoGIDMapper* CIDtoGIDmapper = font->getCIDtoGIDMapper();
+
+            FT_UInt index = 0;
+            FT_ULong character = FT_Get_First_Char(m_face, &index);
+            while (index != 0)
+            {
+                const GID gid = index;
+                const CID cid = CIDtoGIDmapper->unmap(gid);
+
+                CharacterInfo info;
+                info.gid = gid;
+                info.character = toUnicode->getToUnicode(cid);
+                result.emplace_back(qMove(info));
+
+                character = FT_Get_Next_Char(m_face, character, &index);
+            }
+
+            if (result.empty())
+            {
+                // We will try all reasonable high CIDs
+                for (CID cid = 0; cid < QChar::LastValidCodePoint; ++cid)
+                {
+                    const GID gid = CIDtoGIDmapper->map(cid);
+
+                    if (!gid)
+                    {
+                        continue;
+                    }
+
+                    if (!FT_Load_Glyph(m_face, gid, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING))
+                    {
+                        CharacterInfo info;
+                        info.gid = gid;
+                        info.character = toUnicode->getToUnicode(cid);
+                        result.emplace_back(qMove(info));
+                    }
+                }
+            }
+
+            break;
+        }
+
+        default:
+        {
+            // Unhandled font type
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    return result;
 }
 
 void PDFRealizedFontImpl::dumpFontToTreeItem(QTreeWidgetItem* item) const
@@ -784,6 +890,11 @@ void PDFRealizedFont::dumpFontToTreeItem(QTreeWidgetItem* item) const
 QString PDFRealizedFont::getPostScriptName() const
 {
     return m_impl->getPostScriptName();
+}
+
+CharacterInfos PDFRealizedFont::getCharacterInfos() const
+{
+    return m_impl->getCharacterInfos();
 }
 
 PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, PDFReal pixelSize, PDFRenderErrorReporter* reporter)
@@ -2259,6 +2370,24 @@ void PDFRealizedType3FontImpl::fillTextSequence(const QByteArray& byteArray, Tex
 bool PDFRealizedType3FontImpl::isHorizontalWritingSystem() const
 {
     return true;
+}
+
+CharacterInfos PDFRealizedType3FontImpl::getCharacterInfos() const
+{
+    CharacterInfos result;
+
+    Q_ASSERT(dynamic_cast<const PDFType3Font*>(m_parentFont.get()));
+    const PDFType3Font* parentFont = static_cast<const PDFType3Font*>(m_parentFont.get());
+
+    for (const auto& contentStreamItem : parentFont->getContentStreams())
+    {
+        CharacterInfo info;
+        info.gid = contentStreamItem.first;
+        info.character = parentFont->getUnicode(contentStreamItem.first);
+        result.emplace_back(qMove(info));
+    }
+
+    return result;
 }
 
 }   // namespace pdf

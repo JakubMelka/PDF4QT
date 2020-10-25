@@ -219,6 +219,13 @@ class IRealizedFontImpl;
 
 using PDFRealizedFontPointer = QSharedPointer<PDFRealizedFont>;
 
+struct CharacterInfo
+{
+    GID gid = 0;
+    QChar character;
+};
+using CharacterInfos = std::vector<CharacterInfo>;
+
 /// Font, which has fixed pixel size. It is programmed as PIMPL, because we need
 /// to remove FreeType types from the interface (so we do not include FreeType in the interface).
 class PDFFORQTLIBSHARED_EXPORT PDFRealizedFont
@@ -241,6 +248,9 @@ public:
 
     /// Returns postscript name of the font
     QString getPostScriptName() const;
+
+    /// Returns character info
+    CharacterInfos getCharacterInfos() const;
 
     /// Creates new realized font from the standard font. If font can't be created,
     /// then exception is thrown.
@@ -441,6 +451,31 @@ public:
         return 0;
     }
 
+    /// Maps GID to CID (inverse mapping)
+    CID unmap(GID gid) const
+    {
+        if (m_mapping.isEmpty())
+        {
+            // This means identity mapping
+            return gid;
+        }
+        else
+        {
+            CID lastCid = CID(m_mapping.size() / 2);
+            for (CID i = 0; i < lastCid; ++i)
+            {
+                if (map(i) == gid)
+                {
+                    return i;
+                }
+            }
+        }
+
+        // This should occur only in case of bad (damaged) PDF file - because in this case,
+        // encoding is missing. Return invalid character index.
+        return 0;
+    }
+
 private:
     QByteArray m_mapping;
 };
@@ -542,6 +577,7 @@ public:
 
     const QMatrix& getFontMatrix() const { return m_fontMatrix; }
     const PDFObject& getResources() const { return m_resources; }
+    const std::map<int, QByteArray>& getContentStreams() const { return m_characterContentStreams; }
 
     /// Returns unicode character for given character index. If unicode mapping is not
     /// present, empty (null) character is returned.

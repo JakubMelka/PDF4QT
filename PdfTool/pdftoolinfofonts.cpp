@@ -50,6 +50,7 @@ QString PDFToolInfoFonts::getStandardString(StandardString standardString) const
 struct FontInfo
 {
     pdf::PDFClosedIntervalSet pages;
+    QString fontFullName;
     QString fontName;
     QString fontTypeName;
     QString encoding;
@@ -58,6 +59,7 @@ struct FontInfo
     bool isToUnicodePresent = false;
     pdf::PDFObjectReference reference;
     QString substitutedFont;
+    pdf::CharacterInfos characterInfos;
 };
 
 int PDFToolInfoFonts::execute(const PDFToolOptions& options)
@@ -127,6 +129,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
                                     const pdf::FontType fontType = font->getFontType();
                                     const pdf::FontDescriptor* fontDescriptor = font->getFontDescriptor();
                                     QString fontName = fontDescriptor->fontName;
+                                    QString fontFullName = fontName;
                                     int plusPos = fontName.lastIndexOf('+');
 
                                     // Jakub Melka: Detect, if font is subset. Font subsets have special form,
@@ -190,6 +193,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
 
                                     FontInfo info;
                                     info.fontName = fontName;
+                                    info.fontFullName = fontFullName;
                                     info.pages.addValue(pageIndex + 1);
                                     info.fontTypeName = fontTypeName;
                                     info.isEmbedded = fontDescriptor->isEmbedded() || fontType == pdf::FontType::Type3;
@@ -197,6 +201,11 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
                                     info.isToUnicodePresent = toUnicode && toUnicode->isValid();
                                     info.reference = fontReference;
                                     info.substitutedFont = realizedFont->getPostScriptName();
+
+                                    if (options.showCharacterMapsForEmbeddedFonts && info.isEmbedded)
+                                    {
+                                        info.characterInfos = realizedFont->getCharacterInfos();
+                                    }
 
                                     const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.data());
                                     if (simpleFont)
@@ -292,6 +301,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
     QString noText = PDFToolTranslationContext::tr("No");
     QString noRef = PDFToolTranslationContext::tr("--");
 
+    bool hasEmbedded = false;
     bool hasSubstitutions = false;
     int ref = 1;
     for (const FontInfo& info : directFonts)
@@ -319,6 +329,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
         }
 
         hasSubstitutions = hasSubstitutions || !info.isEmbedded;
+        hasEmbedded = hasEmbedded || info.isEmbedded;
 
         formatter.endTableRow();
         ++ref;
@@ -326,10 +337,9 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
 
     formatter.endTable();
 
-    formatter.endl();
-
     if (hasSubstitutions)
     {
+        formatter.endl();
         formatter.beginTable("fonts-substitutions", PDFToolTranslationContext::tr("Substitutions"));
 
         formatter.beginTableHeaderRow("header");
@@ -374,6 +384,53 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
         formatter.endTable();
     }
 
+    if (options.showCharacterMapsForEmbeddedFonts && hasEmbedded)
+    {
+        formatter.endl();
+        formatter.beginHeader("font-character-maps", PDFToolTranslationContext::tr("Font Character Maps"));
+
+        int fontRef = 1;
+        for (const FontInfo& info : directFonts)
+        {
+            if (!info.isEmbedded)
+            {
+                continue;
+            }
+
+            formatter.beginTable("font-character-map", PDFToolTranslationContext::tr("Character Map for Font '%1'").arg(info.fontFullName));
+
+            formatter.beginTableHeaderRow("header");
+            formatter.writeTableHeaderColumn("no", PDFToolTranslationContext::tr("No."), Qt::AlignLeft);
+            formatter.writeTableHeaderColumn("glyph-index", PDFToolTranslationContext::tr("Glyph Index"), Qt::AlignLeft);
+            formatter.writeTableHeaderColumn("character", PDFToolTranslationContext::tr("Character"), Qt::AlignLeft);
+            formatter.writeTableHeaderColumn("unicode", PDFToolTranslationContext::tr("Unicode"), Qt::AlignLeft);
+            formatter.endTableHeaderRow();
+
+            int characterIndex = 1;
+            for (const pdf::CharacterInfo& characterInfo : info.characterInfos)
+            {
+                formatter.beginTableRow("character", characterInfo.gid);
+
+                QString character = characterInfo.character.isNull() ? "??" : QString(1, characterInfo.character);
+                QString unicode = QString("0x%1").arg(QString::number(characterInfo.character.unicode(), 16).toUpper().rightJustified(4, QChar('0')));
+
+                formatter.writeTableColumn("no", locale.toString(characterIndex++), Qt::AlignRight);
+                formatter.writeTableColumn("glyph-index", locale.toString(characterInfo.gid), Qt::AlignRight);
+                formatter.writeTableColumn("character", character);
+                formatter.writeTableColumn("unicode", unicode);
+
+                formatter.endTableRow();
+            }
+
+            formatter.endTable();
+            ++fontRef;
+
+            formatter.endl();
+        }
+
+        formatter.endTable();
+    }
+
     formatter.endDocument();
     PDFConsole::writeText(formatter.getString(), options.outputCodec);
 
@@ -382,7 +439,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
 
 PDFToolAbstractApplication::Options PDFToolInfoFonts::getOptionsFlags() const
 {
-    return ConsoleFormat | OpenDocument | PageSelector;
+    return ConsoleFormat | OpenDocument | PageSelector | CharacterMaps;
 }
 
 }   // namespace pdftool

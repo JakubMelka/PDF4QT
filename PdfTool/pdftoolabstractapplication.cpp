@@ -236,6 +236,11 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("say-struct-exp-form", "Say expanded form extracted from structure tree (only for tagged pdf)."));
         parser->addOption(QCommandLineOption("say-struct-act-text", "Say actual text extracted from structure tree (only for tagged pdf)."));
     }
+
+    if (optionFlags.testFlag(CharacterMaps))
+    {
+        parser->addOption(QCommandLineOption("character-maps", "Show character maps for embedded fonts."));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -402,6 +407,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.textSpeechSayStructAlternativeDescription = parser->isSet("say-struct-alt-desc");
         options.textSpeechSayStructExpandedForm = parser->isSet("say-struct-exp-form");
         options.textSpeechSayStructActualText = parser->isSet("say-struct-act-text");
+    }
+
+    if (optionFlags.testFlag(CharacterMaps))
+    {
+        options.showCharacterMapsForEmbeddedFonts = parser->isSet("character-maps");
     }
 
     return options;
