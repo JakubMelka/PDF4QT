@@ -338,7 +338,7 @@ public:
     void setPixelResolution(int pixelResolution);
 
     /// Validates the settings, if they can be used for image generation
-    bool validate(QString* errorMessagePtr);
+    bool validate(QString* errorMessagePtr, bool validatePageSelection = true, bool validateFileSettings = true, bool validateResolution = true) const;
 
     /// Returns list of selected pages
     std::vector<PDFInteger> getPages() const;

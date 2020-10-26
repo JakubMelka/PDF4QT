@@ -681,64 +681,73 @@ void PDFPageImageExportSettings::setPixelResolution(int pixelResolution)
     m_pixelResolution = pixelResolution;
 }
 
-bool PDFPageImageExportSettings::validate(QString* errorMessagePtr)
+bool PDFPageImageExportSettings::validate(QString* errorMessagePtr, bool validatePageSelection, bool validateFileSettings, bool validateResolution) const
 {
     QString dummy;
     QString& errorMessage = errorMessagePtr ? *errorMessagePtr : dummy;
 
-    if (m_directory.isEmpty())
+    if (validateFileSettings)
     {
-        errorMessage = PDFTranslationContext::tr("Target directory is empty.");
-        return false;
-    }
+        if (m_directory.isEmpty())
+        {
+            errorMessage = PDFTranslationContext::tr("Target directory is empty.");
+            return false;
+        }
 
-    // Check, if target directory exists
-    QDir directory(m_directory);
-    if (!directory.exists())
-    {
-        errorMessage = PDFTranslationContext::tr("Target directory '%1' doesn't exist.").arg(m_directory);
-        return false;
-    }
+        // Check, if target directory exists
+        QDir directory(m_directory);
+        if (!directory.exists())
+        {
+            errorMessage = PDFTranslationContext::tr("Target directory '%1' doesn't exist.").arg(m_directory);
+            return false;
+        }
 
-    if (m_fileTemplate.isEmpty())
-    {
-        errorMessage = PDFTranslationContext::tr("File template is empty.");
-        return false;
-    }
+        if (m_fileTemplate.isEmpty())
+        {
+            errorMessage = PDFTranslationContext::tr("File template is empty.");
+            return false;
+        }
 
-    if (!m_fileTemplate.contains("%"))
-    {
-        errorMessage = PDFTranslationContext::tr("File template must contain character '%' for page number.");
-        return false;
+        if (!m_fileTemplate.contains("%"))
+        {
+            errorMessage = PDFTranslationContext::tr("File template must contain character '%' for page number.");
+            return false;
+        }
     }
 
     // Check page selection
-    if (m_pageSelectionMode == PageSelectionMode::Selection)
+    if (validatePageSelection)
     {
-        std::vector<PDFInteger> pages = getPages();
-        if (pages.empty())
+        if (m_pageSelectionMode == PageSelectionMode::Selection)
         {
-            errorMessage = PDFTranslationContext::tr("Page list is invalid. It should have form such as '1-12,17,24,27-29'.");
-            return false;
-        }
+            std::vector<PDFInteger> pages = getPages();
+            if (pages.empty())
+            {
+                errorMessage = PDFTranslationContext::tr("Page list is invalid. It should have form such as '1-12,17,24,27-29'.");
+                return false;
+            }
 
-        if (pages.back() >= PDFInteger(m_document->getCatalog()->getPageCount()))
-        {
-            errorMessage = PDFTranslationContext::tr("Page list contains page, which is not in the document (%1).").arg(pages.back());
-            return false;
+            if (pages.back() >= PDFInteger(m_document->getCatalog()->getPageCount()))
+            {
+                errorMessage = PDFTranslationContext::tr("Page list contains page, which is not in the document (%1).").arg(pages.back());
+                return false;
+            }
         }
     }
 
-    if (m_resolutionMode == ResolutionMode::DPI && (m_dpiResolution < getMinDPIResolution() || m_dpiResolution > getMaxDPIResolution()))
+    if (validateResolution)
     {
-        errorMessage = PDFTranslationContext::tr("DPI resolution should be in range %1 to %2.").arg(getMinDPIResolution()).arg(getMaxDPIResolution());
-        return false;
-    }
+        if (m_resolutionMode == ResolutionMode::DPI && (m_dpiResolution < getMinDPIResolution() || m_dpiResolution > getMaxDPIResolution()))
+        {
+            errorMessage = PDFTranslationContext::tr("DPI resolution should be in range %1 to %2.").arg(getMinDPIResolution()).arg(getMaxDPIResolution());
+            return false;
+        }
 
-    if (m_resolutionMode == ResolutionMode::Pixels && (m_pixelResolution < getMinPixelResolution() || m_pixelResolution > getMaxPixelResolution()))
-    {
-        errorMessage = PDFTranslationContext::tr("Pixel resolution should be in range %1 to %2.").arg(getMinPixelResolution()).arg(getMaxPixelResolution());
-        return false;
+        if (m_resolutionMode == ResolutionMode::Pixels && (m_pixelResolution < getMinPixelResolution() || m_pixelResolution > getMaxPixelResolution()))
+        {
+            errorMessage = PDFTranslationContext::tr("Pixel resolution should be in range %1 to %2.").arg(getMinPixelResolution()).arg(getMaxPixelResolution());
+            return false;
+        }
     }
 
     return true;

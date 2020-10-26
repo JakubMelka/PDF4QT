@@ -122,11 +122,24 @@ struct PDFToolOptions
     // For option 'ColorManagementSystem'
     pdf::PDFCMSSettings cmsSettings;
 
+    // For option 'RenderFlags'
+    pdf::PDFRenderer::Features renderFeatures = pdf::PDFRenderer::getDefaultFeatures();
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
     /// \param zeroBased Convert to zero based page range?
     std::vector<pdf::PDFInteger> getPageRange(pdf::PDFInteger pageCount, QString& errorMessage, bool zeroBased) const;
+
+    struct RenderFeatureInfo
+    {
+        QString option;
+        QString description;
+        pdf::PDFRenderer::Feature feature;
+    };
+
+    /// Returns a list of available renderer features
+    static std::vector<RenderFeatureInfo> getRenderFeatures();
 };
 
 /// Base class for all applications

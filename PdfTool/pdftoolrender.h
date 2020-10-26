@@ -36,6 +36,13 @@ public:
     virtual Options getOptionsFlags() const override;
 };
 
+class PDFToolBenchmark : public PDFToolRenderBase
+{
+public:
+    virtual QString getStandardString(StandardString standardString) const override;
+    virtual Options getOptionsFlags() const override;
+};
+
 }   // namespace pdftool
 
 #endif // PDFTOOLRENDER_H

@@ -278,6 +278,15 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("cms-profile-cmyk", "CMYK color profile for CMYK device.", "profile"));
         parser->addOption(QCommandLineOption("cms-profile-dir", "External directory containing color profiles.", "directory"));
     }
+
+    if (optionFlags.testFlag(RenderFlags))
+    {
+        const pdf::PDFRenderer::Features defaultFeatures = pdf::PDFRenderer::getDefaultFeatures();
+        for (const PDFToolOptions::RenderFeatureInfo& info : PDFToolOptions::getRenderFeatures())
+        {
+            parser->addOption(QCommandLineOption(info.option, info.description, "bool", defaultFeatures.testFlag(info.feature) ? "1" : "0"));
+        }
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -729,6 +738,26 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         setProfile("cms-profile-dir", options.cmsSettings.profileDirectory);
     }
 
+    if (optionFlags.testFlag(RenderFlags))
+    {
+        for (const PDFToolOptions::RenderFeatureInfo& info : PDFToolOptions::getRenderFeatures())
+        {
+            QString textValue = parser->value(info.option);
+
+            bool ok = false;
+            bool value = textValue.toInt(&ok);
+
+            if (ok)
+            {
+                options.renderFeatures.setFlag(info.feature, value);
+            }
+            else
+            {
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown bool value '%1'. Default value is used.").arg(textValue), options.outputCodec);
+            }
+        }
+    }
+
     return options;
 }
 
@@ -863,6 +892,19 @@ std::vector<pdf::PDFInteger> PDFToolOptions::getPageRange(pdf::PDFInteger pageCo
     }
 
     return pageIndices;
+}
+
+std::vector<PDFToolOptions::RenderFeatureInfo> PDFToolOptions::getRenderFeatures()
+{
+    return {
+        RenderFeatureInfo{ "render-antialiasing", "Antialiasing for lines, shapes, etc.", pdf::PDFRenderer::Antialiasing },
+        RenderFeatureInfo{ "render-text-antialiasing", "Antialiasing for text outlines.", pdf::PDFRenderer::TextAntialiasing },
+        RenderFeatureInfo{ "render-smooth-img", "Smooth image transformation (slower, but better quality images).", pdf::PDFRenderer::SmoothImages },
+        RenderFeatureInfo{ "render-ignore-opt-content", "Ignore optional content settings (draw everything).", pdf::PDFRenderer::IgnoreOptionalContent },
+        RenderFeatureInfo{ "render-clip-to-crop-box", "Clip page graphics to crop box.", pdf::PDFRenderer::ClipToCropBox },
+        RenderFeatureInfo{ "render-invert-colors", "Invert all colors.", pdf::PDFRenderer::InvertColors },
+        RenderFeatureInfo{ "render-display-annot", "Display annotations.", pdf::PDFRenderer::DisplayAnnotations }
+    };
 }
 
 }   // pdftool
