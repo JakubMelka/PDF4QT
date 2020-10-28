@@ -288,6 +288,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         }
 
         parser->addOption(QCommandLineOption("render-hw-accel", "Use hardware acceleration (using GPU).", "bool", "1"));
+        parser->addOption(QCommandLineOption("render-show-page-stat", "Show page rendering statistics."));
         parser->addOption(QCommandLineOption("render-msaa-samples", "MSAA sample count for GPU rendering.", "samples", "4"));
         parser->addOption(QCommandLineOption("render-rasterizers", "Number of rasterizer contexts.", "rasterizers", QString::number(pdf::PDFRasterizerPool::getDefaultRasterizerCount())));
     }
@@ -616,7 +617,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
                     PDFConsole::writeError(PDFToolTranslationContext::tr("Dpi must be in range from %1 to %2. Defaulting to %3.").arg(pdf::PDFPageImageExportSettings::getMinDPIResolution()).arg(pdf::PDFPageImageExportSettings::getMaxDPIResolution()).arg(boundedDpi), options.outputCodec);
                 }
 
-                options.imageExportSettings.setDpiResolution(dpi);
+                options.imageExportSettings.setDpiResolution(boundedDpi);
             }
             else
             {
@@ -642,7 +643,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
                     PDFConsole::writeError(PDFToolTranslationContext::tr("Pixel value must be in range from %1 to %2. Defaulting to %3.").arg(pdf::PDFPageImageExportSettings::getMinPixelResolution()).arg(pdf::PDFPageImageExportSettings::getMaxPixelResolution()).arg(boundedPixel), options.outputCodec);
                 }
 
-                options.imageExportSettings.setPixelResolution(pixel);
+                options.imageExportSettings.setPixelResolution(boundedPixel);
             }
             else
             {
@@ -794,6 +795,8 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid raterizer count: %1. Correcting to use %2 rasterizers.").arg(options.renderRasterizerCount).arg(correctedRasterizerCount), options.outputCodec);
             options.renderRasterizerCount = correctedRasterizerCount;
         }
+
+        options.renderShowPageStatistics = parser->isSet("render-show-page-stat");
     }
 
     return options;

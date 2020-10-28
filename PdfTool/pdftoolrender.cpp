@@ -60,6 +60,10 @@ void PDFToolRender::finish(const PDFToolOptions& options)
     formatter.endl();
 
     writeStatistics(formatter);
+    if (options.renderShowPageStatistics)
+    {
+        writePageStatistics(formatter);
+    }
     writeErrors(formatter);
 
     formatter.endDocument();
@@ -123,7 +127,10 @@ void PDFToolBenchmark::finish(const PDFToolOptions& options)
     formatter.endl();
 
     writeStatistics(formatter);
-    writePageStatistics(formatter);
+    if (options.renderShowPageStatistics)
+    {
+        writePageStatistics(formatter);
+    }
     writeErrors(formatter);
 
     formatter.endDocument();
@@ -351,7 +358,7 @@ void PDFToolRenderBase::writePageStatistics(PDFOutputFormatter& formatter)
         formatter.writeTableColumn("compile-time", locale.toString(info.pageCompileTime), Qt::AlignRight);
         formatter.writeTableColumn("render-time", locale.toString(info.pageRenderTime), Qt::AlignRight);
         formatter.writeTableColumn("wait-time", locale.toString(info.pageWaitTime), Qt::AlignRight);
-        formatter.writeTableColumn("write-time", locale.toString(info.pageWaitTime), Qt::AlignRight);
+        formatter.writeTableColumn("write-time", locale.toString(info.pageWriteTime), Qt::AlignRight);
         formatter.writeTableColumn("total-time", locale.toString(info.pageTotalTime), Qt::AlignRight);
         formatter.endTableRow();
     }

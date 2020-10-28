@@ -492,7 +492,7 @@ int PDFRasterizerPool::getDefaultRasterizerCount()
 
 int PDFRasterizerPool::getCorrectedRasterizerCount(int rasterizerCount)
 {
-    return qBound(1, rasterizerCount, 16);
+    return qBound(1, rasterizerCount, 256);
 }
 
 PDFImageWriterSettings::PDFImageWriterSettings()
