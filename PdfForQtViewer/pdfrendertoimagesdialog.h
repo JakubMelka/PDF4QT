@@ -76,7 +76,7 @@ private:
     void onGammaChanged(double value);
     void onOptimizedWriteChanged(bool value);
     void onProgressiveScanWriteChanged(bool value);
-    void onRenderError(pdf::PDFRenderError error);
+    void onRenderError(pdf::PDFInteger pageIndex, pdf::PDFRenderError error);
     void onRenderingFinished();
 
     Ui::PDFRenderToImagesDialog* ui;

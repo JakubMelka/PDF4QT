@@ -374,7 +374,7 @@ public:
 
 /// Font cache which caches both fonts, and realized fonts. Cache has individual limit
 /// for fonts, and realized fonts.
-class PDFFontCache
+class PDFFORQTLIBSHARED_EXPORT PDFFontCache
 {
 public:
     inline explicit PDFFontCache(size_t fontCacheLimit, size_t realizedFontCacheLimit) :

@@ -400,7 +400,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
     QElapsedTimer timer;
     timer.start();
 
-    emit renderError(PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Start at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
+    emit renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Start at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
 
     if (progress)
     {
@@ -419,9 +419,15 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
             {
                 progress->step();
             }
-            emit renderError(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
+            emit renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
             return;
         }
+
+        QElapsedTimer totalPageTimer;
+        totalPageTimer.start();
+
+        QElapsedTimer pageTimer;
+        pageTimer.start();
 
         // Precompile the page
         PDFPrecompiledPage precompiledPage;
@@ -429,9 +435,11 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         PDFRenderer renderer(m_document, m_fontCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
         renderer.compile(&precompiledPage, pageIndex);
 
-        for (const PDFRenderError error : precompiledPage.getErrors())
+        qint64 pageCompileTime = pageTimer.restart();
+
+        for (const PDFRenderError& error : precompiledPage.getErrors())
         {
-            emit renderError(PDFRenderError(error.type, PDFTranslationContext::tr("Page %1: %2").arg(pageIndex + 1).arg(error.message)));
+            emit renderError(pageIndex, error);
         }
 
         // We can const-cast here, because we do not modify the document in annotation manager.
@@ -443,12 +451,22 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         annotationManager.setDocument(modifiedDocument);
 
         // Render page to image
+        pageTimer.restart();
         PDFRasterizer* rasterizer = acquire();
+        qint64 pageWaitTime = pageTimer.restart();
         QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager);
+        qint64 pageRenderTime = pageTimer.elapsed();
         release(rasterizer);
 
         // Now, process the image
-        processImage(pageIndex, qMove(image));
+        PDFRenderedPageImage renderedPageImage;
+        renderedPageImage.pageIndex = pageIndex;
+        renderedPageImage.pageImage = qMove(image);
+        renderedPageImage.pageCompileTime = pageCompileTime;
+        renderedPageImage.pageWaitTime = pageWaitTime;
+        renderedPageImage.pageRenderTime = pageRenderTime;
+        renderedPageImage.pageTotalTime = totalPageTimer.elapsed();
+        processImage(renderedPageImage);
 
         if (progress)
         {
@@ -462,14 +480,19 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         progress->finish();
     }
 
-    emit renderError(PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Finished at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
-    emit renderError(PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("%1 miliseconds elapsed to render %2 pages...").arg(timer.nsecsElapsed() / 1000000).arg(pageIndices.size())));
+    emit renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Finished at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
+    emit renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("%1 miliseconds elapsed to render %2 pages...").arg(timer.nsecsElapsed() / 1000000).arg(pageIndices.size())));
 }
 
 int PDFRasterizerPool::getDefaultRasterizerCount()
 {
     int hint = QThread::idealThreadCount() / 2;
-    return qBound(1, hint, 16);
+    return getCorrectedRasterizerCount(hint);
+}
+
+int PDFRasterizerPool::getCorrectedRasterizerCount(int rasterizerCount)
+{
+    return qBound(1, rasterizerCount, 16);
 }
 
 PDFImageWriterSettings::PDFImageWriterSettings()
@@ -833,7 +856,7 @@ std::vector<PDFInteger> PDFPageImageExportSettings::getPages() const
     return result;
 }
 
-QString PDFPageImageExportSettings::getOutputFileName(PDFInteger pageIndex, const QByteArray& outputFormat)
+QString PDFPageImageExportSettings::getOutputFileName(PDFInteger pageIndex, const QByteArray& outputFormat) const
 {
     QString fileName = m_fileTemplate;
     fileName.replace('%', QString::number(pageIndex + 1));

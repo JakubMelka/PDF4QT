@@ -17,12 +17,13 @@
 
 #include "pdftoolabstractapplication.h"
 
-#include <QCoreApplication>
+#include <QGuiApplication>
 #include <QCommandLineParser>
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication a(argc, argv);
+    QGuiApplication a(argc, argv);
+    QGuiApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PdfTool");
     QCoreApplication::setApplicationVersion("1.0.0");

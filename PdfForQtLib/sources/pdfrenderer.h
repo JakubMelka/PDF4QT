@@ -26,6 +26,7 @@
 #include <QSemaphore>
 #include <QImageWriter>
 #include <QSurfaceFormat>
+#include <QImage>
 
 class QPainter;
 class QOpenGLContext;
@@ -168,6 +169,17 @@ private:
     QOpenGLFramebufferObject* m_fbo;
 };
 
+/// Simple structure for storing rendered page images
+struct PDFRenderedPageImage
+{
+    qint64 pageCompileTime = 0;
+    qint64 pageWaitTime = 0;
+    qint64 pageRenderTime = 0;
+    qint64 pageTotalTime = 0;
+    PDFInteger pageIndex;
+    QImage pageImage;
+};
+
 /// Pool of page image renderers. It can use predefined number of renderers to
 /// render page images asynchronously. You can use this object in two ways -
 /// first one is as standard object pool, second one is to directly render
@@ -181,8 +193,9 @@ private:
 
 public:
 
+
     using PageImageSizeGetter = std::function<QSize(const PDFPage*)>;
-    using ProcessImageMethod = std::function<void(PDFInteger, QImage&&)>;
+    using ProcessImageMethod = std::function<void(PDFRenderedPageImage&)>;
 
     /// Creates new rasterizer pool
     /// \param document Document
@@ -229,8 +242,15 @@ public:
     /// Returns default rasterizer count
     static int getDefaultRasterizerCount();
 
+    /// Returns corrected rasterizer count (so, if user
+    /// select too high or too low rasterizer count, this function
+    /// corrects it to acceptable number.
+    /// \param rasterizerCount Requested number of rasterizers
+    /// \returns Corrected number of rasterizers
+    static int getCorrectedRasterizerCount(int rasterizerCount);
+
 signals:
-    void renderError(PDFRenderError error);
+    void renderError(PDFInteger pageIndex, PDFRenderError error);
 
 private:
     const PDFDocument* m_document;
@@ -344,7 +364,7 @@ public:
     std::vector<PDFInteger> getPages() const;
 
     /// Returns output file name for given page
-    QString getOutputFileName(PDFInteger pageIndex, const QByteArray& outputFormat);
+    QString getOutputFileName(PDFInteger pageIndex, const QByteArray& outputFormat) const;
 
     static constexpr int getMinDPIResolution() { return 72; }
     static constexpr int getMaxDPIResolution() { return 6000; }

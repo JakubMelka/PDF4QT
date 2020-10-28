@@ -286,6 +286,10 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         {
             parser->addOption(QCommandLineOption(info.option, info.description, "bool", defaultFeatures.testFlag(info.feature) ? "1" : "0"));
         }
+
+        parser->addOption(QCommandLineOption("render-hw-accel", "Use hardware acceleration (using GPU).", "bool", "1"));
+        parser->addOption(QCommandLineOption("render-msaa-samples", "MSAA sample count for GPU rendering.", "samples", "4"));
+        parser->addOption(QCommandLineOption("render-rasterizers", "Number of rasterizer contexts.", "rasterizers", QString::number(pdf::PDFRasterizerPool::getDefaultRasterizerCount())));
     }
 }
 
@@ -755,6 +759,40 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             {
                 PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown bool value '%1'. Default value is used.").arg(textValue), options.outputCodec);
             }
+        }
+
+        QString textValue = parser->value("render-hw-accel");
+        bool ok = false;
+        bool value = textValue.toInt(&ok);
+        if (ok)
+        {
+            options.renderUseHardwareRendering = value;
+        }
+        else
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown bool value '%1'. GPU rendering is used as default.").arg(textValue), options.outputCodec);
+        }
+
+        textValue = parser->value("render-msaa-samples");
+        options.renderMSAAsamples = textValue.toInt(&ok);
+        if (!ok)
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown MSAA sample count '%1'. 4 samples are used as default.").arg(textValue), options.outputCodec);
+            options.renderMSAAsamples = 4;
+        }
+
+        textValue = parser->value("render-rasterizers");
+        options.renderRasterizerCount = textValue.toInt(&ok);
+        if (!ok)
+        {
+            options.renderRasterizerCount = pdf::PDFRasterizerPool::getDefaultRasterizerCount();
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown rasterizer count '%1'. %2 rasterizers are used as default.").arg(textValue).arg(options.renderRasterizerCount), options.outputCodec);
+        }
+        int correctedRasterizerCount = pdf::PDFRasterizerPool::getCorrectedRasterizerCount(options.renderRasterizerCount);
+        if (correctedRasterizerCount != options.renderRasterizerCount)
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid raterizer count: %1. Correcting to use %2 rasterizers.").arg(options.renderRasterizerCount).arg(correctedRasterizerCount), options.outputCodec);
+            options.renderRasterizerCount = correctedRasterizerCount;
         }
     }
 

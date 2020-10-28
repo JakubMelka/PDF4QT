@@ -124,6 +124,9 @@ struct PDFToolOptions
 
     // For option 'RenderFlags'
     pdf::PDFRenderer::Features renderFeatures = pdf::PDFRenderer::getDefaultFeatures();
+    bool renderUseHardwareRendering = true;
+    int renderMSAAsamples = 4;
+    int renderRasterizerCount = pdf::PDFRasterizerPool::getDefaultRasterizerCount();
 
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count

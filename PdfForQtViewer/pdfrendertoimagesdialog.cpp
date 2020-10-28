@@ -243,9 +243,9 @@ void PDFRenderToImagesDialog::onProgressiveScanWriteChanged(bool value)
     m_imageWriterSettings.setProgressiveScanWrite(value);
 }
 
-void PDFRenderToImagesDialog::onRenderError(pdf::PDFRenderError error)
+void PDFRenderToImagesDialog::onRenderError(pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
 {
-    ui->progressMessagesEdit->setPlainText(QString("%1\n%2").arg(ui->progressMessagesEdit->toPlainText()).arg(error.message));
+    ui->progressMessagesEdit->setPlainText(QString("%1\n%2").arg(ui->progressMessagesEdit->toPlainText()).arg(tr("Page %1: %2").arg(pageIndex + 1).arg(error.message)));
 }
 
 void PDFRenderToImagesDialog::onRenderingFinished()
@@ -319,9 +319,9 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
                     return QSize();
                 };
 
-                auto processImage = [this](const pdf::PDFInteger pageIndex, QImage&& image)
+                auto processImage = [this](pdf::PDFRenderedPageImage& renderedPageImage)
                 {
-                    QString fileName = m_imageExportSettings.getOutputFileName(pageIndex, m_imageWriterSettings.getCurrentFormat());
+                    QString fileName = m_imageExportSettings.getOutputFileName(renderedPageImage.pageIndex, m_imageWriterSettings.getCurrentFormat());
 
                     QImageWriter imageWriter(fileName, m_imageWriterSettings.getCurrentFormat());
                     imageWriter.setSubType(m_imageWriterSettings.getCurrentSubtype());
@@ -331,9 +331,9 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
                     imageWriter.setOptimizedWrite(m_imageWriterSettings.hasOptimizedWrite());
                     imageWriter.setProgressiveScanWrite(m_imageWriterSettings.hasProgressiveScanWrite());
 
-                    if (!imageWriter.write(image))
+                    if (!imageWriter.write(renderedPageImage.pageImage))
                     {
-                        emit m_rasterizerPool->renderError(pdf::PDFRenderError(pdf::RenderErrorType::Error, tr("Can't write page image to file '%1', because: %2.").arg(fileName).arg(imageWriter.errorString())));
+                        emit m_rasterizerPool->renderError(renderedPageImage.pageIndex, pdf::PDFRenderError(pdf::RenderErrorType::Error, tr("Cannot write page image to file '%1', because: %2.").arg(fileName).arg(imageWriter.errorString())));
                     }
                 };
 
