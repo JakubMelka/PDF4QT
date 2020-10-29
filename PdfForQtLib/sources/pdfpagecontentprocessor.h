@@ -71,7 +71,7 @@ private:
 };
 
 /// Process the contents of the page.
-class PDFPageContentProcessor : public PDFRenderErrorReporter
+class PDFFORQTLIBSHARED_EXPORT PDFPageContentProcessor : public PDFRenderErrorReporter
 {
 public:
     explicit PDFPageContentProcessor(const PDFPage* page,

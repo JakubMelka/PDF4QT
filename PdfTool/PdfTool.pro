@@ -45,6 +45,7 @@ SOURCES += \
         pdftoolattachments.cpp \
         pdftoolaudiobook.cpp \
         pdftoolcolorprofiles.cpp \
+        pdftoolfetchimages.cpp \
         pdftoolfetchtext.cpp \
         pdftoolinfo.cpp \
         pdftoolinfofonts.cpp \
@@ -72,6 +73,7 @@ HEADERS += \
     pdftoolattachments.h \
     pdftoolaudiobook.h \
     pdftoolcolorprofiles.h \
+    pdftoolfetchimages.h \
     pdftoolfetchtext.h \
     pdftoolinfo.h \
     pdftoolinfofonts.h \
