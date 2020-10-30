@@ -17,6 +17,7 @@
 
 #include "pdfoutputformatter.h"
 
+#include <QMutex>
 #include <QTextCodec>
 #include <QTextStream>
 #include <QXmlStreamWriter>
@@ -667,12 +668,16 @@ void PDFConsole::writeText(QString text, QString codecName)
 #endif
 }
 
+QMutex s_writeErrorMutex;
+
 void PDFConsole::writeError(QString text, QString codecName)
 {
     if (text.isEmpty())
     {
         return;
     }
+
+    QMutexLocker lock(&s_writeErrorMutex);
 
     text += "\n";
 

@@ -20,6 +20,8 @@
 #include "pdfconstants.h"
 #include "pdfexecutionpolicy.h"
 
+#include <QCryptographicHash>
+
 namespace pdftool
 {
 
@@ -41,6 +43,7 @@ public:
                                                PDFToolFetchImages* tool) :
         BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
         m_pageIndex(pageIndex),
+        m_order(0),
         m_tool(tool)
     {
 
@@ -53,6 +56,7 @@ protected:
 
 private:
     pdf::PDFInteger m_pageIndex;
+    pdf::PDFInteger m_order;
     PDFToolFetchImages* m_tool;
 };
 
@@ -88,7 +92,7 @@ bool PDFImageContentExtractorProcessor::isContentKindSuppressed(ContentKind kind
 
 void PDFImageContentExtractorProcessor::performImagePainting(const QImage& image)
 {
-    m_tool->onImageExtracted(m_pageIndex, image);
+    m_tool->onImageExtracted(m_pageIndex, m_order++, image);
 }
 
 QString PDFToolFetchImages::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
@@ -175,6 +179,74 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
     pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), processPageContents);
     fontCache.setCacheShrinkEnabled(nullptr, true);
 
+    auto comparator = [](const Image& left, const Image& right) -> bool
+    {
+        return std::make_pair(left.pageIndex, left.order) < std::make_pair(right.pageIndex, right.order);
+    };
+    std::sort(m_images.begin(), m_images.end(), comparator);
+
+    // Write information about images
+    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    formatter.beginDocument("images", PDFToolTranslationContext::tr("Images fetched from document %1").arg(options.document));
+    formatter.endl();
+
+    formatter.beginTable("overview", PDFToolTranslationContext::tr("Overview"));
+
+    formatter.beginTableHeaderRow("header");
+    formatter.writeTableHeaderColumn("item-no", PDFToolTranslationContext::tr("Image No."), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("page-no", PDFToolTranslationContext::tr("Page No."), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("width", PDFToolTranslationContext::tr("Width [pixels]"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("height", PDFToolTranslationContext::tr("Height [pixels]"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("size", PDFToolTranslationContext::tr("Size [bytes]"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("stored-to", PDFToolTranslationContext::tr("Stored to"), Qt::AlignLeft);
+    formatter.endTableHeaderRow();
+
+    QLocale locale;
+
+    for (size_t i = 0; i < m_images.size(); ++i)
+    {
+        Image& image = m_images[i];
+        image.fileName = options.imageExportSettings.getOutputFileName(pdf::PDFInteger(i), options.imageWriterSettings.getCurrentFormat());
+
+        formatter.beginTableRow("image", int(i));
+
+        formatter.writeTableColumn("item-no", locale.toString(i + 1), Qt::AlignRight);
+        formatter.writeTableColumn("page-no", locale.toString(image.pageIndex + 1), Qt::AlignRight);
+        formatter.writeTableColumn("width", locale.toString(image.image.width()), Qt::AlignRight);
+        formatter.writeTableColumn("height", locale.toString(image.image.height()), Qt::AlignRight);
+        formatter.writeTableColumn("size", locale.toString(image.image.byteCount()), Qt::AlignRight);
+        formatter.writeTableColumn("stored-to", image.fileName);
+
+        formatter.endTableRow();
+    }
+
+    formatter.endTable();
+
+    formatter.endDocument();
+    PDFConsole::writeText(formatter.getString(), options.outputCodec);
+
+    // Store images to the disk file
+    auto saveImage = [this, &options](size_t index)
+    {
+        Image& image = m_images[index];
+
+        QImageWriter imageWriter(image.fileName, options.imageWriterSettings.getCurrentFormat());
+        imageWriter.setSubType(options.imageWriterSettings.getCurrentSubtype());
+        imageWriter.setCompression(options.imageWriterSettings.getCompression());
+        imageWriter.setQuality(options.imageWriterSettings.getQuality());
+        imageWriter.setGamma(options.imageWriterSettings.getGamma());
+        imageWriter.setOptimizedWrite(options.imageWriterSettings.hasOptimizedWrite());
+        imageWriter.setProgressiveScanWrite(options.imageWriterSettings.hasProgressiveScanWrite());
+
+        if (!imageWriter.write(image.image))
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot write page image to file '%1', because: %2.").arg(image.fileName).arg(imageWriter.errorString()), options.outputCodec);
+        }
+    };
+
+    auto imageRange = pdf::PDFIntegerRange<size_t>(0, m_images.size());
+    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, imageRange.begin(), imageRange.end(), saveImage);
+
     return ExitSuccess;
 }
 
@@ -183,9 +255,32 @@ PDFToolAbstractApplication::Options PDFToolFetchImages::getOptionsFlags() const
     return ConsoleFormat | OpenDocument | PageSelector | ImageWriterSettings | ImageExportSettingsFiles | ColorManagementSystem;
 }
 
-void PDFToolFetchImages::onImageExtracted(pdf::PDFInteger pageIndex, const QImage& image)
+void PDFToolFetchImages::onImageExtracted(pdf::PDFInteger pageIndex, pdf::PDFInteger order, const QImage& image)
 {
+    QCryptographicHash hasher(QCryptographicHash::Sha512);
+    hasher.addData(reinterpret_cast<const char*>(image.bits()), image.byteCount());
+    QByteArray hash = hasher.result();
 
+    QMutexLocker lock(&m_mutex);
+    auto it = std::find_if(m_images.begin(), m_images.end(), [&hash](const Image& image) { return image.hash == hash; });
+    if (it == m_images.cend())
+    {
+        Image imageStructure;
+        imageStructure.hash = hash;
+        imageStructure.pageIndex = pageIndex;
+        imageStructure.order = order;
+        imageStructure.image = image;
+        m_images.emplace_back(qMove(imageStructure));
+    }
+    else
+    {
+        Image& imageStructure = *it;
+        if (imageStructure.pageIndex > pageIndex)
+        {
+            imageStructure.pageIndex = pageIndex;
+            imageStructure.order = order;
+        }
+    }
 }
 
 }   // namespace pdftool
