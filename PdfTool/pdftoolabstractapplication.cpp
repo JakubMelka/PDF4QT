@@ -169,6 +169,12 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addPositionalArgument("pattern", "Page pattern, must contain '%' character if multiple pages are selected.");
     }
 
+    if (optionFlags.testFlag(Unite))
+    {
+        parser->addPositionalArgument("source", "Documents to be merged into single document.", "file1.pdf [file2.pdf, ...]");
+        parser->addPositionalArgument("target", "Merged document filename.");
+    }
+
     if (optionFlags.testFlag(SignatureVerification))
     {
         parser->addOption(QCommandLineOption("ver-no-user-cert", "Disable user certificate store."));
@@ -807,6 +813,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         }
 
         options.renderShowPageStatistics = parser->isSet("render-show-page-stat");
+    }
+
+    if (optionFlags.testFlag(Unite))
+    {
+        options.uniteFiles = positionalArguments;
     }
 
     return options;

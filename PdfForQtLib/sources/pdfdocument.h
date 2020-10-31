@@ -147,7 +147,7 @@ private:
 /// then if object with valid data is not found, default value is used, and second one,
 /// without default value, if valid data are not found, then exception is thrown.
 /// This class uses Decorator design pattern.
-class PDFDocumentDataLoaderDecorator
+class PDFFORQTLIBSHARED_EXPORT PDFDocumentDataLoaderDecorator
 {
 public:
     explicit PDFDocumentDataLoaderDecorator(const PDFDocument* document);

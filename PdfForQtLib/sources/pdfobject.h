@@ -476,7 +476,7 @@ private:
     QByteArray m_content;
 };
 
-class PDFObjectManipulator
+class PDFFORQTLIBSHARED_EXPORT PDFObjectManipulator
 {
 public:
     explicit PDFObjectManipulator() = delete;
@@ -503,6 +503,10 @@ public:
     /// Remove null objects from all dictionaries
     /// \param object Object
     static PDFObject removeNullObjects(PDFObject object);
+
+    /// Remove duplicit references from arrays
+    /// \param object Object
+    static PDFObject removeDuplicitReferencesInArrays(PDFObject object);
 };
 
 }   // namespace pdf

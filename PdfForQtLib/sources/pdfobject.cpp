@@ -427,6 +427,65 @@ PDFObject PDFObjectManipulator::removeNullObjects(PDFObject object)
     return merge(object, object, RemoveNullObjects);
 }
 
+PDFObject PDFObjectManipulator::removeDuplicitReferencesInArrays(PDFObject object)
+{
+    switch (object.getType())
+    {
+        case PDFObject::Type::Stream:
+        {
+            const PDFStream* stream = object.getStream();
+            PDFDictionary dictionary = *stream->getDictionary();
+
+            for (size_t i = 0, count = dictionary.getCount(); i < count; ++i)
+            {
+                dictionary.setEntry(dictionary.getKey(i), removeDuplicitReferencesInArrays(dictionary.getValue(i)));
+            }
+
+            return PDFObject::createStream(std::make_shared<PDFStream>(qMove(dictionary), QByteArray(*stream->getContent())));
+        }
+
+        case PDFObject::Type::Dictionary:
+        {
+            PDFDictionary dictionary = *object.getDictionary();
+
+            for (size_t i = 0, count = dictionary.getCount(); i < count; ++i)
+            {
+                dictionary.setEntry(dictionary.getKey(i), removeDuplicitReferencesInArrays(dictionary.getValue(i)));
+            }
+
+            return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionary)));
+        }
+
+        case PDFObject::Type::Array:
+        {
+            PDFArray array;
+            std::set<PDFObjectReference> usedReferences;
+
+            for (const PDFObject& object : *object.getArray())
+            {
+                if (object.isReference())
+                {
+                    PDFObjectReference reference = object.getReference();
+                    if (!usedReferences.count(reference))
+                    {
+                        usedReferences.insert(reference);
+                        array.appendItem(PDFObject::createReference(reference));
+                    }
+                }
+                else
+                {
+                    array.appendItem(removeDuplicitReferencesInArrays(object));
+                }
+            }
+
+            return PDFObject::createArray(std::make_shared<PDFArray>(qMove(array)));
+        }
+
+        default:
+            return object;
+    }
+}
+
 QByteArray PDFStringRef::getString() const
 {
     if (inplaceString)

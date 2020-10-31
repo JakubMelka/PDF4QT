@@ -56,6 +56,7 @@ SOURCES += \
         pdftoolinfostructuretree.cpp \
         pdftoolrender.cpp \
         pdftoolseparate.cpp \
+        pdftoolunite.cpp \
         pdftoolverifysignatures.cpp \
         pdftoolxml.cpp
 
@@ -85,5 +86,6 @@ HEADERS += \
     pdftoolinfostructuretree.h \
     pdftoolrender.h \
     pdftoolseparate.h \
+    pdftoolunite.h \
     pdftoolverifysignatures.h \
     pdftoolxml.h

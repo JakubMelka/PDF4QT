@@ -302,6 +302,52 @@ public:
     /// be flattened to use this function. \sa flattenPageTree
     std::vector<PDFObjectReference> getPages() const;
 
+    /// Adds a new objet to the object storage
+    /// \param object Object
+    PDFObjectReference addObject(PDFObject object);
+
+    /// Copies objects from another storage. Objects have adjusted references to match
+    /// this storage references and objects are added after the last objects of active storage.
+    /// This function can also automatically create references from direct objects passed
+    /// by parameter \p objects, if \p createReferences is set to true.
+    /// \param objects Objects, which we want to copy from another storage
+    /// \param storage Storage, from which we are copying from
+    /// \param createReferences Create references from \p objects
+    std::vector<PDFObject> copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences);
+
+    /// Creates object list from reference list (objects are references)
+    /// \param references References
+    static std::vector<PDFObject> createObjectsFromReferences(const std::vector<PDFObjectReference>& references);
+
+    /// Creates reference list from object list. Object list must be
+    /// a list of references, it is invalid to pass this function objects,
+    /// which are not references.
+    /// \param objects Objects with references
+    static std::vector<PDFObjectReference> createReferencesFromObjects(const std::vector<PDFObject>& objects);
+
+    /// Returns catalog reference
+    PDFObjectReference getCatalogReference() const;
+
+    /// Returns object storage
+    const PDFObjectStorage* getStorage() const { return &m_storage; }
+
+    /// Appends object to target object. Targed object reference must be valid.
+    /// Arrays are concatenated.
+    /// \param reference Target object reference
+    /// \param object Object to be appended
+    void appendTo(PDFObjectReference reference, PDFObject object);
+
+    /// Merges object to target object. Targed object reference must be valid.
+    /// Arrays are not concatenated.
+    /// \param reference Target object reference
+    /// \param object Object to be merged
+    void mergeTo(PDFObjectReference reference, PDFObject object);
+
+    /// Sets object by reference
+    /// \param reference Target object reference
+    /// \param object Object to be set
+    void setObject(PDFObjectReference reference, PDFObject object);
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -823,8 +869,20 @@ public:
     PDFObject createTrailerDictionary(PDFObjectReference catalog);
 
 
+    /// Removes document actions from document catalog.
+    void removeDocumentActions();
+
+
     /// Removes outline tree from document catalog.
     void removeOutline();
+
+
+    /// Removes structure tree from document catalog.
+    void removeStructureTree();
+
+
+    /// Removes threads from document catalog.
+    void removeThreads();
 
 
     /// Sets annotation appearance state.
@@ -988,41 +1046,21 @@ public:
     void updateTrailerDictionary(PDFInteger objectCount);
 
 
-    /// Removes threads from document catalog.
-    void removeThreads();
-
-
-    /// Removes document actions from document catalog.
-    void removeDocumentActions();
-
-
-    /// Removes structure tree from document catalog.
-    void removeStructureTree();
+    /// Set optional content properties to catalog.
+    /// \param ocProperties Reference to catalog optional content properties.
+    void setCatalogOptionalContentProperties(PDFObjectReference ocProperties);
 
 
 /* END GENERATED CODE */
 
 private:
-    PDFObjectReference addObject(PDFObject object);
-    void mergeTo(PDFObjectReference reference, PDFObject object);
-    void appendTo(PDFObjectReference reference, PDFObject object);
     QRectF getPopupWindowRect(const QRectF& rectangle) const;
     QString getProducerString() const;
     PDFObjectReference getPageTreeRoot() const;
     PDFInteger getPageTreeRootChildCount() const;
     PDFObjectReference getDocumentInfo() const;
-    PDFObjectReference getCatalogReference() const;
     void updateDocumentInfo(PDFObject info);
     QRectF getPolygonsBoundingRect(const Polygons& Polygons) const;
-
-    /// Copies objects from another storage. Objects have adjusted references to match
-    /// this storage references and objects are added after the last objects of active storage.
-    /// This function can also automatically create references from direct objects passed
-    /// by parameter \p objects, if \p createReferences is set to true.
-    /// \param objects Objects, which we want to copy from another storage
-    /// \param storage Storage, from which we are copying from
-    /// \param createReferences Create references from \p objects
-    std::vector<PDFObject> copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences);
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;

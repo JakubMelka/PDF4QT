@@ -132,6 +132,9 @@ struct PDFToolOptions
     // For option 'Separate'
     QString separatePagePattern;
 
+    // For option 'Unite'
+    QStringList uniteFiles;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -160,6 +163,7 @@ public:
     {
         ExitSuccess = EXIT_SUCCESS,
         ExitFailure = EXIT_FAILURE,
+        ErrorUnknown,
         ErrorNoDocumentSpecified,
         ErrorDocumentReading,
         ErrorInvalidArguments,
@@ -198,6 +202,7 @@ public:
         ColorManagementSystem           = 0x00010000,       ///< Color management system settings
         RenderFlags                     = 0x00020000,       ///< Render flags for page image rasterizer
         Separate                        = 0x00040000,       ///< Settings for Separate tool
+        Unite                           = 0x00080000,       ///< Settings for Unite tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 

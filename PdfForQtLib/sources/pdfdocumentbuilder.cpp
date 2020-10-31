@@ -752,6 +752,11 @@ void PDFDocumentBuilder::mergeTo(PDFObjectReference reference, PDFObject object)
     m_storage.setObject(reference, PDFObjectManipulator::merge(m_storage.getObject(reference), qMove(object), PDFObjectManipulator::RemoveNullObjects));
 }
 
+void PDFDocumentBuilder::setObject(PDFObjectReference reference, PDFObject object)
+{
+    m_storage.setObject(reference, qMove(object));
+}
+
 void PDFDocumentBuilder::appendTo(PDFObjectReference reference, PDFObject object)
 {
     m_storage.setObject(reference, PDFObjectManipulator::merge(m_storage.getObject(reference), qMove(object), PDFObjectManipulator::ConcatenateArrays));
@@ -1013,6 +1018,20 @@ std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>
         }
     }
 
+    return result;
+}
+
+std::vector<PDFObject> PDFDocumentBuilder::createObjectsFromReferences(const std::vector<PDFObjectReference>& references)
+{
+    std::vector<PDFObject> result;
+    std::transform(references.cbegin(), references.cend(), std::back_inserter(result), [](const PDFObjectReference& reference) { return PDFObject::createReference(reference); });
+    return result;
+}
+
+std::vector<PDFObjectReference> PDFDocumentBuilder::createReferencesFromObjects(const std::vector<PDFObject>& objects)
+{
+    std::vector<PDFObjectReference> result;
+    std::transform(objects.cbegin(), objects.cend(), std::back_inserter(result), [](const PDFObject& object) { Q_ASSERT(object.isReference()); return object.getReference(); });
     return result;
 }
 
@@ -2863,12 +2882,60 @@ PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog
 }
 
 
+void PDFDocumentBuilder::removeDocumentActions()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("OpenAction");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("AA");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
 void PDFDocumentBuilder::removeOutline()
 {
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("Outlines");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::removeStructureTree()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("StructTreeRoot");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("MarkInfo");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::removeThreads()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Threads");
     objectBuilder << PDFObject();
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
@@ -3245,47 +3312,13 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
 }
 
 
-void PDFDocumentBuilder::removeThreads()
+void PDFDocumentBuilder::setCatalogOptionalContentProperties(PDFObjectReference ocProperties)
 {
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Threads");
-    objectBuilder << PDFObject();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject updatedCatalog = objectBuilder.takeObject();
-    mergeTo(getCatalogReference(), updatedCatalog);
-}
-
-
-void PDFDocumentBuilder::removeDocumentActions()
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("OpenAction");
-    objectBuilder << PDFObject();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("AA");
-    objectBuilder << PDFObject();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject updatedCatalog = objectBuilder.takeObject();
-    mergeTo(getCatalogReference(), updatedCatalog);
-}
-
-
-void PDFDocumentBuilder::removeStructureTree()
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("StructTreeRoot");
-    objectBuilder << PDFObject();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("MarkInfo");
-    objectBuilder << PDFObject();
+    objectBuilder.beginDictionaryItem("OCProperties");
+    objectBuilder << ocProperties;
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
