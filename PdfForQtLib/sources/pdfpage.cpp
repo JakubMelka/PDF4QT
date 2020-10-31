@@ -25,14 +25,14 @@ namespace pdf
 
 PDFPageInheritableAttributes PDFPageInheritableAttributes::parse(const PDFPageInheritableAttributes& templateAttributes,
                                                                  const PDFObject& dictionary,
-                                                                 const PDFDocument* document)
+                                                                 const PDFObjectStorage* storage)
 {
     PDFPageInheritableAttributes result(templateAttributes);
 
-    const PDFObject& dereferencedDictionary = document->getObject(dictionary);
+    const PDFObject& dereferencedDictionary = storage->getObject(dictionary);
     if (dereferencedDictionary.isDictionary())
     {
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
 
         const PDFDictionary* dictionary = dereferencedDictionary.getDictionary();
         if (dictionary->hasKey("MediaBox"))
@@ -106,11 +106,11 @@ PageRotation PDFPageInheritableAttributes::getPageRotation() const
     return PageRotation::None;
 }
 
-std::vector<PDFPage> PDFPage::parse(const PDFDocument* document, const PDFObject& root)
+std::vector<PDFPage> PDFPage::parse(const PDFObjectStorage* storage, const PDFObject& root)
 {
     std::vector<PDFPage> result;
     std::set<PDFObjectReference> visited;
-    parseImpl(result, visited, PDFPageInheritableAttributes(), root, document);
+    parseImpl(result, visited, PDFPageInheritableAttributes(), root, storage);
     return result;
 }
 
@@ -228,24 +228,24 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                         std::set<PDFObjectReference>& visitedReferences,
                         const PDFPageInheritableAttributes& templateAttributes,
                         const PDFObject& root,
-                        const PDFDocument* document)
+                        const PDFObjectStorage* storage)
 {
     // Are we in internal node, or leaf (page object)?
     PDFObjectReference objectReference = root.isReference() ? root.getReference() : PDFObjectReference();
-    const PDFObject& dereferenced = document->getObject(root);
+    const PDFObject& dereferenced = storage->getObject(root);
 
     if (dereferenced.isDictionary())
     {
         const PDFDictionary* dictionary = dereferenced.getDictionary();
-        const PDFObject& typeObject =  document->getObject(dictionary->get("Type"));
+        const PDFObject& typeObject =  storage->getObject(dictionary->get("Type"));
         if (typeObject.isName())
         {
-            PDFPageInheritableAttributes currentInheritableAttributes = PDFPageInheritableAttributes::parse(templateAttributes, root, document);
+            PDFPageInheritableAttributes currentInheritableAttributes = PDFPageInheritableAttributes::parse(templateAttributes, root, storage);
 
             QByteArray typeString = typeObject.getString();
             if (typeString == "Pages")
             {
-                const PDFObject& kids = document->getObject(dictionary->get("Kids"));
+                const PDFObject& kids = storage->getObject(dictionary->get("Kids"));
                 if (kids.isArray())
                 {
                     const PDFArray* kidsArray = kids.getArray();
@@ -268,7 +268,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                         }
 
                         visitedReferences.insert(kid.getReference());
-                        parseImpl(pages, visitedReferences, currentInheritableAttributes, kid, document);
+                        parseImpl(pages, visitedReferences, currentInheritableAttributes, kid, storage);
                     }
                 }
                 else
@@ -284,7 +284,7 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                 page.m_pageReference = objectReference;
                 page.m_mediaBox = currentInheritableAttributes.getMediaBox();
                 page.m_cropBox = currentInheritableAttributes.getCropBox();
-                page.m_resources = document->getObject(currentInheritableAttributes.getResources());
+                page.m_resources = storage->getObject(currentInheritableAttributes.getResources());
                 page.m_pageRotation = currentInheritableAttributes.getPageRotation();
 
                 if (!page.m_cropBox.isValid())
@@ -292,11 +292,11 @@ void PDFPage::parseImpl(std::vector<PDFPage>& pages,
                     page.m_cropBox = page.m_mediaBox;
                 }
 
-                PDFDocumentDataLoaderDecorator loader(document);
+                PDFDocumentDataLoaderDecorator loader(storage);
                 page.m_bleedBox = loader.readRectangle(dictionary->get("BleedBox"), page.getCropBox());
                 page.m_trimBox = loader.readRectangle(dictionary->get("TrimBox"), page.getCropBox());
                 page.m_artBox = loader.readRectangle(dictionary->get("ArtBox"), page.getCropBox());
-                page.m_contents = document->getObject(dictionary->get("Contents"));
+                page.m_contents = storage->getObject(dictionary->get("Contents"));
                 page.m_annots = loader.readReferenceArrayFromDictionary(dictionary, "Annots");
                 page.m_lastModified = PDFEncoding::convertToDateTime(loader.readStringFromDictionary(dictionary, "LastModified"));
                 page.m_thumbnailReference = loader.readReferenceFromDictionary(dictionary, "Thumb");

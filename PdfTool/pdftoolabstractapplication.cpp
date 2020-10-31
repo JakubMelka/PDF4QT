@@ -164,6 +164,11 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("no-permissive-reading", "Do not attempt to fix damaged documents."));
     }
 
+    if (optionFlags.testFlag(Separate))
+    {
+        parser->addPositionalArgument("pattern", "Page pattern, must contain '%' character if multiple pages are selected.");
+    }
+
     if (optionFlags.testFlag(SignatureVerification))
     {
         parser->addOption(QCommandLineOption("ver-no-user-cert", "Disable user certificate store."));
@@ -359,6 +364,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
         options.password = parser->isSet("pswd") ? parser->value("pswd") : QString();
         options.permissiveReading = !parser->isSet("no-permissive-reading");
+    }
+
+    if (optionFlags.testFlag(Separate))
+    {
+        options.separatePagePattern = positionalArguments.size() >= 2 ? positionalArguments[1] : QString();
     }
 
     if (optionFlags.testFlag(SignatureVerification))

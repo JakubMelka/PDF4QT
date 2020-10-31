@@ -180,7 +180,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
 
     PDFCatalog catalogObject;
     catalogObject.m_viewerPreferences = PDFViewerPreferences::parse(catalog, document);
-    catalogObject.m_pages = PDFPage::parse(document, catalogDictionary->get("Pages"));
+    catalogObject.m_pages = PDFPage::parse(&document->getStorage(), catalogDictionary->get("Pages"));
     catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(&document->getStorage(), catalogDictionary->get("PageLabels"));
 
     if (catalogDictionary->hasKey("OCProperties"))

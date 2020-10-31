@@ -289,6 +289,19 @@ public:
     const PDFFormManager* getFormManager() const;
     void setFormManager(const PDFFormManager* formManager);
 
+    /// Flattens page tree, inheritable attributes in non-leaf nodes will
+    /// be written into the page tree. Templates will be lost.
+    void flattenPageTree();
+
+    /// Sets a list of page references to page tree. Page tree must
+    /// be flattened to use this function. \sa flattenPageTree
+    /// \param pageReferences Page references
+    void setPages(const std::vector<PDFObjectReference>& pageReferences);
+
+    /// Returns a list of page references. Page tree must
+    /// be flattened to use this function. \sa flattenPageTree
+    std::vector<PDFObjectReference> getPages() const;
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -810,6 +823,10 @@ public:
     PDFObject createTrailerDictionary(PDFObjectReference catalog);
 
 
+    /// Removes outline tree from document catalog.
+    void removeOutline();
+
+
     /// Sets annotation appearance state.
     /// \param annotation Annotation
     /// \param appearanceState Appearance state
@@ -969,6 +986,18 @@ public:
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
     void updateTrailerDictionary(PDFInteger objectCount);
+
+
+    /// Removes threads from document catalog.
+    void removeThreads();
+
+
+    /// Removes document actions from document catalog.
+    void removeDocumentActions();
+
+
+    /// Removes structure tree from document catalog.
+    void removeStructureTree();
 
 
 /* END GENERATED CODE */

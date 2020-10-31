@@ -94,8 +94,8 @@ public:
     /// Parses inheritable attributes from the page tree node
     /// \param templateAttributes Template attributes
     /// \param dictionary Dictionary, from which the data will be read
-    /// \param document Document owning this data
-    static PDFPageInheritableAttributes parse(const PDFPageInheritableAttributes& templateAttributes, const PDFObject& dictionary, const PDFDocument* document);
+    /// \param storage Storage owning this data
+    static PDFPageInheritableAttributes parse(const PDFPageInheritableAttributes& templateAttributes, const PDFObject& dictionary, const PDFObjectStorage* storage);
 
     const QRectF& getMediaBox() const { return m_mediaBox; }
     const QRectF& getCropBox() const { return m_cropBox; }
@@ -117,9 +117,9 @@ public:
     explicit PDFPage() = default;
 
     /// Parses the page tree. If error occurs, then exception is thrown.
-    /// \param document Document owning this tree
+    /// \param storage Storage owning this tree
     /// \param root Root object of page tree
-    static std::vector<PDFPage> parse(const PDFDocument* document, const PDFObject& root);
+    static std::vector<PDFPage> parse(const PDFObjectStorage* storage, const PDFObject& root);
 
     inline const QRectF& getMediaBox() const { return m_mediaBox; }
     inline const QRectF& getCropBox() const { return m_cropBox; }
@@ -249,12 +249,12 @@ private:
     /// \param visitedReferences Visited references (to check cycles in page tree and avoid hangup)
     /// \param templateAttributes Template attributes (inheritable attributes defined in parent)
     /// \param root Root object of page tree
-    /// \param document Document owning this tree
+    /// \param storage Storage owning this tree
     static void parseImpl(std::vector<PDFPage>& pages,
                           std::set<PDFObjectReference>& visitedReferences,
                           const PDFPageInheritableAttributes& templateAttributes,
                           const PDFObject& root,
-                          const PDFDocument* document);
+                          const PDFObjectStorage* storage);
 
     /// Returns object from page dictionary. This function requires,
     /// that storage of object is present, for object fetching. Objects

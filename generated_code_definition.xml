@@ -5769,6 +5769,47 @@ return annotationObject;</property>
         <QObject class="codegen::GeneratedAction">
           <property name="objectName"></property>
           <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Outlines</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedCatalog</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">removeOutline</property>
+      <property name="functionDescription">Removes outline tree from document catalog.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
@@ -7287,6 +7328,143 @@ updateDocumentInfo(qMove(updatedInfoDictionary));</property>
       <property name="functionType">Structure</property>
       <property name="functionName">updateTrailerDictionary</property>
       <property name="functionDescription">This function is used to update trailer dictionary. Must be called each time the final document is being built.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Threads</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedCatalog</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">removeThreads</property>
+      <property name="functionDescription">Removes threads from document catalog.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">OpenAction</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">AA</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedCatalog</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">removeDocumentActions</property>
+      <property name="functionDescription">Removes document actions from document catalog.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">StructTreeRoot</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">MarkInfo</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedCatalog</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">removeStructureTree</property>
+      <property name="functionDescription">Removes structure tree from document catalog.</property>
       <property name="returnType">_void</property>
     </QObject>
   </property>

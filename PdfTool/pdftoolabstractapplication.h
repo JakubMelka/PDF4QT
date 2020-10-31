@@ -129,6 +129,9 @@ struct PDFToolOptions
     int renderMSAAsamples = 4;
     int renderRasterizerCount = pdf::PDFRasterizerPool::getDefaultRasterizerCount();
 
+    // For option 'Separate'
+    QString separatePagePattern;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -194,6 +197,7 @@ public:
         ImageExportSettingsResolution   = 0x00008000,       ///< Settings for resolution of exported images
         ColorManagementSystem           = 0x00010000,       ///< Color management system settings
         RenderFlags                     = 0x00020000,       ///< Render flags for page image rasterizer
+        Separate                        = 0x00040000,       ///< Settings for Separate tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 

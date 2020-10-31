@@ -862,6 +862,113 @@ QRectF PDFDocumentBuilder::getPolygonsBoundingRect(const Polygons& polygons) con
     return rect;
 }
 
+void PDFDocumentBuilder::flattenPageTree()
+{
+    PDFObjectReference pageTreeRoot = getPageTreeRoot();
+    PDFObject pageTree = PDFObject::createReference(pageTreeRoot);
+    std::vector<PDFPage> pages = PDFPage::parse(&m_storage, pageTree);
+    std::vector<PDFObjectReference> pageReferences;
+
+    // First, fill inheritable attributes to pages and correct parent
+    for (const PDFPage& page : pages)
+    {
+        PDFObjectFactory objectBuilder;
+
+        objectBuilder.beginDictionary();
+
+        objectBuilder.beginDictionaryItem("Parent");
+        objectBuilder << pageTreeRoot;
+        objectBuilder.endDictionaryItem();
+
+        objectBuilder.beginDictionaryItem("MediaBox");
+        objectBuilder << page.getMediaBox();
+        objectBuilder.endDictionaryItem();
+
+        if (page.getCropBox().isValid())
+        {
+            objectBuilder.beginDictionaryItem("CropBox");
+            objectBuilder << page.getCropBox();
+            objectBuilder.endDictionaryItem();
+        }
+
+        if (!page.getResources().isNull())
+        {
+            objectBuilder.beginDictionaryItem("Resources");
+            objectBuilder << page.getResources();
+            objectBuilder.endDictionaryItem();
+        }
+
+        if (page.getPageRotation() != PageRotation::None)
+        {
+            PDFInteger angle = 0;
+            switch (page.getPageRotation())
+            {
+                case PageRotation::Rotate90:
+                    angle = 90;
+                    break;
+
+                case PageRotation::Rotate180:
+                    angle = 180;
+                    break;
+
+                case PageRotation::Rotate270:
+                    angle = 270;
+                    break;
+
+                default:
+                    break;
+            }
+
+            objectBuilder.beginDictionaryItem("Rotate");
+            objectBuilder << angle;
+            objectBuilder.endDictionaryItem();
+        }
+
+        objectBuilder.endDictionary();
+        mergeTo(page.getPageReference(), objectBuilder.takeObject());
+        pageReferences.push_back(page.getPageReference());
+    }
+
+    setPages(pageReferences);
+}
+
+void PDFDocumentBuilder::setPages(const std::vector<PDFObjectReference>& pageReferences)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+
+    objectBuilder.beginDictionaryItem("Kids");
+    objectBuilder.beginArray();
+    for (const PDFObjectReference& pageReference : pageReferences)
+    {
+        objectBuilder << pageReference;
+    }
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+
+    objectBuilder.beginDictionaryItem("Count");
+    objectBuilder << PDFInteger(pageReferences.size());
+    objectBuilder.endDictionaryItem();
+
+    objectBuilder.endDictionary();
+
+    mergeTo(getPageTreeRoot(), objectBuilder.takeObject());
+}
+
+std::vector<PDFObjectReference> PDFDocumentBuilder::getPages() const
+{
+    std::vector<PDFObjectReference> result;
+
+    if (const PDFDictionary* pageTreeRoot = m_storage.getDictionaryFromObject(m_storage.getObject(getPageTreeRoot())))
+    {
+        PDFDocumentDataLoaderDecorator loader(&m_storage);
+        result = loader.readReferenceArrayFromDictionary(pageTreeRoot, "Kids");
+    }
+
+    return result;
+}
+
 std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences)
 {
     // 1) Collect all references, which we must copy. If object is referenced, then
@@ -2756,6 +2863,20 @@ PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog
 }
 
 
+void PDFDocumentBuilder::removeOutline()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Outlines");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
 void PDFDocumentBuilder::setAnnotationAppearanceState(PDFObjectReference annotation,
                                                       QByteArray appearanceState)
 {
@@ -3121,6 +3242,54 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     PDFObject updatedInfoDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
+}
+
+
+void PDFDocumentBuilder::removeThreads()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Threads");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::removeDocumentActions()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("OpenAction");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("AA");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::removeStructureTree()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("StructTreeRoot");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("MarkInfo");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
 }
 
 

@@ -94,4 +94,6 @@ private:
 
 }   // namespace pdf
 
+Q_DECLARE_OPERATORS_FOR_FLAGS(pdf::PDFOptimizer::OptimizationFlags)
+
 #endif // PDFOPTIMIZER_H
