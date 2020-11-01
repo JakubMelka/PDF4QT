@@ -74,6 +74,7 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
 
         pdf::PDFObjectReference ocPropertiesMerged = documentBuilder.addObject(pdf::PDFObject());
         pdf::PDFObjectReference formMerged = documentBuilder.addObject(pdf::PDFObject());
+        pdf::PDFObjectReference namesMerged = documentBuilder.addObject(pdf::PDFObject());
 
         std::vector<pdf::PDFObjectReference> pages;
         for (const QString& fileName : files)
@@ -161,6 +162,7 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
 
             documentBuilder.appendTo(ocPropertiesMerged, documentBuilder.getObjectByReference(ocPropertiesReference));
             documentBuilder.appendTo(formMerged, documentBuilder.getObjectByReference(acroFormReference));
+            documentBuilder.mergeNames(namesMerged, namesReference);
             pages.insert(pages.end(), references.cbegin(), references.cend());
         }
 
@@ -168,6 +170,11 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
         if (!documentBuilder.getObjectByReference(ocPropertiesMerged).isNull())
         {
             documentBuilder.setCatalogOptionalContentProperties(ocPropertiesMerged);
+        }
+
+        if (!documentBuilder.getObjectByReference(namesMerged).isNull())
+        {
+            documentBuilder.setCatalogNames(namesMerged);
         }
 
         if (!documentBuilder.getObjectByReference(formMerged).isNull())

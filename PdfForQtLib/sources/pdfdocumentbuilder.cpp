@@ -20,6 +20,7 @@
 #include "pdfconstants.h"
 #include "pdfdocumentreader.h"
 #include "pdfobjectutils.h"
+#include "pdfnametreeloader.h"
 
 #include <QBuffer>
 #include <QPainter>
@@ -796,6 +797,80 @@ void PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
     objectFactory.endDictionary();
 
     mergeTo(root, objectFactory.takeObject());
+}
+
+void PDFDocumentBuilder::mergeNames(PDFObjectReference a, PDFObjectReference b)
+{
+    PDFObject aObject = getObjectByReference(a);
+
+    // First object is null, do nothing
+    if (aObject.isNull())
+    {
+        setObject(a, getObjectByReference(b));
+        return;
+    }
+
+    // Jakub Melka: otherwise we must merge names tree
+    PDFObject bObject = getObjectByReference(b);
+    const PDFDictionary* aDict = getDictionaryFromObject(aObject);
+    const PDFDictionary* bDict = getDictionaryFromObject(bObject);
+
+    // Store keys
+    std::set<QByteArray> keys;
+    for (size_t i = 0; i < aDict->getCount(); ++i)
+    {
+        keys.insert(aDict->getKey(i).getString());
+    }
+    for (size_t i = 0; i < bDict->getCount(); ++i)
+    {
+        keys.insert(bDict->getKey(i).getString());
+    }
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+
+    for (const QByteArray& key : keys)
+    {
+        auto getObject = [](const PDFObjectStorage*, const PDFObject& object) { return object; };
+        auto aMap = PDFNameTreeLoader<PDFObject>::parse(&m_storage, aDict->get(key), getObject);
+        auto bMap = PDFNameTreeLoader<PDFObject>::parse(&m_storage, bDict->get(key), getObject);
+        aMap.merge(qMove(bMap));
+
+        if (aMap.empty())
+        {
+            continue;
+        }
+
+        factory.beginDictionaryItem(key);
+        factory.beginDictionary();
+
+        factory.beginDictionaryItem("Names");
+        factory.beginArray();
+
+        for (const auto& item : aMap)
+        {
+            factory << WrapName(item.first);
+            factory << item.second;
+        }
+
+        factory.endArray();
+        factory.endDictionaryItem();
+
+        factory.beginDictionaryItem("Limits");
+        factory.beginArray();
+
+        factory << WrapName((*aMap.begin()).first);
+        factory << WrapName((*aMap.rbegin()).first);
+
+        factory.endArray();
+        factory.endDictionaryItem();
+
+        factory.endDictionary();
+        factory.endDictionaryItem();
+    }
+
+    factory.endDictionary();
+    setObject(a, factory.takeObject());
 }
 
 void PDFDocumentBuilder::appendTo(PDFObjectReference reference, PDFObject object)
@@ -3455,6 +3530,20 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     PDFObject updatedInfoDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
+}
+
+
+void PDFDocumentBuilder::setCatalogNames(PDFObjectReference names)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Names");
+    objectBuilder << ((names.isValid()) ? PDFObject::createReference(names) : PDFObject());
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
 }
 
 

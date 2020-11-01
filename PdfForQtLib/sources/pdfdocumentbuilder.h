@@ -354,6 +354,12 @@ public:
     /// \param parts Parts (page count of each document part)
     void createDocumentParts(const std::vector<size_t>& parts);
 
+    /// Merges two independent 'Names' entry in catalog dictionary. It is used,
+    /// for example, when documents are being merged.
+    /// \param a First 'Names' entry
+    /// \param b Second 'Names' entry
+    void mergeNames(PDFObjectReference a, PDFObjectReference b);
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -1080,6 +1086,11 @@ public:
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
     void updateTrailerDictionary(PDFInteger objectCount);
+
+
+    /// Set reference to 'Names' dictionary to catalog.
+    /// \param names Reference to Names dictionary.
+    void setCatalogNames(PDFObjectReference names);
 
 
 /* END GENERATED CODE */
