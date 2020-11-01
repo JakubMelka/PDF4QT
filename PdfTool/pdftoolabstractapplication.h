@@ -23,6 +23,7 @@
 #include "pdfdocumenttextflow.h"
 #include "pdfrenderer.h"
 #include "pdfcms.h"
+#include "pdfoptimizer.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -135,6 +136,9 @@ struct PDFToolOptions
     // For option 'Unite'
     QStringList uniteFiles;
 
+    // For option 'Optimize'
+    pdf::PDFOptimizer::OptimizationFlags optimizeFlags = pdf::PDFOptimizer::None;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -150,6 +154,16 @@ struct PDFToolOptions
 
     /// Returns a list of available renderer features
     static std::vector<RenderFeatureInfo> getRenderFeatures();
+
+    struct OptimizeFeatureInfo
+    {
+        QString option;
+        QString description;
+        pdf::PDFOptimizer::OptimizationFlag flag;
+    };
+
+    /// Returns a list of available optimize features
+    static std::vector<OptimizeFeatureInfo> getOptimizeFlagInfos();
 };
 
 /// Base class for all applications
@@ -203,6 +217,7 @@ public:
         RenderFlags                     = 0x00020000,       ///< Render flags for page image rasterizer
         Separate                        = 0x00040000,       ///< Settings for Separate tool
         Unite                           = 0x00080000,       ///< Settings for Unite tool
+        Optimize                        = 0x00100000,       ///< Settings for Optimize
     };
     Q_DECLARE_FLAGS(Options, Option)
 

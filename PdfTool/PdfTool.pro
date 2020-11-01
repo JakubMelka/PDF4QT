@@ -54,6 +54,7 @@ SOURCES += \
         pdftoolinfonameddestinations.cpp \
         pdftoolinfopageboxes.cpp \
         pdftoolinfostructuretree.cpp \
+        pdftooloptimize.cpp \
         pdftoolrender.cpp \
         pdftoolseparate.cpp \
         pdftoolunite.cpp \
@@ -84,6 +85,7 @@ HEADERS += \
     pdftoolinfonameddestinations.h \
     pdftoolinfopageboxes.h \
     pdftoolinfostructuretree.h \
+    pdftooloptimize.h \
     pdftoolrender.h \
     pdftoolseparate.h \
     pdftoolunite.h \

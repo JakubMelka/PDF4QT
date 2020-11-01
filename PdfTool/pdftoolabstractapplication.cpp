@@ -303,6 +303,14 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("render-msaa-samples", "MSAA sample count for GPU rendering.", "samples", "4"));
         parser->addOption(QCommandLineOption("render-rasterizers", "Number of rasterizer contexts.", "rasterizers", QString::number(pdf::PDFRasterizerPool::getDefaultRasterizerCount())));
     }
+
+    if (optionFlags.testFlag(Optimize))
+    {
+        for (const PDFToolOptions::OptimizeFeatureInfo& info : PDFToolOptions::getOptimizeFlagInfos())
+        {
+            parser->addOption(QCommandLineOption(info.option, info.description));
+        }
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -820,6 +828,18 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.uniteFiles = positionalArguments;
     }
 
+    if (optionFlags.testFlag(Optimize))
+    {
+        options.optimizeFlags = pdf::PDFOptimizer::None;
+        for (const PDFToolOptions::OptimizeFeatureInfo& info : PDFToolOptions::getOptimizeFlagInfos())
+        {
+            if (parser->isSet(info.option))
+            {
+                options.optimizeFlags |= info.flag;
+            }
+        }
+    }
+
     return options;
 }
 
@@ -966,6 +986,19 @@ std::vector<PDFToolOptions::RenderFeatureInfo> PDFToolOptions::getRenderFeatures
         RenderFeatureInfo{ "render-clip-to-crop-box", "Clip page graphics to crop box.", pdf::PDFRenderer::ClipToCropBox },
         RenderFeatureInfo{ "render-invert-colors", "Invert all colors.", pdf::PDFRenderer::InvertColors },
         RenderFeatureInfo{ "render-display-annot", "Display annotations.", pdf::PDFRenderer::DisplayAnnotations }
+    };
+}
+
+std::vector<PDFToolOptions::OptimizeFeatureInfo> PDFToolOptions::getOptimizeFlagInfos()
+{
+    return {
+        OptimizeFeatureInfo{ "opt-deref-simple", "Dereference referenced simple objects (integers, bools, ...).", pdf::PDFOptimizer::DereferenceSimpleObjects },
+        OptimizeFeatureInfo{ "opt-remove-null", "Remove null objects from dictionary entries.", pdf::PDFOptimizer::RemoveNullObjects },
+        OptimizeFeatureInfo{ "opt-remove-unused", "Remove not referenced objects.", pdf::PDFOptimizer::RemoveUnusedObjects },
+        OptimizeFeatureInfo{ "opt-merge-identical", "Merge identical objects.", pdf::PDFOptimizer::MergeIdenticalObjects },
+        OptimizeFeatureInfo{ "opt-shrink-storage", "Shrink object storage by renumbering objects.", pdf::PDFOptimizer::ShrinkObjectStorage },
+        OptimizeFeatureInfo{ "opt-recompress-flate", "Recompress flate streams with maximal compression.", pdf::PDFOptimizer::RecompressFlateStreams },
+        OptimizeFeatureInfo{ "opt-all", "Use all optimization algorithms.", pdf::PDFOptimizer::All }
     };
 }
 
