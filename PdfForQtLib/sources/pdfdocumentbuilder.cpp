@@ -757,6 +757,47 @@ void PDFDocumentBuilder::setObject(PDFObjectReference reference, PDFObject objec
     m_storage.setObject(reference, qMove(object));
 }
 
+void PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
+{
+    PDFObjectReference root = createDocumentPartRoot();
+    std::vector<PDFObjectReference> pages = getPages();
+
+    PDFObjectFactory objectFactory;
+    objectFactory.beginDictionary();
+    objectFactory.beginDictionaryItem("DParts");
+    objectFactory.beginArray();
+
+    size_t start = 0;
+    for (std::size_t count : parts)
+    {
+        if (count == 0)
+        {
+            continue;
+        }
+
+        auto itStart = std::next(pages.cbegin(), start);
+        auto itEnd = std::next(itStart, count);
+
+        PDFObjectReference item = createDocumentPartItem(*itStart, *std::prev(itEnd), root);
+        for (auto it = itStart; it != itEnd; ++it)
+        {
+            setPageDocumentPart(*it, item);
+        }
+
+        objectFactory.beginArray();
+        objectFactory << item;
+        objectFactory.endArray();
+
+        start += count;
+    }
+
+    objectFactory.endArray();
+    objectFactory.endDictionaryItem();
+    objectFactory.endDictionary();
+
+    mergeTo(root, objectFactory.takeObject());
+}
+
 void PDFDocumentBuilder::appendTo(PDFObjectReference reference, PDFObject object)
 {
     m_storage.setObject(reference, PDFObjectManipulator::merge(m_storage.getObject(reference), qMove(object), PDFObjectManipulator::ConcatenateArrays));
@@ -2850,6 +2891,68 @@ PDFObjectReference PDFDocumentBuilder::createCatalogPageTreeRoot()
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createDocumentPartItem(PDFObjectReference startPage,
+                                                              PDFObjectReference endPage,
+                                                              PDFObjectReference parent)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("DPart");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Parent");
+    objectBuilder << parent;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Start");
+    objectBuilder << startPage;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("End");
+    objectBuilder << endPage;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference documentPart = addObject(objectBuilder.takeObject());
+    return documentPart;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createDocumentPartRoot()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("DPart");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference rootNodeReference = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("DPartRoot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("DPartRootNode");
+    objectBuilder << rootNodeReference;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference documentPartReference = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Parent");
+    objectBuilder << documentPartReference;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedRootNode = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("DPartRoot");
+    objectBuilder << documentPartReference;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(rootNodeReference, updatedRootNode);
+    mergeTo(getCatalogReference(), updatedCatalog);
+    return rootNodeReference;
+}
+
+
 PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog)
 {
     PDFObjectFactory objectBuilder;
@@ -3123,6 +3226,34 @@ void PDFDocumentBuilder::setAnnotationTitle(PDFObjectReference annotation,
 }
 
 
+void PDFDocumentBuilder::setCatalogAcroForm(PDFObjectReference acroForm)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("AcroForm");
+    objectBuilder << acroForm;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::setCatalogOptionalContentProperties(PDFObjectReference ocProperties)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("OCProperties");
+    objectBuilder << ocProperties;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
 void PDFDocumentBuilder::setDocumentAuthor(QString author)
 {
     PDFObjectFactory objectBuilder;
@@ -3288,6 +3419,21 @@ void PDFDocumentBuilder::setLanguage(QString language)
 }
 
 
+void PDFDocumentBuilder::setPageDocumentPart(PDFObjectReference page,
+                                             PDFObjectReference documentPart)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("DPart");
+    objectBuilder << documentPart;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPage = objectBuilder.takeObject();
+    mergeTo(page, updatedPage);
+}
+
+
 void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
 {
     PDFObjectFactory objectBuilder;
@@ -3309,20 +3455,6 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     PDFObject updatedInfoDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
-}
-
-
-void PDFDocumentBuilder::setCatalogOptionalContentProperties(PDFObjectReference ocProperties)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("OCProperties");
-    objectBuilder << ocProperties;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject updatedCatalog = objectBuilder.takeObject();
-    mergeTo(getCatalogReference(), updatedCatalog);
 }
 
 

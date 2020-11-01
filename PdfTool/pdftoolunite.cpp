@@ -70,7 +70,10 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
         pdf::PDFDocumentBuilder documentBuilder;
         documentBuilder.createDocument();
 
+        std::vector<size_t> documentPartPageCounts;
+
         pdf::PDFObjectReference ocPropertiesMerged = documentBuilder.addObject(pdf::PDFObject());
+        pdf::PDFObjectReference formMerged = documentBuilder.addObject(pdf::PDFObject());
 
         std::vector<pdf::PDFObjectReference> pages;
         for (const QString& fileName : files)
@@ -154,7 +157,10 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
             acroFormReference = references.back();
             references.pop_back();
 
+            documentPartPageCounts.push_back(references.size());
+
             documentBuilder.appendTo(ocPropertiesMerged, documentBuilder.getObjectByReference(ocPropertiesReference));
+            documentBuilder.appendTo(formMerged, documentBuilder.getObjectByReference(acroFormReference));
             pages.insert(pages.end(), references.cbegin(), references.cend());
         }
 
@@ -164,6 +170,14 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
             documentBuilder.setCatalogOptionalContentProperties(ocPropertiesMerged);
         }
 
+        if (!documentBuilder.getObjectByReference(formMerged).isNull())
+        {
+            documentBuilder.setCatalogAcroForm(formMerged);
+        }
+
+        // Correct page tree (invalid parents are present)
+        documentBuilder.flattenPageTree();
+        documentBuilder.createDocumentParts(documentPartPageCounts);
         pdf::PDFDocument mergedDocument = documentBuilder.build();
 
         // Optimize document - remove unused objects and shrink object storage
@@ -181,6 +195,11 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
             if (ocPropertiesReference.isValid())
             {
                 finalBuilder.setObject(ocPropertiesReference, pdf::PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(ocPropertiesReference)));
+            }
+            pdf::PDFObjectReference acroFormReference = loader.readReferenceFromDictionary(dictionary, "AcroForm");
+            if (acroFormReference.isValid())
+            {
+                finalBuilder.setObject(acroFormReference, pdf::PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(acroFormReference)));
             }
         }
         mergedDocument = finalBuilder.build();

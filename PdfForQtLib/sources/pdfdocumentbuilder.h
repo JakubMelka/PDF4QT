@@ -348,6 +348,12 @@ public:
     /// \param object Object to be set
     void setObject(PDFObjectReference reference, PDFObject object);
 
+    /// Creates document parts from given pages. Pages must be flattened
+    /// by function \p flattenPageTree. \sa flattenPageTree. Each document
+    /// part has certain page size, sum of \p parts must equal to page count.
+    /// \param parts Parts (page count of each document part)
+    void createDocumentParts(const std::vector<size_t>& parts);
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -863,6 +869,19 @@ public:
     PDFObjectReference createCatalogPageTreeRoot();
 
 
+    /// Creates document part item (for certain range of pages).
+    /// \param startPage First page of page range.
+    /// \param endPage Last page of page range.
+    /// \param parent Parent node (must be a reference to parent node).
+    PDFObjectReference createDocumentPartItem(PDFObjectReference startPage,
+                                              PDFObjectReference endPage,
+                                              PDFObjectReference parent);
+
+
+    /// Creates document part root node (and setups catalog object).
+    PDFObjectReference createDocumentPartRoot();
+
+
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
     /// call this function manually.
     /// \param catalog Reference to document catalog
@@ -970,6 +989,16 @@ public:
                             QString title);
 
 
+    /// Set AcroForm to catalog.
+    /// \param acroForm Reference to AcroForm object.
+    void setCatalogAcroForm(PDFObjectReference acroForm);
+
+
+    /// Set optional content properties to catalog.
+    /// \param ocProperties Reference to catalog optional content properties.
+    void setCatalogOptionalContentProperties(PDFObjectReference ocProperties);
+
+
     /// Set document author.
     /// \param author Author
     void setDocumentAuthor(QString author);
@@ -1040,15 +1069,17 @@ public:
     void setLanguage(QString language);
 
 
+    /// Sets document part to page.
+    /// \param page Page
+    /// \param documentPart Document part
+    void setPageDocumentPart(PDFObjectReference page,
+                             PDFObjectReference documentPart);
+
+
     /// This function is used to update trailer dictionary. Must be called each time the final document is 
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
     void updateTrailerDictionary(PDFInteger objectCount);
-
-
-    /// Set optional content properties to catalog.
-    /// \param ocProperties Reference to catalog optional content properties.
-    void setCatalogOptionalContentProperties(PDFObjectReference ocProperties);
 
 
 /* END GENERATED CODE */
