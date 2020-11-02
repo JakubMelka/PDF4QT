@@ -587,6 +587,10 @@ void PDFViewerSettingsDialog::updateTrustedCertificatesTable()
                 type = tr("EUTL");
                 break;
 
+            case pdf::PDFCertificateStore::EntryType::System:
+                type = tr("System");
+                break;
+
             default:
                 Q_ASSERT(false);
                 break;

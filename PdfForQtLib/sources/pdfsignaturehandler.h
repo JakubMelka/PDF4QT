@@ -473,8 +473,9 @@ public:
 
     enum class EntryType : int
     {
-        User,   ///< Certificate has been added manually by the user
-        EUTL    ///< Certificate comes EU trusted list
+        User,       ///< Certificate has been added manually by the user
+        EUTL,       ///< Certificate comes EU trusted list
+        System,     ///< System certificate
     };
 
     struct CertificateEntry
@@ -531,6 +532,9 @@ public:
 
     /// Creates default directory for certificate store
     void createDirectoryForDefaultUserCertificatesStore();
+
+    /// Returns a list of system certificates
+    static CertificateEntries getSystemCertificates();
 
 private:
     static constexpr int persist_version = 1;

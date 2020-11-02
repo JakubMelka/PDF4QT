@@ -139,6 +139,10 @@ struct PDFToolOptions
     // For option 'Optimize'
     pdf::PDFOptimizer::OptimizationFlags optimizeFlags = pdf::PDFOptimizer::None;
 
+    // For option 'CertStore'
+    bool certStoreEnumerateSystemCertificates = false;
+    bool certStoreEnumerateUserCertificates = true;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -217,7 +221,8 @@ public:
         RenderFlags                     = 0x00020000,       ///< Render flags for page image rasterizer
         Separate                        = 0x00040000,       ///< Settings for Separate tool
         Unite                           = 0x00080000,       ///< Settings for Unite tool
-        Optimize                        = 0x00100000,       ///< Settings for Optimize
+        Optimize                        = 0x00100000,       ///< Settings for Optimize tool
+        CertStore                       = 0x00200000,       ///< Settings for certificate store tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 

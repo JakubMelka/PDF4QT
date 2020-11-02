@@ -2044,3 +2044,33 @@ void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store
     }
 #endif
 }
+
+pdf::PDFCertificateStore::CertificateEntries pdf::PDFCertificateStore::getSystemCertificates()
+{
+    CertificateEntries result;
+
+#ifdef Q_OS_WIN
+    HCERTSTORE certStore = CertOpenSystemStore(NULL, L"ROOT");
+    PCCERT_CONTEXT context = nullptr;
+    if (certStore)
+    {
+        while (context = CertEnumCertificatesInStore(certStore, context))
+        {
+            const unsigned char* pointer = context->pbCertEncoded;
+            QByteArray data(reinterpret_cast<const char*>(pointer), context->cbCertEncoded);
+            std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(data);
+            if (info)
+            {
+                CertificateEntry entry;
+                entry.type = EntryType::System;
+                entry.info = qMove(*info);
+                result.emplace_back(qMove(entry));
+            }
+        }
+
+        CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
+    }
+#endif
+
+    return result;
+}
