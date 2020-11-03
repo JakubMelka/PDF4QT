@@ -22,6 +22,7 @@ namespace pdftool
 {
 
 static PDFToolCertStore s_certStoreApplication;
+static PDFToolCertStoreInstallCertificate s_certStoreAddApplication;
 
 QString PDFToolCertStore::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
 {
@@ -141,6 +142,63 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
 PDFToolAbstractApplication::Options PDFToolCertStore::getOptionsFlags() const
 {
     return ConsoleFormat | DateFormat | CertStore;
+}
+
+QString PDFToolCertStoreInstallCertificate::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
+{
+    switch (standardString)
+    {
+        case Command:
+            return "cert-store-install";
+
+        case Name:
+            return PDFToolTranslationContext::tr("Install Certificate");
+
+        case Description:
+            return PDFToolTranslationContext::tr("Install a new user certificate to certificate store.");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+int PDFToolCertStoreInstallCertificate::execute(const PDFToolOptions& options)
+{
+    QByteArray certificateData;
+    QFile file(options.certificateStoreInstallCertificateFile);
+    if (file.open(QFile::ReadOnly))
+    {
+        certificateData = file.readAll();
+        file.close();
+    }
+    else
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot open file '%1'. %2").arg(options.certificateStoreInstallCertificateFile, file.errorString()), options.outputCodec);
+        return ErrorCertificateReading;
+    }
+
+    pdf::PDFCertificateStore certificateStore;
+    certificateStore.loadDefaultUserCertificates();
+
+    if (certificateStore.add(pdf::PDFCertificateStore::EntryType::User, certificateData))
+    {
+        certificateStore.saveDefaultUserCertificates();
+    }
+    else
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot read certificate from file '%1'.").arg(options.certificateStoreInstallCertificateFile), options.outputCodec);
+        return ErrorCertificateReading;
+    }
+
+    return ExitSuccess;
+}
+
+PDFToolAbstractApplication::Options PDFToolCertStoreInstallCertificate::getOptionsFlags() const
+{
+    return ConsoleFormat | CertStoreInstall;
 }
 
 }   // namespace pdftool

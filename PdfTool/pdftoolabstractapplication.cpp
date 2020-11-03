@@ -317,6 +317,11 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("list-user-certs", "Show list of user certificates.", "bool", "1"));
         parser->addOption(QCommandLineOption("list-system-certs", "Show list of system certificates.", "bool", "0"));
     }
+
+    if (optionFlags.testFlag(CertStoreInstall))
+    {
+        parser->addPositionalArgument("certificate", "Certificate file");
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -850,6 +855,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     {
         options.certStoreEnumerateSystemCertificates = parser->value("list-system-certs").toInt();
         options.certStoreEnumerateUserCertificates = parser->value("list-user-certs").toInt();
+    }
+
+    if (optionFlags.testFlag(CertStoreInstall))
+    {
+        options.certificateStoreInstallCertificateFile = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
     }
 
     return options;

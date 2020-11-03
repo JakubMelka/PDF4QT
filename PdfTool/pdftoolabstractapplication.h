@@ -143,6 +143,9 @@ struct PDFToolOptions
     bool certStoreEnumerateSystemCertificates = false;
     bool certStoreEnumerateUserCertificates = true;
 
+    // For option 'CertStoreInstall'
+    QString certificateStoreInstallCertificateFile;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -184,6 +187,7 @@ public:
         ErrorUnknown,
         ErrorNoDocumentSpecified,
         ErrorDocumentReading,
+        ErrorCertificateReading,
         ErrorInvalidArguments,
         ErrorFailedWriteToFile,
         ErrorPermissions,
@@ -223,6 +227,7 @@ public:
         Unite                           = 0x00080000,       ///< Settings for Unite tool
         Optimize                        = 0x00100000,       ///< Settings for Optimize tool
         CertStore                       = 0x00200000,       ///< Settings for certificate store tool
+        CertStoreInstall                = 0x00400000,       ///< Settings for certificate store install certificate tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 
