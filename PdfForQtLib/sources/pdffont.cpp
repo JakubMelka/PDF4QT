@@ -29,6 +29,7 @@
 #include <freetype/t1tables.h>
 
 #include <QMutex>
+#include <QReadWriteLock>
 #include <QPainterPath>
 #include <QDataStream>
 #include <QTreeWidgetItem>
@@ -426,11 +427,11 @@ private:
     /// Function checks, if error occured, and if yes, then exception is thrown
     static void checkFreeTypeError(FT_Error error);
 
-    /// Mutex for accessing the glyph data
-    QMutex m_mutex;
+    /// Read/write lock for accessing the glyph data
+    QReadWriteLock m_readWriteLock;
 
     /// Glyph cache, must be protected by the mutex above
-    std::map<unsigned int, Glyph> m_glyphCache;
+    std::unordered_map<unsigned int, Glyph> m_glyphCache;
 
     /// For embedded fonts, this byte array contains embedded font data
     QByteArray m_embeddedFontData;
@@ -818,17 +819,20 @@ int PDFRealizedFontImpl::outlineCubicTo(const FT_Vector* control1, const FT_Vect
 
 const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyph(unsigned int glyphIndex)
 {
-    QMutexLocker lock(&m_mutex);
-
-    // First look into cache
-    auto it = m_glyphCache.find(glyphIndex);
-    if (it != m_glyphCache.cend())
-    {
-        return it->second;
-    }
-
     if (glyphIndex)
     {
+        {
+            QReadLocker readLock(&m_readWriteLock);
+
+            // First look into cache
+            auto it = m_glyphCache.find(glyphIndex);
+            if (it != m_glyphCache.cend())
+            {
+                return it->second;
+            }
+        }
+
+        QWriteLocker writeLock(&m_readWriteLock);
         Glyph glyph;
 
         FT_Outline_Funcs glyphOutlineInterface;
@@ -845,8 +849,12 @@ const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyph(unsigned int gly
         glyph.advance = !m_isVertical ? m_face->glyph->advance.x : m_face->glyph->advance.y;
         glyph.advance *= FONT_MULTIPLIER;
 
-        m_glyphCache[glyphIndex] = qMove(glyph);
-        return m_glyphCache[glyphIndex];
+        auto it = m_glyphCache.find(glyphIndex);
+        if (it == m_glyphCache.cend())
+        {
+            it = m_glyphCache.insert(std::make_pair(glyphIndex, qMove(glyph))).first;
+        }
+        return it->second;
     }
 
     static Glyph dummy;
