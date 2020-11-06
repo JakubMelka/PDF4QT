@@ -19,13 +19,26 @@
 #include "pdfexecutionpolicy.h"
 
 #include <QThread>
+#include <QApplication>
 
 namespace pdf
 {
 
 struct PDFExecutionPolicyHolder
 {
+    PDFExecutionPolicyHolder()
+    {
+        qAddPostRoutine(&PDFExecutionPolicy::finalize);
+    }
+    ~PDFExecutionPolicyHolder()
+    {
+        auxiliary.waitForDone();
+        primary.waitForDone();
+    }
+
     PDFExecutionPolicy policy;
+    QThreadPool primary;
+    QThreadPool auxiliary;
 } s_execution_policy;
 
 void PDFExecutionPolicy::setStrategy(Strategy strategy)
@@ -50,13 +63,7 @@ bool PDFExecutionPolicy::isParallelizing(Scope scope)
                     return true; // We are parallelizing pages...
 
                 case Scope::Content:
-                {
-                    // Jakub Melka: this is a bit complicated. We must count number of content streams
-                    // being processed and if it is large enough, then do not parallelize.
-                    const size_t threadLimit = s_execution_policy.policy.m_threadLimit.load(std::memory_order_relaxed);
-                    const size_t contentStreamsCount = s_execution_policy.policy.m_contentStreamsCount.load(std::memory_order_seq_cst);
-                    return contentStreamsCount < threadLimit;
-                }
+                    return false;
             }
 
             break;
@@ -71,6 +78,34 @@ bool PDFExecutionPolicy::isParallelizing(Scope scope)
     return false;
 }
 
+int PDFExecutionPolicy::getActiveThreadCount(Scope scope)
+{
+    return getThreadPool(scope)->activeThreadCount();
+}
+
+int PDFExecutionPolicy::getMaxThreadCount(Scope scope)
+{
+    return getThreadPool(scope)->maxThreadCount();
+}
+
+void PDFExecutionPolicy::setMaxThreadCount(Scope scope, int count)
+{
+    // Sanitize value!
+    count = qMax(count, 1);
+    getThreadPool(scope)->setMaxThreadCount(count);
+}
+
+int PDFExecutionPolicy::getIdealThreadCount(Scope scope)
+{
+    Q_UNUSED(scope);
+    return QThread::idealThreadCount();
+}
+
+int PDFExecutionPolicy::getContentStreamCount()
+{
+    return s_execution_policy.policy.m_contentStreamsCount.load(std::memory_order_relaxed);
+}
+
 void PDFExecutionPolicy::startProcessingContentStream()
 {
     ++s_execution_policy.policy.m_contentStreamsCount;
@@ -81,9 +116,33 @@ void PDFExecutionPolicy::endProcessingContentStream()
     --s_execution_policy.policy.m_contentStreamsCount;
 }
 
+void PDFExecutionPolicy::finalize()
+{
+    s_execution_policy.auxiliary.waitForDone();
+    s_execution_policy.primary.waitForDone();
+}
+
+QThreadPool* PDFExecutionPolicy::getThreadPool(PDFExecutionPolicy::Scope scope)
+{
+    switch (scope)
+    {
+        case Scope::Page:
+        case Scope::Unknown:
+            return &s_execution_policy.primary;
+
+        case Scope::Content:
+            return &s_execution_policy.auxiliary;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return nullptr;
+}
+
 PDFExecutionPolicy::PDFExecutionPolicy() :
     m_contentStreamsCount(0),
-    m_threadLimit(QThread::idealThreadCount()),
     m_strategy(Strategy::PageMultithreaded)
 {
 

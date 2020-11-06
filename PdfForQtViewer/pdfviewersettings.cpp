@@ -253,7 +253,7 @@ PDFViewerSettings::Settings::Settings() :
     m_thumbnailsCacheLimit(PIXMAP_CACHE_LIMIT),
     m_fontCacheLimit(pdf::DEFAULT_FONT_CACHE_LIMIT),
     m_instancedFontCacheLimit(pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT),
-    m_multithreadingStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded),
+    m_multithreadingStrategy(pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded),
     m_speechRate(0.0),
     m_speechPitch(0.0),
     m_speechVolume(1.0),

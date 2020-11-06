@@ -57,7 +57,7 @@ public:
         pdf::PDFReal m_colorTolerance;
         bool m_allowLaunchApplications;
         bool m_allowLaunchURI;
-        pdf::PDFExecutionPolicy::Strategy m_multithreadingStrategy = pdf::PDFExecutionPolicy::Strategy::PageMultithreaded;
+        pdf::PDFExecutionPolicy::Strategy m_multithreadingStrategy;
 
         // Cache settings
         int m_compiledPageCacheLimit;

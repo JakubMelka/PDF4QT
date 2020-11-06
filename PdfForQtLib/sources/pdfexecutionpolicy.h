@@ -20,6 +20,9 @@
 
 #include "pdfglobal.h"
 
+#include <QSemaphore>
+#include <QThreadPool>
+
 #include <atomic>
 #include <execution>
 
@@ -53,15 +56,48 @@ public:
     static void setStrategy(Strategy strategy);
 
     /// Determines, if we should parallelize for scope
-    /// \param scope Scope for which we want to determine exectution policy
+    /// \param scope Scope for which we want to determine execution policy
     static bool isParallelizing(Scope scope);
+
+    template<typename ForwardIt, typename UnaryFunction>
+    class Runnable : public QRunnable
+    {
+    public:
+        explicit inline Runnable(ForwardIt it, UnaryFunction* function, QSemaphore* semaphore) :
+            m_forwardIt(qMove(it)),
+            m_function(function),
+            m_semaphore(semaphore)
+        {
+            setAutoDelete(true);
+        }
+
+        virtual void run() override
+        {
+            QSemaphoreReleaser semaphoreReleaser(m_semaphore);
+            (*m_function)(*m_forwardIt);
+        }
+
+    private:
+        ForwardIt m_forwardIt;
+        UnaryFunction* m_function;
+        QSemaphore* m_semaphore;
+    };
 
     template<typename ForwardIt, typename UnaryFunction>
     static void execute(Scope scope, ForwardIt first, ForwardIt last, UnaryFunction f)
     {
         if (isParallelizing(scope))
         {
-            std::for_each(std::execution::parallel_policy(), first, last, f);
+            QSemaphore semaphore(0);
+            int count = static_cast<int>(std::distance(first, last));
+
+            QThreadPool* pool = getThreadPool(scope);
+            for (auto it = first; it != last; ++it)
+            {
+                pool->start(new Runnable(it, &f, &semaphore));
+            }
+
+            semaphore.acquire(count);
         }
         else
         {
@@ -72,15 +108,26 @@ public:
     template<typename ForwardIt, typename Comparator>
     static void sort(Scope scope, ForwardIt first, ForwardIt last, Comparator f)
     {
-        if (isParallelizing(scope))
-        {
-            std::sort(std::execution::parallel_policy(), first, last, f);
-        }
-        else
-        {
-            std::sort(std::execution::sequenced_policy(), first, last, f);
-        }
+        Q_UNUSED(scope);
+
+        // We always sort by single thread
+        std::sort(std::execution::sequenced_policy(), first, last, f);
     }
+
+    /// Returns number of active threads for given scope
+    static int getActiveThreadCount(Scope scope);
+
+    /// Returns maximal number of threads for given scope
+    static int getMaxThreadCount(Scope scope);
+
+    /// Sets maximal number of threads for given scope
+    static void setMaxThreadCount(Scope scope, int count);
+
+    /// Returns ideal thread count for given scope
+    static int getIdealThreadCount(Scope scope);
+
+    /// Returns number of currently processed content streams
+    static int getContentStreamCount();
 
     /// Starts processing content stream
     static void startProcessingContentStream();
@@ -88,13 +135,18 @@ public:
     /// Ends processing content stream
     static void endProcessingContentStream();
 
+    /// Finalize multithreading - must be called at the end of program
+    static void finalize();
+
 private:
     friend struct PDFExecutionPolicyHolder;
 
+    /// Returns thread pool based on scope
+    static QThreadPool* getThreadPool(Scope scope);
+
     explicit PDFExecutionPolicy();
 
-    std::atomic<size_t> m_contentStreamsCount;
-    std::atomic<size_t> m_threadLimit;
+    std::atomic<int> m_contentStreamsCount;
     std::atomic<Strategy> m_strategy;
 };
 
