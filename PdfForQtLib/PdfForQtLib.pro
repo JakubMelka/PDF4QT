@@ -178,14 +178,10 @@ INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/FreeType/include
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/FreeType/include
 
 # Link to OpenJPEG library
-LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/lib/ -lopenjp2
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/lib/ -lopenjp2$${SUFFIX}
 INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
-
-# Add OpenJPEG to installations
-openjpeg_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/bin/openjp2.dll
-openjpeg_lib.path = $$DESTDIR/install
-INSTALLS += openjpeg_lib
+DEFINES += OPJ_STATIC
 
 # Link to Independent JPEG Groups libjpeg
 LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/libjpeg/bin/ -ljpeg$${SUFFIX}
