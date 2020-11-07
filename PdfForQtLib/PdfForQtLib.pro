@@ -188,14 +188,9 @@ openjpeg_lib.path = $$DESTDIR/install
 INSTALLS += openjpeg_lib
 
 # Link to Independent JPEG Groups libjpeg
-LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/libjpeg/bin/ -ljpeg
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/libjpeg/bin/ -ljpeg$${SUFFIX}
 INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/libjpeg/include
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/libjpeg/include
-
-# Add libjpeg to installations
-libjpeg.files = $$PDFFORQT_DEPENDENCIES_PATH/libjpeg/bin/jpeg.dll
-libjpeg.path = $$DESTDIR/install
-INSTALLS += libjpeg
 
 # Link OpenSSL
 LIBS += -L$$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/bin -L$$PDFFORQT_OPENSSL_PATH/OpenSSL/Win_x64/lib -llibcrypto -llibssl
