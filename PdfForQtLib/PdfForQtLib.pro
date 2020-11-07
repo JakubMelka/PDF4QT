@@ -165,6 +165,8 @@ HEADERS += \
 FORMS += \
     sources/pdfrenderingerrorswidget.ui
 
+RESOURCES += cmaps.qrc
+
 PDFFORQT_DEPENDENCIES_PATH = K:\Programming\PDF\PDF_For_Qt\PDfForQt-Dependencies
 PDFFORQT_OPENSSL_PATH = K:\Programming\Qt\Tools\
 
@@ -222,20 +224,7 @@ INSTALLS += lcms2
 CONFIG += force_debug_info
 
 QMAKE_CXXFLAGS += /std:c++latest /utf-8
-
-# resource manifest
-CMAP_RESOURCE_INPUT = $$PWD/cmaps.qrc
-cmap_resource_builder.commands = $$[QT_HOST_BINS]/rcc -binary ${QMAKE_FILE_IN} -o ${QMAKE_FILE_OUT} -threshold 0 -compress 9
-cmap_resource_builder.depend_command = $$[QT_HOST_BINS]/rcc -list $$QMAKE_RESOURCE_FLAGS ${QMAKE_FILE_IN}
-cmap_resource_builder.input = CMAP_RESOURCE_INPUT
-cmap_resource_builder.output = $$DESTDIR/${QMAKE_FILE_IN_BASE}.qrb
-cmap_resource_builder.CONFIG += no_link target_predeps
-QMAKE_EXTRA_COMPILERS += cmap_resource_builder
-
-cmaps_files.files = $$DESTDIR/cmaps.qrb
-cmaps_files.path = $$DESTDIR/install
-
-INSTALLS += cmaps_files
+QMAKE_RESOURCE_FLAGS += -threshold 0 -compress 9
 
 pdfforqt_library.files = $$DESTDIR/PdfForQtLib.dll
 pdfforqt_library.path = $$DESTDIR/install

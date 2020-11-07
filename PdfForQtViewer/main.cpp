@@ -38,8 +38,6 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument("file", "The PDF file to open.");
     parser.process(application);
 
-    QResource::registerResource(QString("cmaps.qrb"));
-
     pdfviewer::PDFViewerMainWindow mainWindow;
     mainWindow.show();
 
