@@ -1524,11 +1524,6 @@ void PDFViewerMainWindow::dragMoveEvent(QDragMoveEvent* event)
     }
 }
 
-void PDFViewerMainWindow::dragLeaveEvent(QDragLeaveEvent* event)
-{
-
-}
-
 void PDFViewerMainWindow::dropEvent(QDropEvent* event)
 {
     if (event->mimeData()->hasUrls())
@@ -1541,6 +1536,5 @@ void PDFViewerMainWindow::dropEvent(QDropEvent* event)
         }
     }
 }
-
 
 }   // namespace pdfviewer

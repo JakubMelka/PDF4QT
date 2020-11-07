@@ -168,15 +168,14 @@ FORMS += \
 PDFFORQT_DEPENDENCIES_PATH = K:\Programming\PDF\PDF_For_Qt\PDfForQt-Dependencies
 PDFFORQT_OPENSSL_PATH = K:\Programming\Qt\Tools\
 
+CONFIG(debug, debug|release) {
+SUFFIX = d
+}
+
 # Link to freetype library
-LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/FreeType/ -lfreetype
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/FreeType/ -lfreetype$${SUFFIX}
 INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/FreeType/include
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/FreeType/include
-
-# Add freetype to installations
-freetype_lib.files = $$PDFFORQT_DEPENDENCIES_PATH/FreeType/freetype.dll
-freetype_lib.path = $$DESTDIR/install
-INSTALLS += freetype_lib
 
 # Link to OpenJPEG library
 LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/OpenJPEG/lib/ -lopenjp2
@@ -251,10 +250,6 @@ pdfforqt_library.files = $$DESTDIR/PdfForQtLib.dll
 pdfforqt_library.path = $$DESTDIR/install
 
 INSTALLS += pdfforqt_library
-
-CONFIG(debug, debug|release) {
-SUFFIX = d
-}
 
 qt_libraries.files =    $$[QT_INSTALL_BINS]/Qt?Widgets$${SUFFIX}.dll \
                         $$[QT_INSTALL_BINS]/Qt?Gui$${SUFFIX}.dll \
