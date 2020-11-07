@@ -74,8 +74,16 @@ public:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void showEvent(QShowEvent* event) override;
 
+    void openDocument(const QString& fileName);
+
 signals:
     void queryPasswordRequest(QString* password, bool* ok);
+
+protected:
+    virtual void dragEnterEvent(QDragEnterEvent* event) override;
+    virtual void dragMoveEvent(QDragMoveEvent* event) override;
+    virtual void dragLeaveEvent(QDragLeaveEvent* event) override;
+    virtual void dropEvent(QDropEvent* event) override;
 
 private slots:
     void onQueryPasswordRequest(QString* password, bool* ok);
@@ -137,7 +145,6 @@ private:
     void onViewerSettingsChanged();
     void onRenderingOptionTriggered(bool checked);
 
-    void openDocument(const QString& fileName);
     void setDocument(pdf::PDFModifiedDocument document);
     void closeDocument();
     void saveDocument(const QString& fileName);

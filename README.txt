@@ -1,7 +1,7 @@
 
 ==========================================================================
                     PDFforQt library / PDF viewer
-                     (c) Jakub Melka 2018-2019
+                     (c) Jakub Melka 2018-2020
 ==========================================================================
 
 This software is consisting of PDF rendering library, and viewer,

@@ -102,6 +102,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 {
     ui->setupUi(this);
 
+    setAcceptDrops(true);
+
     // Initialize toolbar icon size
     QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
     ui->mainToolBar->setIconSize(iconSize);
@@ -1502,5 +1504,43 @@ void PDFViewerMainWindow::saveDocument(const QString& fileName)
         QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
     }
 }
+
+
+void PDFViewerMainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (event->mimeData()->hasUrls())
+    {
+        event->setDropAction(Qt::LinkAction);
+        event->accept();
+    }
+}
+
+void PDFViewerMainWindow::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (event->mimeData()->hasUrls())
+    {
+        event->setDropAction(Qt::LinkAction);
+        event->accept();
+    }
+}
+
+void PDFViewerMainWindow::dragLeaveEvent(QDragLeaveEvent* event)
+{
+
+}
+
+void PDFViewerMainWindow::dropEvent(QDropEvent* event)
+{
+    if (event->mimeData()->hasUrls())
+    {
+        QList<QUrl> urls = event->mimeData()->urls();
+        if (urls.size() == 1)
+        {
+            openDocument(urls.front().toLocalFile());
+            event->acceptProposedAction();
+        }
+    }
+}
+
 
 }   // namespace pdfviewer

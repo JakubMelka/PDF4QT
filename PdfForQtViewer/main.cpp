@@ -43,5 +43,11 @@ int main(int argc, char *argv[])
     pdfviewer::PDFViewerMainWindow mainWindow;
     mainWindow.show();
 
+    QStringList arguments = application.arguments();
+    if (arguments.size() > 1)
+    {
+        mainWindow.openDocument(arguments[1]);
+    }
+
     return application.exec();
 }
