@@ -206,14 +206,9 @@ INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
 
 # Link lcms2
-LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/lcms2/bin/ -llcms2
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/lcms2/bin$${SUFFIX}/ -llcms2_static
 INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/lcms2/include
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/lcms2/include
-
-# Add lcms2 to installations
-lcms2.files = $$PDFFORQT_DEPENDENCIES_PATH/lcms2/bin/lcms2.dll
-lcms2.path = $$DESTDIR/install
-INSTALLS += lcms2
 
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info
