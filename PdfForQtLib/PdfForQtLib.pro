@@ -201,14 +201,9 @@ openssl_lib.path = $$DESTDIR/install
 INSTALLS += openssl_lib
 
 # Link zlib
-LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/zlib/bin/ -lzlib
+LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/zlib/bin/ -lzlibstatic$${SUFFIX}
 INCLUDEPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
 DEPENDPATH += $$PDFFORQT_DEPENDENCIES_PATH/zlib/include
-
-# Add zlib to installations
-zlib.files = $$PDFFORQT_DEPENDENCIES_PATH/zlib/bin/zlib.dll
-zlib.path = $$DESTDIR/install
-INSTALLS += zlib
 
 # Link lcms2
 LIBS += -L$$PDFFORQT_DEPENDENCIES_PATH/lcms2/bin/ -llcms2
