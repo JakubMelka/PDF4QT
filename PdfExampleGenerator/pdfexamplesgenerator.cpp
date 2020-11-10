@@ -301,3 +301,24 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     pdf::PDFDocumentWriter writer(nullptr);
     writer.write("Ex_Annotations.pdf", &document, false);
 }
+
+void PDFExamplesGenerator::generatePageBoxesExample()
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.setDocumentTitle("Test document - Page Boxes");
+    builder.setDocumentAuthor("Jakub Melka");
+    builder.setDocumentCreator(QCoreApplication::applicationName());
+    builder.setDocumentSubject("Testing page boxes");
+    builder.setLanguage(QLocale::system());
+
+    pdf::PDFObjectReference pageReference = builder.appendPage(QRectF(0, 0, 200, 200));
+    builder.setPageMediaBox(pageReference, QRectF(0, 0, 400, 400));
+    builder.setPageCropBox(pageReference, QRectF(10, 10, 380, 380));
+    builder.setPageBleedBox(pageReference, QRectF(20, 20, 360, 360));
+    builder.setPageTrimBox(pageReference, QRectF(30, 30, 340, 340));
+
+    // Write result to a file
+    pdf::PDFDocument document = builder.build();
+    pdf::PDFDocumentWriter writer(nullptr);
+    writer.write("Ex_PageBoxes.pdf", &document, false);
+}

@@ -24,6 +24,7 @@ public:
     explicit PDFExamplesGenerator() = delete;
 
     static void generateAnnotationsExample();
+    static void generatePageBoxesExample();
 };
 
 #endif // PDFEXAMPLESGENERATOR_H

@@ -3315,6 +3315,20 @@ void PDFDocumentBuilder::setCatalogAcroForm(PDFObjectReference acroForm)
 }
 
 
+void PDFDocumentBuilder::setCatalogNames(PDFObjectReference names)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Names");
+    objectBuilder << ((names.isValid()) ? PDFObject::createReference(names) : PDFObject());
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
 void PDFDocumentBuilder::setCatalogOptionalContentProperties(PDFObjectReference ocProperties)
 {
     PDFObjectFactory objectBuilder;
@@ -3494,6 +3508,51 @@ void PDFDocumentBuilder::setLanguage(QString language)
 }
 
 
+void PDFDocumentBuilder::setPageArtBox(PDFObjectReference page,
+                                       QRectF box)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("ArtBox");
+    objectBuilder << box;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
+}
+
+
+void PDFDocumentBuilder::setPageBleedBox(PDFObjectReference page,
+                                         QRectF box)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("BleedBox");
+    objectBuilder << box;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
+}
+
+
+void PDFDocumentBuilder::setPageCropBox(PDFObjectReference page,
+                                        QRectF box)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("CropBox");
+    objectBuilder << box;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
+}
+
+
 void PDFDocumentBuilder::setPageDocumentPart(PDFObjectReference page,
                                              PDFObjectReference documentPart)
 {
@@ -3506,6 +3565,36 @@ void PDFDocumentBuilder::setPageDocumentPart(PDFObjectReference page,
     objectBuilder.endDictionary();
     PDFObject updatedPage = objectBuilder.takeObject();
     mergeTo(page, updatedPage);
+}
+
+
+void PDFDocumentBuilder::setPageMediaBox(PDFObjectReference page,
+                                         QRectF box)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("MediaBox");
+    objectBuilder << box;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
+}
+
+
+void PDFDocumentBuilder::setPageTrimBox(PDFObjectReference page,
+                                        QRectF box)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("TrimBox");
+    objectBuilder << box;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
 }
 
 
@@ -3530,20 +3619,6 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     PDFObject updatedInfoDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
-}
-
-
-void PDFDocumentBuilder::setCatalogNames(PDFObjectReference names)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Names");
-    objectBuilder << ((names.isValid()) ? PDFObject::createReference(names) : PDFObject());
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject updatedCatalog = objectBuilder.takeObject();
-    mergeTo(getCatalogReference(), updatedCatalog);
 }
 
 

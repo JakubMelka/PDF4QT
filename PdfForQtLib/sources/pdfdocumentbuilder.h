@@ -1000,6 +1000,11 @@ public:
     void setCatalogAcroForm(PDFObjectReference acroForm);
 
 
+    /// Set reference to 'Names' dictionary to catalog.
+    /// \param names Reference to Names dictionary.
+    void setCatalogNames(PDFObjectReference names);
+
+
     /// Set optional content properties to catalog.
     /// \param ocProperties Reference to catalog optional content properties.
     void setCatalogOptionalContentProperties(PDFObjectReference ocProperties);
@@ -1075,6 +1080,30 @@ public:
     void setLanguage(QString language);
 
 
+    /// Sets art box to the page. Art box defines page's meaningful content.
+    /// \param page Page
+    /// \param box Box
+    void setPageArtBox(PDFObjectReference page,
+                       QRectF box);
+
+
+    /// Sets bleed box to the page. Bleed box is, basically, a clipping box for output in a production 
+    /// environment. Default value is the page's crop box.
+    /// \param page Page
+    /// \param box Box
+    void setPageBleedBox(PDFObjectReference page,
+                         QRectF box);
+
+
+    /// Sets crop box to the page. Crop box defines clipping region of the page. Page contents are clipped 
+    /// to this region, graphics outside of clipping box will not be printed. Default value is same, as media 
+    /// box.
+    /// \param page Page
+    /// \param box Box
+    void setPageCropBox(PDFObjectReference page,
+                        QRectF box);
+
+
     /// Sets document part to page.
     /// \param page Page
     /// \param documentPart Document part
@@ -1082,15 +1111,25 @@ public:
                              PDFObjectReference documentPart);
 
 
+    /// Sets media box to the page. The media box defines size of physical medium, onto which the page 
+    /// is to be printed. 
+    /// \param page Page
+    /// \param box Box
+    void setPageMediaBox(PDFObjectReference page,
+                         QRectF box);
+
+
+    /// Sets trim box to the page. Trim box is physical region, of the printed page after trimming.
+    /// \param page Page
+    /// \param box Box
+    void setPageTrimBox(PDFObjectReference page,
+                        QRectF box);
+
+
     /// This function is used to update trailer dictionary. Must be called each time the final document is 
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
     void updateTrailerDictionary(PDFInteger objectCount);
-
-
-    /// Set reference to 'Names' dictionary to catalog.
-    /// \param names Reference to Names dictionary.
-    void setCatalogNames(PDFObjectReference names);
 
 
 /* END GENERATED CODE */
