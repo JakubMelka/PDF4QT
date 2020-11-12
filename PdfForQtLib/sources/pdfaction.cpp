@@ -469,6 +469,210 @@ PDFDestination PDFDestination::parse(const PDFObjectStorage* storage, PDFObject 
     return result;
 }
 
+void PDFDestination::setDestinationType(DestinationType destinationType)
+{
+    m_destinationType = destinationType;
+}
+
+void PDFDestination::setLeft(PDFReal left)
+{
+    m_left = left;
+}
+
+void PDFDestination::setTop(PDFReal top)
+{
+    m_top = top;
+}
+
+void PDFDestination::setRight(PDFReal right)
+{
+    m_right = right;
+}
+
+void PDFDestination::setBottom(PDFReal bottom)
+{
+    m_bottom = bottom;
+}
+
+void PDFDestination::setZoom(PDFReal zoom)
+{
+    m_zoom = zoom;
+}
+
+void PDFDestination::setName(const QByteArray& name)
+{
+    m_name = name;
+}
+
+void PDFDestination::setPageReference(PDFObjectReference pageReference)
+{
+    m_pageReference = pageReference;
+}
+
+void PDFDestination::setPageIndex(PDFInteger pageIndex)
+{
+    m_pageIndex = pageIndex;
+}
+
+PDFDestination PDFDestination::createXYZ(PDFObjectReference page, PDFReal left, PDFReal top, PDFReal zoom)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::XYZ);
+    result.setPageReference(page);
+    result.setLeft(left);
+    result.setTop(top);
+    result.setZoom(zoom);
+    return result;
+}
+
+PDFDestination PDFDestination::createFit(PDFObjectReference page)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::Fit);
+    result.setPageReference(page);
+    return result;
+}
+
+PDFDestination PDFDestination::createFitH(PDFObjectReference page, PDFReal top)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::FitH);
+    result.setPageReference(page);
+    result.setTop(top);
+    return result;
+}
+
+PDFDestination PDFDestination::createFitV(PDFObjectReference page, PDFReal left)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::FitV);
+    result.setPageReference(page);
+    result.setLeft(left);
+    return result;
+}
+
+PDFDestination PDFDestination::createFitR(PDFObjectReference page, PDFReal left, PDFReal top, PDFReal right, PDFReal bottom)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::FitR);
+    result.setPageReference(page);
+    result.setLeft(left);
+    result.setTop(top);
+    result.setRight(right);
+    result.setBottom(bottom);
+    return result;
+}
+
+PDFDestination PDFDestination::createFitB(PDFObjectReference page)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::FitB);
+    result.setPageReference(page);
+    return result;
+}
+
+PDFDestination PDFDestination::createFitBH(PDFObjectReference page, PDFReal top)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::FitBH);
+    result.setPageReference(page);
+    result.setTop(top);
+    return result;
+}
+
+PDFDestination PDFDestination::createFitBV(PDFObjectReference page, PDFReal left)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::FitBV);
+    result.setPageReference(page);
+    result.setLeft(left);
+    return result;
+}
+
+PDFDestination PDFDestination::createNamed(const QByteArray& name)
+{
+    PDFDestination result;
+    result.setDestinationType(DestinationType::Named);
+    result.setName(name);
+    return result;
+}
+
+bool PDFDestination::hasLeft() const
+{
+    switch (m_destinationType)
+    {
+        case DestinationType::XYZ:
+        case DestinationType::FitV:
+        case DestinationType::FitBV:
+        case DestinationType::FitR:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+bool PDFDestination::hasTop() const
+{
+    switch (m_destinationType)
+    {
+        case DestinationType::XYZ:
+        case DestinationType::FitH:
+        case DestinationType::FitBH:
+        case DestinationType::FitR:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+bool PDFDestination::hasRight() const
+{
+    switch (m_destinationType)
+    {
+        case DestinationType::FitR:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+bool PDFDestination::hasBottom() const
+{
+    switch (m_destinationType)
+    {
+        case DestinationType::FitR:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+bool PDFDestination::hasZoom() const
+{
+    switch (m_destinationType)
+    {
+        case DestinationType::XYZ:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
 PDFFormAction::FieldList PDFFormAction::parseFieldList(const PDFObjectStorage* storage, PDFObject object, FieldScope& fieldScope)
 {
     FieldList result;

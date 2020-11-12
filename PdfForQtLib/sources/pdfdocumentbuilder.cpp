@@ -71,6 +71,82 @@ void PDFObjectFactory::endDictionaryItem()
     std::get<PDFDictionary>(dictionaryItem.object).addEntry(PDFInplaceOrMemoryString(qMove(topItem.itemName)), qMove(std::get<PDFObject>(topItem.object)));
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(const PDFDestination& destination)
+{
+    if (!destination.isValid())
+    {
+        *this << PDFObject();
+        return *this;
+    }
+
+    if (destination.isNamedDestination())
+    {
+        *this << WrapName(destination.getName());
+    }
+    else
+    {
+        beginArray();
+
+        // Destination
+        if (destination.getPageReference().isValid())
+        {
+            *this << destination.getPageReference();
+        }
+        else
+        {
+            *this << destination.getPageIndex();
+        }
+
+        // Type
+        QByteArray type;
+
+        switch (destination.getDestinationType())
+        {
+            case DestinationType::XYZ:
+                type = "XYZ";
+                break;
+
+            case DestinationType::Fit:
+                type = "Fit";
+                break;
+
+            case DestinationType::FitH:
+                type = "FitH";
+                break;
+
+            case DestinationType::FitV:
+                type = "FitV";
+                break;
+
+            case DestinationType::FitR:
+                type = "FitR";
+                break;
+
+            case DestinationType::FitB:
+                type = "FitB";
+                break;
+
+            case DestinationType::FitBH:
+                type = "FitBH";
+                break;
+
+            case DestinationType::FitBV:
+                type = "FitBV";
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        *this << WrapName(type);
+
+        endArray();
+    }
+
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(FileAttachmentIcon icon)
 {
     switch (icon)
@@ -1285,6 +1361,26 @@ PDFObjectReference PDFDocumentBuilder::appendPage(QRectF mediaBox)
     PDFObject updatedTreeRoot = objectBuilder.takeObject();
     appendTo(getPageTreeRoot(), updatedTreeRoot);
     return pageReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionGoTo(PDFDestination destination)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("GoTo");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << destination;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
 }
 
 

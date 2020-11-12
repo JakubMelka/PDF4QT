@@ -79,7 +79,7 @@ enum class DestinationType
 /// destination has almost exactly same syntax as page destination, it should be checked,
 /// if indirect reference returned by function \p getPageReference references really page,
 /// or some structure element.
-class PDFDestination
+class PDFFORQTLIBSHARED_EXPORT PDFDestination
 {
 public:
     explicit inline PDFDestination() = default;
@@ -99,6 +99,35 @@ public:
     /// \param storage Object storage
     /// \param object Destination object
     static PDFDestination parse(const PDFObjectStorage* storage, PDFObject object);
+
+    void setDestinationType(DestinationType destinationType);
+    void setLeft(PDFReal left);
+    void setTop(PDFReal top);
+    void setRight(PDFReal right);
+    void setBottom(PDFReal bottom);
+    void setZoom(PDFReal zoom);
+    void setName(const QByteArray& name);
+    void setPageReference(PDFObjectReference pageReference);
+    void setPageIndex(PDFInteger pageIndex);
+
+    static PDFDestination createXYZ(PDFObjectReference page, PDFReal left, PDFReal top, PDFReal zoom);
+    static PDFDestination createFit(PDFObjectReference page);
+    static PDFDestination createFitH(PDFObjectReference page, PDFReal top);
+    static PDFDestination createFitV(PDFObjectReference page, PDFReal left);
+    static PDFDestination createFitR(PDFObjectReference page, PDFReal left, PDFReal top, PDFReal right, PDFReal bottom);
+    static PDFDestination createFitB(PDFObjectReference page);
+    static PDFDestination createFitBH(PDFObjectReference page, PDFReal top);
+    static PDFDestination createFitBV(PDFObjectReference page, PDFReal left);
+    static PDFDestination createNamed(const QByteArray& name);
+
+    bool hasLeft() const;
+    bool hasTop() const;
+    bool hasRight() const;
+    bool hasBottom() const;
+    bool hasZoom() const;
+
+    bool isValid() const { return m_destinationType != DestinationType::Invalid; }
+    bool isNamedDestination() const { return m_destinationType == DestinationType::Named; }
 
 private:
     DestinationType m_destinationType = DestinationType::Invalid;

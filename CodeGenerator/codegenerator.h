@@ -157,7 +157,8 @@ public:
         _AnnotationLineEnding,
         _AnnotationBorderStyle,
         _FileAttachmentIcon,
-        _Stamp
+        _Stamp,
+        _PDFDestination
     };
     Q_ENUM(DataType)
 

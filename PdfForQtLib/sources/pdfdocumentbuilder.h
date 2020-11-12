@@ -115,6 +115,7 @@ public:
     PDFObjectFactory& operator<<(const PDFObject& object);
     PDFObjectFactory& operator<<(Stamp stamp);
     PDFObjectFactory& operator<<(FileAttachmentIcon icon);
+    PDFObjectFactory& operator<<(const PDFDestination& destination);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -365,6 +366,11 @@ public:
     /// Appends a new page after last page.
     /// \param mediaBox Media box of the page (size of paper)
     PDFObjectReference appendPage(QRectF mediaBox);
+
+
+    /// Creates GoTo action. This action changes view to a specific destination in the same document.
+    /// \param destination Destination
+    PDFObjectReference createActionGoTo(PDFDestination destination);
 
 
     /// Creates URI action.
