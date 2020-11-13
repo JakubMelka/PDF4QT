@@ -373,6 +373,51 @@ public:
     PDFObjectReference createActionGoTo(PDFDestination destination);
 
 
+    /// Creates GoTo action. This action changes view to a specific document part.
+    /// \param documentPart Document part
+    PDFObjectReference createActionGoToDocumentPart(PDFObjectReference documentPart);
+
+
+    /// Creates embedded GoTo action. When executed, action points to destination in another document, 
+    /// which is embedded in this document.
+    /// \param fileSpecification File specification
+    /// \param destination Destination in a embedded document
+    /// \param newWindow Open document in new window
+    PDFObjectReference createActionGoToEmbedded(PDFObjectReference fileSpecification,
+                                                PDFDestination destination,
+                                                bool newWindow);
+
+
+    /// Creates remote GoTo action. When executed, action points to destination in another document.
+    /// \param fileSpecification File specification
+    /// \param destination Destination in a remote document
+    /// \param newWindow Open document in a new window
+    PDFObjectReference createActionGoToRemote(PDFObjectReference fileSpecification,
+                                              PDFDestination destination,
+                                              bool newWindow);
+
+
+    /// Creates launch action. Launch action executes document opening or printing.
+    /// \param fileSpecification File specification
+    /// \param newWindow Open document in new window
+    PDFObjectReference createActionLaunch(PDFObjectReference fileSpecification,
+                                          bool newWindow);
+
+
+    /// Creates launch action. Launch action executes document opening or printing. This variant for 
+    /// Windows operating system, where additional parameters can be specified.
+    /// \param fileName File name
+    /// \param defaultDirectory Default directory
+    /// \param action Action to be performed. Valid values are 'open' or 'print'.
+    /// \param parameters Command line arguments, which are passed to target application
+    /// \param newWindow Open document in new window
+    PDFObjectReference createActionLaunchWin(QByteArray fileName,
+                                             QByteArray defaultDirectory,
+                                             QByteArray action,
+                                             QByteArray parameters,
+                                             bool newWindow);
+
+
     /// Creates URI action.
     /// \param URL Target URL
     PDFObjectReference createActionURI(QString URL);
@@ -894,6 +939,18 @@ public:
     PDFObjectReference createDocumentPartRoot();
 
 
+    /// Creates file specification for external file.
+    /// \param fileName File name
+    PDFObjectReference createFileSpecification(QString fileName);
+
+
+    /// Creates file specification for external file.
+    /// \param fileName File name
+    /// \param description Description
+    PDFObjectReference createFileSpecification(QString fileName,
+                                               QString description);
+
+
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
     /// call this function manually.
     /// \param catalog Reference to document catalog
@@ -1075,15 +1132,15 @@ public:
 
 
     /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
-
-
-    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
+
+
+    /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
 
 
     /// Sets art box to the page. Art box defines page's meaningful content.

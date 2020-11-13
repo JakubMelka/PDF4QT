@@ -1384,6 +1384,146 @@ PDFObjectReference PDFDocumentBuilder::createActionGoTo(PDFDestination destinati
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createActionGoToDocumentPart(PDFObjectReference documentPart)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("GoToDp");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Dp");
+    objectBuilder << documentPart;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionGoToEmbedded(PDFObjectReference fileSpecification,
+                                                                PDFDestination destination,
+                                                                bool newWindow)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("GoToE");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileSpecification;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << destination;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("NewWindow");
+    objectBuilder << newWindow;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionGoToRemote(PDFObjectReference fileSpecification,
+                                                              PDFDestination destination,
+                                                              bool newWindow)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("GoToR");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileSpecification;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << destination;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("NewWindow");
+    objectBuilder << newWindow;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionLaunch(PDFObjectReference fileSpecification,
+                                                          bool newWindow)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Launch");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileSpecification;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("NewWindow");
+    objectBuilder << newWindow;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionLaunchWin(QByteArray fileName,
+                                                             QByteArray defaultDirectory,
+                                                             QByteArray action,
+                                                             QByteArray parameters,
+                                                             bool newWindow)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Launch");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Win");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileName;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << defaultDirectory;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("O");
+    objectBuilder << action;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << parameters;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("NewWindow");
+    objectBuilder << newWindow;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
 PDFObjectReference PDFDocumentBuilder::createActionURI(QString URL)
 {
     PDFObjectFactory objectBuilder;
@@ -3124,6 +3264,38 @@ PDFObjectReference PDFDocumentBuilder::createDocumentPartRoot()
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("UF");
+    objectBuilder << fileName;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference fileSpecification = addObject(objectBuilder.takeObject());
+    return fileSpecification;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName,
+                                                               QString description)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("UF");
+    objectBuilder << fileName;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Desc");
+    objectBuilder << description;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference fileSpecification = addObject(objectBuilder.takeObject());
+    return fileSpecification;
+}
+
+
 PDFObject PDFDocumentBuilder::createTrailerDictionary(PDFObjectReference catalog)
 {
     PDFObjectFactory objectBuilder;
@@ -3582,14 +3754,6 @@ void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
 }
 
 
-void PDFDocumentBuilder::setLanguage(QLocale locale)
-{
-    PDFObjectFactory objectBuilder;
-
-    setLanguage(locale.name());
-}
-
-
 void PDFDocumentBuilder::setLanguage(QString language)
 {
     PDFObjectFactory objectBuilder;
@@ -3601,6 +3765,14 @@ void PDFDocumentBuilder::setLanguage(QString language)
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
     mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
 }
 
 
