@@ -461,6 +461,318 @@ return pageReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
+              <property name="parameterName">annotation</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Annotation</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">hide</property>
+              <property name="parameterType">_bool</property>
+              <property name="parameterDescription">Hide (true) or show (false)</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Hide")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">T</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">annotation</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">H</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">hide</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionHide</property>
+      <property name="functionDescription">Creates hide action. Hide action toggles hide/show state of field or annotation.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">field</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Fully qualified name of a form field</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">hide</property>
+              <property name="parameterType">_bool</property>
+              <property name="parameterDescription">Hide (true) or show (false)</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Hide")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">T</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">field</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">H</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">hide</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionHide</property>
+      <property name="functionDescription">Creates hide action. Hide action toggles hide/show state of field or annotation.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fileSpecification</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Data file</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("ImportData")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">F</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">fileSpecification</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionImportData</property>
+      <property name="functionDescription">Creates import data action for interactive form.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">code</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">JavaScript code</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("JavaScript")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">JS</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">code</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionJavaScript</property>
+      <property name="functionDescription">Creates JavaScript action.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
               <property name="parameterName">fileSpecification</property>
               <property name="parameterType">_PDFObjectReference</property>
               <property name="parameterDescription">File specification</property>
@@ -535,6 +847,1193 @@ return pageReference;</property>
       <property name="functionType">Actions</property>
       <property name="functionName">createActionLaunch</property>
       <property name="functionDescription">Creates launch action. Launch action executes document opening or printing.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fileName</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">File name</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">defaultDirectory</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">Default directory</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">action</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">Action to be performed. Valid values are 'open' or 'print'.</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">parameters</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">Command line arguments, which are passed to target application</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">newWindow</property>
+              <property name="parameterType">_bool</property>
+              <property name="parameterDescription">Open document in new window</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Launch")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items">
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">F</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">fileName</property>
+                        </QObject>
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">D</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">defaultDirectory</property>
+                        </QObject>
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">O</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">action</property>
+                        </QObject>
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">P</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">parameters</property>
+                        </QObject>
+                      </property>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">Dictionary</property>
+                      <property name="value"></property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">Win</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">NewWindow</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">newWindow</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionLaunchWin</property>
+      <property name="functionDescription">Creates launch action. Launch action executes document opening or printing. This variant for Windows operating system, where additional parameters can be specified.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">name</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">Predefined name</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Named")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">N</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName(name)</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionNamed</property>
+      <property name="functionDescription">Creates named action. Named actions are some predefined actions that interactive PDF processor shall support. Valid values are NextPage, PrevPage, FirstPage, LastPage.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Named")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">N</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("FirstPage")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionNavigateFirstPage</property>
+      <property name="functionDescription">Creates action which navigates to a first page.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Named")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">N</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("LastPage")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionNavigateLastPage</property>
+      <property name="functionDescription">Creates action which navigates to a last page.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Named")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">N</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("NextPage")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionNavigateNextPage</property>
+      <property name="functionDescription">Creates action which navigates to a next page.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Named")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">N</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("PrevPage")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionNavigatePrevPage</property>
+      <property name="functionDescription">Creates action which navigates to a previous page.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("ResetForm")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionResetForm</property>
+      <property name="functionDescription">Creates reset interactive form action.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fields</property>
+              <property name="parameterType">_PDFObjectReferenceVector</property>
+              <property name="parameterDescription">Fields to be excluded from reset</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("ResetForm")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Fields</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">fields</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Flags</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">1</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionResetFormExcludedFields</property>
+      <property name="functionDescription">Creates reset interactive form action, which resets all fields except those specified in a given list of fields.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fields</property>
+              <property name="parameterType">_PDFObjectReferenceVector</property>
+              <property name="parameterDescription">Fields to be reset</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("ResetForm")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Fields</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">fields</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionResetFormFields</property>
+      <property name="functionDescription">Creates reset interactive form action, which resets a given list of fields.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">URL</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Web link to server script, which will process the form</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">flags</property>
+              <property name="parameterType">_PDFFormSubmitFlags</property>
+              <property name="parameterDescription">Flags</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("SubmitForm")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items">
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">UF</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">URL</property>
+                        </QObject>
+                      </property>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">Dictionary</property>
+                      <property name="value"></property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">F</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Flags</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">flags</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionSubmitForm</property>
+      <property name="functionDescription">Creates submit form action.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">URL</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Web link to server script, which will process the form</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fields</property>
+              <property name="parameterType">_PDFObjectReferenceVector</property>
+              <property name="parameterDescription">Sumbitted fields</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">flags</property>
+              <property name="parameterType">_PDFFormSubmitFlags</property>
+              <property name="parameterDescription">Flags</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("SubmitForm")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items">
+                        <QObject class="codegen::GeneratedPDFObject">
+                          <property name="objectName"></property>
+                          <property name="items"/>
+                          <property name="dictionaryItemName">UF</property>
+                          <property name="objectType">DictionaryItemSimple</property>
+                          <property name="value">URL</property>
+                        </QObject>
+                      </property>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">Dictionary</property>
+                      <property name="value"></property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">F</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Fields</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">fields</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Flags</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">flags</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionSubmitForm</property>
+      <property name="functionDescription">Creates submit form action.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">thread</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Thread</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">bead</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Bead</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Thread")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">D</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">thread</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">B</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">bead</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionThread</property>
+      <property name="functionDescription">Creates thread action for thread in current file. When executed, viewer jumps to a specific thread.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fileSpecification</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">File containing the thread</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">thread</property>
+              <property name="parameterType">_PDFInteger</property>
+              <property name="parameterDescription">Thread index</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">bead</property>
+              <property name="parameterType">_PDFInteger</property>
+              <property name="parameterDescription">Bead index</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Thread")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">F</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">fileSpecification</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">D</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">thread</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">B</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">bead</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionThread</property>
+      <property name="functionDescription">Creates thread action. When executed, viewer jumps to a specific thread.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">fileSpecification</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">File containing the thread</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">thread</property>
+              <property name="parameterType">_PDFInteger</property>
+              <property name="parameterDescription">Thread index</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Thread")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">F</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">fileSpecification</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">D</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">thread</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionThread</property>
+      <property name="functionDescription">Creates thread action. When executed, viewer jumps to a specific thread.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">thread</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Thread</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Action")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">S</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Thread")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">D</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">thread</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">actionReference</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return actionReference;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Actions</property>
+      <property name="functionName">createActionThread</property>
+      <property name="functionDescription">Creates thread action for thread in current file. When executed, viewer jumps to a specific thread.</property>
       <property name="returnType">_PDFObjectReference</property>
     </QObject>
     <QObject class="codegen::GeneratedFunction">
@@ -1233,209 +2732,6 @@ return annotationReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
-              <property name="parameterName">rectangle</property>
-              <property name="parameterType">_QRectF</property>
-              <property name="parameterDescription">Area in which is text displayed</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">title</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Title</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">subject</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Subject</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">contents</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Contents (text displayed)</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">textAlignment</property>
-              <property name="parameterType">_TextAlignment</property>
-              <property name="parameterDescription">Text alignment. Only horizontal alignment flags are valid.</property>
-            </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedPDFObject">
-              <property name="objectName"></property>
-              <property name="items">
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Type</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("Annot")</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Subtype</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("FreeText")</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Rect</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">rectangle</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">F</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">4</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">P</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">page</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">M</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapCurrentDateTime()</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">CreationDate</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapCurrentDateTime()</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">T</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">title</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Contents</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">contents</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Subj</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">subject</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Q</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapFreeTextAlignment(textAlignment)</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">DA</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapString("/Arial 10 Tf")</property>
-                </QObject>
-              </property>
-              <property name="dictionaryItemName"></property>
-              <property name="objectType">Dictionary</property>
-              <property name="value"></property>
-            </QObject>
-          </property>
-          <property name="actionType">CreateObject</property>
-          <property name="variableName">annotationObject</property>
-          <property name="variableType">_PDFObjectReference</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedPDFObject">
-              <property name="objectName"></property>
-              <property name="items">
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items">
-                    <QObject class="codegen::GeneratedPDFObject">
-                      <property name="objectName"></property>
-                      <property name="items"/>
-                      <property name="dictionaryItemName"></property>
-                      <property name="objectType">ArraySimple</property>
-                      <property name="value">annotationObject</property>
-                    </QObject>
-                  </property>
-                  <property name="dictionaryItemName">Annots</property>
-                  <property name="objectType">DictionaryItemComplex</property>
-                  <property name="value"></property>
-                </QObject>
-              </property>
-              <property name="dictionaryItemName"></property>
-              <property name="objectType">Dictionary</property>
-              <property name="value"></property>
-            </QObject>
-          </property>
-          <property name="actionType">CreateObject</property>
-          <property name="variableName">pageAnnots</property>
-          <property name="variableType">_PDFObject</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
-return annotationObject;</property>
-        </QObject>
-      </property>
-      <property name="functionType">Annotations</property>
-      <property name="functionName">createAnnotationFreeText</property>
-      <property name="functionDescription">Free text annotation displays text directly on a page. Text appears directly on the page, in the same way, as standard text in PDF document. Free text annotations are usually used to comment the document. Free text annotation can also have callout line, with, or without a knee.</property>
-      <property name="returnType">_PDFObjectReference</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">page</property>
-              <property name="parameterType">_PDFObjectReference</property>
-              <property name="parameterDescription">Page to which is annotation added</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
               <property name="parameterName">boundingRectangle</property>
               <property name="parameterType">_QRectF</property>
               <property name="parameterDescription">Bounding rectangle of free text annotation. It must contain both callout line and text rectangle.</property>
@@ -1975,6 +3271,209 @@ return annotationObject;</property>
       <property name="functionType">Annotations</property>
       <property name="functionName">createAnnotationFreeText</property>
       <property name="functionDescription">Free text annotation displays text directly on a page. Text appears directly on the page, in the same way, as standard text in PDF document. Free text annotations are usually used to comment the document. Free text annotation can also have callout line, with, or without a knee. Specify start/end point parameters of this function to get callout line.</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">page</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Page to which is annotation added</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">rectangle</property>
+              <property name="parameterType">_QRectF</property>
+              <property name="parameterDescription">Area in which is text displayed</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">title</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Title</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">subject</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Subject</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">contents</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Contents (text displayed)</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">textAlignment</property>
+              <property name="parameterType">_TextAlignment</property>
+              <property name="parameterDescription">Text alignment. Only horizontal alignment flags are valid.</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Annot")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Subtype</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("FreeText")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Rect</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">rectangle</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">F</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">4</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">P</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">page</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">M</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapCurrentDateTime()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">CreationDate</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapCurrentDateTime()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">T</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">title</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Contents</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">contents</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Subj</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">subject</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Q</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapFreeTextAlignment(textAlignment)</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">DA</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapString("/Arial 10 Tf")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">annotationObject</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items"/>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">ArraySimple</property>
+                      <property name="value">annotationObject</property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">Annots</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">pageAnnots</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
+return annotationObject;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Annotations</property>
+      <property name="functionName">createAnnotationFreeText</property>
+      <property name="functionDescription">Free text annotation displays text directly on a page. Text appears directly on the page, in the same way, as standard text in PDF document. Free text annotations are usually used to comment the document. Free text annotation can also have callout line, with, or without a knee.</property>
       <property name="returnType">_PDFObjectReference</property>
     </QObject>
     <QObject class="codegen::GeneratedFunction">
@@ -3435,6 +4934,60 @@ return annotationObject;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
+              <property name="parameterName">URL</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">URL to be launched when user clicks on the link</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">highlightMode</property>
+              <property name="parameterType">_LinkHighlightMode</property>
+              <property name="parameterDescription">Highlight mode</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">return createAnnotationLink(page, linkRectangle, createActionURI(URL), highlightMode);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Annotations</property>
+      <property name="functionName">createAnnotationLink</property>
+      <property name="functionDescription">Creates new link annotation. It usually represents clickable hypertext link. User can also specify action, which can be executed, for example, link can be also in the PDF document (link to some location in document).</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">page</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Page to which is annotation added</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">linkRectangle</property>
+              <property name="parameterType">_QRectF</property>
+              <property name="parameterDescription">Link rectangle</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
               <property name="parameterName">action</property>
               <property name="parameterType">_PDFObjectReference</property>
               <property name="parameterDescription">Action to be performed when user clicks on a link</property>
@@ -3552,60 +5105,6 @@ return annotationObject;</property>
           <property name="code">appendTo(page, pageAnnots);
 updateAnnotationAppearanceStreams(annotationReference);
 return annotationReference;</property>
-        </QObject>
-      </property>
-      <property name="functionType">Annotations</property>
-      <property name="functionName">createAnnotationLink</property>
-      <property name="functionDescription">Creates new link annotation. It usually represents clickable hypertext link. User can also specify action, which can be executed, for example, link can be also in the PDF document (link to some location in document).</property>
-      <property name="returnType">_PDFObjectReference</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">page</property>
-              <property name="parameterType">_PDFObjectReference</property>
-              <property name="parameterDescription">Page to which is annotation added</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">linkRectangle</property>
-              <property name="parameterType">_QRectF</property>
-              <property name="parameterDescription">Link rectangle</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">URL</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">URL to be launched when user clicks on the link</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">highlightMode</property>
-              <property name="parameterType">_LinkHighlightMode</property>
-              <property name="parameterDescription">Highlight mode</property>
-            </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">return createAnnotationLink(page, linkRectangle, createActionURI(URL), highlightMode);</property>
         </QObject>
       </property>
       <property name="functionType">Annotations</property>
@@ -4494,27 +5993,6 @@ return annotationObject;</property>
               <property name="parameterType">_QColor</property>
               <property name="parameterDescription">Color</property>
             </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">title</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Title</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">subject</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Subject</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">contents</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Contents</property>
-            </QObject>
           </property>
           <property name="actionType">Parameters</property>
           <property name="variableName"></property>
@@ -4558,13 +6036,6 @@ return annotationObject;</property>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
                   <property name="items"/>
-                  <property name="dictionaryItemName">M</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapCurrentDateTime()</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
                   <property name="dictionaryItemName">CreationDate</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">WrapCurrentDateTime()</property>
@@ -4575,27 +6046,6 @@ return annotationObject;</property>
                   <property name="dictionaryItemName">C</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">color</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">T</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">title</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Contents</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">contents</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Subj</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">subject</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
@@ -4698,6 +6148,27 @@ return annotationObject;</property>
               <property name="parameterType">_QColor</property>
               <property name="parameterDescription">Color</property>
             </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">title</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Title</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">subject</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Subject</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">contents</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Contents</property>
+            </QObject>
           </property>
           <property name="actionType">Parameters</property>
           <property name="variableName"></property>
@@ -4741,6 +6212,13 @@ return annotationObject;</property>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
                   <property name="items"/>
+                  <property name="dictionaryItemName">M</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapCurrentDateTime()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
                   <property name="dictionaryItemName">CreationDate</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">WrapCurrentDateTime()</property>
@@ -4751,6 +6229,27 @@ return annotationObject;</property>
                   <property name="dictionaryItemName">C</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">color</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">T</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">title</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Contents</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">contents</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Subj</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">subject</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
@@ -5644,161 +7143,6 @@ return annotationObject;</property>
               <property name="parameterType">_QColor</property>
               <property name="parameterDescription">Color</property>
             </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedPDFObject">
-              <property name="objectName"></property>
-              <property name="items">
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Type</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("Annot")</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Subtype</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("Underline")</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Rect</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">rectangle</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">P</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">page</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">CreationDate</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapCurrentDateTime()</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">C</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">color</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items">
-                    <QObject class="codegen::GeneratedPDFObject">
-                      <property name="objectName"></property>
-                      <property name="items"/>
-                      <property name="dictionaryItemName"></property>
-                      <property name="objectType">ArraySimple</property>
-                      <property name="value">rectangle.bottomLeft();rectangle.bottomRight();rectangle.topLeft();rectangle.topRight()</property>
-                    </QObject>
-                  </property>
-                  <property name="dictionaryItemName">QuadPoints</property>
-                  <property name="objectType">DictionaryItemComplex</property>
-                  <property name="value"></property>
-                </QObject>
-              </property>
-              <property name="dictionaryItemName"></property>
-              <property name="objectType">Dictionary</property>
-              <property name="value"></property>
-            </QObject>
-          </property>
-          <property name="actionType">CreateObject</property>
-          <property name="variableName">annotationObject</property>
-          <property name="variableType">_PDFObjectReference</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedPDFObject">
-              <property name="objectName"></property>
-              <property name="items">
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items">
-                    <QObject class="codegen::GeneratedPDFObject">
-                      <property name="objectName"></property>
-                      <property name="items"/>
-                      <property name="dictionaryItemName"></property>
-                      <property name="objectType">ArraySimple</property>
-                      <property name="value">annotationObject</property>
-                    </QObject>
-                  </property>
-                  <property name="dictionaryItemName">Annots</property>
-                  <property name="objectType">DictionaryItemComplex</property>
-                  <property name="value"></property>
-                </QObject>
-              </property>
-              <property name="dictionaryItemName"></property>
-              <property name="objectType">Dictionary</property>
-              <property name="value"></property>
-            </QObject>
-          </property>
-          <property name="actionType">CreateObject</property>
-          <property name="variableName">pageAnnots</property>
-          <property name="variableType">_PDFObject</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
-return annotationObject;</property>
-        </QObject>
-      </property>
-      <property name="functionType">Annotations</property>
-      <property name="functionName">createAnnotationUnderline</property>
-      <property name="functionDescription">Text markup annotation is used to underline text. It is a markup annotation, so it can contain window to be opened (and commented).</property>
-      <property name="returnType">_PDFObjectReference</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">page</property>
-              <property name="parameterType">_PDFObjectReference</property>
-              <property name="parameterDescription">Page to which is annotation added</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">rectangle</property>
-              <property name="parameterType">_QRectF</property>
-              <property name="parameterDescription">Area in which is markup displayed</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">color</property>
-              <property name="parameterType">_QColor</property>
-              <property name="parameterDescription">Color</property>
-            </QObject>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
@@ -5901,6 +7245,161 @@ return annotationObject;</property>
                   <property name="dictionaryItemName">Subj</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">subject</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items"/>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">ArraySimple</property>
+                      <property name="value">rectangle.bottomLeft();rectangle.bottomRight();rectangle.topLeft();rectangle.topRight()</property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">QuadPoints</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">annotationObject</property>
+          <property name="variableType">_PDFObjectReference</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items">
+                    <QObject class="codegen::GeneratedPDFObject">
+                      <property name="objectName"></property>
+                      <property name="items"/>
+                      <property name="dictionaryItemName"></property>
+                      <property name="objectType">ArraySimple</property>
+                      <property name="value">annotationObject</property>
+                    </QObject>
+                  </property>
+                  <property name="dictionaryItemName">Annots</property>
+                  <property name="objectType">DictionaryItemComplex</property>
+                  <property name="value"></property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">pageAnnots</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">appendTo(page, pageAnnots);
+updateAnnotationAppearanceStreams(annotationObject);
+return annotationObject;</property>
+        </QObject>
+      </property>
+      <property name="functionType">Annotations</property>
+      <property name="functionName">createAnnotationUnderline</property>
+      <property name="functionDescription">Text markup annotation is used to underline text. It is a markup annotation, so it can contain window to be opened (and commented).</property>
+      <property name="returnType">_PDFObjectReference</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">page</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Page to which is annotation added</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">rectangle</property>
+              <property name="parameterType">_QRectF</property>
+              <property name="parameterDescription">Area in which is markup displayed</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">color</property>
+              <property name="parameterType">_QColor</property>
+              <property name="parameterDescription">Color</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Annot")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Subtype</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Underline")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Rect</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">rectangle</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">P</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">page</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">CreationDate</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapCurrentDateTime()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">C</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">color</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
@@ -6306,6 +7805,13 @@ return rootNodeReference;</property>
               <property name="parameterType">_QString</property>
               <property name="parameterDescription">File name</property>
             </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">description</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Description</property>
+            </QObject>
           </property>
           <property name="actionType">Parameters</property>
           <property name="variableName"></property>
@@ -6324,6 +7830,13 @@ return rootNodeReference;</property>
                   <property name="dictionaryItemName">UF</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">fileName</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Desc</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">description</property>
                 </QObject>
               </property>
               <property name="dictionaryItemName"></property>
@@ -6363,13 +7876,6 @@ return rootNodeReference;</property>
               <property name="parameterType">_QString</property>
               <property name="parameterDescription">File name</property>
             </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">description</property>
-              <property name="parameterType">_QString</property>
-              <property name="parameterDescription">Description</property>
-            </QObject>
           </property>
           <property name="actionType">Parameters</property>
           <property name="variableName"></property>
@@ -6388,13 +7894,6 @@ return rootNodeReference;</property>
                   <property name="dictionaryItemName">UF</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">fileName</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Desc</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">description</property>
                 </QObject>
               </property>
               <property name="dictionaryItemName"></property>
@@ -8235,39 +9734,6 @@ return rootNodeReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
-              <property name="parameterName">locale</property>
-              <property name="parameterType">_QLocale</property>
-              <property name="parameterDescription">Locale, from which is language determined</property>
-            </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">setLanguage(locale.name());</property>
-        </QObject>
-      </property>
-      <property name="functionType">Structure</property>
-      <property name="functionName">setLanguage</property>
-      <property name="functionDescription">Set document language.</property>
-      <property name="returnType">_void</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
               <property name="parameterName">language</property>
               <property name="parameterType">_QString</property>
               <property name="parameterDescription">Document language. It should be a language identifier, as defined in ISO 639 and ISO 3166. For example, "en-US", where first two letter means language code (en = english), and the latter two is country code (US - United States).</property>
@@ -8309,6 +9775,39 @@ return rootNodeReference;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">setLanguage</property>
+      <property name="functionDescription">Set document language.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">locale</property>
+              <property name="parameterType">_QLocale</property>
+              <property name="parameterDescription">Locale, from which is language determined</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">setLanguage(locale.name());</property>
         </QObject>
       </property>
       <property name="functionType">Structure</property>
@@ -8788,149 +10287,6 @@ updateDocumentInfo(qMove(updatedInfoDictionary));</property>
       <property name="functionName">updateTrailerDictionary</property>
       <property name="functionDescription">This function is used to update trailer dictionary. Must be called each time the final document is being built.</property>
       <property name="returnType">_void</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">fileName</property>
-              <property name="parameterType">_QByteArray</property>
-              <property name="parameterDescription">File name</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">defaultDirectory</property>
-              <property name="parameterType">_QByteArray</property>
-              <property name="parameterDescription">Default directory</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">action</property>
-              <property name="parameterType">_QByteArray</property>
-              <property name="parameterDescription">Action to be performed. Valid values are 'open' or 'print'.</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">parameters</property>
-              <property name="parameterType">_QByteArray</property>
-              <property name="parameterDescription">Command line arguments, which are passed to target application</property>
-            </QObject>
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
-              <property name="parameterName">newWindow</property>
-              <property name="parameterType">_bool</property>
-              <property name="parameterDescription">Open document in new window</property>
-            </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedPDFObject">
-              <property name="objectName"></property>
-              <property name="items">
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Type</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("Action")</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">S</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("Launch")</property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items">
-                    <QObject class="codegen::GeneratedPDFObject">
-                      <property name="objectName"></property>
-                      <property name="items">
-                        <QObject class="codegen::GeneratedPDFObject">
-                          <property name="objectName"></property>
-                          <property name="items"/>
-                          <property name="dictionaryItemName">F</property>
-                          <property name="objectType">DictionaryItemSimple</property>
-                          <property name="value">fileName</property>
-                        </QObject>
-                        <QObject class="codegen::GeneratedPDFObject">
-                          <property name="objectName"></property>
-                          <property name="items"/>
-                          <property name="dictionaryItemName">D</property>
-                          <property name="objectType">DictionaryItemSimple</property>
-                          <property name="value">defaultDirectory</property>
-                        </QObject>
-                        <QObject class="codegen::GeneratedPDFObject">
-                          <property name="objectName"></property>
-                          <property name="items"/>
-                          <property name="dictionaryItemName">O</property>
-                          <property name="objectType">DictionaryItemSimple</property>
-                          <property name="value">action</property>
-                        </QObject>
-                        <QObject class="codegen::GeneratedPDFObject">
-                          <property name="objectName"></property>
-                          <property name="items"/>
-                          <property name="dictionaryItemName">P</property>
-                          <property name="objectType">DictionaryItemSimple</property>
-                          <property name="value">parameters</property>
-                        </QObject>
-                      </property>
-                      <property name="dictionaryItemName"></property>
-                      <property name="objectType">Dictionary</property>
-                      <property name="value"></property>
-                    </QObject>
-                  </property>
-                  <property name="dictionaryItemName">Win</property>
-                  <property name="objectType">DictionaryItemComplex</property>
-                  <property name="value"></property>
-                </QObject>
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">NewWindow</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">newWindow</property>
-                </QObject>
-              </property>
-              <property name="dictionaryItemName"></property>
-              <property name="objectType">Dictionary</property>
-              <property name="value"></property>
-            </QObject>
-          </property>
-          <property name="actionType">CreateObject</property>
-          <property name="variableName">actionReference</property>
-          <property name="variableType">_PDFObjectReference</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">return actionReference;</property>
-        </QObject>
-      </property>
-      <property name="functionType">Actions</property>
-      <property name="functionName">createActionLaunchWin</property>
-      <property name="functionDescription">Creates launch action. Launch action executes document opening or printing. This variant for Windows operating system, where additional parameters can be specified.</property>
-      <property name="returnType">_PDFObjectReference</property>
     </QObject>
   </property>
 </root>

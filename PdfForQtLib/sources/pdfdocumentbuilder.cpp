@@ -1460,6 +1460,94 @@ PDFObjectReference PDFDocumentBuilder::createActionGoToRemote(PDFObjectReference
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createActionHide(PDFObjectReference annotation,
+                                                        bool hide)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Hide");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << annotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("H");
+    objectBuilder << hide;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionHide(QString field,
+                                                        bool hide)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Hide");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << field;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("H");
+    objectBuilder << hide;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionImportData(PDFObjectReference fileSpecification)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("ImportData");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileSpecification;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionJavaScript(QString code)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("JavaScript");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("JS");
+    objectBuilder << code;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
 PDFObjectReference PDFDocumentBuilder::createActionLaunch(PDFObjectReference fileSpecification,
                                                           bool newWindow)
 {
@@ -1517,6 +1605,322 @@ PDFObjectReference PDFDocumentBuilder::createActionLaunchWin(QByteArray fileName
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("NewWindow");
     objectBuilder << newWindow;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionNamed(QByteArray name)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Named");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("N");
+    objectBuilder << WrapName(name);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionNavigateFirstPage()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Named");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("N");
+    objectBuilder << WrapName("FirstPage");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionNavigateLastPage()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Named");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("N");
+    objectBuilder << WrapName("LastPage");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionNavigateNextPage()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Named");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("N");
+    objectBuilder << WrapName("NextPage");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionNavigatePrevPage()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Named");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("N");
+    objectBuilder << WrapName("PrevPage");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionResetForm()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("ResetForm");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionResetFormExcludedFields(PDFObjectReferenceVector fields)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("ResetForm");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Fields");
+    objectBuilder << fields;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Flags");
+    objectBuilder << 1;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionResetFormFields(PDFObjectReferenceVector fields)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("ResetForm");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Fields");
+    objectBuilder << fields;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionSubmitForm(QString URL,
+                                                              PDFFormSubmitFlags flags)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("SubmitForm");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("UF");
+    objectBuilder << URL;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Flags");
+    objectBuilder << flags;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionSubmitForm(QString URL,
+                                                              PDFObjectReferenceVector fields,
+                                                              PDFFormSubmitFlags flags)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("SubmitForm");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("UF");
+    objectBuilder << URL;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Fields");
+    objectBuilder << fields;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Flags");
+    objectBuilder << flags;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionThread(PDFObjectReference thread,
+                                                          PDFObjectReference bead)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Thread");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << thread;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("B");
+    objectBuilder << bead;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionThread(PDFObjectReference fileSpecification,
+                                                          PDFInteger thread,
+                                                          PDFInteger bead)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Thread");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileSpecification;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << thread;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("B");
+    objectBuilder << bead;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionThread(PDFObjectReference fileSpecification,
+                                                          PDFInteger thread)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Thread");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << fileSpecification;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << thread;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
+    return actionReference;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createActionThread(PDFObjectReference thread)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Action");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("S");
+    objectBuilder << WrapName("Thread");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("D");
+    objectBuilder << thread;
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObjectReference actionReference = addObject(objectBuilder.takeObject());
@@ -1725,68 +2129,6 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationFileAttachment(PDFObjectR
 
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReference page,
-                                                                QRectF rectangle,
-                                                                QString title,
-                                                                QString subject,
-                                                                QString contents,
-                                                                TextAlignment textAlignment)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Annot");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Subtype");
-    objectBuilder << WrapName("FreeText");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Rect");
-    objectBuilder << rectangle;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("F");
-    objectBuilder << 4;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("P");
-    objectBuilder << page;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("M");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("CreationDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("T");
-    objectBuilder << title;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Contents");
-    objectBuilder << contents;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Subj");
-    objectBuilder << subject;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Q");
-    objectBuilder << WrapFreeTextAlignment(textAlignment);
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("DA");
-    objectBuilder << WrapString("/Arial 10 Tf");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Annots");
-    objectBuilder.beginArray();
-    objectBuilder << annotationObject;
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject pageAnnots = objectBuilder.takeObject();
-    appendTo(page, pageAnnots);
-    updateAnnotationAppearanceStreams(annotationObject);
-    return annotationObject;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReference page,
                                                                 QRectF boundingRectangle,
                                                                 QRectF textRectangle,
                                                                 QString title,
@@ -1935,6 +2277,68 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReferen
     objectBuilder << startLineType;
     objectBuilder << endLineType;
     objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationFreeText(PDFObjectReference page,
+                                                                QRectF rectangle,
+                                                                QString title,
+                                                                QString subject,
+                                                                QString contents,
+                                                                TextAlignment textAlignment)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("FreeText");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("F");
+    objectBuilder << 4;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("M");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << title;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Contents");
+    objectBuilder << contents;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subj");
+    objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Q");
+    objectBuilder << WrapFreeTextAlignment(textAlignment);
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("DA");
+    objectBuilder << WrapString("/Arial 10 Tf");
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
@@ -2391,6 +2795,17 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLine(PDFObjectReference p
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference page,
                                                             QRectF linkRectangle,
+                                                            QString URL,
+                                                            LinkHighlightMode highlightMode)
+{
+    PDFObjectFactory objectBuilder;
+
+    return createAnnotationLink(page, linkRectangle, createActionURI(URL), highlightMode);
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference page,
+                                                            QRectF linkRectangle,
                                                             PDFObjectReference action,
                                                             LinkHighlightMode highlightMode)
 {
@@ -2428,17 +2843,6 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference p
     appendTo(page, pageAnnots);
     updateAnnotationAppearanceStreams(annotationReference);
     return annotationReference;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createAnnotationLink(PDFObjectReference page,
-                                                            QRectF linkRectangle,
-                                                            QString URL,
-                                                            LinkHighlightMode highlightMode)
-{
-    PDFObjectFactory objectBuilder;
-
-    return createAnnotationLink(page, linkRectangle, createActionURI(URL), highlightMode);
 }
 
 
@@ -2699,6 +3103,55 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquare(PDFObjectReference
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReference page,
                                                                 QRectF rectangle,
+                                                                QColor color)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Squiggly");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << color;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("QuadPoints");
+    objectBuilder.beginArray();
+    objectBuilder << rectangle.bottomLeft();
+    objectBuilder << rectangle.bottomRight();
+    objectBuilder << rectangle.topLeft();
+    objectBuilder << rectangle.topRight();
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReference page,
+                                                                QRectF rectangle,
                                                                 QColor color,
                                                                 QString title,
                                                                 QString subject,
@@ -2736,55 +3189,6 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReferen
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subj");
     objectBuilder << subject;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("QuadPoints");
-    objectBuilder.beginArray();
-    objectBuilder << rectangle.bottomLeft();
-    objectBuilder << rectangle.bottomRight();
-    objectBuilder << rectangle.topLeft();
-    objectBuilder << rectangle.topRight();
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Annots");
-    objectBuilder.beginArray();
-    objectBuilder << annotationObject;
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject pageAnnots = objectBuilder.takeObject();
-    appendTo(page, pageAnnots);
-    updateAnnotationAppearanceStreams(annotationObject);
-    return annotationObject;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createAnnotationSquiggly(PDFObjectReference page,
-                                                                QRectF rectangle,
-                                                                QColor color)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Annot");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Subtype");
-    objectBuilder << WrapName("Squiggly");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Rect");
-    objectBuilder << rectangle;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("P");
-    objectBuilder << page;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("CreationDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("C");
-    objectBuilder << color;
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("QuadPoints");
     objectBuilder.beginArray();
@@ -3054,55 +3458,6 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationText(PDFObjectReference p
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectReference page,
                                                                  QRectF rectangle,
-                                                                 QColor color)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Annot");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Subtype");
-    objectBuilder << WrapName("Underline");
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("Rect");
-    objectBuilder << rectangle;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("P");
-    objectBuilder << page;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("CreationDate");
-    objectBuilder << WrapCurrentDateTime();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("C");
-    objectBuilder << color;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.beginDictionaryItem("QuadPoints");
-    objectBuilder.beginArray();
-    objectBuilder << rectangle.bottomLeft();
-    objectBuilder << rectangle.bottomRight();
-    objectBuilder << rectangle.topLeft();
-    objectBuilder << rectangle.topRight();
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Annots");
-    objectBuilder.beginArray();
-    objectBuilder << annotationObject;
-    objectBuilder.endArray();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject pageAnnots = objectBuilder.takeObject();
-    appendTo(page, pageAnnots);
-    updateAnnotationAppearanceStreams(annotationObject);
-    return annotationObject;
-}
-
-
-PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectReference page,
-                                                                 QRectF rectangle,
                                                                  QColor color,
                                                                  QString title,
                                                                  QString subject,
@@ -3140,6 +3495,55 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectRefere
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subj");
     objectBuilder << subject;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("QuadPoints");
+    objectBuilder.beginArray();
+    objectBuilder << rectangle.bottomLeft();
+    objectBuilder << rectangle.bottomRight();
+    objectBuilder << rectangle.topLeft();
+    objectBuilder << rectangle.topRight();
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference annotationObject = addObject(objectBuilder.takeObject());
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder.beginArray();
+    objectBuilder << annotationObject;
+    objectBuilder.endArray();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageAnnots = objectBuilder.takeObject();
+    appendTo(page, pageAnnots);
+    updateAnnotationAppearanceStreams(annotationObject);
+    return annotationObject;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createAnnotationUnderline(PDFObjectReference page,
+                                                                 QRectF rectangle,
+                                                                 QColor color)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Underline");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rectangle;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("CreationDate");
+    objectBuilder << WrapCurrentDateTime();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << color;
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("QuadPoints");
     objectBuilder.beginArray();
@@ -3264,20 +3668,6 @@ PDFObjectReference PDFDocumentBuilder::createDocumentPartRoot()
 }
 
 
-PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName)
-{
-    PDFObjectFactory objectBuilder;
-
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("UF");
-    objectBuilder << fileName;
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObjectReference fileSpecification = addObject(objectBuilder.takeObject());
-    return fileSpecification;
-}
-
-
 PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName,
                                                                QString description)
 {
@@ -3289,6 +3679,20 @@ PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName,
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Desc");
     objectBuilder << description;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference fileSpecification = addObject(objectBuilder.takeObject());
+    return fileSpecification;
+}
+
+
+PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("UF");
+    objectBuilder << fileName;
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObjectReference fileSpecification = addObject(objectBuilder.takeObject());

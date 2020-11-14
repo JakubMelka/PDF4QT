@@ -141,6 +141,8 @@ public:
         _PDFObjectReference,
         _PDFObject,
         _PDFIntegerVector,
+        _PDFObjectReferenceVector,
+        _PDFFormSubmitFlags,
         _QString,
         _QPointF,
         _QRectF,

@@ -28,6 +28,8 @@ namespace pdf
 {
 
 using PDFIntegerVector = std::vector<PDFInteger>;
+using PDFObjectReferenceVector = std::vector<PDFObjectReference>;
+using PDFFormSubmitFlags = PDFActionSubmitForm::SubmitFlags;
 
 struct WrapName
 {
@@ -397,6 +399,30 @@ public:
                                               bool newWindow);
 
 
+    /// Creates hide action. Hide action toggles hide/show state of field or annotation.
+    /// \param annotation Annotation
+    /// \param hide Hide (true) or show (false)
+    PDFObjectReference createActionHide(PDFObjectReference annotation,
+                                        bool hide);
+
+
+    /// Creates hide action. Hide action toggles hide/show state of field or annotation.
+    /// \param field Fully qualified name of a form field
+    /// \param hide Hide (true) or show (false)
+    PDFObjectReference createActionHide(QString field,
+                                        bool hide);
+
+
+    /// Creates import data action for interactive form.
+    /// \param fileSpecification Data file
+    PDFObjectReference createActionImportData(PDFObjectReference fileSpecification);
+
+
+    /// Creates JavaScript action.
+    /// \param code JavaScript code
+    PDFObjectReference createActionJavaScript(QString code);
+
+
     /// Creates launch action. Launch action executes document opening or printing.
     /// \param fileSpecification File specification
     /// \param newWindow Open document in new window
@@ -416,6 +442,87 @@ public:
                                              QByteArray action,
                                              QByteArray parameters,
                                              bool newWindow);
+
+
+    /// Creates named action. Named actions are some predefined actions that interactive PDF processor 
+    /// shall support. Valid values are NextPage, PrevPage, FirstPage, LastPage.
+    /// \param name Predefined name
+    PDFObjectReference createActionNamed(QByteArray name);
+
+
+    /// Creates action which navigates to a first page.
+    PDFObjectReference createActionNavigateFirstPage();
+
+
+    /// Creates action which navigates to a last page.
+    PDFObjectReference createActionNavigateLastPage();
+
+
+    /// Creates action which navigates to a next page.
+    PDFObjectReference createActionNavigateNextPage();
+
+
+    /// Creates action which navigates to a previous page.
+    PDFObjectReference createActionNavigatePrevPage();
+
+
+    /// Creates reset interactive form action.
+    PDFObjectReference createActionResetForm();
+
+
+    /// Creates reset interactive form action, which resets all fields except those specified in a given list of 
+    /// fields.
+    /// \param fields Fields to be excluded from reset
+    PDFObjectReference createActionResetFormExcludedFields(PDFObjectReferenceVector fields);
+
+
+    /// Creates reset interactive form action, which resets a given list of fields.
+    /// \param fields Fields to be reset
+    PDFObjectReference createActionResetFormFields(PDFObjectReferenceVector fields);
+
+
+    /// Creates submit form action.
+    /// \param URL Web link to server script, which will process the form
+    /// \param flags Flags
+    PDFObjectReference createActionSubmitForm(QString URL,
+                                              PDFFormSubmitFlags flags);
+
+
+    /// Creates submit form action.
+    /// \param URL Web link to server script, which will process the form
+    /// \param fields Sumbitted fields
+    /// \param flags Flags
+    PDFObjectReference createActionSubmitForm(QString URL,
+                                              PDFObjectReferenceVector fields,
+                                              PDFFormSubmitFlags flags);
+
+
+    /// Creates thread action for thread in current file. When executed, viewer jumps to a specific thread.
+    /// \param thread Thread
+    /// \param bead Bead
+    PDFObjectReference createActionThread(PDFObjectReference thread,
+                                          PDFObjectReference bead);
+
+
+    /// Creates thread action. When executed, viewer jumps to a specific thread.
+    /// \param fileSpecification File containing the thread
+    /// \param thread Thread index
+    /// \param bead Bead index
+    PDFObjectReference createActionThread(PDFObjectReference fileSpecification,
+                                          PDFInteger thread,
+                                          PDFInteger bead);
+
+
+    /// Creates thread action. When executed, viewer jumps to a specific thread.
+    /// \param fileSpecification File containing the thread
+    /// \param thread Thread index
+    PDFObjectReference createActionThread(PDFObjectReference fileSpecification,
+                                          PDFInteger thread);
+
+
+    /// Creates thread action for thread in current file. When executed, viewer jumps to a specific thread.
+    /// \param thread Thread
+    PDFObjectReference createActionThread(PDFObjectReference thread);
 
 
     /// Creates URI action.
@@ -481,23 +588,6 @@ public:
 
     /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
     /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
-    /// the document. Free text annotation can also have callout line, with, or without a knee.
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is text displayed
-    /// \param title Title
-    /// \param subject Subject
-    /// \param contents Contents (text displayed)
-    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
-    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
-                                                QRectF rectangle,
-                                                QString title,
-                                                QString subject,
-                                                QString contents,
-                                                TextAlignment textAlignment);
-
-
-    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
-    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
     /// the document. Free text annotation can also have callout line, with, or without a knee. Specify 
     /// start/end point parameters of this function to get callout line.
     /// \param page Page to which is annotation added
@@ -556,6 +646,23 @@ public:
                                                 QPointF endPoint,
                                                 AnnotationLineEnding startLineType,
                                                 AnnotationLineEnding endLineType);
+
+
+    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
+    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
+    /// the document. Free text annotation can also have callout line, with, or without a knee.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is text displayed
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents (text displayed)
+    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
+    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
+                                                QRectF rectangle,
+                                                QString title,
+                                                QString subject,
+                                                QString contents,
+                                                TextAlignment textAlignment);
 
 
     /// Text markup annotation is used to highlight text. It is a markup annotation, so it can contain 
@@ -698,11 +805,11 @@ public:
     /// location in document).
     /// \param page Page to which is annotation added
     /// \param linkRectangle Link rectangle
-    /// \param action Action to be performed when user clicks on a link
+    /// \param URL URL to be launched when user clicks on the link
     /// \param highlightMode Highlight mode
     PDFObjectReference createAnnotationLink(PDFObjectReference page,
                                             QRectF linkRectangle,
-                                            PDFObjectReference action,
+                                            QString URL,
                                             LinkHighlightMode highlightMode);
 
 
@@ -711,11 +818,11 @@ public:
     /// location in document).
     /// \param page Page to which is annotation added
     /// \param linkRectangle Link rectangle
-    /// \param URL URL to be launched when user clicks on the link
+    /// \param action Action to be performed when user clicks on a link
     /// \param highlightMode Highlight mode
     PDFObjectReference createAnnotationLink(PDFObjectReference page,
                                             QRectF linkRectangle,
-                                            QString URL,
+                                            PDFObjectReference action,
                                             LinkHighlightMode highlightMode);
 
 
@@ -807,6 +914,16 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
+    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
+                                                QRectF rectangle,
+                                                QColor color);
+
+
+    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
+    /// contain window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
     /// \param title Title
     /// \param subject Subject
     /// \param contents Contents
@@ -816,16 +933,6 @@ public:
                                                 QString title,
                                                 QString subject,
                                                 QString contents);
-
-
-    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
-    /// contain window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
-    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
-                                                QRectF rectangle,
-                                                QColor color);
 
 
     /// Stamp annotation
@@ -895,16 +1002,6 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
-    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
-                                                 QRectF rectangle,
-                                                 QColor color);
-
-
-    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
-    /// window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
     /// \param title Title
     /// \param subject Subject
     /// \param contents Contents
@@ -914,6 +1011,16 @@ public:
                                                  QString title,
                                                  QString subject,
                                                  QString contents);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
@@ -941,14 +1048,14 @@ public:
 
     /// Creates file specification for external file.
     /// \param fileName File name
-    PDFObjectReference createFileSpecification(QString fileName);
+    /// \param description Description
+    PDFObjectReference createFileSpecification(QString fileName,
+                                               QString description);
 
 
     /// Creates file specification for external file.
     /// \param fileName File name
-    /// \param description Description
-    PDFObjectReference createFileSpecification(QString fileName,
-                                               QString description);
+    PDFObjectReference createFileSpecification(QString fileName);
 
 
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
