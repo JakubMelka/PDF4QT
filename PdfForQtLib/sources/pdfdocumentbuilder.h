@@ -305,6 +305,11 @@ public:
     /// be flattened to use this function. \sa flattenPageTree
     std::vector<PDFObjectReference> getPages() const;
 
+    /// Sets document outline root item corresponds to invisible root.
+    /// Top-level items are children of the root.
+    /// \param root Root item
+    void setOutline(const PDFOutlineItem* root);
+
     /// Adds a new objet to the object storage
     /// \param object Object
     PDFObjectReference addObject(PDFObject object);
@@ -1250,6 +1255,11 @@ public:
     void setLanguage(QLocale locale);
 
 
+    /// Set document outline.
+    /// \param outline Document outline root
+    void setOutline(PDFObjectReference outline);
+
+
     /// Sets art box to the page. Art box defines page's meaningful content.
     /// \param page Page
     /// \param box Box
@@ -1296,6 +1306,13 @@ public:
                         QRectF box);
 
 
+    /// Sets page's user unit. It specifies user space unit, in multiples of 1 / 72 inch.
+    /// \param page Page
+    /// \param unit Unit (multiple of 1pt = 1 / 72 inch)
+    void setPageUserUnit(PDFObjectReference page,
+                         PDFReal unit);
+
+
     /// This function is used to update trailer dictionary. Must be called each time the final document is 
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
@@ -1312,6 +1329,7 @@ private:
     PDFObjectReference getDocumentInfo() const;
     void updateDocumentInfo(PDFObject info);
     QRectF getPolygonsBoundingRect(const Polygons& Polygons) const;
+    PDFObjectReference createOutlineItem(const PDFOutlineItem* root, bool writeOutlineData);
 
     PDFObjectStorage m_storage;
     PDFVersion m_version;

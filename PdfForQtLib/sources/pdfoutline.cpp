@@ -23,6 +23,18 @@
 namespace pdf
 {
 
+size_t PDFOutlineItem::getTotalCount() const
+{
+    size_t count = m_children.size();
+
+    for (size_t i = 0; i < m_children.size(); ++i)
+    {
+        count += getChild(i)->getTotalCount();
+    }
+
+    return count;
+}
+
 QSharedPointer<PDFOutlineItem> PDFOutlineItem::parse(const PDFDocument* document, const PDFObject& root)
 {
     const PDFObject& rootDereferenced = document->getObject(root);

@@ -1059,6 +1059,115 @@ QRectF PDFDocumentBuilder::getPolygonsBoundingRect(const Polygons& polygons) con
     return rect;
 }
 
+PDFObjectReference PDFDocumentBuilder::createOutlineItem(const PDFOutlineItem* root, bool writeOutlineData)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+
+    if (writeOutlineData)
+    {
+        // Title
+        objectBuilder.beginDictionaryItem("Title");
+        objectBuilder << root->getTitle();
+        objectBuilder.endDictionaryItem();
+
+        // Destination
+        const PDFActionGoTo* action = dynamic_cast<const PDFActionGoTo*>(root->getAction());
+        if (action)
+        {
+            objectBuilder.beginDictionaryItem("Dest");
+            objectBuilder << action->getDestination();
+            objectBuilder.endDictionaryItem();
+        }
+
+        // Color
+        if (root->getTextColor().isValid() && root->getTextColor() != Qt::black)
+        {
+            objectBuilder.beginDictionaryItem("C");
+            objectBuilder << root->getTextColor();
+            objectBuilder.endDictionaryItem();
+        }
+
+        // Flags
+        PDFInteger flags = 0;
+        if (root->isFontItalics())
+        {
+            flags += 1;
+        }
+        if (root->isFontBold())
+        {
+            flags += 2;
+        }
+
+        if (flags > 0)
+        {
+            objectBuilder.beginDictionaryItem("F");
+            objectBuilder << flags;
+            objectBuilder.endDictionaryItem();
+        }
+    }
+
+    // Create descendands
+    std::vector<PDFObjectReference> children;
+    children.reserve(root->getChildCount());
+    for (size_t i = 0; i < root->getChildCount(); ++i)
+    {
+        children.push_back(createOutlineItem(root->getChild(i), true));
+    }
+
+    if (!children.empty())
+    {
+        // First/Last pointers
+        objectBuilder.beginDictionaryItem("First");
+        objectBuilder << children.front();
+        objectBuilder.endDictionaryItem();
+        objectBuilder.beginDictionaryItem("Last");
+        objectBuilder << children.back();
+        objectBuilder.endDictionaryItem();
+    }
+
+    size_t totalCount = root->getTotalCount();
+    if (totalCount > 0)
+    {
+        objectBuilder.beginDictionaryItem("Count");
+        objectBuilder << PDFInteger(totalCount);
+        objectBuilder.endDictionaryItem();
+    }
+
+    objectBuilder.endDictionary();
+    PDFObjectReference parentReference = addObject(objectBuilder.takeObject());
+
+    for (size_t i = 0; i < children.size(); ++i)
+    {
+        PDFObjectFactory fixPointersObjectBuilder;
+        fixPointersObjectBuilder.beginDictionary();
+
+        fixPointersObjectBuilder.beginDictionaryItem("Parent");
+        fixPointersObjectBuilder << parentReference;
+        fixPointersObjectBuilder.endDictionaryItem();
+
+        if (i > 0)
+        {
+            fixPointersObjectBuilder.beginDictionaryItem("Prev");
+            fixPointersObjectBuilder << children[i - 1];
+            fixPointersObjectBuilder.endDictionaryItem();
+        }
+
+        if (i + 1 < children.size())
+        {
+            fixPointersObjectBuilder.beginDictionaryItem("Next");
+            fixPointersObjectBuilder << children[i + 1];
+            fixPointersObjectBuilder.endDictionaryItem();
+        }
+
+        fixPointersObjectBuilder.endDictionary();
+        mergeTo(children[i], fixPointersObjectBuilder.takeObject());
+    }
+
+    return parentReference;
+}
+
 void PDFDocumentBuilder::flattenPageTree()
 {
     PDFObjectReference pageTreeRoot = getPageTreeRoot();
@@ -1164,6 +1273,11 @@ std::vector<PDFObjectReference> PDFDocumentBuilder::getPages() const
     }
 
     return result;
+}
+
+void PDFDocumentBuilder::setOutline(const PDFOutlineItem* root)
+{
+    setOutline(createOutlineItem(root, false));
 }
 
 std::vector<PDFObject> PDFDocumentBuilder::copyFrom(const std::vector<PDFObject>& objects, const PDFObjectStorage& storage, bool createReferences)
@@ -4180,6 +4294,20 @@ void PDFDocumentBuilder::setLanguage(QLocale locale)
 }
 
 
+void PDFDocumentBuilder::setOutline(PDFObjectReference outline)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Outlines");
+    objectBuilder << outline;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedCatalog = objectBuilder.takeObject();
+    mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
 void PDFDocumentBuilder::setPageArtBox(PDFObjectReference page,
                                        QRectF box)
 {
@@ -4263,6 +4391,21 @@ void PDFDocumentBuilder::setPageTrimBox(PDFObjectReference page,
     objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("TrimBox");
     objectBuilder << box;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
+}
+
+
+void PDFDocumentBuilder::setPageUserUnit(PDFObjectReference page,
+                                         PDFReal unit)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("UserUnit");
+    objectBuilder << unit;
     objectBuilder.endDictionaryItem();
     objectBuilder.endDictionary();
     PDFObject updatedPageObject = objectBuilder.takeObject();

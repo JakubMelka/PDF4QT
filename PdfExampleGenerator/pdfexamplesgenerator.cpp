@@ -322,3 +322,39 @@ void PDFExamplesGenerator::generatePageBoxesExample()
     pdf::PDFDocumentWriter writer(nullptr);
     writer.write("Ex_PageBoxes.pdf", &document, false);
 }
+
+void PDFExamplesGenerator::generateOutlineExample()
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.setDocumentTitle("Test document - Outline");
+    builder.setDocumentAuthor("Jakub Melka");
+    builder.setDocumentCreator(QCoreApplication::applicationName());
+    builder.setDocumentSubject("Testing outline");
+    builder.setLanguage(QLocale::system());
+
+    pdf::PDFObjectReference pageReference = builder.appendPage(QRectF(0, 0, 200, 200));
+    pdf::PDFOutlineItem root;
+
+    pdf::PDFOutlineItem* child = new pdf::PDFOutlineItem();
+    child->setTitle("Toto je kořen");
+    child->setAction(pdf::PDFActionPtr(new pdf::PDFActionGoTo(pdf::PDFDestination::createFit(pageReference), pdf::PDFDestination())));
+    root.addChild(QSharedPointer<pdf::PDFOutlineItem>(child));
+    child = new pdf::PDFOutlineItem();
+    child->setTitle("Toto je druhý kořen");
+    child->setAction(pdf::PDFActionPtr(new pdf::PDFActionGoTo(pdf::PDFDestination::createFit(pageReference), pdf::PDFDestination())));
+    child->setFontBold(true);
+    child->setTextColor(Qt::green);
+    root.addChild(QSharedPointer<pdf::PDFOutlineItem>(child));
+
+    pdf::PDFOutlineItem* subchild = new pdf::PDFOutlineItem();
+    subchild->setTitle("Toto je dítě");
+    subchild->setAction(pdf::PDFActionPtr(new pdf::PDFActionGoTo(pdf::PDFDestination::createFit(pageReference), pdf::PDFDestination())));
+    child->addChild(QSharedPointer<pdf::PDFOutlineItem>(subchild));
+
+    builder.setOutline(&root);
+
+    // Write result to a file
+    pdf::PDFDocument document = builder.build();
+    pdf::PDFDocumentWriter writer(nullptr);
+    writer.write("Ex_Outline.pdf", &document, false);
+}

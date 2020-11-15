@@ -31,7 +31,7 @@ namespace pdf
 class PDFDocument;
 
 /// Outline item
-class PDFOutlineItem
+class PDFFORQTLIBSHARED_EXPORT PDFOutlineItem
 {
 public:
     explicit PDFOutlineItem() = default;
@@ -40,6 +40,7 @@ public:
     void setTitle(const QString& title) { m_title = title; }
 
     size_t getChildCount() const { return m_children.size(); }
+    size_t getTotalCount() const;
     const PDFOutlineItem* getChild(size_t index) const { return m_children[index].get(); }
     void addChild(QSharedPointer<PDFOutlineItem> child) { m_children.emplace_back(qMove(child)); }
     QSharedPointer<PDFOutlineItem> getChildPtr(size_t index) const { return m_children[index]; }
