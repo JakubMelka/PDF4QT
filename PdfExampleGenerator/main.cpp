@@ -25,4 +25,5 @@ int main(int argc, char *argv[])
     PDFExamplesGenerator::generateAnnotationsExample();
     PDFExamplesGenerator::generatePageBoxesExample();
     PDFExamplesGenerator::generateOutlineExample();
+    PDFExamplesGenerator::generatePageDrawExample();
 }

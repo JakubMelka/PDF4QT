@@ -666,6 +666,82 @@ std::array<PDFReal, 4> PDFDocumentBuilder::getAnnotationReductionRectangle(const
     return { qAbs(innerRect.left() - boundingRect.left()), qAbs(boundingRect.bottom() - innerRect.bottom()), qAbs(boundingRect.right() - innerRect.right()), qAbs(boundingRect.top() - innerRect.top()) };
 }
 
+PDFPageContentStreamBuilder::PDFPageContentStreamBuilder(PDFDocumentBuilder* builder) :
+    m_documentBuilder(builder),
+    m_contentStreamBuilder(nullptr)
+{
+
+}
+
+QPainter* PDFPageContentStreamBuilder::begin(PDFObjectReference page)
+{
+    if (m_contentStreamBuilder)
+    {
+        // Invalid call to begin function
+        return nullptr;
+    }
+
+    const PDFObjectStorage* storage = m_documentBuilder->getStorage();
+    const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(storage->getObject(page));
+    if (!pageDictionary)
+    {
+        return nullptr;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    QRectF mediaBox = loader.readRectangle(pageDictionary->get("MediaBox"), QRectF());
+    if (!mediaBox.isValid())
+    {
+        return nullptr;
+    }
+
+    m_pageReference = page;
+    m_contentStreamBuilder = new PDFContentStreamBuilder(mediaBox.size(), PDFContentStreamBuilder::CoordinateSystem::Qt);
+    return m_contentStreamBuilder->begin();
+}
+
+QPainter* PDFPageContentStreamBuilder::beginNewPage(QRectF mediaBox)
+{
+    return begin(m_documentBuilder->appendPage(mediaBox));
+}
+
+void PDFPageContentStreamBuilder::end(QPainter* painter)
+{
+    if (!m_contentStreamBuilder)
+    {
+        return;
+    }
+
+    PDFContentStreamBuilder::ContentStream contentStream = m_contentStreamBuilder->end(painter);
+
+    delete m_contentStreamBuilder;
+    m_contentStreamBuilder = nullptr;
+
+    // Update page's content stream
+
+    std::vector<PDFObject> copiedObjects = m_documentBuilder->copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
+    Q_ASSERT(copiedObjects.size() == 2);
+
+    PDFObjectReference resourcesReference = copiedObjects[0].getReference();
+    PDFObjectReference contentsReference = copiedObjects[1].getReference();
+
+    PDFObjectFactory pageUpdateFactory;
+
+    pageUpdateFactory.beginDictionary();
+
+    pageUpdateFactory.beginDictionaryItem("Contents");
+    pageUpdateFactory << contentsReference;
+    pageUpdateFactory.endDictionaryItem();
+
+    pageUpdateFactory.beginDictionaryItem("Resources");
+    pageUpdateFactory << resourcesReference;
+    pageUpdateFactory.endDictionaryItem();
+
+    pageUpdateFactory.endDictionary();
+
+    m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
+}
+
 void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference annotationReference)
 {
     PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_storage, annotationReference);
@@ -4435,7 +4511,6 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
 }
-
 
 /* END GENERATED CODE */
 

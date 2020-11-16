@@ -246,6 +246,41 @@ private:
     QPainter* m_painter;
 };
 
+/// This class can create page content streams, using the Qt's QPainter
+/// to draw graphics elements on it. Content stream can have various
+/// resources, which can, if selected be dereferenced, so content
+/// stream is encapsulated and doesn't contain references.
+class PDFFORQTLIBSHARED_EXPORT PDFPageContentStreamBuilder
+{
+public:
+    PDFPageContentStreamBuilder(PDFDocumentBuilder* builder);
+
+    /// Starts painting onto the page. Old page content is erased. This
+    /// function returns painter, onto which can be graphics drawn. Painter
+    /// uses Qt's coordinate system. Calling begin multiple times, without
+    /// subsequent calls to end function, is invalid and can result
+    /// in undefined behaviour. This function can return nullptr,
+    /// if error occurs.
+    /// \param page Page, onto which we want to draw
+    QPainter* begin(PDFObjectReference page);
+
+    /// This function is similar to function \p begin(), but it appends
+    /// a new page to the end of the document.
+    /// \param mediaBox Page's media box
+    QPainter* beginNewPage(QRectF mediaBox);
+
+    /// Finishes painting on a page content stream. This function updates
+    /// page content stream, which is associated with this page. This function
+    /// must be called with painter, which has been returned with call to begin function.
+    /// \param painter Painter, which was returned with function begin()
+    void end(QPainter* painter);
+
+private:
+    PDFDocumentBuilder* m_documentBuilder;
+    PDFContentStreamBuilder* m_contentStreamBuilder;
+    PDFObjectReference m_pageReference;
+};
+
 class PDFFORQTLIBSHARED_EXPORT PDFDocumentBuilder
 {
 public:

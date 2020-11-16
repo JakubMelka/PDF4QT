@@ -358,3 +358,31 @@ void PDFExamplesGenerator::generateOutlineExample()
     pdf::PDFDocumentWriter writer(nullptr);
     writer.write("Ex_Outline.pdf", &document, false);
 }
+
+void PDFExamplesGenerator::generatePageDrawExample()
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.setDocumentTitle("Test document - Page draw");
+    builder.setDocumentAuthor("Jakub Melka");
+    builder.setDocumentCreator(QCoreApplication::applicationName());
+    builder.setDocumentSubject("Testing page draw");
+    builder.setLanguage(QLocale::system());
+
+    QPainter* painter = nullptr;
+    pdf::PDFPageContentStreamBuilder pageContentStreamBuilder(&builder);
+
+    painter = pageContentStreamBuilder.beginNewPage(QRectF(0, 0, 300, 480));
+    painter->drawEllipse(QPointF(150, 240), 65, 25);
+    painter->fillRect(QRectF(0, 0, 50, 50), Qt::green);
+    pageContentStreamBuilder.end(painter);
+
+    painter = pageContentStreamBuilder.beginNewPage(QRectF(0, 0, 300, 480));
+    painter->drawText(QPointF(50, 50), "This is testing text!");
+    pageContentStreamBuilder.end(painter);
+
+    // Write result to a file
+    pdf::PDFDocument document = builder.build();
+    pdf::PDFDocumentWriter writer(nullptr);
+    writer.write("Ex_PageDraw.pdf", &document, false);
+}
+

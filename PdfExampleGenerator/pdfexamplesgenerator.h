@@ -26,6 +26,7 @@ public:
     static void generateAnnotationsExample();
     static void generatePageBoxesExample();
     static void generateOutlineExample();
+    static void generatePageDrawExample();
 };
 
 #endif // PDFEXAMPLESGENERATOR_H
