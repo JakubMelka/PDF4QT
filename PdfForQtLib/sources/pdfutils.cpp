@@ -23,6 +23,7 @@
 #include <freetype/freetype.h>
 #include <openjpeg.h>
 #include <openssl/opensslv.h>
+#include <zlib.h>
 
 #pragma warning(push)
 #pragma warning(disable:5033)
@@ -274,6 +275,14 @@ std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
     lcms2Info.version = tr("%1.%2").arg(lcmsMajor).arg(lcmsMinor);;
     lcms2Info.url = tr("http://www.littlecms.com/");
     result.emplace_back(qMove(lcms2Info));
+
+    // zlib
+    PDFDependentLibraryInfo zlibInfo;
+    zlibInfo.library = tr("zlib");
+    zlibInfo.license = tr("zlib specific");
+    zlibInfo.version = ZLIB_VERSION;
+    zlibInfo.url = tr("https://zlib.net/");
+    result.emplace_back(qMove(zlibInfo));
 
     return result;
 }

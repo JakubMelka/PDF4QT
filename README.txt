@@ -2,6 +2,7 @@
 ==========================================================================
                     PDFforQt library / PDF viewer
                      (c) Jakub Melka 2018-2020
+                      Mgr.Jakub.Melka@gmail.com
 ==========================================================================
 
 This software is consisting of PDF rendering library, and viewer,
@@ -41,7 +42,7 @@ Software have following features (the list is not complete):
  - editation
  - file attachments
  - optimalization (compressing documents)
- - much more!
+ - command line tool
 
 4. THIRD PARTY LIBRARIES
 
@@ -51,6 +52,7 @@ Software have following features (the list is not complete):
     d) Qt, https://www.qt.io/, LGPL license used
     e) OpenSSL, https://www.openssl.org/, Apache 2.0 license
     f) LittleCMS, http://www.littlecms.com/
+    g) zlib, https://zlib.net/
 
 
 5. CONTRIBUTIONS
