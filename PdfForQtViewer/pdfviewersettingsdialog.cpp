@@ -41,7 +41,9 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
                                                  const pdf::PDFCertificateStore& certificateStore,
                                                  QList<QAction*> actions,
                                                  pdf::PDFCMSManager* cmsManager,
-                                                 QWidget *parent) :
+                                                 const QStringList& enabledPlugins,
+                                                 const pdf::PDFPluginInfos& plugins,
+                                                 QWidget* parent) :
     QDialog(parent),
     ui(new Ui::PDFViewerSettingsDialog),
     m_settings(settings),
@@ -50,6 +52,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     m_certificateStore(certificateStore),
     m_actions(),
     m_isLoadingData(false),
+    m_enabledPlugins(enabledPlugins),
+    m_plugins(plugins),
     m_networkAccessManager(nullptr),
     m_downloadCertificatesFromEUTLReply(nullptr)
 {
@@ -68,6 +72,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/speech.svg"), tr("Speech"), ui->optionsPagesWidget, SpeechSettings);
     new QListWidgetItem(QIcon(":/resources/form-settings.svg"), tr("Forms"), ui->optionsPagesWidget, FormSettings);
     new QListWidgetItem(QIcon(":/resources/signature.svg"), tr("Signature"), ui->optionsPagesWidget, SignatureSettings);
+    new QListWidgetItem(QIcon(":/resources/plugins.svg"), tr("Plugins"), ui->optionsPagesWidget, PluginsSettings);
 
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
@@ -151,11 +156,13 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     }
 
     connect(ui->trustedCertificateStoreTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updateTrustedCertificatesTableActions);
+    connect(ui->pluginsTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updatePluginInformation);
 
     ui->optionsPagesWidget->setCurrentRow(0);
     adjustSize();
     loadData();
     loadActionShortcutsTable();
+    loadPluginsTable();
     updateTrustedCertificatesTable();
     updateTrustedCertificatesTableActions();
 }
@@ -213,6 +220,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case SignatureSettings:
             ui->stackedWidget->setCurrentWidget(ui->signaturePage);
+            break;
+
+        case PluginsSettings:
+            ui->stackedWidget->setCurrentWidget(ui->pluginsPage);
             break;
 
         default:
@@ -676,6 +687,59 @@ bool PDFViewerSettingsDialog::saveActionShortcutsTable()
     return true;
 }
 
+void PDFViewerSettingsDialog::loadPluginsTable()
+{
+    ui->pluginsTableWidget->setRowCount(int(m_plugins.size()));
+    ui->pluginsTableWidget->setColumnCount(5);
+    ui->pluginsTableWidget->setHorizontalHeaderLabels({ tr("Active"), tr("Name"), tr("Author"), tr("Version"), tr("License") });
+    ui->pluginsTableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    ui->pluginsTableWidget->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+
+    for (int i = 0; i < m_plugins.size(); ++i)
+    {
+        const pdf::PDFPluginInfo& plugin = m_plugins[i];
+
+        QTableWidgetItem* activeItem = new QTableWidgetItem(QString());
+        activeItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+        activeItem->setCheckState((m_enabledPlugins.contains(plugin.name)) ? Qt::Checked : Qt::Unchecked);
+        ui->pluginsTableWidget->setItem(i, 0, activeItem);
+
+        ui->pluginsTableWidget->setItem(i, 1, new QTableWidgetItem(plugin.name));
+        ui->pluginsTableWidget->setItem(i, 2, new QTableWidgetItem(plugin.author));
+        ui->pluginsTableWidget->setItem(i, 3, new QTableWidgetItem(plugin.version));
+        ui->pluginsTableWidget->setItem(i, 4, new QTableWidgetItem(plugin.license));
+    }
+}
+
+void PDFViewerSettingsDialog::savePluginsTable()
+{
+    QStringList enabledPlugins;
+
+    for (int i = 0; i < m_plugins.size(); ++i)
+    {
+        bool enabled = ui->pluginsTableWidget->item(i, 0)->data(Qt::CheckStateRole).toInt() == Qt::Checked;
+        if (enabled)
+        {
+            enabledPlugins << m_plugins[i].name;
+        }
+    }
+
+    m_enabledPlugins = qMove(enabledPlugins);
+}
+
+void PDFViewerSettingsDialog::updatePluginInformation()
+{
+    QModelIndexList rows = ui->pluginsTableWidget->selectionModel()->selectedRows();
+    if (rows.size() == 1)
+    {
+        ui->pluginDescriptionLabel->setText(m_plugins.at(rows.front().row()).description);
+    }
+    else
+    {
+        ui->pluginDescriptionLabel->setText(QString());
+    }
+}
+
 void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine)
 {
     if (m_currentSpeechEngine == engine)
@@ -725,6 +789,7 @@ void PDFViewerSettingsDialog::accept()
 
     if (saveActionShortcutsTable())
     {
+        savePluginsTable();
         QDialog::accept();
     }
 }

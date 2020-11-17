@@ -1,0 +1,7 @@
+{
+    "Name" : "Dimensions",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "Measure distances, area, perimeter in a document page."
+}

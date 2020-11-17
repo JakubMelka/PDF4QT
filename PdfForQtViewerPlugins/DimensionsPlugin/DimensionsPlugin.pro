@@ -1,4 +1,4 @@
-#    Copyright (C) 2018-2020 Jakub Melka
+#    Copyright (C) 2020 Jakub Melka
 #
 #    This file is part of PdfForQt.
 #
@@ -15,22 +15,28 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-TEMPLATE = subdirs
+TEMPLATE = lib
+DEFINES += DIMENSIONPLUGIN_LIBRARY
 
-SUBDIRS += \
-    PdfForQtLib \
-    CodeGenerator \
-    JBIG2_Viewer \
-    PdfExampleGenerator \
-    PdfTool \
-    UnitTests \
-    PdfForQtViewer \
-    PdfForQtViewerPlugins
+LIBS += -L$$OUT_PWD/../..
 
-UnitTests.depends = PdfForQtLib
-PdfForQtViewer.depends = PdfForQtLib
-JBIG2_Viewer.depends = PdfForQtLib
-PdfExampleGenerator.depends = PdfForQtLib
-CodeGenerator.depends = PdfForQtLib
-PdfTool.depends = PdfForQtLib
-PdfForQtViewerPlugins.depends = PdfForQtLib
+LIBS += -lPDFForQtLib
+
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+INCLUDEPATH += $$PWD/../../PDFForQtLib/Sources
+
+DESTDIR = $$OUT_PWD/../../pdfplugins
+
+CONFIG += c++11
+
+SOURCES += \
+    dimensionsplugin.cpp
+
+HEADERS += \
+    dimensionsplugin.h
+
+CONFIG += force_debug_info
+
+DISTFILES += \
+    DimensionsPlugin.json

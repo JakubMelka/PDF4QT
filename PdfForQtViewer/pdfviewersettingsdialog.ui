@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>0</number>
+        <number>11</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -1319,6 +1319,58 @@
              <widget class="QLabel" name="signatureInfoLabel">
               <property name="text">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Settings for verification of digital signatures. Digital signatures are verified as strict, as possible, to avoid any malicious content or signature manipulation. Verification can also be turned off, if it is not wanted. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is turned on, every warning is treated as error. You can also ignore certificate expiration date, but do this only, if you know what you are doing, because it is dangerous. For verification, list of trusted certificates is used. System certificates can be inserted into the list, and also you can manage your own list of trusted certificates. Also, certificates from EUTL (EU trusted list) can be downloaded into the trusted certificate storage.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="pluginsPage">
+        <layout class="QVBoxLayout" name="verticalLayout_8">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="pluginsGroupBox">
+           <property name="title">
+            <string>Plugins</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_9" stretch="3,0,1">
+            <item>
+             <widget class="QTableWidget" name="pluginsTableWidget">
+              <property name="selectionMode">
+               <enum>QAbstractItemView::SingleSelection</enum>
+              </property>
+              <property name="selectionBehavior">
+               <enum>QAbstractItemView::SelectRows</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="Line" name="line_3">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="pluginDescriptionLabel">
+              <property name="alignment">
+               <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
               </property>
               <property name="wordWrap">
                <bool>true</bool>

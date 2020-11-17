@@ -31,6 +31,7 @@
 #include "pdfannotation.h"
 #include "pdfform.h"
 #include "pdfundoredomanager.h"
+#include "pdfplugin.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -151,6 +152,8 @@ private:
     void setPageLayout(pdf::PageLayout pageLayout);
     void updateFileInfo(const QString& fileName);
 
+    void loadPlugins();
+
     std::vector<QAction*> getRenderingOptionActions() const;
     QList<QAction*> getActions() const;
 
@@ -198,6 +201,9 @@ private:
     pdf::PDFFormManager* m_formManager;
     PDFTextToSpeech* m_textToSpeech;
     PDFUndoRedoManager* m_undoRedoManager;
+    QStringList m_enabledPlugins;
+    pdf::PDFPluginInfos m_plugins;
+    std::vector<std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>> m_loadedPlugins;
 };
 
 }   // namespace pdfviewer

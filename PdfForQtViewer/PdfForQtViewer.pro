@@ -86,6 +86,10 @@ application.files = $$DESTDIR/PdfForQtViewer.exe
 application.path = $$DESTDIR/install
 INSTALLS += application
 
+plugins.files = $$files($$DESTDIR/pdfplugins/*.dll)
+plugins.path = $$DESTDIR/install/pdfplugins
+INSTALLS += plugins
+
 RESOURCES += \
     pdfforqtviewer.qrc
 

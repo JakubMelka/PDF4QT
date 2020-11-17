@@ -51,5 +51,6 @@
         <file>resources/result-ok.svg</file>
         <file>resources/result-warning.svg</file>
         <file>resources/signature.svg</file>
+        <file>resources/plugins.svg</file>
     </qresource>
 </RCC>

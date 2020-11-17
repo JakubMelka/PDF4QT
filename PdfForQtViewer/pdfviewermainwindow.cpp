@@ -63,6 +63,7 @@
 #include <QtPrintSupport/QPrinter>
 #include <QtPrintSupport/QPrintDialog>
 #include <QtConcurrent/QtConcurrent>
+#include <QPluginLoader>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -312,6 +313,48 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     updateUI(true);
     onViewerSettingsChanged();
     updateActionsAvailability();
+
+    loadPlugins();
+}
+
+void PDFViewerMainWindow::loadPlugins()
+{
+    QDir directory(QApplication::applicationDirPath() + "/pdfplugins");
+    QStringList availablePlugins = directory.entryList(QStringList("*.dll"));
+
+    for (const QString& availablePlugin : availablePlugins)
+    {
+        QString pluginFileName = directory.absoluteFilePath(availablePlugin);
+        QPluginLoader loader(pluginFileName);
+        if (loader.load())
+        {
+            QJsonObject metaData = loader.metaData();
+            m_plugins.emplace_back(pdf::PDFPluginInfo::loadFromJson(&metaData));
+
+            if (!m_enabledPlugins.contains(m_plugins.back().name))
+            {
+                loader.unload();
+                continue;
+            }
+
+            pdf::PDFPlugin* plugin = qobject_cast<pdf::PDFPlugin*>(loader.instance());
+            if (plugin)
+            {
+                m_loadedPlugins.push_back(std::make_pair(m_plugins.back(), plugin));
+            }
+        }
+    }
+
+    auto comparator = [](const std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>& l, const std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>& r)
+    {
+        return l.first.name < r.first.name;
+    };
+    std::sort(m_loadedPlugins.begin(), m_loadedPlugins.end(), comparator);
+
+    for (const auto& plugin : m_loadedPlugins)
+    {
+        plugin.second->setWidget(m_pdfWidget);
+    }
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
@@ -711,6 +754,11 @@ void PDFViewerMainWindow::readSettings()
     {
         m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
     }
+
+    // Load allowed plugins
+    settings.beginGroup("Plugins");
+    m_enabledPlugins = settings.value("EnabledPlugins").toStringList();
+    settings.endGroup();
 }
 
 void PDFViewerMainWindow::readActionSettings()
@@ -765,6 +813,11 @@ void PDFViewerMainWindow::writeSettings()
     settings.beginGroup("RecentFiles");
     settings.setValue("MaximumRecentFilesCount", m_recentFileManager->getRecentFilesLimit());
     settings.setValue("RecentFileList", m_recentFileManager->getRecentFiles());
+    settings.endGroup();
+
+    // Save allowed plugins
+    settings.beginGroup("Plugins");
+    settings.setValue("EnabledPlugins", m_enabledPlugins);
     settings.endGroup();
 
     // Save trusted certificates
@@ -1296,9 +1349,13 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
     PDFViewerSettingsDialog::OtherSettings otherSettings;
     otherSettings.maximumRecentFileCount = m_recentFileManager->getRecentFilesLimit();
 
-    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(), otherSettings, m_certificateStore, getActions(), m_CMSManager, this);
+    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(),
+                                   otherSettings, m_certificateStore, getActions(), m_CMSManager,
+                                   m_enabledPlugins, m_plugins, this);
     if (dialog.exec() == QDialog::Accepted)
     {
+        const bool pluginsChanged = m_enabledPlugins != dialog.getEnabledPlugins();
+
         m_settings->setSettings(dialog.getSettings());
         m_settings->setColorManagementSystemSettings(dialog.getCMSSettings());
         m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
@@ -1306,8 +1363,14 @@ void PDFViewerMainWindow::on_actionOptions_triggered()
         m_textToSpeech->setSettings(m_settings);
         m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
         m_certificateStore = dialog.getCertificateStore();
+        m_enabledPlugins = dialog.getEnabledPlugins();
         updateMagnifierToolSettings();
         updateUndoRedoSettings();
+
+        if (pluginsChanged)
+        {
+            QMessageBox::information(this, tr("Plugins"), tr("Plugin on/off state has been changed. Please restart application to apply settings."));
+        }
     }
 }
 

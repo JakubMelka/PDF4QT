@@ -19,6 +19,7 @@
 #define PDFVIEWERSETTINGSDIALOG_H
 
 #include "pdfviewersettings.h"
+#include "pdfplugin.h"
 
 #include <QDialog>
 
@@ -59,6 +60,8 @@ public:
                                      const pdf::PDFCertificateStore& certificateStore,
                                      QList<QAction*> actions,
                                      pdf::PDFCMSManager* cmsManager,
+                                     const QStringList& enabledPlugins,
+                                     const pdf::PDFPluginInfos& plugins,
                                      QWidget* parent);
     virtual ~PDFViewerSettingsDialog() override;
 
@@ -77,13 +80,15 @@ public:
         UISettings,
         SpeechSettings,
         FormSettings,
-        SignatureSettings
+        SignatureSettings,
+        PluginsSettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }
     const pdf::PDFCMSSettings& getCMSSettings() const { return m_cmsSettings; }
     const OtherSettings& getOtherSettings() const { return m_otherSettings; }
     const pdf::PDFCertificateStore& getCertificateStore() const { return m_certificateStore; }
+    const QStringList& getEnabledPlugins() const { return m_enabledPlugins; }
 
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
@@ -103,6 +108,10 @@ private:
     void loadActionShortcutsTable();
     bool saveActionShortcutsTable();
 
+    void loadPluginsTable();
+    void savePluginsTable();
+    void updatePluginInformation();
+
     void setSpeechEngine(const QString& engine);
 
     /// Returns true, if dialog can be closed. If not, then message is displayed
@@ -118,6 +127,8 @@ private:
     QStringList m_textToSpeechEngines;
     QString m_currentSpeechEngine;
     pdf::PDFCertificateStore m_certificateStore;
+    QStringList m_enabledPlugins;
+    pdf::PDFPluginInfos m_plugins;
     QNetworkAccessManager* m_networkAccessManager;
     QNetworkReply* m_downloadCertificatesFromEUTLReply;
 };
