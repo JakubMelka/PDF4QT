@@ -41,7 +41,7 @@ template<typename T, size_t FlatSize>
 class PDFFlatArray
 {
 public:
-    explicit PDFFlatArray() :
+    PDFFlatArray() :
         m_flatBlock(),
         m_flatBlockItemCount(0),
         m_variableBlock()
@@ -50,7 +50,7 @@ public:
     }
 
     template<typename... Arguments, typename std::enable_if<sizeof...(Arguments) <= FlatSize, int>::type = 0>
-    explicit inline PDFFlatArray(Arguments... arguments) :
+    inline PDFFlatArray(Arguments... arguments) :
         m_flatBlock({ arguments... }),
         m_flatBlockItemCount(sizeof...(Arguments)),
         m_variableBlock()

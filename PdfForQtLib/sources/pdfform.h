@@ -619,7 +619,7 @@ public:
     const PDFAction* getAction(PDFAnnotationAdditionalActions::Action actionType, const PDFFormWidget* widget);
 
     /// Returns default form apperance flags
-    static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return HighlightFields | HighlightRequiredFields; }
+    static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return FormAppearanceFlags(HighlightFields | HighlightRequiredFields); }
 
     struct MouseEventInfo
     {

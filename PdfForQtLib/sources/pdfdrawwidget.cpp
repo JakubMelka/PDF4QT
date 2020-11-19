@@ -304,12 +304,12 @@ bool PDFDrawWidgetBase<BaseWidget>::processEvent(Event* event)
         // If event is accepted, then update cursor/tooltip and return
         if (event->isAccepted())
         {
-            setToolTip(tooltip);
-            updateCursor();
+            this->setToolTip(tooltip);
+            this->updateCursor();
             return true;
         }
     }
-    setToolTip(tooltip);
+    this->setToolTip(tooltip);
 
     return false;
 }

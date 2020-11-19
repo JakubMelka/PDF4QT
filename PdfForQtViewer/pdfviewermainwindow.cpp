@@ -354,6 +354,16 @@ void PDFViewerMainWindow::loadPlugins()
     for (const auto& plugin : m_loadedPlugins)
     {
         plugin.second->setWidget(m_pdfWidget);
+        std::vector<QAction*> actions = plugin.second->getActions();
+
+        if (!actions.empty())
+        {
+            QMenu* menu = ui->menuTools->addMenu(plugin.first.name);
+            for (QAction* action : actions)
+            {
+                menu->addAction(action);
+            }
+        }
     }
 }
 
@@ -1075,12 +1085,12 @@ void PDFViewerMainWindow::onDocumentReadingFinished()
             setDocument(document);
 
             pdf::PDFDocumentRequirements requirements = pdf::PDFDocumentRequirements::parse(&m_pdfDocument->getStorage(), m_pdfDocument->getCatalog()->getRequirements());
-            constexpr pdf::PDFDocumentRequirements::Requirements requirementFlags = pdf::PDFDocumentRequirements::OCInteract |
-                                                                                    pdf::PDFDocumentRequirements::OCAutoStates |
-                                                                                    pdf::PDFDocumentRequirements::Navigation |
-                                                                                    pdf::PDFDocumentRequirements::Attachment |
-                                                                                    pdf::PDFDocumentRequirements::DigSigValidation |
-                                                                                    pdf::PDFDocumentRequirements::Encryption;
+            constexpr pdf::PDFDocumentRequirements::Requirements requirementFlags = pdf::PDFDocumentRequirements::Requirements(pdf::PDFDocumentRequirements::OCInteract |
+                                                                                                                               pdf::PDFDocumentRequirements::OCAutoStates |
+                                                                                                                               pdf::PDFDocumentRequirements::Navigation |
+                                                                                                                               pdf::PDFDocumentRequirements::Attachment |
+                                                                                                                               pdf::PDFDocumentRequirements::DigSigValidation |
+                                                                                                                               pdf::PDFDocumentRequirements::Encryption);
             pdf::PDFDocumentRequirements::ValidationResult requirementResult = requirements.validate(requirementFlags);
             if (requirementResult.isError())
             {

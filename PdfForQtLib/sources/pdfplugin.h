@@ -23,6 +23,10 @@
 #include <QObject>
 #include <QJsonObject>
 
+#include <vector>
+
+class QAction;
+
 namespace pdf
 {
 class PDFWidget;
@@ -48,6 +52,11 @@ public:
 
     virtual void setWidget(PDFWidget* widget);
     virtual void setDocument(const PDFModifiedDocument& document);
+    virtual std::vector<QAction*> getActions() const;
+
+protected:
+    PDFWidget* m_widget;
+    PDFDocument* m_document;
 };
 
 }   // namespace pdf

@@ -3206,7 +3206,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                             {
                                 switch (m_highlightMode)
                                 {
-                                    case LinkHighlightMode::Invert:
+                                    case HighlightMode::Invert:
                                     {
                                         // Invert all
                                         painter->setCompositionMode(QPainter::CompositionMode_Difference);
@@ -3214,7 +3214,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                                         break;
                                     }
 
-                                    case LinkHighlightMode::Outline:
+                                    case HighlightMode::Outline:
                                     {
                                         // Invert the border
                                         painter->setCompositionMode(QPainter::CompositionMode_Difference);
@@ -3226,7 +3226,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                                         break;
                                     }
 
-                                    case LinkHighlightMode::Push:
+                                    case HighlightMode::Push:
                                     {
                                         // Draw border
                                         painter->setCompositionMode(getCompositionMode());

@@ -15,36 +15,38 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef DIMENSIONSPLUGIN_H
-#define DIMENSIONSPLUGIN_H
+#ifndef DIMENSIONTOOL_H
+#define DIMENSIONTOOL_H
 
-#include "pdfplugin.h"
-#include "dimensiontool.h"
+#include "pdfwidgettool.h"
 
-#include <QObject>
+#include <QAction>
+#include <QPolygonF>
 
-namespace pdfplugin
-{
-
-class DimensionsPlugin : public pdf::PDFPlugin
+class DimensionTool : public pdf::PDFWidgetTool
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "PdfForQt.DimensionsPlugin" FILE "DimensionsPlugin.json")
 
 private:
-    using BaseClass = pdf::PDFPlugin;
+    using BaseClass = pdf::PDFWidgetTool;
 
 public:
-    DimensionsPlugin();
 
-    virtual void setWidget(pdf::PDFWidget* widget) override;
-    virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
-    virtual std::vector<QAction*> getActions() const override;
+    enum Style
+    {
+        LinearHorizontal,
+        LinearVertical,
+        Linear,
+        Perimeter,
+        Area,
+        LastStyle
+    };
+
+
+    explicit DimensionTool(Style style, pdf::PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
 
 private:
-    std::array<DimensionTool*, DimensionTool::LastStyle> m_dimensionTools;
+    Style m_style;
 };
 
-}   // namespace pdfplugin
-
-#endif // DIMENSIONSPLUGIN_H
+#endif // DIMENSIONTOOL_H

@@ -283,4 +283,6 @@ private:
 
 }   // namespace pdftool
 
+Q_DECLARE_OPERATORS_FOR_FLAGS(pdftool::PDFToolAbstractApplication::Options)
+
 #endif // PDFTOOLABSTRACTAPPLICATION_H

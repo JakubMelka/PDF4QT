@@ -650,7 +650,7 @@ private:
 template<typename T>
 QDataStream& operator>>(QDataStream& stream, std::vector<T>& vector)
 {
-    std::vector<T>::size_type size = 0;
+    typename std::vector<T>::size_type size = 0;
     stream >> size;
     vector.resize(size);
     for (T& item : vector)
@@ -674,7 +674,7 @@ QDataStream& operator<<(QDataStream& stream, const std::vector<T>& vector)
 template<typename T, size_t Size>
 QDataStream& operator>>(QDataStream& stream, std::array<T, Size>& array)
 {
-    std::array<T, Size>::size_type size = 0;
+    typename std::array<T, Size>::size_type size = 0;
     stream >> size;
 
     for (size_t i = 0; i < size; ++i)
@@ -713,7 +713,7 @@ QDataStream& operator<<(QDataStream& stream, const std::array<T, Size>& array)
 template<typename T>
 QDataStream& operator>>(QDataStream& stream, std::set<T>& set)
 {
-    std::set<T>::size_type size = 0;
+    typename std::set<T>::size_type size = 0;
     stream >> size;
     for (size_t i = 0; i < size; ++i)
     {

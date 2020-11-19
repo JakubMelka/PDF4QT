@@ -21,19 +21,26 @@ namespace pdf
 {
 
 PDFPlugin::PDFPlugin(QObject* parent) :
-    QObject(parent)
+    QObject(parent),
+    m_widget(nullptr),
+    m_document(nullptr)
 {
 
 }
 
 void PDFPlugin::setWidget(PDFWidget* widget)
 {
-    Q_UNUSED(widget)
+    m_widget = widget;
 }
 
 void PDFPlugin::setDocument(const PDFModifiedDocument& document)
 {
-    Q_UNUSED(document)
+    m_document = document;
+}
+
+std::vector<QAction*> PDFPlugin::getActions() const
+{
+    return std::vector<QAction*>();
 }
 
 PDFPluginInfo PDFPluginInfo::loadFromJson(const QJsonObject* json)

@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/pdfplugins/dimensiontool">
+        <file>area.svg</file>
+        <file>linear.svg</file>
+        <file>linear-horizontal.svg</file>
+        <file>linear-vertical.svg</file>
+        <file>perimeter.svg</file>
+    </qresource>
+</RCC>

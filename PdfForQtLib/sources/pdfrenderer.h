@@ -99,7 +99,7 @@ public:
     static QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle);
 
     /// Returns default renderer features
-    static constexpr Features getDefaultFeatures() { return Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations; }
+    static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations); }
 
 private:
     const PDFDocument* m_document;

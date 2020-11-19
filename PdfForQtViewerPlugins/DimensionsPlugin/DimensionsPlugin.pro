@@ -18,6 +18,8 @@
 TEMPLATE = lib
 DEFINES += DIMENSIONPLUGIN_LIBRARY
 
+QT += gui widgets
+
 LIBS += -L$$OUT_PWD/../..
 
 LIBS += -lPDFForQtLib
@@ -31,12 +33,17 @@ DESTDIR = $$OUT_PWD/../../pdfplugins
 CONFIG += c++11
 
 SOURCES += \
-    dimensionsplugin.cpp
+    dimensionsplugin.cpp \
+    dimensiontool.cpp
 
 HEADERS += \
-    dimensionsplugin.h
+    dimensionsplugin.h \
+    dimensiontool.h
 
 CONFIG += force_debug_info
 
 DISTFILES += \
     DimensionsPlugin.json
+
+RESOURCES += \
+    icons.qrc
