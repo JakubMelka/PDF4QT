@@ -77,10 +77,19 @@ void DimensionTool::drawPage(QPainter* painter,
 
 void DimensionTool::onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint)
 {
+    Q_UNUSED(pagePoint);
+
     if (Dimension::isComplete(getDimensionType(), m_pickTool->getPickedPoints()))
     {
         // Create a new dimension...
-        emit dimensionCreated(Dimension(pageIndex, getMeasuredValue(), m_pickTool->getPickedPoints()));
+        std::vector<QPointF> points = m_pickTool->getPickedPoints();
+        for (QPointF& point : points)
+        {
+            point = adjustPagePoint(point);
+        }
+
+        pdf::PDFReal measuredValue = getMeasuredValue(pageIndex, points);
+        emit dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
         m_pickTool->resetTool();
     }
 }
@@ -94,7 +103,17 @@ QPointF DimensionTool::adjustPagePoint(QPointF pagePoint) const
             const std::vector<QPointF>& pickedPoints = m_pickTool->getPickedPoints();
             if (!pickedPoints.empty())
             {
-                pagePoint.setY(pickedPoints.front().y());
+                const pdf::PDFPage* page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex());
+                const bool rotated = page->getPageRotation() == pdf::PageRotation::Rotate90 || page->getPageRotation() == pdf::PageRotation::Rotate270;
+
+                if (rotated)
+                {
+                    pagePoint.setX(pickedPoints.front().x());
+                }
+                else
+                {
+                    pagePoint.setY(pickedPoints.front().y());
+                }
             }
             break;
         }
@@ -104,7 +123,17 @@ QPointF DimensionTool::adjustPagePoint(QPointF pagePoint) const
             const std::vector<QPointF>& pickedPoints = m_pickTool->getPickedPoints();
             if (!pickedPoints.empty())
             {
-                pagePoint.setX(pickedPoints.front().x());
+                const pdf::PDFPage* page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex());
+                const bool rotated = page->getPageRotation() == pdf::PageRotation::Rotate90 || page->getPageRotation() == pdf::PageRotation::Rotate270;
+
+                if (!rotated)
+                {
+                    pagePoint.setX(pickedPoints.front().x());
+                }
+                else
+                {
+                    pagePoint.setY(pickedPoints.front().y());
+                }
             }
             break;
         }
@@ -136,9 +165,10 @@ Dimension::Type DimensionTool::getDimensionType() const
     return Dimension::Type::Linear;
 }
 
-pdf::PDFReal DimensionTool::getMeasuredValue() const
+pdf::PDFReal DimensionTool::getMeasuredValue(pdf::PDFInteger pageIndex, const std::vector<QPointF>& pickedPoints) const
 {
-    const std::vector<QPointF>& pickedPoints = m_pickTool->getPickedPoints();
+    const pdf::PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
+    Q_ASSERT(page);
 
     switch (getDimensionType())
     {
@@ -153,7 +183,7 @@ pdf::PDFReal DimensionTool::getMeasuredValue() const
                 length += qSqrt(QPointF::dotProduct(vector, vector));
             }
 
-            break;
+            return length * page->getUserUnit();
         }
 
         case Dimension::Area:
@@ -171,7 +201,7 @@ pdf::PDFReal DimensionTool::getMeasuredValue() const
             }
 
             area = qAbs(area) * 0.5;
-            break;
+            return area * page->getUserUnit() * page->getUserUnit();
         }
 
         default:

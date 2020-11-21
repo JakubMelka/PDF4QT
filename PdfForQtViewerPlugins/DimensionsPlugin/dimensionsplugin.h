@@ -54,6 +54,7 @@ private:
     void onSettingsTriggered();
     void onDimensionCreated(Dimension dimension);
     void updateActions();
+    void updateGraphics();
 
     std::array<DimensionTool*, DimensionTool::LastStyle> m_dimensionTools;
     std::vector<Dimension> m_dimensions;

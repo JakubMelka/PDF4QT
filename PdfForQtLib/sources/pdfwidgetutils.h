@@ -37,6 +37,10 @@ public:
     /// \param device Paint device to obtain logical DPI for scaling
     static int scaleDPI_x(QPaintDevice* device, int unscaledSize);
 
+    /// Scale vertical DPI value
+    /// \param device Paint device to obtain logical DPI for scaling
+    static int scaleDPI_y(QPaintDevice* device, int unscaledSize);
+
     /// Scale horizontal DPI value
     /// \param device Paint device to obtain logical DPI for scaling
     static PDFReal scaleDPI_x(QPaintDevice* device, PDFReal unscaledSize);

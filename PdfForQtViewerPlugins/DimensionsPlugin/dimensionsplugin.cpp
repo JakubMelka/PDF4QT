@@ -17,7 +17,11 @@
 
 #include "dimensionsplugin.h"
 #include "pdfdrawwidget.h"
+#include "pdfwidgetutils.h"
 #include "settingsdialog.h"
+
+#include <QPainter>
+#include <QFontMetricsF>
 
 namespace pdfplugin
 {
@@ -131,42 +135,112 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                                 const QMatrix& pagePointToDevicePointMatrix,
                                 QList<pdf::PDFRenderError>& errors) const
 {
-    if (!m_showDimensionsAction || !m_showDimensionsAction->isChecked())
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    if (!m_showDimensionsAction || !m_showDimensionsAction->isChecked() || m_dimensions.empty())
     {
         // Nothing to draw
         return;
+    }
+
+    QLocale locale;
+    for (const Dimension& dimension : m_dimensions)
+    {
+        if (pageIndex != dimension.getPageIndex())
+        {
+            continue;
+        }
+
+        switch (dimension.getType())
+        {
+            case Dimension::Linear:
+            {
+                QPointF p1 = pagePointToDevicePointMatrix.map(dimension.getPolygon().front());
+                QPointF p2 = pagePointToDevicePointMatrix.map(dimension.getPolygon().back());
+
+                // Swap so p1 is to the left of the page, before p2 (for correct determination of angle)
+                if (p1.x() > p2.x())
+                {
+                    qSwap(p1, p2);
+                }
+
+                QLineF line(p1, p2);
+
+                if (qFuzzyIsNull(line.length()))
+                {
+                    // If we have zero line, then do nothing
+                    continue;
+                }
+
+                QLineF unitVectorLine = line.normalVector().unitVector();
+                QPointF unitVector = unitVectorLine.p2() - unitVectorLine.p1();
+                qreal extensionLineSize = pdf::PDFWidgetUtils::scaleDPI_y(painter->device(), 5);
+
+                painter->setPen(Qt::black);
+                painter->drawLine(line);
+
+                QLineF extensionLineLeft(p1 - unitVector * extensionLineSize, p1 + unitVector * extensionLineSize);
+                QLineF extensionLineRight(p2 - unitVector * extensionLineSize, p2 + unitVector * extensionLineSize);
+
+                painter->drawLine(extensionLineLeft);
+                painter->drawLine(extensionLineRight);
+
+                QPointF textPoint = line.center();
+                qreal angle = line.angle();
+                QFontMetricsF fontMetrics(painter->font());
+                QRectF textRect(-line.length() * 0.5, -fontMetrics.lineSpacing(), line.length(), fontMetrics.lineSpacing());
+
+                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
+
+                painter->save();
+                painter->translate(textPoint);
+                painter->rotate(-angle);
+                painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip, text);
+                painter->restore();
+
+                break;
+            }
+
+            case Dimension::Perimeter:
+                break;
+
+            case Dimension::Area:
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
     }
 }
 
 void DimensionsPlugin::onShowDimensionsTriggered()
 {
-    if (m_widget)
-    {
-        m_widget->update();
-    }
+    updateGraphics();
 }
 
 void DimensionsPlugin::onClearDimensionsTriggered()
 {
     m_dimensions.clear();
-    if (m_widget)
-    {
-        m_widget->update();
-    }
     updateActions();
+    updateGraphics();
 }
 
 void DimensionsPlugin::onSettingsTriggered()
 {
     SettingsDialog dialog(m_widget, m_lengthUnit, m_areaUnit, m_angleUnit);
     dialog.exec();
-    m_widget->update();
+
+    updateGraphics();
 }
 
 void DimensionsPlugin::onDimensionCreated(Dimension dimension)
 {
     m_dimensions.emplace_back(qMove(dimension));
     updateActions();
+    updateGraphics();
 }
 
 void DimensionsPlugin::updateActions()
@@ -178,6 +252,14 @@ void DimensionsPlugin::updateActions()
     if (m_clearDimensionsAction)
     {
         m_clearDimensionsAction->setEnabled(!m_dimensions.empty());
+    }
+}
+
+void DimensionsPlugin::updateGraphics()
+{
+    if (m_widget)
+    {
+        m_widget->getDrawWidget()->getWidget()->update();
     }
 }
 

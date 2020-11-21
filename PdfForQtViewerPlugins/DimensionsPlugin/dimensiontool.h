@@ -48,15 +48,6 @@ class Dimension
 {
 public:
 
-    inline explicit Dimension() = default;
-    inline explicit Dimension(pdf::PDFInteger pageIndex, pdf::PDFReal measuredValue, std::vector<QPointF> polygon) :
-        m_pageIndex(pageIndex),
-        m_measuredValue(measuredValue),
-        m_polygon(qMove(polygon))
-    {
-
-    }
-
     enum Type
     {
         Linear,
@@ -64,10 +55,26 @@ public:
         Area
     };
 
+    inline explicit Dimension() = default;
+    inline explicit Dimension(Type type, pdf::PDFInteger pageIndex, pdf::PDFReal measuredValue, std::vector<QPointF> polygon) :
+        m_type(type),
+        m_pageIndex(pageIndex),
+        m_measuredValue(measuredValue),
+        m_polygon(qMove(polygon))
+    {
+
+    }
+
+    Type getType() const { return m_type; }
+    pdf::PDFInteger getPageIndex() const { return m_pageIndex; }
+    pdf::PDFReal getMeasuredValue() const { return m_measuredValue; }
+    const std::vector<QPointF>& getPolygon() const { return m_polygon; }
+
     /// Returns true, if definition fo given type is complete
     static bool isComplete(Type type, const std::vector<QPointF>& polygon);
 
 private:
+    Type m_type = Linear;
     pdf::PDFInteger m_pageIndex = -1;
     pdf::PDFReal m_measuredValue = 0.0;
     std::vector<QPointF> m_polygon;
@@ -109,7 +116,7 @@ private:
     void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
     QPointF adjustPagePoint(QPointF pagePoint) const;
     Dimension::Type getDimensionType() const;
-    pdf::PDFReal getMeasuredValue() const;
+    pdf::PDFReal getMeasuredValue(pdf::PDFInteger pageIndex, const std::vector<QPointF>& pickedPoints) const;
 
     Style m_style;
     int m_previewPointPixelSize;
