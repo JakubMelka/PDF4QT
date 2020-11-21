@@ -23,6 +23,56 @@
 #include <QAction>
 #include <QPolygonF>
 
+struct DimensionUnit;
+using DimensionUnits = std::vector<DimensionUnit>;
+
+struct DimensionUnit
+{
+    explicit inline DimensionUnit() = default;
+    explicit inline DimensionUnit(pdf::PDFReal scale, QString symbol) :
+        scale(scale),
+        symbol(qMove(symbol))
+    {
+
+    }
+
+    pdf::PDFReal scale = 1.0;
+    QString symbol;
+
+    static DimensionUnits getLengthUnits();
+    static DimensionUnits getAreaUnits();
+    static DimensionUnits getAngleUnits();
+};
+
+class Dimension
+{
+public:
+
+    inline explicit Dimension() = default;
+    inline explicit Dimension(pdf::PDFInteger pageIndex, pdf::PDFReal measuredValue, std::vector<QPointF> polygon) :
+        m_pageIndex(pageIndex),
+        m_measuredValue(measuredValue),
+        m_polygon(qMove(polygon))
+    {
+
+    }
+
+    enum Type
+    {
+        Linear,
+        Perimeter,
+        Area
+    };
+
+    /// Returns true, if definition fo given type is complete
+    static bool isComplete(Type type, const std::vector<QPointF>& polygon);
+
+private:
+    pdf::PDFInteger m_pageIndex = -1;
+    pdf::PDFReal m_measuredValue = 0.0;
+    std::vector<QPointF> m_polygon;
+};
+
 class DimensionTool : public pdf::PDFWidgetTool
 {
     Q_OBJECT
@@ -45,8 +95,25 @@ public:
 
     explicit DimensionTool(Style style, pdf::PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
 
+    void drawPage(QPainter* painter,
+                  pdf::PDFInteger pageIndex,
+                  const pdf::PDFPrecompiledPage* compiledPage,
+                  pdf::PDFTextLayoutGetter& layoutGetter,
+                  const QMatrix& pagePointToDevicePointMatrix,
+                  QList<pdf::PDFRenderError>& errors) const override;
+
+signals:
+    void dimensionCreated(Dimension dimension);
+
 private:
+    void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
+    QPointF adjustPagePoint(QPointF pagePoint) const;
+    Dimension::Type getDimensionType() const;
+    pdf::PDFReal getMeasuredValue() const;
+
     Style m_style;
+    int m_previewPointPixelSize;
+    pdf::PDFPickTool* m_pickTool;
 };
 
 #endif // DIMENSIONTOOL_H

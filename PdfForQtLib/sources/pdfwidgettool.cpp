@@ -730,14 +730,19 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
-        m_tools.insert(tool);
-        connect(tool, &PDFWidgetTool::messageDisplayRequest, this, &PDFToolManager::messageDisplayRequest);
+        addTool(tool);
+    }
+}
 
-        if (QAction* action = tool->getAction())
-        {
-            m_actionsToTools[action] = tool;
-            connect(action, &QAction::triggered, this, &PDFToolManager::onToolActionTriggered);
-        }
+void PDFToolManager::addTool(PDFWidgetTool* tool)
+{
+    m_tools.insert(tool);
+    connect(tool, &PDFWidgetTool::messageDisplayRequest, this, &PDFToolManager::messageDisplayRequest);
+
+    if (QAction* action = tool->getAction())
+    {
+        m_actionsToTools[action] = tool;
+        connect(action, &QAction::triggered, this, &PDFToolManager::onToolActionTriggered);
     }
 }
 
@@ -1140,6 +1145,11 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
         m_snapper.updateSnappedPoint(m_mousePosition);
         getProxy()->repaintNeeded();
     }
+}
+
+QPointF PDFPickTool::getSnappedPoint() const
+{
+    return m_snapper.getSnappedPoint();
 }
 
 void PDFPickTool::setActiveImpl(bool active)

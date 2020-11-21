@@ -64,6 +64,7 @@
 #include <QtPrintSupport/QPrintDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <QPluginLoader>
+#include <QToolButton>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -358,10 +359,23 @@ void PDFViewerMainWindow::loadPlugins()
 
         if (!actions.empty())
         {
+            QToolButton* toolbarButton = new QToolButton(ui->mainToolBar);
+            toolbarButton->setPopupMode(QToolButton::MenuButtonPopup);
+            toolbarButton->setMenu(new QMenu(toolbarButton));
+            toolbarButton->setDefaultAction(actions.front());
+            ui->mainToolBar->addWidget(toolbarButton);
             QMenu* menu = ui->menuTools->addMenu(plugin.first.name);
             for (QAction* action : actions)
             {
+                if (!action)
+                {
+                    menu->addSeparator();
+                    toolbarButton->menu()->addSeparator();
+                }
+
                 menu->addAction(action);
+                toolbarButton->menu()->addAction(action);
+                connect(action, &QAction::triggered, toolbarButton, [action, toolbarButton](){ toolbarButton->setDefaultAction(action); });
             }
         }
     }
@@ -1187,6 +1201,11 @@ void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
 
     updateTitle();
     updateUI(true);
+
+    for (const auto& plugin : m_loadedPlugins)
+    {
+        plugin.second->setDocument(document);
+    }
 
     if (m_pdfDocument && document.hasReset())
     {

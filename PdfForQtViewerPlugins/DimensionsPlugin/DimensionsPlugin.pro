@@ -34,11 +34,13 @@ CONFIG += c++11
 
 SOURCES += \
     dimensionsplugin.cpp \
-    dimensiontool.cpp
+    dimensiontool.cpp \
+    settingsdialog.cpp
 
 HEADERS += \
     dimensionsplugin.h \
-    dimensiontool.h
+    dimensiontool.h \
+    settingsdialog.h
 
 CONFIG += force_debug_info
 
@@ -47,3 +49,6 @@ DISTFILES += \
 
 RESOURCES += \
     icons.qrc
+
+FORMS += \
+    settingsdialog.ui

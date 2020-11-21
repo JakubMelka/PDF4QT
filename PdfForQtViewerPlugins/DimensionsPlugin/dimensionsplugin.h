@@ -26,7 +26,7 @@
 namespace pdfplugin
 {
 
-class DimensionsPlugin : public pdf::PDFPlugin
+class DimensionsPlugin : public pdf::PDFPlugin, public pdf::IDocumentDrawInterface
 {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID "PdfForQt.DimensionsPlugin" FILE "DimensionsPlugin.json")
@@ -41,8 +41,30 @@ public:
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual std::vector<QAction*> getActions() const override;
 
+    virtual void drawPage(QPainter* painter,
+                          pdf::PDFInteger pageIndex,
+                          const pdf::PDFPrecompiledPage* compiledPage,
+                          pdf::PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<pdf::PDFRenderError>& errors) const override;
+
 private:
+    void onShowDimensionsTriggered();
+    void onClearDimensionsTriggered();
+    void onSettingsTriggered();
+    void onDimensionCreated(Dimension dimension);
+    void updateActions();
+
     std::array<DimensionTool*, DimensionTool::LastStyle> m_dimensionTools;
+    std::vector<Dimension> m_dimensions;
+
+    QAction* m_showDimensionsAction;
+    QAction* m_clearDimensionsAction;
+    QAction* m_settingsAction;
+
+    DimensionUnit m_lengthUnit;
+    DimensionUnit m_areaUnit;
+    DimensionUnit m_angleUnit;
 };
 
 }   // namespace pdfplugin

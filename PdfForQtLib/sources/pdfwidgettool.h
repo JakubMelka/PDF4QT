@@ -323,6 +323,12 @@ public:
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
+    QPointF getSnappedPoint() const;
+    PDFInteger getPageIndex() const { return m_pageIndex; }
+    const std::vector<QPointF>& getPickedPoints() const { return m_pickedPoints; }
+
+    void resetTool();
+
 signals:
     void pointPicked(PDFInteger pageIndex, QPointF pagePoint);
     void rectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
@@ -332,7 +338,6 @@ protected:
     virtual void setActiveImpl(bool active) override;
 
 private:
-    void resetTool();
     void buildSnapData();
 
     Mode m_mode;
@@ -436,6 +441,9 @@ public:
 
     /// Sets active tool
     void setActiveTool(PDFWidgetTool* tool);
+
+    /// Adds a new tool to tool manager
+    void addTool(PDFWidgetTool* tool);
 
     /// Returns first active tool from tool set. If no tool is active,
     /// then nullptr is returned.
