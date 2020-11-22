@@ -327,6 +327,12 @@ public:
     PDFInteger getPageIndex() const { return m_pageIndex; }
     const std::vector<QPointF>& getPickedPoints() const { return m_pickedPoints; }
 
+    /// Sets custom snap points for given page. If points on page aren't currently picked,
+    /// function does nothing. Snap data are not updated.
+    /// \param pageIndex pageIndex
+    /// \param snapPoints Custom snap points
+    void setCustomSnapPoints(PDFInteger pageIndex, const std::vector<QPointF>& snapPoints);
+
     void resetTool();
 
 signals:

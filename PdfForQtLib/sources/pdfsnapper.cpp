@@ -115,6 +115,10 @@ void PDFSnapper::drawSnapPoints(QPainter* painter) const
                 newColor = Qt::green;
                 break;
 
+            case SnapType::Custom:
+                newColor = Qt::black;
+                break;
+
             default:
                 newColor = Qt::red;
                 break;
@@ -198,6 +202,20 @@ void PDFSnapper::buildSnapPoints(const PDFWidgetSnapshot& snapshot)
             viewportSnapPoint.pageIndex = item.pageIndex;
             viewportSnapPoint.viewportPoint = item.pageToDeviceMatrix.map(snapPoint.point);
             m_snapPoints.push_back(qMove(viewportSnapPoint));
+        }
+
+        // Add custom snap points
+        if (m_currentPage == item.pageIndex)
+        {
+            for (const QPointF& customSnapPoint : m_customSnapPoints)
+            {
+                ViewportSnapPoint viewportSnapPoint;
+                viewportSnapPoint.type = SnapType::Custom;
+                viewportSnapPoint.point = customSnapPoint;
+                viewportSnapPoint.pageIndex = item.pageIndex;
+                viewportSnapPoint.viewportPoint = item.pageToDeviceMatrix.map(customSnapPoint);
+                m_snapPoints.push_back(qMove(viewportSnapPoint));
+            }
         }
 
         // Fill line projections snap points
@@ -298,12 +316,19 @@ const PDFSnapper::ViewportSnapImage* PDFSnapper::getSnappedImage() const
 
 void PDFSnapper::setReferencePoint(PDFInteger pageIndex, QPointF pagePoint)
 {
+    // Clear custom snap points, if page changes
+    if (m_currentPage != pageIndex)
+    {
+        m_customSnapPoints.clear();
+    }
+
     m_currentPage = pageIndex;
     m_referencePoint = pagePoint;
 }
 
 void PDFSnapper::clearReferencePoint()
 {
+    m_customSnapPoints.clear();
     m_currentPage = -1;
     m_referencePoint = std::nullopt;
 }
@@ -312,11 +337,22 @@ void PDFSnapper::clear()
 {
     clearReferencePoint();
 
+    m_customSnapPoints.clear();
     m_snapPoints.clear();
     m_snapImages.clear();
     m_snappedPoint = std::nullopt;
     m_snappedImage = std::nullopt;
     m_mousePoint = QPointF();
+}
+
+const std::vector<QPointF>& PDFSnapper::getCustomSnapPoints() const
+{
+    return m_customSnapPoints;
+}
+
+void PDFSnapper::setCustomSnapPoints(const std::vector<QPointF>& customSnapPoints)
+{
+    m_customSnapPoints = customSnapPoints;
 }
 
 }   // namespace pdf

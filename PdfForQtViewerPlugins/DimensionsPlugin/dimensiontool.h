@@ -52,7 +52,8 @@ public:
     {
         Linear,
         Perimeter,
-        Area
+        Area,
+        Angular
     };
 
     inline explicit Dimension() = default;
@@ -95,7 +96,10 @@ public:
         LinearVertical,
         Linear,
         Perimeter,
+        RectanglePerimeter,
         Area,
+        RectangleArea,
+        Angle,
         LastStyle
     };
 
@@ -114,6 +118,8 @@ signals:
 
 private:
     void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+
     QPointF adjustPagePoint(QPointF pagePoint) const;
     Dimension::Type getDimensionType() const;
     pdf::PDFReal getMeasuredValue(pdf::PDFInteger pageIndex, const std::vector<QPointF>& pickedPoints) const;

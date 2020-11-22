@@ -1152,6 +1152,14 @@ QPointF PDFPickTool::getSnappedPoint() const
     return m_snapper.getSnappedPoint();
 }
 
+void PDFPickTool::setCustomSnapPoints(PDFInteger pageIndex, const std::vector<QPointF>& snapPoints)
+{
+    if (m_pageIndex == pageIndex)
+    {
+        m_snapper.setCustomSnapPoints(snapPoints);
+    }
+}
+
 void PDFPickTool::setActiveImpl(bool active)
 {
     BaseClass::setActiveImpl(active);

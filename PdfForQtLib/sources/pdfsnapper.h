@@ -41,7 +41,8 @@ enum class SnapType
     PageCenter,        ///< Center of page media box
     ImageCenter,       ///< Center of image
     LineCenter,        ///< Center of line
-    GeneratedLineProjection    ///< Generated point to line projections
+    GeneratedLineProjection,   ///< Generated point to line projections
+    Custom  ///< Custom snap point
 };
 
 /// Contain informations for snap points in the pdf page. Snap points
@@ -184,6 +185,14 @@ public:
     /// Clears all snapped data, including snap points, images and referenced data.
     void clear();
 
+    /// Returns a vector of custom snap points
+    const std::vector<QPointF>& getCustomSnapPoints() const;
+
+    /// Sets custom set of snap points. Snap points are always referred to current
+    /// page index. If page index changes, then custom snap points are cleared.
+    /// \param customSnapPoints Custom snap points
+    void setCustomSnapPoints(const std::vector<QPointF>& customSnapPoints);
+
 private:
     struct SnappedPoint
     {
@@ -193,6 +202,7 @@ private:
 
     std::vector<ViewportSnapPoint> m_snapPoints;
     std::vector<ViewportSnapImage> m_snapImages;
+    std::vector<QPointF> m_customSnapPoints;
     std::optional<ViewportSnapPoint> m_snappedPoint;
     std::optional<ViewportSnapImage> m_snappedImage;
     QPointF m_mousePoint;

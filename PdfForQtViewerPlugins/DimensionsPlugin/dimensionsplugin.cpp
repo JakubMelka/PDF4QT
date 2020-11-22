@@ -46,25 +46,37 @@ void DimensionsPlugin::setWidget(pdf::PDFWidget* widget)
     QAction* verticalDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear-vertical.svg"), tr("Vertical Dimension"), this);
     QAction* linearDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear.svg"), tr("Linear Dimension"), this);
     QAction* perimeterDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/perimeter.svg"), tr("Perimeter"), this);
+    QAction* rectanglePerimeterDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/rectangle-perimeter.svg"), tr("Rectangle Perimeter"), this);
     QAction* areaDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/area.svg"), tr("Area"), this);
+    QAction* rectangleAreaDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/rectangle-area.svg"), tr("Rectangle Area"), this);
+    QAction* angleAction = new QAction(QIcon(":/pdfplugins/dimensiontool/angle.svg"), tr("Angle"), this);
 
     horizontalDimensionAction->setObjectName("dimensiontool_LinearHorizontalAction");
     verticalDimensionAction->setObjectName("dimensiontool_LinearVerticalAction");
     linearDimensionAction->setObjectName("dimensiontool_LinearAction");
     perimeterDimensionAction->setObjectName("dimensiontool_PerimeterAction");
+    rectanglePerimeterDimensionAction->setObjectName("dimensiontool_RectanglePerimeterAction");
     areaDimensionAction->setObjectName("dimensiontool_AreaAction");
+    rectangleAreaDimensionAction->setObjectName("dimensiontool_RectangleAreaAction");
+    angleAction->setObjectName("dimensiontool_AngleAction");
 
     horizontalDimensionAction->setCheckable(true);
     verticalDimensionAction->setCheckable(true);
     linearDimensionAction->setCheckable(true);
     perimeterDimensionAction->setCheckable(true);
+    rectanglePerimeterDimensionAction->setCheckable(true);
     areaDimensionAction->setCheckable(true);
+    rectangleAreaDimensionAction->setCheckable(true);
+    angleAction->setCheckable(true);
 
     m_dimensionTools[DimensionTool::LinearHorizontal] = new DimensionTool(DimensionTool::LinearHorizontal, widget->getDrawWidgetProxy(), horizontalDimensionAction, this);
     m_dimensionTools[DimensionTool::LinearVertical] = new DimensionTool(DimensionTool::LinearVertical, widget->getDrawWidgetProxy(), verticalDimensionAction, this);
     m_dimensionTools[DimensionTool::Linear] = new DimensionTool(DimensionTool::Linear, widget->getDrawWidgetProxy(), linearDimensionAction, this);
     m_dimensionTools[DimensionTool::Perimeter] = new DimensionTool(DimensionTool::Perimeter, widget->getDrawWidgetProxy(), perimeterDimensionAction, this);
+    m_dimensionTools[DimensionTool::RectanglePerimeter] = new DimensionTool(DimensionTool::RectanglePerimeter, widget->getDrawWidgetProxy(), rectanglePerimeterDimensionAction, this);
     m_dimensionTools[DimensionTool::Area] = new DimensionTool(DimensionTool::Area, widget->getDrawWidgetProxy(), areaDimensionAction, this);
+    m_dimensionTools[DimensionTool::RectangleArea] = new DimensionTool(DimensionTool::RectangleArea, widget->getDrawWidgetProxy(), rectangleAreaDimensionAction, this);
+    m_dimensionTools[DimensionTool::Angle] = new DimensionTool(DimensionTool::Angle, widget->getDrawWidgetProxy(), angleAction, this);
 
     pdf::PDFToolManager* toolManager = widget->getToolManager();
     for (DimensionTool* tool : m_dimensionTools)
@@ -146,6 +158,8 @@ void DimensionsPlugin::drawPage(QPainter* painter,
     }
 
     QLocale locale;
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
     for (const Dimension& dimension : m_dimensions)
     {
         if (pageIndex != dimension.getPageIndex())
@@ -204,10 +218,89 @@ void DimensionsPlugin::drawPage(QPainter* painter,
             }
 
             case Dimension::Perimeter:
-                break;
-
             case Dimension::Area:
+            {
+                const bool isArea = dimension.getType() == Dimension::Type::Area;
+                const std::vector<QPointF>& polygon = dimension.getPolygon();
+
+                qreal lineSize = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 1);
+                qreal pointSize = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 5);
+
+                painter->save();
+                QPen pen(Qt::black);
+                pen.setWidthF(lineSize);
+                pen.setCosmetic(true);
+
+                QColor brushColor = Qt::black;
+                brushColor.setAlphaF(0.1);
+                painter->setPen(qMove(pen));
+                painter->setBrush(QBrush(brushColor, isArea ? Qt::SolidPattern : Qt::DiagCrossPattern));
+
+                painter->setMatrix(pagePointToDevicePointMatrix, true);
+                painter->drawPolygon(polygon.data(), int(polygon.size()), Qt::OddEvenFill);
+                painter->restore();
+
+                QPen penPoint(Qt::black);
+                penPoint.setCapStyle(Qt::RoundCap);
+                penPoint.setWidthF(pointSize);
+                painter->setPen(penPoint);
+
+                QPointF centerPoint(0, 0);
+                for (const QPointF& point : polygon)
+                {
+                    QPointF mappedPoint = pagePointToDevicePointMatrix.map(point);
+                    centerPoint += mappedPoint;
+                    painter->drawPoint(mappedPoint);
+                }
+
+                centerPoint *= 1.0 / qreal(polygon.size());
+
+                QString text;
+
+                if (isArea)
+                {
+                    text = tr("A = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_areaUnit.scale, 'f', 2), m_areaUnit.symbol);
+                }
+                else
+                {
+                    text = tr("p = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
+                }
+                painter->drawText(centerPoint, text);
+
                 break;
+            }
+
+            case Dimension::Angular:
+            {
+                const std::vector<QPointF>& polygon = dimension.getPolygon();
+                QLineF line1(pagePointToDevicePointMatrix.map(polygon[1]), pagePointToDevicePointMatrix.map(polygon.front()));
+                QLineF line2(pagePointToDevicePointMatrix.map(polygon[1]), pagePointToDevicePointMatrix.map(polygon.back()));
+
+                qreal lineSize = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 1);
+                qreal pointSize = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 5);
+
+                qreal maxLength = qMax(line1.length(), line2.length());
+                line1.setLength(maxLength);
+                line2.setLength(maxLength);
+
+                QPen pen(Qt::black);
+                pen.setWidthF(lineSize);
+                painter->setPen(qMove(pen));
+
+                painter->drawLine(line1);
+                painter->drawLine(line2);
+
+                QPen penPoint(Qt::black);
+                penPoint.setCapStyle(Qt::RoundCap);
+                penPoint.setWidthF(pointSize);
+                painter->setPen(penPoint);
+
+                painter->drawPoint(line1.p1());
+                painter->drawPoint(line1.p2());
+                painter->drawPoint(line2.p2());
+
+                break;
+            }
 
             default:
                 Q_ASSERT(false);

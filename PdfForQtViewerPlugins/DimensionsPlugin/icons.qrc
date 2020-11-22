@@ -8,5 +8,8 @@
         <file>clear-dimensions.svg</file>
         <file>settings.svg</file>
         <file>show-dimensions.svg</file>
+        <file>angle.svg</file>
+        <file>rectangle-area.svg</file>
+        <file>rectangle-perimeter.svg</file>
     </qresource>
 </RCC>

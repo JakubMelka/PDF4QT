@@ -21,15 +21,18 @@
 
 #include <QPainter>
 
-DimensionTool::DimensionTool(DimensionTool::Style style, pdf::PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+DimensionTool::DimensionTool(Style style, pdf::PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
     BaseClass(proxy, action, parent),
     m_style(style),
     m_previewPointPixelSize(0),
     m_pickTool(nullptr)
 {
-    m_pickTool = new pdf::PDFPickTool(proxy, pdf::PDFPickTool::Mode::Points, this);
+    const bool isRectanglePicking = style == RectanglePerimeter || style == RectangleArea;
+    const pdf::PDFPickTool::Mode pickingMode = isRectanglePicking ? pdf::PDFPickTool::Mode::Rectangles : pdf::PDFPickTool::Mode::Points;
+    m_pickTool = new pdf::PDFPickTool(proxy, pickingMode, this);
     addTool(m_pickTool);
     connect(m_pickTool, &pdf::PDFPickTool::pointPicked, this, &DimensionTool::onPointPicked);
+    connect(m_pickTool, &pdf::PDFPickTool::rectanglePicked, this, &DimensionTool::onRectanglePicked);
     m_previewPointPixelSize = pdf::PDFWidgetUtils::scaleDPI_x(proxy->getWidget(), 5);
 }
 
@@ -47,6 +50,12 @@ void DimensionTool::drawPage(QPainter* painter,
     if (m_pickTool->getPageIndex() != pageIndex)
     {
         // Other page, nothing to draw
+        return;
+    }
+
+    if (m_style == RectanglePerimeter || m_style == RectangleArea)
+    {
+        // Nothing to draw, picking tool is already drawing picked rectangle
         return;
     }
 
@@ -92,6 +101,24 @@ void DimensionTool::onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint)
         emit dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
         m_pickTool->resetTool();
     }
+
+    if ((m_style == Perimeter || m_style == Area) && m_pickTool->getPickedPoints().size() == 1)
+    {
+        m_pickTool->setCustomSnapPoints(pageIndex, m_pickTool->getPickedPoints());
+    }
+}
+
+void DimensionTool::onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        return;
+    }
+
+    std::vector<QPointF> points = { pageRectangle.topLeft(), pageRectangle.topRight(), pageRectangle.bottomRight(), pageRectangle.bottomLeft(), pageRectangle.topLeft() };
+    Q_ASSERT(Dimension::isComplete(getDimensionType(), points));
+    pdf::PDFReal measuredValue = getMeasuredValue(pageIndex, points);
+    emit dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
 }
 
 QPointF DimensionTool::adjustPagePoint(QPointF pagePoint) const
@@ -155,10 +182,15 @@ Dimension::Type DimensionTool::getDimensionType() const
             return Dimension::Type::Linear;
 
         case DimensionTool::Perimeter:
+        case DimensionTool::RectanglePerimeter:
             return Dimension::Type::Perimeter;
 
         case DimensionTool::Area:
+        case DimensionTool::RectangleArea:
             return Dimension::Type::Area;
+
+        case DimensionTool::Angle:
+            return Dimension::Type::Angular;
     }
 
     Q_ASSERT(false);
@@ -204,6 +236,14 @@ pdf::PDFReal DimensionTool::getMeasuredValue(pdf::PDFInteger pageIndex, const st
             return area * page->getUserUnit() * page->getUserUnit();
         }
 
+        case Dimension::Angular:
+        {
+            Q_ASSERT(pickedPoints.size() == 3);
+            QLineF line1(pickedPoints[1], pickedPoints.front());
+            QLineF line2(pickedPoints[1], pickedPoints.back());
+            return line1.angleTo(line2);
+        }
+
         default:
             Q_ASSERT(false);
             break;
@@ -222,6 +262,9 @@ bool Dimension::isComplete(Type type, const std::vector<QPointF>& polygon)
         case Dimension::Perimeter:
         case Dimension::Area:
             return polygon.size() > 2 && polygon.front() == polygon.back();
+
+        case Dimension::Angular:
+            return polygon.size() == 3;
 
         default:
             Q_ASSERT(false);
@@ -259,8 +302,8 @@ DimensionUnits DimensionUnit::getAngleUnits()
 {
     DimensionUnits units;
 
-    units.emplace_back(qRadiansToDegrees(1.0), DimensionTool::tr("°"));
-    units.emplace_back(1.0, DimensionTool::tr("rad"));
+    units.emplace_back(1.0, DimensionTool::tr("°"));
+    units.emplace_back(qDegreesToRadians(1.0), DimensionTool::tr("rad"));
 
     return units;
 }
