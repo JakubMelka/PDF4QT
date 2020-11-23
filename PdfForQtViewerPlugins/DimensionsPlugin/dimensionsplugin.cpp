@@ -290,6 +290,13 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 painter->drawLine(line1);
                 painter->drawLine(line2);
 
+                qreal startAngle = line1.angle() * 16;
+                qreal angleLength = dimension.getMeasuredValue() * 16;
+
+                QRectF rect(-maxLength * 0.5, -maxLength * 0.5, maxLength, maxLength);
+                rect.translate(line1.p1());
+                painter->drawArc(rect, startAngle - angleLength, angleLength);
+
                 QPen penPoint(Qt::black);
                 penPoint.setCapStyle(Qt::RoundCap);
                 penPoint.setWidthF(pointSize);
@@ -298,6 +305,14 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 painter->drawPoint(line1.p1());
                 painter->drawPoint(line1.p2());
                 painter->drawPoint(line2.p2());
+
+                QMatrix textMatrix;
+                textMatrix.translate(line1.x1(), line1.y1());
+                textMatrix.rotate(-line1.angle() + dimension.getMeasuredValue() * 0.5);
+
+                QPointF textPoint = textMatrix.map(QPointF(maxLength * 0.25, 0.0));
+                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_angleUnit.scale, 'f', 2), m_angleUnit.symbol);
+                painter->drawText(textPoint, text);
 
                 break;
             }

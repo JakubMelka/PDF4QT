@@ -375,7 +375,31 @@ void PDFViewerMainWindow::loadPlugins()
 
                 menu->addAction(action);
                 toolbarButton->menu()->addAction(action);
-                connect(action, &QAction::triggered, toolbarButton, [action, toolbarButton](){ toolbarButton->setDefaultAction(action); });
+
+                auto onPluginActionTriggered = [toolbarButton, action]()
+                {
+                    if (action->isEnabled())
+                    {
+                        toolbarButton->setDefaultAction(action);
+                    }
+                };
+                auto onPluginActionStateChanged = [toolbarButton, action]()
+                {
+                    if (!action->isEnabled() && toolbarButton->defaultAction() == action)
+                    {
+                        for (QAction* action : toolbarButton->menu()->actions())
+                        {
+                            if (action->isEnabled())
+                            {
+                                toolbarButton->setDefaultAction(action);
+                                break;
+                            }
+                        }
+                    }
+                };
+
+                connect(action, &QAction::triggered, toolbarButton, onPluginActionTriggered);
+                connect(action, &QAction::changed, toolbarButton, onPluginActionStateChanged);
             }
         }
     }
