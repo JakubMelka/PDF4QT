@@ -78,6 +78,14 @@ public:
     /// Returns blend mode name
     /// \param mode Blend mode
     static QString getBlendModeName(BlendMode mode);
+
+    /// Returns blend mode translated name
+    /// \param mode Blend mode
+    static QString getBlendModeTranslatedName(BlendMode mode);
+
+    /// Returns vector of all blend modes, excluding duplicate ones (for example,
+    /// Compatible mode is equal to Normal blend mode)
+    static std::vector<BlendMode> getBlendModes();
 };
 
 }   // namespace pdf

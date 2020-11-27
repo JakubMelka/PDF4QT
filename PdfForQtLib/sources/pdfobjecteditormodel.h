@@ -19,6 +19,7 @@
 #define PDFOBJECTEDITORABSTRACTMODEL_H
 
 #include "pdfobject.h"
+#include "pdfdocument.h"
 
 #include <QStringList>
 
@@ -33,6 +34,12 @@ enum ObjectEditorAttributeType
     TextBrowser,    ///< Multiple line text
     Rectangle,      ///< Rectangle defined by x,y,width,height
     DateTime,       ///< Date/time
+    Flags,          ///< Flags
+    Selector,       ///< Selector attribute, it is not persisted
+    Color,          ///< Color
+    Double,         ///< Double value
+    ComboBox,       ///< Combo box with predefined set of items
+    Boolean,        ///< Check box
     Invalid
 };
 
@@ -63,7 +70,7 @@ struct PDFObjectEditorModelAttribute
     /// there can be a path of constisting of dictionary names and last
     /// string in the string list is key in the dictionary. If this attribute
     /// is empty, then this attribute is not represented in final object.
-    QStringList dictionaryAttribute;
+    QByteArrayList dictionaryAttribute;
 
     /// Category
     QString category;
@@ -83,6 +90,16 @@ struct PDFObjectEditorModelAttribute
 
     /// Attribute flags
     Flags attributeFlags = None;
+
+    /// Selector attribute. This is a zero (no selector attribute), or valid
+    /// selector attribute which is a bool attribute. Selector attribute turns
+    /// on/off displaying of this attribute. If selector state is off, then default
+    /// value is stored into the object. If selector state is on, then user
+    /// can select the attribute value.
+    size_t selectorAttribute = 0;
+
+    QVariant minValue;
+    QVariant maxValue;
 
     /// Enum items
     PDFObjectEditorModelAttributeEnumItems enumItems;
@@ -104,9 +121,22 @@ public:
     const QString& getAttributeSubcategory(size_t index) const;
     const QString& getAttributeName(size_t index) const;
 
+    enum class Question
+    {
+        IsMapped,
+        HasAttribute,
+        IsAttributeEditable
+    };
+
+    bool queryAttribute(size_t index, Question question) const;
+
+    bool getSelectorValue(size_t index) const;
+    PDFObject getValue(size_t index) const;
+    PDFObject getDefaultValue(size_t index) const;
+
 protected:
     size_t createAttribute(ObjectEditorAttributeType type,
-                           QString attributeName,
+                           QByteArray attributeName,
                            QString category,
                            QString subcategory,
                            QString name,
@@ -114,7 +144,19 @@ protected:
                            uint32_t typeFlags = 0,
                            PDFObjectEditorModelAttribute::Flags flags = PDFObjectEditorModelAttribute::None);
 
+    size_t createSelectorAttribute(QString category,
+                                   QString subcategory,
+                                   QString name);
+
+    uint32_t getCurrentTypeFlags() const;
+
+    PDFObject getDefaultColor() const;
+
     std::vector<PDFObjectEditorModelAttribute> m_attributes;
+
+    PDFObject m_editedObject;
+    const PDFObjectStorage* m_storage;
+    size_t m_typeAttribute;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFObjectEditorAnnotationsModel : public PDFObjectEditorAbstractModel

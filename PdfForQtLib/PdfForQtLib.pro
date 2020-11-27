@@ -60,6 +60,7 @@ SOURCES += \
     sources/pdfmultimedia.cpp \
     sources/pdfobject.cpp \
     sources/pdfobjecteditormodel.cpp \
+    sources/pdfobjecteditorwidget.cpp \
     sources/pdfobjectutils.cpp \
     sources/pdfoptimizer.cpp \
     sources/pdfoptionalcontent.cpp \
@@ -120,6 +121,7 @@ HEADERS += \
     sources/pdfnametreeloader.h \
     sources/pdfobject.h \
     sources/pdfobjecteditormodel.h \
+    sources/pdfobjecteditorwidget.h \
     sources/pdfobjectutils.h \
     sources/pdfoptimizer.h \
     sources/pdfoptionalcontent.h \

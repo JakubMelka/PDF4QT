@@ -129,4 +129,72 @@ QString PDFBlendModeInfo::getBlendModeName(BlendMode mode)
     return "Unknown";
 }
 
+QString PDFBlendModeInfo::getBlendModeTranslatedName(BlendMode mode)
+{
+    switch (mode)
+    {
+        case BlendMode::Normal:
+        case BlendMode::Compatible:
+            return PDFTranslationContext::tr("Normal");
+        case BlendMode::Multiply:
+            return PDFTranslationContext::tr("Multiply");
+        case BlendMode::Screen:
+            return PDFTranslationContext::tr("Screem");
+        case BlendMode::Overlay:
+            return PDFTranslationContext::tr("Overlay");
+        case BlendMode::Darken:
+            return PDFTranslationContext::tr("Darken");
+        case BlendMode::Lighten:
+            return PDFTranslationContext::tr("Lighten");
+        case BlendMode::ColorDodge:
+            return PDFTranslationContext::tr("ColorDodge");
+        case BlendMode::ColorBurn:
+            return PDFTranslationContext::tr("ColorBurn");
+        case BlendMode::HardLight:
+            return PDFTranslationContext::tr("HardLight");
+        case BlendMode::SoftLight:
+            return PDFTranslationContext::tr("SoftLight");
+        case BlendMode::Difference:
+            return PDFTranslationContext::tr("Difference");
+        case BlendMode::Exclusion:
+            return PDFTranslationContext::tr("Exclusion");
+        case BlendMode::Hue:
+            return PDFTranslationContext::tr("Hue");
+        case BlendMode::Saturation:
+            return PDFTranslationContext::tr("Saturation");
+        case BlendMode::Color:
+            return PDFTranslationContext::tr("Color");
+        case BlendMode::Luminosity:
+            return PDFTranslationContext::tr("Luminosity");
+
+        default:
+            break;
+    }
+
+    return PDFTranslationContext::tr("Unknown");
+}
+
+std::vector<BlendMode> PDFBlendModeInfo::getBlendModes()
+{
+    return
+    {
+        BlendMode::Normal,
+        BlendMode::Multiply,
+        BlendMode::Screen,
+        BlendMode::Overlay,
+        BlendMode::Darken,
+        BlendMode::Lighten,
+        BlendMode::ColorDodge,
+        BlendMode::ColorBurn,
+        BlendMode::HardLight,
+        BlendMode::SoftLight,
+        BlendMode::Difference,
+        BlendMode::Exclusion,
+        BlendMode::Hue,
+        BlendMode::Saturation,
+        BlendMode::Color,
+        BlendMode::Luminosity
+    };
+}
+
 }   // namespace pdf

@@ -16,12 +16,16 @@
 //    along with PDFForQt. If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfobjecteditormodel.h"
+#include "pdfdocumentbuilder.h"
+#include "pdfblendfunction.h"
 
 namespace pdf
 {
 
 PDFObjectEditorAbstractModel::PDFObjectEditorAbstractModel(QObject* parent) :
-    BaseClass(parent)
+    BaseClass(parent),
+    m_storage(nullptr),
+    m_typeAttribute(0)
 {
 
 }
@@ -51,8 +55,83 @@ const QString& PDFObjectEditorAbstractModel::getAttributeName(size_t index) cons
     return m_attributes.at(index).name;
 }
 
+bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question question) const
+{
+    const PDFObjectEditorModelAttribute& attribute = m_attributes.at(index);
+
+    switch (question)
+    {
+        case Question::IsMapped:
+            return attribute.attributeFlags.testFlag(PDFObjectEditorModelAttribute::Hidden) || attribute.type == ObjectEditorAttributeType::Constant;
+
+        case Question::HasAttribute:
+        {
+            // Check type flags
+            if (attribute.typeFlags)
+            {
+                uint32_t currentTypeFlags = getCurrentTypeFlags();
+                if (!(attribute.typeFlags & currentTypeFlags))
+                {
+                    return false;
+                }
+            }
+
+            // Check selector
+            if (attribute.selectorAttribute)
+            {
+                if (!getSelectorValue(attribute.selectorAttribute))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+            s
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+PDFObject PDFObjectEditorAbstractModel::getValue(size_t index) const
+{
+    const QByteArrayList& dictionaryAttribute = m_attributes.at(index).dictionaryAttribute;
+    if (dictionaryAttribute.isEmpty())
+    {
+        return PDFObject();
+    }
+
+    PDFDocumentDataLoaderDecorator loader(m_storage);
+
+    if (const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(m_editedObject))
+    {
+        const int pathDepth = dictionaryAttribute.size() - 1;
+
+        for (int i = 0; i < pathDepth; ++i)
+        {
+            dictionary = m_storage->getDictionaryFromObject(dictionaryAttribute[i]);
+            if (!dictionary)
+            {
+                return PDFObject();
+            }
+        }
+
+        return dictionary->get(dictionaryAttribute.back());
+    }
+
+    return PDFObject();
+}
+
+PDFObject PDFObjectEditorAbstractModel::getDefaultValue(size_t index) const
+{
+    return m_attributes.at(index).defaultValue;
+}
+
 size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType type,
-                                                     QString attributeName,
+                                                     QByteArray attributeName,
                                                      QString category,
                                                      QString subcategory,
                                                      QString name,
@@ -64,7 +143,7 @@ size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType t
 
     PDFObjectEditorModelAttribute attribute;
     attribute.type = type;
-    attribute.dictionaryAttribute = QStringList(qMove(attributeName));
+    attribute.dictionaryAttribute = QByteArrayList(qMove(attributeName));
     attribute.category = qMove(category);
     attribute.subcategory = qMove(subcategory);
     attribute.name = qMove(name);
@@ -73,7 +152,41 @@ size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType t
     attribute.attributeFlags = flags;
     m_attributes.emplace_back(qMove(attribute));
 
+    if (type == ObjectEditorAttributeType::Type)
+    {
+        m_typeAttribute = index;
+    }
+
     return index;
+}
+
+size_t PDFObjectEditorAbstractModel::createSelectorAttribute(QString category, QString subcategory, QString name)
+{
+    return createAttribute(ObjectEditorAttributeType::Selector, QString(), qMove(category), qMove(subcategory), qMove(name));
+}
+
+uint32_t PDFObjectEditorAbstractModel::getCurrentTypeFlags() const
+{
+    PDFObject value = getValue(m_typeAttribute);
+
+    for (const PDFObjectEditorModelAttributeEnumItem& item : m_attributes.at(index).enumItems)
+    {
+        if (item.value == value)
+        {
+            return item.flags;
+        }
+    }
+
+    return 0;
+}
+
+PDFObject PDFObjectEditorAbstractModel::getDefaultColor() const
+{
+    PDFObjectFactory factory;
+    factory.beginArray();
+    factory << std::initializer_list<PDFReal>{ 0.0, 0.0, 0.0 };
+    factory.endArray();
+    return factory.takeObject();
 }
 
 PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent) :
@@ -103,9 +216,66 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     m_attributes.back().enumItems = qMove(typeEnumItems);
 
     createAttribute(ObjectEditorAttributeType::Rectangle, "Rect", tr("General"), tr("General"), tr("Rectangle"), PDFObject());
-    createAttribute(ObjectEditorAttributeType::TextLine, "NM", tr("Contents"), tr("Contents"), tr("Name"));
+    createAttribute(ObjectEditorAttributeType::TextLine, "T", tr("Contents"), tr("Contents"), tr("Author"), PDFObject(), Markup);
+    createAttribute(ObjectEditorAttributeType::TextLine, "Subj", tr("Contents"), tr("Contents"), tr("Subj"), PDFObject(), Markup);
     createAttribute(ObjectEditorAttributeType::TextBrowser, "Contents", tr("Contents"), tr("Contents"), tr("Contents"));
+    createAttribute(ObjectEditorAttributeType::TextLine, "NM", tr("Contents"), tr("Contents"), tr("Annotation name"));
     createAttribute(ObjectEditorAttributeType::DateTime, "M", tr("General"), tr("Info"), tr("Modified"), PDFObject(), 0, PDFObjectEditorModelAttribute::Readonly);
+    createAttribute(ObjectEditorAttributeType::DateTime, "M", tr("General"), tr("Info"), tr("Created"), PDFObject(), Markup, PDFObjectEditorModelAttribute::Readonly);
+    createAttribute(ObjectEditorAttributeType::Flags, "F", tr("Options"), tr("Options"), QString());
+
+    PDFObjectEditorModelAttributeEnumItems annotationFlagItems;
+    annotationFlagItems.emplace_back(tr("Invisible"), 1 << 0, PDFObject());
+    annotationFlagItems.emplace_back(tr("Hidden"), 1 << 1, PDFObject());
+    annotationFlagItems.emplace_back(tr("Print"), 1 << 2, PDFObject());
+    annotationFlagItems.emplace_back(tr("NoZoom"), 1 << 3, PDFObject());
+    annotationFlagItems.emplace_back(tr("NoRotate"), 1 << 4, PDFObject());
+    annotationFlagItems.emplace_back(tr("NoView"), 1 << 5, PDFObject());
+    annotationFlagItems.emplace_back(tr("ReadOnly"), 1 << 6, PDFObject());
+    annotationFlagItems.emplace_back(tr("Locked"), 1 << 7, PDFObject());
+    annotationFlagItems.emplace_back(tr("ToggleNoView"), 1 << 8, PDFObject());
+    annotationFlagItems.emplace_back(tr("LockedContents"), 1 << 9, PDFObject());
+    m_attributes.back().enumItems = qMove(annotationFlagItems);
+
+    size_t appearanceSelector = createSelectorAttribute(tr("General"), tr("Options"), tr("Modify appearance"));
+    createAttribute(ObjectEditorAttributeType::Color, "C", tr("Appearance"), tr("Colors"), tr("Color"), getDefaultColor());
+    m_attributes.back().selectorAttribute = appearanceSelector;
+
+    createAttribute(ObjectEditorAttributeType::ComboBox, "BM", tr("Appearance"), tr("Transparency"), tr("Blend mode"), PDFObject::createName("Normal"));
+    m_attributes.back().selectorAttribute = appearanceSelector;
+
+    PDFObjectEditorModelAttributeEnumItems blendModeEnumItems;
+    for (BlendMode mode : PDFBlendModeInfo::getBlendModes())
+    {
+        annotationFlagItems.emplace_back(PDFBlendModeInfo::getBlendModeTranslatedName(mode), uint(mode), PDFObject::createName(PDFBlendModeInfo::getBlendModeName(mode).toLatin1()));
+    }
+    m_attributes.back().enumItems = qMove(blendModeEnumItems);
+
+    createAttribute(ObjectEditorAttributeType::Double, "ca", tr("Appearance"), tr("Transparency"), tr("Fill opacity"), PDFObject::createReal(1.0));
+    m_attributes.back().selectorAttribute = appearanceSelector;
+    m_attributes.back().minValue = 0.0;
+    m_attributes.back().maxValue = 1.0;
+    createAttribute(ObjectEditorAttributeType::Double, "CA", tr("Appearance"), tr("Transparency"), tr("Stroke opacity"), PDFObject::createReal(1.0));
+    m_attributes.back().selectorAttribute = appearanceSelector;
+    m_attributes.back().minValue = 0.0;
+    m_attributes.back().maxValue = 1.0;
+
+    createAttribute(ObjectEditorAttributeType::TextLine, "Lang", tr("General"), tr("General"), tr("Language"));
+
+    // Sticky note annotation
+    createAttribute(ObjectEditorAttributeType::ComboBox, "Name", tr("Sticky note"), tr("Sticky note"), tr("Type"), PDFObject::createName("Note"), Text);
+
+    PDFObjectEditorModelAttributeEnumItems stickyNoteEnum;
+    stickyNoteEnum.emplace_back(tr("Comment"), 0, PDFObject::createName("Comment"));
+    stickyNoteEnum.emplace_back(tr("Key"), 2, PDFObject::createName("Key"));
+    stickyNoteEnum.emplace_back(tr("Note"), 4, PDFObject::createName("Note"));
+    stickyNoteEnum.emplace_back(tr("Help"), 8, PDFObject::createName("Help"));
+    stickyNoteEnum.emplace_back(tr("New Paragraph"), 16, PDFObject::createName("NewParagraph"));
+    stickyNoteEnum.emplace_back(tr("Paragraph,"), 32, PDFObject::createName("Paragraph"));
+    stickyNoteEnum.emplace_back(tr("Insert"), 64, PDFObject::createName("Insert"));
+    m_attributes.back().enumItems = qMove(stickyNoteEnum);
+
+    createAttribute(ObjectEditorAttributeType::Boolean, "Name", tr("Sticky note"), tr("Sticky note"), tr("Open"), PDFObject::createBool(false), Text);
 }
 
 } // namespace pdf
