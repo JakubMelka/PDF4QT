@@ -40,6 +40,11 @@ size_t PDFObjectEditorAbstractModel::getAttributeCount() const
     return m_attributes.size();
 }
 
+ObjectEditorAttributeType PDFObjectEditorAbstractModel::getAttributeType(size_t index) const
+{
+    return m_attributes.at(index).type;
+}
+
 const QString& PDFObjectEditorAbstractModel::getAttributeCategory(size_t index) const
 {
     return m_attributes.at(index).category;
@@ -53,6 +58,11 @@ const QString& PDFObjectEditorAbstractModel::getAttributeSubcategory(size_t inde
 const QString& PDFObjectEditorAbstractModel::getAttributeName(size_t index) const
 {
     return m_attributes.at(index).name;
+}
+
+const PDFObjectEditorModelAttributeEnumItems& PDFObjectEditorAbstractModel::getAttributeEnumItems(size_t index) const
+{
+    return m_attributes.at(index).enumItems;
 }
 
 bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question question) const
@@ -87,13 +97,20 @@ bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question questio
 
             return true;
         }
-            s
+
+        case Question::IsAttributeEditable:
+            return queryAttribute(index, Question::HasAttribute) && !attribute.attributeFlags.testFlag(PDFObjectEditorModelAttribute::Readonly);
 
         default:
             break;
     }
 
     return false;
+}
+
+bool PDFObjectEditorAbstractModel::getSelectorValue(size_t index) const
+{
+    return m_attributes.at(index).selectorAttributeValue;
 }
 
 PDFObject PDFObjectEditorAbstractModel::getValue(size_t index) const
@@ -112,7 +129,7 @@ PDFObject PDFObjectEditorAbstractModel::getValue(size_t index) const
 
         for (int i = 0; i < pathDepth; ++i)
         {
-            dictionary = m_storage->getDictionaryFromObject(dictionaryAttribute[i]);
+            dictionary = m_storage->getDictionaryFromObject(dictionary->get(dictionaryAttribute[i]));
             if (!dictionary)
             {
                 return PDFObject();
@@ -141,9 +158,11 @@ size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType t
 {
     size_t index = m_attributes.size();
 
+    QByteArrayList attributes;
+    attributes.push_back(attributeName);
     PDFObjectEditorModelAttribute attribute;
     attribute.type = type;
-    attribute.dictionaryAttribute = QByteArrayList(qMove(attributeName));
+    attribute.dictionaryAttribute = attributes;
     attribute.category = qMove(category);
     attribute.subcategory = qMove(subcategory);
     attribute.name = qMove(name);
@@ -162,14 +181,14 @@ size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType t
 
 size_t PDFObjectEditorAbstractModel::createSelectorAttribute(QString category, QString subcategory, QString name)
 {
-    return createAttribute(ObjectEditorAttributeType::Selector, QString(), qMove(category), qMove(subcategory), qMove(name));
+    return createAttribute(ObjectEditorAttributeType::Selector, QByteArray(), qMove(category), qMove(subcategory), qMove(name));
 }
 
 uint32_t PDFObjectEditorAbstractModel::getCurrentTypeFlags() const
 {
     PDFObject value = getValue(m_typeAttribute);
 
-    for (const PDFObjectEditorModelAttributeEnumItem& item : m_attributes.at(index).enumItems)
+    for (const PDFObjectEditorModelAttributeEnumItem& item : m_attributes.at(m_typeAttribute).enumItems)
     {
         if (item.value == value)
         {

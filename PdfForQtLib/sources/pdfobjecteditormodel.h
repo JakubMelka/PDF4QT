@@ -103,6 +103,9 @@ struct PDFObjectEditorModelAttribute
 
     /// Enum items
     PDFObjectEditorModelAttributeEnumItems enumItems;
+
+    /// Value for selector attribute
+    bool selectorAttributeValue = false;
 };
 
 class PDFFORQTLIBSHARED_EXPORT PDFObjectEditorAbstractModel : public QObject
@@ -117,9 +120,11 @@ public:
     virtual ~PDFObjectEditorAbstractModel();
 
     size_t getAttributeCount() const;
+    ObjectEditorAttributeType getAttributeType(size_t index) const;
     const QString& getAttributeCategory(size_t index) const;
     const QString& getAttributeSubcategory(size_t index) const;
     const QString& getAttributeName(size_t index) const;
+    const PDFObjectEditorModelAttributeEnumItems& getAttributeEnumItems(size_t index) const;
 
     enum class Question
     {
@@ -133,6 +138,8 @@ public:
     bool getSelectorValue(size_t index) const;
     PDFObject getValue(size_t index) const;
     PDFObject getDefaultValue(size_t index) const;
+
+    const PDFObjectStorage* getStorage() const { return m_storage; }
 
 protected:
     size_t createAttribute(ObjectEditorAttributeType type,

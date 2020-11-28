@@ -122,6 +122,7 @@ HEADERS += \
     sources/pdfobject.h \
     sources/pdfobjecteditormodel.h \
     sources/pdfobjecteditorwidget.h \
+    sources/pdfobjecteditorwidget_impl.h \
     sources/pdfobjectutils.h \
     sources/pdfoptimizer.h \
     sources/pdfoptionalcontent.h \
