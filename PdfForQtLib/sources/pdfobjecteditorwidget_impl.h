@@ -28,6 +28,8 @@ class QGridLayout;
 class QLineEdit;
 class QTextBrowser;
 class QPushButton;
+class QDateTimeEdit;
+class QCheckBox;
 
 namespace pdf
 {
@@ -57,6 +59,46 @@ protected:
 
     PDFObjectEditorAbstractModel* m_model;
     size_t m_attribute;
+};
+
+class PDFObjectEditorWidgetMapper : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFObjectEditorWidgetMapper(PDFObjectEditorAbstractModel* model, QObject* parent);
+
+    void initialize(QTabWidget* tabWidget);
+
+private:
+    struct Subcategory
+    {
+        QString name;
+        std::vector<size_t> attributes;
+    };
+
+    struct Category
+    {
+        QString name;
+        std::vector<Subcategory> subcategories;
+        QWidget* page = nullptr;
+
+        Subcategory* getOrCreateSubcategory(QString name);
+    };
+
+    void loadWidgets();
+    void onEditedObjectChanged();
+    void onCommitRequested(size_t attribute);
+    void createMappedAdapter(QGroupBox* groupBox, QGridLayout* layout, size_t attribute);
+    Category* getOrCreateCategory(QString categoryName);
+
+    PDFObjectEditorAbstractModel* m_model;
+    std::vector<Category> m_categories;
+    std::map<size_t, PDFObjectEditorMappedWidgetAdapter*> m_adapters;
+    bool m_isCommitingDisabled;
 };
 
 class PDFObjectEditorMappedComboBoxAdapter : public PDFObjectEditorMappedWidgetAdapter
@@ -113,42 +155,6 @@ private:
     QTextBrowser* m_textBrowser;
 };
 
-class PDFObjectEditorWidgetMapper : public QObject
-{
-    Q_OBJECT
-
-private:
-    using BaseClass = QObject;
-
-public:
-    explicit PDFObjectEditorWidgetMapper(PDFObjectEditorAbstractModel* model, QObject* parent);
-
-    void initialize(QTabWidget* tabWidget);
-
-private:
-    struct Subcategory
-    {
-        QString name;
-        std::vector<size_t> attributes;
-    };
-
-    struct Category
-    {
-        QString name;
-        std::vector<Subcategory> subcategories;
-        QWidget* page = nullptr;
-
-        Subcategory* getOrCreateSubcategory(QString name);
-    };
-
-    void createMappedAdapter(QGroupBox* groupBox, QGridLayout* layout, size_t attribute);
-    Category* getOrCreateCategory(QString categoryName);
-
-    PDFObjectEditorAbstractModel* m_model;
-    std::vector<Category> m_categories;
-    std::map<size_t, PDFObjectEditorMappedWidgetAdapter*> m_adapters;
-};
-
 class PDFObjectEditorMappedRectangleAdapter : public PDFObjectEditorMappedWidgetAdapter
 {
     Q_OBJECT
@@ -166,6 +172,81 @@ private:
     QLabel* m_label;
     QPushButton* m_pushButton;
     PDFObject m_rectangle;
+};
+
+class PDFObjectEditorMappedDateTimeAdapter : public PDFObjectEditorMappedWidgetAdapter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFObjectEditorMappedWidgetAdapter;
+
+public:
+    explicit PDFObjectEditorMappedDateTimeAdapter(QLabel* label, QDateTimeEdit* dateTimeEdit, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
+
+    virtual PDFObject getValue() const override;
+    virtual void setValue(PDFObject object) override;
+
+private:
+    QLabel* m_label;
+    QDateTimeEdit* m_dateTimeEdit;
+};
+
+class PDFObjectEditorMappedFlagsAdapter : public PDFObjectEditorMappedWidgetAdapter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFObjectEditorMappedWidgetAdapter;
+
+public:
+    explicit PDFObjectEditorMappedFlagsAdapter(std::vector<std::pair<uint32_t, QCheckBox*>> flagCheckBoxes,
+                                               PDFObjectEditorAbstractModel* model,
+                                               size_t attribute,
+                                               QObject* parent);
+
+    virtual PDFObject getValue() const override;
+    virtual void setValue(PDFObject object) override;
+
+private:
+    std::vector<std::pair<uint32_t, QCheckBox*>> m_flagCheckBoxes;
+};
+
+class PDFObjectEditorMappedCheckBoxAdapter : public PDFObjectEditorMappedWidgetAdapter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFObjectEditorMappedWidgetAdapter;
+
+public:
+    explicit PDFObjectEditorMappedCheckBoxAdapter(QLabel* label, QCheckBox* checkBox, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
+
+    virtual PDFObject getValue() const override;
+    virtual void setValue(PDFObject object) override;
+
+private:
+    QLabel* m_label;
+    QCheckBox* m_checkBox;
+};
+
+class PDFObjectEditorMappedColorAdapter : public PDFObjectEditorMappedWidgetAdapter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFObjectEditorMappedWidgetAdapter;
+
+public:
+    explicit PDFObjectEditorMappedColorAdapter(QLabel* label, QPushButton* pushButton, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
+
+    virtual PDFObject getValue() const override;
+    virtual void setValue(PDFObject object) override;
+
+private:
+    QLabel* m_label;
+    QPushButton* m_pushButton;
+    QColor m_color;
 };
 
 } // namespace pdf

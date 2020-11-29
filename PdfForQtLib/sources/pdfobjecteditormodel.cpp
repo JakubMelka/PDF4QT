@@ -101,6 +101,12 @@ bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question questio
         case Question::IsAttributeEditable:
             return queryAttribute(index, Question::HasAttribute) && !attribute.attributeFlags.testFlag(PDFObjectEditorModelAttribute::Readonly);
 
+        case Question::IsSelector:
+            return attribute.attributeFlags.type == ObjectEditorAttributeType::Selector;
+
+        case Question::IsPersisted:
+            return !queryAttribute(index, Question::IsSelector) && !attribute.dictionaryAttribute.isEmpty();
+
         default:
             break;
     }
@@ -111,6 +117,45 @@ bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question questio
 bool PDFObjectEditorAbstractModel::getSelectorValue(size_t index) const
 {
     return m_attributes.at(index).selectorAttributeValue;
+}
+
+void PDFObjectEditorAbstractModel::setSelectorValue(size_t index, bool value)
+{
+    m_attributes.at(index).selectorAttributeValue = value;
+}
+
+std::vector<size_t> PDFObjectEditorAbstractModel::getSelectorAttributes() const
+{
+    std::vector<size_t> result;
+    result.reserve(8); // Estimate maximal number of selectors
+
+    const size_t count = getAttributeCount();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (queryAttribute(i, Question::IsSelector))
+        {
+            result.push_back(i);
+        }
+    }
+
+    return result;
+}
+
+std::vector<size_t> PDFObjectEditorAbstractModel::getSelectorDependentAttributes(size_t selector) const
+{
+    std::vector<size_t> result;
+    result.reserve(16); // Estimate maximal number of selector's attributes
+
+    const size_t count = getAttributeCount();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (m_attributes.at(i).selectorAttribute == selector)
+        {
+            result.push_back(i);
+        }
+    }
+
+    return result;
 }
 
 PDFObject PDFObjectEditorAbstractModel::getValue(size_t index) const
@@ -145,6 +190,44 @@ PDFObject PDFObjectEditorAbstractModel::getValue(size_t index) const
 PDFObject PDFObjectEditorAbstractModel::getDefaultValue(size_t index) const
 {
     return m_attributes.at(index).defaultValue;
+}
+
+void PDFObjectEditorAbstractModel::setEditedObject(PDFObject object)
+{
+    if (m_editedObject != object)
+    {
+        m_editedObject = qMove(object);
+        emit editedObjectChanged();
+    }
+}
+
+PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attribute, PDFObject object, PDFObject value) const
+{
+    Q_ASSERT(queryAttribute(attribute, Question::IsPersisted));
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+
+    const QByteArrayList& dictionaryAttribute = m_attributes.at(index).dictionaryAttribute;
+    const int pathDepth = dictionaryAttribute.size() - 1;
+    for (int i = 0; i < pathDepth; ++i)
+    {
+        factory.beginDictionaryItem(dictionaryAttribute[i]);
+        factory.beginDictionary();
+    }
+
+    factory.beginDictionaryItem(dictionaryAttribute.back());
+    factory << qMove(value);
+    factory.endDictionaryItem();
+
+    for (int i = 0; i < pathDepth; ++i)
+    {
+        factory.endDictionary();
+        factory.endDictionaryItem();
+    }
+
+    factory.endDictionaryItem();
+    return PDFObjectManipulator::merge(qMove(object), factory.takeObject(), PDFObjectManipulator::RemoveNullObjects);
 }
 
 size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType type,

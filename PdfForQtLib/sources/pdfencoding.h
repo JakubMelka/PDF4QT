@@ -105,7 +105,7 @@ public:
     /// Convert date/time to string according to PDF Reference 1.7, Chapter 3.8.1.
     /// If date is invalid, empty byte array is returned.
     /// \param dateTime Date and time to be converted
-    static QByteArray converDateTimeToString(QDateTime dateTime);
+    static QByteArray convertDateTimeToString(QDateTime dateTime);
 
     /// Returns conversion table for particular encoding
     /// \param encoding Encoding

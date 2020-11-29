@@ -21,12 +21,19 @@
 #include "pdfobjecteditormodel.h"
 
 #include <QWidget>
+#include <QDialog>
 
 class QTabWidget;
+class QDialogButtonBox;
 
 namespace pdf
 {
 class PDFObjectEditorWidgetMapper;
+
+enum class EditObjectType
+{
+    Annotation
+};
 
 class PDFObjectEditorWidget : public QWidget
 {
@@ -36,11 +43,26 @@ private:
     using BaseClass = QWidget;
 
 public:
-    explicit PDFObjectEditorWidget(PDFObjectEditorAbstractModel* model, QWidget* parent);
+    explicit PDFObjectEditorWidget(EditObjectType type, QWidget* parent);
 
 private:
     PDFObjectEditorWidgetMapper* m_mapper;
     QTabWidget* m_tabWidget;
+};
+
+class PDFEditObjectDialog : public QDialog
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QDialog;
+
+public:
+    explicit PDFEditObjectDialog(EditObjectType type, QWidget* parent);
+
+private:
+    PDFObjectEditorWidget* m_widget;
+    QDialogButtonBox* m_buttonBox;
 };
 
 } // namespace pdf

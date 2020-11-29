@@ -128,18 +128,40 @@ public:
 
     enum class Question
     {
-        IsMapped,
-        HasAttribute,
-        IsAttributeEditable
+        IsMapped,               ///< Is attribute mapped in gui?
+        IsSelector,             ///< Is attribute's role a selector for other attributes?
+        IsPersisted,            ///< Is attribute persisted to edited object?
+        HasAttribute,           ///< Does current object has given attribute?
+        IsAttributeEditable     ///< Is current attribute editable (this implies previous flag) ?
     };
 
     bool queryAttribute(size_t index, Question question) const;
 
     bool getSelectorValue(size_t index) const;
+    void setSelectorValue(size_t index, bool value);
+
+    /// Returns vector of attributes, which are of type selector
+    std::vector<size_t> getSelectorAttributes() const;
+
+    /// Returns vector of attributes, which are turned on/off
+    /// by this selector.
+    std::vector<size_t> getSelectorDependentAttributes(size_t selector) const;
+
     PDFObject getValue(size_t index) const;
     PDFObject getDefaultValue(size_t index) const;
+    PDFObject getEditedObject() const { return m_editedObject; }
+    void setEditedObject(PDFObject object);
+
+    /// Writes attribute value to the object.
+    /// \param attribute Attribute
+    /// \param object Old object
+    /// \param value Value
+    PDFObject writeAttributeValueToObject(size_t attribute, PDFObject object, PDFObject value) const;
 
     const PDFObjectStorage* getStorage() const { return m_storage; }
+
+signals:
+    void editedObjectChanged();
 
 protected:
     size_t createAttribute(ObjectEditorAttributeType type,

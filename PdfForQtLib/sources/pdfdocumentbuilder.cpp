@@ -283,7 +283,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationBorderStyle style)
 
 PDFObjectFactory& PDFObjectFactory::operator<<(const QDateTime& dateTime)
 {
-    addObject(PDFObject::createString(PDFEncoding::converDateTimeToString(dateTime)));
+    addObject(PDFObject::createString(PDFEncoding::convertDateTimeToString(dateTime)));
     return *this;
 }
 
@@ -527,7 +527,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(WrapAnnotationColor color)
 
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapCurrentDateTime)
 {
-    addObject(PDFObject::createString(PDFEncoding::converDateTimeToString(QDateTime::currentDateTime())));
+    addObject(PDFObject::createString(PDFEncoding::convertDateTimeToString(QDateTime::currentDateTime())));
     return *this;
 }
 

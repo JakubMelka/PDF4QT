@@ -18,6 +18,7 @@
 #include "pdfobjecteditorwidget.h"
 #include "pdfobjecteditorwidget_impl.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfencoding.h"
 
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -29,11 +30,14 @@
 #include <QLineEdit>
 #include <QTextBrowser>
 #include <QPushButton>
+#include <QDateTimeEdit>
+#include <QCheckBox>
+#include <QDialogButtonBox>
 
 namespace pdf
 {
 
-PDFObjectEditorWidget::PDFObjectEditorWidget(PDFObjectEditorAbstractModel* model, QWidget* parent) :
+PDFObjectEditorWidget::PDFObjectEditorWidget(EditObjectType type, QWidget* parent) :
     BaseClass(parent),
     m_mapper(nullptr),
     m_tabWidget(nullptr)
@@ -42,15 +46,29 @@ PDFObjectEditorWidget::PDFObjectEditorWidget(PDFObjectEditorAbstractModel* model
     m_tabWidget = new QTabWidget(this);
     layout->addWidget(m_tabWidget);
 
+    PDFObjectEditorAbstractModel* model = nullptr;
+    switch (type)
+    {
+        case EditObjectType::Annotation:
+            model = new PDFObjectEditorAnnotationsModel(this);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+    Q_ASSERT(model);
+
     m_mapper = new PDFObjectEditorWidgetMapper(model, this);
     m_mapper->initialize(m_tabWidget);
 }
 
 PDFObjectEditorWidgetMapper::PDFObjectEditorWidgetMapper(PDFObjectEditorAbstractModel* model, QObject* parent) :
     BaseClass(parent),
-    m_model(model)
+    m_model(model),
+    m_isCommitingDisabled(false)
 {
-
+    connect(model, &PDFObjectEditorAbstractModel::editedObjectChanged, this, &PDFObjectEditorWidgetMapper::onEditedObjectChanged);
 }
 
 void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
@@ -97,6 +115,78 @@ void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
 
         category.page->layout()->addItem(new QSpacerItem(0, 0));
     }
+}
+
+void PDFObjectEditorWidgetMapper::onEditedObjectChanged()
+{
+    if (!m_isCommitingDisabled)
+    {
+        loadWidgets();
+    }
+}
+
+void PDFObjectEditorWidgetMapper::onCommitRequested(size_t attribute)
+{
+    if (m_isCommitingDisabled)
+    {
+        // Jakub Melka: Commit is disabled
+        return;
+    }
+
+    PDFTemporaryValueChange guard(&m_isCommitingDisabled, true);
+
+    // We will create a new object using several steps. We merge
+    // the resulting object with old one (so data, that are not
+    // edited, will remain). Steps:
+    //   1) If object is selector attribute, and it is turned on,
+    //      set default values to selector's attributes and set
+    //      selector value.
+    //   2) If object is selector attributem and it is turned off,
+    //      set null values to selector's attributes and set selector
+    //      value.
+    //   3) For ordinary attributes, commit new value of the attribute
+    //      to the object.
+    //   4) Iterate each attribute, and if it doesn't exist, then set
+    //      it to null in the object. If it exists, and it is constant,
+    //      then add constant to the object.
+    //   5) Set final object as new object
+
+    PDFObject object = m_model->getEditedObject();
+
+    // Steps 1) and 2)
+    if (m_model->queryAttribute(attribute, PDFObjectEditorAbstractModel::Question::IsSelector))
+    {
+        const bool isChecked = m_adapters[attribute]->getValue().getBool();
+        m_model->setSelectorValue(attribute, isChecked);
+
+        std::vector<size_t> dependentAttributes = m_model->getSelectorDependentAttributes(attribute);
+        if (isChecked)
+        {
+            for (size_t dependentAttribute : dependentAttributes)
+            {
+                object = m_model->writeAttributeValueToObject(dependentAttribute, object, m_model->getDefaultValue(dependentAttribute));
+            }
+        }
+        else
+        {
+            for (size_t dependentAttribute : dependentAttributes)
+            {
+                object = m_model->writeAttributeValueToObject(dependentAttribute, object, PDFObject());
+            }
+        }
+    }
+    else
+    {
+        // Step 3) - normal attribute
+        object = m_model->writeAttributeValueToObject(attribute, object, m_adapters[attribute]->getValue());
+    }
+
+    // Step 4)
+    s
+
+    m_model->setEditedObject(object);
+
+    loadWidgets();
 }
 
 void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGridLayout* layout, size_t attribute)
@@ -156,6 +246,7 @@ void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGrid
 
             QLabel* label = new QLabel(groupBox);
             QPushButton* pushButton = new QPushButton(groupBox);
+            pushButton->setText(tr("Rectangle"));
             pushButton->setFlat(true);
 
             layout->addWidget(label, row, 0);
@@ -165,16 +256,84 @@ void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGrid
             break;
         }
 
+        case ObjectEditorAttributeType::DateTime:
+        {
+            int row = layout->rowCount();
+
+            QLabel* label = new QLabel(groupBox);
+            QDateTimeEdit* dateTimeEdit = new QDateTimeEdit(groupBox);
+
+            layout->addWidget(label, row, 0);
+            layout->addWidget(dateTimeEdit, row, 1);
+
+            setAdapter(new PDFObjectEditorMappedDateTimeAdapter(label, dateTimeEdit, m_model, attribute, this));
+            break;
+        }
+
+        case ObjectEditorAttributeType::Flags:
+        {
+            int row = layout->rowCount();
+            int column = 0;
+
+            std::vector<std::pair<uint32_t, QCheckBox*>> flagCheckboxes;
+            const PDFObjectEditorModelAttributeEnumItems& flagItems = m_model->getAttributeEnumItems(attribute);
+            flagCheckboxes.reserve(flagItems.size());
+
+            for (const PDFObjectEditorModelAttributeEnumItem& flagItem : flagItems)
+            {
+                if (column == 2)
+                {
+                    row++;
+                    column = 0;
+                }
+
+                QCheckBox* checkBox = new QCheckBox(flagItem.name, groupBox);
+                layout->addWidget(checkBox, row, column);
+                flagCheckboxes.emplace_back(flagItem.flags, checkBox);
+
+                ++column;
+            }
+
+            setAdapter(new PDFObjectEditorMappedFlagsAdapter(qMove(flagCheckboxes), m_model, attribute, this));
+            break;
+        }
+
+        case ObjectEditorAttributeType::Selector:
+        case ObjectEditorAttributeType::Boolean:
+        {
+            int row = layout->rowCount();
+
+            QLabel* label = new QLabel(groupBox);
+            QCheckBox* checkBox = new QCheckBox(groupBox);
+
+            layout->addWidget(label, row, 0);
+            layout->addWidget(checkBox, row, 1);
+
+            setAdapter(new PDFObjectEditorMappedCheckBoxAdapter(label, checkBox, m_model, attribute, this));
+            break;
+        }
+
+        case ObjectEditorAttributeType::Color:
+        {
+            int row = layout->rowCount();
+
+            QLabel* label = new QLabel(groupBox);
+            QPushButton* pushButton = new QPushButton(groupBox);
+            pushButton->setText(tr("Color"));
+            pushButton->setFlat(true);
+
+            layout->addWidget(label, row, 0);
+            layout->addWidget(pushButton, row, 1);
+
+            setAdapter(new PDFObjectEditorMappedColorAdapter(label, pushButton, m_model, attribute, this));
+            break;
+        }
+
         default:
             Q_ASSERT(false);
     }
-x
-    /*
-    DateTime,       ///< Date/time
-    Flags,          ///< Flags
-    Selector,       ///< Selector attribute, it is not persisted
-    Color,          ///< Color
-    Boolean,        ///< Check box*/
+
+    connect(m_adapters[attribute], &PDFObjectEditorMappedWidgetAdapter::commitRequested, this, &PDFObjectEditorWidgetMapper::onCommitRequested);
 }
 
 PDFObjectEditorWidgetMapper::Category* PDFObjectEditorWidgetMapper::getOrCreateCategory(QString categoryName)
@@ -334,7 +493,7 @@ PDFObjectEditorMappedRectangleAdapter::PDFObjectEditorMappedRectangleAdapter(QLa
                                                                              QPushButton* pushButton,
                                                                              PDFObjectEditorAbstractModel* model,
                                                                              size_t attribute,
-                                                                             QObject* parent):
+                                                                             QObject* parent) :
     BaseClass(model, attribute, parent),
     m_label(label),
     m_pushButton(pushButton)
@@ -350,6 +509,161 @@ PDFObject PDFObjectEditorMappedRectangleAdapter::getValue() const
 void PDFObjectEditorMappedRectangleAdapter::setValue(PDFObject object)
 {
     m_rectangle = qMove(object);
+}
+
+PDFObjectEditorMappedDateTimeAdapter::PDFObjectEditorMappedDateTimeAdapter(QLabel* label,
+                                                                           QDateTimeEdit* dateTimeEdit,
+                                                                           PDFObjectEditorAbstractModel* model,
+                                                                           size_t attribute,
+                                                                           QObject* parent) :
+    BaseClass(model, attribute, parent),
+    m_label(label),
+    m_dateTimeEdit(dateTimeEdit)
+{
+    initLabel(label);
+
+    connect(dateTimeEdit, &QDateTimeEdit::editingFinished, this, [this, attribute](){ emit commitRequested(attribute); });
+}
+
+PDFObject PDFObjectEditorMappedDateTimeAdapter::getValue() const
+{
+    QDateTime dateTime = m_dateTimeEdit->dateTime();
+
+    if (dateTime.isValid())
+    {
+        return PDFObject::createString(PDFEncoding::convertDateTimeToString(dateTime));
+    }
+
+    return PDFObject();
+}
+
+void PDFObjectEditorMappedDateTimeAdapter::setValue(PDFObject object)
+{
+    PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+    QByteArray string = loader.readString(object);
+
+    QDateTime dateTime = PDFEncoding::convertToDateTime(string);
+    m_dateTimeEdit->setDateTime(dateTime);
+}
+
+PDFObjectEditorMappedFlagsAdapter::PDFObjectEditorMappedFlagsAdapter(std::vector<std::pair<uint32_t, QCheckBox*>> flagCheckBoxes,
+                                                                     PDFObjectEditorAbstractModel* model,
+                                                                     size_t attribute,
+                                                                     QObject* parent) :
+    BaseClass(model, attribute, parent),
+    m_flagCheckBoxes(qMove(flagCheckBoxes))
+{
+    for (const auto& item : m_flagCheckBoxes)
+    {
+        QCheckBox* checkBox = item.second;
+        connect(checkBox, &QCheckBox::clicked, this, [this, attribute](){ emit commitRequested(attribute); });
+    }
+}
+
+PDFObject PDFObjectEditorMappedFlagsAdapter::getValue() const
+{
+    uint32_t flags = 0;
+
+    for (const auto& item : m_flagCheckBoxes)
+    {
+        if (item.second->isChecked())
+        {
+            flags = flags | item.first;
+        }
+    }
+
+    return PDFObject::createInteger(PDFInteger(flags));
+}
+
+void PDFObjectEditorMappedFlagsAdapter::setValue(PDFObject object)
+{
+    PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+    uint32_t flags = static_cast<uint32_t>(loader.readInteger(object, 0));
+
+    for (const auto& item : m_flagCheckBoxes)
+    {
+        const bool checked = flags & item.first;
+        item.second->setChecked(checked);
+    }
+}
+
+PDFObjectEditorMappedCheckBoxAdapter::PDFObjectEditorMappedCheckBoxAdapter(QLabel* label,
+                                                                           QCheckBox* checkBox,
+                                                                           PDFObjectEditorAbstractModel* model,
+                                                                           size_t attribute,
+                                                                           QObject* parent) :
+    BaseClass(model, attribute, parent),
+    m_label(label),
+    m_checkBox(checkBox)
+{
+    initLabel(label);
+    connect(checkBox, &QCheckBox::clicked, this, [this, attribute](){ emit commitRequested(attribute); });
+}
+
+PDFObject PDFObjectEditorMappedCheckBoxAdapter::getValue() const
+{
+    return PDFObject::createBool(m_checkBox->isChecked());
+}
+
+void PDFObjectEditorMappedCheckBoxAdapter::setValue(PDFObject object)
+{
+    PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+    m_checkBox->setChecked(loader.readBoolean(object, false));
+}
+
+
+PDFObjectEditorMappedColorAdapter::PDFObjectEditorMappedColorAdapter(QLabel* label,
+                                                                     QPushButton* pushButton,
+                                                                     PDFObjectEditorAbstractModel* model,
+                                                                     size_t attribute,
+                                                                     QObject* parent) :
+    BaseClass(model, attribute, parent),
+    m_label(label),
+    m_pushButton(pushButton),
+    m_color(Qt::black)
+{
+    initLabel(label);
+}
+
+PDFObject PDFObjectEditorMappedColorAdapter::getValue() const
+{
+    PDFObjectFactory factory;
+    factory << m_color;
+    return factory.takeObject();
+}
+
+void PDFObjectEditorMappedColorAdapter::setValue(PDFObject object)
+{
+    m_color = Qt::black;
+
+    PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+    std::vector<PDFReal> colors = loader.readNumberArray(object, { });
+
+    if (colors.size() == 3)
+    {
+        const PDFReal red = qBound(0.0, colors[0], 1.0);
+        const PDFReal green = qBound(0.0, colors[1], 1.0);
+        const PDFReal blue = qBound(0.0, colors[2], 1.0);
+        m_color = QColor::fromRgbF(red, green, blue);
+    }
+}
+
+PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :
+    BaseClass(parent),
+    m_widget(nullptr),
+    m_buttonBox(nullptr)
+{
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(QMargins());
+
+    m_widget = new PDFObjectEditorWidget(type, this);
+    layout->addWidget(m_widget);
+
+    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, this);
+    layout->addWidget(m_buttonBox);
+
+    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &PDFEditObjectDialog::accept);
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &PDFEditObjectDialog::reject);
 }
 
 } // namespace pdf

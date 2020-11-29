@@ -2308,7 +2308,7 @@ QDateTime PDFEncoding::convertToDateTime(const QByteArray& stream)
     return QDateTime();
 }
 
-QByteArray PDFEncoding::converDateTimeToString(QDateTime dateTime)
+QByteArray PDFEncoding::convertDateTimeToString(QDateTime dateTime)
 {
     QDateTime utcDateTime = dateTime.toUTC();
     QString convertedDateTime = QString("D:%1").arg(utcDateTime.toString("yyyyMMddhhmmss"));
