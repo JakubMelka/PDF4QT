@@ -182,8 +182,24 @@ void PDFObjectEditorWidgetMapper::onCommitRequested(size_t attribute)
     }
 
     // Step 4)
-    s
+    for (size_t i = 0; i < m_model->getAttributeCount(); ++i)
+    {
+        if (!m_model->queryAttribute(i, PDFObjectEditorAbstractModel::Question::IsPersisted))
+        {
+            continue;
+        }
 
+        if (!m_model->queryAttribute(i, PDFObjectEditorAbstractModel::Question::HasAttribute))
+        {
+            object = m_model->writeAttributeValueToObject(dependentAttribute, object, PDFObject());
+        }
+        else if (m_model->getAttributeType(i) == ObjectEditorAttributeType::Constant)
+        {
+            object = m_model->writeAttributeValueToObject(dependentAttribute, object, m_model->getDefaultValue(i));
+        }
+    }
+
+    // Step 5)
     m_model->setEditedObject(object);
 
     loadWidgets();
