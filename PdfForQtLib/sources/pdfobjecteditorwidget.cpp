@@ -117,6 +117,11 @@ void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
     }
 }
 
+void PDFObjectEditorWidgetMapper::loadWidgets()
+{
+
+}
+
 void PDFObjectEditorWidgetMapper::onEditedObjectChanged()
 {
     if (!m_isCommitingDisabled)
@@ -191,11 +196,11 @@ void PDFObjectEditorWidgetMapper::onCommitRequested(size_t attribute)
 
         if (!m_model->queryAttribute(i, PDFObjectEditorAbstractModel::Question::HasAttribute))
         {
-            object = m_model->writeAttributeValueToObject(dependentAttribute, object, PDFObject());
+            object = m_model->writeAttributeValueToObject(i, object, PDFObject());
         }
         else if (m_model->getAttributeType(i) == ObjectEditorAttributeType::Constant)
         {
-            object = m_model->writeAttributeValueToObject(dependentAttribute, object, m_model->getDefaultValue(i));
+            object = m_model->writeAttributeValueToObject(i, object, m_model->getDefaultValue(i));
         }
     }
 

@@ -102,7 +102,7 @@ bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question questio
             return queryAttribute(index, Question::HasAttribute) && !attribute.attributeFlags.testFlag(PDFObjectEditorModelAttribute::Readonly);
 
         case Question::IsSelector:
-            return attribute.attributeFlags.type == ObjectEditorAttributeType::Selector;
+            return attribute.type == ObjectEditorAttributeType::Selector;
 
         case Question::IsPersisted:
             return !queryAttribute(index, Question::IsSelector) && !attribute.dictionaryAttribute.isEmpty();
@@ -208,7 +208,7 @@ PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attri
     PDFObjectFactory factory;
     factory.beginDictionary();
 
-    const QByteArrayList& dictionaryAttribute = m_attributes.at(index).dictionaryAttribute;
+    const QByteArrayList& dictionaryAttribute = m_attributes.at(attribute).dictionaryAttribute;
     const int pathDepth = dictionaryAttribute.size() - 1;
     for (int i = 0; i < pathDepth; ++i)
     {
