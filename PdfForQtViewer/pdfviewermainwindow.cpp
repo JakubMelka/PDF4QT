@@ -40,6 +40,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
 #include "pdfsignaturehandler.h"
+#include "pdfadvancedtools.h"
 
 #include <QPainter>
 #include <QSettings>
@@ -65,6 +66,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QPluginLoader>
 #include <QToolButton>
+#include <QActionGroup>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -92,6 +94,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_progress(new pdf::PDFProgress(this)),
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
+    m_insertStickyNoteGroup(nullptr),
     m_futureWatcher(nullptr),
     m_progressDialog(nullptr),
     m_isBusy(false),
@@ -174,6 +177,24 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_pageNumberSpinBox->setAlignment(Qt::AlignCenter);
     connect(m_pageNumberSpinBox, &QSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageNumberSpinboxEditingFinished);
 
+    m_insertStickyNoteGroup = new QActionGroup(this);
+    m_insertStickyNoteGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteComment);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteHelp);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteInsert);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteKey);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNewParagraph);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNote);
+    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteParagraph);
+
+    ui->actionStickyNoteComment->setIcon(pdf::PDFTextAnnotation::createIcon("Comment", iconSize));
+    ui->actionStickyNoteHelp->setIcon(pdf::PDFTextAnnotation::createIcon("Help", iconSize));
+    ui->actionStickyNoteInsert->setIcon(pdf::PDFTextAnnotation::createIcon("Insert", iconSize));
+    ui->actionStickyNoteKey->setIcon(pdf::PDFTextAnnotation::createIcon("Key", iconSize));
+    ui->actionStickyNoteNewParagraph->setIcon(pdf::PDFTextAnnotation::createIcon("NewParagraph", iconSize));
+    ui->actionStickyNoteNote->setIcon(pdf::PDFTextAnnotation::createIcon("Note", iconSize));
+    ui->actionStickyNoteParagraph->setIcon(pdf::PDFTextAnnotation::createIcon("Paragraph", iconSize));
+
     // Page control
     ui->mainToolBar->addSeparator();
     ui->mainToolBar->addAction(actionGoToDocumentStart);
@@ -209,6 +230,28 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addAction(ui->actionMagnifier);
     ui->mainToolBar->addAction(ui->actionScreenshot);
     ui->mainToolBar->addAction(ui->actionExtractImage);
+    ui->mainToolBar->addSeparator();
+
+    // Special tools
+    QToolButton* insertStickyNoteButton = new QToolButton(ui->mainToolBar);
+    insertStickyNoteButton->setPopupMode(QToolButton::MenuButtonPopup);
+    insertStickyNoteButton->setMenu(new QMenu(insertStickyNoteButton));
+    QList<QAction*> insertStickyNotesActions = m_insertStickyNoteGroup->actions();
+    auto onInsertStickyNotesActionTriggered = [insertStickyNoteButton](QAction* action)
+    {
+        if (action)
+        {
+            insertStickyNoteButton->setDefaultAction(action);
+        }
+    };
+    connect(m_insertStickyNoteGroup, &QActionGroup::triggered, insertStickyNoteButton, onInsertStickyNotesActionTriggered);
+    for (QAction* action : insertStickyNotesActions)
+    {
+        insertStickyNoteButton->menu()->addAction(action);
+    }
+    insertStickyNoteButton->setDefaultAction(insertStickyNotesActions.front());
+    ui->mainToolBar->addWidget(insertStickyNoteButton);
+    ui->mainToolBar->addSeparator();
 
     connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
     connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
@@ -279,6 +322,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_pdfWidget->setToolManager(m_toolManager);
     updateMagnifierToolSettings();
     connect(m_toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
+
+    // Add special tools
+    pdf::PDFCreateStickyNoteTool* createStickyNoteTool = new pdf::PDFCreateStickyNoteTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStickyNoteGroup, this);
+    m_toolManager->addTool(createStickyNoteTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);

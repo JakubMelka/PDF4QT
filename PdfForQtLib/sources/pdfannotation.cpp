@@ -1960,35 +1960,7 @@ void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
     QFont font = QApplication::font();
     font.setPixelSize(16.0);
 
-    QString text = "?";
-    if (m_iconName == "Comment")
-    {
-        text = QString::fromUtf16(u"\U0001F4AC");
-    }
-    else if (m_iconName == "Help")
-    {
-        text = "?";
-    }
-    else if (m_iconName == "Insert")
-    {
-        text = QString::fromUtf16(u"\u2380");
-    }
-    else if (m_iconName == "Key")
-    {
-        text = QString::fromUtf16(u"\U0001F511");
-    }
-    else if (m_iconName == "NewParagraph")
-    {
-        text = QString::fromUtf16(u"\u2606");
-    }
-    else if (m_iconName == "Note")
-    {
-        text = QString::fromUtf16(u"\u266A");
-    }
-    else if (m_iconName == "Paragraph")
-    {
-        text = QString::fromUtf16(u"\u00B6");
-    }
+    QString text = getTextForIcon(m_iconName);
 
     QPainterPath textPath;
     textPath.addText(0.0, 0.0, font, text);
@@ -2004,6 +1976,71 @@ void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 PDFTextAnnotation::Flags PDFTextAnnotation::getEffectiveFlags() const
 {
     return getFlags() | NoZoom | NoRotate;
+}
+
+QIcon PDFTextAnnotation::createIcon(QString key, QSize size)
+{
+    QIcon icon;
+
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+
+    QRect rectangle(QPoint(0, 0), size);
+    rectangle.adjust(1, 1, -1, -1);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+
+    QString text = getTextForIcon(key);
+
+    QFont font = QApplication::font();
+    font.setPixelSize(size.height() * 0.75);
+
+    QPainterPath textPath;
+    textPath.addText(0.0, 0.0, font, text);
+    QRectF textBoundingRect = textPath.boundingRect();
+    QPointF offset = rectangle.center() - textBoundingRect.center();
+    textPath.translate(offset);
+    painter.fillPath(textPath, QBrush(Qt::black, Qt::SolidPattern));
+    painter.end();
+
+    icon.addPixmap(qMove(pixmap));
+    return icon;
+}
+
+QString PDFTextAnnotation::getTextForIcon(const QString& key)
+{
+    QString text = "?";
+    if (key == "Comment")
+    {
+        text = QString::fromUtf16(u"\U0001F4AC");
+    }
+    else if (key == "Help")
+    {
+        text = "?";
+    }
+    else if (key == "Insert")
+    {
+        text = QString::fromUtf16(u"\u2380");
+    }
+    else if (key == "Key")
+    {
+        text = QString::fromUtf16(u"\U0001F511");
+    }
+    else if (key == "NewParagraph")
+    {
+        text = QString::fromUtf16(u"\u2606");
+    }
+    else if (key == "Note")
+    {
+        text = QString::fromUtf16(u"\u266A");
+    }
+    else if (key == "Paragraph")
+    {
+        text = QString::fromUtf16(u"\u00B6");
+    }
+    return text;
 }
 
 void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const

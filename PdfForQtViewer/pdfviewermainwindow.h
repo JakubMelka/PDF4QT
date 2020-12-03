@@ -159,6 +159,8 @@ private:
 
     int adjustDpiX(int value);
 
+    QIcon createStickyNoteIcon(QString key) const;
+
     struct AsyncReadingResult
     {
         pdf::PDFDocumentPointer document;
@@ -188,6 +190,7 @@ private:
     PDFFileInfo m_fileInfo;
     pdf::PDFCertificateStore m_certificateStore;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
+    QActionGroup* m_insertStickyNoteGroup;
 
     QFuture<AsyncReadingResult> m_future;
     QFutureWatcher<AsyncReadingResult>* m_futureWatcher;

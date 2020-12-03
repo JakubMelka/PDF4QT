@@ -742,7 +742,7 @@ enum class TextAnnotationIcon
 /// as if flag NoZoom and NoRotate were set). When this annotation is opened,
 /// it displays popup window containing the text of the note, font and size
 /// is implementation dependent by viewer application.
-class PDFTextAnnotation : public PDFMarkupAnnotation
+class PDFFORQTLIBSHARED_EXPORT PDFTextAnnotation : public PDFMarkupAnnotation
 {
 public:
     inline explicit PDFTextAnnotation() = default;
@@ -757,8 +757,12 @@ public:
     const QString& getState() const { return m_state; }
     const QString& getStateModel() const { return m_stateModel; }
 
+    static QIcon createIcon(QString key, QSize size);
+
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
+
+    static QString getTextForIcon(const QString& key);
 
     bool m_open = false;
     QByteArray m_iconName;

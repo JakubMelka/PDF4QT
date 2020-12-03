@@ -130,9 +130,28 @@
     <addaction name="actionOptimize"/>
     <addaction name="separator"/>
    </widget>
+   <widget class="QMenu" name="menuInsert">
+    <property name="title">
+     <string>Insert</string>
+    </property>
+    <widget class="QMenu" name="menuSticky_Note">
+     <property name="title">
+      <string>Sticky Note</string>
+     </property>
+     <addaction name="actionStickyNoteComment"/>
+     <addaction name="actionStickyNoteHelp"/>
+     <addaction name="actionStickyNoteInsert"/>
+     <addaction name="actionStickyNoteKey"/>
+     <addaction name="actionStickyNoteNewParagraph"/>
+     <addaction name="actionStickyNoteNote"/>
+     <addaction name="actionStickyNoteParagraph"/>
+    </widget>
+    <addaction name="menuSticky_Note"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuView"/>
+   <addaction name="menuInsert"/>
    <addaction name="menuGoTo"/>
    <addaction name="menuTools"/>
    <addaction name="menuHelp"/>
@@ -547,6 +566,62 @@
   <action name="actionSave">
    <property name="text">
     <string>Save</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteComment">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Comment</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteHelp">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Help</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteInsert">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Insert</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteKey">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Key</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteNewParagraph">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>New Paragraph</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteNote">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Note</string>
+   </property>
+  </action>
+  <action name="actionStickyNoteParagraph">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Paragraph</string>
    </property>
   </action>
  </widget>
