@@ -514,6 +514,10 @@ signals:
     /// \param timeout Timeout in miliseconds
     void messageDisplayRequest(const QString& text, int timeout);
 
+    /// This signal is emitted, when tool changes the document by some way
+    /// \param documet Modified document
+    void documentModified(PDFModifiedDocument document);
+
 private:
     void onToolActionTriggered(bool checked);
 

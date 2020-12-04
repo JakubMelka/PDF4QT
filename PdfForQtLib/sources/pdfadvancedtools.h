@@ -49,6 +49,7 @@ private:
     PDFToolManager* m_toolManager;
     QActionGroup* m_actionGroup;
     PDFPickTool* m_pickTool;
+    TextAnnotationIcon m_icon;
 };
 
 } // namespace pdf

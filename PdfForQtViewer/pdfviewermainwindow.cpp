@@ -187,6 +187,14 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNote);
     m_insertStickyNoteGroup->addAction(ui->actionStickyNoteParagraph);
 
+    ui->actionStickyNoteComment->setData(int(pdf::TextAnnotationIcon::Comment));
+    ui->actionStickyNoteHelp->setData(int(pdf::TextAnnotationIcon::Help));
+    ui->actionStickyNoteInsert->setData(int(pdf::TextAnnotationIcon::Insert));
+    ui->actionStickyNoteKey->setData(int(pdf::TextAnnotationIcon::Key));
+    ui->actionStickyNoteNewParagraph->setData(int(pdf::TextAnnotationIcon::NewParagraph));
+    ui->actionStickyNoteNote->setData(int(pdf::TextAnnotationIcon::Note));
+    ui->actionStickyNoteParagraph->setData(int(pdf::TextAnnotationIcon::Paragraph));
+
     ui->actionStickyNoteComment->setIcon(pdf::PDFTextAnnotation::createIcon("Comment", iconSize));
     ui->actionStickyNoteHelp->setIcon(pdf::PDFTextAnnotation::createIcon("Help", iconSize));
     ui->actionStickyNoteInsert->setIcon(pdf::PDFTextAnnotation::createIcon("Insert", iconSize));
@@ -322,6 +330,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_pdfWidget->setToolManager(m_toolManager);
     updateMagnifierToolSettings();
     connect(m_toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
+    connect(m_toolManager, &pdf::PDFToolManager::documentModified, this, &PDFViewerMainWindow::onDocumentModified);
 
     // Add special tools
     pdf::PDFCreateStickyNoteTool* createStickyNoteTool = new pdf::PDFCreateStickyNoteTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStickyNoteGroup, this);

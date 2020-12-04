@@ -582,6 +582,14 @@ private:
     Integer m_flags = Integer();
 };
 
+/// Get system information
+class PDFFORQTLIBSHARED_EXPORT PDFSysUtils
+{
+public:
+
+    static QString getUserName();
+};
+
 /// Set of closed intervals
 class PDFFORQTLIBSHARED_EXPORT PDFClosedIntervalSet
 {

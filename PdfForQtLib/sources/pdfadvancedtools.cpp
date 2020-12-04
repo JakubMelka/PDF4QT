@@ -16,8 +16,12 @@
 //    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfadvancedtools.h"
+#include "pdfdocumentbuilder.h"
+#include "pdfdrawwidget.h"
+#include "pdfutils.h"
 
 #include <QActionGroup>
+#include <QInputDialog>
 
 namespace pdf
 {
@@ -26,7 +30,8 @@ PDFCreateStickyNoteTool::PDFCreateStickyNoteTool(PDFDrawWidgetProxy* proxy, PDFT
     BaseClass(proxy, parent),
     m_toolManager(toolManager),
     m_actionGroup(actionGroup),
-    m_pickTool(nullptr)
+    m_pickTool(nullptr),
+    m_icon(pdf::TextAnnotationIcon::Comment)
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Points, this);
     addTool(m_pickTool);
@@ -55,11 +60,38 @@ void PDFCreateStickyNoteTool::updateActions()
 void PDFCreateStickyNoteTool::onActionTriggered(QAction* action)
 {
     setActive(action && action->isChecked());
+
+    if (action)
+    {
+        m_icon = static_cast<TextAnnotationIcon>(action->data().toInt());
+    }
 }
 
 void PDFCreateStickyNoteTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 {
+    bool ok = false;
+    QString text = QInputDialog::getText(getProxy()->getWidget(), tr("Sticky note"), tr("Enter text to be displayed in the sticky note"), QLineEdit::Normal, QString(), &ok);
 
+    if (ok && !text.isEmpty())
+    {
+        PDFDocumentModifier modifier(getDocument());
+
+        QString userName = PDFSysUtils::getUserName();
+        PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+        modifier.getBuilder()->createAnnotationText(page, QRectF(pagePoint, QSizeF(0, 0)), m_icon, userName, QString(), text, false);
+        modifier.markAnnotationsChanged();
+
+        if (modifier.finalize())
+        {
+            emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
+
+        setActive(false);
+    }
+    else
+    {
+        m_pickTool->resetTool();
+    }
 }
 
 } // namespace pdf

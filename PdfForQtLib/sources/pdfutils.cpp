@@ -18,12 +18,22 @@
 #include "pdfutils.h"
 #include "pdfexception.h"
 
+#include <QtGlobal>
+
 #include <jpeglib.h>
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <openjpeg.h>
 #include <openssl/opensslv.h>
 #include <zlib.h>
+
+#ifdef Q_OS_WIN
+#define WIN32_LEAN_AND_MEAN
+#define SECURITY_WIN32
+#include <Windows.h>
+#include <security.h>
+#pragma comment(lib, "Secur32.lib")
+#endif
 
 #pragma warning(push)
 #pragma warning(disable:5033)
@@ -479,6 +489,32 @@ bool PDFClosedIntervalSet::overlapsOrAdjacent(ClosedInterval a, ClosedInterval b
     // b1 <= a2 + 1, because we can have intervals [1,2], [3,4] - these should be merged
 
     return b.first <= a.second + 1;
+}
+
+QString PDFSysUtils::getUserName()
+{
+#ifdef Q_OS_WIN
+    const EXTENDED_NAME_FORMAT nameFormat = NameDisplay;
+    std::vector<WCHAR> buffer;
+    ULONG size = 0;
+    GetUserNameExW(nameFormat, NULL, &size);
+    if (GetLastError() == ERROR_MORE_DATA)
+    {
+        ++size;
+        buffer.resize(size);
+        if (GetUserNameExW(nameFormat, buffer.data(), &size))
+        {
+            return QString::fromWCharArray(buffer.data());
+        }
+    }
+#endif
+
+    QString userName = qgetenv("USER");
+    if (userName.isEmpty())
+    {
+        userName = qgetenv("USERNAME");
+    }
+    return userName;
 }
 
 }   // namespace pdf
