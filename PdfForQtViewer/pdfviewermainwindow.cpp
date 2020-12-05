@@ -335,6 +335,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     // Add special tools
     pdf::PDFCreateStickyNoteTool* createStickyNoteTool = new pdf::PDFCreateStickyNoteTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStickyNoteGroup, this);
     m_toolManager->addTool(createStickyNoteTool);
+    pdf::PDFCreateHyperlinkTool* createHyperlinkTool = new pdf::PDFCreateHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateHyperlink, this);
+    m_toolManager->addTool(createHyperlinkTool);
+    pdf::PDFCreateFreeTextTool* createFreeTextTool = new pdf::PDFCreateFreeTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionInlineText, this);
+    m_toolManager->addTool(createFreeTextTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);

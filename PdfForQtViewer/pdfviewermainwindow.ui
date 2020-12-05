@@ -147,6 +147,8 @@
      <addaction name="actionStickyNoteParagraph"/>
     </widget>
     <addaction name="menuSticky_Note"/>
+    <addaction name="actionCreateHyperlink"/>
+    <addaction name="actionInlineText"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -622,6 +624,26 @@
    </property>
    <property name="text">
     <string>Paragraph</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlink">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/hyperlink.svg</normaloff>:/resources/hyperlink.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Hyperlink</string>
+   </property>
+  </action>
+  <action name="actionInlineText">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Inline text</string>
    </property>
   </action>
  </widget>

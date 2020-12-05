@@ -52,5 +52,6 @@
         <file>resources/result-warning.svg</file>
         <file>resources/signature.svg</file>
         <file>resources/plugins.svg</file>
+        <file>resources/hyperlink.svg</file>
     </qresource>
 </RCC>
