@@ -996,7 +996,8 @@ void PDFMagnifierTool::setMagnifierSize(int magnifierSize)
 PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObject* parent) :
     BaseClass(proxy, parent),
     m_mode(mode),
-    m_pageIndex(-1)
+    m_pageIndex(-1),
+    m_drawSelectionRectangle(true)
 {
     setCursor((m_mode == Mode::Images) ? Qt::CrossCursor : Qt::BlankCursor);
     m_snapper.setSnapPointPixelSize(PDFWidgetUtils::scaleDPI_x(proxy->getWidget(), 10));
@@ -1018,7 +1019,7 @@ void PDFPickTool::drawPage(QPainter* painter,
     Q_UNUSED(errors);
 
     // If we are picking rectangles, then draw current selection rectangle
-    if (m_mode == Mode::Rectangles && m_pageIndex == pageIndex && !m_pickedPoints.empty())
+    if (m_mode == Mode::Rectangles && m_drawSelectionRectangle && m_pageIndex == pageIndex && !m_pickedPoints.empty())
     {
         QPoint p1 = pagePointToDevicePointMatrix.map(m_pickedPoints.back()).toPoint();
         QPoint p2 = m_snapper.getSnappedPoint().toPoint();
@@ -1204,6 +1205,11 @@ void PDFPickTool::buildSnapData()
         // Snap points
         m_snapper.buildSnapPoints(getProxy()->getSnapshot());
     }
+}
+
+void PDFPickTool::setDrawSelectionRectangle(bool drawSelectionRectangle)
+{
+    m_drawSelectionRectangle = drawSelectionRectangle;
 }
 
 PDFScreenshotTool::PDFScreenshotTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :

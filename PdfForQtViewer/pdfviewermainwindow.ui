@@ -149,6 +149,10 @@
     <addaction name="menuSticky_Note"/>
     <addaction name="actionCreateHyperlink"/>
     <addaction name="actionInlineText"/>
+    <addaction name="actionCreateStraightLine"/>
+    <addaction name="actionCreatePolyline"/>
+    <addaction name="actionCreatePolygon"/>
+    <addaction name="actionCreateEllipse"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -644,6 +648,38 @@
    </property>
    <property name="text">
     <string>Inline text</string>
+   </property>
+  </action>
+  <action name="actionCreateStraightLine">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Straight Line</string>
+   </property>
+  </action>
+  <action name="actionCreatePolyline">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Polyline</string>
+   </property>
+  </action>
+  <action name="actionCreatePolygon">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Polygon</string>
+   </property>
+  </action>
+  <action name="actionCreateEllipse">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Ellipse</string>
    </property>
   </action>
  </widget>

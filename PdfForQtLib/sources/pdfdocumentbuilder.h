@@ -1161,6 +1161,13 @@ public:
                                QString contents);
 
 
+    /// Sets constant fill opacity of annotation's graphics.
+    /// \param annotation Annotation
+    /// \param opacity Opacity (value must be in range from 0.0 to 1.0)
+    void setAnnotationFillOpacity(PDFObjectReference annotation,
+                                  PDFReal opacity);
+
+
     /// Sets constant opacity of annotation's graphics.
     /// \param annotation Annotation
     /// \param opacity Opacity (value must be in range from 0.0 to 1.0)

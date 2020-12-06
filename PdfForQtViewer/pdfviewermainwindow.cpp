@@ -339,6 +339,14 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_toolManager->addTool(createHyperlinkTool);
     pdf::PDFCreateFreeTextTool* createFreeTextTool = new pdf::PDFCreateFreeTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionInlineText, this);
     m_toolManager->addTool(createFreeTextTool);
+    pdf::PDFCreateLineTypeTool* createStraightLineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Line, ui->actionCreateStraightLine, this);
+    m_toolManager->addTool(createStraightLineTool);
+    pdf::PDFCreateLineTypeTool* createPolylineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::PolyLine, ui->actionCreatePolyline, this);
+    m_toolManager->addTool(createPolylineTool);
+    pdf::PDFCreateLineTypeTool* createPolygonTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Polygon, ui->actionCreatePolygon, this);
+    m_toolManager->addTool(createPolygonTool);
+    pdf::PDFCreateEllipseTool* createEllipseTool = new pdf::PDFCreateEllipseTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateEllipse, this);
+    m_toolManager->addTool(createEllipseTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);

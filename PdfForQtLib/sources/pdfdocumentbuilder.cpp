@@ -4073,6 +4073,21 @@ void PDFDocumentBuilder::setAnnotationContents(PDFObjectReference annotation,
 }
 
 
+void PDFDocumentBuilder::setAnnotationFillOpacity(PDFObjectReference annotation,
+                                                  PDFReal opacity)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("ca");
+    objectBuilder << opacity;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject annotationObject = objectBuilder.takeObject();
+    mergeTo(annotation, annotationObject);
+}
+
+
 void PDFDocumentBuilder::setAnnotationOpacity(PDFObjectReference annotation,
                                               PDFReal opacity)
 {
@@ -4511,6 +4526,7 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
 }
+
 
 /* END GENERATED CODE */
 

@@ -108,6 +108,89 @@ private:
     PDFPickTool* m_pickTool;
 };
 
+/// Tool that creates line/polyline/polygon annotations.
+class PDFFORQTLIBSHARED_EXPORT PDFCreateLineTypeTool : public PDFCreateAnnotationTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreateAnnotationTool;
+
+public:
+    enum class Type
+    {
+        Line,
+        PolyLine,
+        Polygon
+    };
+
+    explicit PDFCreateLineTypeTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, Type type, QAction* action, QObject* parent);
+
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    PDFReal getPenWidth() const;
+    void setPenWidth(PDFReal penWidth);
+
+    QColor getStrokeColor() const;
+    void setStrokeColor(const QColor& strokeColor);
+
+    QColor getFillColor() const;
+    void setFillColor(const QColor& fillColor);
+
+private:
+    void onPointPicked(PDFInteger pageIndex, QPointF pagePoint);
+    void finishDefinition();
+
+    PDFToolManager* m_toolManager;
+    PDFPickTool* m_pickTool;
+    Type m_type;
+    PDFReal m_penWidth;
+    QColor m_strokeColor;
+    QColor m_fillColor;
+};
+
+/// Tool that creates ellipse annotation.
+class PDFFORQTLIBSHARED_EXPORT PDFCreateEllipseTool : public PDFCreateAnnotationTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreateAnnotationTool;
+
+public:
+    explicit PDFCreateEllipseTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
+
+    virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    PDFReal getPenWidth() const;
+    void setPenWidth(PDFReal penWidth);
+
+    QColor getStrokeColor() const;
+    void setStrokeColor(const QColor& strokeColor);
+
+    QColor getFillColor() const;
+    void setFillColor(const QColor& fillColor);
+
+private:
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+
+    PDFToolManager* m_toolManager;
+    PDFPickTool* m_pickTool;
+    PDFReal m_penWidth;
+    QColor m_strokeColor;
+    QColor m_fillColor;
+};
+
 } // namespace pdf
 
 #endif // PDFADVANCEDTOOLS_H

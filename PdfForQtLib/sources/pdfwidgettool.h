@@ -335,6 +335,11 @@ public:
 
     void resetTool();
 
+    /// Turns on/off drawing of selection rectangle, if rectangle picking
+    /// mode is active.
+    /// \param drawSelectionRectangle Draw selection rectangle?
+    void setDrawSelectionRectangle(bool drawSelectionRectangle);
+
 signals:
     void pointPicked(PDFInteger pageIndex, QPointF pagePoint);
     void rectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
@@ -351,6 +356,7 @@ private:
     QPoint m_mousePosition;
     PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
+    bool m_drawSelectionRectangle;
 };
 
 /// Tool that makes screenshot of page area and copies it to the clipboard,

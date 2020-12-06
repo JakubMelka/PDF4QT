@@ -22,6 +22,7 @@
 
 #include <QActionGroup>
 #include <QInputDialog>
+#include <QKeyEvent>
 
 namespace pdf
 {
@@ -162,7 +163,7 @@ void PDFCreateFreeTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageR
 
         QString userName = PDFSysUtils::getUserName();
         PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-        modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, PDFSysUtils::getUserName(), QString(), text, TextAlignment(Qt::AlignLeft | Qt::AlignTop));
+        modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, userName, QString(), text, TextAlignment(Qt::AlignLeft | Qt::AlignTop));
         modifier.markAnnotationsChanged();
 
         if (modifier.finalize())
@@ -188,6 +189,413 @@ void PDFCreateAnnotationTool::updateActions()
         action->setChecked(isActive());
         action->setEnabled(isEnabled);
     }
+}
+
+PDFCreateLineTypeTool::PDFCreateLineTypeTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, PDFCreateLineTypeTool::Type type, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_pickTool(nullptr),
+    m_type(type),
+    m_penWidth(1.0),
+    m_strokeColor(Qt::red),
+    m_fillColor(Qt::yellow)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Points, this);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreateLineTypeTool::onPointPicked);
+
+    m_fillColor.setAlphaF(0.2);
+
+    updateActions();
+}
+
+void PDFCreateLineTypeTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    Q_UNUSED(pageIndex);
+    Q_UNUSED(pagePoint);
+
+    if (m_type == Type::Line && m_pickTool->getPickedPoints().size() == 2)
+    {
+        finishDefinition();
+    }
+}
+
+void PDFCreateLineTypeTool::finishDefinition()
+{
+    const std::vector<QPointF>& pickedPoints = m_pickTool->getPickedPoints();
+
+    switch (m_type)
+    {
+        case Type::Line:
+        {
+            if (pickedPoints.size() >= 2)
+            {
+                PDFDocumentModifier modifier(getDocument());
+
+                QString userName = PDFSysUtils::getUserName();
+                PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
+                modifier.getBuilder()->createAnnotationLine(page, QRectF(), pickedPoints.front(), pickedPoints.back(), m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                modifier.markAnnotationsChanged();
+
+                if (modifier.finalize())
+                {
+                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                }
+
+                setActive(false);
+            }
+            break;
+        }
+
+        case Type::PolyLine:
+        {
+            if (pickedPoints.size() >= 3)
+            {
+                PDFDocumentModifier modifier(getDocument());
+
+                QPolygonF polygon;
+                for (const QPointF& point : pickedPoints)
+                {
+                    polygon << point;
+                }
+
+                QString userName = PDFSysUtils::getUserName();
+                PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
+                modifier.getBuilder()->createAnnotationPolyline(page, polygon, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                modifier.markAnnotationsChanged();
+
+                if (modifier.finalize())
+                {
+                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                }
+
+                setActive(false);
+            }
+            break;
+        }
+
+        case Type::Polygon:
+        {
+            if (pickedPoints.size() >= 3)
+            {
+                PDFDocumentModifier modifier(getDocument());
+
+                QPolygonF polygon;
+                for (const QPointF& point : pickedPoints)
+                {
+                    polygon << point;
+                }
+                if (!polygon.isClosed())
+                {
+                    polygon << pickedPoints.front();
+                }
+
+                QString userName = PDFSysUtils::getUserName();
+                PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
+                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString());
+                modifier.getBuilder()->setAnnotationFillOpacity(annotation, m_fillColor.alphaF());
+                modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
+                modifier.markAnnotationsChanged();
+
+                if (modifier.finalize())
+                {
+                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                }
+
+                setActive(false);
+            }
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    m_pickTool->resetTool();
+}
+
+QColor PDFCreateLineTypeTool::getFillColor() const
+{
+    return m_fillColor;
+}
+
+void PDFCreateLineTypeTool::setFillColor(const QColor& fillColor)
+{
+    m_fillColor = fillColor;
+}
+
+QColor PDFCreateLineTypeTool::getStrokeColor() const
+{
+    return m_strokeColor;
+}
+
+void PDFCreateLineTypeTool::setStrokeColor(const QColor& strokeColor)
+{
+    m_strokeColor = strokeColor;
+}
+
+PDFReal PDFCreateLineTypeTool::getPenWidth() const
+{
+    return m_penWidth;
+}
+
+void PDFCreateLineTypeTool::setPenWidth(PDFReal penWidth)
+{
+    m_penWidth = penWidth;
+}
+
+void PDFCreateLineTypeTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    switch (m_type)
+    {
+        case Type::PolyLine:
+        case Type::Polygon:
+        {
+            if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return)
+            {
+                finishDefinition();
+                event->accept();
+            }
+            else
+            {
+                event->ignore();
+            }
+
+            break;
+        }
+
+        default:
+            event->ignore();
+            break;
+    }
+
+    if (!event->isAccepted())
+    {
+        BaseClass::keyPressEvent(widget, event);
+    }
+}
+
+void PDFCreateLineTypeTool::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    switch (m_type)
+    {
+        case Type::PolyLine:
+        case Type::Polygon:
+        {
+            if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return)
+            {
+                event->accept();
+            }
+            else
+            {
+                event->ignore();
+            }
+
+            break;
+        }
+
+        default:
+            event->ignore();
+            break;
+    }
+
+    if (!event->isAccepted())
+    {
+        BaseClass::keyReleaseEvent(widget, event);
+    }
+}
+
+void PDFCreateLineTypeTool::drawPage(QPainter* painter,
+                                     PDFInteger pageIndex,
+                                     const PDFPrecompiledPage* compiledPage,
+                                     PDFTextLayoutGetter& layoutGetter,
+                                     const QMatrix& pagePointToDevicePointMatrix,
+                                     QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(pageIndex);
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_pickTool->getPageIndex())
+    {
+        return;
+    }
+
+    const std::vector<QPointF>& points = m_pickTool->getPickedPoints();
+    if (points.empty())
+    {
+        return;
+    }
+
+    QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
+
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+
+    QPen pen(m_strokeColor);
+    QBrush brush(m_fillColor, Qt::SolidPattern);
+    pen.setWidthF(m_penWidth);
+    painter->setPen(qMove(pen));
+    painter->setBrush(qMove(brush));
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    switch (m_type)
+    {
+        case Type::Line:
+        case Type::PolyLine:
+        {
+            for (size_t i = 1; i < points.size(); ++i)
+            {
+                painter->drawLine(points[i - 1], points[i]);
+            }
+            painter->drawLine(points.back(), mousePoint);
+            break;
+        }
+
+        case Type::Polygon:
+        {
+            QPainterPath path;
+            path.moveTo(points.front());
+            for (size_t i = 1; i < points.size(); ++i)
+            {
+                path.lineTo(points[i]);
+            }
+            path.lineTo(mousePoint);
+            path.closeSubpath();
+
+            painter->drawPath(path);
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+}
+
+PDFCreateEllipseTool::PDFCreateEllipseTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_pickTool(nullptr),
+    m_penWidth(1.0),
+    m_strokeColor(Qt::red),
+    m_fillColor(Qt::yellow)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_pickTool->setDrawSelectionRectangle(false);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateEllipseTool::onRectanglePicked);
+
+    m_fillColor.setAlphaF(0.2);
+
+    updateActions();
+}
+
+PDFReal PDFCreateEllipseTool::getPenWidth() const
+{
+    return m_penWidth;
+}
+
+void PDFCreateEllipseTool::setPenWidth(PDFReal penWidth)
+{
+    m_penWidth = penWidth;
+}
+
+QColor PDFCreateEllipseTool::getStrokeColor() const
+{
+    return m_strokeColor;
+}
+
+void PDFCreateEllipseTool::setStrokeColor(const QColor& strokeColor)
+{
+    m_strokeColor = strokeColor;
+}
+
+QColor PDFCreateEllipseTool::getFillColor() const
+{
+    return m_fillColor;
+}
+
+void PDFCreateEllipseTool::setFillColor(const QColor& fillColor)
+{
+    m_fillColor = fillColor;
+}
+
+void PDFCreateEllipseTool::drawPage(QPainter* painter,
+                                    PDFInteger pageIndex,
+                                    const PDFPrecompiledPage* compiledPage,
+                                    PDFTextLayoutGetter& layoutGetter,
+                                    const QMatrix& pagePointToDevicePointMatrix,
+                                    QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_pickTool->getPageIndex())
+    {
+        return;
+    }
+
+    const std::vector<QPointF>& points = m_pickTool->getPickedPoints();
+    if (points.empty())
+    {
+        return;
+    }
+
+    QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
+
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+
+    QPen pen(m_strokeColor);
+    QBrush brush(m_fillColor, Qt::SolidPattern);
+    pen.setWidthF(m_penWidth);
+    painter->setPen(qMove(pen));
+    painter->setBrush(qMove(brush));
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    QPointF point = points.front();
+    qreal xMin = qMin(point.x(), mousePoint.x());
+    qreal xMax = qMax(point.x(), mousePoint.x());
+    qreal yMin = qMin(point.y(), mousePoint.y());
+    qreal yMax = qMax(point.y(), mousePoint.y());
+    qreal width = xMax - xMin;
+    qreal height = yMax - yMin;
+
+    if (!qFuzzyIsNull(width) && !qFuzzyIsNull(height))
+    {
+        QRectF rect(xMin, yMin, width, height);
+        painter->drawEllipse(rect);
+    }
+}
+
+void PDFCreateEllipseTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        return;
+    }
+
+    PDFDocumentModifier modifier(getDocument());
+
+    QString userName = PDFSysUtils::getUserName();
+    PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationCircle(page, pageRectangle, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString());
+    modifier.getBuilder()->setAnnotationFillOpacity(annotation, m_fillColor.alphaF());
+    modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
+    modifier.markAnnotationsChanged();
+
+    if (modifier.finalize())
+    {
+        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    setActive(false);
 }
 
 } // namespace pdf
