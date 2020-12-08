@@ -598,4 +598,157 @@ void PDFCreateEllipseTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRe
     setActive(false);
 }
 
+PDFCreateFreehandCurveTool::PDFCreateFreehandCurveTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_pageIndex(-1),
+    m_penWidth(1.0),
+    m_strokeColor(Qt::red)
+{
+
+}
+
+void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
+                                          PDFInteger pageIndex,
+                                          const PDFPrecompiledPage* compiledPage,
+                                          PDFTextLayoutGetter& layoutGetter,
+                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_pageIndex || m_pickedPoints.empty())
+    {
+        return;
+    }
+
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+
+    QPen pen(m_strokeColor);
+    pen.setWidthF(m_penWidth);
+    painter->setPen(qMove(pen));
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    for (size_t i = 1; i < m_pickedPoints.size(); ++i)
+    {
+        painter->drawLine(m_pickedPoints[i - 1], m_pickedPoints[i]);
+    }
+}
+
+void PDFCreateFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+
+    if (event->button() == Qt::LeftButton)
+    {
+        // Try to perform pick point
+        QPointF pagePoint;
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 &&    // We have picked some point on page
+                (m_pageIndex == -1 || m_pageIndex == pageIndex)) // We are under current page
+        {
+            m_pageIndex = pageIndex;
+            m_pickedPoints.push_back(pagePoint);
+        }
+    }
+    else if (event->button() == Qt::RightButton)
+    {
+        resetTool();
+    }
+
+    getProxy()->repaintNeeded();
+}
+
+void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+
+    if (event->button() == Qt::LeftButton)
+    {
+        // Try to perform pick point
+        QPointF pagePoint;
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 &&    // We have picked some point on page
+                (m_pageIndex == pageIndex)) // We are under current page
+        {
+            m_pageIndex = pageIndex;
+            m_pickedPoints.push_back(pagePoint);
+
+            if (m_pickedPoints.size() >= 3)
+            {
+                PDFDocumentModifier modifier(getDocument());
+
+                QPolygonF polygon;
+                for (const QPointF& point : m_pickedPoints)
+                {
+                    polygon << point;
+                }
+
+                QString userName = PDFSysUtils::getUserName();
+                PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pageIndex)->getPageReference();
+                modifier.getBuilder()->createAnnotationPolyline(page, polygon, m_penWidth, Qt::black, m_strokeColor, userName, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                modifier.markAnnotationsChanged();
+
+                if (modifier.finalize())
+                {
+                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                }
+
+                setActive(false);
+            }
+        }
+
+        resetTool();
+    }
+
+    getProxy()->repaintNeeded();
+}
+
+void PDFCreateFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+
+    if (event->buttons() & Qt::LeftButton && m_pageIndex != -1)
+    {
+        // Try to add point to the path
+        QPointF pagePoint;
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex == m_pageIndex)
+        {
+            m_pickedPoints.push_back(pagePoint);
+        }
+
+        getProxy()->repaintNeeded();
+    }
+}
+
+PDFReal PDFCreateFreehandCurveTool::getPenWidth() const
+{
+    return m_penWidth;
+}
+
+void PDFCreateFreehandCurveTool::setPenWidth(const PDFReal& penWidth)
+{
+    m_penWidth = penWidth;
+}
+
+QColor PDFCreateFreehandCurveTool::getStrokeColor() const
+{
+    return m_strokeColor;
+}
+
+void PDFCreateFreehandCurveTool::setStrokeColor(const QColor& strokeColor)
+{
+    m_strokeColor = strokeColor;
+}
+
+void PDFCreateFreehandCurveTool::resetTool()
+{
+    m_pageIndex = -1;
+    m_pickedPoints.clear();
+}
+
 } // namespace pdf

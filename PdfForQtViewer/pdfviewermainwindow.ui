@@ -153,6 +153,7 @@
     <addaction name="actionCreatePolyline"/>
     <addaction name="actionCreatePolygon"/>
     <addaction name="actionCreateEllipse"/>
+    <addaction name="actionCreateFreehandCurve"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -680,6 +681,14 @@
    </property>
    <property name="text">
     <string>Ellipse</string>
+   </property>
+  </action>
+  <action name="actionCreateFreehandCurve">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Freehand Curve</string>
    </property>
   </action>
  </widget>

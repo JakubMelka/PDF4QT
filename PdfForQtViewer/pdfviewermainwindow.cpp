@@ -347,6 +347,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_toolManager->addTool(createPolygonTool);
     pdf::PDFCreateEllipseTool* createEllipseTool = new pdf::PDFCreateEllipseTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateEllipse, this);
     m_toolManager->addTool(createEllipseTool);
+    pdf::PDFCreateFreehandCurveTool* createFreehandCurveTool = new pdf::PDFCreateFreehandCurveTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateFreehandCurve, this);
+    m_toolManager->addTool(createFreehandCurveTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
