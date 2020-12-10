@@ -191,6 +191,7 @@ private:
     pdf::PDFCertificateStore m_certificateStore;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
     QActionGroup* m_insertStickyNoteGroup;
+    QActionGroup* m_insertStampGroup;
 
     QFuture<AsyncReadingResult> m_future;
     QFutureWatcher<AsyncReadingResult>* m_futureWatcher;

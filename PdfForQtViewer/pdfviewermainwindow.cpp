@@ -95,6 +95,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
     m_insertStickyNoteGroup(nullptr),
+    m_insertStampGroup(nullptr),
     m_futureWatcher(nullptr),
     m_progressDialog(nullptr),
     m_isBusy(false),
@@ -186,6 +187,23 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNewParagraph);
     m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNote);
     m_insertStickyNoteGroup->addAction(ui->actionStickyNoteParagraph);
+
+    m_insertStampGroup = new QActionGroup(this);
+    m_insertStampGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+    for (pdf::Stamp stamp : { pdf::Stamp::Approved, pdf::Stamp::AsIs, pdf::Stamp::Confidential,
+                              pdf::Stamp::Departmental, pdf::Stamp::Draft, pdf::Stamp::Experimental,
+                              pdf::Stamp::Expired, pdf::Stamp::Final, pdf::Stamp::ForComment,
+                              pdf::Stamp::ForPublicRelease, pdf::Stamp::NotApproved, pdf::Stamp::NotForPublicRelease,
+                              pdf::Stamp::Sold, pdf::Stamp::TopSecret })
+    {
+        QString text = pdf::PDFStampAnnotation::getText(stamp);
+        QAction* action = new QAction(text, this);
+        action->setObjectName(QString("Stamp_%1").arg(int(stamp)));
+        action->setData(int(stamp));
+        action->setCheckable(true);
+        m_insertStampGroup->addAction(action);
+        ui->menuStamp->addAction(action);
+    }
 
     ui->actionStickyNoteComment->setData(int(pdf::TextAnnotationIcon::Comment));
     ui->actionStickyNoteHelp->setData(int(pdf::TextAnnotationIcon::Help));
@@ -349,6 +367,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_toolManager->addTool(createEllipseTool);
     pdf::PDFCreateFreehandCurveTool* createFreehandCurveTool = new pdf::PDFCreateFreehandCurveTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateFreehandCurve, this);
     m_toolManager->addTool(createFreehandCurveTool);
+    pdf::PDFCreateStampTool* createStampTool = new pdf::PDFCreateStampTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStampGroup, this);
+    m_toolManager->addTool(createStampTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);

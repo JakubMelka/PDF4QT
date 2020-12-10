@@ -751,4 +751,109 @@ void PDFCreateFreehandCurveTool::resetTool()
     m_pickedPoints.clear();
 }
 
+PDFCreateStampTool::PDFCreateStampTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent) :
+    BaseClass(proxy, parent),
+    m_pageIndex(-1),
+    m_toolManager(toolManager),
+    m_actionGroup(actionGroup),
+    m_pickTool(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Points, this);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreateStampTool::onPointPicked);
+    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateStampTool::onActionTriggered);
+
+    m_stampAnnotation.setStrokingOpacity(0.5);
+    m_stampAnnotation.setFillingOpacity(0.5);
+
+    updateActions();
+}
+
+void PDFCreateStampTool::drawPage(QPainter* painter,
+                                  PDFInteger pageIndex,
+                                  const PDFPrecompiledPage* compiledPage,
+                                  PDFTextLayoutGetter& layoutGetter,
+                                  const QMatrix& pagePointToDevicePointMatrix,
+                                  QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(pagePointToDevicePointMatrix);
+    Q_UNUSED(errors);
+
+    if (pageIndex != m_pageIndex)
+    {
+        return;
+    }
+
+    const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
+    QRectF rectangle = m_stampAnnotation.getRectangle();
+    QMatrix matrix = getProxy()->getAnnotationManager()->prepareTransformations(pagePointToDevicePointMatrix, painter->device(), m_stampAnnotation.getFlags(), page, rectangle);
+    painter->setWorldMatrix(matrix, true);
+
+    AnnotationDrawParameters parameters;
+    parameters.painter = painter;
+    parameters.annotation = const_cast<PDFStampAnnotation*>(&m_stampAnnotation);
+    parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
+    parameters.invertColors = getProxy()->getFeatures().testFlag(PDFRenderer::InvertColors);
+
+    m_stampAnnotation.draw(parameters);
+}
+
+void PDFCreateStampTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    BaseClass::mouseMoveEvent(widget, event);
+
+    // Try to add point to the path
+    QPointF pagePoint;
+    m_pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    if (m_pageIndex != -1)
+    {
+        m_stampAnnotation.setRectangle(QRectF(pagePoint, QSizeF(0, 0)));
+    }
+}
+
+void PDFCreateStampTool::updateActions()
+{
+    BaseClass::updateActions();
+
+    if (m_actionGroup)
+    {
+        const bool isEnabled = getDocument() && getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems);
+        m_actionGroup->setEnabled(isEnabled);
+
+        if (!isActive() && m_actionGroup->checkedAction())
+        {
+            m_actionGroup->checkedAction()->setChecked(false);
+        }
+    }
+}
+
+void PDFCreateStampTool::onActionTriggered(QAction* action)
+{
+    setActive(action && action->isChecked());
+
+    if (action)
+    {
+        m_stampAnnotation.setStamp(static_cast<Stamp>(action->data().toInt()));
+    }
+}
+
+void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    PDFDocumentModifier modifier(getDocument());
+
+    QString userName = PDFSysUtils::getUserName();
+    PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+    modifier.getBuilder()->createAnnotationStamp(page, QRectF(pagePoint, QSizeF(0, 0)), m_stampAnnotation.getStamp(), userName, QString(), QString());
+    modifier.markAnnotationsChanged();
+
+    if (modifier.finalize())
+    {
+        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    setActive(false);
+}
+
 } // namespace pdf

@@ -284,6 +284,101 @@ QPainterPath PDFAnnotation::parsePath(const PDFObjectStorage* storage, const PDF
     return path;
 }
 
+void PDFAnnotation::setLanguage(const QString& language)
+{
+    m_language = language;
+}
+
+void PDFAnnotation::setBlendMode(const BlendMode& blendMode)
+{
+    m_blendMode = blendMode;
+}
+
+void PDFAnnotation::setStrokingOpacity(const PDFReal& strokingOpacity)
+{
+    m_strokingOpacity = strokingOpacity;
+}
+
+void PDFAnnotation::setFillingOpacity(const PDFReal& fillingOpacity)
+{
+    m_fillingOpacity = fillingOpacity;
+}
+
+void PDFAnnotation::setAssociatedFiles(const PDFObject& associatedFiles)
+{
+    m_associatedFiles = associatedFiles;
+}
+
+void PDFAnnotation::setOptionalContentReference(const PDFObjectReference& optionalContentReference)
+{
+    m_optionalContentReference = optionalContentReference;
+}
+
+void PDFAnnotation::setStructParent(const PDFInteger& structParent)
+{
+    m_structParent = structParent;
+}
+
+void PDFAnnotation::setColor(const std::vector<PDFReal>& color)
+{
+    m_color = color;
+}
+
+void PDFAnnotation::setAnnotationBorder(const PDFAnnotationBorder& annotationBorder)
+{
+    m_annotationBorder = annotationBorder;
+}
+
+void PDFAnnotation::setAppearanceState(const QByteArray& appearanceState)
+{
+    m_appearanceState = appearanceState;
+}
+
+void PDFAnnotation::setAppearanceStreams(const PDFAppeareanceStreams& appearanceStreams)
+{
+    m_appearanceStreams = appearanceStreams;
+}
+
+void PDFAnnotation::setFlags(const Flags& flags)
+{
+    m_flags = flags;
+}
+
+void PDFAnnotation::setLastModifiedString(const QString& lastModifiedString)
+{
+    m_lastModifiedString = lastModifiedString;
+}
+
+void PDFAnnotation::setLastModified(const QDateTime& lastModified)
+{
+    m_lastModified = lastModified;
+}
+
+void PDFAnnotation::setName(const QString& name)
+{
+    m_name = name;
+}
+
+void PDFAnnotation::setPageReference(const PDFObjectReference& pageReference)
+{
+    m_pageReference = pageReference;
+}
+
+void PDFAnnotation::setContents(const QString& contents)
+{
+    m_contents = contents;
+}
+
+void PDFAnnotation::setRectangle(const QRectF& rectangle)
+{
+    m_rectangle = rectangle;
+}
+
+void PDFAnnotation::setSelfReference(const PDFObjectReference& selfReference)
+{
+    m_selfReference = selfReference;
+}
+
 PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference)
 {
     PDFObject object = storage->getObjectByReference(reference);
@@ -1922,6 +2017,51 @@ bool PDFMarkupAnnotation::isReplyTo() const
     return m_inReplyTo.isValid() && m_replyType == ReplyType::Reply;
 }
 
+void PDFMarkupAnnotation::setWindowTitle(const QString& windowTitle)
+{
+    m_windowTitle = windowTitle;
+}
+
+void PDFMarkupAnnotation::setPopupAnnotation(const PDFObjectReference& popupAnnotation)
+{
+    m_popupAnnotation = popupAnnotation;
+}
+
+void PDFMarkupAnnotation::setRichTextString(const QString& richTextString)
+{
+    m_richTextString = richTextString;
+}
+
+void PDFMarkupAnnotation::setCreationDate(const QDateTime& creationDate)
+{
+    m_creationDate = creationDate;
+}
+
+void PDFMarkupAnnotation::setInReplyTo(PDFObjectReference inReplyTo)
+{
+    m_inReplyTo = inReplyTo;
+}
+
+void PDFMarkupAnnotation::setSubject(const QString& subject)
+{
+    m_subject = subject;
+}
+
+void PDFMarkupAnnotation::setIntent(const QByteArray& intent)
+{
+    m_intent = intent;
+}
+
+void PDFMarkupAnnotation::setExternalData(const PDFObject& externalData)
+{
+    m_externalData = externalData;
+}
+
+void PDFMarkupAnnotation::setReplyType(ReplyType replyType)
+{
+    m_replyType = replyType;
+}
+
 std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys(const PDFFormManager* formManager) const
 {
     Q_UNUSED(formManager);
@@ -2911,77 +3051,59 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     QPainter& painter = *parameters.painter;
     painter.setCompositionMode(getCompositionMode());
 
-    QString text;
+    QString text = getText(m_stamp);
     QColor color(Qt::red);
 
     switch (m_stamp)
     {
         case Stamp::Approved:
-            text = PDFTranslationContext::tr("APPROVED");
             color = Qt::green;
             break;
 
         case Stamp::AsIs:
-            text = PDFTranslationContext::tr("AS IS");
-            break;
-
         case Stamp::Confidential:
-            text = PDFTranslationContext::tr("CONFIDENTIAL");
             break;
 
         case Stamp::Departmental:
-            text = PDFTranslationContext::tr("DEPARTMENTAL");
             color = Qt::blue;
             break;
 
         case Stamp::Draft:
-            text = PDFTranslationContext::tr("DRAFT");
             break;
 
         case Stamp::Experimental:
-            text = PDFTranslationContext::tr("EXPERIMENTAL");
             color = Qt::blue;
             break;
 
         case Stamp::Expired:
-            text = PDFTranslationContext::tr("EXPIRED");
-            break;
-
         case Stamp::Final:
-            text = PDFTranslationContext::tr("FINAL");
             break;
 
         case Stamp::ForComment:
-            text = PDFTranslationContext::tr("FOR COMMENT");
             color = Qt::green;
             break;
 
         case Stamp::ForPublicRelease:
-            text = PDFTranslationContext::tr("FOR PUBLIC RELEASE");
             color = Qt::green;
             break;
 
         case Stamp::NotApproved:
-            text = PDFTranslationContext::tr("NOT APPROVED");
-            break;
-
         case Stamp::NotForPublicRelease:
-            text = PDFTranslationContext::tr("NOT FOR PUBLIC RELEASE");
             break;
 
         case Stamp::Sold:
-            text = PDFTranslationContext::tr("SOLD");
             color = Qt::blue;
             break;
 
         case Stamp::TopSecret:
-            text = PDFTranslationContext::tr("TOP SECRET");
             break;
 
         default:
             Q_ASSERT(false);
             break;
     }
+
+    color.setAlphaF(getFillOpacity());
 
     const PDFReal textHeight = 16;
     QFont font("Courier New");
@@ -3015,6 +3137,86 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     parameters.boundingRectangle = rectangle;
     parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
+}
+
+QString PDFStampAnnotation::getText(Stamp stamp)
+{
+    QString text;
+
+    switch (stamp)
+    {
+        case Stamp::Approved:
+            text = PDFTranslationContext::tr("APPROVED");
+            break;
+
+        case Stamp::AsIs:
+            text = PDFTranslationContext::tr("AS IS");
+            break;
+
+        case Stamp::Confidential:
+            text = PDFTranslationContext::tr("CONFIDENTIAL");
+            break;
+
+        case Stamp::Departmental:
+            text = PDFTranslationContext::tr("DEPARTMENTAL");
+            break;
+
+        case Stamp::Draft:
+            text = PDFTranslationContext::tr("DRAFT");
+            break;
+
+        case Stamp::Experimental:
+            text = PDFTranslationContext::tr("EXPERIMENTAL");
+            break;
+
+        case Stamp::Expired:
+            text = PDFTranslationContext::tr("EXPIRED");
+            break;
+
+        case Stamp::Final:
+            text = PDFTranslationContext::tr("FINAL");
+            break;
+
+        case Stamp::ForComment:
+            text = PDFTranslationContext::tr("FOR COMMENT");
+            break;
+
+        case Stamp::ForPublicRelease:
+            text = PDFTranslationContext::tr("FOR PUBLIC RELEASE");
+            break;
+
+        case Stamp::NotApproved:
+            text = PDFTranslationContext::tr("NOT APPROVED");
+            break;
+
+        case Stamp::NotForPublicRelease:
+            text = PDFTranslationContext::tr("NOT FOR PUBLIC RELEASE");
+            break;
+
+        case Stamp::Sold:
+            text = PDFTranslationContext::tr("SOLD");
+            break;
+
+        case Stamp::TopSecret:
+            text = PDFTranslationContext::tr("TOP SECRET");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return text;
+}
+
+void PDFStampAnnotation::setStamp(const Stamp& stamp)
+{
+    m_stamp = stamp;
+}
+
+void PDFStampAnnotation::setIntent(const StampIntent& intent)
+{
+    m_intent = intent;
 }
 
 void PDFAnnotation::drawCharacterSymbol(QString text, PDFReal opacity, AnnotationDrawParameters& parameters) const

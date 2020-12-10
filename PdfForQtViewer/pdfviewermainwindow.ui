@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>431</width>
-    <height>333</height>
+    <width>590</width>
+    <height>476</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>431</width>
+     <width>590</width>
      <height>21</height>
     </rect>
    </property>
@@ -146,6 +146,11 @@
      <addaction name="actionStickyNoteNote"/>
      <addaction name="actionStickyNoteParagraph"/>
     </widget>
+    <widget class="QMenu" name="menuStamp">
+     <property name="title">
+      <string>Stamp</string>
+     </property>
+    </widget>
     <addaction name="menuSticky_Note"/>
     <addaction name="actionCreateHyperlink"/>
     <addaction name="actionInlineText"/>
@@ -154,6 +159,7 @@
     <addaction name="actionCreatePolygon"/>
     <addaction name="actionCreateEllipse"/>
     <addaction name="actionCreateFreehandCurve"/>
+    <addaction name="menuStamp"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>

@@ -543,6 +543,26 @@ public:
     BlendMode getBlendMode() const { return m_blendMode; }
     const QString& getLanguage() const { return m_language; }
 
+    void setSelfReference(const PDFObjectReference& selfReference);
+    void setRectangle(const QRectF& rectangle);
+    void setContents(const QString& contents);
+    void setPageReference(const PDFObjectReference& pageReference);
+    void setName(const QString& name);
+    void setLastModified(const QDateTime& lastModified);
+    void setLastModifiedString(const QString& lastModifiedString);
+    void setFlags(const Flags& flags);
+    void setAppearanceStreams(const PDFAppeareanceStreams& appearanceStreams);
+    void setAppearanceState(const QByteArray& appearanceState);
+    void setAnnotationBorder(const PDFAnnotationBorder& annotationBorder);
+    void setColor(const std::vector<PDFReal>& color);
+    void setStructParent(const PDFInteger& structParent);
+    void setOptionalContentReference(const PDFObjectReference& optionalContentReference);
+    void setAssociatedFiles(const PDFObject& associatedFiles);
+    void setFillingOpacity(const PDFReal& fillingOpacity);
+    void setStrokingOpacity(const PDFReal& strokingOpacity);
+    void setBlendMode(const BlendMode& blendMode);
+    void setLanguage(const QString& language);
+
     /// Returns current composition mode. If blend mode is not supported by Qt,
     /// then normal composition mode is returned.
     QPainter::CompositionMode getCompositionMode() const;
@@ -711,6 +731,16 @@ public:
     ReplyType getReplyType() const { return m_replyType; }
     const QByteArray& getIntent() const { return m_intent; }
     const PDFObject& getExternalData() const { return m_externalData; }
+
+    void setWindowTitle(const QString& windowTitle);
+    void setPopupAnnotation(const PDFObjectReference& popupAnnotation);
+    void setRichTextString(const QString& richTextString);
+    void setCreationDate(const QDateTime& creationDate);
+    void setInReplyTo(PDFObjectReference inReplyTo);
+    void setSubject(const QString& subject);
+    void setReplyType(ReplyType replyType);
+    void setIntent(const QByteArray& intent);
+    void setExternalData(const PDFObject& externalData);
 
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
@@ -1063,7 +1093,7 @@ enum class StampIntent
 
 /// Annotation for stamps. Displays text or graphics intended to look
 /// as if they were stamped on the paper.
-class PDFStampAnnotation : public PDFMarkupAnnotation
+class PDFFORQTLIBSHARED_EXPORT PDFStampAnnotation : public PDFMarkupAnnotation
 {
 public:
     inline explicit PDFStampAnnotation() = default;
@@ -1073,6 +1103,11 @@ public:
 
     Stamp getStamp() const { return m_stamp; }
     StampIntent getIntent() const { return m_intent; }
+
+    void setStamp(const Stamp& stamp);
+    void setIntent(const StampIntent& intent);
+
+    static QString getText(Stamp stamp);
 
 private:
     friend static PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);

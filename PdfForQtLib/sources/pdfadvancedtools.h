@@ -227,6 +227,40 @@ private:
     QColor m_strokeColor;
 };
 
+/// Tool that creates 'stamp' annotations. Multiple types of stamps
+/// are available, user can select a type of stamp (text).
+class PDFFORQTLIBSHARED_EXPORT PDFCreateStampTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    explicit PDFCreateStampTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
+
+    virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+protected:
+    virtual void updateActions() override;
+
+private:
+    void onActionTriggered(QAction* action);
+    void onPointPicked(PDFInteger pageIndex, QPointF pagePoint);
+
+    pdf::PDFInteger m_pageIndex;
+    PDFToolManager* m_toolManager;
+    QActionGroup* m_actionGroup;
+    PDFPickTool* m_pickTool;
+    PDFStampAnnotation m_stampAnnotation;
+};
+
 } // namespace pdf
 
 #endif // PDFADVANCEDTOOLS_H
