@@ -129,6 +129,12 @@ public:
         Stopping
     };
 
+    /// Creates text layout of the page synchronously. If page index is invalid,
+    /// then empty text layout is returned. Compiler must be active to get
+    /// valid text layout.
+    /// \param pageIndex Page index
+    PDFTextLayout createTextLayout(PDFInteger pageIndex);
+
     /// Returns text layout of the page. If page index is invalid,
     /// then empty text layout is returned.
     /// \param pageIndex Page index
@@ -166,6 +172,7 @@ private:
     std::optional<PDFTextLayoutStorage> m_textLayouts;
     QFuture<PDFTextLayoutStorage> m_textLayoutCompileFuture;
     QFutureWatcher<PDFTextLayoutStorage> m_textLayoutCompileFutureWatcher;
+    PDFTextLayoutCache m_cache;
 };
 
 class PDFTextLayoutGenerator : public PDFPageContentProcessor

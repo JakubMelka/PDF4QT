@@ -395,13 +395,55 @@ private:
     PDFTextBlocks m_blocks;
 };
 
+/// Cache for storing single text layout
+class PDFFORQTLIBSHARED_EXPORT PDFTextLayoutCache
+{
+public:
+    explicit PDFTextLayoutCache(std::function<PDFTextLayout(PDFInteger)> textLayoutGetter);
+
+    /// Clears the cache
+    void clear();
+
+    /// Returns text layout. This function always succeeds. If compiler is not active,
+    /// then empty layout is returned.
+    /// \param compiler Text layout compiler
+    /// \param pageIndex Page index
+    const PDFTextLayout& getTextLayout(PDFInteger pageIndex);
+
+private:
+    std::function<PDFTextLayout(PDFInteger)> m_textLayoutGetter;
+    PDFInteger m_pageIndex;
+    PDFTextLayout m_layout;
+};
+
+class PDFFORQTLIBSHARED_EXPORT PDFTextLayoutGetter
+{
+public:
+    explicit inline PDFTextLayoutGetter(PDFTextLayoutCache* cache, PDFInteger pageIndex) :
+        m_cache(cache),
+        m_pageIndex(pageIndex)
+    {
+
+    }
+
+    /// Cast operator, casts to constant reference to PDFTextLayout
+    operator const PDFTextLayout&()
+    {
+        return m_cache->getTextLayout(m_pageIndex);
+    }
+
+private:
+    PDFTextLayoutCache* m_cache;
+    PDFInteger m_pageIndex;
+};
+
 /// Lazy getter for text layouts from storage. This is used, when we do not want to
 /// get text layout each time, because it is time expensive. If text layout is not needed,
 /// then nothing happens. Text layout is returned only, if conversion operator is used.
-class PDFTextLayoutGetter
+class PDFTextLayoutStorageGetter
 {
 public:
-    explicit PDFTextLayoutGetter(const PDFTextLayoutStorage* storage, PDFInteger pageIndex) :
+    explicit PDFTextLayoutStorageGetter(const PDFTextLayoutStorage* storage, PDFInteger pageIndex) :
         m_storage(storage),
         m_pageIndex(pageIndex)
     {
@@ -411,7 +453,7 @@ public:
     /// Cast operator, casts to constant reference to PDFTextLayout
     operator const PDFTextLayout&()
     {
-        return m_textLayout.get(this, &PDFTextLayoutGetter::getTextLayoutImpl);
+        return m_textLayout.get(this, &PDFTextLayoutStorageGetter::getTextLayoutImpl);
     }
 
 private:
@@ -471,7 +513,7 @@ public:
     /// then empty text layout is returned. Function is not thread safe, if
     /// function \p setTextLayout is called from another thread.
     /// \param pageIndex Page index
-    PDFTextLayoutGetter getTextLayoutLazy(PDFInteger pageIndex) const { return PDFTextLayoutGetter(this, pageIndex); }
+    PDFTextLayoutStorageGetter getTextLayoutLazy(PDFInteger pageIndex) const { return PDFTextLayoutStorageGetter(this, pageIndex); }
 
     /// Sets text layout to the particular index. Index must be valid and from
     /// range 0 to \p pageCount - 1. Function is not thread safe.

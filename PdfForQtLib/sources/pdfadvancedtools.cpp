@@ -19,6 +19,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdrawwidget.h"
 #include "pdfutils.h"
+#include "pdfcompiler.h"
 
 #include <QActionGroup>
 #include <QInputDialog>
@@ -854,6 +855,144 @@ void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
     }
 
     setActive(false);
+}
+
+PDFCreateHighlightTextTool::PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, AnnotationType type, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_type(type),
+    m_isCursorOverText(false)
+{
+    updateActions();
+}
+
+void PDFCreateHighlightTextTool::drawPage(QPainter* painter,
+                                          PDFInteger pageIndex,
+                                          const PDFPrecompiledPage* compiledPage,
+                                          PDFTextLayoutGetter& layoutGetter,
+                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(errors);
+
+    pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+}
+
+void PDFCreateHighlightTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1)
+        {
+            m_selectionInfo.pageIndex = pageIndex;
+            m_selectionInfo.selectionStartPoint = pagePoint;
+            event->accept();
+        }
+        else
+        {
+            m_selectionInfo = SelectionInfo();
+        }
+
+        setSelection(pdf::PDFTextSelection());
+        updateCursor();
+    }
+}
+
+void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        if (m_selectionInfo.pageIndex != -1)
+        {
+            QPointF pagePoint;
+            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+
+            if (m_selectionInfo.pageIndex == pageIndex)
+            {
+                // Jakub Melka: handle the selection
+                PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
+            }
+            else
+            {
+                setSelection(pdf::PDFTextSelection());
+            }
+
+            m_selectionInfo = SelectionInfo();
+            event->accept();
+            updateCursor();
+        }
+    }
+}
+
+void PDFCreateHighlightTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    QPointF pagePoint;
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+    m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
+
+    if (m_selectionInfo.pageIndex != -1)
+    {
+        if (m_selectionInfo.pageIndex == pageIndex)
+        {
+            // Jakub Melka: handle the selection
+            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
+        }
+        else
+        {
+            setSelection(pdf::PDFTextSelection());
+        }
+
+        event->accept();
+    }
+
+    updateCursor();
+}
+
+void PDFCreateHighlightTextTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        // Just clear the text selection
+        setSelection(PDFTextSelection());
+    }
+}
+
+void PDFCreateHighlightTextTool::updateCursor()
+{
+    if (isActive())
+    {
+        if (m_isCursorOverText)
+        {
+            setCursor(QCursor(Qt::IBeamCursor));
+        }
+        else
+        {
+            setCursor(QCursor(Qt::ArrowCursor));
+        }
+    }
+}
+
+void PDFCreateHighlightTextTool::setSelection(PDFTextSelection&& textSelection)
+{
+    if (m_textSelection != textSelection)
+    {
+        m_textSelection = qMove(textSelection);
+        getProxy()->repaintNeeded();
+    }
 }
 
 } // namespace pdf

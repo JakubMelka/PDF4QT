@@ -236,7 +236,8 @@ void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& 
 PDFAsynchronousTextLayoutCompiler::PDFAsynchronousTextLayoutCompiler(PDFDrawWidgetProxy* proxy) :
     BaseClass(proxy),
     m_proxy(proxy),
-    m_isRunning(false)
+    m_isRunning(false),
+    m_cache(std::bind(&PDFAsynchronousTextLayoutCompiler::createTextLayout, this, std::placeholders::_1))
 {
     connect(&m_textLayoutCompileFutureWatcher, &QFutureWatcher<PDFTextLayoutStorage>::finished, this, &PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated);
 }
@@ -279,6 +280,7 @@ void PDFAsynchronousTextLayoutCompiler::stop(bool clearCache)
             if (clearCache)
             {
                 m_textLayouts = std::nullopt;
+                m_cache.clear();
             }
 
             m_state = State::Inactive;
@@ -300,6 +302,50 @@ void PDFAsynchronousTextLayoutCompiler::reset()
     start();
 }
 
+PDFTextLayout PDFAsynchronousTextLayoutCompiler::createTextLayout(PDFInteger pageIndex)
+{
+    PDFTextLayout result;
+
+    if (isTextLayoutReady())
+    {
+        result = getTextLayout(pageIndex);
+    }
+    else
+    {
+        if (m_state != State::Active || !m_proxy->getDocument())
+        {
+            // Engine is not active, do not calculate layout
+            return result;
+        }
+
+        const PDFCatalog* catalog = m_proxy->getDocument()->getCatalog();
+        if (pageIndex < 0 || pageIndex >= PDFInteger(catalog->getPageCount()))
+        {
+            return result;
+        }
+
+        if (!catalog->getPage(pageIndex))
+        {
+            // Invalid page index
+            return result;
+        }
+
+        const PDFPage* page = catalog->getPage(pageIndex);
+        Q_ASSERT(page);
+
+        bool guard = false;
+        m_proxy->getFontCache()->setCacheShrinkEnabled(&guard, false);
+
+        PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
+        PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QMatrix(), m_proxy->getMeshQualitySettings());
+        generator.processContents();
+        result = generator.createTextLayout();
+        m_proxy->getFontCache()->setCacheShrinkEnabled(&guard, true);
+    }
+
+    return result;
+}
+
 PDFTextLayout PDFAsynchronousTextLayoutCompiler::getTextLayout(PDFInteger pageIndex)
 {
     if (m_state != State::Active || !m_proxy->getDocument())
@@ -318,18 +364,7 @@ PDFTextLayout PDFAsynchronousTextLayoutCompiler::getTextLayout(PDFInteger pageIn
 
 PDFTextLayoutGetter PDFAsynchronousTextLayoutCompiler::getTextLayoutLazy(PDFInteger pageIndex)
 {
-    if (m_state != State::Active || !m_proxy->getDocument())
-    {
-        // Engine is not active, always return empty layout
-        return PDFTextLayoutGetter(nullptr, pageIndex);
-    }
-
-    if (m_textLayouts)
-    {
-        return m_textLayouts->getTextLayoutLazy(pageIndex);
-    }
-
-    return PDFTextLayoutGetter(nullptr, pageIndex);
+    return PDFTextLayoutGetter(&m_cache, pageIndex);
 }
 
 PDFTextSelection PDFAsynchronousTextLayoutCompiler::getTextSelectionAll(QColor color) const
@@ -454,6 +489,7 @@ void PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated()
 {
     m_proxy->getFontCache()->setCacheShrinkEnabled(this, true);
     m_proxy->getProgress()->finish();
+    m_cache.clear();
 
     m_textLayouts = m_textLayoutCompileFuture.result();
     m_isRunning = false;

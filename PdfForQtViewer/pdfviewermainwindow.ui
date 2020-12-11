@@ -151,6 +151,15 @@
       <string>Stamp</string>
      </property>
     </widget>
+    <widget class="QMenu" name="menuTextHighlight">
+     <property name="title">
+      <string>Text Higlight</string>
+     </property>
+     <addaction name="actionCreateTextHighlight"/>
+     <addaction name="actionCreateTextUnderline"/>
+     <addaction name="actionCreateTextStrikeout"/>
+     <addaction name="actionCreateTextSquiggly"/>
+    </widget>
     <addaction name="menuSticky_Note"/>
     <addaction name="actionCreateHyperlink"/>
     <addaction name="actionInlineText"/>
@@ -160,6 +169,7 @@
     <addaction name="actionCreateEllipse"/>
     <addaction name="actionCreateFreehandCurve"/>
     <addaction name="menuStamp"/>
+    <addaction name="menuTextHighlight"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -695,6 +705,54 @@
    </property>
    <property name="text">
     <string>Freehand Curve</string>
+   </property>
+  </action>
+  <action name="actionCreateTextHighlight">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/highlight.svg</normaloff>:/resources/highlight.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Highlight</string>
+   </property>
+  </action>
+  <action name="actionCreateTextUnderline">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/underline.svg</normaloff>:/resources/underline.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Underline</string>
+   </property>
+  </action>
+  <action name="actionCreateTextStrikeout">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/strikeout.svg</normaloff>:/resources/strikeout.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Strikeout</string>
+   </property>
+  </action>
+  <action name="actionCreateTextSquiggly">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/squiggly.svg</normaloff>:/resources/squiggly.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Squiggly</string>
    </property>
   </action>
  </widget>

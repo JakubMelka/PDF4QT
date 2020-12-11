@@ -369,6 +369,14 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_toolManager->addTool(createFreehandCurveTool);
     pdf::PDFCreateStampTool* createStampTool = new pdf::PDFCreateStampTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStampGroup, this);
     m_toolManager->addTool(createStampTool);
+    pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::Highlight, ui->actionCreateTextHighlight, this);
+    m_toolManager->addTool(createHighlightTextTool);
+    pdf::PDFCreateHighlightTextTool* createUnderlineTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::Underline, ui->actionCreateTextUnderline, this);
+    m_toolManager->addTool(createUnderlineTextTool);
+    pdf::PDFCreateHighlightTextTool* createStrikeOutTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::StrikeOut, ui->actionCreateTextStrikeout, this);
+    m_toolManager->addTool(createStrikeOutTextTool);
+    pdf::PDFCreateHighlightTextTool* createSquigglyTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::Squiggly, ui->actionCreateTextSquiggly, this);
+    m_toolManager->addTool(createSquigglyTextTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
@@ -479,6 +487,11 @@ void PDFViewerMainWindow::loadPlugins()
                     {
                         for (QAction* action : toolbarButton->menu()->actions())
                         {
+                            if (action->isSeparator())
+                            {
+                                continue;
+                            }
+
                             if (action->isEnabled())
                             {
                                 toolbarButton->setDefaultAction(action);

@@ -1306,7 +1306,7 @@ bool PDFFindResult::operator<(const PDFFindResult& other) const
     return textSelectionItems.front() < other.textSelectionItems.front();
 }
 
-PDFTextLayout PDFTextLayoutGetter::getTextLayoutImpl() const
+PDFTextLayout PDFTextLayoutStorageGetter::getTextLayoutImpl() const
 {
     return m_storage ? m_storage->getTextLayout(m_pageIndex) : PDFTextLayout();
 }
@@ -1421,6 +1421,31 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
     }
 
     painter->restore();
+}
+
+PDFTextLayoutCache::PDFTextLayoutCache(std::function<PDFTextLayout (PDFInteger)> textLayoutGetter) :
+    m_textLayoutGetter(qMove(textLayoutGetter)),
+    m_pageIndex(-1),
+    m_layout()
+{
+
+}
+
+void PDFTextLayoutCache::clear()
+{
+    m_pageIndex = -1;
+    m_layout = PDFTextLayout();
+}
+
+const PDFTextLayout& PDFTextLayoutCache::getTextLayout(PDFInteger pageIndex)
+{
+    if (m_pageIndex != pageIndex)
+    {
+        m_pageIndex = pageIndex;
+        m_layout = m_textLayoutGetter(pageIndex);
+    }
+
+    return m_layout;
 }
 
 }   // namespace pdf
