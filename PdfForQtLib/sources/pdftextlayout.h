@@ -482,6 +482,13 @@ public:
     /// \param matrix Matrix which translates from page space to device space
     void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix);
 
+    /// Prepares geometry for text selection drawing, using text layout and matrix.  If current text selection
+    /// doesn't contain items from active page, then text layout is not accessed.
+    /// \param pageIndex Page index
+    /// \param textLayoutGetter Text layout getter
+    /// \param matrix Matrix which translates from page space to device space
+    QPainterPath prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix, QPolygonF* quadrilaterals);
+
 private:
     static constexpr const PDFReal HEIGHT_INCREASE_FACTOR = 0.40;
     static constexpr const PDFReal SELECTION_ALPHA = 0.25;

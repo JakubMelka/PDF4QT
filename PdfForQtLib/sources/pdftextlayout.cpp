@@ -1423,6 +1423,122 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
     painter->restore();
 }
 
+QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix, QPolygonF* quadrilaterals)
+{
+    QPainterPath path;
+
+    auto it = m_selection->begin(pageIndex);
+    auto itEnd = m_selection->end(pageIndex);
+
+    if (it == itEnd)
+    {
+        // Jakub Melka: no text is selected on current page; do nothing
+        return path;
+    }
+
+    const PDFTextLayout& layout = textLayoutGetter;
+    const PDFTextBlocks& blocks = layout.getTextBlocks();
+    for (; it != itEnd; ++it)
+    {
+        const PDFTextSelectionColoredItem& item = *it;
+        const PDFCharacterPointer& start = item.start;
+        const PDFCharacterPointer& end = item.end;
+
+        Q_ASSERT(start.pageIndex == end.pageIndex);
+        Q_ASSERT(start.blockIndex == end.blockIndex);
+
+        if (start.blockIndex >= blocks.size())
+        {
+            // Selection is invalid, do nothing
+            continue;
+        }
+
+        PDFTextBlock block = blocks[start.blockIndex];
+
+        // Fix angle of block, so we will get correct selection rectangles (parallel to lines)
+        QMatrix angleMatrix;
+        angleMatrix.rotate(block.getAngle());
+        block.applyTransform(angleMatrix);
+
+        QPainterPath currentPath;
+        QPolygonF currentPolygon;
+
+        const size_t lineStart = start.lineIndex;
+        const size_t lineEnd = end.lineIndex;
+        Q_ASSERT(lineEnd >= lineStart);
+
+        const PDFTextLines& lines = block.getLines();
+        for (size_t lineIndex = lineStart; lineIndex <= lineEnd; ++lineIndex)
+        {
+            if (lineIndex >= lines.size())
+            {
+                // Selection is invalid, do nothing
+                continue;
+            }
+
+            const PDFTextLine& line = lines[lineIndex];
+            const TextCharacters& characters = line.getCharacters();
+
+            if (characters.empty())
+            {
+                // Selection is invalid, do nothing
+                continue;
+            }
+
+            // First determine, which characters will be selected
+            size_t characterStart = 0;
+            size_t characterEnd = characters.size() - 1;
+
+            if (lineIndex == lineStart)
+            {
+                characterStart = start.characterIndex;
+            }
+            if (lineIndex == lineEnd)
+            {
+                characterEnd = end.characterIndex;
+            }
+
+            // Validate indices, then calculate bounding box
+            if (!(characterStart <= characterEnd && characterEnd < characters.size()))
+            {
+                continue;
+            }
+
+            QRectF boundingBox;
+            for (size_t i = characterStart; i <= characterEnd; ++i)
+            {
+                boundingBox = boundingBox.united(characters[i].boundingBox.boundingRect());
+            }
+
+            if (boundingBox.isValid())
+            {
+                // Enlarge height by some percent
+                PDFReal heightAdvance = boundingBox.height() * HEIGHT_INCREASE_FACTOR * 0.5;
+                boundingBox.adjust(0, -heightAdvance, 0, heightAdvance);
+                currentPath.addRect(boundingBox);
+
+                if (quadrilaterals)
+                {
+                    currentPolygon.append({ boundingBox.topLeft(), boundingBox.topRight(), boundingBox.bottomLeft(), boundingBox.bottomRight() });
+                }
+            }
+        }
+
+        QMatrix transformMatrix = angleMatrix.inverted() * matrix;
+        currentPath = transformMatrix.map(currentPath);
+
+        if (quadrilaterals)
+        {
+            currentPolygon = transformMatrix.map(currentPolygon);
+            quadrilaterals->append(currentPolygon);
+        }
+
+        path.addPath(currentPath);
+    }
+
+    return path;
+}
+
 PDFTextLayoutCache::PDFTextLayoutCache(std::function<PDFTextLayout (PDFInteger)> textLayoutGetter) :
     m_textLayoutGetter(qMove(textLayoutGetter)),
     m_pageIndex(-1),

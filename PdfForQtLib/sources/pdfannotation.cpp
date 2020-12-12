@@ -890,7 +890,7 @@ PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectSt
 
     PDFDocumentDataLoaderDecorator loader(storage);
     std::vector<PDFReal> points = loader.readNumberArray(quadrilateralsObject);
-    const size_t quadrilateralCount = points.size() % 8;
+    const size_t quadrilateralCount = points.size() / 8;
     path.reserve(int(quadrilateralCount) + 5);
     quadrilaterals.reserve(quadrilateralCount);
     for (size_t i = 0; i < quadrilateralCount; ++i)

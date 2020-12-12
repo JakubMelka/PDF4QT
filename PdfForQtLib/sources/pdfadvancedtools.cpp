@@ -857,12 +857,15 @@ void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
     setActive(false);
 }
 
-PDFCreateHighlightTextTool::PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, AnnotationType type, QAction* action, QObject* parent) :
-    BaseClass(proxy, action, parent),
+PDFCreateHighlightTextTool::PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent) :
+    BaseClass(proxy, parent),
     m_toolManager(toolManager),
-    m_type(type),
+    m_actionGroup(actionGroup),
+    m_type(AnnotationType::Highlight),
     m_isCursorOverText(false)
 {
+    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateHighlightTextTool::onActionTriggered);
+
     updateActions();
 }
 
@@ -918,13 +921,55 @@ void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
             if (m_selectionInfo.pageIndex == pageIndex)
             {
                 // Jakub Melka: handle the selection
-                PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+                PDFTextLayoutGetter textLayoutGetter = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+                PDFTextLayout textLayout = textLayoutGetter;
                 setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
+
+                QPolygonF quadrilaterals;
+                PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
+                QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+
+                if (!path.isEmpty())
+                {
+                    PDFDocumentModifier modifier(getDocument());
+
+                    PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+                    PDFObjectReference annotationReference;
+                    switch (m_type)
+                    {
+                        case AnnotationType::Highlight:
+                            annotationReference = modifier.getBuilder()->createAnnotationHighlight(page, quadrilaterals, Qt::yellow);
+                            modifier.getBuilder()->setAnnotationOpacity(annotationReference, 0.2);
+                            modifier.getBuilder()->updateAnnotationAppearanceStreams(annotationReference);
+                            break;
+
+                        case AnnotationType::Underline:
+                            annotationReference = modifier.getBuilder()->createAnnotationUnderline(page, quadrilaterals, Qt::black);
+                            break;
+
+                        case AnnotationType::Squiggly:
+                            annotationReference = modifier.getBuilder()->createAnnotationSquiggly(page, quadrilaterals, Qt::red);
+                            break;
+
+                        case AnnotationType::StrikeOut:
+                            annotationReference = modifier.getBuilder()->createAnnotationStrikeout(page, quadrilaterals, Qt::red);
+                            break;
+
+                        default:
+                            Q_ASSERT(false);
+                            break;
+                    }
+
+                    modifier.markAnnotationsChanged();
+
+                    if (modifier.finalize())
+                    {
+                        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                    }
+                }
             }
-            else
-            {
-                setSelection(pdf::PDFTextSelection());
-            }
+
+            setSelection(pdf::PDFTextSelection());
 
             m_selectionInfo = SelectionInfo();
             event->accept();
@@ -960,6 +1005,22 @@ void PDFCreateHighlightTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
     updateCursor();
 }
 
+void PDFCreateHighlightTextTool::updateActions()
+{
+    BaseClass::updateActions();
+
+    if (m_actionGroup)
+    {
+        const bool isEnabled = getDocument() && getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems);
+        m_actionGroup->setEnabled(isEnabled);
+
+        if (!isActive() && m_actionGroup->checkedAction())
+        {
+            m_actionGroup->checkedAction()->setChecked(false);
+        }
+    }
+}
+
 void PDFCreateHighlightTextTool::setActiveImpl(bool active)
 {
     BaseClass::setActiveImpl(active);
@@ -968,6 +1029,16 @@ void PDFCreateHighlightTextTool::setActiveImpl(bool active)
     {
         // Just clear the text selection
         setSelection(PDFTextSelection());
+    }
+}
+
+void PDFCreateHighlightTextTool::onActionTriggered(QAction* action)
+{
+    setActive(action && action->isChecked());
+
+    if (action)
+    {
+        m_type = static_cast<AnnotationType>(action->data().toInt());
     }
 }
 

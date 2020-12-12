@@ -192,6 +192,7 @@ private:
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
     QActionGroup* m_insertStickyNoteGroup;
     QActionGroup* m_insertStampGroup;
+    QActionGroup* m_insertHighlightGroup;
 
     QFuture<AsyncReadingResult> m_future;
     QFutureWatcher<AsyncReadingResult>* m_futureWatcher;

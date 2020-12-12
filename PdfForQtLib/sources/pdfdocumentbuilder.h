@@ -733,6 +733,17 @@ public:
                                                  QColor color);
 
 
+    /// Text markup annotation is used to highlight text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented). This annotation is usually used to highlight text, but can 
+    /// also highlight other things, such as images, or other graphics.
+    /// \param page Page to which is annotation added
+    /// \param quadrilaterals Area in which is highlight displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationHighlight(PDFObjectReference page,
+                                                 QPolygonF quadrilaterals,
+                                                 QColor color);
+
+
     /// Ink anotation represents freehand scribble composed from one or more disjoint paths.
     /// \param page Page to which is annotation added
     /// \param inkPoints Ink points
@@ -975,6 +986,16 @@ public:
                                                 QString contents);
 
 
+    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
+    /// contain window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param quadrilaterals Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
+                                                QPolygonF quadrilaterals,
+                                                QColor color);
+
+
     /// Stamp annotation
     /// \param page Page to which is annotation added
     /// \param rectangle Stamp area
@@ -1016,6 +1037,16 @@ public:
                                                  QColor color);
 
 
+    /// Text markup annotation is used to strikeout text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param quadrilaterals Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationStrikeout(PDFObjectReference page,
+                                                 QPolygonF quadrilaterals,
+                                                 QColor color);
+
+
     /// Creates text annotation. Text annotation is "sticky note" attached to a point in the PDF document. 
     /// When closed, it is displayed as icon, if opened, widget appears with attached text. Text annotations 
     /// do not scale or rotate, they appear independent of zoom/rotate. So, they behave as if flags 
@@ -1042,6 +1073,26 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param quadrilaterals Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QPolygonF quadrilaterals,
+                                                 QColor color);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
     /// \param title Title
     /// \param subject Subject
     /// \param contents Contents
@@ -1051,16 +1102,6 @@ public:
                                                  QString title,
                                                  QString subject,
                                                  QString contents);
-
-
-    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
-    /// window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
-    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
-                                                 QRectF rectangle,
-                                                 QColor color);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 

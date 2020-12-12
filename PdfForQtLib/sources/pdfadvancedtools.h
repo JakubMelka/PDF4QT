@@ -262,21 +262,21 @@ private:
 };
 
 /// Tool for highlighting of text in document
-class PDFFORQTLIBSHARED_EXPORT PDFCreateHighlightTextTool : public PDFCreateAnnotationTool
+class PDFFORQTLIBSHARED_EXPORT PDFCreateHighlightTextTool : public PDFWidgetTool
 {
     Q_OBJECT
 
 private:
-    using BaseClass = PDFCreateAnnotationTool;
+    using BaseClass = PDFWidgetTool;
 
 public:
 
     /// Creates new highlight text tool
     /// \param proxy Proxy
     /// \param type Annotation type, must be one of: Highlight, Underline, Squiggly, StrikeOut
-    /// \param action Action
+    /// \param actionGroup Action group with actions. Each action must define annotation type.
     /// \param parent Parent
-    explicit PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, AnnotationType type, QAction* action, QObject* parent);
+    explicit PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
@@ -290,9 +290,11 @@ public:
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
 protected:
+    virtual void updateActions() override;
     virtual void setActiveImpl(bool active) override;
 
 private:
+    void onActionTriggered(QAction* action);
     void updateCursor();
     void setSelection(pdf::PDFTextSelection&& textSelection);
 
@@ -303,6 +305,7 @@ private:
     };
 
     PDFToolManager* m_toolManager;
+    QActionGroup* m_actionGroup;
     AnnotationType m_type;
     pdf::PDFTextSelection m_textSelection;
     SelectionInfo m_selectionInfo;

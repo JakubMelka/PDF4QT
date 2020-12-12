@@ -205,6 +205,18 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
         ui->menuStamp->addAction(action);
     }
 
+    m_insertHighlightGroup = new QActionGroup(this);
+    m_insertHighlightGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+    m_insertHighlightGroup->addAction(ui->actionCreateTextHighlight);
+    m_insertHighlightGroup->addAction(ui->actionCreateTextUnderline);
+    m_insertHighlightGroup->addAction(ui->actionCreateTextStrikeout);
+    m_insertHighlightGroup->addAction(ui->actionCreateTextSquiggly);
+
+    ui->actionCreateTextHighlight->setData(int(pdf::AnnotationType::Highlight));
+    ui->actionCreateTextUnderline->setData(int(pdf::AnnotationType::Underline));
+    ui->actionCreateTextStrikeout->setData(int(pdf::AnnotationType::StrikeOut));
+    ui->actionCreateTextSquiggly->setData(int(pdf::AnnotationType::Squiggly));
+
     ui->actionStickyNoteComment->setData(int(pdf::TextAnnotationIcon::Comment));
     ui->actionStickyNoteHelp->setData(int(pdf::TextAnnotationIcon::Help));
     ui->actionStickyNoteInsert->setData(int(pdf::TextAnnotationIcon::Insert));
@@ -369,14 +381,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_toolManager->addTool(createFreehandCurveTool);
     pdf::PDFCreateStampTool* createStampTool = new pdf::PDFCreateStampTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStampGroup, this);
     m_toolManager->addTool(createStampTool);
-    pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::Highlight, ui->actionCreateTextHighlight, this);
+    pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertHighlightGroup, this);
     m_toolManager->addTool(createHighlightTextTool);
-    pdf::PDFCreateHighlightTextTool* createUnderlineTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::Underline, ui->actionCreateTextUnderline, this);
-    m_toolManager->addTool(createUnderlineTextTool);
-    pdf::PDFCreateHighlightTextTool* createStrikeOutTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::StrikeOut, ui->actionCreateTextStrikeout, this);
-    m_toolManager->addTool(createStrikeOutTextTool);
-    pdf::PDFCreateHighlightTextTool* createSquigglyTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::AnnotationType::Squiggly, ui->actionCreateTextSquiggly, this);
-    m_toolManager->addTool(createSquigglyTextTool);
 
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
