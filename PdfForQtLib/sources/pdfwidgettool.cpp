@@ -744,6 +744,8 @@ void PDFToolManager::addTool(PDFWidgetTool* tool)
         m_actionsToTools[action] = tool;
         connect(action, &QAction::triggered, this, &PDFToolManager::onToolActionTriggered);
     }
+
+    connect(tool, &PDFWidgetTool::toolActivityChanged, this, &PDFToolManager::onToolActivityChanged);
 }
 
 void PDFToolManager::setDocument(const PDFModifiedDocument& document)
@@ -883,6 +885,22 @@ const std::optional<QCursor>& PDFToolManager::getCursor() const
 
     static const std::optional<QCursor> dummy;
     return dummy;
+}
+
+void PDFToolManager::onToolActivityChanged(bool active)
+{
+    if (active)
+    {
+        // When tool is activated outside, we must deactivate old active tool
+        PDFWidgetTool* tool = qobject_cast<PDFWidgetTool*>(sender());
+        for (PDFWidgetTool* currentTool : m_tools)
+        {
+            if (currentTool->isActive() && currentTool != tool)
+            {
+                currentTool->setActive(false);
+            }
+        }
+    }
 }
 
 void PDFToolManager::onToolActionTriggered(bool checked)

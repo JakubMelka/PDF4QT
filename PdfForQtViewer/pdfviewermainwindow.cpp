@@ -265,6 +265,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
     // Tools
     ui->mainToolBar->addAction(ui->actionSelectText);
+    ui->mainToolBar->addAction(ui->actionCreateTextHighlight);
+    ui->mainToolBar->addAction(ui->actionCreateTextUnderline);
+    ui->mainToolBar->addAction(ui->actionCreateTextStrikeout);
+    ui->mainToolBar->addAction(ui->actionCreateTextSquiggly);
     ui->mainToolBar->addAction(ui->actionMagnifier);
     ui->mainToolBar->addAction(ui->actionScreenshot);
     ui->mainToolBar->addAction(ui->actionExtractImage);

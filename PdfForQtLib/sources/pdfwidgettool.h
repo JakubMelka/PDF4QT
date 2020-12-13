@@ -525,6 +525,7 @@ signals:
     void documentModified(PDFModifiedDocument document);
 
 private:
+    void onToolActivityChanged(bool active);
     void onToolActionTriggered(bool checked);
 
     std::set<PDFWidgetTool*> m_tools;
