@@ -338,11 +338,15 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
         QRectF rect(xMin, yMin, xMax - xMin, yMax - yMin);
         QPainterPath rectPath;
         rectPath.addRect(rect);
-        QPainterPath intersectionPath = block.getBoundingBox().intersected(rectPath);
+        const QPainterPath& boundingBoxPath = block.getBoundingBox();
+        QPainterPath intersectionPath = boundingBoxPath.intersected(rectPath);
         if (!intersectionPath.isEmpty())
         {
             QRectF intersectionRect = intersectionPath.boundingRect();
             Q_ASSERT(intersectionRect.isValid());
+
+            bool isTopPointAboveText = false;
+            bool isBottomPointBelowText = false;
 
             const PDFTextLines& lines = block.getLines();
             auto itLineA = std::find_if(lines.cbegin(), lines.cend(), [pointA](const PDFTextLine& line) { return line.getBoundingBox().contains(pointA); });
@@ -361,9 +365,23 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
             {
                 // Otherwise points are not in the same line. Then start point will be
                 // point top of the second point. Bottom point will mark end of selection.
-                if (pointA.y() > pointB.y())
+                if (pointA.y() < pointB.y())
                 {
                     std::swap(pointA, pointB);
+                }
+
+                QRectF rect = boundingBoxPath.controlPointRect();
+
+                // If start point is above the text block, move start point to the left.
+                if (rect.bottom() < pointA.y())
+                {
+                    pointA.setX(rect.left());
+                    isTopPointAboveText = true;
+                }
+                if (rect.top() > pointB.y())
+                {
+                    pointB.setX(rect.right());
+                    isBottomPointBelowText = true;
                 }
             }
 
@@ -407,6 +425,22 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
                         ptrB.characterIndex = characterId;
                     }
                 }
+            }
+
+            if (isTopPointAboveText && !lines.empty())
+            {
+                ptrA.pageIndex = pageIndex;
+                ptrA.blockIndex = blockId;
+                ptrA.lineIndex = 0;
+                ptrA.characterIndex = 0;
+            }
+
+            if (isBottomPointBelowText && !lines.empty())
+            {
+                ptrB.pageIndex = pageIndex;
+                ptrB.blockIndex = blockId;
+                ptrB.lineIndex = lines.size() - 1;
+                ptrB.characterIndex = lines.back().getCharacters().size() - 1;
             }
 
             // If we have filled the pointers, add them to the selection
