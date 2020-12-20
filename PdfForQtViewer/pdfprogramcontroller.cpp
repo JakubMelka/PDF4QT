@@ -1600,7 +1600,7 @@ void PDFProgramController::updateTitle()
         {
             title = m_fileInfo.fileName;
         }
-        m_mainWindow->setWindowTitle(tr("%1 - %2").arg(m_fileInfo.fileName, QApplication::applicationDisplayName()));
+        m_mainWindow->setWindowTitle(tr("%1 - %2").arg(title, QApplication::applicationDisplayName()));
     }
     else
     {
