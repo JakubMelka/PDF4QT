@@ -29,8 +29,9 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("PDF Viewer");
+    QCoreApplication::setApplicationName("PDF4QT Viewer Profi");
     QCoreApplication::setApplicationVersion("1.0.0");
+    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer Profi"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
@@ -44,7 +45,7 @@ int main(int argc, char *argv[])
     QStringList arguments = application.arguments();
     if (arguments.size() > 1)
     {
-        mainWindow.openDocument(arguments[1]);
+        mainWindow.getProgramController()->openDocument(arguments[1]);
     }
 
     return application.exec();

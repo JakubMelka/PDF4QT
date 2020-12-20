@@ -58,7 +58,7 @@ public:
                                      const pdf::PDFCMSSettings& cmsSettings,
                                      const OtherSettings& otherSettings,
                                      const pdf::PDFCertificateStore& certificateStore,
-                                     QList<QAction*> actions,
+                                     const std::vector<QAction*>& actions,
                                      pdf::PDFCMSManager* cmsManager,
                                      const QStringList& enabledPlugins,
                                      const pdf::PDFPluginInfos& plugins,

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>590</width>
-    <height>476</height>
+    <width>770</width>
+    <height>572</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>590</width>
+     <width>770</width>
      <height>21</height>
     </rect>
    </property>
@@ -45,6 +45,12 @@
     <property name="title">
      <string>Go To</string>
     </property>
+    <addaction name="actionGoToDocumentStart"/>
+    <addaction name="actionGoToDocumentEnd"/>
+    <addaction name="actionGoToPreviousPage"/>
+    <addaction name="actionGoToNextPage"/>
+    <addaction name="actionGoToPreviousLine"/>
+    <addaction name="actionGoToNextLine"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -753,6 +759,60 @@
    </property>
    <property name="text">
     <string>Squiggly</string>
+   </property>
+  </action>
+  <action name="actionGoToDocumentStart">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/previous-start.svg</normaloff>:/resources/previous-start.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to document start</string>
+   </property>
+  </action>
+  <action name="actionGoToDocumentEnd">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/next-end.svg</normaloff>:/resources/next-end.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to document end</string>
+   </property>
+  </action>
+  <action name="actionGoToNextPage">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/next-page.svg</normaloff>:/resources/next-page.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to next page</string>
+   </property>
+  </action>
+  <action name="actionGoToPreviousPage">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/previous-page.svg</normaloff>:/resources/previous-page.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to previous page</string>
+   </property>
+  </action>
+  <action name="actionGoToNextLine">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/next.svg</normaloff>:/resources/next.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to next line</string>
+   </property>
+  </action>
+  <action name="actionGoToPreviousLine">
+   <property name="icon">
+    <iconset resource="pdfforqtviewer.qrc">
+     <normaloff>:/resources/previous.svg</normaloff>:/resources/previous.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to previous line</string>
    </property>
   </action>
  </widget>

@@ -41,6 +41,7 @@
 #include "pdfdocumentwriter.h"
 #include "pdfsignaturehandler.h"
 #include "pdfadvancedtools.h"
+#include "pdfwidgetutils.h"
 
 #include <QPainter>
 #include <QSettings>
@@ -78,15 +79,12 @@ namespace pdfviewer
 PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::PDFViewerMainWindow),
-    m_CMSManager(new pdf::PDFCMSManager(this)),
-    m_recentFileManager(new PDFRecentFileManager(this)),
-    m_settings(new PDFViewerSettings(this)),
-    m_pdfWidget(nullptr),
+    m_actionManager(new PDFActionManager(this)),
+    m_programController(new PDFProgramController(this)),
     m_sidebarWidget(nullptr),
     m_sidebarDockWidget(nullptr),
     m_advancedFindWidget(nullptr),
     m_advancedFindDockWidget(nullptr),
-    m_optionalContentActivity(nullptr),
     m_pageNumberSpinBox(nullptr),
     m_pageNumberLabel(nullptr),
     m_pageZoomSpinBox(nullptr),
@@ -94,153 +92,118 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_progress(new pdf::PDFProgress(this)),
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
-    m_insertStickyNoteGroup(nullptr),
-    m_insertStampGroup(nullptr),
-    m_futureWatcher(nullptr),
     m_progressDialog(nullptr),
-    m_isBusy(false),
-    m_isChangingProgressStep(false),
-    m_toolManager(nullptr),
-    m_annotationManager(nullptr),
-    m_formManager(nullptr),
-    m_textToSpeech(new PDFTextToSpeech(this)),
-    m_undoRedoManager(new PDFUndoRedoManager(this))
+    m_isChangingProgressStep(false)
 {
     ui->setupUi(this);
 
     setAcceptDrops(true);
 
     // Initialize toolbar icon size
-    QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
-    ui->mainToolBar->setIconSize(iconSize);
+    adjustToolbar(ui->mainToolBar);
 
     // Initialize task bar progress
     m_progressTaskbarIndicator = m_taskbarButton->progress();
 
-    // Initialize shortcuts
-    ui->actionOpen->setShortcut(QKeySequence::Open);
-    ui->actionClose->setShortcut(QKeySequence::Close);
-    ui->actionQuit->setShortcut(QKeySequence::Quit);
-    ui->actionZoom_In->setShortcut(QKeySequence::ZoomIn);
-    ui->actionZoom_Out->setShortcut(QKeySequence::ZoomOut);
-    ui->actionFind->setShortcut(QKeySequence::Find);
-    ui->actionFindPrevious->setShortcut(QKeySequence::FindPrevious);
-    ui->actionFindNext->setShortcut(QKeySequence::FindNext);
-    ui->actionSelectTextAll->setShortcut(QKeySequence::SelectAll);
-    ui->actionDeselectText->setShortcut(QKeySequence::Deselect);
-    ui->actionCopyText->setShortcut(QKeySequence::Copy);
-    ui->actionRotateRight->setShortcut(QKeySequence("Ctrl+Shift++"));
-    ui->actionRotateLeft->setShortcut(QKeySequence("Ctrl+Shift+-"));
-    ui->actionPrint->setShortcut(QKeySequence::Print);
-    ui->actionUndo->setShortcut(QKeySequence::Undo);
-    ui->actionRedo->setShortcut(QKeySequence::Redo);
-    ui->actionSave->setShortcut(QKeySequence::Save);
-    ui->actionSave_As->setShortcut(QKeySequence::SaveAs);
+    // Initialize actions
+    m_actionManager->setAction(PDFActionManager::Open, ui->actionOpen);
+    m_actionManager->setAction(PDFActionManager::Close, ui->actionClose);
+    m_actionManager->setAction(PDFActionManager::Quit, ui->actionQuit);
+    m_actionManager->setAction(PDFActionManager::ZoomIn, ui->actionZoom_In);
+    m_actionManager->setAction(PDFActionManager::ZoomOut, ui->actionZoom_Out);
+    m_actionManager->setAction(PDFActionManager::Find, ui->actionFind);
+    m_actionManager->setAction(PDFActionManager::FindPrevious, ui->actionFindPrevious);
+    m_actionManager->setAction(PDFActionManager::FindNext, ui->actionFindNext);
+    m_actionManager->setAction(PDFActionManager::SelectTextAll, ui->actionSelectTextAll);
+    m_actionManager->setAction(PDFActionManager::DeselectText, ui->actionDeselectText);
+    m_actionManager->setAction(PDFActionManager::CopyText, ui->actionCopyText);
+    m_actionManager->setAction(PDFActionManager::RotateRight, ui->actionRotateRight);
+    m_actionManager->setAction(PDFActionManager::RotateLeft, ui->actionRotateLeft);
+    m_actionManager->setAction(PDFActionManager::Print, ui->actionPrint);
+    m_actionManager->setAction(PDFActionManager::Undo, ui->actionUndo);
+    m_actionManager->setAction(PDFActionManager::Redo, ui->actionRedo);
+    m_actionManager->setAction(PDFActionManager::Save, ui->actionSave);
+    m_actionManager->setAction(PDFActionManager::SaveAs, ui->actionSave_As);
+    m_actionManager->setAction(PDFActionManager::GoToDocumentStart, ui->actionGoToDocumentStart);
+    m_actionManager->setAction(PDFActionManager::GoToDocumentEnd, ui->actionGoToDocumentEnd);
+    m_actionManager->setAction(PDFActionManager::GoToNextPage, ui->actionGoToNextPage);
+    m_actionManager->setAction(PDFActionManager::GoToPreviousPage, ui->actionGoToPreviousPage);
+    m_actionManager->setAction(PDFActionManager::GoToNextLine, ui->actionGoToNextLine);
+    m_actionManager->setAction(PDFActionManager::GoToPreviousLine, ui->actionGoToPreviousLine);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteComment, ui->actionStickyNoteComment);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteHelp, ui->actionStickyNoteHelp);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteInsert, ui->actionStickyNoteInsert);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteKey, ui->actionStickyNoteKey);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteNewParagraph, ui->actionStickyNoteNewParagraph);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteNote, ui->actionStickyNoteNote);
+    m_actionManager->setAction(PDFActionManager::CreateStickyNoteParagraph, ui->actionStickyNoteParagraph);
+    m_actionManager->setAction(PDFActionManager::CreateTextHighlight, ui->actionCreateTextHighlight);
+    m_actionManager->setAction(PDFActionManager::CreateTextUnderline, ui->actionCreateTextUnderline);
+    m_actionManager->setAction(PDFActionManager::CreateTextStrikeout, ui->actionCreateTextStrikeout);
+    m_actionManager->setAction(PDFActionManager::CreateTextSquiggly, ui->actionCreateTextSquiggly);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlink, ui->actionCreateHyperlink);
+    m_actionManager->setAction(PDFActionManager::CreateInlineText, ui->actionInlineText);
+    m_actionManager->setAction(PDFActionManager::CreateStraightLine, ui->actionCreateStraightLine);
+    m_actionManager->setAction(PDFActionManager::CreatePolyline, ui->actionCreatePolyline);
+    m_actionManager->setAction(PDFActionManager::CreatePolygon, ui->actionCreatePolygon);
+    m_actionManager->setAction(PDFActionManager::CreateEllipse, ui->actionCreateEllipse);
+    m_actionManager->setAction(PDFActionManager::CreateFreehandCurve, ui->actionCreateFreehandCurve);
+    m_actionManager->setAction(PDFActionManager::RenderOptionAntialiasing, ui->actionRenderOptionAntialiasing);
+    m_actionManager->setAction(PDFActionManager::RenderOptionTextAntialiasing, ui->actionRenderOptionTextAntialiasing);
+    m_actionManager->setAction(PDFActionManager::RenderOptionSmoothPictures, ui->actionRenderOptionSmoothPictures);
+    m_actionManager->setAction(PDFActionManager::RenderOptionIgnoreOptionalContentSettings, ui->actionRenderOptionIgnoreOptionalContentSettings);
+    m_actionManager->setAction(PDFActionManager::RenderOptionDisplayAnnotations, ui->actionRenderOptionDisplayAnnotations);
+    m_actionManager->setAction(PDFActionManager::RenderOptionInvertColors, ui->actionInvertColors);
+    m_actionManager->setAction(PDFActionManager::RenderOptionShowTextBlocks, ui->actionShow_Text_Blocks);
+    m_actionManager->setAction(PDFActionManager::RenderOptionShowTextLines, ui->actionShow_Text_Lines);
+    m_actionManager->setAction(PDFActionManager::Properties, ui->actionProperties);
+    m_actionManager->setAction(PDFActionManager::Options, ui->actionOptions);
+    m_actionManager->setAction(PDFActionManager::About, ui->actionAbout);
+    m_actionManager->setAction(PDFActionManager::SendByMail, ui->actionSend_by_E_Mail);
+    m_actionManager->setAction(PDFActionManager::RenderToImages, ui->actionRender_to_Images);
+    m_actionManager->setAction(PDFActionManager::Optimize, ui->actionOptimize);
+    m_actionManager->setAction(PDFActionManager::FitPage, ui->actionFitPage);
+    m_actionManager->setAction(PDFActionManager::FitWidth, ui->actionFitWidth);
+    m_actionManager->setAction(PDFActionManager::FitHeight, ui->actionFitHeight);
+    m_actionManager->setAction(PDFActionManager::ShowRenderingErrors, ui->actionRendering_Errors);
+    m_actionManager->setAction(PDFActionManager::PageLayoutSinglePage, ui->actionPageLayoutSinglePage);
+    m_actionManager->setAction(PDFActionManager::PageLayoutContinuous, ui->actionPageLayoutContinuous);
+    m_actionManager->setAction(PDFActionManager::PageLayoutTwoPages, ui->actionPageLayoutTwoPages);
+    m_actionManager->setAction(PDFActionManager::PageLayoutTwoColumns, ui->actionPageLayoutTwoColumns);
+    m_actionManager->setAction(PDFActionManager::PageLayoutFirstPageOnRightSide, ui->actionFirstPageOnRightSide);
+    m_actionManager->setAction(PDFActionManager::ToolSelectText, ui->actionSelectText);
+    m_actionManager->setAction(PDFActionManager::ToolMagnifier, ui->actionMagnifier);
+    m_actionManager->setAction(PDFActionManager::ToolScreenshot, ui->actionScreenshot);
+    m_actionManager->setAction(PDFActionManager::ToolExtractImage, ui->actionExtractImage);
+    m_actionManager->initActions(pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24)), true);
 
-    for (QAction* action : m_recentFileManager->getActions())
+    for (QAction* action : m_programController->getRecentFileManager()->getActions())
     {
         ui->menuFile->insertAction(ui->actionQuit, action);
     }
     ui->menuFile->insertSeparator(ui->actionQuit);
 
-    connect(ui->actionOpen, &QAction::triggered, this, &PDFViewerMainWindow::onActionOpenTriggered);
-    connect(ui->actionClose, &QAction::triggered, this, &PDFViewerMainWindow::onActionCloseTriggered);
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);
-    connect(m_recentFileManager, &PDFRecentFileManager::fileOpenRequest, this, &PDFViewerMainWindow::openDocument);
-
-    auto createGoToAction = [this](QMenu* menu, QString name, QString text, QKeySequence::StandardKey key, pdf::PDFDrawWidgetProxy::Operation operation, QString iconPath)
-    {
-        QIcon icon;
-        icon.addFile(iconPath);
-        QAction* action = new QAction(icon, text, this);
-        action->setObjectName(name);
-        action->setShortcut(key);
-        menu->addAction(action);
-
-        auto onTriggered = [this, operation]()
-        {
-            m_pdfWidget->getDrawWidgetProxy()->performOperation(operation);
-        };
-        connect(action, &QAction::triggered, this, onTriggered);
-        return action;
-    };
-
-    QAction* actionGoToDocumentStart = createGoToAction(ui->menuGoTo, "actionGoToDocumentStart", tr("Go to document start"), QKeySequence::MoveToStartOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentStart, ":/resources/previous-start.svg");
-    QAction* actionGoToDocumentEnd = createGoToAction(ui->menuGoTo, "actionGoToDocumentEnd", tr("Go to document end"), QKeySequence::MoveToEndOfDocument, pdf::PDFDrawWidgetProxy::NavigateDocumentEnd, ":/resources/next-end.svg");
-    QAction* actionGoToNextPage = createGoToAction(ui->menuGoTo, "actionGoToNextPage", tr("Go to next page"), QKeySequence::MoveToNextPage, pdf::PDFDrawWidgetProxy::NavigateNextPage, ":/resources/next-page.svg");
-    QAction* actionGoToPreviousPage = createGoToAction(ui->menuGoTo, "actionGoToPreviousPage", tr("Go to previous page"), QKeySequence::MoveToPreviousPage, pdf::PDFDrawWidgetProxy::NavigatePreviousPage, ":/resources/previous-page.svg");
-    createGoToAction(ui->menuGoTo, "actionGoToNextLine", tr("Go to next line"), QKeySequence::MoveToNextLine, pdf::PDFDrawWidgetProxy::NavigateNextStep, ":/resources/next.svg");
-    createGoToAction(ui->menuGoTo, "actionGoToPreviousLine", tr("Go to previous line"), QKeySequence::MoveToPreviousLine, pdf::PDFDrawWidgetProxy::NavigatePreviousStep, ":/resources/previous.svg");
 
     m_pageNumberSpinBox = new QSpinBox(this);
     m_pageNumberLabel = new QLabel(this);
-    m_pageNumberSpinBox->setFixedWidth(adjustDpiX(80));
+    m_pageNumberSpinBox->setFixedWidth(pdf::PDFWidgetUtils::scaleDPI_x(m_pageNumberSpinBox, 80));
     m_pageNumberSpinBox->setAlignment(Qt::AlignCenter);
     connect(m_pageNumberSpinBox, &QSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageNumberSpinboxEditingFinished);
 
-    m_insertStickyNoteGroup = new QActionGroup(this);
-    m_insertStickyNoteGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteComment);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteHelp);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteInsert);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteKey);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNewParagraph);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteNote);
-    m_insertStickyNoteGroup->addAction(ui->actionStickyNoteParagraph);
-
-    m_insertStampGroup = new QActionGroup(this);
-    m_insertStampGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
-    for (pdf::Stamp stamp : { pdf::Stamp::Approved, pdf::Stamp::AsIs, pdf::Stamp::Confidential,
-                              pdf::Stamp::Departmental, pdf::Stamp::Draft, pdf::Stamp::Experimental,
-                              pdf::Stamp::Expired, pdf::Stamp::Final, pdf::Stamp::ForComment,
-                              pdf::Stamp::ForPublicRelease, pdf::Stamp::NotApproved, pdf::Stamp::NotForPublicRelease,
-                              pdf::Stamp::Sold, pdf::Stamp::TopSecret })
+    for (QAction* action : m_actionManager->getActionGroup(PDFActionManager::CreateStampGroup)->actions())
     {
-        QString text = pdf::PDFStampAnnotation::getText(stamp);
-        QAction* action = new QAction(text, this);
-        action->setObjectName(QString("Stamp_%1").arg(int(stamp)));
-        action->setData(int(stamp));
-        action->setCheckable(true);
-        m_insertStampGroup->addAction(action);
         ui->menuStamp->addAction(action);
     }
 
-    m_insertHighlightGroup = new QActionGroup(this);
-    m_insertHighlightGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
-    m_insertHighlightGroup->addAction(ui->actionCreateTextHighlight);
-    m_insertHighlightGroup->addAction(ui->actionCreateTextUnderline);
-    m_insertHighlightGroup->addAction(ui->actionCreateTextStrikeout);
-    m_insertHighlightGroup->addAction(ui->actionCreateTextSquiggly);
-
-    ui->actionCreateTextHighlight->setData(int(pdf::AnnotationType::Highlight));
-    ui->actionCreateTextUnderline->setData(int(pdf::AnnotationType::Underline));
-    ui->actionCreateTextStrikeout->setData(int(pdf::AnnotationType::StrikeOut));
-    ui->actionCreateTextSquiggly->setData(int(pdf::AnnotationType::Squiggly));
-
-    ui->actionStickyNoteComment->setData(int(pdf::TextAnnotationIcon::Comment));
-    ui->actionStickyNoteHelp->setData(int(pdf::TextAnnotationIcon::Help));
-    ui->actionStickyNoteInsert->setData(int(pdf::TextAnnotationIcon::Insert));
-    ui->actionStickyNoteKey->setData(int(pdf::TextAnnotationIcon::Key));
-    ui->actionStickyNoteNewParagraph->setData(int(pdf::TextAnnotationIcon::NewParagraph));
-    ui->actionStickyNoteNote->setData(int(pdf::TextAnnotationIcon::Note));
-    ui->actionStickyNoteParagraph->setData(int(pdf::TextAnnotationIcon::Paragraph));
-
-    ui->actionStickyNoteComment->setIcon(pdf::PDFTextAnnotation::createIcon("Comment", iconSize));
-    ui->actionStickyNoteHelp->setIcon(pdf::PDFTextAnnotation::createIcon("Help", iconSize));
-    ui->actionStickyNoteInsert->setIcon(pdf::PDFTextAnnotation::createIcon("Insert", iconSize));
-    ui->actionStickyNoteKey->setIcon(pdf::PDFTextAnnotation::createIcon("Key", iconSize));
-    ui->actionStickyNoteNewParagraph->setIcon(pdf::PDFTextAnnotation::createIcon("NewParagraph", iconSize));
-    ui->actionStickyNoteNote->setIcon(pdf::PDFTextAnnotation::createIcon("Note", iconSize));
-    ui->actionStickyNoteParagraph->setIcon(pdf::PDFTextAnnotation::createIcon("Paragraph", iconSize));
-
     // Page control
     ui->mainToolBar->addSeparator();
-    ui->mainToolBar->addAction(actionGoToDocumentStart);
-    ui->mainToolBar->addAction(actionGoToPreviousPage);
+    ui->mainToolBar->addAction(ui->actionGoToDocumentStart);
+    ui->mainToolBar->addAction(ui->actionGoToPreviousPage);
     ui->mainToolBar->addWidget(m_pageNumberSpinBox);
     ui->mainToolBar->addWidget(m_pageNumberLabel);
-    ui->mainToolBar->addAction(actionGoToNextPage);
-    ui->mainToolBar->addAction(actionGoToDocumentEnd);
+    ui->mainToolBar->addAction(ui->actionGoToNextPage);
+    ui->mainToolBar->addAction(ui->actionGoToDocumentEnd);
 
     // Zoom
     ui->mainToolBar->addSeparator();
@@ -252,7 +215,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_pageZoomSpinBox->setMaximum(pdf::PDFDrawWidgetProxy::getMaxZoom() * 100);
     m_pageZoomSpinBox->setDecimals(2);
     m_pageZoomSpinBox->setSuffix(tr("%"));
-    m_pageZoomSpinBox->setFixedWidth(adjustDpiX(80));
+    m_pageZoomSpinBox->setFixedWidth(pdf::PDFWidgetUtils::scaleDPI_x(m_pageNumberSpinBox, 80));
     m_pageZoomSpinBox->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
     connect(m_pageZoomSpinBox, &QDoubleSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageZoomSpinboxEditingFinished);
     ui->mainToolBar->addWidget(m_pageZoomSpinBox);
@@ -275,49 +238,24 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addSeparator();
 
     // Special tools
-    QToolButton* insertStickyNoteButton = new QToolButton(ui->mainToolBar);
-    insertStickyNoteButton->setPopupMode(QToolButton::MenuButtonPopup);
-    insertStickyNoteButton->setMenu(new QMenu(insertStickyNoteButton));
-    QList<QAction*> insertStickyNotesActions = m_insertStickyNoteGroup->actions();
-    auto onInsertStickyNotesActionTriggered = [insertStickyNoteButton](QAction* action)
-    {
-        if (action)
-        {
-            insertStickyNoteButton->setDefaultAction(action);
-        }
-    };
-    connect(m_insertStickyNoteGroup, &QActionGroup::triggered, insertStickyNoteButton, onInsertStickyNotesActionTriggered);
-    for (QAction* action : insertStickyNotesActions)
-    {
-        insertStickyNoteButton->menu()->addAction(action);
-    }
-    insertStickyNoteButton->setDefaultAction(insertStickyNotesActions.front());
+    QToolButton* insertStickyNoteButton = m_actionManager->createToolButtonForActionGroup(PDFActionManager::CreateStickyNoteGroup, ui->mainToolBar);
     ui->mainToolBar->addWidget(insertStickyNoteButton);
     ui->mainToolBar->addSeparator();
 
-    connect(ui->actionZoom_In, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomIn); });
-    connect(ui->actionZoom_Out, &QAction::triggered, this, [this] { m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomOut); });
+    m_programController->initialize(PDFProgramController::AllFeatures, this, this, m_actionManager, m_progress);
+    setCentralWidget(m_programController->getPdfWidget());
+    setFocusProxy(m_programController->getPdfWidget());
 
-    readSettings();
-
-    m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, this);
-    setCentralWidget(m_pdfWidget);
-    setFocusProxy(m_pdfWidget);
-    m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
-    m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
-    m_textToSpeech->setProxy(m_pdfWidget->getDrawWidgetProxy());
-
-    m_sidebarWidget = new PDFSidebarWidget(m_pdfWidget->getDrawWidgetProxy(), m_textToSpeech, &m_certificateStore, m_settings, this);
+    m_sidebarWidget = new PDFSidebarWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), m_programController->getTextToSpeech(), m_programController->getCertificateStore(), m_programController->getSettings(), this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_sidebarDockWidget->setWidget(m_sidebarWidget);
     addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
     m_sidebarDockWidget->hide();
-    connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
-    m_textToSpeech->setSettings(m_settings);
+    connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, m_programController, &PDFProgramController::onActionTriggered);
 
-    m_advancedFindWidget = new PDFAdvancedFindWidget(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_advancedFindWidget = new PDFAdvancedFindWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), this);
     m_advancedFindDockWidget = new QDockWidget(tr("Advanced find"), this);
     m_advancedFindDockWidget->setObjectName("AdvancedFind");
     m_advancedFindDockWidget->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
@@ -330,241 +268,39 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     toggleAdvancedFindAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
     toggleAdvancedFindAction->setIcon(QIcon(":/resources/find-advanced.svg"));
     ui->menuEdit->insertAction(nullptr, toggleAdvancedFindAction);
-
-    ui->actionRenderOptionAntialiasing->setData(pdf::PDFRenderer::Antialiasing);
-    ui->actionRenderOptionTextAntialiasing->setData(pdf::PDFRenderer::TextAntialiasing);
-    ui->actionRenderOptionSmoothPictures->setData(pdf::PDFRenderer::SmoothImages);
-    ui->actionRenderOptionIgnoreOptionalContentSettings->setData(pdf::PDFRenderer::IgnoreOptionalContent);
-    ui->actionRenderOptionDisplayAnnotations->setData(pdf::PDFRenderer::DisplayAnnotations);
-    ui->actionInvertColors->setData(pdf::PDFRenderer::InvertColors);
-    ui->actionShow_Text_Blocks->setData(pdf::PDFRenderer::DebugTextBlocks);
-    ui->actionShow_Text_Lines->setData(pdf::PDFRenderer::DebugTextLines);
-
-    for (QAction* action : getRenderingOptionActions())
-    {
-        connect(action, &QAction::triggered, this, &PDFViewerMainWindow::onRenderingOptionTriggered);
-    }
+    m_actionManager->addAdditionalAction(m_advancedFindDockWidget->toggleViewAction());
 
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_sidebarDockWidget->toggleViewAction());
     m_sidebarDockWidget->toggleViewAction()->setObjectName("actionSidebar");
+    m_actionManager->addAdditionalAction(m_sidebarDockWidget->toggleViewAction());
 
-    // Initialize tools
-    pdf::PDFToolManager::Actions actions;
-    actions.findPrevAction = ui->actionFindPrevious;
-    actions.findNextAction = ui->actionFindNext;
-    actions.selectTextToolAction = ui->actionSelectText;
-    actions.selectAllAction = ui->actionSelectTextAll;
-    actions.deselectAction = ui->actionDeselectText;
-    actions.copyTextAction = ui->actionCopyText;
-    actions.magnifierAction = ui->actionMagnifier;
-    actions.screenshotToolAction = ui->actionScreenshot;
-    actions.extractImageAction = ui->actionExtractImage;
-    m_toolManager = new pdf::PDFToolManager(m_pdfWidget->getDrawWidgetProxy(), actions, this, this);
-    m_pdfWidget->setToolManager(m_toolManager);
-    updateMagnifierToolSettings();
-    connect(m_toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
-    connect(m_toolManager, &pdf::PDFToolManager::documentModified, this, &PDFViewerMainWindow::onDocumentModified);
-
-    // Add special tools
-    pdf::PDFCreateStickyNoteTool* createStickyNoteTool = new pdf::PDFCreateStickyNoteTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStickyNoteGroup, this);
-    m_toolManager->addTool(createStickyNoteTool);
-    pdf::PDFCreateHyperlinkTool* createHyperlinkTool = new pdf::PDFCreateHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateHyperlink, this);
-    m_toolManager->addTool(createHyperlinkTool);
-    pdf::PDFCreateFreeTextTool* createFreeTextTool = new pdf::PDFCreateFreeTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionInlineText, this);
-    m_toolManager->addTool(createFreeTextTool);
-    pdf::PDFCreateLineTypeTool* createStraightLineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Line, ui->actionCreateStraightLine, this);
-    m_toolManager->addTool(createStraightLineTool);
-    pdf::PDFCreateLineTypeTool* createPolylineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::PolyLine, ui->actionCreatePolyline, this);
-    m_toolManager->addTool(createPolylineTool);
-    pdf::PDFCreateLineTypeTool* createPolygonTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Polygon, ui->actionCreatePolygon, this);
-    m_toolManager->addTool(createPolygonTool);
-    pdf::PDFCreateEllipseTool* createEllipseTool = new pdf::PDFCreateEllipseTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateEllipse, this);
-    m_toolManager->addTool(createEllipseTool);
-    pdf::PDFCreateFreehandCurveTool* createFreehandCurveTool = new pdf::PDFCreateFreehandCurveTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, ui->actionCreateFreehandCurve, this);
-    m_toolManager->addTool(createFreehandCurveTool);
-    pdf::PDFCreateStampTool* createStampTool = new pdf::PDFCreateStampTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertStampGroup, this);
-    m_toolManager->addTool(createStampTool);
-    pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_insertHighlightGroup, this);
-    m_toolManager->addTool(createHighlightTextTool);
-
-    m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
-    connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
-    m_pdfWidget->setAnnotationManager(m_annotationManager);
-
-    m_formManager = new pdf::PDFFormManager(m_pdfWidget->getDrawWidgetProxy(), this);
-    m_formManager->setAnnotationManager(m_annotationManager);
-    m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
-    m_annotationManager->setFormManager(m_formManager);
-    m_pdfWidget->setFormManager(m_formManager);
-    connect(m_formManager, &pdf::PDFFormManager::actionTriggered, this, &PDFViewerMainWindow::onActionTriggered);
-    connect(m_formManager, &pdf::PDFFormManager::documentModified, this, &PDFViewerMainWindow::onDocumentModified);
-
-    connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFViewerMainWindow::onDrawSpaceChanged);
-    connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFViewerMainWindow::onPageLayoutChanged);
-    connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFViewerMainWindow::onPageRenderingErrorsChanged, Qt::QueuedConnection);
-    connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFViewerMainWindow::onViewerSettingsChanged);
     connect(m_progress, &pdf::PDFProgress::progressStarted, this, &PDFViewerMainWindow::onProgressStarted);
     connect(m_progress, &pdf::PDFProgress::progressStep, this, &PDFViewerMainWindow::onProgressStep);
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
-    connect(this, &PDFViewerMainWindow::queryPasswordRequest, this, &PDFViewerMainWindow::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
-    connect(ui->actionFind, &QAction::triggered, this, [this] { m_toolManager->setActiveTool(m_toolManager->getFindTextTool()); });
 
-    // Connect undo/redo manager
-    connect(m_undoRedoManager, &PDFUndoRedoManager::undoRedoStateChanged, this, &PDFViewerMainWindow::updateUndoRedoActions);
-    connect(m_undoRedoManager, &PDFUndoRedoManager::documentChangeRequest, this, &PDFViewerMainWindow::onDocumentUndoRedo);
-    connect(ui->actionUndo, &QAction::triggered, m_undoRedoManager, &PDFUndoRedoManager::doUndo);
-    connect(ui->actionRedo, &QAction::triggered, m_undoRedoManager, &PDFUndoRedoManager::doRedo);
-    updateUndoRedoSettings();
+    m_programController->finishInitialization();
 
-    readActionSettings();
-    updatePageLayoutActions();
-    updateUI(true);
-    onViewerSettingsChanged();
-    updateActionsAvailability();
-
-    loadPlugins();
-}
-
-void PDFViewerMainWindow::loadPlugins()
-{
-    QDir directory(QApplication::applicationDirPath() + "/pdfplugins");
-    QStringList availablePlugins = directory.entryList(QStringList("*.dll"));
-
-    for (const QString& availablePlugin : availablePlugins)
+    if (pdf::PDFToolManager* toolManager = m_programController->getToolManager())
     {
-        QString pluginFileName = directory.absoluteFilePath(availablePlugin);
-        QPluginLoader loader(pluginFileName);
-        if (loader.load())
-        {
-            QJsonObject metaData = loader.metaData();
-            m_plugins.emplace_back(pdf::PDFPluginInfo::loadFromJson(&metaData));
-
-            if (!m_enabledPlugins.contains(m_plugins.back().name))
-            {
-                loader.unload();
-                continue;
-            }
-
-            pdf::PDFPlugin* plugin = qobject_cast<pdf::PDFPlugin*>(loader.instance());
-            if (plugin)
-            {
-                m_loadedPlugins.push_back(std::make_pair(m_plugins.back(), plugin));
-            }
-        }
-    }
-
-    auto comparator = [](const std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>& l, const std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>& r)
-    {
-        return l.first.name < r.first.name;
-    };
-    std::sort(m_loadedPlugins.begin(), m_loadedPlugins.end(), comparator);
-
-    for (const auto& plugin : m_loadedPlugins)
-    {
-        plugin.second->setWidget(m_pdfWidget);
-        std::vector<QAction*> actions = plugin.second->getActions();
-
-        if (!actions.empty())
-        {
-            QToolButton* toolbarButton = new QToolButton(ui->mainToolBar);
-            toolbarButton->setPopupMode(QToolButton::MenuButtonPopup);
-            toolbarButton->setMenu(new QMenu(toolbarButton));
-            toolbarButton->setDefaultAction(actions.front());
-            ui->mainToolBar->addWidget(toolbarButton);
-            QMenu* menu = ui->menuTools->addMenu(plugin.first.name);
-            for (QAction* action : actions)
-            {
-                if (!action)
-                {
-                    menu->addSeparator();
-                    toolbarButton->menu()->addSeparator();
-                }
-
-                menu->addAction(action);
-                toolbarButton->menu()->addAction(action);
-
-                auto onPluginActionTriggered = [toolbarButton, action]()
-                {
-                    if (action->isEnabled())
-                    {
-                        toolbarButton->setDefaultAction(action);
-                    }
-                };
-                auto onPluginActionStateChanged = [toolbarButton, action]()
-                {
-                    if (!action->isEnabled() && toolbarButton->defaultAction() == action)
-                    {
-                        for (QAction* action : toolbarButton->menu()->actions())
-                        {
-                            if (action->isSeparator())
-                            {
-                                continue;
-                            }
-
-                            if (action->isEnabled())
-                            {
-                                toolbarButton->setDefaultAction(action);
-                                break;
-                            }
-                        }
-                    }
-                };
-
-                connect(action, &QAction::triggered, toolbarButton, onPluginActionTriggered);
-                connect(action, &QAction::changed, toolbarButton, onPluginActionStateChanged);
-            }
-        }
+        connect(toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
     }
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()
 {
-    delete m_formManager;
-    m_formManager = nullptr;
+    delete m_programController;
+    m_programController = nullptr;
 
-    delete m_annotationManager;
-    m_annotationManager = nullptr;
+    delete m_actionManager;
+    m_actionManager = nullptr;
 
     delete ui;
-}
-
-void PDFViewerMainWindow::onActionOpenTriggered()
-{
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings->getDirectory(), tr("PDF document (*.pdf)"));
-    if (!fileName.isEmpty())
-    {
-        openDocument(fileName);
-    }
-}
-
-void PDFViewerMainWindow::onActionCloseTriggered()
-{
-    closeDocument();
 }
 
 void PDFViewerMainWindow::onActionQuitTriggered()
 {
     close();
-}
-
-void PDFViewerMainWindow::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)
-{
-    if (errorsCount > 0)
-    {
-        statusBar()->showMessage(tr("Rendering of page %1: %2 errors occured.").arg(pageIndex + 1).arg(errorsCount), 4000);
-    }
-}
-
-void PDFViewerMainWindow::onDrawSpaceChanged()
-{
-    updateUI(false);
-}
-
-void PDFViewerMainWindow::onPageLayoutChanged()
-{
-    updateUI(false);
-    updatePageLayoutActions();
 }
 
 void PDFViewerMainWindow::onPageNumberSpinboxEditingFinished()
@@ -576,10 +312,10 @@ void PDFViewerMainWindow::onPageNumberSpinboxEditingFinished()
 
     if (m_pageNumberSpinBox->hasFocus())
     {
-        m_pdfWidget->setFocus();
+        m_programController->getPdfWidget()->setFocus();
     }
 
-    m_pdfWidget->getDrawWidgetProxy()->goToPage(m_pageNumberSpinBox->value() - 1);
+    m_programController->getPdfWidget()->getDrawWidgetProxy()->goToPage(m_pageNumberSpinBox->value() - 1);
 }
 
 void PDFViewerMainWindow::onPageZoomSpinboxEditingFinished()
@@ -591,248 +327,10 @@ void PDFViewerMainWindow::onPageZoomSpinboxEditingFinished()
 
     if (m_pageZoomSpinBox->hasFocus())
     {
-        m_pdfWidget->setFocus();
+        m_programController->getPdfWidget()->setFocus();
     }
 
-    m_pdfWidget->getDrawWidgetProxy()->zoom(m_pageZoomSpinBox->value() / 100.0);
-}
-
-void PDFViewerMainWindow::onActionTriggered(const pdf::PDFAction* action)
-{
-    Q_ASSERT(action);
-
-    for (const pdf::PDFAction* currentAction : action->getActionList())
-    {
-        switch (action->getType())
-        {
-            case pdf::ActionType::GoTo:
-            {
-                const pdf::PDFActionGoTo* typedAction = dynamic_cast<const pdf::PDFActionGoTo*>(currentAction);
-                pdf::PDFDestination destination = typedAction->getDestination();
-                if (destination.getDestinationType() == pdf::DestinationType::Named)
-                {
-                    if (const pdf::PDFDestination* targetDestination = m_pdfDocument->getCatalog()->getNamedDestination(destination.getName()))
-                    {
-                        destination = *targetDestination;
-                    }
-                    else
-                    {
-                        destination = pdf::PDFDestination();
-                        QMessageBox::critical(this, tr("Go to action"), tr("Failed to go to destination '%1'. Destination wasn't found.").arg(pdf::PDFEncoding::convertTextString(destination.getName())));
-                    }
-                }
-
-                if (destination.getDestinationType() != pdf::DestinationType::Invalid &&
-                    destination.getPageReference() != pdf::PDFObjectReference())
-                {
-                    const size_t pageIndex = m_pdfDocument->getCatalog()->getPageIndexFromPageReference(destination.getPageReference());
-                    if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
-                    {
-                        m_pdfWidget->getDrawWidgetProxy()->goToPage(pageIndex);
-
-                        switch (destination.getDestinationType())
-                        {
-                            case pdf::DestinationType::Fit:
-                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
-                                break;
-
-                            case pdf::DestinationType::FitH:
-                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitWidth);
-                                break;
-
-                            case pdf::DestinationType::FitV:
-                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitHeight);
-                                break;
-
-                            default:
-                                break;
-                        }
-                    }
-                }
-
-                break;
-            }
-
-            case pdf::ActionType::Launch:
-            {
-                if (!m_settings->getSettings().m_allowLaunchApplications)
-                {
-                    // Launching of applications is disabled -> continue to next action
-                    continue;
-                }
-
-                const pdf::PDFActionLaunch* typedAction = dynamic_cast<const pdf::PDFActionLaunch*>(currentAction);
-#ifdef Q_OS_WIN
-                const pdf::PDFActionLaunch::Win& winSpecification = typedAction->getWinSpecification();
-                if (!winSpecification.file.isEmpty())
-                {
-                    QString message = tr("Would you like to launch application '%1' in working directory '%2' with parameters '%3'?").arg(QString::fromLatin1(winSpecification.file), QString::fromLatin1(winSpecification.directory), QString::fromLatin1(winSpecification.parameters));
-                    if (QMessageBox::question(this, tr("Launch application"), message) == QMessageBox::Yes)
-                    {
-                        auto getStringOrNULL = [](const QByteArray& array) -> LPCSTR
-                        {
-                            if (!array.isEmpty())
-                            {
-                                return array.data();
-                            }
-                            return NULL;
-                        };
-
-                        const HINSTANCE result = ::ShellExecuteA(NULL, getStringOrNULL(winSpecification.operation), getStringOrNULL(winSpecification.file), getStringOrNULL(winSpecification.parameters), getStringOrNULL(winSpecification.directory), SW_SHOWNORMAL);
-                        if (result <= HINSTANCE(32))
-                        {
-                            // Error occured
-                            QMessageBox::warning(this, tr("Launch application"), tr("Executing application failed. Error code is %1.").arg(reinterpret_cast<intptr_t>(result)));
-                        }
-                    }
-
-                    // Continue next action
-                    continue;
-                }
-
-                const pdf::PDFFileSpecification& fileSpecification = typedAction->getFileSpecification();
-                QString plaftormFileName = fileSpecification.getPlatformFileName();
-                if (!plaftormFileName.isEmpty())
-                {
-                    QString message = tr("Would you like to launch application '%1'?").arg(plaftormFileName);
-                    if (QMessageBox::question(this, tr("Launch application"), message) == QMessageBox::Yes)
-                    {
-                        const HINSTANCE result = ::ShellExecuteW(NULL, NULL, plaftormFileName.toStdWString().c_str(), NULL, NULL, SW_SHOWNORMAL);
-                        if (result <= HINSTANCE(32))
-                        {
-                            // Error occured
-                            QMessageBox::warning(this, tr("Launch application"), tr("Executing application failed. Error code is %1.").arg(reinterpret_cast<intptr_t>(result)));
-                        }
-                    }
-
-                    // Continue next action
-                    continue;
-                }
-#endif
-                break;
-            }
-
-            case pdf::ActionType::URI:
-            {
-                if (!m_settings->getSettings().m_allowLaunchURI)
-                {
-                    // Launching of URI is disabled -> continue to next action
-                    continue;
-                }
-
-                const pdf::PDFActionURI* typedAction = dynamic_cast<const pdf::PDFActionURI*>(currentAction);
-                QByteArray URI = m_pdfDocument->getCatalog()->getBaseURI() + typedAction->getURI();
-                QString urlString = QString::fromUtf8(URI);
-                QString message = tr("Would you like to open URL '%1'?").arg(urlString);
-                if (QMessageBox::question(this, tr("Open URL"), message) == QMessageBox::Yes)
-                {
-                    if (!QDesktopServices::openUrl(QUrl(urlString)))
-                    {
-                        // Error occured
-                        QMessageBox::warning(this, tr("Open URL"), tr("Opening url '%1' failed.").arg(urlString));
-                    }
-                }
-
-                break;
-            }
-
-            case pdf::ActionType::Named:
-            {
-                const pdf::PDFActionNamed* typedAction = dynamic_cast<const pdf::PDFActionNamed*>(currentAction);
-                switch (typedAction->getNamedActionType())
-                {
-                    case pdf::PDFActionNamed::NamedActionType::NextPage:
-                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigateNextPage);
-                        break;
-
-                    case pdf::PDFActionNamed::NamedActionType::PrevPage:
-                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigatePreviousPage);
-                        break;
-
-                    case pdf::PDFActionNamed::NamedActionType::FirstPage:
-                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigateDocumentStart);
-                        break;
-
-                    case pdf::PDFActionNamed::NamedActionType::LastPage:
-                        m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::NavigateDocumentEnd);
-                        break;
-
-                    default:
-                        break;
-                }
-
-                break;
-            }
-
-            case pdf::ActionType::SetOCGState:
-            {
-                const pdf::PDFActionSetOCGState* typedAction = dynamic_cast<const pdf::PDFActionSetOCGState*>(currentAction);
-                const pdf::PDFActionSetOCGState::StateChangeItems& stateChanges = typedAction->getStateChangeItems();
-                const bool isRadioButtonsPreserved = typedAction->isRadioButtonsPreserved();
-
-                if (m_optionalContentActivity)
-                {
-                    for (const pdf::PDFActionSetOCGState::StateChangeItem& stateChange : stateChanges)
-                    {
-                        pdf::OCState newState = pdf::OCState::Unknown;
-                        switch (stateChange.first)
-                        {
-                            case pdf::PDFActionSetOCGState::SwitchType::ON:
-                                newState = pdf::OCState::ON;
-                                break;
-
-                            case pdf::PDFActionSetOCGState::SwitchType::OFF:
-                                newState = pdf::OCState::OFF;
-                                break;
-
-                            case pdf::PDFActionSetOCGState::SwitchType::Toggle:
-                            {
-                                pdf::OCState oldState = m_optionalContentActivity->getState(stateChange.second);
-                                switch (oldState)
-                                {
-                                    case pdf::OCState::ON:
-                                        newState = pdf::OCState::OFF;
-                                        break;
-
-                                    case pdf::OCState::OFF:
-                                        newState = pdf::OCState::ON;
-                                        break;
-
-                                    case pdf::OCState::Unknown:
-                                        break;
-
-                                    default:
-                                        Q_ASSERT(false);
-                                        break;
-                                }
-
-                                break;
-                            }
-
-                            default:
-                                Q_ASSERT(false);
-                        }
-
-                        if (newState != pdf::OCState::Unknown)
-                        {
-                            m_optionalContentActivity->setState(stateChange.second, newState, isRadioButtonsPreserved);
-                        }
-                    }
-                }
-
-                break;
-            }
-
-            case pdf::ActionType::ResetForm:
-            {
-                m_formManager->performResetAction(dynamic_cast<const pdf::PDFActionResetForm*>(action));
-                break;
-            }
-
-            default:
-                break;
-        }
-    }
+    m_programController->getPdfWidget()->getDrawWidgetProxy()->zoom(m_pageZoomSpinBox->value() / 100.0);
 }
 
 void PDFViewerMainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
@@ -848,9 +346,9 @@ void PDFViewerMainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
-    m_isBusy = true;
 
-    updateActionsAvailability();
+    m_programController->setIsBusy(true);
+    m_programController->updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::onProgressStep(int percentage)
@@ -879,171 +377,9 @@ void PDFViewerMainWindow::onProgressFinished()
         m_progressDialog = nullptr;
     }
     m_progressTaskbarIndicator->hide();
-    m_isBusy = false;
 
-    updateActionsAvailability();
-}
-
-void PDFViewerMainWindow::readSettings()
-{
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
-
-    QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
-    if (geometry.isEmpty())
-    {
-        QRect availableGeometry = QApplication::desktop()->availableGeometry(this);
-        QRect windowRect(0, 0, availableGeometry.width() / 2, availableGeometry.height() / 2);
-        windowRect = windowRect.translated(availableGeometry.center() - windowRect.center());
-        setGeometry(windowRect);
-    }
-    else
-    {
-        restoreGeometry(geometry);
-    }
-
-    QByteArray state = settings.value("windowState", QByteArray()).toByteArray();
-    if (!state.isEmpty())
-    {
-        restoreState(state);
-    }
-
-    m_settings->readSettings(settings, m_CMSManager->getDefaultSettings());
-    m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
-    m_textToSpeech->setSettings(m_settings);
-
-    if (m_formManager)
-    {
-        m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
-    }
-
-    // Load allowed plugins
-    settings.beginGroup("Plugins");
-    m_enabledPlugins = settings.value("EnabledPlugins").toStringList();
-    settings.endGroup();
-}
-
-void PDFViewerMainWindow::readActionSettings()
-{
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
-
-    // Load action shortcuts
-    settings.beginGroup("Actions");
-    for (QAction* action : getActions())
-    {
-        QString name = action->objectName();
-        if (!name.isEmpty() && settings.contains(name))
-        {
-            QKeySequence sequence = QKeySequence::fromString(settings.value(name, action->shortcut().toString(QKeySequence::PortableText)).toString(), QKeySequence::PortableText);
-            action->setShortcut(sequence);
-        }
-    }
-    settings.endGroup();
-
-    // Load recent files
-    settings.beginGroup("RecentFiles");
-    m_recentFileManager->setRecentFilesLimit(settings.value("MaximumRecentFilesCount", PDFRecentFileManager::getDefaultRecentFiles()).toInt());
-    m_recentFileManager->setRecentFiles(settings.value("RecentFileList", QStringList()).toStringList());
-    settings.endGroup();
-
-    // Load trusted certificates
-    m_certificateStore.loadDefaultUserCertificates();
-}
-
-void PDFViewerMainWindow::writeSettings()
-{
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.setValue("geometry", saveGeometry());
-    settings.setValue("windowState", saveState());
-
-    m_settings->writeSettings(settings);
-
-    // Save action shortcuts
-    settings.beginGroup("Actions");
-    for (QAction* action : getActions())
-    {
-        QString name = action->objectName();
-        if (!name.isEmpty())
-        {
-            QString accelerator = action->shortcut().toString(QKeySequence::PortableText);
-            settings.setValue(name, accelerator);
-        }
-    }
-    settings.endGroup();
-
-    // Save recent files
-    settings.beginGroup("RecentFiles");
-    settings.setValue("MaximumRecentFilesCount", m_recentFileManager->getRecentFilesLimit());
-    settings.setValue("RecentFileList", m_recentFileManager->getRecentFiles());
-    settings.endGroup();
-
-    // Save allowed plugins
-    settings.beginGroup("Plugins");
-    settings.setValue("EnabledPlugins", m_enabledPlugins);
-    settings.endGroup();
-
-    // Save trusted certificates
-    m_certificateStore.saveDefaultUserCertificates();
-}
-
-void PDFViewerMainWindow::updateTitle()
-{
-    if (m_pdfDocument)
-    {
-        QString title = m_pdfDocument->getInfo()->title;
-        if (title.isEmpty())
-        {
-            title = m_fileInfo.fileName;
-        }
-        setWindowTitle(tr("%1 - PDF Viewer").arg(m_fileInfo.fileName));
-    }
-    else
-    {
-        setWindowTitle(tr("PDF Viewer"));
-    }
-}
-
-void PDFViewerMainWindow::updatePageLayoutActions()
-{
-    for (QAction* action : { ui->actionPageLayoutContinuous, ui->actionPageLayoutSinglePage, ui->actionPageLayoutTwoColumns, ui->actionPageLayoutTwoPages })
-    {
-        action->setChecked(false);
-    }
-
-    const pdf::PageLayout pageLayout = m_pdfWidget->getDrawWidgetProxy()->getPageLayout();
-    switch (pageLayout)
-    {
-        case pdf::PageLayout::SinglePage:
-            ui->actionPageLayoutSinglePage->setChecked(true);
-            break;
-
-        case pdf::PageLayout::OneColumn:
-            ui->actionPageLayoutContinuous->setChecked(true);
-            break;
-
-        case pdf::PageLayout::TwoColumnLeft:
-        case pdf::PageLayout::TwoColumnRight:
-            ui->actionPageLayoutTwoColumns->setChecked(true);
-            ui->actionFirstPageOnRightSide->setChecked(pageLayout == pdf::PageLayout::TwoColumnRight);
-            break;
-
-        case pdf::PageLayout::TwoPagesLeft:
-        case pdf::PageLayout::TwoPagesRight:
-            ui->actionPageLayoutTwoPages->setChecked(true);
-            ui->actionFirstPageOnRightSide->setChecked(pageLayout == pdf::PageLayout::TwoPagesRight);
-            break;
-
-        default:
-            Q_ASSERT(false);
-    }
-}
-
-void PDFViewerMainWindow::updateRenderingOptionActions()
-{
-    const pdf::PDFRenderer::Features features = m_settings->getFeatures();
-    for (QAction* action : getRenderingOptionActions())
-    {
-        action->setChecked(features.testFlag(static_cast<pdf::PDFRenderer::Feature>(action->data().toInt())));
-    }
+    m_programController->setIsBusy(false);
+    m_programController->updateActionsAvailability();
 }
 
 void PDFViewerMainWindow::updateUI(bool fullUpdate)
@@ -1052,9 +388,9 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
 
     if (fullUpdate)
     {
-        if (m_pdfDocument)
+        if (pdf::PDFDocument* document = m_programController->getDocument())
         {
-            size_t pageCount = m_pdfDocument->getCatalog()->getPageCount();
+            size_t pageCount = document->getCatalog()->getPageCount();
             m_pageNumberSpinBox->setMinimum(1);
             m_pageNumberSpinBox->setMaximum(static_cast<int>(pageCount));
             m_pageNumberSpinBox->setEnabled(true);
@@ -1065,340 +401,76 @@ void PDFViewerMainWindow::updateUI(bool fullUpdate)
             m_pageNumberSpinBox->setEnabled(false);
             m_pageNumberLabel->setText(QString());
         }
-
-        ui->actionProperties->setEnabled(m_pdfDocument);
-        ui->actionSend_by_E_Mail->setEnabled(m_pdfDocument);
     }
     else
     {
-        std::vector<pdf::PDFInteger> currentPages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+        std::vector<pdf::PDFInteger> currentPages = m_programController->getPdfWidget()->getDrawWidget()->getCurrentPages();
         if (!currentPages.empty())
         {
             m_pageNumberSpinBox->setValue(currentPages.front() + 1);
 
             // Prefetch pages, if it is enabled
-            if (m_settings->isPagePrefetchingEnabled())
+            if (m_programController->getSettings()->isPagePrefetchingEnabled())
             {
-                m_pdfWidget->getDrawWidgetProxy()->prefetchPages(currentPages.back());
+                m_programController->getPdfWidget()->getDrawWidgetProxy()->prefetchPages(currentPages.back());
             }
         }
 
         m_sidebarWidget->setCurrentPages(currentPages);
     }
 
-    m_pageZoomSpinBox->setValue(m_pdfWidget->getDrawWidgetProxy()->getZoom() * 100);
+    m_pageZoomSpinBox->setValue(m_programController->getPdfWidget()->getDrawWidgetProxy()->getZoom() * 100);
 }
 
-void PDFViewerMainWindow::updateActionsAvailability()
+QMenu* PDFViewerMainWindow::addToolMenu(QString name)
 {
-    const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy;
-    const bool hasDocument = m_pdfDocument;
-    const bool hasValidDocument = !isBusy && hasDocument;
-    bool canPrint = false;
-    if (m_pdfDocument)
+    return ui->menuTools->addMenu(name);
+}
+
+void PDFViewerMainWindow::setStatusBarMessage(QString message, int time)
+{
+    statusBar()->showMessage(message, time);
+}
+
+void PDFViewerMainWindow::setDocument(const pdf::PDFModifiedDocument& document)
+{
+    if (m_sidebarWidget)
     {
-        const pdf::PDFObjectStorage& storage = m_pdfDocument->getStorage();
-        const pdf::PDFSecurityHandler* securityHandler = storage.getSecurityHandler();
-        canPrint = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintLowResolution) ||
-                   securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution);
+        m_sidebarWidget->setDocument(document, *m_programController->getSignatures());
     }
 
-    ui->actionOpen->setEnabled(!isBusy);
-    ui->actionClose->setEnabled(hasValidDocument);
-    ui->actionQuit->setEnabled(!isBusy);
-    ui->actionOptions->setEnabled(!isBusy);
-    ui->actionAbout->setEnabled(!isBusy);
-    ui->actionFitPage->setEnabled(hasValidDocument);
-    ui->actionFitWidth->setEnabled(hasValidDocument);
-    ui->actionFitHeight->setEnabled(hasValidDocument);
-    ui->actionRendering_Errors->setEnabled(hasValidDocument);
-    ui->actionFind->setEnabled(hasValidDocument);
-    ui->actionPrint->setEnabled(hasValidDocument && canPrint);
-    ui->actionRender_to_Images->setEnabled(hasValidDocument && canPrint);
-    ui->actionOptimize->setEnabled(hasValidDocument);
-    ui->actionSave->setEnabled(hasValidDocument);
-    ui->actionSave_As->setEnabled(hasValidDocument);
-    setEnabled(!isBusy);
-    updateUndoRedoActions();
-}
-
-void PDFViewerMainWindow::onViewerSettingsChanged()
-{
-    m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
-    m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
-    m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
-    m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
-    m_pdfWidget->getDrawWidgetProxy()->setMinimalMeshResolutionRatio(m_settings->getMinimalMeshResolutionRatio());
-    m_pdfWidget->getDrawWidgetProxy()->setColorTolerance(m_settings->getColorTolerance());
-    m_annotationManager->setFeatures(m_settings->getFeatures());
-    m_annotationManager->setMeshQualitySettings(m_pdfWidget->getDrawWidgetProxy()->getMeshQualitySettings());
-    pdf::PDFExecutionPolicy::setStrategy(m_settings->getMultithreadingStrategy());
-
-    updateRenderingOptionActions();
-}
-
-void PDFViewerMainWindow::onRenderingOptionTriggered(bool checked)
-{
-    QAction* action = qobject_cast<QAction*>(sender());
-    Q_ASSERT(action);
-
-    pdf::PDFRenderer::Features features = m_settings->getFeatures();
-    features.setFlag(static_cast<pdf::PDFRenderer::Feature>(action->data().toInt()), checked);
-    m_settings->setFeatures(features);
-}
-
-void PDFViewerMainWindow::updateFileInfo(const QString& fileName)
-{
-    QFileInfo fileInfo(fileName);
-    m_fileInfo.originalFileName = fileName;
-    m_fileInfo.fileName = fileInfo.fileName();
-    m_fileInfo.path = fileInfo.path();
-    m_fileInfo.fileSize = fileInfo.size();
-    m_fileInfo.writable = fileInfo.isWritable();
-    m_fileInfo.creationTime = fileInfo.created();
-    m_fileInfo.lastModifiedTime = fileInfo.lastModified();
-    m_fileInfo.lastReadTime = fileInfo.lastRead();
-}
-
-void PDFViewerMainWindow::openDocument(const QString& fileName)
-{
-    // First close old document
-    closeDocument();
-
-    updateFileInfo(fileName);
-
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    auto readDocument = [this, fileName]() -> AsyncReadingResult
+    if (m_advancedFindWidget)
     {
-        AsyncReadingResult result;
+        m_advancedFindWidget->setDocument(document);
+    }
 
-        auto queryPassword = [this](bool* ok)
+    if (m_sidebarWidget)
+    {
+        if (m_sidebarWidget->isEmpty())
         {
-            QString result;
-            *ok = false;
-            emit queryPasswordRequest(&result, ok);
-            return result;
-        };
-
-        // Try to open a new document
-        pdf::PDFDocumentReader reader(m_progress, qMove(queryPassword), true);
-        pdf::PDFDocument document = reader.readFromFile(fileName);
-
-        result.errorMessage = reader.getErrorMessage();
-        result.result = reader.getReadingResult();
-        if (result.result == pdf::PDFDocumentReader::Result::OK)
-        {
-            // Verify signatures
-            pdf::PDFSignatureHandler::Parameters parameters;
-            parameters.store = &m_certificateStore;
-            parameters.dss = &document.getCatalog()->getDocumentSecurityStore();
-            parameters.enableVerification = m_settings->getSettings().m_signatureVerificationEnabled;
-            parameters.ignoreExpirationDate = m_settings->getSettings().m_signatureIgnoreCertificateValidityTime;
-            parameters.useSystemCertificateStore = m_settings->getSettings().m_signatureUseSystemStore;
-
-            pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
-            result.signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource(), parameters);
-            result.document.reset(new pdf::PDFDocument(qMove(document)));
+            m_sidebarDockWidget->hide();
         }
-
-        return result;
-    };
-    m_future = QtConcurrent::run(readDocument);
-    m_futureWatcher = new QFutureWatcher<AsyncReadingResult>();
-    connect(m_futureWatcher, &QFutureWatcher<AsyncReadingResult>::finished, this, &PDFViewerMainWindow::onDocumentReadingFinished);
-    m_futureWatcher->setFuture(m_future);
-    updateActionsAvailability();
-}
-
-void PDFViewerMainWindow::onDocumentReadingFinished()
-{
-    QApplication::restoreOverrideCursor();
-
-    AsyncReadingResult result = m_future.result();
-    m_future = QFuture<AsyncReadingResult>();
-    m_futureWatcher->deleteLater();
-    m_futureWatcher = nullptr;
-
-    switch (result.result)
-    {
-        case pdf::PDFDocumentReader::Result::OK:
+        else
         {
-            // Mark current directory as this
-            QFileInfo fileInfo(m_fileInfo.originalFileName);
-            m_settings->setDirectory(fileInfo.dir().absolutePath());
-
-            // We add file to recent files only, if we have successfully read the document
-            m_recentFileManager->addRecentFile(m_fileInfo.originalFileName);
-
-            m_pdfDocument = qMove(result.document);
-            m_signatures = qMove(result.signatures);
-            pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
-            setDocument(document);
-
-            pdf::PDFDocumentRequirements requirements = pdf::PDFDocumentRequirements::parse(&m_pdfDocument->getStorage(), m_pdfDocument->getCatalog()->getRequirements());
-            constexpr pdf::PDFDocumentRequirements::Requirements requirementFlags = pdf::PDFDocumentRequirements::Requirements(pdf::PDFDocumentRequirements::OCInteract |
-                                                                                                                               pdf::PDFDocumentRequirements::OCAutoStates |
-                                                                                                                               pdf::PDFDocumentRequirements::Navigation |
-                                                                                                                               pdf::PDFDocumentRequirements::Attachment |
-                                                                                                                               pdf::PDFDocumentRequirements::DigSigValidation |
-                                                                                                                               pdf::PDFDocumentRequirements::Encryption);
-            pdf::PDFDocumentRequirements::ValidationResult requirementResult = requirements.validate(requirementFlags);
-            if (requirementResult.isError())
-            {
-                QMessageBox::critical(this, tr("PDF Viewer"), requirementResult.message);
-            }
-            else if (requirementResult.isWarning())
-            {
-                QMessageBox::warning(this, tr("PDF Viewer"), requirementResult.message);
-            }
-
-            statusBar()->showMessage(tr("Document '%1' was successfully loaded!").arg(m_fileInfo.fileName), 4000);
-            break;
+            m_sidebarDockWidget->show();
         }
-
-        case pdf::PDFDocumentReader::Result::Failed:
-        {
-            QMessageBox::critical(this, tr("PDF Viewer"), tr("Document read error: %1").arg(result.errorMessage));
-            break;
-        }
-
-        case pdf::PDFDocumentReader::Result::Cancelled:
-            break; // Do nothing, user cancelled the document reading
-    }
-    updateActionsAvailability();
-}
-
-void PDFViewerMainWindow::onDocumentModified(pdf::PDFModifiedDocument document)
-{
-    // We will create undo/redo step from old document, with flags from the new,
-    // because new document is modification of old document with flags.
-
-    Q_ASSERT(m_pdfDocument);
-    m_undoRedoManager->createUndo(document, m_pdfDocument);
-
-    m_pdfDocument = document;
-    document.setOptionalContentActivity(m_optionalContentActivity);
-    setDocument(document);
-}
-
-void PDFViewerMainWindow::onDocumentUndoRedo(pdf::PDFModifiedDocument document)
-{
-    m_pdfDocument = document;
-    document.setOptionalContentActivity(m_optionalContentActivity);
-    setDocument(document);
-}
-
-void PDFViewerMainWindow::setDocument(pdf::PDFModifiedDocument document)
-{
-    if (document.hasReset())
-    {
-        if (m_optionalContentActivity)
-        {
-            // We use deleteLater, because we want to avoid consistency problem with model
-            // (we set document to the model before activity).
-            m_optionalContentActivity->deleteLater();
-            m_optionalContentActivity = nullptr;
-        }
-
-        if (document)
-        {
-            m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
-        }
-
-        m_undoRedoManager->clear();
-    }
-    else if (m_optionalContentActivity)
-    {
-        Q_ASSERT(document);
-        m_optionalContentActivity->setDocument(document);
     }
 
-    document.setOptionalContentActivity(m_optionalContentActivity);
-    m_annotationManager->setDocument(document);
-    m_formManager->setDocument(document);
-    m_toolManager->setDocument(document);
-    m_textToSpeech->setDocument(document);
-    m_pdfWidget->setDocument(document);
-    m_sidebarWidget->setDocument(document, m_signatures);
-    m_advancedFindWidget->setDocument(document);
-
-    if (m_sidebarWidget->isEmpty())
-    {
-        m_sidebarDockWidget->hide();
-    }
-    else
-    {
-        m_sidebarDockWidget->show();
-    }
-
-    if (!document)
+    if (!document && m_advancedFindDockWidget)
     {
         m_advancedFindDockWidget->hide();
     }
-
-    updateTitle();
-    updateUI(true);
-
-    for (const auto& plugin : m_loadedPlugins)
-    {
-        plugin.second->setDocument(document);
-    }
-
-    if (m_pdfDocument && document.hasReset())
-    {
-        const pdf::PDFCatalog* catalog = m_pdfDocument->getCatalog();
-        setPageLayout(catalog->getPageLayout());
-        updatePageLayoutActions();
-
-        if (const pdf::PDFAction* action = catalog->getOpenAction())
-        {
-            onActionTriggered(action);
-        }
-    }
-
-    updateActionsAvailability();
 }
 
-void PDFViewerMainWindow::closeDocument()
+void PDFViewerMainWindow::adjustToolbar(QToolBar* toolbar)
 {
-    m_signatures.clear();
-    setDocument(pdf::PDFModifiedDocument());
-    m_pdfDocument.reset();
-    updateActionsAvailability();
-}
-
-void PDFViewerMainWindow::setPageLayout(pdf::PageLayout pageLayout)
-{
-    m_pdfWidget->getDrawWidgetProxy()->setPageLayout(pageLayout);
-}
-
-std::vector<QAction*> PDFViewerMainWindow::getRenderingOptionActions() const
-{
-    return { ui->actionRenderOptionAntialiasing,
-             ui->actionRenderOptionTextAntialiasing,
-             ui->actionRenderOptionSmoothPictures,
-             ui->actionRenderOptionIgnoreOptionalContentSettings,
-             ui->actionRenderOptionDisplayAnnotations,
-             ui->actionShow_Text_Blocks,
-             ui->actionShow_Text_Lines,
-             ui->actionInvertColors };
-}
-
-QList<QAction*> PDFViewerMainWindow::getActions() const
-{
-    return findChildren<QAction*>(QString(), Qt::FindChildrenRecursively);
-}
-
-int PDFViewerMainWindow::adjustDpiX(int value)
-{
-    const int physicalDpiX = this->physicalDpiX();
-    const int adjustedValue = (value * physicalDpiX) / 96;
-    return adjustedValue;
+    QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
+    toolbar->setIconSize(iconSize);
 }
 
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 {
-    if (m_futureWatcher && m_futureWatcher->isRunning())
+    if (!m_programController->canClose())
     {
         // Jakub Melka: Do not allow to close the application, if document
         // reading is running.
@@ -1406,8 +478,8 @@ void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
     }
     else
     {
-        writeSettings();
-        closeDocument();
+        m_programController->writeSettings();
+        m_programController->closeDocument();
         event->accept();
     }
 }
@@ -1417,323 +489,6 @@ void PDFViewerMainWindow::showEvent(QShowEvent* event)
     Q_UNUSED(event);
     m_taskbarButton->setWindow(windowHandle());
 }
-
-void PDFViewerMainWindow::onQueryPasswordRequest(QString* password, bool* ok)
-{
-    *password = QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to access document content"), QLineEdit::Password, QString(), ok);
-}
-
-void PDFViewerMainWindow::on_actionPageLayoutSinglePage_triggered()
-{
-    setPageLayout(pdf::PageLayout::SinglePage);
-}
-
-void PDFViewerMainWindow::on_actionPageLayoutContinuous_triggered()
-{
-    setPageLayout(pdf::PageLayout::OneColumn);
-}
-
-void PDFViewerMainWindow::on_actionPageLayoutTwoPages_triggered()
-{
-    setPageLayout(ui->actionFirstPageOnRightSide->isChecked() ? pdf::PageLayout::TwoPagesRight : pdf::PageLayout::TwoPagesLeft);
-}
-
-void PDFViewerMainWindow::on_actionPageLayoutTwoColumns_triggered()
-{
-    setPageLayout(ui->actionFirstPageOnRightSide->isChecked() ? pdf::PageLayout::TwoColumnRight : pdf::PageLayout::TwoColumnLeft);
-}
-
-void PDFViewerMainWindow::on_actionFirstPageOnRightSide_triggered()
-{
-    switch (m_pdfWidget->getDrawWidgetProxy()->getPageLayout())
-    {
-        case pdf::PageLayout::SinglePage:
-        case pdf::PageLayout::OneColumn:
-            break;
-
-        case pdf::PageLayout::TwoColumnLeft:
-        case pdf::PageLayout::TwoColumnRight:
-            on_actionPageLayoutTwoColumns_triggered();
-            break;
-
-        case pdf::PageLayout::TwoPagesLeft:
-        case pdf::PageLayout::TwoPagesRight:
-            on_actionPageLayoutTwoPages_triggered();
-            break;
-
-        default:
-            Q_ASSERT(false);
-    }
-}
-
-void PDFViewerMainWindow::on_actionFitPage_triggered()
-{
-    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
-}
-
-void PDFViewerMainWindow::on_actionFitWidth_triggered()
-{
-    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitWidth);
-}
-
-void PDFViewerMainWindow::on_actionFitHeight_triggered()
-{
-    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitHeight);
-}
-
-void PDFViewerMainWindow::on_actionRendering_Errors_triggered()
-{
-    pdf::PDFRenderingErrorsWidget renderingErrorsDialog(this, m_pdfWidget);
-    renderingErrorsDialog.exec();
-}
-
-void PDFViewerMainWindow::updateMagnifierToolSettings()
-{
-    pdf::PDFMagnifierTool* magnifierTool = m_toolManager->getMagnifierTool();
-    magnifierTool->setMagnifierSize(pdf::PDFWidgetUtils::scaleDPI_x(this, m_settings->getSettings().m_magnifierSize));
-    magnifierTool->setMagnifierZoom(m_settings->getSettings().m_magnifierZoom);
-}
-
-void PDFViewerMainWindow::updateUndoRedoSettings()
-{
-    const PDFViewerSettings::Settings& settings = m_settings->getSettings();
-    m_undoRedoManager->setMaximumSteps(settings.m_maximumUndoSteps, settings.m_maximumRedoSteps);
-}
-
-void PDFViewerMainWindow::updateUndoRedoActions()
-{
-    const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy;
-    const bool canUndo = !isBusy && m_undoRedoManager->canUndo();
-    const bool canRedo = !isBusy && m_undoRedoManager->canRedo();
-
-    ui->actionUndo->setEnabled(canUndo);
-    ui->actionRedo->setEnabled(canRedo);
-}
-
-void PDFViewerMainWindow::on_actionOptions_triggered()
-{
-    PDFViewerSettingsDialog::OtherSettings otherSettings;
-    otherSettings.maximumRecentFileCount = m_recentFileManager->getRecentFilesLimit();
-
-    PDFViewerSettingsDialog dialog(m_settings->getSettings(), m_settings->getColorManagementSystemSettings(),
-                                   otherSettings, m_certificateStore, getActions(), m_CMSManager,
-                                   m_enabledPlugins, m_plugins, this);
-    if (dialog.exec() == QDialog::Accepted)
-    {
-        const bool pluginsChanged = m_enabledPlugins != dialog.getEnabledPlugins();
-
-        m_settings->setSettings(dialog.getSettings());
-        m_settings->setColorManagementSystemSettings(dialog.getCMSSettings());
-        m_CMSManager->setSettings(m_settings->getColorManagementSystemSettings());
-        m_recentFileManager->setRecentFilesLimit(dialog.getOtherSettings().maximumRecentFileCount);
-        m_textToSpeech->setSettings(m_settings);
-        m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
-        m_certificateStore = dialog.getCertificateStore();
-        m_enabledPlugins = dialog.getEnabledPlugins();
-        updateMagnifierToolSettings();
-        updateUndoRedoSettings();
-
-        if (pluginsChanged)
-        {
-            QMessageBox::information(this, tr("Plugins"), tr("Plugin on/off state has been changed. Please restart application to apply settings."));
-        }
-    }
-}
-
-void PDFViewerMainWindow::on_actionProperties_triggered()
-{
-    Q_ASSERT(m_pdfDocument);
-
-    PDFDocumentPropertiesDialog documentPropertiesDialog(m_pdfDocument.data(), &m_fileInfo, this);
-    documentPropertiesDialog.exec();
-}
-
-void PDFViewerMainWindow::on_actionAbout_triggered()
-{
-    PDFAboutDialog dialog(this);
-    dialog.exec();
-}
-
-void PDFViewerMainWindow::on_actionSend_by_E_Mail_triggered()
-{
-    Q_ASSERT(m_pdfDocument);
-
-    QString subject = m_pdfDocument->getInfo()->title;
-    if (subject.isEmpty())
-    {
-        subject = m_fileInfo.fileName;
-    }
-
-    if (!PDFSendMail::sendMail(this, subject, m_fileInfo.originalFileName))
-    {
-        QMessageBox::critical(this, tr("Error"), tr("Error while starting email client occured!"));
-    }
-}
-
-void PDFViewerMainWindow::on_actionRotateRight_triggered()
-{
-    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateRight);
-}
-
-void PDFViewerMainWindow::on_actionRotateLeft_triggered()
-{
-    m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateLeft);
-}
-
-void PDFViewerMainWindow::on_actionPrint_triggered()
-{
-    // Are we allowed to print in high resolution? If yes, then print in high resolution,
-    // otherwise print in low resolution. If this action is triggered, then print operation
-    // should be allowed (at least print in low resolution).
-    const pdf::PDFObjectStorage& storage = m_pdfDocument->getStorage();
-    const pdf::PDFSecurityHandler* securityHandler = storage.getSecurityHandler();
-    QPrinter::PrinterMode printerMode = QPrinter::HighResolution;
-    if (!securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution))
-    {
-        printerMode = QPrinter::ScreenResolution;
-    }
-
-    // Run print dialog
-    QPrinter printer(printerMode);
-    QPrintDialog printDialog(&printer, this);
-    printDialog.setOptions(QPrintDialog::PrintPageRange | QPrintDialog::PrintShowPageSize | QPrintDialog::PrintCollateCopies | QPrintDialog::PrintSelection);
-    printDialog.setOption(QPrintDialog::PrintCurrentPage, m_pdfWidget->getDrawWidget()->getCurrentPages().size() == 1);
-    printDialog.setMinMax(1, int(m_pdfDocument->getCatalog()->getPageCount()));
-    if (printDialog.exec() == QPrintDialog::Accepted)
-    {
-        std::vector<pdf::PDFInteger> pageIndices;
-        switch (printDialog.printRange())
-        {
-            case QAbstractPrintDialog::AllPages:
-            {
-                pageIndices.resize(m_pdfDocument->getCatalog()->getPageCount(), 0);
-                std::iota(pageIndices.begin(), pageIndices.end(), 0);
-                break;
-            }
-
-            case QAbstractPrintDialog::Selection:
-            case QAbstractPrintDialog::CurrentPage:
-            {
-                pageIndices = m_pdfWidget->getDrawWidget()->getCurrentPages();
-                break;
-            }
-
-            case QAbstractPrintDialog::PageRange:
-            {
-                const pdf::PDFInteger fromPage = printDialog.fromPage();
-                const pdf::PDFInteger toPage = printDialog.toPage();
-                const pdf::PDFInteger pageCount = toPage - fromPage + 1;
-                if (pageCount > 0)
-                {
-                    pageIndices.resize(pageCount, 0);
-                    std::iota(pageIndices.begin(), pageIndices.end(), fromPage - 1);
-                }
-                break;
-            }
-
-            default:
-                Q_ASSERT(false);
-                break;
-        }
-
-        if (pageIndices.empty())
-        {
-            // Nothing to be printed
-            return;
-        }
-
-        pdf::ProgressStartupInfo info;
-        info.showDialog = true;
-        info.text = tr("Printing document");
-        m_progress->start(pageIndices.size(), qMove(info));
-        printer.setFullPage(true);
-        QPainter painter(&printer);
-
-        const pdf::PDFCatalog* catalog = m_pdfDocument->getCatalog();
-        pdf::PDFDrawWidgetProxy* proxy = m_pdfWidget->getDrawWidgetProxy();
-        pdf::PDFOptionalContentActivity optionalContentActivity(m_pdfDocument.data(), pdf::OCUsage::Print, nullptr);
-        pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
-        pdf::PDFRenderer renderer(m_pdfDocument.get(), proxy->getFontCache(), cms.data(), &optionalContentActivity, proxy->getFeatures(), proxy->getMeshQualitySettings());
-
-        const pdf::PDFInteger lastPage = pageIndices.back();
-        for (const pdf::PDFInteger pageIndex : pageIndices)
-        {
-            const pdf::PDFPage* page = catalog->getPage(pageIndex);
-            Q_ASSERT(page);
-
-            QRectF mediaBox = page->getRotatedMediaBox();
-            QRectF paperRect = printer.paperRect();
-            QSizeF scaledSize = mediaBox.size().scaled(paperRect.size(), Qt::KeepAspectRatio);
-            mediaBox.setSize(scaledSize);
-            mediaBox.moveCenter(paperRect.center());
-
-            renderer.render(&painter, mediaBox, pageIndex);
-            m_progress->step();
-
-            if (pageIndex != lastPage)
-            {
-                if (!printer.newPage())
-                {
-                    break;
-                }
-            }
-        }
-
-        painter.end();
-        m_progress->finish();
-    }
-}
-
-void PDFViewerMainWindow::on_actionRender_to_Images_triggered()
-{
-    PDFRenderToImagesDialog dialog(m_pdfDocument.data(), m_pdfWidget->getDrawWidgetProxy(), m_progress, this);
-    dialog.exec();
-}
-
-void PDFViewerMainWindow::on_actionOptimize_triggered()
-{
-    PDFOptimizeDocumentDialog dialog(m_pdfDocument.data(), this);
-
-    if (dialog.exec() == QDialog::Accepted)
-    {
-        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeOptimizedDocument()));
-        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
-        onDocumentModified(qMove(document));
-    }
-}
-
-void PDFViewerMainWindow::on_actionSave_As_triggered()
-{
-
-    QFileInfo fileInfo(m_fileInfo.originalFileName);
-    QString saveFileName = QFileDialog::getSaveFileName(this, tr("Save As"), fileInfo.dir().absoluteFilePath(m_fileInfo.originalFileName), tr("Portable Document (*.pdf);;All files (*.*)"));
-    if (!saveFileName.isEmpty())
-    {
-        saveDocument(saveFileName);
-    }
-}
-
-void PDFViewerMainWindow::on_actionSave_triggered()
-{
-    saveDocument(m_fileInfo.originalFileName);
-}
-
-void PDFViewerMainWindow::saveDocument(const QString& fileName)
-{
-    pdf::PDFDocumentWriter writer(nullptr);
-    pdf::PDFOperationResult result = writer.write(fileName, m_pdfDocument.data(), true);
-    if (result)
-    {
-        updateFileInfo(fileName);
-        updateTitle();
-        m_recentFileManager->addRecentFile(fileName);
-    }
-    else
-    {
-        QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
-    }
-}
-
 
 void PDFViewerMainWindow::dragEnterEvent(QDragEnterEvent* event)
 {
@@ -1760,7 +515,7 @@ void PDFViewerMainWindow::dropEvent(QDropEvent* event)
         QList<QUrl> urls = event->mimeData()->urls();
         if (urls.size() == 1)
         {
-            openDocument(urls.front().toLocalFile());
+            m_programController->openDocument(urls.front().toLocalFile());
             event->acceptProposedAction();
         }
     }

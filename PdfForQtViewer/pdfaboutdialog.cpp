@@ -30,6 +30,10 @@ PDFAboutDialog::PDFAboutDialog(QWidget* parent) :
 {
     ui->setupUi(this);
 
+    QString html = ui->copyrightLabel->text();
+    html.replace("PdfForQtViewer", QApplication::applicationDisplayName());
+    ui->copyrightLabel->setText(html);
+
     std::vector<pdf::PDFDependentLibraryInfo> infos = pdf::PDFDependentLibraryInfo::getLibraryInfo();
 
     ui->tableWidget->setColumnCount(4);

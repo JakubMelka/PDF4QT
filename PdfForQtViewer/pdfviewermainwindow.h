@@ -32,6 +32,7 @@
 #include "pdfform.h"
 #include "pdfundoredomanager.h"
 #include "pdfplugin.h"
+#include "pdfprogramcontroller.h"
 
 #include <QFuture>
 #include <QTreeView>
@@ -64,7 +65,7 @@ namespace pdfviewer
 class PDFSidebarWidget;
 class PDFAdvancedFindWidget;
 
-class PDFViewerMainWindow : public QMainWindow
+class PDFViewerMainWindow : public QMainWindow, public IMainWindow
 {
     Q_OBJECT
 
@@ -75,111 +76,39 @@ public:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void showEvent(QShowEvent* event) override;
 
-    void openDocument(const QString& fileName);
+    PDFProgramController* getProgramController() const { return m_programController; }
 
-signals:
-    void queryPasswordRequest(QString* password, bool* ok);
+    virtual void updateUI(bool fullUpdate) override;
+    virtual QMenu* addToolMenu(QString name) override;
+    virtual void setStatusBarMessage(QString message, int time) override;
+    virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
+    virtual void adjustToolbar(QToolBar* toolbar) override;
 
 protected:
     virtual void dragEnterEvent(QDragEnterEvent* event) override;
     virtual void dragMoveEvent(QDragMoveEvent* event) override;
     virtual void dropEvent(QDropEvent* event) override;
 
-private slots:
-    void onQueryPasswordRequest(QString* password, bool* ok);
-
-    void on_actionPageLayoutSinglePage_triggered();
-    void on_actionPageLayoutContinuous_triggered();
-    void on_actionPageLayoutTwoPages_triggered();
-    void on_actionPageLayoutTwoColumns_triggered();
-    void on_actionFirstPageOnRightSide_triggered();
-
-    void on_actionRendering_Errors_triggered();
-    void on_actionOptions_triggered();
-    void on_actionAbout_triggered();
-    void on_actionFitPage_triggered();
-    void on_actionFitWidth_triggered();
-    void on_actionFitHeight_triggered();
-    void on_actionProperties_triggered();
-    void on_actionSend_by_E_Mail_triggered();
-    void on_actionRotateRight_triggered();
-    void on_actionRotateLeft_triggered();
-    void on_actionPrint_triggered();
-    void on_actionRender_to_Images_triggered();
-    void on_actionOptimize_triggered();
-    void on_actionSave_As_triggered();
-    void on_actionSave_triggered();
-
 private:
-    void onActionOpenTriggered();
-    void onActionCloseTriggered();
     void onActionQuitTriggered();
-    void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
-    void onDrawSpaceChanged();
-    void onPageLayoutChanged();
+
     void onPageNumberSpinboxEditingFinished();
     void onPageZoomSpinboxEditingFinished();
-    void onActionTriggered(const pdf::PDFAction* action);
 
     void onProgressStarted(pdf::ProgressStartupInfo info);
     void onProgressStep(int percentage);
     void onProgressFinished();
 
-    void onDocumentReadingFinished();
-    void onDocumentModified(pdf::PDFModifiedDocument document);
-    void onDocumentUndoRedo(pdf::PDFModifiedDocument document);
-
-    void readSettings();
-    void readActionSettings();
-    void writeSettings();
-
-    void updateTitle();
-    void updatePageLayoutActions();
-    void updateRenderingOptionActions();
-    void updateUI(bool fullUpdate);
-    void updateActionsAvailability();
-    void updateMagnifierToolSettings();
-    void updateUndoRedoSettings();
-    void updateUndoRedoActions();
-
-    void onViewerSettingsChanged();
-    void onRenderingOptionTriggered(bool checked);
-
-    void setDocument(pdf::PDFModifiedDocument document);
-    void closeDocument();
-    void saveDocument(const QString& fileName);
-
-    void setPageLayout(pdf::PageLayout pageLayout);
-    void updateFileInfo(const QString& fileName);
-
-    void loadPlugins();
-
-    std::vector<QAction*> getRenderingOptionActions() const;
-    QList<QAction*> getActions() const;
-
-    int adjustDpiX(int value);
-
     QIcon createStickyNoteIcon(QString key) const;
 
-    struct AsyncReadingResult
-    {
-        pdf::PDFDocumentPointer document;
-        QString errorMessage;
-        pdf::PDFDocumentReader::Result result = pdf::PDFDocumentReader::Result::Cancelled;
-        std::vector<pdf::PDFSignatureVerificationResult> signatures;
-    };
-
     Ui::PDFViewerMainWindow* ui;
-    pdf::PDFCMSManager* m_CMSManager;
-    PDFRecentFileManager* m_recentFileManager;
-    PDFViewerSettings* m_settings;
-    pdf::PDFWidget* m_pdfWidget;
-    pdf::PDFDocumentPointer m_pdfDocument;
+    PDFActionManager* m_actionManager;
+    PDFProgramController* m_programController;
+
     PDFSidebarWidget* m_sidebarWidget;
     QDockWidget* m_sidebarDockWidget;
     PDFAdvancedFindWidget* m_advancedFindWidget;
     QDockWidget* m_advancedFindDockWidget;
-    pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     QSpinBox* m_pageNumberSpinBox;
     QLabel* m_pageNumberLabel;
     QDoubleSpinBox* m_pageZoomSpinBox;
@@ -187,28 +116,9 @@ private:
     pdf::PDFProgress* m_progress;
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
-    PDFFileInfo m_fileInfo;
-    pdf::PDFCertificateStore m_certificateStore;
-    std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
-    QActionGroup* m_insertStickyNoteGroup;
-    QActionGroup* m_insertStampGroup;
-    QActionGroup* m_insertHighlightGroup;
-
-    QFuture<AsyncReadingResult> m_future;
-    QFutureWatcher<AsyncReadingResult>* m_futureWatcher;
 
     QProgressDialog* m_progressDialog;
-    bool m_isBusy;
     bool m_isChangingProgressStep;
-
-    pdf::PDFToolManager* m_toolManager;
-    pdf::PDFWidgetAnnotationManager* m_annotationManager;
-    pdf::PDFFormManager* m_formManager;
-    PDFTextToSpeech* m_textToSpeech;
-    PDFUndoRedoManager* m_undoRedoManager;
-    QStringList m_enabledPlugins;
-    pdf::PDFPluginInfos m_plugins;
-    std::vector<std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>> m_loadedPlugins;
 };
 
 }   // namespace pdfviewer
