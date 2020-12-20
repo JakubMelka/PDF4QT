@@ -1,19 +1,19 @@
 #    Copyright (C) 2018-2019 Jakub Melka
 #
-#    This file is part of PdfForQt.
+#    This file is part of Pdf4Qt.
 #
-#    PdfForQt is free software: you can redistribute it and/or modify
+#    Pdf4Qt is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    PdfForQt is distributed in the hope that it will be useful,
+#    Pdf4Qt is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU Lesser General Public License for more details.
 #
 #    You should have received a copy of the GNU Lesser General Public License
-#    along with PDFForQt.  If not, see <https://www.gnu.org/licenses/>.
+#    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 
 QT += testlib
@@ -23,13 +23,13 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
-INCLUDEPATH += $$PWD/../PDFForQtLib/Sources
+INCLUDEPATH += $$PWD/../Pdf4QtLib/Sources
 
 DESTDIR = $$OUT_PWD/..
 
 LIBS += -L$$OUT_PWD/..
 
-LIBS += -lPDFForQtLib
+LIBS += -lPdf4QtLib
 
 QMAKE_CXXFLAGS += /std:c++latest
 

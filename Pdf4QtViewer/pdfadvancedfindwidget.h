@@ -1,0 +1,103 @@
+//    Copyright (C) 2020 Jakub Melka
+//
+//    This file is part of Pdf4Qt.
+//
+//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU Lesser General Public License as published by
+//    the Free Software Foundation, either version 3 of the License, or
+//    (at your option) any later version.
+//
+//    Pdf4Qt is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU Lesser General Public License for more details.
+//
+//    You should have received a copy of the GNU Lesser General Public License
+//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+
+#ifndef PDFADVANCEDFINDWIDGET_H
+#define PDFADVANCEDFINDWIDGET_H
+
+#include "pdfglobal.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdftextlayout.h"
+
+#include <QWidget>
+
+namespace Ui
+{
+class PDFAdvancedFindWidget;
+}
+
+namespace pdf
+{
+class PDFDocument;
+class PDFDrawWidgetProxy;
+}
+
+namespace pdfviewer
+{
+
+class PDFAdvancedFindWidget : public QWidget, public pdf::IDocumentDrawInterface
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    explicit PDFAdvancedFindWidget(pdf::PDFDrawWidgetProxy* proxy, QWidget* parent = nullptr);
+    virtual ~PDFAdvancedFindWidget() override;
+
+    virtual void drawPage(QPainter* painter,
+                          pdf::PDFInteger pageIndex,
+                          const pdf::PDFPrecompiledPage* compiledPage,
+                          pdf::PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<pdf::PDFRenderError>& errors) const override;
+
+    void setDocument(const pdf::PDFModifiedDocument& document);
+
+protected:
+    virtual void showEvent(QShowEvent* event) override;
+    virtual void hideEvent(QHideEvent* event) override;
+
+private slots:
+    void on_searchButton_clicked();
+    void onSelectionChanged();
+    void onResultItemDoubleClicked(int row, int column);
+
+    void on_clearButton_clicked();
+
+private:
+    void updateUI();
+    void updateResultsUI();
+    void performSearch();
+
+    pdf::PDFTextSelection getTextSelection() const { return m_textSelection.get(this, &PDFAdvancedFindWidget::getTextSelectionImpl); }
+    pdf::PDFTextSelection getTextSelectionImpl() const;
+
+    struct SearchParameters
+    {
+        QString phrase;
+        bool isCaseSensitive = false;
+        bool isWholeWordsOnly = false;
+        bool isRegularExpression = false;
+        bool isDotMatchingEverything = false;
+        bool isMultiline = false;
+        bool isSearchFinished = false;
+        bool isSoftHyphenRemoved = false;
+    };
+
+    Ui::PDFAdvancedFindWidget* ui;
+
+    pdf::PDFDrawWidgetProxy* m_proxy;
+    const pdf::PDFDocument* m_document;
+    SearchParameters m_parameters;
+    pdf::PDFFindResults m_findResults;
+    mutable pdf::PDFCachedItem<pdf::PDFTextSelection> m_textSelection;
+};
+
+}   // namespace pdfviewer
+
+#endif // PDFADVANCEDFINDWIDGET_H

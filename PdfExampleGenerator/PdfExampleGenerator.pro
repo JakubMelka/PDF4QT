@@ -16,13 +16,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 QMAKE_CXXFLAGS += /std:c++latest /utf-8
 
-INCLUDEPATH += $$PWD/../PDFForQtLib/Sources
+INCLUDEPATH += $$PWD/../PDF4QtLib/Sources
 
 DESTDIR = $$OUT_PWD/..
 
 LIBS += -L$$OUT_PWD/..
 
-LIBS += -lPDFForQtLib
+LIBS += -lPDF4QtLib
 
 SOURCES += \
         main.cpp \
