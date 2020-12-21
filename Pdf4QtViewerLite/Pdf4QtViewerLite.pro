@@ -15,26 +15,30 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-TEMPLATE = subdirs
+QT += core gui widgets winextras
 
-SUBDIRS += \
-    Pdf4QtLib \
-    CodeGenerator \
-    JBIG2_Viewer \
-    PdfExampleGenerator \
-    PdfTool \
-    UnitTests \
-    Pdf4QtViewer \
-    Pdf4QtViewerPlugins \
-    Pdf4QtViewerProfi \
-    Pdf4QtViewerLite
+TARGET = Pdf4QtViewerLite
+TEMPLATE = app
 
-CodeGenerator.depends = Pdf4QtLib
-JBIG2_Viewer.depends = Pdf4QtLib
-PdfExampleGenerator.depends = Pdf4QtLib
-PdfTool.depends = Pdf4QtLib
-UnitTests.depends = Pdf4QtLib
-Pdf4QtViewer.depends = Pdf4QtLib
-Pdf4QtViewerPlugins.depends = Pdf4QtLib
-Pdf4QtViewerProfi.depends = Pdf4QtViewer
-Pdf4QtViewerLite.depends = Pdf4QtViewer
+VERSION = 1.0.0
+
+RC_ICONS = $$PWD/app-icon.ico
+
+QMAKE_TARGET_DESCRIPTION = "PDF viewer for Qt, Lite version"
+QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2020"
+
+DEFINES += QT_DEPRECATED_WARNINGS
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+INCLUDEPATH += $$PWD/../PDF4QtLib/Sources $$PWD/../PDF4QtViewer
+DESTDIR = $$OUT_PWD/..
+LIBS += -L$$OUT_PWD/..
+LIBS += -lPDF4QtLib -lPDF4QtViewer
+CONFIG += force_debug_info
+
+application.files = $$DESTDIR/Pdf4QtViewerLite.exe
+application.path = $$DESTDIR/install
+INSTALLS += application
+
+SOURCES += \
+    main.cpp

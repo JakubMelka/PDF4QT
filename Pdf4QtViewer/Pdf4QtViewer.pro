@@ -50,6 +50,7 @@ SOURCES += \
         pdftexttospeech.cpp \
         pdfundoredomanager.cpp \
         pdfviewermainwindow.cpp \
+        pdfviewermainwindowlite.cpp \
         pdfviewersettings.cpp \
         pdfviewersettingsdialog.cpp
 
@@ -67,6 +68,7 @@ HEADERS += \
         pdfundoredomanager.h \
         pdfviewerglobal.h \
         pdfviewermainwindow.h \
+        pdfviewermainwindowlite.h \
         pdfviewersettings.h \
         pdfviewersettingsdialog.h
 
@@ -78,6 +80,7 @@ FORMS += \
         pdfrendertoimagesdialog.ui \
         pdfsidebarwidget.ui \
         pdfviewermainwindow.ui \
+        pdfviewermainwindowlite.ui \
         pdfviewersettingsdialog.ui
 
 CONFIG += force_debug_info
