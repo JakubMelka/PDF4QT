@@ -139,7 +139,7 @@ QString PDFBlendModeInfo::getBlendModeTranslatedName(BlendMode mode)
         case BlendMode::Multiply:
             return PDFTranslationContext::tr("Multiply");
         case BlendMode::Screen:
-            return PDFTranslationContext::tr("Screem");
+            return PDFTranslationContext::tr("Screen");
         case BlendMode::Overlay:
             return PDFTranslationContext::tr("Overlay");
         case BlendMode::Darken:

@@ -338,6 +338,7 @@ void PDFProgramController::initializeAnnotationManager()
 {
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFProgramController::onActionTriggered);
+    connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::documentModified, this, &PDFProgramController::onDocumentModified);
     m_pdfWidget->setAnnotationManager(m_annotationManager);
 }
 

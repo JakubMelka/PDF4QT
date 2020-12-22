@@ -45,6 +45,9 @@ private:
 public:
     explicit PDFObjectEditorWidget(EditObjectType type, QWidget* parent);
 
+    void setObject(PDFObject object);
+    PDFObject getObject();
+
 private:
     PDFObjectEditorWidgetMapper* m_mapper;
     QTabWidget* m_tabWidget;
@@ -59,6 +62,9 @@ private:
 
 public:
     explicit PDFEditObjectDialog(EditObjectType type, QWidget* parent);
+
+    void setObject(PDFObject object);
+    PDFObject getObject();
 
 private:
     PDFObjectEditorWidget* m_widget;

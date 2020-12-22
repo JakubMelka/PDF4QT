@@ -158,6 +158,14 @@ public:
     /// \param value Value
     PDFObject writeAttributeValueToObject(size_t attribute, PDFObject object, PDFObject value) const;
 
+    /// Returns minimum value of the attribute
+    /// \param index Attribute index
+    QVariant getMinimumValue(size_t index) const;
+
+    /// Returns maximum value of the attribute
+    /// \param index Attribute index
+    QVariant getMaximumValue(size_t index) const;
+
     const PDFObjectStorage* getStorage() const { return m_storage; }
 
 signals:

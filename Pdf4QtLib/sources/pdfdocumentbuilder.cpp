@@ -1101,6 +1101,35 @@ PDFObjectReference PDFDocumentBuilder::getCatalogReference() const
     return PDFObjectReference();
 }
 
+void PDFDocumentBuilder::removeAnnotation(PDFObjectReference page, PDFObjectReference annotation)
+{
+    PDFDocumentDataLoaderDecorator loader(&m_storage);
+
+    if (const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(page)))
+    {
+        std::vector<PDFObjectReference> annots = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
+        annots.erase(std::remove(annots.begin(), annots.end(), annotation), annots.end());
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Annots");
+        if (!annots.empty())
+        {
+            factory << annots;
+        }
+        else
+        {
+            factory << PDFObject();
+        }
+        factory.endDictionaryItem();
+        factory.endDictionary();
+
+        mergeTo(page, factory.takeObject());
+    }
+
+    setObject(annotation, PDFObject());
+}
+
 void PDFDocumentBuilder::updateDocumentInfo(PDFObject info)
 {
     PDFObjectReference infoReference = getDocumentInfo();

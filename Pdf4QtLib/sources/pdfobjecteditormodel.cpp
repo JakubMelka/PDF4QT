@@ -72,7 +72,7 @@ bool PDFObjectEditorAbstractModel::queryAttribute(size_t index, Question questio
     switch (question)
     {
         case Question::IsMapped:
-            return attribute.attributeFlags.testFlag(PDFObjectEditorModelAttribute::Hidden) || attribute.type == ObjectEditorAttributeType::Constant;
+            return !attribute.attributeFlags.testFlag(PDFObjectEditorModelAttribute::Hidden) && attribute.type != ObjectEditorAttributeType::Constant;
 
         case Question::HasAttribute:
         {
@@ -226,8 +226,18 @@ PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attri
         factory.endDictionaryItem();
     }
 
-    factory.endDictionaryItem();
+    factory.endDictionary();
     return PDFObjectManipulator::merge(qMove(object), factory.takeObject(), PDFObjectManipulator::RemoveNullObjects);
+}
+
+QVariant PDFObjectEditorAbstractModel::getMinimumValue(size_t index) const
+{
+    return m_attributes.at(index).minValue;
+}
+
+QVariant PDFObjectEditorAbstractModel::getMaximumValue(size_t index) const
+{
+    return m_attributes.at(index).maxValue;
 }
 
 size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType type,
@@ -319,7 +329,7 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
 
     createAttribute(ObjectEditorAttributeType::Rectangle, "Rect", tr("General"), tr("General"), tr("Rectangle"), PDFObject());
     createAttribute(ObjectEditorAttributeType::TextLine, "T", tr("Contents"), tr("Contents"), tr("Author"), PDFObject(), Markup);
-    createAttribute(ObjectEditorAttributeType::TextLine, "Subj", tr("Contents"), tr("Contents"), tr("Subj"), PDFObject(), Markup);
+    createAttribute(ObjectEditorAttributeType::TextLine, "Subj", tr("Contents"), tr("Contents"), tr("Subject"), PDFObject(), Markup);
     createAttribute(ObjectEditorAttributeType::TextBrowser, "Contents", tr("Contents"), tr("Contents"), tr("Contents"));
     createAttribute(ObjectEditorAttributeType::TextLine, "NM", tr("Contents"), tr("Contents"), tr("Annotation name"));
     createAttribute(ObjectEditorAttributeType::DateTime, "M", tr("General"), tr("Info"), tr("Modified"), PDFObject(), 0, PDFObjectEditorModelAttribute::Readonly);
@@ -330,13 +340,13 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     annotationFlagItems.emplace_back(tr("Invisible"), 1 << 0, PDFObject());
     annotationFlagItems.emplace_back(tr("Hidden"), 1 << 1, PDFObject());
     annotationFlagItems.emplace_back(tr("Print"), 1 << 2, PDFObject());
-    annotationFlagItems.emplace_back(tr("NoZoom"), 1 << 3, PDFObject());
-    annotationFlagItems.emplace_back(tr("NoRotate"), 1 << 4, PDFObject());
-    annotationFlagItems.emplace_back(tr("NoView"), 1 << 5, PDFObject());
-    annotationFlagItems.emplace_back(tr("ReadOnly"), 1 << 6, PDFObject());
+    annotationFlagItems.emplace_back(tr("No Zoom"), 1 << 3, PDFObject());
+    annotationFlagItems.emplace_back(tr("No Rotate"), 1 << 4, PDFObject());
+    annotationFlagItems.emplace_back(tr("No View"), 1 << 5, PDFObject());
+    annotationFlagItems.emplace_back(tr("Readonly"), 1 << 6, PDFObject());
     annotationFlagItems.emplace_back(tr("Locked"), 1 << 7, PDFObject());
-    annotationFlagItems.emplace_back(tr("ToggleNoView"), 1 << 8, PDFObject());
-    annotationFlagItems.emplace_back(tr("LockedContents"), 1 << 9, PDFObject());
+    annotationFlagItems.emplace_back(tr("Toggle No View"), 1 << 8, PDFObject());
+    annotationFlagItems.emplace_back(tr("Locked Contents"), 1 << 9, PDFObject());
     m_attributes.back().enumItems = qMove(annotationFlagItems);
 
     size_t appearanceSelector = createSelectorAttribute(tr("General"), tr("Options"), tr("Modify appearance"));
@@ -349,7 +359,7 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     PDFObjectEditorModelAttributeEnumItems blendModeEnumItems;
     for (BlendMode mode : PDFBlendModeInfo::getBlendModes())
     {
-        annotationFlagItems.emplace_back(PDFBlendModeInfo::getBlendModeTranslatedName(mode), uint(mode), PDFObject::createName(PDFBlendModeInfo::getBlendModeName(mode).toLatin1()));
+        blendModeEnumItems.emplace_back(PDFBlendModeInfo::getBlendModeTranslatedName(mode), uint(mode), PDFObject::createName(PDFBlendModeInfo::getBlendModeName(mode).toLatin1()));
     }
     m_attributes.back().enumItems = qMove(blendModeEnumItems);
 
@@ -373,7 +383,7 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     stickyNoteEnum.emplace_back(tr("Note"), 4, PDFObject::createName("Note"));
     stickyNoteEnum.emplace_back(tr("Help"), 8, PDFObject::createName("Help"));
     stickyNoteEnum.emplace_back(tr("New Paragraph"), 16, PDFObject::createName("NewParagraph"));
-    stickyNoteEnum.emplace_back(tr("Paragraph,"), 32, PDFObject::createName("Paragraph"));
+    stickyNoteEnum.emplace_back(tr("Paragraph"), 32, PDFObject::createName("Paragraph"));
     stickyNoteEnum.emplace_back(tr("Insert"), 64, PDFObject::createName("Insert"));
     m_attributes.back().enumItems = qMove(stickyNoteEnum);
 

@@ -27,7 +27,10 @@
 #include "pdfdrawwidget.h"
 #include "pdfform.h"
 #include "pdfpainterutils.h"
+#include "pdfdocumentbuilder.h"
+#include "pdfobjecteditorwidget.h"
 
+#include <QMenu>
 #include <QDialog>
 #include <QApplication>
 #include <QMouseEvent>
@@ -991,6 +994,38 @@ QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>
     return black;
 }
 
+bool PDFAnnotation::isTypeEditable(AnnotationType type)
+{
+    switch (type)
+    {
+        case AnnotationType::Text:
+        case AnnotationType::Link:
+        case AnnotationType::FreeText:
+        case AnnotationType::Line:
+        case AnnotationType::Square:
+        case AnnotationType::Circle:
+        case AnnotationType::Polygon:
+        case AnnotationType::Polyline:
+        case AnnotationType::Highlight:
+        case AnnotationType::Underline:
+        case AnnotationType::Squiggly:
+        case AnnotationType::StrikeOut:
+        case AnnotationType::Stamp:
+        case AnnotationType::Caret:
+        case AnnotationType::Ink:
+        case AnnotationType::FileAttachment:
+        case AnnotationType::PrinterMark:
+        case AnnotationType::Watermark:
+        case AnnotationType::Redact:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
 QPen PDFAnnotation::getPen() const
 {
     QColor strokeColor = getStrokeColor();
@@ -1666,6 +1701,17 @@ PDFWidgetAnnotationManager::~PDFWidgetAnnotationManager()
     m_proxy->unregisterDrawInterface(this);
 }
 
+void PDFWidgetAnnotationManager::setDocument(const PDFModifiedDocument& document)
+{
+    BaseClass::setDocument(document);
+
+    if (document.hasReset() || document.getFlags().testFlag(PDFModifiedDocument::Annotation))
+    {
+        m_editableAnnotation = PDFObjectReference();
+        m_editableAnnotationPage = PDFObjectReference();
+    }
+}
+
 void PDFWidgetAnnotationManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
@@ -1689,6 +1735,57 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
     Q_UNUSED(widget);
 
     updateFromMouseEvent(event);
+
+    // Show context menu?
+    if (event->button() == Qt::RightButton)
+    {
+        PDFWidget* widget = m_proxy->getWidget();
+        std::vector<PDFInteger> currentPages = widget->getDrawWidget()->getCurrentPages();
+
+        if (!hasAnyPageAnnotation(currentPages))
+        {
+            // All pages doesn't have annotation
+            return;
+        }
+
+        m_editableAnnotation = PDFObjectReference();
+        m_editableAnnotationPage = PDFObjectReference();
+        for (PDFInteger pageIndex : currentPages)
+        {
+            PageAnnotations& pageAnnotations = getPageAnnotations(pageIndex);
+            for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+            {
+                if (!pageAnnotation.isHovered)
+                {
+                    continue;
+                }
+
+                if (!PDFAnnotation::isTypeEditable(pageAnnotation.annotation->getType()))
+                {
+                    continue;
+                }
+
+                m_editableAnnotation = pageAnnotation.annotation->getSelfReference();
+                m_editableAnnotationPage = pageAnnotation.annotation->getPageReference();
+
+                if (!m_editableAnnotationPage.isValid())
+                {
+                    m_editableAnnotationPage = m_document->getCatalog()->getPage(pageIndex)->getPageReference();
+                }
+                break;
+            }
+        }
+
+        if (m_editableAnnotation.isValid())
+        {
+            QMenu menu(tr("Annotation"), widget);
+            QAction* editAction = menu.addAction(tr("Edit"));
+            QAction* deleteAction = menu.addAction(tr("Delete"));
+            connect(editAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onEditAnnotation);
+            connect(deleteAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onDeleteAnnotation);
+            menu.exec(widget->mapToGlobal(event->pos()));
+        }
+    }
 }
 
 void PDFWidgetAnnotationManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
@@ -1758,6 +1855,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
             if (path.contains(event->pos()))
             {
                 pageAnnotation.appearance = hoverAppearance;
+                pageAnnotation.isHovered = true;
 
                 // Generate tooltip
                 if (m_tooltip.isEmpty())
@@ -1848,6 +1946,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
             else
             {
                 pageAnnotation.appearance = PDFAppeareanceStreams::Appearance::Normal;
+                pageAnnotation.isHovered = false;
             }
 
             const bool currentAppearanceChanged = oldAppearance != pageAnnotation.appearance;
@@ -1864,6 +1963,32 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     if (appearanceChanged)
     {
         emit widget->getDrawWidgetProxy()->repaintNeeded();
+    }
+}
+
+void PDFWidgetAnnotationManager::onEditAnnotation()
+{
+    PDFEditObjectDialog dialog(EditObjectType::Annotation, m_proxy->getWidget());
+    dialog.setObject(m_document->getObjectByReference(m_editableAnnotation));
+
+    if (dialog.exec() == PDFEditObjectDialog::Accepted)
+    {
+
+    }
+}
+
+void PDFWidgetAnnotationManager::onDeleteAnnotation()
+{
+    if (m_editableAnnotation.isValid())
+    {
+        PDFDocumentModifier modifier(m_document);
+        modifier.markAnnotationsChanged();
+        modifier.getBuilder()->removeAnnotation(m_editableAnnotationPage, m_editableAnnotation);
+
+        if (modifier.finalize())
+        {
+            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
     }
 }
 

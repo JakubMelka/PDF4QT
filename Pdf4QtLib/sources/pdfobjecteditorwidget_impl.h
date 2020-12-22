@@ -30,6 +30,7 @@ class QTextBrowser;
 class QPushButton;
 class QDateTimeEdit;
 class QCheckBox;
+class QDoubleSpinBox;
 
 namespace pdf
 {
@@ -72,6 +73,9 @@ public:
     explicit PDFObjectEditorWidgetMapper(PDFObjectEditorAbstractModel* model, QObject* parent);
 
     void initialize(QTabWidget* tabWidget);
+
+    void setObject(PDFObject object);
+    PDFObject getObject();
 
 private:
     struct Subcategory
@@ -247,6 +251,24 @@ private:
     QLabel* m_label;
     QPushButton* m_pushButton;
     QColor m_color;
+};
+
+class PDFObjectEditorMappedDoubleAdapter : public PDFObjectEditorMappedWidgetAdapter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFObjectEditorMappedWidgetAdapter;
+
+public:
+    explicit PDFObjectEditorMappedDoubleAdapter(QLabel* label, QDoubleSpinBox* spinBox, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
+
+    virtual PDFObject getValue() const override;
+    virtual void setValue(PDFObject object) override;
+
+private:
+    QLabel* m_label;
+    QDoubleSpinBox* m_spinBox;
 };
 
 } // namespace pdf

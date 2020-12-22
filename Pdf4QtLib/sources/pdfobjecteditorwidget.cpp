@@ -19,6 +19,7 @@
 #include "pdfobjecteditorwidget_impl.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfencoding.h"
+#include "pdfwidgetutils.h"
 
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -33,6 +34,7 @@
 #include <QDateTimeEdit>
 #include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 
 namespace pdf
 {
@@ -61,6 +63,16 @@ PDFObjectEditorWidget::PDFObjectEditorWidget(EditObjectType type, QWidget* paren
 
     m_mapper = new PDFObjectEditorWidgetMapper(model, this);
     m_mapper->initialize(m_tabWidget);
+}
+
+void PDFObjectEditorWidget::setObject(PDFObject object)
+{
+    m_mapper->setObject(object);
+}
+
+PDFObject PDFObjectEditorWidget::getObject()
+{
+    return m_mapper->getObject();
 }
 
 PDFObjectEditorWidgetMapper::PDFObjectEditorWidgetMapper(PDFObjectEditorAbstractModel* model, QObject* parent) :
@@ -106,6 +118,8 @@ void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
 
             QGridLayout* layout = new QGridLayout();
             groupBox->setLayout(layout);
+            layout->setColumnStretch(0, 1);
+            layout->setColumnStretch(1, 2);
 
             for (size_t attribute : subcategory.attributes)
             {
@@ -113,13 +127,43 @@ void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
             }
         }
 
-        category.page->layout()->addItem(new QSpacerItem(0, 0));
+        QSpacerItem* spacer = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::MinimumExpanding);
+        category.page->layout()->addItem(spacer);
     }
+}
+
+void PDFObjectEditorWidgetMapper::setObject(PDFObject object)
+{
+    m_model->setEditedObject(object);
+}
+
+PDFObject PDFObjectEditorWidgetMapper::getObject()
+{
+    return m_model->getEditedObject();
 }
 
 void PDFObjectEditorWidgetMapper::loadWidgets()
 {
+    PDFTemporaryValueChange guard(&m_isCommitingDisabled, true);
+    for (auto& adapterItem : m_adapters)
+    {
+        const size_t attribute = adapterItem.first;
+        PDFObjectEditorMappedWidgetAdapter* adapter = adapterItem.second;
 
+        if (m_model->queryAttribute(attribute, PDFObjectEditorAbstractModel::Question::IsSelector))
+        {
+            adapter->setValue(PDFObject::createBool(m_model->getSelectorValue(attribute)));
+        }
+        else
+        {
+            PDFObject object = m_model->getValue(attribute);
+            if (object.isNull())
+            {
+                object = m_model->getDefaultValue(attribute);
+            }
+            adapter->setValue(object);
+        }
+    }
 }
 
 void PDFObjectEditorWidgetMapper::onEditedObjectChanged()
@@ -347,6 +391,31 @@ void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGrid
             layout->addWidget(pushButton, row, 1);
 
             setAdapter(new PDFObjectEditorMappedColorAdapter(label, pushButton, m_model, attribute, this));
+            break;
+        }
+
+        case ObjectEditorAttributeType::Double:
+        {
+            int row = layout->rowCount();
+
+            QLabel* label = new QLabel(groupBox);
+            QDoubleSpinBox* spinBox = new QDoubleSpinBox(groupBox);
+
+            QVariant minimumValue = m_model->getMinimumValue(attribute);
+            if (minimumValue.isValid())
+            {
+                spinBox->setMinimum(minimumValue.toDouble());
+            }
+            QVariant maximumValue = m_model->getMaximumValue(attribute);
+            if (maximumValue.isValid())
+            {
+                spinBox->setMaximum(maximumValue.toDouble());
+            }
+
+            layout->addWidget(label, row, 0);
+            layout->addWidget(spinBox, row, 1);
+
+            setAdapter(new PDFObjectEditorMappedDoubleAdapter(label, spinBox, m_model, attribute, this));
             break;
         }
 
@@ -632,6 +701,29 @@ void PDFObjectEditorMappedCheckBoxAdapter::setValue(PDFObject object)
     m_checkBox->setChecked(loader.readBoolean(object, false));
 }
 
+PDFObjectEditorMappedDoubleAdapter::PDFObjectEditorMappedDoubleAdapter(QLabel* label,
+                                                                       QDoubleSpinBox* spinBox,
+                                                                       PDFObjectEditorAbstractModel* model,
+                                                                       size_t attribute,
+                                                                       QObject* parent) :
+    BaseClass(model, attribute, parent),
+    m_label(label),
+    m_spinBox(spinBox)
+{
+    initLabel(label);
+}
+
+PDFObject PDFObjectEditorMappedDoubleAdapter::getValue() const
+{
+    return PDFObject::createReal(m_spinBox->value());
+}
+
+void PDFObjectEditorMappedDoubleAdapter::setValue(PDFObject object)
+{
+    PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+    const PDFReal value = loader.readNumber(object, (m_spinBox->minimum() + m_spinBox->maximum()) * 0.5);
+    m_spinBox->setValue(value);
+}
 
 PDFObjectEditorMappedColorAdapter::PDFObjectEditorMappedColorAdapter(QLabel* label,
                                                                      QPushButton* pushButton,
@@ -675,7 +767,17 @@ PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :
     m_buttonBox(nullptr)
 {
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(QMargins());
+
+    switch (type)
+    {
+        case EditObjectType::Annotation:
+            setWindowTitle(tr("Edit Annotation"));
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 
     m_widget = new PDFObjectEditorWidget(type, this);
     layout->addWidget(m_widget);
@@ -685,6 +787,18 @@ PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :
 
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &PDFEditObjectDialog::accept);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &PDFEditObjectDialog::reject);
+
+    setMinimumSize(PDFWidgetUtils::scaleDPI(this, QSize(480, 320)));
+}
+
+void PDFEditObjectDialog::setObject(PDFObject object)
+{
+    m_widget->setObject(qMove(object));
+}
+
+PDFObject PDFEditObjectDialog::getObject()
+{
+    return m_widget->getObject();
 }
 
 } // namespace pdf

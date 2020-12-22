@@ -374,6 +374,9 @@ public:
     /// Returns object storage
     const PDFObjectStorage* getStorage() const { return &m_storage; }
 
+    /// Removes annotation from the page
+    void removeAnnotation(PDFObjectReference page, PDFObjectReference annotation);
+
     /// Appends object to target object. Targed object reference must be valid.
     /// Arrays are concatenated.
     /// \param reference Target object reference

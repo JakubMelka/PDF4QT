@@ -28,6 +28,7 @@
 #include "pdfdocumentdrawinterface.h"
 #include "pdfrenderer.h"
 #include "pdfblendfunction.h"
+#include "pdfdocument.h"
 
 #include <QCursor>
 #include <QPainterPath>
@@ -48,6 +49,7 @@ class PDFFormManager;
 class PDFModifiedDocument;
 class PDFOptionalContentActivity;
 class PDFFormFieldWidgetEditor;
+class PDFModifiedDocument;
 
 using TextAlignment = Qt::Alignment;
 using Polygons = std::vector<QPolygonF>;
@@ -590,6 +592,10 @@ public:
     /// \param color Color (can have 1, 3 and 4 components)
     /// \param opacity Opacity
     static QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color, PDFReal opacity);
+
+    /// Returns true, if annotation is editable
+    /// \param type Annotation type
+    static bool isTypeEditable(AnnotationType type);
 
 protected:
     virtual QColor getStrokeColor() const;
@@ -1457,7 +1463,7 @@ public:
 
     /// Set document
     /// \param document New document
-    void setDocument(const PDFModifiedDocument& document);
+    virtual void setDocument(const PDFModifiedDocument& document);
 
     Target getTarget() const;
     void setTarget(Target target);
@@ -1481,6 +1487,7 @@ public:
     {
         PDFAppeareanceStreams::Appearance appearance = PDFAppeareanceStreams::Appearance::Normal;
         PDFAnnotationPtr annotation;
+        bool isHovered = false;
 
         /// This mutable appearance stream is protected by main mutex
         mutable PDFCachedItem<PDFObject> appearanceStream;
@@ -1624,6 +1631,8 @@ public:
     explicit PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
     virtual ~PDFWidgetAnnotationManager() override;
 
+    virtual void setDocument(const PDFModifiedDocument& document) override;
+
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
@@ -1643,9 +1652,13 @@ public:
 
 signals:
     void actionTriggered(const PDFAction* action);
+    void documentModified(PDFModifiedDocument document);
 
 private:
     void updateFromMouseEvent(QMouseEvent* event);
+
+    void onEditAnnotation();
+    void onDeleteAnnotation();
 
     /// Creates dialog for markup annotations. This function is used only for markup annotations,
     /// do not use them for other annotations (function can crash).
@@ -1668,6 +1681,8 @@ private:
     PDFDrawWidgetProxy* m_proxy;
     QString m_tooltip;
     std::optional<QCursor> m_cursor;
+    PDFObjectReference m_editableAnnotation;    ///< Annotation to be edited or deleted
+    PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
 };
 
 }   // namespace pdf
