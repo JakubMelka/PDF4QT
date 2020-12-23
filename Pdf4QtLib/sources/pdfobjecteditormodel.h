@@ -172,6 +172,8 @@ signals:
     void editedObjectChanged();
 
 protected:
+    void updateSelectorValues();
+
     size_t createAttribute(ObjectEditorAttributeType type,
                            QByteArray attributeName,
                            QString category,

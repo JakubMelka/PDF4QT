@@ -47,9 +47,14 @@ public:
 
     /// Returns PDFObject value currently present in the widget
     virtual PDFObject getValue() const = 0;
+
     /// Sets PDFObject value to the widget. If data are incompatible,
     /// then no data are set to the widget.
+    /// \param object Value to be set to the widget
     virtual void setValue(PDFObject object) = 0;
+
+    /// Updates widget state (for example, visibility, enabledness and readonly mode)
+    virtual void update() = 0;
 
 signals:
     void commitRequested(size_t attribute);
@@ -99,7 +104,12 @@ private:
     void createMappedAdapter(QGroupBox* groupBox, QGridLayout* layout, size_t attribute);
     Category* getOrCreateCategory(QString categoryName);
 
+    /// Returns true, if category is visible
+    /// \param category Category
+    bool isCategoryVisible(const Category& category) const;
+
     PDFObjectEditorAbstractModel* m_model;
+    QTabWidget* m_tabWidget;
     std::vector<Category> m_categories;
     std::map<size_t, PDFObjectEditorMappedWidgetAdapter*> m_adapters;
     bool m_isCommitingDisabled;
@@ -117,6 +127,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -135,6 +146,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -153,6 +165,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -171,6 +184,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -190,6 +204,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -211,6 +226,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     std::vector<std::pair<uint32_t, QCheckBox*>> m_flagCheckBoxes;
@@ -228,6 +244,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -246,6 +263,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;
@@ -265,6 +283,7 @@ public:
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
+    virtual void update() override;
 
 private:
     QLabel* m_label;

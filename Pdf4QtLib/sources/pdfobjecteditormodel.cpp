@@ -197,6 +197,7 @@ void PDFObjectEditorAbstractModel::setEditedObject(PDFObject object)
     if (m_editedObject != object)
     {
         m_editedObject = qMove(object);
+        updateSelectorValues();
         emit editedObjectChanged();
     }
 }
@@ -238,6 +239,34 @@ QVariant PDFObjectEditorAbstractModel::getMinimumValue(size_t index) const
 QVariant PDFObjectEditorAbstractModel::getMaximumValue(size_t index) const
 {
     return m_attributes.at(index).maxValue;
+}
+
+void PDFObjectEditorAbstractModel::updateSelectorValues()
+{
+    // Turn on selectors, which have some dependent attribute,
+    // which have value in the persisted object.
+    for (size_t index = 0; index < getAttributeCount(); ++index)
+    {
+        if (!queryAttribute(index, Question::IsSelector))
+        {
+            continue;
+        }
+
+        bool hasPersistedAttribute = false;
+        for (size_t dependentAttribute : getSelectorDependentAttributes(index))
+        {
+            if (!getValue(dependentAttribute).isNull())
+            {
+                hasPersistedAttribute = true;
+                break;
+            }
+        }
+
+        if (hasPersistedAttribute)
+        {
+            setSelectorValue(index, true);
+        }
+    }
 }
 
 size_t PDFObjectEditorAbstractModel::createAttribute(ObjectEditorAttributeType type,

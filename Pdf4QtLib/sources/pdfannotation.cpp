@@ -1969,11 +1969,25 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 void PDFWidgetAnnotationManager::onEditAnnotation()
 {
     PDFEditObjectDialog dialog(EditObjectType::Annotation, m_proxy->getWidget());
-    dialog.setObject(m_document->getObjectByReference(m_editableAnnotation));
+
+    PDFObject originalObject = m_document->getObjectByReference(m_editableAnnotation);
+    dialog.setObject(originalObject);
 
     if (dialog.exec() == PDFEditObjectDialog::Accepted)
     {
+        PDFObject object = dialog.getObject();
+        if (object != originalObject)
+        {
+            PDFDocumentModifier modifier(m_document);
+            modifier.markAnnotationsChanged();
+            modifier.getBuilder()->setObject(m_editableAnnotation, object);
+            modifier.getBuilder()->updateAnnotationAppearanceStreams(m_editableAnnotation);
 
+            if (modifier.finalize())
+            {
+                emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            }
+        }
     }
 }
 

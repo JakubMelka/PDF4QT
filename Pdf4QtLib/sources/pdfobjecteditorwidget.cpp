@@ -78,6 +78,7 @@ PDFObject PDFObjectEditorWidget::getObject()
 PDFObjectEditorWidgetMapper::PDFObjectEditorWidgetMapper(PDFObjectEditorAbstractModel* model, QObject* parent) :
     BaseClass(parent),
     m_model(model),
+    m_tabWidget(nullptr),
     m_isCommitingDisabled(false)
 {
     connect(model, &PDFObjectEditorAbstractModel::editedObjectChanged, this, &PDFObjectEditorWidgetMapper::onEditedObjectChanged);
@@ -130,6 +131,8 @@ void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
         QSpacerItem* spacer = new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::MinimumExpanding);
         category.page->layout()->addItem(spacer);
     }
+
+    m_tabWidget = tabWidget;
 }
 
 void PDFObjectEditorWidgetMapper::setObject(PDFObject object)
@@ -163,6 +166,47 @@ void PDFObjectEditorWidgetMapper::loadWidgets()
             }
             adapter->setValue(object);
         }
+
+        adapter->update();
+    }
+
+    std::vector<const Category*> insertedCategories;
+    insertedCategories.reserve(m_categories.size());
+    for (const Category& category : m_categories)
+    {
+        const bool isVisible = isCategoryVisible(category);
+        if (!isVisible)
+        {
+            m_tabWidget->removeTab(m_tabWidget->indexOf(category.page));
+        }
+        else
+        {
+            insertedCategories.push_back(&category);
+        }
+    }
+
+    for (auto it = insertedCategories.cbegin(); it != insertedCategories.cend(); ++it)
+    {
+        const Category* category = *it;
+        if (m_tabWidget->indexOf(category->page) != -1)
+        {
+            // Jakub Melka: category is present already in the tab widget
+            continue;
+        }
+
+        // Find index onto which we will insert the tab page. We want to preserve
+        // the order of categories, so we must insert tabs carefully.
+        int insertPosition = -1;
+        for (auto it2 = std::next(it); it2 != insertedCategories.cend(); ++it2)
+        {
+            insertPosition = m_tabWidget->indexOf((*it2)->page);
+            if (insertPosition != -1)
+            {
+                break;
+            }
+        }
+
+        m_tabWidget->insertTab(insertPosition, category->page,  category->name);
     }
 }
 
@@ -440,6 +484,22 @@ PDFObjectEditorWidgetMapper::Category* PDFObjectEditorWidgetMapper::getOrCreateC
     return &m_categories.back();
 }
 
+bool PDFObjectEditorWidgetMapper::isCategoryVisible(const Category& category) const
+{
+    for (const Subcategory& subcategory : category.subcategories)
+    {
+        for (size_t attribute : subcategory.attributes)
+        {
+            if (m_model->queryAttribute(attribute, PDFObjectEditorAbstractModel::Question::HasAttribute))
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 PDFObjectEditorWidgetMapper::Subcategory* PDFObjectEditorWidgetMapper::Category::getOrCreateSubcategory(QString subcategoryName)
 {
     auto subcategoryIt = std::find_if(subcategories.begin(), subcategories.end(), [&subcategoryName](const auto& subcategory) { return subcategory.name == subcategoryName; });
@@ -521,6 +581,14 @@ void PDFObjectEditorMappedComboBoxAdapter::setValue(PDFObject object)
     m_comboBox->setCurrentIndex(-1);
 }
 
+void PDFObjectEditorMappedComboBoxAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_comboBox->setEnabled(enabled && !readonly);
+}
+
 PDFObjectEditorMappedLineEditAdapter::PDFObjectEditorMappedLineEditAdapter(QLabel* label,
                                                                            QLineEdit* lineEdit,
                                                                            PDFObjectEditorAbstractModel* model,
@@ -549,6 +617,14 @@ void PDFObjectEditorMappedLineEditAdapter::setValue(PDFObject object)
     m_lineEdit->setText(loader.readTextString(object, QString()));
 }
 
+void PDFObjectEditorMappedLineEditAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_lineEdit->setEnabled(enabled);
+    m_lineEdit->setReadOnly(readonly);
+}
 
 PDFObjectEditorMappedTextBrowserAdapter::PDFObjectEditorMappedTextBrowserAdapter(QLabel* label,
                                                                                  QTextBrowser* textBrowser,
@@ -576,7 +652,20 @@ PDFObject PDFObjectEditorMappedTextBrowserAdapter::getValue() const
 void PDFObjectEditorMappedTextBrowserAdapter::setValue(PDFObject object)
 {
     PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
-    m_textBrowser->setText(loader.readTextString(object, QString()));
+    QString text = loader.readTextString(object, QString());
+    if (text != m_textBrowser->toPlainText())
+    {
+        m_textBrowser->setText(text);
+    }
+}
+
+void PDFObjectEditorMappedTextBrowserAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_textBrowser->setEnabled(enabled);
+    m_textBrowser->setReadOnly(readonly);
 }
 
 PDFObjectEditorMappedRectangleAdapter::PDFObjectEditorMappedRectangleAdapter(QLabel* label,
@@ -599,6 +688,14 @@ PDFObject PDFObjectEditorMappedRectangleAdapter::getValue() const
 void PDFObjectEditorMappedRectangleAdapter::setValue(PDFObject object)
 {
     m_rectangle = qMove(object);
+}
+
+void PDFObjectEditorMappedRectangleAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_pushButton->setEnabled(enabled && !readonly);
 }
 
 PDFObjectEditorMappedDateTimeAdapter::PDFObjectEditorMappedDateTimeAdapter(QLabel* label,
@@ -634,6 +731,15 @@ void PDFObjectEditorMappedDateTimeAdapter::setValue(PDFObject object)
 
     QDateTime dateTime = PDFEncoding::convertToDateTime(string);
     m_dateTimeEdit->setDateTime(dateTime);
+}
+
+void PDFObjectEditorMappedDateTimeAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_dateTimeEdit->setEnabled(enabled);
+    m_dateTimeEdit->setReadOnly(readonly);
 }
 
 PDFObjectEditorMappedFlagsAdapter::PDFObjectEditorMappedFlagsAdapter(std::vector<std::pair<uint32_t, QCheckBox*>> flagCheckBoxes,
@@ -677,6 +783,18 @@ void PDFObjectEditorMappedFlagsAdapter::setValue(PDFObject object)
     }
 }
 
+void PDFObjectEditorMappedFlagsAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool enableCheckbox = enabled && !readonly;
+
+    for (const auto& item : m_flagCheckBoxes)
+    {
+        item.second->setEnabled(enableCheckbox);
+    }
+}
+
 PDFObjectEditorMappedCheckBoxAdapter::PDFObjectEditorMappedCheckBoxAdapter(QLabel* label,
                                                                            QCheckBox* checkBox,
                                                                            PDFObjectEditorAbstractModel* model,
@@ -701,6 +819,14 @@ void PDFObjectEditorMappedCheckBoxAdapter::setValue(PDFObject object)
     m_checkBox->setChecked(loader.readBoolean(object, false));
 }
 
+void PDFObjectEditorMappedCheckBoxAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_checkBox->setEnabled(enabled && !readonly);
+}
+
 PDFObjectEditorMappedDoubleAdapter::PDFObjectEditorMappedDoubleAdapter(QLabel* label,
                                                                        QDoubleSpinBox* spinBox,
                                                                        PDFObjectEditorAbstractModel* model,
@@ -711,6 +837,8 @@ PDFObjectEditorMappedDoubleAdapter::PDFObjectEditorMappedDoubleAdapter(QLabel* l
     m_spinBox(spinBox)
 {
     initLabel(label);
+
+    connect(spinBox, &QDoubleSpinBox::editingFinished, this, [this, attribute](){ emit commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedDoubleAdapter::getValue() const
@@ -723,6 +851,15 @@ void PDFObjectEditorMappedDoubleAdapter::setValue(PDFObject object)
     PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
     const PDFReal value = loader.readNumber(object, (m_spinBox->minimum() + m_spinBox->maximum()) * 0.5);
     m_spinBox->setValue(value);
+}
+
+void PDFObjectEditorMappedDoubleAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_spinBox->setEnabled(enabled);
+    m_spinBox->setReadOnly(readonly);
 }
 
 PDFObjectEditorMappedColorAdapter::PDFObjectEditorMappedColorAdapter(QLabel* label,
@@ -759,6 +896,14 @@ void PDFObjectEditorMappedColorAdapter::setValue(PDFObject object)
         const PDFReal blue = qBound(0.0, colors[2], 1.0);
         m_color = QColor::fromRgbF(red, green, blue);
     }
+}
+
+void PDFObjectEditorMappedColorAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+
+    m_pushButton->setEnabled(enabled && !readonly);
 }
 
 PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :
