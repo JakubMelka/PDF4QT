@@ -427,14 +427,12 @@ void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGrid
             int row = layout->rowCount();
 
             QLabel* label = new QLabel(groupBox);
-            QPushButton* pushButton = new QPushButton(groupBox);
-            pushButton->setText(tr("Color"));
-            pushButton->setFlat(true);
+            QComboBox* comboBox = new QComboBox(groupBox);
 
             layout->addWidget(label, row, 0);
-            layout->addWidget(pushButton, row, 1);
+            layout->addWidget(comboBox, row, 1);
 
-            setAdapter(new PDFObjectEditorMappedColorAdapter(label, pushButton, m_model, attribute, this));
+            setAdapter(new PDFObjectEditorMappedColorAdapter(label, comboBox, m_model, attribute, this));
             break;
         }
 
@@ -863,28 +861,43 @@ void PDFObjectEditorMappedDoubleAdapter::update()
 }
 
 PDFObjectEditorMappedColorAdapter::PDFObjectEditorMappedColorAdapter(QLabel* label,
-                                                                     QPushButton* pushButton,
+                                                                     QComboBox* comboBox,
                                                                      PDFObjectEditorAbstractModel* model,
                                                                      size_t attribute,
                                                                      QObject* parent) :
     BaseClass(model, attribute, parent),
     m_label(label),
-    m_pushButton(pushButton),
-    m_color(Qt::black)
+    m_comboBox(comboBox)
 {
     initLabel(label);
+
+    comboBox->clear();
+
+    for (QString colorName : QColor::colorNames())
+    {
+        QColor color(colorName);
+        comboBox->addItem(getIconForColor(color), colorName, color);
+    }
+
+    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, attribute](){ emit commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedColorAdapter::getValue() const
 {
+    QColor color = m_comboBox->currentData().value<QColor>();
+    if (!color.isValid())
+    {
+        color = Qt::black;
+    }
+
     PDFObjectFactory factory;
-    factory << m_color;
+    factory << color;
     return factory.takeObject();
 }
 
 void PDFObjectEditorMappedColorAdapter::setValue(PDFObject object)
 {
-    m_color = Qt::black;
+    QColor color = Qt::black;
 
     PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
     std::vector<PDFReal> colors = loader.readNumberArray(object, { });
@@ -894,7 +907,18 @@ void PDFObjectEditorMappedColorAdapter::setValue(PDFObject object)
         const PDFReal red = qBound(0.0, colors[0], 1.0);
         const PDFReal green = qBound(0.0, colors[1], 1.0);
         const PDFReal blue = qBound(0.0, colors[2], 1.0);
-        m_color = QColor::fromRgbF(red, green, blue);
+        color = QColor::fromRgbF(red, green, blue);
+    }
+
+    int index = m_comboBox->findData(color);
+    if (index != -1)
+    {
+        m_comboBox->setCurrentIndex(index);
+    }
+    else
+    {
+        m_comboBox->addItem(getIconForColor(color), tr("custom"), color);
+        m_comboBox->setCurrentIndex(m_comboBox->count() - 1);
     }
 }
 
@@ -903,7 +927,20 @@ void PDFObjectEditorMappedColorAdapter::update()
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
 
-    m_pushButton->setEnabled(enabled && !readonly);
+    m_comboBox->setEnabled(enabled && !readonly);
+}
+
+QIcon PDFObjectEditorMappedColorAdapter::getIconForColor(QColor color) const
+{
+    QIcon icon;
+
+    QSize iconSize = PDFWidgetUtils::scaleDPI(m_comboBox, QSize(16, 16));
+
+    QPixmap pixmap(iconSize.width(), iconSize.height());
+    pixmap.fill(color);
+    icon.addPixmap(pixmap);
+
+    return icon;
 }
 
 PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :

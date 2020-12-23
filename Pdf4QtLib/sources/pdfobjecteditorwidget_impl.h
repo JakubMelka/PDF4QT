@@ -259,16 +259,17 @@ private:
     using BaseClass = PDFObjectEditorMappedWidgetAdapter;
 
 public:
-    explicit PDFObjectEditorMappedColorAdapter(QLabel* label, QPushButton* pushButton, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
+    explicit PDFObjectEditorMappedColorAdapter(QLabel* label, QComboBox* comboBox, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
 
     virtual PDFObject getValue() const override;
     virtual void setValue(PDFObject object) override;
     virtual void update() override;
 
 private:
+    QIcon getIconForColor(QColor color) const;
+
     QLabel* m_label;
-    QPushButton* m_pushButton;
-    QColor m_color;
+    QComboBox* m_comboBox;
 };
 
 class PDFObjectEditorMappedDoubleAdapter : public PDFObjectEditorMappedWidgetAdapter
