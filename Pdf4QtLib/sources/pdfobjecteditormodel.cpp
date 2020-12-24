@@ -521,7 +521,7 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     size_t appearanceSelector = createSelectorAttribute(tr("General"), tr("Options"), tr("Modify appearance"));
     createAttribute(ObjectEditorAttributeType::Color, "C", tr("Appearance"), tr("Colors"), tr("Color"), getDefaultColor());
     m_attributes.back().selectorAttribute = appearanceSelector;
-    createAttribute(ObjectEditorAttributeType::Color, "IC", tr("Appearance"), tr("Colors"), tr("Interior color"), getDefaultColor(), Line | Circle | Square | Polygon | PolyLine);
+    createAttribute(ObjectEditorAttributeType::Color, "IC", tr("Appearance"), tr("Colors"), tr("Interior color"), getDefaultColor(), Line | Circle | Square | Polygon | PolyLine | Redact);
     m_attributes.back().selectorAttribute = appearanceSelector;
 
     createAttribute(ObjectEditorAttributeType::ComboBox, "BM", tr("Appearance"), tr("Transparency"), tr("Blend mode"), PDFObject::createName("Normal"));
@@ -547,11 +547,11 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
 
     // Border style/effect
     size_t borderSelector = createSelectorAttribute(tr("General"), tr("Options"), tr("Modify border"));
-    createAttribute(ObjectEditorAttributeType::Double, QByteArrayList() << "BS" << "W", tr("Border"), tr("Border Style"), tr("Width"), PDFObject::createReal(0.0), Link | Line | Circle | Square | Polygon | PolyLine);
+    createAttribute(ObjectEditorAttributeType::Double, QByteArrayList() << "BS" << "W", tr("Border"), tr("Border Style"), tr("Width"), PDFObject::createReal(0.0), Link | Line | Circle | Square | Polygon | PolyLine | Ink);
     m_attributes.back().selectorAttribute = borderSelector;
     m_attributes.back().minValue = 0.0;
 
-    createAttribute(ObjectEditorAttributeType::ComboBox, QByteArrayList() << "BS" << "S", tr("Border"), tr("Border Style"), tr("Style"), PDFObject::createName("S"), Link | Line | Circle | Square | Polygon | PolyLine);
+    createAttribute(ObjectEditorAttributeType::ComboBox, QByteArrayList() << "BS" << "S", tr("Border"), tr("Border Style"), tr("Style"), PDFObject::createName("S"), Link | Line | Circle | Square | Polygon | PolyLine | Ink);
     PDFObjectEditorModelAttributeEnumItems borderStyleEnumItems;
     borderStyleEnumItems.emplace_back(tr("Solid"), 1, PDFObject::createName("S"));
     borderStyleEnumItems.emplace_back(tr("Dashed"), 2, PDFObject::createName("D"));
@@ -646,6 +646,40 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     lineCaptionPosition.emplace_back(tr("Inline"), 0, PDFObject::createName("Inline"));
     lineCaptionPosition.emplace_back(tr("Top"), 1, PDFObject::createName("Top"));
     m_attributes.back().enumItems = qMove(lineCaptionPosition);
+
+    createAttribute(ObjectEditorAttributeType::ComboBox, "Name", tr("Stamp"), tr("Style"), tr("Name"), PDFObject::createName("Draft"), Stamp);
+    PDFObjectEditorModelAttributeEnumItems stampNameEnumItems;
+    int stampIndex = 0;
+    for (pdf::Stamp stampType : { Stamp::Approved, Stamp::AsIs, Stamp::Confidential, Stamp::Departmental,
+         Stamp::Draft, Stamp::Experimental, Stamp::Expired, Stamp::Final, Stamp::ForComment,
+         Stamp::ForPublicRelease, Stamp::NotApproved, Stamp::NotForPublicRelease, Stamp::Sold, Stamp::TopSecret })
+    {
+        PDFObjectFactory factory;
+        factory << stampType;
+
+        stampNameEnumItems.emplace_back(PDFStampAnnotation::getText(stampType), stampIndex++, factory.takeObject());
+    }
+    m_attributes.back().enumItems = qMove(stampNameEnumItems);
+
+    createAttribute(ObjectEditorAttributeType::ComboBox, "IT", tr("Stamp"), tr("Style"), tr("Intent"), PDFObject::createName("Stamp"), Stamp);
+    PDFObjectEditorModelAttributeEnumItems stampEnumItems;
+    stampEnumItems.emplace_back(tr("Stamp"), 0, PDFObject::createName("Stamp"));
+    stampEnumItems.emplace_back(tr("Image"), 1, PDFObject::createName("StampImage"));
+    stampEnumItems.emplace_back(tr("Snapshot"), 2, PDFObject::createName("StampSnapshot"));
+    m_attributes.back().enumItems = qMove(stampEnumItems);
+
+    createAttribute(ObjectEditorAttributeType::ComboBox, "Name", tr("File attachment"), tr("Style"), tr("Icon"), PDFObject::createName("PushPin"), FileAttachment);
+    PDFObjectEditorModelAttributeEnumItems fileAttachmentEnumItems;
+    fileAttachmentEnumItems.emplace_back(tr("Graph"), 0, PDFObject::createName("Graph"));
+    fileAttachmentEnumItems.emplace_back(tr("Push-pin"), 1, PDFObject::createName("PushPin"));
+    fileAttachmentEnumItems.emplace_back(tr("Paperclip"), 2, PDFObject::createName("Paperclip"));
+    fileAttachmentEnumItems.emplace_back(tr("Tag"), 3, PDFObject::createName("Tag"));
+    m_attributes.back().enumItems = qMove(fileAttachmentEnumItems);
+
+    // Redact
+    createAttribute(ObjectEditorAttributeType::TextLine, "OverlayText", tr("Redact"), tr("Appearance"), tr("Overlay text"), PDFObject(), Redact);
+    createAttribute(ObjectEditorAttributeType::Boolean, "Repeat", tr("Redact"), tr("Appearance"), tr("Repeat overlay text"), PDFObject::createBool(false), Redact);
+    createQuaddingAttribute("Q", tr("Redact"), tr("Appearance"), tr("Alignment"), Redact);
 
     initialize();
 }
