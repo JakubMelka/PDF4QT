@@ -587,6 +587,10 @@ public:
     /// \param name Name of the line ending
     static AnnotationLineEnding convertNameToLineEnding(const QByteArray& name);
 
+    /// Converts line ending to name.
+    /// \param lineEnding Line ending
+    static QByteArray convertLineEndingToName(AnnotationLineEnding lineEnding);
+
     /// Returns draw color from defined annotation color. If color is incorrectly
     /// defined, then black color is returned.
     /// \param color Color (can have 1, 3 and 4 components)

@@ -924,21 +924,21 @@ PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectSt
     return PDFAnnotationQuadrilaterals(qMove(path), qMove(quadrilaterals));
 }
 
+constexpr const std::array<std::pair<AnnotationLineEnding, const char*>, 10> lineEndings = {
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::None, "None" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Square, "Square" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Circle, "Circle" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Diamond, "Diamond" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::OpenArrow, "OpenArrow" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::ClosedArrow, "ClosedArrow" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Butt, "Butt" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::ROpenArrow, "ROpenArrow" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::RClosedArrow, "RClosedArrow" },
+    std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Slash, "Slash" }
+};
+
 AnnotationLineEnding PDFAnnotation::convertNameToLineEnding(const QByteArray& name)
 {
-    constexpr const std::array<std::pair<AnnotationLineEnding, const char*>, 10> lineEndings = {
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::None, "None" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Square, "Square" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Circle, "Circle" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Diamond, "Diamond" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::OpenArrow, "OpenArrow" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::ClosedArrow, "ClosedArrow" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Butt, "Butt" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::ROpenArrow, "ROpenArrow" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::RClosedArrow, "RClosedArrow" },
-        std::pair<AnnotationLineEnding, const char*>{ AnnotationLineEnding::Slash, "Slash" }
-    };
-
     auto it = std::find_if(lineEndings.cbegin(), lineEndings.cend(), [&name](const auto& item) { return name == item.second; });
     if (it != lineEndings.cend())
     {
@@ -946,6 +946,17 @@ AnnotationLineEnding PDFAnnotation::convertNameToLineEnding(const QByteArray& na
     }
 
     return AnnotationLineEnding::None;
+}
+
+QByteArray PDFAnnotation::convertLineEndingToName(AnnotationLineEnding lineEnding)
+{
+    auto it = std::find_if(lineEndings.cbegin(), lineEndings.cend(), [lineEnding](const auto& item) { return lineEnding == item.first; });
+    if (it != lineEndings.cend())
+    {
+        return it->second;
+    }
+
+    return lineEndings.front().second;
 }
 
 QColor PDFAnnotation::getStrokeColor() const

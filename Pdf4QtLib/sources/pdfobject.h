@@ -320,6 +320,9 @@ public:
     /// then it throws an exception.
     const PDFObject& getItem(size_t index) const { return m_objects.at(index); }
 
+    /// Sets item at the specified index. Index must be valid.
+    void setItem(PDFObject value, size_t index) { m_objects[index] = qMove(value); }
+
     /// Returns size of the array (number of elements)
     size_t getCount() const { return m_objects.size(); }
 

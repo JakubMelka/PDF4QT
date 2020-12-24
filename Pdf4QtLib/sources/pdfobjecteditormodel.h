@@ -98,6 +98,10 @@ struct PDFObjectEditorModelAttribute
     /// can select the attribute value.
     size_t selectorAttribute = 0;
 
+    /// If this value is nonzero, it marks that value is stored in the array,
+    /// with 1-based index arrayIndex.
+    size_t arrayIndex = 0;
+
     QVariant minValue;
     QVariant maxValue;
 
@@ -131,7 +135,9 @@ public:
         IsMapped,               ///< Is attribute mapped in gui?
         IsSelector,             ///< Is attribute's role a selector for other attributes?
         IsPersisted,            ///< Is attribute persisted to edited object?
+        IsVisible,              ///< Is attribute visible (perhaps disabled)?
         HasAttribute,           ///< Does current object has given attribute?
+        HasSimilarAttribute,    ///< Does current object has some attribute, which is persisted to same dictionary item as current attribute?
         IsAttributeEditable     ///< Is current attribute editable (this implies previous flag) ?
     };
 
@@ -147,7 +153,13 @@ public:
     /// by this selector.
     std::vector<size_t> getSelectorDependentAttributes(size_t selector) const;
 
-    PDFObject getValue(size_t index) const;
+    /// Returns value stored in the object. If array index of the attribute
+    /// is specified, and resolveArrayIndex is true, then value from the array
+    /// is retrieved. Otherwise, array itself is returned.
+    /// \param index Attribute index
+    /// \param resolveArrayIndex For array attribute, retrieve array item (true), or array itself (false)
+    PDFObject getValue(size_t index, bool resolveArrayIndex) const;
+
     PDFObject getDefaultValue(size_t index) const;
     PDFObject getEditedObject() const { return m_editedObject; }
     void setEditedObject(PDFObject object);
@@ -172,10 +184,20 @@ signals:
     void editedObjectChanged();
 
 protected:
+    void initialize();
     void updateSelectorValues();
 
     size_t createAttribute(ObjectEditorAttributeType type,
                            QByteArray attributeName,
+                           QString category,
+                           QString subcategory,
+                           QString name,
+                           PDFObject defaultValue = PDFObject(),
+                           uint32_t typeFlags = 0,
+                           PDFObjectEditorModelAttribute::Flags flags = PDFObjectEditorModelAttribute::None);
+
+    size_t createAttribute(ObjectEditorAttributeType type,
+                           QByteArrayList attributesName,
                            QString category,
                            QString subcategory,
                            QString name,
@@ -196,6 +218,7 @@ protected:
     PDFObject m_editedObject;
     const PDFObjectStorage* m_storage;
     size_t m_typeAttribute;
+    std::map<size_t, std::vector<size_t>> m_similarAttributes;
 };
 
 class Pdf4QtLIBSHARED_EXPORT PDFObjectEditorAnnotationsModel : public PDFObjectEditorAbstractModel
@@ -230,6 +253,19 @@ private:
 
 public:
     explicit PDFObjectEditorAnnotationsModel(QObject* parent);
+
+private:
+    size_t createQuaddingAttribute(QByteArray attributeName,
+                                   QString category,
+                                   QString subcategory,
+                                   QString name,
+                                   uint32_t typeFlags = 0);
+
+    size_t createLineEndingAttribute(QByteArray attributeName,
+                                     QString category,
+                                     QString subcategory,
+                                     QString name,
+                                     uint32_t typeFlags = 0);
 };
 
 } // namespace pdf

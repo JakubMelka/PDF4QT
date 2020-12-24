@@ -115,6 +115,7 @@ void PDFObjectEditorWidgetMapper::initialize(QTabWidget* tabWidget)
         for (Subcategory& subcategory : category.subcategories)
         {
             QGroupBox* groupBox = new QGroupBox(category.page);
+            groupBox->setTitle(subcategory.name);
             category.page->layout()->addWidget(groupBox);
 
             QGridLayout* layout = new QGridLayout();
@@ -159,7 +160,7 @@ void PDFObjectEditorWidgetMapper::loadWidgets()
         }
         else
         {
-            PDFObject object = m_model->getValue(attribute);
+            PDFObject object = m_model->getValue(attribute, true);
             if (object.isNull())
             {
                 object = m_model->getDefaultValue(attribute);
@@ -282,7 +283,7 @@ void PDFObjectEditorWidgetMapper::onCommitRequested(size_t attribute)
             continue;
         }
 
-        if (!m_model->queryAttribute(i, PDFObjectEditorAbstractModel::Question::HasAttribute))
+        if (!m_model->queryAttribute(i, PDFObjectEditorAbstractModel::Question::HasSimilarAttribute))
         {
             object = m_model->writeAttributeValueToObject(i, object, PDFObject());
         }
@@ -583,7 +584,10 @@ void PDFObjectEditorMappedComboBoxAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_comboBox->setHidden(!isVisible);
     m_comboBox->setEnabled(enabled && !readonly);
 }
 
@@ -619,7 +623,10 @@ void PDFObjectEditorMappedLineEditAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_lineEdit->setHidden(!isVisible);
     m_lineEdit->setEnabled(enabled);
     m_lineEdit->setReadOnly(readonly);
 }
@@ -661,7 +668,10 @@ void PDFObjectEditorMappedTextBrowserAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_textBrowser->setHidden(!isVisible);
     m_textBrowser->setEnabled(enabled);
     m_textBrowser->setReadOnly(readonly);
 }
@@ -692,7 +702,10 @@ void PDFObjectEditorMappedRectangleAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_pushButton->setHidden(!isVisible);
     m_pushButton->setEnabled(enabled && !readonly);
 }
 
@@ -735,7 +748,10 @@ void PDFObjectEditorMappedDateTimeAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_dateTimeEdit->setHidden(!isVisible);
     m_dateTimeEdit->setEnabled(enabled);
     m_dateTimeEdit->setReadOnly(readonly);
 }
@@ -786,9 +802,11 @@ void PDFObjectEditorMappedFlagsAdapter::update()
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
     const bool enableCheckbox = enabled && !readonly;
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
     for (const auto& item : m_flagCheckBoxes)
     {
+        item.second->setHidden(!isVisible);
         item.second->setEnabled(enableCheckbox);
     }
 }
@@ -821,7 +839,10 @@ void PDFObjectEditorMappedCheckBoxAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_checkBox->setHidden(!isVisible);
     m_checkBox->setEnabled(enabled && !readonly);
 }
 
@@ -855,7 +876,10 @@ void PDFObjectEditorMappedDoubleAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_spinBox->setHidden(!isVisible);
     m_spinBox->setEnabled(enabled);
     m_spinBox->setReadOnly(readonly);
 }
@@ -926,7 +950,10 @@ void PDFObjectEditorMappedColorAdapter::update()
 {
     const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
     const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
 
+    m_label->setHidden(!isVisible);
+    m_comboBox->setHidden(!isVisible);
     m_comboBox->setEnabled(enabled && !readonly);
 }
 
