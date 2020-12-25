@@ -59,8 +59,12 @@ private:
         RGB,
         CMYK,
         XYZ,
+        SoftProofing,
         ProfileCount
     };
+
+    /// Returns true, if we are doing soft-proofing
+    bool isSoftProofing() const;
 
     /// Creates a profile using provided id and a list of profile descriptors.
     /// If profile can't be created, then null handle is returned.
@@ -455,7 +459,23 @@ cmsHTRANSFORM PDFLittleCMS::getTransformFromICCProfile(const QByteArray& iccData
                 if (const cmsUInt32Number inputDataFormat = getProfileDataFormat(profile))
                 {
                     cmsUInt32Number lcmsIntent = getLittleCMSRenderingIntent(effectiveRenderingIntent);
-                    transform = cmsCreateTransform(profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, lcmsIntent, getTransformationFlags());
+
+                    if (isSoftProofing())
+                    {
+                        cmsHPROFILE proofingProfile = m_profiles[SoftProofing];
+                        RenderingIntent proofingIntent = m_settings.proofingIntent;
+                        if (m_settings.proofingIntent == RenderingIntent::Auto)
+                        {
+                            proofingIntent = effectiveRenderingIntent;
+                        }
+
+                        transform = cmsCreateProofingTransform(profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, proofingProfile,
+                                                               lcmsIntent, getLittleCMSRenderingIntent(proofingIntent), getTransformationFlags());
+                    }
+                    else
+                    {
+                        transform = cmsCreateTransform(profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, lcmsIntent, getTransformationFlags());
+                    }
                 }
                 cmsCloseProfile(profile);
             }
@@ -514,7 +534,11 @@ void PDFLittleCMS::init()
     m_profiles[Gray] = createProfile(m_settings.deviceGray, m_manager->getGrayProfiles());
     m_profiles[RGB] = createProfile(m_settings.deviceRGB, m_manager->getRGBProfiles());
     m_profiles[CMYK] = createProfile(m_settings.deviceCMYK, m_manager->getCMYKProfiles());
+    m_profiles[SoftProofing] = createProfile(m_settings.softProofingProfile, m_manager->getCMYKProfiles());
     m_profiles[XYZ] = cmsCreateXYZProfile();
+
+    cmsUInt16Number alarmCodes[cmsMAXCHANNELS] = { 0xFFFF };
+    cmsSetAlarmCodes(alarmCodes);
 
     if (m_settings.isWhitePaperColorTransformed)
     {
@@ -531,6 +555,11 @@ void PDFLittleCMS::init()
     // and 4 rendering intents. We have 4 * 4 = 16 input tables, so 64 will suffice enough
     // (because we then have 25% load factor).
     m_transformationCache.reserve(64);
+}
+
+bool PDFLittleCMS::isSoftProofing() const
+{
+    return (m_settings.isSoftProofing || m_settings.isGamutChecking) && m_profiles[SoftProofing];
 }
 
 cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors) const
@@ -621,7 +650,22 @@ cmsHTRANSFORM PDFLittleCMS::getTransform(Profile profile, RenderingIntent intent
 
             if (input && output)
             {
-                transform = cmsCreateTransform(input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, getLittleCMSRenderingIntent(intent), getTransformationFlags());
+                if (isSoftProofing())
+                {
+                    cmsHPROFILE proofingProfile = m_profiles[SoftProofing];
+                    RenderingIntent proofingIntent = m_settings.proofingIntent;
+                    if (m_settings.proofingIntent == RenderingIntent::Auto)
+                    {
+                        proofingIntent = intent;
+                    }
+
+                    transform = cmsCreateProofingTransform(input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, proofingProfile,
+                                                           getLittleCMSRenderingIntent(intent), getLittleCMSRenderingIntent(proofingIntent), getTransformationFlags());
+                }
+                else
+                {
+                    transform = cmsCreateTransform(input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, getLittleCMSRenderingIntent(intent), getTransformationFlags());
+                }
             }
 
             it = m_transformationCache.insert(std::make_pair(key, transform)).first;
@@ -660,6 +704,16 @@ cmsUInt32Number PDFLittleCMS::getTransformationFlags() const
         default:
             Q_ASSERT(false);
             break;
+    }
+
+    if (m_settings.isGamutChecking)
+    {
+        flags |= cmsFLAGS_GAMUTCHECK;
+    }
+
+    if (m_settings.isSoftProofing)
+    {
+        flags |= cmsFLAGS_SOFTPROOFING;
     }
 
     return flags;

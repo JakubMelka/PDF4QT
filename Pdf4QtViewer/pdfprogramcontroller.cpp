@@ -1686,6 +1686,7 @@ void PDFProgramController::loadPlugins()
     for (const auto& plugin : m_loadedPlugins)
     {
         plugin.second->setWidget(m_pdfWidget);
+        plugin.second->setCMSManager(m_CMSManager);
         std::vector<QAction*> actions = plugin.second->getActions();
 
         if (!actions.empty())

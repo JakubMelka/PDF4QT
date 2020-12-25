@@ -30,6 +30,7 @@ class QAction;
 namespace pdf
 {
 class PDFWidget;
+class PDFCMSManager;
 
 struct Pdf4QtLIBSHARED_EXPORT PDFPluginInfo
 {
@@ -51,11 +52,13 @@ public:
     explicit PDFPlugin(QObject* parent);
 
     virtual void setWidget(PDFWidget* widget);
+    virtual void setCMSManager(PDFCMSManager* manager);
     virtual void setDocument(const PDFModifiedDocument& document);
     virtual std::vector<QAction*> getActions() const;
 
 protected:
     PDFWidget* m_widget;
+    PDFCMSManager* m_cmsManager;
     PDFDocument* m_document;
 };
 

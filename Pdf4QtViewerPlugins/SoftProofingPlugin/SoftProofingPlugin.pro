@@ -15,11 +15,38 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
+TEMPLATE = lib
+DEFINES += SOFTPROOFINGPLUGIN_LIBRARY
 
-TEMPLATE = subdirs
+QT += gui widgets
 
-SUBDIRS += \
-    DimensionsPlugin \
-    SoftProofingPlugin
+LIBS += -L$$OUT_PWD/../..
 
+LIBS += -lPdf4QtLib
 
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+INCLUDEPATH += $$PWD/../../Pdf4QtLib/Sources
+
+DESTDIR = $$OUT_PWD/../../pdfplugins
+
+CONFIG += c++11
+
+SOURCES += \
+    softproofingplugin.cpp \
+    settingsdialog.cpp
+
+HEADERS += \
+    softproofingplugin.h \
+    settingsdialog.h
+
+CONFIG += force_debug_info
+
+DISTFILES += \
+    SoftProofingPlugin.json
+
+RESOURCES += \
+    icons.qrc
+
+FORMS += \
+    settingsdialog.ui

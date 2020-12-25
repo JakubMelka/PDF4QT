@@ -23,6 +23,7 @@ namespace pdf
 PDFPlugin::PDFPlugin(QObject* parent) :
     QObject(parent),
     m_widget(nullptr),
+    m_cmsManager(nullptr),
     m_document(nullptr)
 {
 
@@ -31,6 +32,11 @@ PDFPlugin::PDFPlugin(QObject* parent) :
 void PDFPlugin::setWidget(PDFWidget* widget)
 {
     m_widget = widget;
+}
+
+void PDFPlugin::setCMSManager(PDFCMSManager* manager)
+{
+    m_cmsManager = manager;
 }
 
 void PDFPlugin::setDocument(const PDFModifiedDocument& document)

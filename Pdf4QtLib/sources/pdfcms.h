@@ -60,13 +60,17 @@ struct PDFCMSSettings
     System system = System::Generic;
     Accuracy accuracy = Accuracy::Medium;
     RenderingIntent intent = RenderingIntent::Auto;
+    RenderingIntent proofingIntent = RenderingIntent::RelativeColorimetric;
     bool isBlackPointCompensationActive = true;
     bool isWhitePaperColorTransformed = false;
-    QString outputCS;           ///< Output (rendering) color space
-    QString deviceGray;         ///< Identifiers for color space (device gray)
-    QString deviceRGB;          ///< Identifiers for color space (device RGB)
-    QString deviceCMYK;         ///< Identifiers for color space (device CMYK)
-    QString profileDirectory;   ///< Directory containing color profiles
+    bool isGamutChecking = false;
+    bool isSoftProofing = false;
+    QString outputCS;               ///< Output (rendering) color space
+    QString deviceGray;             ///< Identifiers for color space (device gray)
+    QString deviceRGB;              ///< Identifiers for color space (device RGB)
+    QString deviceCMYK;             ///< Identifiers for color space (device CMYK)
+    QString softProofingProfile;    ///< Identifiers for soft proofing profile
+    QString profileDirectory;       ///< Directory containing color profiles
 };
 
 /// Color management system base class. It contains functions to transform

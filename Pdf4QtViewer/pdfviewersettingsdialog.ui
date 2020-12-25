@@ -26,7 +26,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>11</number>
+        <number>5</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">

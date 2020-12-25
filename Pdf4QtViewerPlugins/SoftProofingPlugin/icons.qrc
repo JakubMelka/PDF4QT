@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/pdfplugins/softproofing">
+        <file>gamut-checking.svg</file>
+        <file>soft-proofing.svg</file>
+        <file>settings.svg</file>
+    </qresource>
+</RCC>
