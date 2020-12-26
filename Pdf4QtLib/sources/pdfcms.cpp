@@ -537,7 +537,11 @@ void PDFLittleCMS::init()
     m_profiles[SoftProofing] = createProfile(m_settings.softProofingProfile, m_manager->getCMYKProfiles());
     m_profiles[XYZ] = cmsCreateXYZProfile();
 
-    cmsUInt16Number alarmCodes[cmsMAXCHANNELS] = { 0xFFFF };
+    cmsUInt16Number outOfGamutR = m_settings.outOfGamutColor.redF() * 0xFFFF;
+    cmsUInt16Number outOfGamutG = m_settings.outOfGamutColor.greenF() * 0xFFFF;
+    cmsUInt16Number outOfGamutB = m_settings.outOfGamutColor.blueF() * 0xFFFF;
+
+    cmsUInt16Number alarmCodes[cmsMAXCHANNELS] = { outOfGamutR, outOfGamutG, outOfGamutB };
     cmsSetAlarmCodes(alarmCodes);
 
     if (m_settings.isWhitePaperColorTransformed)

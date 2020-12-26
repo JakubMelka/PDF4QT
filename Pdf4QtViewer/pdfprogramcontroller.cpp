@@ -515,6 +515,7 @@ void PDFProgramController::initialize(Features features,
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFProgramController::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFProgramController::onPageRenderingErrorsChanged, Qt::QueuedConnection);
     connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFProgramController::onViewerSettingsChanged);
+    connect(m_CMSManager, &pdf::PDFCMSManager::colorManagementSystemChanged, this, &PDFProgramController::onColorManagementSystemChanged);
 
     if (features.testFlag(TextToSpeech))
     {
@@ -1341,7 +1342,6 @@ void PDFProgramController::updateActionsAvailability()
     updateUndoRedoActions();
 }
 
-
 void PDFProgramController::onViewerSettingsChanged()
 {
     m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
@@ -1355,6 +1355,11 @@ void PDFProgramController::onViewerSettingsChanged()
     pdf::PDFExecutionPolicy::setStrategy(m_settings->getMultithreadingStrategy());
 
     updateRenderingOptionActions();
+}
+
+void PDFProgramController::onColorManagementSystemChanged()
+{
+    m_settings->setColorManagementSystemSettings(m_CMSManager->getSettings());
 }
 
 void PDFProgramController::updateFileInfo(const QString& fileName)

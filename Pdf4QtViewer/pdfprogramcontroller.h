@@ -334,6 +334,7 @@ private:
     void onQueryPasswordRequest(QString* password, bool* ok);
     void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
     void onViewerSettingsChanged();
+    void onColorManagementSystemChanged();
 
     void updateMagnifierToolSettings();
     void updateUndoRedoSettings();

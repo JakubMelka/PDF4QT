@@ -40,6 +40,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, const pdf::PDFCMSSettings& setti
 
     ui->cmsProofingIntentComboBox->setCurrentIndex(ui->cmsProofingIntentComboBox->findData(int(m_settings.proofingIntent)));
     ui->cmsProofingColorProfileComboBox->setCurrentIndex(ui->cmsProofingColorProfileComboBox->findData(m_settings.softProofingProfile));
+    ui->outOfGamutColorEdit->setText(m_settings.outOfGamutColor.name(QColor::HexRgb));
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 160)));
 }
@@ -53,6 +54,11 @@ void SettingsDialog::accept()
 {
     m_settings.proofingIntent = static_cast<pdf::RenderingIntent>(ui->cmsProofingIntentComboBox->currentData().toInt());
     m_settings.softProofingProfile = ui->cmsProofingColorProfileComboBox->currentData().toString();
+    m_settings.outOfGamutColor.setNamedColor(ui->outOfGamutColorEdit->text());
+    if (!m_settings.outOfGamutColor.isValid())
+    {
+        m_settings.outOfGamutColor = Qt::red;
+    }
 
     QDialog::accept();
 }

@@ -70,6 +70,9 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_colorManagementSystemSettings.deviceGray = settings.value("deviceGray", defaultCMSSettings.deviceGray).toString();
     m_colorManagementSystemSettings.deviceRGB = settings.value("deviceRGB", defaultCMSSettings.deviceRGB).toString();
     m_colorManagementSystemSettings.deviceCMYK = settings.value("deviceCMYK", defaultCMSSettings.deviceCMYK).toString();
+    m_colorManagementSystemSettings.softProofingProfile = settings.value("softProofingProfile", defaultCMSSettings.softProofingProfile).toString();
+    m_colorManagementSystemSettings.proofingIntent = static_cast<pdf::RenderingIntent>(settings.value("proofingIntent", int(defaultCMSSettings.proofingIntent)).toInt());
+    m_colorManagementSystemSettings.outOfGamutColor = settings.value("outOfGamutColor", defaultCMSSettings.outOfGamutColor).value<QColor>();
     m_colorManagementSystemSettings.profileDirectory = settings.value("profileDirectory", defaultCMSSettings.profileDirectory).toString();
     settings.endGroup();
 
@@ -131,6 +134,9 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("deviceGray", m_colorManagementSystemSettings.deviceGray);
     settings.setValue("deviceRGB", m_colorManagementSystemSettings.deviceRGB);
     settings.setValue("deviceCMYK", m_colorManagementSystemSettings.deviceCMYK);
+    settings.setValue("softProofingProfile", m_colorManagementSystemSettings.softProofingProfile);
+    settings.setValue("proofingIntent", int(m_colorManagementSystemSettings.proofingIntent));
+    settings.setValue("outOfGamutColor", m_colorManagementSystemSettings.outOfGamutColor);
     settings.setValue("profileDirectory", m_colorManagementSystemSettings.profileDirectory);
     settings.endGroup();
 

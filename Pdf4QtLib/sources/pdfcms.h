@@ -65,6 +65,7 @@ struct PDFCMSSettings
     bool isWhitePaperColorTransformed = false;
     bool isGamutChecking = false;
     bool isSoftProofing = false;
+    QColor outOfGamutColor = Qt::red; ///< Color, which marks out-of-gamut when soft-proofing is proceeded
     QString outputCS;               ///< Output (rendering) color space
     QString deviceGray;             ///< Identifiers for color space (device gray)
     QString deviceRGB;              ///< Identifiers for color space (device RGB)
