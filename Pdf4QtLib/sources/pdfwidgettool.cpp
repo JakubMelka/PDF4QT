@@ -1015,11 +1015,14 @@ PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObj
     BaseClass(proxy, parent),
     m_mode(mode),
     m_pageIndex(-1),
-    m_drawSelectionRectangle(true)
+    m_drawSelectionRectangle(true),
+    m_selectionRectangleColor(Qt::blue)
 {
     setCursor((m_mode == Mode::Images) ? Qt::CrossCursor : Qt::BlankCursor);
     m_snapper.setSnapPointPixelSize(PDFWidgetUtils::scaleDPI_x(proxy->getWidget(), 10));
     m_snapper.setSnapPointTolerance(m_snapper.getSnapPointPixelSize());
+
+    m_selectionRectangleColor.setAlphaF(0.25);
 
     connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFPickTool::buildSnapData);
     connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFPickTool::buildSnapData);
@@ -1050,18 +1053,14 @@ void PDFPickTool::drawPage(QPainter* painter,
         QRect selectionRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
         if (selectionRectangle.isValid())
         {
-            QColor selectionColor(Qt::blue);
-            selectionColor.setAlphaF(0.25);
-            painter->fillRect(selectionRectangle, selectionColor);
+            painter->fillRect(selectionRectangle, m_selectionRectangleColor);
         }
     }
 
     if (m_mode == Mode::Images && m_snapper.getSnappedImage())
     {
         const PDFSnapper::ViewportSnapImage* snappedImage = m_snapper.getSnappedImage();
-        QColor selectionColor(Qt::blue);
-        selectionColor.setAlphaF(0.25);
-        painter->fillPath(snappedImage->viewportPath, selectionColor);
+        painter->fillPath(snappedImage->viewportPath, m_selectionRectangleColor);
     }
 }
 
@@ -1223,6 +1222,16 @@ void PDFPickTool::buildSnapData()
         // Snap points
         m_snapper.buildSnapPoints(getProxy()->getSnapshot());
     }
+}
+
+QColor PDFPickTool::getSelectionRectangleColor() const
+{
+    return m_selectionRectangleColor;
+}
+
+void PDFPickTool::setSelectionRectangleColor(QColor selectionRectangleColor)
+{
+    m_selectionRectangleColor = selectionRectangleColor;
 }
 
 void PDFPickTool::setDrawSelectionRectangle(bool drawSelectionRectangle)

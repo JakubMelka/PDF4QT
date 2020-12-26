@@ -15,12 +15,35 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
+TEMPLATE = lib
+DEFINES += REDACTPLUGIN_LIBRARY
 
-TEMPLATE = subdirs
+QT += gui widgets
 
-SUBDIRS += \
-    DimensionsPlugin \
-    SoftProofingPlugin \
-    RedactPlugin
+LIBS += -L$$OUT_PWD/../..
+
+LIBS += -lPdf4QtLib
+
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+INCLUDEPATH += $$PWD/../../Pdf4QtLib/Sources
+
+DESTDIR = $$OUT_PWD/../../pdfplugins
+
+CONFIG += c++11
+
+SOURCES += \
+    redactplugin.cpp \
+
+HEADERS += \
+    redactplugin.h \
+
+CONFIG += force_debug_info
+
+DISTFILES += \
+    RedactPlugin.json
+
+RESOURCES += \
+    icons.qrc
 
 

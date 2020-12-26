@@ -1,0 +1,7 @@
+{
+    "Name" : "Redact",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "Redact document - remove sensitive information from the document. Create redacted document from marked redact annotations."
+}

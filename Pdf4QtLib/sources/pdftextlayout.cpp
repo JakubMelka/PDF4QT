@@ -313,7 +313,7 @@ bool PDFTextLayout::isHoveringOverTextBlock(const QPointF& point) const
     return false;
 }
 
-PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2)
+PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2, QColor selectionColor)
 {
     PDFTextSelection selection;
 
@@ -448,11 +448,11 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
             {
                 if (ptrA < ptrB)
                 {
-                    selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, Qt::yellow);
+                    selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, selectionColor);
                 }
                 else
                 {
-                    selection.addItems({ PDFTextSelectionItem(ptrB, ptrA) }, Qt::yellow);
+                    selection.addItems({ PDFTextSelectionItem(ptrB, ptrA) }, selectionColor);
                 }
             }
         }

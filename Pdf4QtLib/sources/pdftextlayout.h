@@ -359,7 +359,8 @@ public:
     /// \param pageIndex Page index
     /// \param point1 First point
     /// \param point2 Second point
-    PDFTextSelection createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2);
+    /// \param selectionColor Selection color
+    PDFTextSelection createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2, QColor selectionColor = Qt::yellow);
 
     /// Returns string from text selection
     /// \param itBegin Iterator (begin range)

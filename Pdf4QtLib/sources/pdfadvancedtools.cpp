@@ -1066,4 +1066,203 @@ void PDFCreateHighlightTextTool::setSelection(PDFTextSelection&& textSelection)
     }
 }
 
+PDFCreateRedactRectangleTool::PDFCreateRedactRectangleTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_pickTool(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_pickTool->setSelectionRectangleColor(Qt::black);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateRedactRectangleTool::onRectanglePicked);
+
+    updateActions();
+}
+
+void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        return;
+    }
+
+    PDFDocumentModifier modifier(getDocument());
+
+    PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(page, pageRectangle, Qt::black);
+    modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
+    modifier.markAnnotationsChanged();
+
+    if (modifier.finalize())
+    {
+        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    setActive(false);
+}
+
+PDFCreateRedactTextTool::PDFCreateRedactTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_isCursorOverText(false)
+{
+    updateActions();
+}
+
+void PDFCreateRedactTextTool::drawPage(QPainter* painter,
+                                       PDFInteger pageIndex,
+                                       const PDFPrecompiledPage* compiledPage,
+                                       PDFTextLayoutGetter& layoutGetter,
+                                       const QMatrix& pagePointToDevicePointMatrix,
+                                       QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(errors);
+
+    pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+}
+
+void PDFCreateRedactTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1)
+        {
+            m_selectionInfo.pageIndex = pageIndex;
+            m_selectionInfo.selectionStartPoint = pagePoint;
+            event->accept();
+        }
+        else
+        {
+            m_selectionInfo = SelectionInfo();
+        }
+
+        setSelection(pdf::PDFTextSelection());
+        updateCursor();
+    }
+}
+
+void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        if (m_selectionInfo.pageIndex != -1)
+        {
+            QPointF pagePoint;
+            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+
+            if (m_selectionInfo.pageIndex == pageIndex)
+            {
+                // Jakub Melka: handle the selection
+                PDFTextLayoutGetter textLayoutGetter = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+                PDFTextLayout textLayout = textLayoutGetter;
+                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, Qt::black));
+
+                QPolygonF quadrilaterals;
+                PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
+                QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+
+                if (!path.isEmpty())
+                {
+                    PDFDocumentModifier modifier(getDocument());
+
+                    PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+                    modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, Qt::black);
+                    modifier.markAnnotationsChanged();
+
+                    if (modifier.finalize())
+                    {
+                        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                    }
+                }
+            }
+
+            setSelection(pdf::PDFTextSelection());
+
+            m_selectionInfo = SelectionInfo();
+            event->accept();
+            updateCursor();
+        }
+    }
+}
+
+void PDFCreateRedactTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    QPointF pagePoint;
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+    m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
+
+    if (m_selectionInfo.pageIndex != -1)
+    {
+        if (m_selectionInfo.pageIndex == pageIndex)
+        {
+            // Jakub Melka: handle the selection
+            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, Qt::black));
+        }
+        else
+        {
+            setSelection(pdf::PDFTextSelection());
+        }
+
+        event->accept();
+    }
+
+    updateCursor();
+}
+
+void PDFCreateRedactTextTool::updateActions()
+{
+    if (QAction* action = getAction())
+    {
+        const bool isEnabled = getDocument() && getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems);
+        action->setChecked(isActive());
+        action->setEnabled(isEnabled);
+    }
+}
+
+void PDFCreateRedactTextTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        // Just clear the text selection
+        setSelection(PDFTextSelection());
+    }
+}
+
+void PDFCreateRedactTextTool::updateCursor()
+{
+    if (isActive())
+    {
+        if (m_isCursorOverText)
+        {
+            setCursor(QCursor(Qt::IBeamCursor));
+        }
+        else
+        {
+            setCursor(QCursor(Qt::ArrowCursor));
+        }
+    }
+}
+
+void PDFCreateRedactTextTool::setSelection(PDFTextSelection&& textSelection)
+{
+    if (m_textSelection != textSelection)
+    {
+        m_textSelection = qMove(textSelection);
+        getProxy()->repaintNeeded();
+    }
+}
+
 } // namespace pdf

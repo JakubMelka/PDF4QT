@@ -940,6 +940,24 @@ public:
                                              bool opened);
 
 
+    /// Redaction annotation. Marks a region on the page to be redacted.
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is redact displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationRedact(PDFObjectReference page,
+                                              QRectF rectangle,
+                                              QColor color);
+
+
+    /// Redaction annotation. Marks a region on the page to be redacted.
+    /// \param page Page to which is annotation added
+    /// \param quadrilaterals Area in which is redaction displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationRedact(PDFObjectReference page,
+                                              QPolygonF quadrilaterals,
+                                              QColor color);
+
+
     /// Square annotation displays rectangle (or square). When opened, they display pop-up window 
     /// containing the text of associated note (and window title), if popup annotation is attached. Square 
     /// border/fill color can be defined, along with border width.
@@ -1076,6 +1094,22 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color,
+                                                 QString title,
+                                                 QString subject,
+                                                 QString contents);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
     PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
                                                  QRectF rectangle,
                                                  QColor color);
@@ -1089,22 +1123,6 @@ public:
     PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
                                                  QPolygonF quadrilaterals,
                                                  QColor color);
-
-
-    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
-    /// window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
-    /// \param title Title
-    /// \param subject Subject
-    /// \param contents Contents
-    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
-                                                 QRectF rectangle,
-                                                 QColor color,
-                                                 QString title,
-                                                 QString subject,
-                                                 QString contents);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
@@ -1235,6 +1253,15 @@ public:
                                  QPolygonF quadrilaterals);
 
 
+    /// Sets overlay text for redaction annotation.
+    /// \param annotation Annotation
+    /// \param overlayText Overlay text
+    /// \param repeat Repeat text in the redacted area
+    void setAnnotationRedactText(PDFObjectReference annotation,
+                                 QString overlayText,
+                                 bool repeat);
+
+
     /// Sets annotation rich text contents. This function will work only on markup annotations.
     /// \param annotation Annotation
     /// \param richText Rich text contents
@@ -1330,15 +1357,15 @@ public:
 
 
     /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
+
+
+    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
-
-
-    /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
 
 
     /// Set document outline.

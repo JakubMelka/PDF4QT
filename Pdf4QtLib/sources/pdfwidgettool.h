@@ -340,6 +340,9 @@ public:
     /// \param drawSelectionRectangle Draw selection rectangle?
     void setDrawSelectionRectangle(bool drawSelectionRectangle);
 
+    QColor getSelectionRectangleColor() const;
+    void setSelectionRectangleColor(QColor selectionRectangleColor);
+
 signals:
     void pointPicked(PDFInteger pageIndex, QPointF pagePoint);
     void rectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
@@ -357,6 +360,7 @@ private:
     PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
     bool m_drawSelectionRectangle;
+    QColor m_selectionRectangleColor;
 };
 
 /// Tool that makes screenshot of page area and copies it to the clipboard,

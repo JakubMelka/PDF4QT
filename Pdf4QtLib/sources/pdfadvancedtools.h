@@ -312,6 +312,67 @@ private:
     bool m_isCursorOverText;
 };
 
+/// Tool that creates redaction annotation from rectangle. Rectangle is not
+/// selected from the text, it is just any rectangle.
+class Pdf4QtLIBSHARED_EXPORT PDFCreateRedactRectangleTool : public PDFCreateAnnotationTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreateAnnotationTool;
+
+public:
+    explicit PDFCreateRedactRectangleTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
+
+private:
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+
+    PDFToolManager* m_toolManager;
+    PDFPickTool* m_pickTool;
+};
+
+/// Tool for redaction of text in document. Creates redaction annotation from  text selection.
+class Pdf4QtLIBSHARED_EXPORT PDFCreateRedactTextTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    explicit PDFCreateRedactTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+protected:
+    virtual void updateActions() override;
+    virtual void setActiveImpl(bool active) override;
+
+private:
+    void updateCursor();
+    void setSelection(pdf::PDFTextSelection&& textSelection);
+
+    struct SelectionInfo
+    {
+        PDFInteger pageIndex = -1;
+        QPointF selectionStartPoint;
+    };
+
+    PDFToolManager* m_toolManager;
+    pdf::PDFTextSelection m_textSelection;
+    SelectionInfo m_selectionInfo;
+    bool m_isCursorOverText;
+};
+
 } // namespace pdf
 
 #endif // PDFADVANCEDTOOLS_H
