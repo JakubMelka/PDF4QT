@@ -16,8 +16,11 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "redactplugin.h"
+#include "selectpagestoredactdialog.h"
+
 #include "pdfdrawwidget.h"
 #include "pdfadvancedtools.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QAction>
 
@@ -60,6 +63,9 @@ void RedactPlugin::setWidget(pdf::PDFWidget* widget)
     toolManager->addTool(redactRectangleTool);
     toolManager->addTool(redactTextTool);
 
+    connect(m_actionRedactPage, &QAction::triggered, this, &RedactPlugin::onRedactPageTriggered);
+    connect(m_actionCreateRedactedDocument, &QAction::triggered, this, &RedactPlugin::onCreateRedactedDocumentTriggered);
+
     updateActions();
 }
 
@@ -82,6 +88,43 @@ void RedactPlugin::updateActions()
 {
     m_actionRedactPage->setEnabled(m_document);
     m_actionCreateRedactedDocument->setEnabled(m_document);
+}
+
+void RedactPlugin::onRedactPageTriggered()
+{
+    pdfplugin::SelectPagesToRedactDialog dialog(m_document->getCatalog()->getPageCount(), m_widget->getDrawWidget()->getCurrentPages(), m_widget);
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        std::vector<pdf::PDFInteger> selectedPages = dialog.getSelectedPages();
+
+        if (selectedPages.empty())
+        {
+            // Jakub Melka: no pages are selected, just return
+            return;
+        }
+
+        pdf::PDFDocumentModifier modifier(m_document);
+
+        for (pdf::PDFInteger pageIndex : selectedPages)
+        {
+            const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex - 1);
+            pdf::PDFObjectReference pageReference = page->getPageReference();
+            pdf::PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(pageReference, page->getMediaBox(), Qt::black);
+            modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
+        }
+
+        modifier.markAnnotationsChanged();
+
+        if (modifier.finalize())
+        {
+            emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
+    }
+}
+
+void RedactPlugin::onCreateRedactedDocumentTriggered()
+{
+
 }
 
 }

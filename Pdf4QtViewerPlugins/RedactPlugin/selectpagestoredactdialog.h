@@ -15,43 +15,45 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef REDACTPLUGIN_H
-#define REDACTPLUGIN_H
+#ifndef SELECTPAGESTOREDACTDIALOG_H
+#define SELECTPAGESTOREDACTDIALOG_H
 
-#include "pdfplugin.h"
+#include "pdfutils.h"
 
-#include <QObject>
+#include <QDialog>
+
+namespace Ui
+{
+class SelectPagesToRedactDialog;
+}
 
 namespace pdfplugin
 {
 
-class RedactPlugin : public pdf::PDFPlugin
+class SelectPagesToRedactDialog : public QDialog
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "Pdf4Qt.RedactPlugin" FILE "RedactPlugin.json")
-
-private:
-    using BaseClass = pdf::PDFPlugin;
 
 public:
-    RedactPlugin();
+    explicit SelectPagesToRedactDialog(pdf::PDFInteger pageCount, const std::vector<pdf::PDFInteger>& visiblePages, QWidget* parent);
+    virtual ~SelectPagesToRedactDialog() override;
 
-    virtual void setWidget(pdf::PDFWidget* widget) override;
-    virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
-    virtual std::vector<QAction*> getActions() const override;
+    virtual void accept() override;
+
+    std::vector<pdf::PDFInteger> getSelectedPages() const;
 
 private:
-    void updateActions();
+    void updateUi();
 
-    void onRedactPageTriggered();
-    void onCreateRedactedDocumentTriggered();
+    Ui::SelectPagesToRedactDialog* ui;
+    pdf::PDFInteger m_pageCount;
+    std::vector<pdf::PDFInteger> m_visiblePages;
+    std::vector<pdf::PDFInteger> m_evenPages;
+    std::vector<pdf::PDFInteger> m_oddPages;
 
-    QAction* m_actionRedactRectangle;
-    QAction* m_actionRedactText;
-    QAction* m_actionRedactPage;
-    QAction* m_actionCreateRedactedDocument;
+
 };
 
 }   // namespace pdfplugin
 
-#endif // REDACTPLUGIN_H
+#endif // SELECTPAGESTOREDACTDIALOG_H

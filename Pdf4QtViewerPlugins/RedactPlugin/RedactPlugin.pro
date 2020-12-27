@@ -34,9 +34,11 @@ CONFIG += c++11
 
 SOURCES += \
     redactplugin.cpp \
+    selectpagestoredactdialog.cpp
 
 HEADERS += \
     redactplugin.h \
+    selectpagestoredactdialog.h
 
 CONFIG += force_debug_info
 
@@ -45,5 +47,8 @@ DISTFILES += \
 
 RESOURCES += \
     icons.qrc
+
+FORMS += \
+    selectpagestoredactdialog.ui
 
 
