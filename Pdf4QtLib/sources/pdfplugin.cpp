@@ -22,11 +22,17 @@ namespace pdf
 
 PDFPlugin::PDFPlugin(QObject* parent) :
     QObject(parent),
+    m_dataExchangeInterface(nullptr),
     m_widget(nullptr),
     m_cmsManager(nullptr),
     m_document(nullptr)
 {
 
+}
+
+void PDFPlugin::setDataExchangeInterface(IPluginDataExchange* dataExchangeInterface)
+{
+    m_dataExchangeInterface = dataExchangeInterface;
 }
 
 void PDFPlugin::setWidget(PDFWidget* widget)

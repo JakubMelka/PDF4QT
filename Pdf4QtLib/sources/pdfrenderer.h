@@ -50,6 +50,7 @@ public:
 
     enum Feature
     {
+        None                    = 0x0000,
         Antialiasing            = 0x0001,   ///< Antialiasing for lines, shapes, etc.
         TextAntialiasing        = 0x0002,   ///< Antialiasing for drawing text
         SmoothImages            = 0x0004,   ///< Adjust images to the device space using smooth transformation (slower, but better image quality)

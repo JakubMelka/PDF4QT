@@ -44,6 +44,15 @@ struct Pdf4QtLIBSHARED_EXPORT PDFPluginInfo
 };
 using PDFPluginInfos = std::vector<PDFPluginInfo>;
 
+class IPluginDataExchange
+{
+public:
+    explicit IPluginDataExchange() = default;
+    virtual ~IPluginDataExchange() = default;
+
+    virtual QString getOriginalFileName() const = 0;
+};
+
 class Pdf4QtLIBSHARED_EXPORT PDFPlugin : public QObject
 {
     Q_OBJECT
@@ -51,12 +60,14 @@ class Pdf4QtLIBSHARED_EXPORT PDFPlugin : public QObject
 public:
     explicit PDFPlugin(QObject* parent);
 
+    virtual void setDataExchangeInterface(IPluginDataExchange* dataExchangeInterface);
     virtual void setWidget(PDFWidget* widget);
     virtual void setCMSManager(PDFCMSManager* manager);
     virtual void setDocument(const PDFModifiedDocument& document);
     virtual std::vector<QAction*> getActions() const;
 
 protected:
+    IPluginDataExchange* m_dataExchangeInterface;
     PDFWidget* m_widget;
     PDFCMSManager* m_cmsManager;
     PDFDocument* m_document;

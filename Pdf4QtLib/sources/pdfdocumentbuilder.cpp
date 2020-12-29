@@ -1152,6 +1152,18 @@ void PDFDocumentBuilder::updateDocumentInfo(PDFObject info)
     mergeTo(infoReference, info);
 }
 
+void PDFDocumentBuilder::setDocumentInfo(PDFObjectReference infoReference)
+{
+    // Update the trailer dictionary
+    PDFObjectFactory objectFactory;
+    objectFactory.beginDictionary();
+    objectFactory.beginDictionaryItem("Info");
+    objectFactory << infoReference;
+    objectFactory.endDictionaryItem();
+    objectFactory.endDictionary();
+    m_storage.updateTrailerDictionary(objectFactory.takeObject());
+}
+
 QRectF PDFDocumentBuilder::getPolygonsBoundingRect(const Polygons& polygons) const
 {
     QRectF rect;

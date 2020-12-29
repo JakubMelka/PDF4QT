@@ -189,6 +189,12 @@ public:
     /// \param features Renderer features
     void draw(QPainter* painter, const QRectF& cropBox, const QMatrix& pagePointToDevicePointMatrix, PDFRenderer::Features features) const;
 
+    /// Redact path - remove all content intersecting given path,
+    /// and fill redact path with given color.
+    /// \param redactPath Redaction path in page coordinates
+    /// \param color Redaction color (if invalid, nothing is being drawn)
+    void redact(QPainterPath redactPath, const QMatrix& matrix, QColor color);
+
     void addPath(QPen pen, QBrush brush, QPainterPath path, bool isText);
     void addClip(QPainterPath path);
     void addImage(QImage image);

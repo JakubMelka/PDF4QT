@@ -33,10 +33,12 @@ DESTDIR = $$OUT_PWD/../../pdfplugins
 CONFIG += c++11
 
 SOURCES += \
+    createredacteddocumentdialog.cpp \
     redactplugin.cpp \
     selectpagestoredactdialog.cpp
 
 HEADERS += \
+    createredacteddocumentdialog.h \
     redactplugin.h \
     selectpagestoredactdialog.h
 
@@ -49,6 +51,7 @@ RESOURCES += \
     icons.qrc
 
 FORMS += \
+    createredacteddocumentdialog.ui \
     selectpagestoredactdialog.ui
 
 

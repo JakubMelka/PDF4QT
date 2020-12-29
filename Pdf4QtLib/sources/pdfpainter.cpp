@@ -611,6 +611,98 @@ void PDFPrecompiledPage::draw(QPainter* painter, const QRectF& cropBox, const QM
     painter->restore();
 }
 
+void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, QColor color)
+{
+    if (redactPath.isEmpty())
+    {
+        // Nothing to be redacted
+        return;
+    }
+
+    std::stack<QMatrix> worldMatrixStack;
+    worldMatrixStack.push(matrix);
+
+    if (color.isValid())
+    {
+        m_instructions.insert(m_instructions.begin(), Instruction(InstructionType::SaveGraphicState, 0));
+    }
+
+    // Process all instructions
+    for (const Instruction& instruction : m_instructions)
+    {
+        switch (instruction.type)
+        {
+            case InstructionType::DrawPath:
+            {
+                QMatrix matrix = worldMatrixStack.top().inverted();
+                QPainterPath mappedRedactPath = matrix.map(redactPath);
+                PathPaintData& path = m_paths[instruction.dataIndex];
+                path.path = path.path.subtracted(mappedRedactPath);
+                break;
+            }
+
+            case InstructionType::DrawImage:
+            {
+                ImageData& data = m_images[instruction.dataIndex];
+                QImage& image = data.image;
+
+                QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+                QMatrix worldMatrix = imageTransform * worldMatrixStack.top();
+
+                // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
+                // to the opposite (so the image is then unchanged)
+                worldMatrix.translate(0, image.height());
+                worldMatrix.scale(1, -1);
+
+                QPainter painter(&image);
+                painter.setWorldMatrix(worldMatrix.inverted());
+                painter.drawPath(redactPath);
+                painter.end();
+                break;
+            }
+
+            case InstructionType::DrawMesh:
+                // We do not redact mesh
+                break;
+
+            case InstructionType::Clip:
+            {
+                QMatrix matrix = worldMatrixStack.top().inverted();
+                QPainterPath mappedRedactPath = matrix.map(redactPath);
+                m_clips[instruction.dataIndex].clipPath = m_clips[instruction.dataIndex].clipPath.subtracted(mappedRedactPath);
+                break;
+            }
+
+            case InstructionType::SaveGraphicState:
+                worldMatrixStack.push(worldMatrixStack.top());
+                break;
+
+            case InstructionType::RestoreGraphicState:
+                worldMatrixStack.pop();
+                break;
+
+            case InstructionType::SetWorldMatrix:
+                worldMatrixStack.top() = m_matrices[instruction.dataIndex];
+                break;
+
+            case InstructionType::SetCompositionMode:
+                break;
+
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
+        }
+    }
+
+    if (color.isValid())
+    {
+        addRestoreGraphicState();
+        addPath(Qt::NoPen, QBrush(color), matrix.map(redactPath), false);
+    }
+}
+
 void PDFPrecompiledPage::addPath(QPen pen, QBrush brush, QPainterPath path, bool isText)
 {
     m_instructions.emplace_back(InstructionType::DrawPath, m_paths.size());

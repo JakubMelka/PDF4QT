@@ -223,7 +223,7 @@ private:
     std::vector<QAction*> m_additionalActions;
 };
 
-class Pdf4QtVIEWERLIBSHARED_EXPORT PDFProgramController : public QObject
+class Pdf4QtVIEWERLIBSHARED_EXPORT PDFProgramController : public QObject, public pdf::IPluginDataExchange
 {
     Q_OBJECT
 
@@ -278,6 +278,8 @@ public:
     void setIsBusy(bool isBusy);
 
     bool canClose() const;
+
+    virtual QString getOriginalFileName() const override;
 
 signals:
     void queryPasswordRequest(QString* password, bool* ok);

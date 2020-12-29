@@ -46,6 +46,8 @@ private:
     void onRedactPageTriggered();
     void onCreateRedactedDocumentTriggered();
 
+    QString getRedactedFileName() const;
+
     QAction* m_actionRedactRectangle;
     QAction* m_actionRedactText;
     QAction* m_actionRedactPage;

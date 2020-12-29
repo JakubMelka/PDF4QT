@@ -406,6 +406,15 @@ public:
     /// \param b Second 'Names' entry
     void mergeNames(PDFObjectReference a, PDFObjectReference b);
 
+    /// Updates document info by merging object info to actual info
+    void updateDocumentInfo(PDFObject info);
+
+    /// Sets document info reference to trailer dictionary
+    void setDocumentInfo(PDFObjectReference infoReference);
+
+    /// Returns document info reference
+    PDFObjectReference getDocumentInfo() const;
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -1439,8 +1448,6 @@ private:
     QString getProducerString() const;
     PDFObjectReference getPageTreeRoot() const;
     PDFInteger getPageTreeRootChildCount() const;
-    PDFObjectReference getDocumentInfo() const;
-    void updateDocumentInfo(PDFObject info);
     QRectF getPolygonsBoundingRect(const Polygons& Polygons) const;
     PDFObjectReference createOutlineItem(const PDFOutlineItem* root, bool writeOutlineData);
 

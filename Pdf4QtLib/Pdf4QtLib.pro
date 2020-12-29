@@ -74,6 +74,7 @@ SOURCES += \
     sources/pdfpattern.cpp \
     sources/pdfplugin.cpp \
     sources/pdfprogress.cpp \
+    sources/pdfredact.cpp \
     sources/pdfsecurityhandler.cpp \
     sources/pdfsignaturehandler.cpp \
     sources/pdfsnapper.cpp \
@@ -140,6 +141,7 @@ HEADERS += \
     sources/pdfpattern.h \
     sources/pdfplugin.h \
     sources/pdfprogress.h \
+    sources/pdfredact.h \
     sources/pdfsecurityhandler.h \
     sources/pdfsignaturehandler.h \
     sources/pdfsignaturehandler_impl.h \

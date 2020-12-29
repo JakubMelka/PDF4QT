@@ -1047,6 +1047,11 @@ bool PDFProgramController::canClose() const
     return !(m_futureWatcher && m_futureWatcher->isRunning()) || !m_isBusy;
 }
 
+QString PDFProgramController::getOriginalFileName() const
+{
+    return m_fileInfo.originalFileName;
+}
+
 void PDFProgramController::onActionRotateRightTriggered()
 {
     m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateRight);
@@ -1690,6 +1695,7 @@ void PDFProgramController::loadPlugins()
 
     for (const auto& plugin : m_loadedPlugins)
     {
+        plugin.second->setDataExchangeInterface(this);
         plugin.second->setWidget(m_pdfWidget);
         plugin.second->setCMSManager(m_CMSManager);
         std::vector<QAction*> actions = plugin.second->getActions();

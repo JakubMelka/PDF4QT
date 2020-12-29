@@ -1,4 +1,4 @@
-//    Copyright (C) 2020 Jakub Melka
+﻿//    Copyright (C) 2020 Jakub Melka
 //
 //    This file is part of Pdf4Qt.
 //
@@ -17,10 +17,13 @@
 
 #include "redactplugin.h"
 #include "selectpagestoredactdialog.h"
+#include "createredacteddocumentdialog.h"
 
 #include "pdfdrawwidget.h"
 #include "pdfadvancedtools.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfredact.h"
+#include "pdfdocumentwriter.h"
 
 #include <QAction>
 
@@ -124,7 +127,37 @@ void RedactPlugin::onRedactPageTriggered()
 
 void RedactPlugin::onCreateRedactedDocumentTriggered()
 {
+    CreateRedactedDocumentDialog dialog(getRedactedFileName(), Qt::black, m_widget);
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        pdf::PDFCMSPointer cms = m_widget->getCMSManager()->getCurrentCMS();
+        pdf::PDFRedact redactProcessor(m_document,
+                                       m_widget->getDrawWidgetProxy()->getFontCache(),
+                                       cms.data(),
+                                       m_widget->getDrawWidgetProxy()->getOptionalContentActivity(),
+                                       &m_widget->getDrawWidgetProxy()->getMeshQualitySettings(),
+                                       dialog.getRedactColor());
 
+        pdf::PDFRedact::Options options;
+        options.setFlag(pdf::PDFRedact::CopyTitle, dialog.isCopyingTitle());
+        options.setFlag(pdf::PDFRedact::CopyMetadata, dialog.isCopyingMetadata());
+        options.setFlag(pdf::PDFRedact::CopyOutline, dialog.isCopyingOutline());
+
+        pdf::PDFDocument redactedDocument = redactProcessor.perform(options);
+        pdf::PDFDocumentWriter writer(m_widget->getDrawWidgetProxy()->getProgress());
+        pdf::PDFOperationResult result = writer.write(dialog.getFileName(), &redactedDocument, false);
+        if (!result)
+        {
+
+        }
+    }
+}
+
+QString RedactPlugin::getRedactedFileName() const
+{
+    QFileInfo fileInfo(m_dataExchangeInterface->getOriginalFileName());
+
+    return fileInfo.path() + "/" + fileInfo.baseName() + "_REDACTED.pdf";
 }
 
 }
