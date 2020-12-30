@@ -43,6 +43,7 @@ public:
 private:
     void updateActions();
 
+    void onRedactTextSelectionTriggered();
     void onRedactPageTriggered();
     void onCreateRedactedDocumentTriggered();
 
@@ -50,6 +51,7 @@ private:
 
     QAction* m_actionRedactRectangle;
     QAction* m_actionRedactText;
+    QAction* m_actionRedactTextSelection;
     QAction* m_actionRedactPage;
     QAction* m_actionCreateRedactedDocument;
 };

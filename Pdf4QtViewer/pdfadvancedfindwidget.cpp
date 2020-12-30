@@ -66,6 +66,30 @@ void PDFAdvancedFindWidget::setDocument(const pdf::PDFModifiedDocument& document
     }
 }
 
+pdf::PDFTextSelection PDFAdvancedFindWidget::getSelectedText() const
+{
+    pdf::PDFTextSelection result;
+
+    std::vector<size_t> selectedRowIndices;
+    QModelIndexList selectedRows = ui->resultsTableWidget->selectionModel()->selectedRows();
+    std::transform(selectedRows.cbegin(), selectedRows.cend(), std::back_inserter(selectedRowIndices), [] (const QModelIndex& index) { return index.row(); });
+    std::sort(selectedRowIndices.begin(), selectedRowIndices.end());
+
+    for (size_t i = 0; i < m_findResults.size(); ++i)
+    {
+        const pdf::PDFFindResult& findResult = m_findResults[i];
+
+        QColor color(Qt::yellow);
+        if (std::binary_search(selectedRowIndices.cbegin(), selectedRowIndices.cend(), i))
+        {
+            result.addItems(findResult.textSelectionItems, color);
+        }
+    }
+    result.build();
+
+    return result;
+}
+
 void PDFAdvancedFindWidget::on_searchButton_clicked()
 {
     m_parameters.phrase = ui->searchPhraseEdit->text();

@@ -78,8 +78,6 @@ PDFDocument PDFRedact::perform(Options options)
         }
         builder.setPageRotation(newPageReference, page->getPageRotation());
 
-        // TODO: Redact searched text
-
         PDFPageContentStreamBuilder contentStreamBuilder(&builder);
 
         QPainterPath redactPath;

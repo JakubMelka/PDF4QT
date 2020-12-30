@@ -63,6 +63,7 @@ public:
     virtual void setStatusBarMessage(QString message, int time) = 0;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) = 0;
     virtual void adjustToolbar(QToolBar* toolbar) = 0;
+    virtual pdf::PDFTextSelection getSelectedText() const = 0;
 };
 
 class Pdf4QtVIEWERLIBSHARED_EXPORT PDFActionManager : public QObject
@@ -280,6 +281,7 @@ public:
     bool canClose() const;
 
     virtual QString getOriginalFileName() const override;
+    virtual pdf::PDFTextSelection getSelectedText() const override;
 
 signals:
     void queryPasswordRequest(QString* password, bool* ok);

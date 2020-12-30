@@ -385,6 +385,11 @@ void PDFViewerMainWindowLite::adjustToolbar(QToolBar* toolbar)
     toolbar->setIconSize(iconSize);
 }
 
+pdf::PDFTextSelection PDFViewerMainWindowLite::getSelectedText() const
+{
+    return pdf::PDFTextSelection();
+}
+
 void PDFViewerMainWindowLite::closeEvent(QCloseEvent* event)
 {
     if (!m_programController->canClose())

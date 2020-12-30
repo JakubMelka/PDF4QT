@@ -4,5 +4,6 @@
         <file>redact-rectangle.svg</file>
         <file>redact-text.svg</file>
         <file>redact-page.svg</file>
+        <file>redact-text-selection.svg</file>
     </qresource>
 </RCC>

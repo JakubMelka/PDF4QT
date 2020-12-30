@@ -58,6 +58,10 @@ public:
 
     void setDocument(const pdf::PDFModifiedDocument& document);
 
+    /// Returns selected text items in the table (selected means not all results,
+    /// but those, which are selected rows in the result table)
+    pdf::PDFTextSelection getSelectedText() const;
+
 protected:
     virtual void showEvent(QShowEvent* event) override;
     virtual void hideEvent(QHideEvent* event) override;

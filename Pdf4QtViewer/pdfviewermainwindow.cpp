@@ -468,6 +468,16 @@ void PDFViewerMainWindow::adjustToolbar(QToolBar* toolbar)
     toolbar->setIconSize(iconSize);
 }
 
+pdf::PDFTextSelection PDFViewerMainWindow::getSelectedText() const
+{
+    if (!m_advancedFindWidget)
+    {
+        return pdf::PDFTextSelection();
+    }
+
+    return m_advancedFindWidget->getSelectedText();
+}
+
 void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 {
     if (!m_programController->canClose())

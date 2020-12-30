@@ -84,6 +84,7 @@ public:
     virtual void setStatusBarMessage(QString message, int time) override;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual void adjustToolbar(QToolBar* toolbar) override;
+    virtual pdf::PDFTextSelection getSelectedText() const override;
 
 protected:
     virtual void dragEnterEvent(QDragEnterEvent* event) override;

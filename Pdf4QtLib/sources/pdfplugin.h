@@ -19,6 +19,7 @@
 #define PDFPLUGIN_H
 
 #include "pdfdocument.h"
+#include "pdftextlayout.h"
 
 #include <QObject>
 #include <QJsonObject>
@@ -51,6 +52,7 @@ public:
     virtual ~IPluginDataExchange() = default;
 
     virtual QString getOriginalFileName() const = 0;
+    virtual pdf::PDFTextSelection getSelectedText() const = 0;
 };
 
 class Pdf4QtLIBSHARED_EXPORT PDFPlugin : public QObject

@@ -24,6 +24,7 @@
 #include "pdfredact.h"
 #include "pdfdocumentwriter.h"
 #include "pdfselectpagesdialog.h"
+#include "pdfcompiler.h"
 
 #include <QAction>
 #include <QMessageBox>
@@ -35,6 +36,7 @@ RedactPlugin::RedactPlugin() :
     pdf::PDFPlugin(nullptr),
     m_actionRedactRectangle(nullptr),
     m_actionRedactText(nullptr),
+    m_actionRedactTextSelection(nullptr),
     m_actionRedactPage(nullptr),
     m_actionCreateRedactedDocument(nullptr)
 {
@@ -49,11 +51,13 @@ void RedactPlugin::setWidget(pdf::PDFWidget* widget)
 
     m_actionRedactRectangle = new QAction(QIcon(":/pdfplugins/redactplugin/redact-rectangle.svg"), tr("Redact Rectangle"), this);
     m_actionRedactText = new QAction(QIcon(":/pdfplugins/redactplugin/redact-text.svg"), tr("Redact Text"), this);
+    m_actionRedactTextSelection = new QAction(QIcon(":/pdfplugins/redactplugin/redact-text-selection.svg"), tr("Redact Text Selection"), this);
     m_actionRedactPage = new QAction(QIcon(":/pdfplugins/redactplugin/redact-page.svg"), tr("Redact Page(s)"), this);
     m_actionCreateRedactedDocument = new QAction(QIcon(":/pdfplugins/redactplugin/redact-create-document.svg"), tr("Create Redacted Document"), this);
 
     m_actionRedactRectangle->setObjectName("redactplugin_RedactRectangle");
     m_actionRedactText->setObjectName("redactplugin_RedactText");
+    m_actionRedactTextSelection->setObjectName("redactplugin_RedactTextSelection");
     m_actionRedactPage->setObjectName("redactplugin_RedactPage");
     m_actionCreateRedactedDocument->setObjectName("redactplugin_CreateRedactedDocument");
 
@@ -67,6 +71,7 @@ void RedactPlugin::setWidget(pdf::PDFWidget* widget)
     toolManager->addTool(redactRectangleTool);
     toolManager->addTool(redactTextTool);
 
+    connect(m_actionRedactTextSelection, &QAction::triggered, this, &RedactPlugin::onRedactTextSelectionTriggered);
     connect(m_actionRedactPage, &QAction::triggered, this, &RedactPlugin::onRedactPageTriggered);
     connect(m_actionCreateRedactedDocument, &QAction::triggered, this, &RedactPlugin::onCreateRedactedDocumentTriggered);
 
@@ -85,13 +90,51 @@ void RedactPlugin::setDocument(const pdf::PDFModifiedDocument& document)
 
 std::vector<QAction*> RedactPlugin::getActions() const
 {
-    return { m_actionRedactRectangle, m_actionRedactText, m_actionRedactPage, m_actionCreateRedactedDocument };
+    return { m_actionRedactRectangle, m_actionRedactText, m_actionRedactTextSelection, m_actionRedactPage, m_actionCreateRedactedDocument };
 }
 
 void RedactPlugin::updateActions()
 {
+    m_actionRedactTextSelection->setEnabled(m_document);
     m_actionRedactPage->setEnabled(m_document);
     m_actionCreateRedactedDocument->setEnabled(m_document);
+}
+
+void RedactPlugin::onRedactTextSelectionTriggered()
+{
+    pdf::PDFTextSelection selectedText = m_dataExchangeInterface->getSelectedText();
+
+    if (selectedText.isEmpty())
+    {
+        QMessageBox::information(m_widget, tr("Information"), tr("Select text via 'Advanced Search' tool, and then redact it using this tool. Select rows in 'Result' table to select particular results."));
+        return;
+    }
+
+    pdf::PDFDocumentModifier modifier(m_document);
+
+    for (auto it = selectedText.begin(); it != selectedText.end(); it = selectedText.nextPageRange(it))
+    {
+        const pdf::PDFTextSelectionColoredItem& item = *it;
+        const pdf::PDFInteger pageIndex = item.start.pageIndex;
+
+        pdf::PDFTextLayoutGetter textLayoutGetter = m_widget->getDrawWidgetProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+
+        QPolygonF quadrilaterals;
+        pdf::PDFTextSelectionPainter textSelectionPainter(&selectedText);
+        QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+
+        if (!path.isEmpty())
+        {
+            pdf::PDFObjectReference page = m_document->getCatalog()->getPage(pageIndex)->getPageReference();
+            modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, Qt::black);
+            modifier.markAnnotationsChanged();
+        }
+    }
+
+    if (modifier.finalize())
+    {
+        emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
 }
 
 void RedactPlugin::onRedactPageTriggered()

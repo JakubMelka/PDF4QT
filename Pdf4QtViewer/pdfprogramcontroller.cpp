@@ -1052,6 +1052,11 @@ QString PDFProgramController::getOriginalFileName() const
     return m_fileInfo.originalFileName;
 }
 
+pdf::PDFTextSelection PDFProgramController::getSelectedText() const
+{
+    return m_mainWindowInterface->getSelectedText();
+}
+
 void PDFProgramController::onActionRotateRightTriggered()
 {
     m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateRight);
