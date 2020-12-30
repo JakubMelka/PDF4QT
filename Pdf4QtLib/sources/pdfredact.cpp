@@ -18,6 +18,7 @@
 #include "pdfredact.h"
 #include "pdfpainter.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfoptimizer.h"
 
 namespace pdf
 {
@@ -75,8 +76,8 @@ PDFDocument PDFRedact::perform(Options options)
         {
             builder.setPageArtBox(newPageReference, page->getArtBox());
         }
+        builder.setPageRotation(newPageReference, page->getPageRotation());
 
-        // TODO: Nastavit natoceni stranky
         // TODO: Popisek redakce anotace, Overlay text
         // TODO: Redact searched text
         // TODO: Duplikace redakce na vice stranek
@@ -133,7 +134,11 @@ PDFDocument PDFRedact::perform(Options options)
         builder.setOutline(m_document->getCatalog()->getOutlineRootPtr().data());
     }
 
-    return builder.build();
+    PDFDocument redactedDocument = builder.build();
+    PDFOptimizer optimizer(PDFOptimizer::All, nullptr);
+    optimizer.setDocument(&redactedDocument);
+    optimizer.optimize();
+    return optimizer.takeOptimizedDocument();
 }
 
 

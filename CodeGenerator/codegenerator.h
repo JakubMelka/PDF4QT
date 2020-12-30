@@ -160,7 +160,8 @@ public:
         _AnnotationBorderStyle,
         _FileAttachmentIcon,
         _Stamp,
-        _PDFDestination
+        _PDFDestination,
+        _PageRotation
     };
     Q_ENUM(DataType)
 

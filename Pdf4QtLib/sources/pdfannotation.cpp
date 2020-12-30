@@ -1790,11 +1790,17 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
         if (m_editableAnnotation.isValid())
         {
             QMenu menu(tr("Annotation"), widget);
+            QAction* showPopupAction = menu.addAction(tr("Show Popup Window"));
+            QAction* copyAction = menu.addAction(tr("Copy to Multiple Pages"));
             QAction* editAction = menu.addAction(tr("Edit"));
             QAction* deleteAction = menu.addAction(tr("Delete"));
+            connect(showPopupAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onShowPopupAnnotation);
+            connect(copyAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onCopyAnnotation);
             connect(editAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onEditAnnotation);
             connect(deleteAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onDeleteAnnotation);
-            menu.exec(widget->mapToGlobal(event->pos()));
+
+            m_editableAnnotationGlobalPosition = widget->mapToGlobal(event->pos());
+            menu.exec(m_editableAnnotationGlobalPosition);
         }
     }
 }
@@ -1975,6 +1981,36 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     {
         emit widget->getDrawWidgetProxy()->repaintNeeded();
     }
+}
+
+void PDFWidgetAnnotationManager::onShowPopupAnnotation()
+{
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+    {
+        PageAnnotations& pageAnnotations = getPageAnnotations(snapshotItem.pageIndex);
+        for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            if (pageAnnotation.annotation->isReplyTo())
+            {
+                // Annotation is reply to another annotation, do not interact with it
+                continue;
+            }
+
+            if (pageAnnotation.annotation->getSelfReference() == m_editableAnnotation)
+            {
+                QDialog* dialog = createDialogForMarkupAnnotations(m_proxy->getWidget(), pageAnnotation, pageAnnotations);
+                dialog->move(m_editableAnnotationGlobalPosition);
+                dialog->exec();
+                return;
+            }
+        }
+    }
+}
+
+void PDFWidgetAnnotationManager::onCopyAnnotation()
+{
+
 }
 
 void PDFWidgetAnnotationManager::onEditAnnotation()

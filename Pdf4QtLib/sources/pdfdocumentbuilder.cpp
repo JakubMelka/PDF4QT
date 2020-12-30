@@ -462,6 +462,30 @@ PDFObjectFactory& PDFObjectFactory::operator<<(TextAnnotationIcon icon)
     return *this;
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(PageRotation pageRotation)
+{
+    switch (pageRotation)
+    {
+        case pdf::PageRotation::None:
+            *this << PDFInteger(0);
+            break;
+        case pdf::PageRotation::Rotate90:
+            *this << PDFInteger(90);
+            break;
+        case pdf::PageRotation::Rotate180:
+            *this << PDFInteger(180);
+            break;
+        case pdf::PageRotation::Rotate270:
+            *this << PDFInteger(270);
+            break;
+
+        default:
+            Q_ASSERT(false);
+    }
+
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapEmptyArray)
 {
     beginArray();
@@ -4787,6 +4811,20 @@ void PDFDocumentBuilder::setPageMediaBox(PDFObjectReference page,
     mergeTo(page, updatedPageObject);
 }
 
+
+void PDFDocumentBuilder::setPageRotation(PDFObjectReference page,
+                                         PageRotation rotation)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Rotate");
+    objectBuilder << rotation;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(page, updatedPageObject);
+}
 
 void PDFDocumentBuilder::setPageTrimBox(PDFObjectReference page,
                                         QRectF box)

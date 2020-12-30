@@ -118,6 +118,7 @@ public:
     PDFObjectFactory& operator<<(Stamp stamp);
     PDFObjectFactory& operator<<(FileAttachmentIcon icon);
     PDFObjectFactory& operator<<(const PDFDestination& destination);
+    PDFObjectFactory& operator<<(PageRotation pageRotation);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -1419,6 +1420,13 @@ public:
     /// \param box Box
     void setPageMediaBox(PDFObjectReference page,
                          QRectF box);
+
+
+    /// Set page's rotation.
+    /// \param page Page
+    /// \param rotation Rotation
+    void setPageRotation(PDFObjectReference page,
+                         PageRotation rotation);
 
 
     /// Sets trim box to the page. Trim box is physical region, of the printed page after trimming.

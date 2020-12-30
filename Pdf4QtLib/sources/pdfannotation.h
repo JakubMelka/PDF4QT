@@ -1661,6 +1661,8 @@ signals:
 private:
     void updateFromMouseEvent(QMouseEvent* event);
 
+    void onShowPopupAnnotation();
+    void onCopyAnnotation();
     void onEditAnnotation();
     void onDeleteAnnotation();
 
@@ -1685,6 +1687,7 @@ private:
     PDFDrawWidgetProxy* m_proxy;
     QString m_tooltip;
     std::optional<QCursor> m_cursor;
+    QPoint m_editableAnnotationGlobalPosition; ///< Position, where action on annotation was executed
     PDFObjectReference m_editableAnnotation;    ///< Annotation to be edited or deleted
     PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
 };

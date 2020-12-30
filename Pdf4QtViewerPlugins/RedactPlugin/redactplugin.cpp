@@ -26,6 +26,7 @@
 #include "pdfdocumentwriter.h"
 
 #include <QAction>
+#include <QMessageBox>
 
 namespace pdfplugin
 {
@@ -148,7 +149,7 @@ void RedactPlugin::onCreateRedactedDocumentTriggered()
         pdf::PDFOperationResult result = writer.write(dialog.getFileName(), &redactedDocument, false);
         if (!result)
         {
-
+            QMessageBox::critical(m_widget, tr("Error"), result.getErrorMessage());
         }
     }
 }
