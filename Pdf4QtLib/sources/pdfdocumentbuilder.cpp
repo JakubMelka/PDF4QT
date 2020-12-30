@@ -1111,6 +1111,36 @@ PDFObjectReference PDFDocumentBuilder::getDocumentInfo() const
     return PDFObjectReference();
 }
 
+void PDFDocumentBuilder::copyAnnotation(PDFObjectReference pageReference, PDFObjectReference annotationReference)
+{
+    PDFObjectReference copiedAnnotation = addObject(getObjectByReference(annotationReference));
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("P");
+    factory << pageReference;
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Popup");
+    factory << PDFObject();
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("IRT");
+    factory << PDFObject();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+
+    mergeTo(copiedAnnotation, factory.takeObject());
+
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Annots");
+    factory.beginArray();
+    factory << copiedAnnotation;
+    factory.endArray();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    PDFObject pageAnnots = factory.takeObject();
+    appendTo(pageReference, pageAnnots);
+}
+
 PDFObjectReference PDFDocumentBuilder::getCatalogReference() const
 {
     if (const PDFDictionary* trailerDictionary = getDictionaryFromObject(m_storage.getTrailerDictionary()))

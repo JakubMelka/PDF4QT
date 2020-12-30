@@ -16,7 +16,6 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "redactplugin.h"
-#include "selectpagestoredactdialog.h"
 #include "createredacteddocumentdialog.h"
 
 #include "pdfdrawwidget.h"
@@ -24,6 +23,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfredact.h"
 #include "pdfdocumentwriter.h"
+#include "pdfselectpagesdialog.h"
 
 #include <QAction>
 #include <QMessageBox>
@@ -96,7 +96,7 @@ void RedactPlugin::updateActions()
 
 void RedactPlugin::onRedactPageTriggered()
 {
-    pdfplugin::SelectPagesToRedactDialog dialog(m_document->getCatalog()->getPageCount(), m_widget->getDrawWidget()->getCurrentPages(), m_widget);
+    pdf::PDFSelectPagesDialog dialog(tr("Redact Pages"), tr("Page Range to be Redacted"), m_document->getCatalog()->getPageCount(), m_widget->getDrawWidget()->getCurrentPages(), m_widget);
     if (dialog.exec() == QDialog::Accepted)
     {
         std::vector<pdf::PDFInteger> selectedPages = dialog.getSelectedPages();

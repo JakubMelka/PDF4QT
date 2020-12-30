@@ -29,6 +29,7 @@
 #include "pdfpainterutils.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfobjecteditorwidget.h"
+#include "pdfselectpagesdialog.h"
 
 #include <QMenu>
 #include <QDialog>
@@ -2010,7 +2011,42 @@ void PDFWidgetAnnotationManager::onShowPopupAnnotation()
 
 void PDFWidgetAnnotationManager::onCopyAnnotation()
 {
+    pdf::PDFSelectPagesDialog dialog(tr("Copy Annotation"), tr("Copy Annotation onto Multiple Pages"),
+                                     m_document->getCatalog()->getPageCount(), m_proxy->getWidget()->getDrawWidget()->getCurrentPages(), m_proxy->getWidget());
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        std::vector<PDFInteger> pages = dialog.getSelectedPages();
+        const PDFInteger currentPageIndex = m_document->getCatalog()->getPageIndexFromPageReference(m_editableAnnotationPage);
 
+        for (PDFInteger& pageIndex : pages)
+        {
+            --pageIndex;
+        }
+
+        auto it = std::find(pages.begin(), pages.end(), currentPageIndex);
+        if (it != pages.end())
+        {
+            pages.erase(it);
+        }
+
+        if (pages.empty())
+        {
+            return;
+        }
+
+        PDFDocumentModifier modifier(m_document);
+        modifier.markAnnotationsChanged();
+
+        for (const PDFInteger pageIndex : pages)
+        {
+            modifier.getBuilder()->copyAnnotation(m_document->getCatalog()->getPage(pageIndex)->getPageReference(), m_editableAnnotation);
+        }
+
+        if (modifier.finalize())
+        {
+            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
+    }
 }
 
 void PDFWidgetAnnotationManager::onEditAnnotation()

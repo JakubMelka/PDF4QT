@@ -76,6 +76,7 @@ SOURCES += \
     sources/pdfprogress.cpp \
     sources/pdfredact.cpp \
     sources/pdfsecurityhandler.cpp \
+    sources/pdfselectpagesdialog.cpp \
     sources/pdfsignaturehandler.cpp \
     sources/pdfsnapper.cpp \
     sources/pdfstructuretree.cpp \
@@ -143,6 +144,7 @@ HEADERS += \
     sources/pdfprogress.h \
     sources/pdfredact.h \
     sources/pdfsecurityhandler.h \
+    sources/pdfselectpagesdialog.h \
     sources/pdfsignaturehandler.h \
     sources/pdfsignaturehandler_impl.h \
     sources/pdfsnapper.h \
@@ -174,7 +176,8 @@ HEADERS += \
     sources/pdfimage.h
 
 FORMS += \
-    sources/pdfrenderingerrorswidget.ui
+    sources/pdfrenderingerrorswidget.ui \
+    sources/pdfselectpagesdialog.ui
 
 RESOURCES += cmaps.qrc
 

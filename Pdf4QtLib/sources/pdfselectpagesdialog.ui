@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>SelectPagesToRedactDialog</class>
- <widget class="QDialog" name="SelectPagesToRedactDialog">
+ <class>PDFSelectPagesDialog</class>
+ <widget class="QDialog" name="PDFSelectPagesDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -10,15 +10,9 @@
     <height>218</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>Redact Pages</string>
-  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QGroupBox" name="selectPagesToRedact">
-     <property name="title">
-      <string>Page Range to be Redacted</string>
-     </property>
+    <widget class="QGroupBox" name="selectPagesGroupBox">
      <layout class="QGridLayout" name="gridLayout">
       <item row="1" column="0" colspan="2">
        <widget class="QRadioButton" name="allPagesRadioButton">
@@ -94,7 +88,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>accepted()</signal>
-   <receiver>SelectPagesToRedactDialog</receiver>
+   <receiver>PDFSelectPagesDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -110,7 +104,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>
-   <receiver>SelectPagesToRedactDialog</receiver>
+   <receiver>PDFSelectPagesDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">

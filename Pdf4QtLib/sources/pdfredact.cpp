@@ -78,9 +78,7 @@ PDFDocument PDFRedact::perform(Options options)
         }
         builder.setPageRotation(newPageReference, page->getPageRotation());
 
-        // TODO: Popisek redakce anotace, Overlay text
         // TODO: Redact searched text
-        // TODO: Duplikace redakce na vice stranek
 
         PDFPageContentStreamBuilder contentStreamBuilder(&builder);
 
@@ -131,7 +129,12 @@ PDFDocument PDFRedact::perform(Options options)
 
     if (options.testFlag(CopyOutline))
     {
-        builder.setOutline(m_document->getCatalog()->getOutlineRootPtr().data());
+        const PDFOutlineItem* outlineItem = m_document->getCatalog()->getOutlineRootPtr().data();
+
+        if (outlineItem)
+        {
+            builder.setOutline(outlineItem);
+        }
     }
 
     PDFDocument redactedDocument = builder.build();
@@ -140,6 +143,5 @@ PDFDocument PDFRedact::perform(Options options)
     optimizer.optimize();
     return optimizer.takeOptimizedDocument();
 }
-
 
 }   // namespace pdf

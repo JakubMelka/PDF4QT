@@ -416,6 +416,11 @@ public:
     /// Returns document info reference
     PDFObjectReference getDocumentInfo() const;
 
+    /// Copies existing annotation to another page
+    /// \param pageReference Page reference (onto which is annotation copied)
+    /// \param annotationReference Annotation reference
+    void copyAnnotation(PDFObjectReference pageReference, PDFObjectReference annotationReference);
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.

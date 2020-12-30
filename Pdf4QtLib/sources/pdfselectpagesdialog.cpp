@@ -15,23 +15,30 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "selectpagestoredactdialog.h"
-#include "ui_selectpagestoredactdialog.h"
+#include "pdfselectpagesdialog.h"
+#include "ui_pdfselectpagesdialog.h"
 
 #include "pdfwidgetutils.h"
 
 #include <QMessageBox>
 
-namespace pdfplugin
+namespace pdf
 {
 
-SelectPagesToRedactDialog::SelectPagesToRedactDialog(pdf::PDFInteger pageCount, const std::vector<pdf::PDFInteger>& visiblePages, QWidget* parent) :
+PDFSelectPagesDialog::PDFSelectPagesDialog(QString windowTitle,
+                                           QString groupBoxTitle,
+                                           pdf::PDFInteger pageCount,
+                                           const std::vector<pdf::PDFInteger>& visiblePages,
+                                           QWidget* parent) :
     QDialog(parent),
-    ui(new Ui::SelectPagesToRedactDialog),
+    ui(new Ui::PDFSelectPagesDialog),
     m_pageCount(pageCount),
     m_visiblePages(visiblePages)
 {
     ui->setupUi(this);
+
+    setWindowTitle(windowTitle);
+    ui->selectPagesGroupBox->setTitle(groupBoxTitle);
 
     for (pdf::PDFInteger& pageIndex : m_visiblePages)
     {
@@ -53,18 +60,18 @@ SelectPagesToRedactDialog::SelectPagesToRedactDialog(pdf::PDFInteger pageCount, 
         }
     }
 
-    connect(ui->customPageRangeRadioButton, &QRadioButton::toggled, this, &SelectPagesToRedactDialog::updateUi);
+    connect(ui->customPageRangeRadioButton, &QRadioButton::toggled, this, &PDFSelectPagesDialog::updateUi);
 
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 400));
     updateUi();
 }
 
-SelectPagesToRedactDialog::~SelectPagesToRedactDialog()
+PDFSelectPagesDialog::~PDFSelectPagesDialog()
 {
     delete ui;
 }
 
-std::vector<pdf::PDFInteger> SelectPagesToRedactDialog::getSelectedPages() const
+std::vector<pdf::PDFInteger> PDFSelectPagesDialog::getSelectedPages() const
 {
     std::vector<pdf::PDFInteger> result;
 
@@ -98,12 +105,12 @@ std::vector<pdf::PDFInteger> SelectPagesToRedactDialog::getSelectedPages() const
     return result;
 }
 
-void SelectPagesToRedactDialog::updateUi()
+void PDFSelectPagesDialog::updateUi()
 {
     ui->customPageRangeEdit->setEnabled(ui->customPageRangeRadioButton->isChecked());
 }
 
-void SelectPagesToRedactDialog::accept()
+void PDFSelectPagesDialog::accept()
 {
     if (ui->customPageRangeRadioButton->isChecked())
     {
@@ -125,4 +132,4 @@ void SelectPagesToRedactDialog::accept()
     QDialog::accept();
 }
 
-} // namespace pdfplugin
+} // namespace pdf

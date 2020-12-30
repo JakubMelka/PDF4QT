@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef SELECTPAGESTOREDACTDIALOG_H
-#define SELECTPAGESTOREDACTDIALOG_H
+#ifndef PDFSELECTPAGESDIALOG_H
+#define PDFSELECTPAGESDIALOG_H
 
 #include "pdfutils.h"
 
@@ -24,19 +24,24 @@
 
 namespace Ui
 {
-class SelectPagesToRedactDialog;
+class PDFSelectPagesDialog;
 }
 
-namespace pdfplugin
+namespace pdf
 {
 
-class SelectPagesToRedactDialog : public QDialog
+class Pdf4QtLIBSHARED_EXPORT PDFSelectPagesDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit SelectPagesToRedactDialog(pdf::PDFInteger pageCount, const std::vector<pdf::PDFInteger>& visiblePages, QWidget* parent);
-    virtual ~SelectPagesToRedactDialog() override;
+    explicit PDFSelectPagesDialog(QString windowTitle,
+                                  QString groupBoxTitle,
+                                  pdf::PDFInteger pageCount,
+                                  const std::vector<pdf::PDFInteger>& visiblePages,
+                                  QWidget* parent);
+
+    virtual ~PDFSelectPagesDialog() override;
 
     virtual void accept() override;
 
@@ -45,15 +50,13 @@ public:
 private:
     void updateUi();
 
-    Ui::SelectPagesToRedactDialog* ui;
+    Ui::PDFSelectPagesDialog* ui;
     pdf::PDFInteger m_pageCount;
     std::vector<pdf::PDFInteger> m_visiblePages;
     std::vector<pdf::PDFInteger> m_evenPages;
     std::vector<pdf::PDFInteger> m_oddPages;
-
-
 };
 
-}   // namespace pdfplugin
+}   // namespace pdf
 
-#endif // SELECTPAGESTOREDACTDIALOG_H
+#endif // PDFSELECTPAGESDIALOG_H
