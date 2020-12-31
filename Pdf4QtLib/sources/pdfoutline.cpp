@@ -136,6 +136,16 @@ void PDFOutlineItem::setStructureElement(PDFObjectReference structureElement)
     m_structureElement = structureElement;
 }
 
+void PDFOutlineItem::apply(const std::function<void (PDFOutlineItem*)>& functor)
+{
+    functor(this);
+
+    for (const auto& item : m_children)
+    {
+        item->apply(functor);
+    }
+}
+
 bool PDFOutlineItem::isFontBold() const
 {
     return m_fontBold;
@@ -167,6 +177,11 @@ void PDFOutlineItem::setTextColor(const QColor& textColor)
 }
 
 const PDFAction* PDFOutlineItem::getAction() const
+{
+    return m_action.get();
+}
+
+PDFAction* PDFOutlineItem::getAction()
 {
     return m_action.get();
 }

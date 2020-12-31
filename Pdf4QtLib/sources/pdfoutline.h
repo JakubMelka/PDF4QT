@@ -48,6 +48,7 @@ public:
     static QSharedPointer<PDFOutlineItem> parse(const PDFDocument* document, const PDFObject& root);
 
     const PDFAction* getAction() const;
+    PDFAction* getAction();
     void setAction(const PDFActionPtr& action);
 
     QColor getTextColor() const;
@@ -61,6 +62,8 @@ public:
 
     PDFObjectReference getStructureElement() const;
     void setStructureElement(PDFObjectReference structureElement);
+
+    void apply(const std::function<void(PDFOutlineItem*)>& functor);
 
 private:
     static void parseImpl(const PDFDocument* document,

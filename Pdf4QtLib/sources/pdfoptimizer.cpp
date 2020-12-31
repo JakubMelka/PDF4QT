@@ -367,6 +367,20 @@ bool PDFOptimizer::performMergeIdenticalObjects()
     auto processEntry = [this, &counter, &objects, &mutex, &replacementMap](size_t index)
     {
         const PDFObjectStorage::Entry& entry = objects[index];
+
+        // We do not merge special objects, such as pages
+        if (const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(entry.object))
+        {
+            PDFObject nameObject = m_storage.getObject(dictionary->get("Type"));
+            if (nameObject.isName())
+            {
+                if (nameObject.getString() == "Page")
+                {
+                    return;
+                }
+            }
+        }
+
         for (size_t i = 0; i < index; ++i)
         {
             if (objects[i].object.isNull())

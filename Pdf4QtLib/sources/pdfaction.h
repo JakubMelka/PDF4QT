@@ -191,6 +191,9 @@ public:
     const PDFDestination& getDestination() const { return m_destination; }
     const PDFDestination& getStructureDestination() const { return m_structureDestination; }
 
+    void setDestination(const PDFDestination& destination);
+    void setStructureDestination(const PDFDestination& structureDestination);
+
 private:
     PDFDestination m_destination;
     PDFDestination m_structureDestination;

@@ -710,4 +710,14 @@ QString PDFActionURI::getURIString() const
     return QString::fromUtf8(m_URI);
 }
 
+void PDFActionGoTo::setDestination(const PDFDestination& destination)
+{
+    m_destination = destination;
+}
+
+void PDFActionGoTo::setStructureDestination(const PDFDestination& structureDestination)
+{
+    m_structureDestination = structureDestination;
+}
+
 }   // namespace pdf

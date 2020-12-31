@@ -51,6 +51,8 @@ PDFDocument PDFRedact::perform(Options options)
                          PDFRenderer::None,
                          *m_meshQualitySettings);
 
+    std::map<PDFObjectReference, PDFObjectReference> mapOldPageRefToNewPageRef;
+
     for (size_t i = 0; i < m_document->getCatalog()->getPageCount(); ++i)
     {
         const PDFPage* page = m_document->getCatalog()->getPage(i);
@@ -59,6 +61,7 @@ PDFDocument PDFRedact::perform(Options options)
         renderer.compile(&compiledPage, i);
 
         PDFObjectReference newPageReference = builder.appendPage(page->getMediaBox());
+        mapOldPageRefToNewPageRef[page->getPageReference()] = newPageReference;
 
         if (!page->getCropBox().isEmpty())
         {
@@ -127,11 +130,43 @@ PDFDocument PDFRedact::perform(Options options)
 
     if (options.testFlag(CopyOutline))
     {
-        const PDFOutlineItem* outlineItem = m_document->getCatalog()->getOutlineRootPtr().data();
-
-        if (outlineItem)
+        PDFObject catalog = m_document->getObject(m_document->getTrailerDictionary()->get("Root"));
+        if (const PDFDictionary* catalogDictionary = m_document->getDictionaryFromObject(catalog))
         {
-            builder.setOutline(outlineItem);
+            if (catalogDictionary->hasKey("Outlines"))
+            {
+                QSharedPointer<PDFOutlineItem> outlineRoot = PDFOutlineItem::parse(m_document, catalogDictionary->get("Outlines"));
+
+                if (outlineRoot)
+                {
+                    auto resolveNamedDestination = [this, &mapOldPageRefToNewPageRef](PDFOutlineItem* item)
+                    {
+                        PDFActionGoTo* action = dynamic_cast<PDFActionGoTo*>(item->getAction());
+                        if (action)
+                        {
+                            if (action->getDestination().isNamedDestination())
+                            {
+                                const PDFDestination* destination = m_document->getCatalog()->getNamedDestination(action->getDestination().getName());
+                                if (destination)
+                                {
+                                    action->setDestination(*destination);
+                                }
+                            }
+
+                            PDFDestination destination = action->getDestination();
+                            auto it = mapOldPageRefToNewPageRef.find(destination.getPageReference());
+                            if (it != mapOldPageRefToNewPageRef.cend())
+                            {
+                                destination.setPageReference(it->second);
+                                action->setDestination(destination);
+                            }
+                        }
+                    };
+                    outlineRoot->apply(resolveNamedDestination);
+
+                    builder.setOutline(outlineRoot.data());
+                }
+            }
         }
     }
 
