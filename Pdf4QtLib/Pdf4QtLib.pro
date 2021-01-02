@@ -81,6 +81,7 @@ SOURCES += \
     sources/pdfsnapper.cpp \
     sources/pdfstructuretree.cpp \
     sources/pdftextlayout.cpp \
+    sources/pdftransparencyrenderer.cpp \
     sources/pdfutils.cpp \
     sources/pdfwidgettool.cpp \
     sources/pdfwidgetutils.cpp \
@@ -150,6 +151,7 @@ HEADERS += \
     sources/pdfsnapper.h \
     sources/pdfstructuretree.h \
     sources/pdftextlayout.h \
+    sources/pdftransparencyrenderer.h \
     sources/pdfwidgettool.h \
     sources/pdfwidgetutils.h \
     sources/pdfxreftable.h \

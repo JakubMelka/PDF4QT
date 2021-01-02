@@ -31,6 +31,43 @@
 namespace pdf
 {
 
+static PDFColorComponent getDeterminant(const PDFColorComponentMatrix_3x3& matrix)
+{
+    const PDFColorComponent a_11 = matrix.getValue(0, 0);
+    const PDFColorComponent a_12 = matrix.getValue(0, 1);
+    const PDFColorComponent a_13 = matrix.getValue(0, 2);
+    const PDFColorComponent a_21 = matrix.getValue(1, 0);
+    const PDFColorComponent a_22 = matrix.getValue(1, 1);
+    const PDFColorComponent a_23 = matrix.getValue(1, 2);
+    const PDFColorComponent a_31 = matrix.getValue(2, 0);
+    const PDFColorComponent a_32 = matrix.getValue(2, 1);
+    const PDFColorComponent a_33 = matrix.getValue(2, 2);
+
+    return -a_13* a_22 * a_31 + a_12 * a_23 * a_31 + a_13 * a_21 * a_32 - a_11 * a_23 * a_32 - a_12 * a_21 * a_33 + a_11 * a_22 * a_33;
+}
+
+PDFColorComponentMatrix_3x3 getInverseMatrix(const PDFColorComponentMatrix_3x3& matrix)
+{
+    const PDFColorComponent a_11 = matrix.getValue(0, 0);
+    const PDFColorComponent a_12 = matrix.getValue(0, 1);
+    const PDFColorComponent a_13 = matrix.getValue(0, 2);
+    const PDFColorComponent a_21 = matrix.getValue(1, 0);
+    const PDFColorComponent a_22 = matrix.getValue(1, 1);
+    const PDFColorComponent a_23 = matrix.getValue(1, 2);
+    const PDFColorComponent a_31 = matrix.getValue(2, 0);
+    const PDFColorComponent a_32 = matrix.getValue(2, 1);
+    const PDFColorComponent a_33 = matrix.getValue(2, 2);
+
+    const PDFColorComponent determinant = -a_13* a_22 * a_31 + a_12 * a_23 * a_31 + a_13 * a_21 * a_32 - a_11 * a_23 * a_32 - a_12 * a_21 * a_33 + a_11 * a_22 * a_33;
+    const PDFColorComponent coefficient = !qIsNull(determinant) ? 1.0 / determinant : 0.0;
+
+    PDFColorComponentMatrix_3x3 inversedMatrix { a_22 * a_33 - a_23 * a_32, a_13 * a_32 - a_12 * a_33, a_12 * a_23 - a_13 * a_22,
+                                                 a_23 * a_31 - a_21 * a_33, a_11 * a_33 - a_13 * a_31, a_13 * a_21 - a_11 * a_23,
+                                                 a_21 * a_32 - a_22 * a_31, a_12 * a_31 - a_11 * a_32, a_11 * a_22 - a_12 * a_21 };
+    inversedMatrix.multiplyByFactor(coefficient);
+    return inversedMatrix;
+}
+
 QColor PDFDeviceGrayColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     return getColor(PDFColor(0.0f), cms, intent, reporter, true);
@@ -146,6 +183,23 @@ void PDFDeviceCMYKColorSpace::fillRGBBuffer(const std::vector<float>& colors, un
     if (!cms->fillRGBBufferFromDeviceCMYK(colors, intent, outputBuffer, reporter))
     {
         PDFAbstractColorSpace::fillRGBBuffer(colors, outputBuffer, intent, cms, reporter);
+    }
+}
+
+bool PDFAbstractColorSpace::isBlendColorSpace() const
+{
+    switch (getColorSpace())
+    {
+        case pdf::PDFAbstractColorSpace::ColorSpace::DeviceGray:
+        case pdf::PDFAbstractColorSpace::ColorSpace::DeviceRGB:
+        case pdf::PDFAbstractColorSpace::ColorSpace::DeviceCMYK:
+        case pdf::PDFAbstractColorSpace::ColorSpace::CalGray:
+        case pdf::PDFAbstractColorSpace::ColorSpace::CalRGB:
+        case pdf::PDFAbstractColorSpace::ColorSpace::ICCBased:
+            return true;
+
+        default:
+            return false;
     }
 }
 
@@ -582,6 +636,227 @@ PDFColor PDFAbstractColorSpace::mixColors(const PDFColor& color1, const PDFColor
     return result;
 }
 
+bool PDFAbstractColorSpace::transform(const PDFAbstractColorSpace* source,
+                                      const PDFAbstractColorSpace* target,
+                                      const PDFCMS* cms,
+                                      RenderingIntent intent,
+                                      const PDFColorBuffer input,
+                                      PDFColorBuffer output,
+                                      PDFRenderErrorReporter* reporter)
+{
+    Q_ASSERT(source);
+    Q_ASSERT(target);
+    Q_ASSERT(cms);
+    Q_ASSERT(target->isBlendColorSpace());
+    Q_ASSERT(input.size() % source->getColorComponentCount() == 0);
+
+    if (source->equals(target))
+    {
+        // Just copy input buffer to output buffer
+        Q_ASSERT(input.size() == output.size());
+        std::copy(input.begin(), input.end(), output.begin());
+        return true;
+    }
+
+    // We will use following algorithm to transform colors:
+    //    1. Determine source color space type for cms,
+    //       and adjust colors to this color space type
+    //    2. Prepare work output buffer of target size (can have
+    //       different size than real output buffer)
+    //    3. Transform colors using CMS
+    //    4. Transform output color buffer to target color buffer
+
+    PDFCMS::ColorSpaceTransformParams params;
+    std::vector<PDFColorComponent> transformedInputColorsVector;
+    PDFColorBuffer transformedInput = input;
+
+    switch (source->getColorSpace())
+    {
+        case ColorSpace::DeviceGray:
+            params.sourceType = PDFCMS::ColorSpaceType::DeviceGray;
+            break;
+
+        case ColorSpace::DeviceRGB:
+            params.sourceType = PDFCMS::ColorSpaceType::DeviceRGB;
+            break;
+
+        case ColorSpace::DeviceCMYK:
+            params.sourceType = PDFCMS::ColorSpaceType::DeviceCMYK;
+            break;
+
+        case ColorSpace::CalGray:
+        {
+            params.sourceType = PDFCMS::ColorSpaceType::XYZ;
+
+            // Transform gray to XYZ
+            const PDFCalGrayColorSpace* calGrayColorSpace = static_cast<const PDFCalGrayColorSpace*>(source);
+            const PDFColorComponent gamma = calGrayColorSpace->getGamma();
+
+            transformedInputColorsVector.resize(input.size() * 3, 0.0f);
+            auto it = transformedInputColorsVector.begin();
+            for (PDFColorComponent gray : input)
+            {
+                const PDFColorComponent A = clip01(gray);
+                const PDFColorComponent xyzColor = std::powf(A, gamma);
+                *it++ = xyzColor;
+                *it++ = xyzColor;
+                *it++ = xyzColor;
+            }
+            Q_ASSERT(it == transformedInputColorsVector.end());
+
+            transformedInput = PDFColorBuffer(transformedInputColorsVector.data(), transformedInputColorsVector.size());
+            break;
+        }
+
+        case ColorSpace::CalRGB:
+        {
+            params.sourceType = PDFCMS::ColorSpaceType::XYZ;
+
+            const PDFCalRGBColorSpace* calRGBColorSpace = static_cast<const PDFCalRGBColorSpace*>(source);
+            const PDFColor3 gamma = calRGBColorSpace->getGamma();
+            const PDFColorComponentMatrix_3x3 matrix = calRGBColorSpace->getMatrix();
+
+            transformedInputColorsVector.resize(input.size(), 0.0f);
+            auto it = transformedInputColorsVector.begin();
+
+            for (auto sourceIt = input.cbegin(); sourceIt != input.cend(); sourceIt = std::next(sourceIt, 3))
+            {
+                const PDFColor3 ABC = { };
+                ABC[0] = *sourceIt;
+                ABC[1] = *std::next(sourceIt, 1);
+                ABC[2] = *std::next(sourceIt, 2);
+                ABC = colorPowerByFactors(ABC, gamma);
+
+                const PDFColor3 XYZ = matrix * ABC;
+                *it++ = XYZ[0];
+                *it++ = XYZ[1];
+                *it++ = XYZ[2];
+            }
+            Q_ASSERT(it == transformedInputColorsVector.end());
+
+            transformedInput = PDFColorBuffer(transformedInputColorsVector.data(), transformedInputColorsVector.size());
+            break;
+        }
+
+        case ColorSpace::Lab:
+        {
+            params.sourceType = PDFCMS::ColorSpaceType::XYZ;
+
+            const PDFLabColorSpace* labColorSpace = static_cast<const PDFLabColorSpace*>(source);
+            const PDFColor aMin = labColorSpace->getAMin();
+            const PDFColor aMax = labColorSpace->getAMax();
+            const PDFColor bMin = labColorSpace->getBMin();
+            const PDFColor bMax = labColorSpace->getBMax();
+
+            transformedInputColorsVector.resize(input.size(), 0.0f);
+            auto it = transformedInputColorsVector.begin();
+
+            for (auto sourceIt = input.cbegin(); sourceIt != input.cend(); sourceIt = std::next(sourceIt, 3))
+            {
+                PDFColorComponent LStar = qBound(0.0, interpolate(*sourceIt, 0.0, 1.0, 0.0, 100.0), 100.0);
+                PDFColorComponent aStar = qBound<PDFColorComponent>(aMin, interpolate(*std::next(sourceIt, 1), 0.0, 1.0, aMin, aMax), aMax);
+                PDFColorComponent bStar = qBound<PDFColorComponent>(bMin, interpolate(*std::next(sourceIt, 2), 0.0, 1.0, bMin, bMax), bMax);
+
+                const PDFColorComponent param1 = (LStar + 16.0f) / 116.0f;
+                const PDFColorComponent param2 = aStar / 500.0f;
+                const PDFColorComponent param3 = bStar / 200.0f;
+
+                const PDFColorComponent L = param1 + param2;
+                const PDFColorComponent M = param1;
+                const PDFColorComponent N = param1 - param3;
+
+                auto g = [](PDFColorComponent x) -> PDFColorComponent
+                {
+                    if (x >= 6.0f / 29.0f)
+                    {
+                        return x * x * x;
+                    }
+                    else
+                    {
+                        return (108.0f / 841.0f) * (x - 4.0f / 29.0f);
+                    }
+                };
+
+                const PDFColorComponent gL = g(L);
+                const PDFColorComponent gM = g(M);
+                const PDFColorComponent gN = g(N);
+
+                *it++ = gL;
+                *it++ = gM;
+                *it++ = gN;
+            }
+            Q_ASSERT(it == transformedInputColorsVector.end());
+
+            transformedInput = PDFColorBuffer(transformedInputColorsVector.data(), transformedInputColorsVector.size());
+            break;
+        }
+
+        case ColorSpace::ICCBased:
+        {
+            const PDFICCBasedColorSpace* iccBasedColorSpace = static_cast<const PDFICCBasedColorSpace*>(source);
+
+            params.sourceType = PDFCMS::ColorSpaceType::ICC;
+            params.sourceIccId = iccBasedColorSpace->getIccProfileDataChecksum();
+            params.sourceIccData = iccBasedColorSpace->getIccProfileData();
+
+            size_t colorComponentCount = iccBasedColorSpace->getColorComponentCount();
+            const PDFICCBasedColorSpace::Ranges& ranges = iccBasedColorSpace->getRange();
+
+            transformedInputColorsVector.resize(input.size(), 0.0f);
+            auto outputIt = transformedInputColorsVector.begin();
+            for (auto inputIt = input.cbegin(); inputIt != input.cend();)
+            {
+                for (size_t i = 0; i < colorComponentCount; ++i)
+                {
+                    const size_t imin = 2 * i + 0;
+                    const size_t imax = 2 * i + 1;
+                    *outputIt++ = qBound(ranges[imin], *inputIt++, ranges[imax]);
+                }
+            }
+
+            transformedInput = PDFColorBuffer(transformedInputColorsVector.data(), transformedInputColorsVector.size());
+            break;
+        }
+
+        case ColorSpace::Indexed:
+        {
+            const PDFIndexedColorSpace* indexedColorSpace = static_cast<const PDFIndexedColorSpace*>(source);
+
+            PDFColorSpacePointer baseColorSpace = indexedColorSpace->getBaseColorSpace();
+            std::vector<PDFColorComponent> transformedToBaseColorSpaceInput = indexedColorSpace->transformColorsToBaseColorSpace(input);
+            PDFColorBuffer transformedInputBuffer(transformedToBaseColorSpaceInput.data(), transformedToBaseColorSpaceInput.size());
+            return transform(baseColorSpace.data(), target, cms, intent, transformedInputBuffer, output, reporter);
+        }
+
+        case ColorSpace::Separation:
+        {
+            const PDFSeparationColorSpace* separationColorSpace = static_cast<const PDFSeparationColorSpace*>(source);
+
+            PDFColorSpacePointer alternateColorSpace = separationColorSpace->getAlternateColorSpace();
+            std::vector<PDFColorComponent> transformedToBaseColorSpaceInput = separationColorSpace->transformColorsToBaseColorSpace(input);
+            PDFColorBuffer transformedInputBuffer(transformedToBaseColorSpaceInput.data(), transformedToBaseColorSpaceInput.size());
+            return transform(alternateColorSpace.data(), target, cms, intent, transformedInputBuffer, output, reporter);
+        }
+
+        case ColorSpace::DeviceN:
+        {
+            const PDFDeviceNColorSpace* separationColorSpace = static_cast<const PDFDeviceNColorSpace*>(source);
+
+            PDFColorSpacePointer alternateColorSpace = separationColorSpace->getAlternateColorSpace();
+            std::vector<PDFColorComponent> transformedToBaseColorSpaceInput = separationColorSpace->transformColorsToBaseColorSpace(input);
+            PDFColorBuffer transformedInputBuffer(transformedToBaseColorSpaceInput.data(), transformedToBaseColorSpaceInput.size());
+            return transform(alternateColorSpace.data(), target, cms, intent, transformedInputBuffer, output, reporter);
+        }
+
+        case ColorSpace::Pattern:
+            return false;
+
+        default:
+            Q_ASSERT(false);
+            return false;
+    }
+}
+
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
                                                                  const PDFDocument* document,
                                                                  const PDFObject& colorSpace,
@@ -762,7 +1037,6 @@ PDFColor3 PDFAbstractColorSpace::convertXYZtoRGB(const PDFColor3& xyzColor)
     return matrixXYZtoRGB * xyzColor;
 }
 
-
 QColor PDFXYZColorSpace::getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
     PDFColor color;
@@ -926,7 +1200,24 @@ PDFColorSpacePointer PDFCalRGBColorSpace::createCalRGBColorSpace(const PDFDocume
     loader.readNumberArrayFromDictionary(dictionary, CAL_GAMMA, gamma.begin(), gamma.end());
     loader.readNumberArrayFromDictionary(dictionary, CAL_MATRIX, matrix.begin(), matrix.end());
 
+    matrix.transpose();
+
     return PDFColorSpacePointer(new PDFCalRGBColorSpace(whitePoint, blackPoint, gamma, matrix));
+}
+
+PDFColor3 PDFCalRGBColorSpace::getBlackPoint() const
+{
+    return m_blackPoint;
+}
+
+PDFColor3 PDFCalRGBColorSpace::getGamma() const
+{
+    return m_gamma;
+}
+
+const PDFColorComponentMatrix_3x3& PDFCalRGBColorSpace::getMatrix() const
+{
+    return m_matrix;
 }
 
 PDFLabColorSpace::PDFLabColorSpace(PDFColor3 whitePoint,
@@ -1071,6 +1362,31 @@ PDFColorSpacePointer PDFLabColorSpace::createLabColorSpace(const PDFDocument* do
     return PDFColorSpacePointer(new PDFLabColorSpace(whitePoint, blackPoint, minMax[0], minMax[1], minMax[2], minMax[3]));
 }
 
+PDFColorComponent PDFLabColorSpace::getAMin() const
+{
+    return m_aMin;
+}
+
+PDFColorComponent PDFLabColorSpace::getAMax() const
+{
+    return m_aMax;
+}
+
+PDFColorComponent PDFLabColorSpace::getBMin() const
+{
+    return m_bMin;
+}
+
+PDFColorComponent PDFLabColorSpace::getBMax() const
+{
+    return m_bMax;
+}
+
+PDFColor3 PDFLabColorSpace::getBlackPoint() const
+{
+    return m_blackPoint;
+}
+
 PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, PDFObjectReference metadata) :
     m_alternateColorSpace(qMove(alternateColorSpace)),
     m_range(range),
@@ -1211,6 +1527,21 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     loader.readNumberArrayFromDictionary(dictionary, ICCBASED_RANGE, itStart, itEnd);
 
     return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(iccProfileData), loader.readReferenceFromDictionary(dictionary, "Metadata")));
+}
+
+const PDFICCBasedColorSpace::Ranges& PDFICCBasedColorSpace::getRange() const
+{
+    return m_range;
+}
+
+const QByteArray& PDFICCBasedColorSpace::getIccProfileData() const
+{
+    return m_iccProfileData;
+}
+
+const QByteArray& PDFICCBasedColorSpace::getIccProfileDataChecksum() const
+{
+    return m_iccProfileDataChecksum;
 }
 
 PDFIndexedColorSpace::PDFIndexedColorSpace(PDFColorSpacePointer baseColorSpace, QByteArray&& colors, int maxValue) :
@@ -1409,6 +1740,39 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
     return PDFColorSpacePointer(new PDFIndexedColorSpace(qMove(baseColorSpace), qMove(colors), maxValue));
 }
 
+PDFColorSpacePointer PDFIndexedColorSpace::getBaseColorSpace() const
+{
+    return m_baseColorSpace;
+}
+
+std::vector<PDFColorComponent> PDFIndexedColorSpace::transformColorsToBaseColorSpace(const PDFColorBuffer buffer) const
+{
+    const std::size_t colorComponentCount = m_baseColorSpace->getColorComponentCount();
+    std::vector<PDFColorComponent> result(buffer.size() * colorComponentCount, 0.0f);
+
+    auto outputIt = result.begin();
+    for (PDFColorComponent input : buffer)
+    {
+        const int colorIndex = qBound(MIN_VALUE, static_cast<int>(input), m_maxValue);
+        const int byteOffset = colorIndex * colorComponentCount;
+
+        // We must point into the array. Check first and last component.
+        Q_ASSERT(byteOffset + colorComponentCount - 1 < m_colors.size());
+
+        const char* bytePointer = m_colors.constData() + byteOffset;
+
+        for (int i = 0; i < colorComponentCount; ++i)
+        {
+            const unsigned char value = *bytePointer++;
+            const PDFColorComponent component = static_cast<PDFColorComponent>(value) / 255.0f;
+            *outputIt++ = component;
+        }
+    }
+    Q_ASSERT(outputIt == result.cend());
+
+    return result;
+}
+
 PDFSeparationColorSpace::PDFSeparationColorSpace(QByteArray&& colorName, PDFColorSpacePointer alternateColorSpace, PDFFunctionPtr tintTransform) :
     m_colorName(qMove(colorName)),
     m_alternateColorSpace(qMove(alternateColorSpace)),
@@ -1472,6 +1836,38 @@ size_t PDFSeparationColorSpace::getColorComponentCount() const
     return 1;
 }
 
+std::vector<PDFColorComponent> PDFSeparationColorSpace::transformColorsToBaseColorSpace(const PDFColorBuffer buffer) const
+{
+    const std::size_t colorComponentCount = m_alternateColorSpace->getColorComponentCount();
+    std::vector<PDFColorComponent> result(buffer.size() * colorComponentCount, 0.0f);
+
+    std::vector<double> outputColor;
+    outputColor.resize(colorComponentCount, 0.0);
+
+    auto outputIt = result.begin();
+    for (PDFColorComponent input : buffer)
+    {
+        // Input value
+        double tint = input;
+
+        if (m_isAll)
+        {
+            const double inversedTint = qBound(0.0, 1.0 - tint, 1.0);
+            std::fill(outputIt, outputIt + colorComponentCount, inversedTint);
+        }
+        else
+        {
+            m_tintTransform->apply(&tint, &tint + 1, outputColor.data(), outputColor.data() + outputColor.size());
+            std::copy(outputColor.cbegin(), outputColor.cend(), outputIt);
+        }
+
+        outputIt = std::next(outputIt, colorComponentCount);
+    }
+    Q_ASSERT(outputIt == result.cend());
+
+    return result;
+}
+
 PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                          const PDFDocument* document,
                                                                          const PDFArray* array,
@@ -1502,6 +1898,16 @@ PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const P
     }
 
     return PDFColorSpacePointer(new PDFSeparationColorSpace(qMove(colorName), qMove(alternateColorSpace), qMove(tintTransform)));
+}
+
+PDFColorSpacePointer PDFSeparationColorSpace::getAlternateColorSpace() const
+{
+    return m_alternateColorSpace;
+}
+
+const QByteArray& PDFSeparationColorSpace::getColorName() const
+{
+    return m_colorName;
 }
 
 const unsigned char* PDFImageData::getRow(unsigned int rowIndex) const
@@ -1610,6 +2016,34 @@ QColor PDFDeviceNColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, 
 size_t PDFDeviceNColorSpace::getColorComponentCount() const
 {
     return m_colorants.size();
+}
+
+std::vector<PDFColorComponent> PDFDeviceNColorSpace::transformColorsToBaseColorSpace(const PDFColorBuffer buffer) const
+{
+    std::vector<PDFColorComponent> result;
+
+    const std::size_t colorantCount = getColorComponentCount();
+    if (colorantCount > 0)
+    {
+        const std::size_t inputColorCount = buffer.size() / colorantCount;
+        const std::size_t alternateColorSpaceComponentCount = m_alternateColorSpace->getColorComponentCount();
+        result.resize(inputColorCount * alternateColorSpaceComponentCount, 0.0f);
+
+        std::vector<double> inputColor(colorantCount, 0.0);
+        std::vector<double> outputColor(alternateColorSpaceComponentCount, 0.0);
+
+        auto outputIt = result.begin();
+        for (auto it = buffer.begin(); it != buffer.end(); it = std::next(it, colorantCount))
+        {
+            std::copy(it, it + colorantCount, inputColor.begin());
+            m_tintTransform->apply(inputColor.data(), inputColor.data() + inputColor.size(), outputColor.data(), outputColor.data() + outputColor.size());
+            std::copy(outputColor.cbegin(), outputColor.cend(), outputIt);
+            outputIt = std::next(outputIt, alternateColorSpaceComponentCount);
+        }
+        Q_ASSERT(outputIt == result.cend());
+    }
+
+    return result;
 }
 
 PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary,

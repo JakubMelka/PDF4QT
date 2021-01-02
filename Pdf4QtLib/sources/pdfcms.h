@@ -127,14 +127,21 @@ public:
     /// \param Three color channel value (X,Y,Z channel)
     /// \param intent Rendering intent
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const = 0;
+    virtual QColor getColorFromXYZ(const PDFColor3& whitePoint,
+                                   const PDFColor3& color,
+                                   RenderingIntent intent,
+                                   PDFRenderErrorReporter* reporter) const = 0;
 
     /// Computes color from ICC color profile
     /// \param color Input color
     /// \param iccID Unique ICC profile identifier
     /// \param iccData Color profile data
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual QColor getColorFromICC(const PDFColor& color, RenderingIntent renderingIntent, const QByteArray& iccID, const QByteArray& iccData, PDFRenderErrorReporter* reporter) const = 0;
+    virtual QColor getColorFromICC(const PDFColor& color,
+                                   RenderingIntent renderingIntent,
+                                   const QByteArray& iccID,
+                                   const QByteArray& iccData,
+                                   PDFRenderErrorReporter* reporter) const = 0;
 
     /// Fills colors in Device Gray color space to the RGB buffer. If error occurs, then false is returned.
     /// Caller then should handle this - try to convert color as accurate as possible.
@@ -142,7 +149,10 @@ public:
     /// \param intent Rendering intent
     /// \param outputBuffer Output buffer in format RGB_888 (8-bit RGB values)
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual bool fillRGBBufferFromDeviceGray(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const = 0;
+    virtual bool fillRGBBufferFromDeviceGray(const std::vector<float>& colors,
+                                             RenderingIntent intent,
+                                             unsigned char* outputBuffer,
+                                             PDFRenderErrorReporter* reporter) const = 0;
 
     /// Fills colors in Device RGB color space to RGB buffer. If error occurs, then false is returned.
     /// Caller then should handle this - try to convert color as accurate as possible.
@@ -150,7 +160,10 @@ public:
     /// \param intent Rendering intent
     /// \param outputBuffer Output buffer in format RGB_888 (8-bit RGB values)
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual bool fillRGBBufferFromDeviceRGB(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const = 0;
+    virtual bool fillRGBBufferFromDeviceRGB(const std::vector<float>& colors,
+                                            RenderingIntent intent,
+                                            unsigned char* outputBuffer,
+                                            PDFRenderErrorReporter* reporter) const = 0;
 
     /// Fills colors in Device CMYK color space to the RGB buffer. If error occurs, then false is returned.
     /// Caller then should handle this - try to convert color as accurate as possible.
@@ -158,7 +171,10 @@ public:
     /// \param intent Rendering intent
     /// \param outputBuffer Output buffer in format RGB_888 (8-bit RGB values)
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual bool fillRGBBufferFromDeviceCMYK(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const = 0;
+    virtual bool fillRGBBufferFromDeviceCMYK(const std::vector<float>& colors,
+                                             RenderingIntent intent,
+                                             unsigned char* outputBuffer,
+                                             PDFRenderErrorReporter* reporter) const = 0;
 
     /// Fills colors in XYZ color space to the RGB buffer. If error occurs, then false is returned.
     /// Caller then should handle this - try to convert color as accurate as possible.
@@ -166,14 +182,51 @@ public:
     /// \param Three color channel value (X,Y,Z channel)
     /// \param intent Rendering intent
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual bool fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const = 0;
+    virtual bool fillRGBBufferFromXYZ(const PDFColor3& whitePoint,
+                                      const std::vector<float>& colors,
+                                      RenderingIntent intent,
+                                      unsigned char* outputBuffer,
+                                      PDFRenderErrorReporter* reporter) const = 0;
 
     /// Fills RGB buffer from ICC color profile colors
     /// \param colors Input colors
     /// \param iccID Unique ICC profile identifier
     /// \param iccData Color profile data
     /// \param reporter Render error reporter (used, when color transform fails)
-    virtual bool fillRGBBufferFromICC(const std::vector<float>& colors, RenderingIntent renderingIntent, unsigned char* outputBuffer, const QByteArray& iccID, const QByteArray& iccData, PDFRenderErrorReporter* reporter) const = 0;
+    virtual bool fillRGBBufferFromICC(const std::vector<float>& colors,
+                                      RenderingIntent renderingIntent,
+                                      unsigned char* outputBuffer,
+                                      const QByteArray& iccID,
+                                      const QByteArray& iccData,
+                                      PDFRenderErrorReporter* reporter) const = 0;
+
+    enum ColorSpaceType
+    {
+        Invalid,
+        DeviceGray,
+        DeviceRGB,
+        DeviceCMYK,
+        XYZ,
+        ICC
+    };
+
+    struct ColorSpaceTransformParams
+    {
+        ColorSpaceType sourceType = ColorSpaceType::Invalid;
+        ColorSpaceType targetType = ColorSpaceType::Invalid;
+
+        QByteArray sourceIccId;
+        QByteArray targetIccId;
+
+        QByteArray sourceIccData;
+        QByteArray targetIccData;
+    };
+
+    /// Transforms color between two color spaces.
+    virtual bool transformColorSpace(const ColorSpaceTransformParams& params) const = 0;
+
+    /// Get D50 white point for XYZ color space
+    static PDFColor3 getDefaultXYZWhitepoint();
 };
 
 using PDFCMSPointer = QSharedPointer<PDFCMS>;
@@ -195,6 +248,7 @@ public:
     virtual bool fillRGBBufferFromDeviceCMYK(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const override;
     virtual bool fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const override;
     virtual bool fillRGBBufferFromICC(const std::vector<float>& colors, RenderingIntent renderingIntent, unsigned char* outputBuffer, const QByteArray& iccID, const QByteArray& iccData, PDFRenderErrorReporter* reporter) const override;
+    virtual bool transformColorSpace(const ColorSpaceTransformParams& params) const override;
 };
 
 struct PDFColorProfileIdentifier

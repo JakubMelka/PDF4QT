@@ -48,6 +48,7 @@ public:
     virtual bool fillRGBBufferFromDeviceCMYK(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const override;
     virtual bool fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const override;
     virtual bool fillRGBBufferFromICC(const std::vector<float>& colors, RenderingIntent renderingIntent, unsigned char* outputBuffer, const QByteArray& iccID, const QByteArray& iccData, PDFRenderErrorReporter* reporter) const override;
+    virtual bool transformColorSpace(const ColorSpaceTransformParams& params) const override;
 
 private:
     void init();
@@ -279,6 +280,11 @@ bool PDFLittleCMS::fillRGBBufferFromICC(const std::vector<float>& colors, Render
     return false;
 }
 
+bool PDFLittleCMS::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& params) const
+{
+    return false;
+}
+
 PDFLittleCMS::PDFLittleCMS(const PDFCMSManager* manager, const PDFCMSSettings& settings) :
     m_manager(manager),
     m_settings(settings),
@@ -410,6 +416,7 @@ QColor PDFLittleCMS::getColorFromDeviceCMYK(const PDFColor& color, RenderingInte
 
 QColor PDFLittleCMS::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
+    Q_UNUSED(whitePoint);
     cmsHTRANSFORM transform = getTransform(XYZ, getEffectiveRenderingIntent(intent), false);
 
     if (!transform)
@@ -422,8 +429,10 @@ QColor PDFLittleCMS::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor
     {
         Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_FLT);
 
+        // Jakub Melka: It seems, that Adobe Acrobat Reader doesn't do the gamut remapping (whitepoint remapping).
+        // so, we don't do that too.
         const cmsCIEXYZ* d50WhitePoint = cmsD50_XYZ();
-        std::array<float, 3> xyzInputColor = { color[0] / whitePoint[0] * float(d50WhitePoint->X), color[1] / whitePoint[1] * float(d50WhitePoint->Y), color[2] / whitePoint[2] * float(d50WhitePoint->Z) };
+        std::array<float, 3> xyzInputColor = { color[0] * float(d50WhitePoint->X), color[1] * float(d50WhitePoint->Y), color[2] * float(d50WhitePoint->Z)};
         std::array<float, 3> rgbOutputColor = { };
         cmsDoTransform(transform, xyzInputColor.data(), rgbOutputColor.data(), 1);
         return getColorFromOutputColor(rgbOutputColor);
@@ -933,6 +942,11 @@ bool PDFCMSGeneric::fillRGBBufferFromICC(const std::vector<float>& colors, Rende
     return false;
 }
 
+bool PDFCMSGeneric::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& params) const
+{
+    return false;
+}
+
 PDFCMSManager::PDFCMSManager(QObject* parent) :
     BaseClass(parent),
     m_mutex(QMutex::Recursive)
@@ -1240,6 +1254,12 @@ PDFColorProfileIdentifier PDFColorProfileIdentifier::createFile(Type type, QStri
     result.name = qMove(name);
     result.id = qMove(id);
     return result;
+}
+
+PDFColor3 PDFCMS::getDefaultXYZWhitepoint()
+{
+    const cmsCIEXYZ* whitePoint = cmsD50_XYZ();
+    return PDFColor3{ PDFColorComponent(whitePoint->X), PDFColorComponent(whitePoint->Y), PDFColorComponent(whitePoint->Z) };
 }
 
 }   // namespace pdf

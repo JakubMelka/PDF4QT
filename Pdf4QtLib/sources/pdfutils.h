@@ -500,6 +500,46 @@ static inline bool isFuzzyComparedPointsSame(const QPointF& p1, const QPointF& p
     return squaredDistance < squaredTolerance;
 }
 
+/// View on the array
+template<typename T>
+class PDFBuffer
+{
+public:
+    using value_type = T;
+    using value_ptr = value_type*;
+    using const_value_type = const value_type;
+    using const_value_ptr = const_value_type*;
+
+    explicit inline PDFBuffer() :
+        m_begin(nullptr),
+        m_end(nullptr)
+    {
+
+    }
+
+    explicit inline PDFBuffer(value_ptr value, size_t size) :
+        m_begin(value),
+        m_end(value + size)
+    {
+
+    }
+
+    inline value_ptr begin() { return m_begin; }
+    inline value_ptr end() { return m_end; }
+
+    inline const_value_ptr begin() const { return m_begin; }
+    inline const_value_ptr end() const { return m_end; }
+
+    inline const_value_ptr cbegin() const { return m_begin; }
+    inline const_value_ptr cend() const { return m_end; }
+
+    size_t size() const { return m_end - m_begin; }
+
+private:
+    value_ptr m_begin;
+    value_ptr m_end;
+};
+
 /// Storage for result of some operation. Stores, if operation was successful, or not and
 /// also error message, why operation has failed. Can be converted explicitly to bool.
 class PDFOperationResult
