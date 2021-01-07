@@ -111,6 +111,11 @@ private:
     /// \param color01 Rgb color (range 0-1 is assumed).
     static QColor getColorFromOutputColor(std::array<float, 3> color01);
 
+    /// Returns transform key for transformation between various color spaces
+    static QByteArray getTransformColorSpaceKey(const ColorSpaceTransformParams& params);
+
+    cmsHTRANSFORM getTransformBetweenColorSpaces(const ColorSpaceTransformParams& params) const;
+
     const PDFCMSManager* m_manager;
     PDFCMSSettings m_settings;
     QColor m_paperColor;
@@ -121,6 +126,9 @@ private:
 
     mutable QReadWriteLock m_customIccProfileCacheLock;
     mutable std::map<std::pair<QByteArray, RenderingIntent>, cmsHTRANSFORM> m_customIccProfileCache;
+
+    mutable QReadWriteLock m_transformColorSpaceCacheLock;
+    mutable std::map<QByteArray, cmsHTRANSFORM> m_transformColorSpaceCache;
 };
 
 bool PDFLittleCMS::fillRGBBufferFromDeviceGray(const std::vector<float>& colors,
@@ -266,7 +274,7 @@ bool PDFLittleCMS::fillRGBBufferFromICC(const std::vector<float>& colors, Render
         inputColors = cmykColors.data();
     }
 
-    if ((colors.size()) % T_CHANNELS(format) == 0)
+    if (colors.size() % channels == 0)
     {
         const cmsUInt32Number pixels = static_cast<cmsUInt32Number>(colors.size()) / channels;
         cmsDoTransform(transform, inputColors, outputBuffer, pixels);
@@ -282,6 +290,63 @@ bool PDFLittleCMS::fillRGBBufferFromICC(const std::vector<float>& colors, Render
 
 bool PDFLittleCMS::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& params) const
 {
+    PDFCMS::ColorSpaceTransformParams transformedParams = params;
+    transformedParams.intent = getEffectiveRenderingIntent(transformedParams.intent);
+
+    cmsHTRANSFORM transform = getTransformBetweenColorSpaces(transformedParams);
+    if (!transform)
+    {
+        return false;
+    }
+
+    const cmsUInt32Number inputProfileFormat = cmsGetTransformInputFormat(transform);
+    const cmsUInt32Number inputChannels = T_CHANNELS(inputProfileFormat);
+    const cmsUInt32Number inputColorSpace = T_COLORSPACE(inputProfileFormat);
+    const bool isInputCMYK = inputColorSpace == PT_CMYK;
+    const float* inputColors = params.input.begin();
+    std::vector<float> cmykColors;
+
+    const cmsUInt32Number outputProfileFormat = cmsGetTransformOutputFormat(transform);
+    const cmsUInt32Number outputChannels = T_CHANNELS(outputProfileFormat);
+    const cmsUInt32Number outputColorSpace = T_COLORSPACE(outputProfileFormat);
+    const bool isOutputCMYK = outputColorSpace == PT_CMYK;
+
+    if (isInputCMYK)
+    {
+        cmykColors = std::vector<float>(params.input.cbegin(), params.input.cend());
+        for (size_t i = 0; i < cmykColors.size(); ++i)
+        {
+            cmykColors[i] = cmykColors[i] * 100.0;
+        }
+        inputColors = cmykColors.data();
+    }
+
+    const cmsUInt32Number inputPixelCount = static_cast<cmsUInt32Number>(params.input.size()) / inputChannels;
+    const cmsUInt32Number outputPixelCount = static_cast<cmsUInt32Number>(params.output.size()) / outputChannels;
+
+    if (params.input.size() % inputChannels == 0 &&
+        params.output.size() % outputChannels == 0 &&
+        inputPixelCount == outputPixelCount)
+    {
+        PDFColorBuffer outputBuffer = params.output;
+        cmsDoTransform(transform, inputColors, outputBuffer.begin(), inputPixelCount);
+
+        if (isOutputCMYK)
+        {
+            const PDFColorComponent colorQuotient = 1.0f / 100.0f;
+            for (PDFColorComponent& color : outputBuffer)
+            {
+                color *= colorQuotient;
+            }
+        }
+
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+
     return false;
 }
 
@@ -306,6 +371,15 @@ PDFLittleCMS::~PDFLittleCMS()
     }
 
     for (const auto& transformItem : m_customIccProfileCache)
+    {
+        cmsHTRANSFORM transform = transformItem.second;
+        if (transform)
+        {
+            cmsDeleteTransform(transform);
+        }
+    }
+
+    for (const auto& transformItem : m_transformColorSpaceCache)
     {
         cmsHTRANSFORM transform = transformItem.second;
         if (transform)
@@ -795,6 +869,126 @@ QColor PDFLittleCMS::getColorFromOutputColor(std::array<float, 3> color01)
     QColor color(QColor::Rgb);
     color.setRgbF(qBound(0.0f, color01[0], 1.0f), qBound(0.0f, color01[1], 1.0f), qBound(0.0f, color01[2], 1.0f));
     return color;
+}
+
+QByteArray PDFLittleCMS::getTransformColorSpaceKey(const PDFCMS::ColorSpaceTransformParams& params)
+{
+    QByteArray key;
+
+    QBuffer buffer(&key);
+    buffer.open(QBuffer::WriteOnly);
+
+    QDataStream stream(&buffer);
+    stream << params.sourceType;
+    stream << params.sourceIccId;
+    stream << params.targetType;
+    stream << params.targetIccId;
+    stream << params.intent;
+
+    buffer.close();
+
+    return key;
+}
+
+cmsHTRANSFORM PDFLittleCMS::getTransformBetweenColorSpaces(const PDFCMS::ColorSpaceTransformParams& params) const
+{
+    QByteArray key = getTransformColorSpaceKey(params);
+    QReadLocker lock(&m_transformColorSpaceCacheLock);
+    auto it = m_transformColorSpaceCache.find(key);
+    if (it == m_transformColorSpaceCache.cend())
+    {
+        lock.unlock();
+        QWriteLocker writeLock(&m_transformColorSpaceCacheLock);
+
+        // Now, we have locked cache for writing. We must find out,
+        // if some other thread doesn't created the transformation already.
+        it = m_transformColorSpaceCache.find(key);
+        if (it == m_transformColorSpaceCache.cend())
+        {
+            cmsHPROFILE inputProfile = cmsHPROFILE();
+            cmsHPROFILE outputProfile = cmsHPROFILE();
+            cmsHTRANSFORM transform = cmsHTRANSFORM();
+
+            switch (params.sourceType)
+            {
+                case ColorSpaceType::DeviceGray:
+                    inputProfile = m_profiles[Gray];
+                    break;
+
+                case ColorSpaceType::DeviceRGB:
+                    inputProfile = m_profiles[RGB];
+                    break;
+
+                case ColorSpaceType::DeviceCMYK:
+                    inputProfile = m_profiles[CMYK];
+                    break;
+
+                case ColorSpaceType::XYZ:
+                    inputProfile = m_profiles[XYZ];
+                    break;
+
+                case ColorSpaceType::ICC:
+                    inputProfile = cmsOpenProfileFromMem(params.sourceIccData.data(), params.sourceIccData.size());
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            switch (params.targetType)
+            {
+                case ColorSpaceType::DeviceGray:
+                    outputProfile = m_profiles[Gray];
+                    break;
+
+                case ColorSpaceType::DeviceRGB:
+                    outputProfile = m_profiles[RGB];
+                    break;
+
+                case ColorSpaceType::DeviceCMYK:
+                    outputProfile = m_profiles[CMYK];
+                    break;
+
+                case ColorSpaceType::XYZ:
+                    outputProfile = m_profiles[XYZ];
+                    break;
+
+                case ColorSpaceType::ICC:
+                    outputProfile = cmsOpenProfileFromMem(params.targetIccData.data(), params.targetIccData.size());
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            if (inputProfile && outputProfile)
+            {
+                transform = cmsCreateTransform(inputProfile, getProfileDataFormat(inputProfile), outputProfile, getProfileDataFormat(outputProfile), getLittleCMSRenderingIntent(params.intent), getTransformationFlags());
+            }
+
+            if (params.sourceType == ColorSpaceType::ICC)
+            {
+                cmsCloseProfile(inputProfile);
+            }
+
+            if (params.targetType == ColorSpaceType::ICC)
+            {
+                cmsCloseProfile(outputProfile);
+            }
+
+            it = m_transformColorSpaceCache.insert(std::make_pair(key, transform)).first;
+        }
+
+        return it->second;
+    }
+    else
+    {
+        return it->second;
+    }
+
+    return cmsHTRANSFORM();
 }
 
 QString getInfoFromProfile(cmsHPROFILE profile, cmsInfoType infoType)

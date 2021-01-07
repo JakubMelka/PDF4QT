@@ -220,9 +220,15 @@ public:
 
         QByteArray sourceIccData;
         QByteArray targetIccData;
+
+        PDFColorBuffer input;
+        PDFColorBuffer output;
+
+        RenderingIntent intent = RenderingIntent::Unknown;
     };
 
-    /// Transforms color between two color spaces.
+    /// Transforms color between two color spaces. Doesn't do soft-proofing,
+    /// it just transforms two float buffers from input color space to output color space.
     virtual bool transformColorSpace(const ColorSpaceTransformParams& params) const = 0;
 
     /// Get D50 white point for XYZ color space
