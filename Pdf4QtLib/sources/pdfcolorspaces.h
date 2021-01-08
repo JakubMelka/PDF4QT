@@ -196,6 +196,9 @@ public:
     template<typename... Components>
     explicit constexpr inline PDFColorComponentMatrix(Components... components) : m_values({ static_cast<PDFColorComponent>(components)... }) { }
 
+    bool operator==(const PDFColorComponentMatrix&) const = default;
+    bool operator!=(const PDFColorComponentMatrix&) const = default;
+
     std::array<PDFColorComponent, Rows> operator*(const std::array<PDFColorComponent, Cols>& color) const
     {
         std::array<PDFColorComponent, Rows> result = { };
@@ -273,6 +276,9 @@ public:
 
     /// Returns color space identification
     virtual ColorSpace getColorSpace() const = 0;
+
+    /// Returns true, if two color spaces are equal
+    virtual bool equals(const PDFAbstractColorSpace* other) const;
 
     /// Returns true, if this color space can be used for blending
     bool isBlendColorSpace() const;
@@ -532,7 +538,10 @@ class PDFXYZColorSpace : public PDFAbstractColorSpace
 public:
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
 
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
+
     const PDFColor3& getWhitePoint() const { return m_whitePoint; }
+    const PDFColor3& getCorrectionCoefficients() const;
 
 protected:
     explicit PDFXYZColorSpace(PDFColor3 whitePoint);
@@ -554,12 +563,13 @@ public:
     virtual ~PDFCalGrayColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::CalGray; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
     virtual void fillRGBBuffer(const std::vector<float>& colors,unsigned char* outputBuffer, RenderingIntent intent, const PDFCMS* cms, PDFRenderErrorReporter* reporter) const override;
 
     PDFColorComponent getGamma() const { return m_gamma; }
-    PDFColor3 getBlackPoint() const  { m_blackPoint; }
+    const PDFColor3& getBlackPoint() const  { return m_blackPoint; }
 
     /// Creates CalGray color space from provided values.
     /// \param document Document
@@ -578,6 +588,7 @@ public:
     virtual ~PDFCalRGBColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::CalRGB; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
     virtual void fillRGBBuffer(const std::vector<float>& colors,unsigned char* outputBuffer, RenderingIntent intent, const PDFCMS* cms, PDFRenderErrorReporter* reporter) const override;
@@ -604,6 +615,7 @@ public:
     virtual ~PDFLabColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::Lab; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
     virtual void fillRGBBuffer(const std::vector<float>& colors,unsigned char* outputBuffer, RenderingIntent intent, const PDFCMS* cms, PDFRenderErrorReporter* reporter) const override;
@@ -642,6 +654,7 @@ public:
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
     virtual void fillRGBBuffer(const std::vector<float>& colors, unsigned char* outputBuffer, RenderingIntent intent, const PDFCMS* cms, PDFRenderErrorReporter* reporter) const override;
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
 
     PDFObjectReference getMetadata() const { return m_metadata; }
 
@@ -660,6 +673,7 @@ public:
     const Ranges& getRange() const;
     const QByteArray& getIccProfileData() const;
     const QByteArray& getIccProfileDataChecksum() const;
+    const PDFAbstractColorSpace* getAlternateColorSpace() const;
 
 private:
     PDFColorSpacePointer m_alternateColorSpace;
@@ -676,6 +690,7 @@ public:
     virtual ~PDFIndexedColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::Indexed; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
@@ -700,6 +715,9 @@ public:
     PDFColorSpacePointer getBaseColorSpace() const;
     std::vector<PDFColorComponent> transformColorsToBaseColorSpace(const PDFColorBuffer buffer) const;
 
+    int getMaxValue() const;
+    const QByteArray& getColors() const;
+
 private:
     static constexpr const int MIN_VALUE = 0;
     static constexpr const int MAX_VALUE = 255;
@@ -716,6 +734,7 @@ public:
     virtual ~PDFSeparationColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::Separation; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
@@ -778,6 +797,7 @@ public:
     virtual ~PDFDeviceNColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::DeviceN; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
@@ -832,6 +852,7 @@ public:
     virtual ~PDFPatternColorSpace() override = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::Pattern; }
+    virtual bool equals(const PDFAbstractColorSpace* other) const override;
     virtual QColor getDefaultColor(const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
     virtual QColor getColor(const PDFColor& color, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool isRange01) const override;
     virtual size_t getColorComponentCount() const override;
