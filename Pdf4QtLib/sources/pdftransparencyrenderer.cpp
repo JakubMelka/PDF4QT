@@ -20,10 +20,53 @@
 namespace pdf
 {
 
-PDFTransparencyRenderer::PDFTransparencyRenderer()
+PDFFloatBitmap::PDFFloatBitmap() :
+    m_width(0),
+    m_height(0),
+    m_pixelSize(0)
 {
 
 }
 
+PDFFloatBitmap::PDFFloatBitmap(size_t width, size_t height, PDFPixelFormat format) :
+    m_format(format),
+    m_width(width),
+    m_height(height),
+    m_pixelSize(format.getChannelCount())
+{
+    Q_ASSERT(format.isValid());
+
+    m_data.resize(format.calculateBitmapDataLength(width, height), static_cast<PDFColorComponent>(0.0));
+}
+
+PDFColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y)
+{
+s
+}
+
+const PDFColorComponent* PDFFloatBitmap::begin() const
+{
+    return m_data.data();
+}
+
+const PDFColorComponent* PDFFloatBitmap::end() const
+{
+    return m_data.data() + m_data.size();
+}
+
+PDFColorComponent* PDFFloatBitmap::begin()
+{
+    return m_data.data();
+}
+
+PDFColorComponent* PDFFloatBitmap::end()
+{
+    return m_data.data() + m_data.size();
+}
+
+PDFTransparencyRenderer::PDFTransparencyRenderer()
+{
+
+}
 
 }   // namespace pdf
