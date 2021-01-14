@@ -607,6 +607,25 @@ protected:
     /// only for compatibility purposes. See chapter 14.2 in PDF 2.0 specification.
     ProcedureSets getProcedureSets() const { return m_procedureSets; }
 
+    /// Returns page
+    const PDFPage* getPage() const { return m_page; }
+
+    /// Returns document
+    const PDFDocument* getDocument() const { return m_document; }
+
+    /// Parses transparency group
+    PDFTransparencyGroup parseTransparencyGroup(const PDFObject& object);
+
+    class PDFTransparencyGroupGuard
+    {
+    public:
+        explicit PDFTransparencyGroupGuard(PDFPageContentProcessor* processor, PDFTransparencyGroup&& group);
+        ~PDFTransparencyGroupGuard();
+
+    private:
+        PDFPageContentProcessor* m_processor;
+    };
+
 private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
@@ -696,16 +715,6 @@ private:
         {
             m_processor->operatorRestoreGraphicState();
         }
-
-    private:
-        PDFPageContentProcessor* m_processor;
-    };
-
-    class PDFTransparencyGroupGuard
-    {
-    public:
-        explicit PDFTransparencyGroupGuard(PDFPageContentProcessor* processor, PDFTransparencyGroup&& group);
-        ~PDFTransparencyGroupGuard();
 
     private:
         PDFPageContentProcessor* m_processor;

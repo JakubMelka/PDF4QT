@@ -41,7 +41,6 @@ class PDFAbstractColorSpace;
 class PDFPatternColorSpace;
 class PDFRenderErrorReporter;
 
-using PDFColorComponent = float;
 using PDFColor = PDFFlatArray<PDFColorComponent, 4>;
 using PDFColorSpacePointer = QSharedPointer<PDFAbstractColorSpace>;
 using PDFColorBuffer = PDFBuffer<PDFColorComponent>;

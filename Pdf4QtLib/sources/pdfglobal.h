@@ -24,6 +24,7 @@
 
 #include <limits>
 #include <tuple>
+#include <array>
 
 #if defined(Pdf4QtLIB_LIBRARY)
 #  define Pdf4QtLIBSHARED_EXPORT Q_DECL_EXPORT
@@ -36,6 +37,10 @@ namespace pdf
 
 using PDFInteger = int64_t;
 using PDFReal = double;
+using PDFColorComponent = float;
+using PDFGray = PDFColorComponent;
+using PDFRGB = std::array<PDFColorComponent, 3>;
+using PDFCMYK = std::array<PDFColorComponent, 4>;
 
 // These constants define minimum/maximum integer and are defined in such a way,
 // that even 100 times bigger integers are representable.

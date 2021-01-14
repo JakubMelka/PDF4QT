@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfcolorspaces.h"
+#include "pdfpagecontentprocessor.h"
 
 namespace pdf
 {
@@ -36,7 +37,7 @@ class PDFPixelFormat
 public:
     inline explicit constexpr PDFPixelFormat() = default;
 
-    constexpr uint8_t INVALID_CHANNEL_INDEX = 0xFF;
+    constexpr static uint8_t INVALID_CHANNEL_INDEX = 0xFF;
 
     constexpr bool hasProcessColors() const { return m_processColors > 0; }
     constexpr bool hasSpotColors() const { return m_spotColors > 0; }
@@ -96,9 +97,9 @@ private:
 
     }
 
-    constexpr uint8_t FLAG_HAS_SHAPE_CHANNEL = 0x01;
-    constexpr uint8_t FLAG_HAS_OPACITY_CHANNEL = 0x02;
-    constexpr uint8_t FLAG_PROCESS_COLORS_SUBTRACTIVE = 0x04;
+    constexpr static uint8_t FLAG_HAS_SHAPE_CHANNEL = 0x01;
+    constexpr static uint8_t FLAG_HAS_OPACITY_CHANNEL = 0x02;
+    constexpr static uint8_t FLAG_PROCESS_COLORS_SUBTRACTIVE = 0x04;
 
     uint8_t m_processColors = 0;
     uint8_t m_spotColors = 0;
@@ -113,7 +114,7 @@ public:
     explicit PDFFloatBitmap();
     explicit PDFFloatBitmap(size_t width, size_t height, PDFPixelFormat format);
 
-    /// Returns buffer with pixel
+    /// Returns buffer with pixel channels
     PDFColorBuffer getPixel(size_t x, size_t y);
 
     const PDFColorComponent* begin() const;
@@ -135,10 +136,62 @@ private:
     std::vector<PDFColorComponent> m_data;
 };
 
-class PDFTransparencyRenderer
+/// Renders PDF pages with transparency, using 32-bit floating point precision.
+/// Both device color space and blending color space can be defined. It implements
+/// page blending space and device blending space. So, painted graphics is being
+/// blended to the page blending space, and then converted to the device blending
+/// space.
+class PDFTransparencyRenderer : public PDFPageContentProcessor
 {
+private:
+    using BaseClass = PDFPageContentProcessor;
+
 public:
-    PDFTransparencyRenderer();
+    PDFTransparencyRenderer(const PDFPage* page,
+                            const PDFDocument* document,
+                            const PDFFontCache* fontCache,
+                            const PDFCMS* cms,
+                            const PDFOptionalContentActivity* optionalContentActivity,
+                            QMatrix pagePointToDevicePointMatrix);
+
+    void setDeviceColorSpace(PDFColorSpacePointer colorSpace);
+
+    /// Starts painting on the device. This function must be called before page
+    /// content stream is being processed (and must be called exactly once).
+    void beginPaint();
+
+    /// Finishes painting on the device. This function must be called after page
+    /// content stream is processed and all result graphics is being drawn. Page
+    /// transparency group collapses nad contents are draw onto device transparency
+    /// group.
+    const PDFFloatBitmap& endPaint();
+
+    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
+    virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
+    virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
+    virtual void performSaveGraphicState(ProcessOrder order) override;
+    virtual void performRestoreGraphicState(ProcessOrder order) override;
+    virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
+    virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
+
+private:
+
+    struct PDFTransparencyGroupPainterData
+    {
+        PDFTransparencyGroup group;
+        bool alphaIsShape = false;
+        PDFReal alphaStroke = 1.0;
+        PDFReal alphaFill = 1.0;
+        BlendMode blendMode = BlendMode::Normal;
+        BlackPointCompensationMode blackPointCompensationMode = BlackPointCompensationMode::Default;
+        RenderingIntent RenderingIntent = RenderingIntent::RelativeColorimetric;
+    };
+
+    PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
+    PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
+    std::unique_ptr<PDFTransparencyGroupGuard> m_pageTransparencyGroupGuard;
+    std::vector<PDFTransparencyGroupPainterData> m_transparencyGroupDataStack;
+    bool m_active;
 };
 
 }   // namespace pdf

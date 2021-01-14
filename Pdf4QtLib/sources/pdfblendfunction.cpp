@@ -17,6 +17,8 @@
 
 #include "pdfblendfunction.h"
 
+#include <algorithm>
+
 namespace pdf
 {
 
@@ -195,6 +197,229 @@ std::vector<BlendMode> PDFBlendModeInfo::getBlendModes()
         BlendMode::Color,
         BlendMode::Luminosity
     };
+}
+
+PDFColorComponent PDFBlendFunction::blend(BlendMode mode, PDFColorComponent Cb, PDFColorComponent Cs)
+{
+    switch (mode)
+    {
+        case BlendMode::Normal:
+        case BlendMode::Compatible:
+            return Cs;
+
+        case BlendMode::Multiply:
+            return Cb * Cs;
+
+        case BlendMode::Screen:
+            return Cb + Cs - Cb * Cs;
+
+        case BlendMode::Overlay:
+            return blend(BlendMode::HardLight, Cs, Cb);
+
+        case BlendMode::Darken:
+            return qMin(Cb, Cs);
+
+        case BlendMode::Lighten:
+            return qMax(Cb, Cs);
+
+        case BlendMode::ColorDodge:
+        {
+            if (qFuzzyIsNull(Cb))
+            {
+                return 0.0f;
+            }
+
+            const PDFColorComponent CsInverted = 1.0f - Cs;
+            if (Cb >= CsInverted)
+            {
+                return 1.0f;
+            }
+
+            return Cb / CsInverted;
+        }
+
+        case BlendMode::ColorBurn:
+        {
+            const PDFColorComponent CbInverted = 1.0f - Cb;
+            if (qFuzzyIsNull(CbInverted))
+            {
+                return 1.0f;
+            }
+
+            if (CbInverted >= Cs)
+            {
+                return 0.0f;
+            }
+
+            return 1.0f - CbInverted / Cs;
+        }
+
+        case BlendMode::HardLight:
+        {
+            if (Cs <= 0.5f)
+            {
+                return blend(BlendMode::Multiply, Cb, 2.0f * Cs);
+            }
+            else
+            {
+                return blend(BlendMode::Screen, Cb, 2.0f * Cs - 1.0f);
+            }
+        }
+
+        case BlendMode::SoftLight:
+        {
+            if (Cs <= 0.5f)
+            {
+                return Cb - (1.0f - 2.0f * Cs) * Cb * (1.0f - Cb);
+            }
+            else
+            {
+                PDFColorComponent D = 0.0f;
+                if (Cb <= 0.25)
+                {
+                    D = ((16.0f * Cb - 12.0f) * Cb + 4.0f) * Cb;
+                }
+                else
+                {
+                    D = std::sqrt(Cb);
+                }
+                return Cb + (2.0f * Cs - 1.0f) * (D - Cb);
+            }
+        }
+
+        case BlendMode::Difference:
+            return qAbs(Cb - Cs);
+
+        case BlendMode::Exclusion:
+            return Cb + Cs - 2.0f * Cb * Cs;
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    return Cs;
+}
+
+PDFRGB PDFBlendFunction::blend_Hue(PDFRGB Cb, PDFRGB Cs)
+{
+    return nonseparable_SetLum(nonseparable_SetSat(Cs, nonseparable_Sat(Cb)), nonseparable_Lum(Cb));
+}
+
+PDFRGB PDFBlendFunction::blend_Saturation(PDFRGB Cb, PDFRGB Cs)
+{
+    return nonseparable_SetLum(nonseparable_SetSat(Cb, nonseparable_Sat(Cs)), nonseparable_Lum(Cb));
+}
+
+PDFRGB PDFBlendFunction::blend_Color(PDFRGB Cb, PDFRGB Cs)
+{
+    return nonseparable_SetLum(Cs, nonseparable_Lum(Cb));
+}
+
+PDFRGB PDFBlendFunction::blend_Luminosity(PDFRGB Cb, PDFRGB Cs)
+{
+    return nonseparable_SetLum(Cb, nonseparable_Lum(Cs));
+}
+
+PDFRGB PDFBlendFunction::nonseparable_gray2rgb(PDFGray gray)
+{
+    return PDFRGB{ gray, gray, gray };
+}
+
+PDFGray PDFBlendFunction::nonseparable_rgb2gray(PDFRGB rgb)
+{
+    // Just convert to luminosity
+    return nonseparable_Lum(rgb);
+}
+
+PDFRGB PDFBlendFunction::nonseparable_cmyk2rgb(PDFCMYK cmyk)
+{
+    return PDFRGB{ 1.0f - cmyk[0], 1.0f - cmyk[1], 1.0f - cmyk[2] };
+}
+
+PDFCMYK PDFBlendFunction::nonseparable_rgb2cmyk(PDFRGB rgb, PDFColorComponent K)
+{
+    return PDFCMYK{ 1.0f - rgb[0], 1.0f - rgb[1], 1.0f - rgb[2], K };
+}
+
+PDFColorComponent PDFBlendFunction::nonseparable_Lum(PDFRGB rgb)
+{
+    return 0.30 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2];
+}
+
+PDFColorComponent PDFBlendFunction::nonseparable_Sat(PDFRGB rgb)
+{
+    const PDFColorComponent min = *std::min_element(rgb.cbegin(), rgb.cend());
+    const PDFColorComponent max = *std::max_element(rgb.cbegin(), rgb.cend());
+    return max - min;
+}
+
+PDFRGB PDFBlendFunction::nonseparable_SetLum(PDFRGB C, PDFColorComponent l)
+{
+    const PDFColorComponent d = l - nonseparable_Lum(C);
+    PDFRGB result = C;
+    result[0] += d;
+    result[1] += d;
+    result[2] += d;
+    return nonseparable_ClipColor(result);
+}
+
+PDFRGB PDFBlendFunction::nonseparable_SetSat(PDFRGB C, PDFColorComponent s)
+{
+    auto it_min = std::min_element(C.begin(), C.end());
+    auto it_max = std::max_element(C.begin(), C.end());
+    auto it_mid = C.end();
+    for (auto it = C.begin(); it != C.end(); ++it)
+    {
+        if (it != it_min && it != it_max)
+        {
+            it_mid = it;
+            break;
+        }
+    }
+    Q_ASSERT(it_mid != C.end());
+
+    PDFRGB result = C;
+    if (*it_max > *it_min)
+    {
+        *it_mid = (*it_mid - *it_min) * s / (*it_max - *it_min);
+        *it_max = s;
+        result = C;
+    }
+    else
+    {
+        std::fill(result.begin(), result.end(), 0.0f);
+    }
+
+    return result;
+}
+
+PDFRGB PDFBlendFunction::nonseparable_ClipColor(PDFRGB C)
+{
+    PDFRGB result = C;
+    const PDFColorComponent l = nonseparable_Lum(C);
+    const PDFColorComponent n = *std::min_element(C.cbegin(), C.cend());
+    const PDFColorComponent x = *std::max_element(C.cbegin(), C.cend());
+
+    if (n < 0.0f)
+    {
+        const PDFColorComponent factor = 1.0f / (l - n);
+        result[0] = l + (result[0] - l) * l * factor;
+        result[1] = l + (result[1] - l) * l * factor;
+        result[2] = l + (result[2] - l) * l * factor;
+    }
+
+    if (x > 1.0f)
+    {
+        const PDFColorComponent factor = 1.0f / (x - l);
+        result[0] = l + (result[0] - l) * (1.0f - l) * factor;
+        result[1] = l + (result[1] - l) * (1.0f - l) * factor;
+        result[2] = l + (result[2] - l) * (1.0f - l) * factor;
+    }
+
+    return result;
 }
 
 }   // namespace pdf

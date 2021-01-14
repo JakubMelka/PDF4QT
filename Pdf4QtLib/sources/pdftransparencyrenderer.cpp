@@ -16,6 +16,7 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdftransparencyrenderer.h"
+#include "pdfdocument.h"
 
 namespace pdf
 {
@@ -41,7 +42,8 @@ PDFFloatBitmap::PDFFloatBitmap(size_t width, size_t height, PDFPixelFormat forma
 
 PDFColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y)
 {
-s
+    const size_t index = getPixelIndex(x, y);
+    return PDFColorBuffer(m_data.data() + index, m_pixelSize);
 }
 
 const PDFColorComponent* PDFFloatBitmap::begin() const
@@ -64,9 +66,78 @@ PDFColorComponent* PDFFloatBitmap::end()
     return m_data.data() + m_data.size();
 }
 
-PDFTransparencyRenderer::PDFTransparencyRenderer()
+size_t PDFFloatBitmap::getPixelIndex(size_t x, size_t y) const
+{
+    return (y * m_width + x) * m_pixelSize;
+}
+
+PDFTransparencyRenderer::PDFTransparencyRenderer(const PDFPage* page,
+                                                 const PDFDocument* document,
+                                                 const PDFFontCache* fontCache,
+                                                 const PDFCMS* cms,
+                                                 const PDFOptionalContentActivity* optionalContentActivity,
+                                                 QMatrix pagePointToDevicePointMatrix) :
+    BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, PDFMeshQualitySettings()),
+    m_active(false)
 {
 
+}
+
+void PDFTransparencyRenderer::setDeviceColorSpace(PDFColorSpacePointer colorSpace)
+{
+    if (!colorSpace || colorSpace->isBlendColorSpace())
+    {
+        // Set device color space only, when it is a blend color space
+        m_deviceColorSpace = colorSpace;
+    }
+}
+
+void PDFTransparencyRenderer::beginPaint()
+{
+    Q_ASSERT(!m_active);
+    m_active = true;
+
+    // Create page transparency group
+    PDFObject pageTransparencyGroupObject = getPage()->getTransparencyGroup(&getDocument()->getStorage());
+    PDFTransparencyGroup transparencyGroup = parseTransparencyGroup(pageTransparencyGroupObject);
+    transparencyGroup.isolated = true;
+
+    m_pageTransparencyGroupGuard.reset(new PDFTransparencyGroupGuard(this, qMove(transparencyGroup)));
+}
+
+const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
+{
+    Q_ASSERT(m_active);
+    m_pageTransparencyGroupGuard.reset();
+    m_active = false;
+}
+
+void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
+{
+}
+
+void PDFTransparencyRenderer::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
+{
+}
+
+void PDFTransparencyRenderer::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
+{
+}
+
+void PDFTransparencyRenderer::performSaveGraphicState(ProcessOrder order)
+{
+}
+
+void PDFTransparencyRenderer::performRestoreGraphicState(ProcessOrder order)
+{
+}
+
+void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
+}
+
+void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
 }
 
 }   // namespace pdf

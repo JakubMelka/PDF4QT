@@ -455,6 +455,32 @@ bool PDFPageContentProcessor::isContentSuppressed() const
     return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
 }
 
+PDFPageContentProcessor::PDFTransparencyGroup PDFPageContentProcessor::parseTransparencyGroup(const PDFObject& object)
+{
+    PDFTransparencyGroup group;
+
+    if (const PDFDictionary* transparencyDictionary = m_document->getDictionaryFromObject(object))
+    {
+        const PDFObject& colorSpaceObject = m_document->getObject(transparencyDictionary->get("CS"));
+        if (!colorSpaceObject.isNull())
+        {
+            group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+
+            if (group.colorSpacePointer && !group.colorSpacePointer->isBlendColorSpace())
+            {
+                reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transparency group blending color space is invalid."));
+                group.colorSpacePointer = nullptr;
+            }
+        }
+
+        PDFDocumentDataLoaderDecorator loader(m_document);
+        group.isolated = loader.readBooleanFromDictionary(transparencyDictionary, "I", false);
+        group.knockout = loader.readBooleanFromDictionary(transparencyDictionary, "K", false);
+    }
+
+    return group;
+}
+
 void PDFPageContentProcessor::processContent(const QByteArray& content)
 {
     PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());

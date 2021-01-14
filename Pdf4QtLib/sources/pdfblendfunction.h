@@ -88,6 +88,50 @@ public:
     static std::vector<BlendMode> getBlendModes();
 };
 
+/// Class grouping together blend functions. Can also blend non-separable blend modes,
+/// such as Color, Hue, Saturation and Luminosity, according 11.3.5.3 of PDF 2.0 specification.
+class PDFBlendFunction
+{
+public:
+    PDFBlendFunction() = delete;
+
+    /// Blend function used to blend separable blend modes
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFColorComponent blend(BlendMode mode, PDFColorComponent Cb, PDFColorComponent Cs);
+
+    /// Blend non-separable hue function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFRGB blend_Hue(PDFRGB Cb, PDFRGB Cs);
+
+    /// Blend non-separable saturation function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFRGB blend_Saturation(PDFRGB Cb, PDFRGB Cs);
+
+    /// Blend non-separable color function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFRGB blend_Color(PDFRGB Cb, PDFRGB Cs);
+
+    /// Blend non-separable luminosity function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFRGB blend_Luminosity(PDFRGB Cb, PDFRGB Cs);
+
+private:
+    static PDFRGB nonseparable_gray2rgb(PDFGray gray);
+    static PDFGray nonseparable_rgb2gray(PDFRGB rgb);
+    static PDFRGB nonseparable_cmyk2rgb(PDFCMYK cmyk);
+    static PDFCMYK nonseparable_rgb2cmyk(PDFRGB rgb, PDFColorComponent K);
+    static PDFColorComponent nonseparable_Lum(PDFRGB rgb);
+    static PDFColorComponent nonseparable_Sat(PDFRGB rgb);
+    static PDFRGB nonseparable_SetLum(PDFRGB C, PDFColorComponent l);
+    static PDFRGB nonseparable_SetSat(PDFRGB C, PDFColorComponent s);
+    static PDFRGB nonseparable_ClipColor(PDFRGB C);
+};
+
 }   // namespace pdf
 
 #endif // PDFBLENDFUNCTION_H
