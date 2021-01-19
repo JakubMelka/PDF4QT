@@ -323,9 +323,49 @@ PDFRGB PDFBlendFunction::blend_Luminosity(PDFRGB Cb, PDFRGB Cs)
     return nonseparable_SetLum(Cb, nonseparable_Lum(Cs));
 }
 
+PDFGray PDFBlendFunction::blend_Hue(PDFGray Cb, PDFGray Cs)
+{
+    return nonseparable_rgb2gray(blend_Hue(nonseparable_gray2rgb(Cb), nonseparable_gray2rgb(Cs)));
+}
+
+PDFGray PDFBlendFunction::blend_Saturation(PDFGray Cb, PDFGray Cs)
+{
+    return nonseparable_rgb2gray(blend_Saturation(nonseparable_gray2rgb(Cb), nonseparable_gray2rgb(Cs)));
+}
+
+PDFGray PDFBlendFunction::blend_Color(PDFGray Cb, PDFGray Cs)
+{
+    return nonseparable_rgb2gray(blend_Color(nonseparable_gray2rgb(Cb), nonseparable_gray2rgb(Cs)));
+}
+
+PDFGray PDFBlendFunction::blend_Luminosity(PDFGray Cb, PDFGray Cs)
+{
+    return nonseparable_rgb2gray(blend_Luminosity(nonseparable_gray2rgb(Cb), nonseparable_gray2rgb(Cs)));
+}
+
+PDFCMYK PDFBlendFunction::blend_Hue(PDFCMYK Cb, PDFCMYK Cs)
+{
+    return nonseparable_rgb2cmyk(blend_Hue(nonseparable_cmyk2rgb(Cb), nonseparable_cmyk2rgb(Cs)), Cb[3]);
+}
+
+PDFCMYK PDFBlendFunction::blend_Saturation(PDFCMYK Cb, PDFCMYK Cs)
+{
+    return nonseparable_rgb2cmyk(blend_Saturation(nonseparable_cmyk2rgb(Cb), nonseparable_cmyk2rgb(Cs)), Cb[3]);
+}
+
+PDFCMYK PDFBlendFunction::blend_Color(PDFCMYK Cb, PDFCMYK Cs)
+{
+    return nonseparable_rgb2cmyk(blend_Color(nonseparable_cmyk2rgb(Cb), nonseparable_cmyk2rgb(Cs)), Cb[3]);
+}
+
+PDFCMYK PDFBlendFunction::blend_Luminosity(PDFCMYK Cb, PDFCMYK Cs)
+{
+    return nonseparable_rgb2cmyk(blend_Luminosity(nonseparable_cmyk2rgb(Cb), nonseparable_cmyk2rgb(Cs)), Cs[3]);
+}
+
 PDFRGB PDFBlendFunction::nonseparable_gray2rgb(PDFGray gray)
 {
-    return PDFRGB{ gray, gray, gray };
+    return nonseparable_SetLum(PDFRGB{ 0.0f, 0.0f, 0.0f }, gray);
 }
 
 PDFGray PDFBlendFunction::nonseparable_rgb2gray(PDFRGB rgb)

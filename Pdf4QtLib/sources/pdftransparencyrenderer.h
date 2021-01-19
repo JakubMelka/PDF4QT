@@ -69,7 +69,19 @@ public:
 
     inline void setProcessColors(const uint8_t& processColors) { m_processColors = processColors; }
     inline void setSpotColors(const uint8_t& spotColors) { m_spotColors = spotColors; }
+    inline void setProcessColorsSubtractive(bool subtractive)
+    {
+        if (subtractive)
+        {
+            m_flags |= FLAG_PROCESS_COLORS_SUBTRACTIVE;
+        }
+        else
+        {
+            m_flags &= ~FLAG_PROCESS_COLORS_SUBTRACTIVE;
+        }
+    }
 
+    static constexpr PDFPixelFormat createOpacityMask() { return PDFPixelFormat(0, 0, FLAG_HAS_OPACITY_CHANNEL); }
     static constexpr PDFPixelFormat createFormatDefaultGray(uint8_t spotColors) { return createFormat(1, spotColors, true, false); }
     static constexpr PDFPixelFormat createFormatDefaultRGB(uint8_t spotColors) { return createFormat(3, spotColors, true, false); }
     static constexpr PDFPixelFormat createFormatDefaultCMYK(uint8_t spotColors) { return createFormat(4, spotColors, true, true); }
@@ -117,23 +129,67 @@ public:
     /// Returns buffer with pixel channels
     PDFColorBuffer getPixel(size_t x, size_t y);
 
+    /// Returns buffer with all pixels
+    PDFColorBuffer getPixels();
+
     const PDFColorComponent* begin() const;
     const PDFColorComponent* end() const;
 
     PDFColorComponent* begin();
     PDFColorComponent* end();
 
+    size_t getWidth() const { return m_width; }
+    size_t getHeight() const { return m_height; }
+    size_t getPixelSize() const { return m_pixelSize; }
+    PDFPixelFormat getPixelFormat() const { return m_format; }
+
+    /// Fills both shape and opacity channel with zero value.
+    /// If bitmap doesn't have shape/opacity channel, nothing happens.
+    void makeTransparent();
+
+    /// Fills both shape and opacity channel with 1.0 value.
+    /// If bitmap doesn't have shape/opacity channel, nothing happens.
+    void makeOpaque();
+
     /// Returns index where given pixel starts in the data block
     /// \param x Horizontal coordinate of the pixel
     /// \param y Vertical coordinate of the pixel
     size_t getPixelIndex(size_t x, size_t y) const;
 
+    /// Extract process colors into another bitmap
+    PDFFloatBitmap extractProcessColors();
+
 private:
+    void fillChannel(size_t channel, PDFColorComponent value);
+
     PDFPixelFormat m_format;
     std::size_t m_width;
     std::size_t m_height;
     std::size_t m_pixelSize;
     std::vector<PDFColorComponent> m_data;
+};
+
+/// Float bitmap with color space
+class PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
+{
+public:
+    explicit PDFFloatBitmapWithColorSpace();
+    explicit PDFFloatBitmapWithColorSpace(size_t width, size_t height, PDFPixelFormat format);
+    explicit PDFFloatBitmapWithColorSpace(size_t width, size_t height, PDFPixelFormat format, PDFColorSpacePointer blendColorSpace);
+
+    PDFColorSpacePointer getColorSpace() const;
+    void setColorSpace(const PDFColorSpacePointer& colorSpace);
+
+    /// Converts bitmap to target color space
+    /// \param cms Color management system
+    /// \param targetColorSpace Target color space
+    void convertToColorSpace(const PDFCMS* cms,
+                             RenderingIntent intent,
+                             const PDFColorSpacePointer& targetColorSpace,
+                             PDFRenderErrorReporter* reporter);
+
+private:
+    PDFColorSpacePointer m_colorSpace;
 };
 
 /// Renders PDF pages with transparency, using 32-bit floating point precision.
@@ -184,8 +240,20 @@ private:
         PDFReal alphaFill = 1.0;
         BlendMode blendMode = BlendMode::Normal;
         BlackPointCompensationMode blackPointCompensationMode = BlackPointCompensationMode::Default;
-        RenderingIntent RenderingIntent = RenderingIntent::RelativeColorimetric;
+        RenderingIntent renderingIntent = RenderingIntent::RelativeColorimetric;
+        PDFFloatBitmapWithColorSpace initialBackdrop;   ///< Initial backdrop
+        PDFFloatBitmapWithColorSpace immediateBackdrop; ///< Immediate backdrop
+        PDFFloatBitmap softMask; ///< Soft mask for this group
+        PDFColorSpacePointer blendColorSpace;
     };
+
+    PDFFloatBitmapWithColorSpace* getInitialBackdrop();
+    PDFFloatBitmapWithColorSpace* getImmediateBackdrop();
+    PDFFloatBitmapWithColorSpace* getBackdrop();
+    const PDFColorSpacePointer& getBlendColorSpace() const;
+
+    bool isTransparencyGroupIsolated() const;
+    bool isTransparencyGroupKnockout() const;
 
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)

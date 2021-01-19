@@ -120,6 +120,49 @@ public:
     /// \param Cs Source color
     static PDFRGB blend_Luminosity(PDFRGB Cb, PDFRGB Cs);
 
+    /// Blend non-separable hue function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFGray blend_Hue(PDFGray Cb, PDFGray Cs);
+
+    /// Blend non-separable saturation function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFGray blend_Saturation(PDFGray Cb, PDFGray Cs);
+
+    /// Blend non-separable color function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFGray blend_Color(PDFGray Cb, PDFGray Cs);
+
+    /// Blend non-separable luminosity function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFGray blend_Luminosity(PDFGray Cb, PDFGray Cs);
+
+    /// Blend non-separable hue function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFCMYK blend_Hue(PDFCMYK Cb, PDFCMYK Cs);
+
+    /// Blend non-separable saturation function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFCMYK blend_Saturation(PDFCMYK Cb, PDFCMYK Cs);
+
+    /// Blend non-separable color function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFCMYK blend_Color(PDFCMYK Cb, PDFCMYK Cs);
+
+    /// Blend non-separable luminosity function
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFCMYK blend_Luminosity(PDFCMYK Cb, PDFCMYK Cs);
+
+    /// Union function
+    static constexpr PDFColorComponent blend_Union(PDFColorComponent b, PDFColorComponent s) { return b + s - b * s; }
+
 private:
     static PDFRGB nonseparable_gray2rgb(PDFGray gray);
     static PDFGray nonseparable_rgb2gray(PDFRGB rgb);

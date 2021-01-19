@@ -613,6 +613,9 @@ protected:
     /// Returns document
     const PDFDocument* getDocument() const { return m_document; }
 
+    /// Returns color management system
+    const PDFCMS* getCMS() const { return m_CMS; }
+
     /// Parses transparency group
     PDFTransparencyGroup parseTransparencyGroup(const PDFObject& object);
 
