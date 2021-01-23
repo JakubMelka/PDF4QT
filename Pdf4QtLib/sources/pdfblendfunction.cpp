@@ -80,6 +80,52 @@ bool PDFBlendModeInfo::isSupportedByQt(BlendMode mode)
     }
 }
 
+bool PDFBlendModeInfo::isSeparable(BlendMode mode)
+{
+    switch (mode)
+    {
+       case BlendMode::Normal:
+       case BlendMode::Multiply:
+       case BlendMode::Screen:
+       case BlendMode::Overlay:
+       case BlendMode::Darken:
+       case BlendMode::Lighten:
+       case BlendMode::ColorDodge:
+       case BlendMode::ColorBurn:
+       case BlendMode::HardLight:
+       case BlendMode::SoftLight:
+       case BlendMode::Difference:
+       case BlendMode::Exclusion:
+       case BlendMode::Compatible:
+            return true;
+
+       case BlendMode::Hue:
+       case BlendMode::Saturation:
+       case BlendMode::Color:
+       case BlendMode::Luminosity:
+            return false;
+
+        default:
+            Q_ASSERT(false);
+            return false;
+    }
+}
+
+bool PDFBlendModeInfo::isWhitePreserving(BlendMode mode)
+{
+    if (!isSeparable(mode))
+    {
+        return false;
+    }
+
+    if (mode == BlendMode::Difference || mode == BlendMode::Exclusion)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 QPainter::CompositionMode PDFBlendModeInfo::getCompositionModeFromBlendMode(BlendMode mode)
 {
     switch (mode)
@@ -361,6 +407,78 @@ PDFCMYK PDFBlendFunction::blend_Color(PDFCMYK Cb, PDFCMYK Cs)
 PDFCMYK PDFBlendFunction::blend_Luminosity(PDFCMYK Cb, PDFCMYK Cs)
 {
     return nonseparable_rgb2cmyk(blend_Luminosity(nonseparable_cmyk2rgb(Cb), nonseparable_cmyk2rgb(Cs)), Cs[3]);
+}
+
+PDFGray PDFBlendFunction::blend_Nonseparable(BlendMode mode, PDFGray Cb, PDFGray Cs)
+{
+    switch (mode)
+    {
+        case BlendMode::Hue:
+            return blend_Hue(Cb, Cs);
+
+        case BlendMode::Saturation:
+            return blend_Saturation(Cb, Cs);
+
+        case BlendMode::Color:
+            return blend_Color(Cb, Cs);
+
+        case BlendMode::Luminosity:
+            return blend_Luminosity(Cb, Cs);
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return Cs;
+}
+
+PDFRGB PDFBlendFunction::blend_Nonseparable(BlendMode mode, PDFRGB Cb, PDFRGB Cs)
+{
+    switch (mode)
+    {
+        case BlendMode::Hue:
+            return blend_Hue(Cb, Cs);
+
+        case BlendMode::Saturation:
+            return blend_Saturation(Cb, Cs);
+
+        case BlendMode::Color:
+            return blend_Color(Cb, Cs);
+
+        case BlendMode::Luminosity:
+            return blend_Luminosity(Cb, Cs);
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return Cs;
+}
+
+PDFCMYK PDFBlendFunction::blend_Nonseparable(BlendMode mode, PDFCMYK Cb, PDFCMYK Cs)
+{
+    switch (mode)
+    {
+        case BlendMode::Hue:
+            return blend_Hue(Cb, Cs);
+
+        case BlendMode::Saturation:
+            return blend_Saturation(Cb, Cs);
+
+        case BlendMode::Color:
+            return blend_Color(Cb, Cs);
+
+        case BlendMode::Luminosity:
+            return blend_Luminosity(Cb, Cs);
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return Cs;
 }
 
 PDFRGB PDFBlendFunction::nonseparable_gray2rgb(PDFGray gray)

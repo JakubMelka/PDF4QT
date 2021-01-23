@@ -1138,6 +1138,7 @@ bool PDFCMSGeneric::fillRGBBufferFromICC(const std::vector<float>& colors, Rende
 
 bool PDFCMSGeneric::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& params) const
 {
+    Q_UNUSED(params);
     return false;
 }
 

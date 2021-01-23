@@ -69,6 +69,12 @@ public:
     /// \param mode Blend mode
     static bool isSupportedByQt(BlendMode mode);
 
+    /// Returns true, if blend mode is separable
+    static bool isSeparable(BlendMode mode);
+
+    /// Returns true, if blend mode is white-preserving (i.e. B(1.0, 1.0) == 1.0)
+    static bool isWhitePreserving(BlendMode mode);
+
     /// Returns composition mode for Qt drawing subsystem from blend mode defined
     /// in PDF standard. If blend mode is not supported by Qt drawing subsystem, then default
     /// composition mode is returned.
@@ -159,6 +165,27 @@ public:
     /// \param Cb Backdrop color
     /// \param Cs Source color
     static PDFCMYK blend_Luminosity(PDFCMYK Cb, PDFCMYK Cs);
+
+    /// Blend non-separabe. It is incorrect to call this function
+    /// with blend mode, which is separable.
+    /// \param mode Non-separable blend mode
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFGray blend_Nonseparable(BlendMode mode, PDFGray Cb, PDFGray Cs);
+
+    /// Blend non-separabe. It is incorrect to call this function
+    /// with blend mode, which is separable.
+    /// \param mode Non-separable blend mode
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFRGB blend_Nonseparable(BlendMode mode, PDFRGB Cb, PDFRGB Cs);
+
+    /// Blend non-separabe. It is incorrect to call this function
+    /// with blend mode, which is separable.
+    /// \param mode Non-separable blend mode
+    /// \param Cb Backdrop color
+    /// \param Cs Source color
+    static PDFCMYK blend_Nonseparable(BlendMode mode, PDFCMYK Cb, PDFCMYK Cs);
 
     /// Union function
     static constexpr PDFColorComponent blend_Union(PDFColorComponent b, PDFColorComponent s) { return b + s - b * s; }

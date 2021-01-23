@@ -123,6 +123,219 @@ PDFFloatBitmap PDFFloatBitmap::extractProcessColors()
     return result;
 }
 
+void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
+                           PDFFloatBitmap& target,
+                           const PDFFloatBitmap& backdrop,
+                           const PDFFloatBitmap& initialBackdrop,
+                           PDFFloatBitmap& softMask,
+                           bool alphaIsShape,
+                           PDFColorComponent constantAlpha,
+                           BlendMode mode)
+{
+    Q_ASSERT(source.getWidth() == target.getWidth());
+    Q_ASSERT(source.getHeight() == target.getHeight());
+    Q_ASSERT(source.getPixelFormat() == target.getPixelFormat());
+    Q_ASSERT(source.getWidth() == softMask.getWidth());
+    Q_ASSERT(source.getHeight() == softMask.getHeight());
+    Q_ASSERT(softMask.getPixelFormat() == PDFPixelFormat::createOpacityMask());
+
+    const size_t width = source.getWidth();
+    const size_t height = source.getHeight();
+    const PDFPixelFormat pixelFormat = source.getPixelFormat();
+    const uint8_t shapeChannel = pixelFormat.getShapeChannelIndex();
+    const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
+    const uint8_t colorChannelStart = pixelFormat.getColorChannelIndexStart();
+    const uint8_t colorChannelEnd = pixelFormat.getColorChannelIndexEnd();
+    std::vector<PDFColorComponent> B_i(source.getPixelSize(), 0.0f);
+
+    for (size_t x = 0; x < width; ++x)
+    {
+        for (size_t y = 0; y < height; ++y)
+        {
+            PDFColorBuffer sourceColor = source.getPixel(x, y);
+            PDFColorBuffer targetColor = target.getPixel(x, y);
+            PDFColorBuffer backdropColor = backdrop.getPixel(x, y);
+            PDFColorBuffer initialBackdropColor = initialBackdrop.getPixel(x, y);
+            PDFColorBuffer alphaColorBuffer = softMask.getPixel(x, y);
+
+            const PDFColorComponent softMaskValue = alphaColorBuffer[0];
+            const PDFColorComponent f_j_i = sourceColor[shapeChannel];
+            const PDFColorComponent f_m_i = alphaIsShape ? softMaskValue : 1.0f;
+            const PDFColorComponent f_k_i = alphaIsShape ? constantAlpha : 1.0f;
+            const PDFColorComponent q_m_i = !alphaIsShape ? softMaskValue : 1.0f;
+            const PDFColorComponent q_k_i = !alphaIsShape ? constantAlpha : 1.0f;
+            const PDFColorComponent f_s_i = f_j_i * f_m_i * f_k_i;
+            const PDFColorComponent alpha_j_i = sourceColor[opacityChannel];
+            const PDFColorComponent alpha_s_i = alpha_j_i * (f_m_i * q_m_i) * (f_k_i * q_k_i);
+            const PDFColorComponent alpha_g_b = backdropColor[opacityChannel];
+
+            const PDFColorComponent alpha_0 = initialBackdropColor[opacityChannel];
+            const PDFColorComponent f_g_i_1 = targetColor[shapeChannel];
+            const PDFColorComponent alpha_g_i_1 = targetColor[opacityChannel];
+            const PDFColorComponent alpha_b = backdropColor[opacityChannel];
+            const PDFColorComponent f_g_i = PDFBlendFunction::blend_Union(f_g_i_1, f_s_i);
+            const PDFColorComponent alpha_g_i = (1.0f - f_s_i) * alpha_g_i_1 + (f_s_i - alpha_s_i) * alpha_g_b + alpha_s_i;
+            const PDFColorComponent alpha_i_1 = PDFBlendFunction::blend_Union(alpha_0, alpha_g_i_1);
+            const PDFColorComponent alpha_i = PDFBlendFunction::blend_Union(alpha_0, alpha_g_i);
+
+            if (qFuzzyIsNull(alpha_g_i))
+            {
+                // If alpha_i is zero, then color is undefined
+                continue;
+            }
+
+            std::fill(B_i.begin(), B_i.end(), 0.0f);
+
+            // Calculate blended pixel
+            if (PDFBlendModeInfo::isSeparable(mode))
+            {
+                // Separable blend mode - process each color separately
+                const bool isProcessColorSubtractive = pixelFormat.hasProcessColorsSubtractive();
+                const bool isSpotColorSubtractive = pixelFormat.hasSpotColorsSubtractive();
+
+                if (pixelFormat.hasProcessColors())
+                {
+                    if (!isProcessColorSubtractive)
+                    {
+                        for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
+                        {
+                            B_i[i] = PDFBlendFunction::blend(mode, backdropColor[i], sourceColor[i]);
+                        }
+                    }
+                    else
+                    {
+                        for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
+                        {
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(mode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                        }
+                    }
+                }
+
+                if (pixelFormat.hasSpotColors())
+                {
+                    // Blend mode for spot colors must be white-preserving,
+                    // see 11.7.4.2 of PDF 2.0 specification
+                    BlendMode spotBlendMode = mode;
+                    if (!PDFBlendModeInfo::isWhitePreserving(mode))
+                    {
+                        spotBlendMode = BlendMode::Normal;
+                    }
+
+                    if (!isSpotColorSubtractive)
+                    {
+                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        {
+                            B_i[i] = PDFBlendFunction::blend(spotBlendMode, backdropColor[i], sourceColor[i]);
+                        }
+                    }
+                    else
+                    {
+                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        {
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(spotBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Nonseparable blend mode - process colors together
+                if (pixelFormat.hasProcessColors())
+                {
+                    switch (pixelFormat.getProcessColorChannelCount())
+                    {
+                        case 1:
+                        {
+                            // Gray
+                            const PDFGray Cb = backdropColor[pixelFormat.getProcessColorChannelIndexStart()];
+                            const PDFGray Cs = sourceColor[pixelFormat.getProcessColorChannelIndexStart()];
+                            const PDFGray blended = PDFBlendFunction::blend_Nonseparable(mode, Cb, Cs);
+                            B_i[pixelFormat.getProcessColorChannelIndexStart()] = blended;
+                            break;
+                        }
+
+                        case 3:
+                        {
+                            // RGB
+                            const PDFRGB Cb = { backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
+                                                backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
+                                                backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 2] };
+                            const PDFRGB Cs = { sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
+                                                sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
+                                                sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 2] };
+                            const PDFRGB blended = PDFBlendFunction::blend_Nonseparable(mode, Cb, Cs);
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 0] = blended[0];
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 1] = blended[1];
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 2] = blended[2];
+                            break;
+                        }
+
+                        case 4:
+                        {
+                            // CMYK
+                            const PDFCMYK Cb = { backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
+                                                 backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
+                                                 backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 2],
+                                                 backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 3] };
+                            const PDFCMYK Cs = { sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
+                                                 sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
+                                                 sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 2],
+                                                 sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 3] };
+                            const PDFCMYK blended = PDFBlendFunction::blend_Nonseparable(mode, Cb, Cs);
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 0] = blended[0];
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 1] = blended[1];
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 2] = blended[2];
+                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 3] = blended[3];
+                            break;
+                        }
+
+                        default:
+                        {
+                            // This is a serious error. Blended buffer remains unchanged (zero)
+                            Q_ASSERT(false);
+                            break;
+                        }
+                    }
+                }
+
+                if (pixelFormat.hasSpotColors())
+                {
+                    const bool isSpotColorSubtractive = pixelFormat.hasSpotColorsSubtractive();
+                    if (!isSpotColorSubtractive)
+                    {
+                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        {
+                            B_i[i] = PDFBlendFunction::blend(BlendMode::Normal, backdropColor[i], sourceColor[i]);
+                        }
+                    }
+                    else
+                    {
+                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        {
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(BlendMode::Normal, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                        }
+                    }
+                }
+            }
+
+            for (uint8_t i = colorChannelStart; i < colorChannelEnd; ++i)
+            {
+                const PDFColorComponent C_s_i = sourceColor[i];
+                const PDFColorComponent C_b = backdropColor[i];
+                const PDFColorComponent C_i_1 = targetColor[i];
+
+                PDFColorComponent C_t = (f_s_i - alpha_s_i) * alpha_b * C_b + alpha_s_i * ((1.0f - alpha_b) * C_s_i + alpha_b * B_i[i]);
+                PDFColorComponent C_i = ((1.0f - f_s_i) * alpha_i_1 * C_i_1 + C_t) / alpha_i;
+
+                targetColor[i] = C_i;
+            }
+
+            targetColor[shapeChannel] = f_g_i;
+            targetColor[opacityChannel] = alpha_g_i;
+        }
+    }
+}
+
 void PDFFloatBitmap::fillChannel(size_t channel, PDFColorComponent value)
 {
     // Do we have just one channel?
@@ -319,7 +532,58 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
 
 void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
 {
+    if (order == ProcessOrder::AfterOperation)
+    {
+        // "Unblend" the initial backdrop from immediate backdrop, according to 11.4.8
+        removeInitialBackdrop();
 
+        PDFTransparencyGroupPainterData sourceData = qMove(m_transparencyGroupDataStack.back());
+        m_transparencyGroupDataStack.pop_back();
+
+        PDFTransparencyGroupPainterData& targetData = m_transparencyGroupDataStack.back();
+        sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
+
+        PDFFloatBitmap::blend(sourceData, targetData, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask, sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal);
+    }
+}
+
+void PDFTransparencyRenderer::removeInitialBackdrop()
+{
+    PDFFloatBitmapWithColorSpace* immediateBackdrop = getImmediateBackdrop();
+    PDFFloatBitmapWithColorSpace* initialBackdrop = getInitialBackdrop();
+    PDFPixelFormat pixelFormat = immediateBackdrop->getPixelFormat();
+
+    const uint8_t alphaChannelIndex = pixelFormat.getOpacityChannelIndex();
+    const uint8_t colorChannelIndexStart = pixelFormat.getColorChannelIndexStart();
+    const uint8_t colorChannelIndexEnd= pixelFormat.getColorChannelIndexEnd();
+
+    Q_ASSERT(alphaChannelIndex != PDFPixelFormat::INVALID_CHANNEL_INDEX);
+    Q_ASSERT(colorChannelIndexStart != PDFPixelFormat::INVALID_CHANNEL_INDEX);
+    Q_ASSERT(colorChannelIndexEnd != PDFPixelFormat::INVALID_CHANNEL_INDEX);
+
+    for (size_t x = 0; x < immediateBackdrop->getWidth(); ++x)
+    {
+        for (size_t y = 0; y < immediateBackdrop->getHeight(); ++y)
+        {
+            PDFColorBuffer initialBackdropColorBuffer = initialBackdrop->getPixel(x, y);
+            PDFColorBuffer immediateBackdropColorBuffer = immediateBackdrop->getPixel(x, y);
+
+            const PDFColorComponent alpha_0 = initialBackdropColorBuffer[alphaChannelIndex];
+            const PDFColorComponent alpha_g_n = immediateBackdropColorBuffer[alphaChannelIndex];
+
+            if (!qFuzzyIsNull(alpha_g_n))
+            {
+                for (const uint8_t i = colorChannelIndexStart; i < colorChannelIndexEnd; ++i)
+                {
+                    const PDFColorComponent C_0 = initialBackdropColorBuffer[i];
+                    const PDFColorComponent C_n = immediateBackdropColorBuffer[i];
+                    const PDFColorComponent C = C_n + (C_n - C_0) * alpha_0 * (1.0f / alpha_g_n - 1.0f);
+                    const PDFColorComponent C_clipped = qBound(0.0f, C, 1.0f);
+                    immediateBackdropColorBuffer[i] = C_clipped;
+                }
+            }
+        }
+    }
 }
 
 PDFFloatBitmapWithColorSpace* PDFTransparencyRenderer::getInitialBackdrop()

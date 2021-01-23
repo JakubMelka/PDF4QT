@@ -39,6 +39,9 @@ public:
 
     constexpr static uint8_t INVALID_CHANNEL_INDEX = 0xFF;
 
+    constexpr bool operator==(const PDFPixelFormat&) const = default;
+    constexpr bool operator!=(const PDFPixelFormat&) const = default;
+
     constexpr bool hasProcessColors() const { return m_processColors > 0; }
     constexpr bool hasSpotColors() const { return m_spotColors > 0; }
     constexpr bool hasShapeChannel() const { return m_flags & FLAG_HAS_SHAPE_CHANNEL; }
@@ -60,6 +63,8 @@ public:
     constexpr uint8_t getProcessColorChannelIndexEnd() const { return hasProcessColors() ? getProcessColorChannelCount() : INVALID_CHANNEL_INDEX; }
     constexpr uint8_t getSpotColorChannelIndexStart() const { return hasSpotColors() ? getProcessColorChannelCount() : INVALID_CHANNEL_INDEX; }
     constexpr uint8_t getSpotColorChannelIndexEnd() const { return hasSpotColors() ? getSpotColorChannelIndexStart() + getSpotColorChannelCount() : INVALID_CHANNEL_INDEX; }
+    constexpr uint8_t getColorChannelIndexStart() const { return (hasProcessColors() || hasSpotColors()) ? 0 : INVALID_CHANNEL_INDEX; }
+    constexpr uint8_t getColorChannelIndexEnd() const { return (hasProcessColors() || hasSpotColors()) ? (m_processColors + m_spotColors) : INVALID_CHANNEL_INDEX; }
     constexpr uint8_t getShapeChannelIndex() const { return hasShapeChannel() ? getProcessColorChannelCount() + getSpotColorChannelCount() : INVALID_CHANNEL_INDEX; }
     constexpr uint8_t getOpacityChannelIndex() const { return hasShapeChannel() ? getProcessColorChannelCount() + getSpotColorChannelCount() + getShapeChannelCount() : INVALID_CHANNEL_INDEX; }
 
@@ -159,6 +164,26 @@ public:
     /// Extract process colors into another bitmap
     PDFFloatBitmap extractProcessColors();
 
+    /// Performs bitmap blending, pixel format of source and target must be the same.
+    /// Blending algorithm uses the one from chapter 11.4.8 in the PDF 2.0 specification.
+    /// Bitmap size must be equal for all three bitmaps (source, target and soft mask).
+    /// \param source Source bitmap
+    /// \param target Target bitmap
+    /// \param backdrop Backdrop
+    /// \param initialBackdrop Initial backdrop
+    /// \param softMask Soft mask
+    /// \param alphaIsShape Both soft mask and constant alpha are shapes and not opacity?
+    /// \param constantAlpha Constant alpha, can mean shape or opacity
+    /// \param mode Blend mode
+    void blend(const PDFFloatBitmap& source,
+               PDFFloatBitmap& target,
+               const PDFFloatBitmap& backdrop,
+               const PDFFloatBitmap& initialBackdrop,
+               PDFFloatBitmap& softMask,
+               bool alphaIsShape,
+               PDFColorComponent constantAlpha,
+               BlendMode mode);
+
 private:
     void fillChannel(size_t channel, PDFColorComponent value);
 
@@ -246,6 +271,8 @@ private:
         PDFFloatBitmap softMask; ///< Soft mask for this group
         PDFColorSpacePointer blendColorSpace;
     };
+
+    void removeInitialBackdrop();
 
     PDFFloatBitmapWithColorSpace* getInitialBackdrop();
     PDFFloatBitmapWithColorSpace* getImmediateBackdrop();

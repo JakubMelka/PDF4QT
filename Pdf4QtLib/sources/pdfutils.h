@@ -509,6 +509,8 @@ public:
     using value_ptr = value_type*;
     using const_value_type = const value_type;
     using const_value_ptr = const_value_type*;
+    using value_ref = value_type&;
+    using const_value_ref = const value_ref;
 
     explicit inline PDFBuffer() :
         m_begin(nullptr),
@@ -532,6 +534,9 @@ public:
 
     inline const_value_ptr cbegin() const { return m_begin; }
     inline const_value_ptr cend() const { return m_end; }
+
+    inline value_ref operator[](size_t index) { return *(m_begin + index); }
+    inline const_value_ref operator[](size_t index) const { return *(m_begin + index); }
 
     size_t size() const { return m_end - m_begin; }
 
