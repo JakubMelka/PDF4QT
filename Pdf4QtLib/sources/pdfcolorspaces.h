@@ -44,6 +44,7 @@ class PDFRenderErrorReporter;
 using PDFColor = PDFFlatArray<PDFColorComponent, 4>;
 using PDFColorSpacePointer = QSharedPointer<PDFAbstractColorSpace>;
 using PDFColorBuffer = PDFBuffer<PDFColorComponent>;
+using PDFConstColorBuffer = PDFBuffer<const PDFColorComponent>;
 
 static constexpr const int COLOR_SPACE_MAX_LEVEL_OF_RECURSION = 12;
 

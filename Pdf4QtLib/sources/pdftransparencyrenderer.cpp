@@ -47,6 +47,12 @@ PDFColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y)
     return PDFColorBuffer(m_data.data() + index, m_pixelSize);
 }
 
+PDFConstColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y) const
+{
+    const size_t index = getPixelIndex(x, y);
+    return PDFConstColorBuffer(m_data.data() + index, m_pixelSize);
+}
+
 PDFColorBuffer PDFFloatBitmap::getPixels()
 {
     return PDFColorBuffer(m_data.data(), m_data.size());
@@ -130,7 +136,9 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                            PDFFloatBitmap& softMask,
                            bool alphaIsShape,
                            PDFColorComponent constantAlpha,
-                           BlendMode mode)
+                           BlendMode mode,
+                           uint32_t activeColorChannels,
+                           OverprintMode overprintMode)
 {
     Q_ASSERT(source.getWidth() == target.getWidth());
     Q_ASSERT(source.getHeight() == target.getHeight());
@@ -146,16 +154,104 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
     const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
     const uint8_t colorChannelStart = pixelFormat.getColorChannelIndexStart();
     const uint8_t colorChannelEnd = pixelFormat.getColorChannelIndexEnd();
+    const uint8_t processColorChannelStart = pixelFormat.getProcessColorChannelIndexStart();
+    const uint8_t processColorChannelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+    const uint8_t spotColorChannelStart = pixelFormat.getSpotColorChannelIndexStart();
+    const uint8_t spotColorChannelEnd = pixelFormat.getSpotColorChannelIndexEnd();
     std::vector<PDFColorComponent> B_i(source.getPixelSize(), 0.0f);
+    std::vector<BlendMode> channelBlendModes(source.getPixelSize(), mode);
+
+    // For blending spot colors, only white preserving blend modes are possible.
+    // If this is not the case, revert spot color blend mode to normal blending.
+    // See 11.7.4.2 of PDF 2.0 specification.
+    if (pixelFormat.hasSpotColors() && !PDFBlendModeInfo::isWhitePreserving(mode))
+    {
+        auto itBegin = std::next(channelBlendModes.begin(), spotColorChannelStart);
+        auto itEnd = std::next(channelBlendModes.begin(), spotColorChannelEnd);
+        std::fill(itBegin, itEnd, BlendMode::Normal);
+    }
+
+    // Handle overprint mode for normal blend mode. We do not support
+    // oveprinting for other blend modes, than normal.
+
+    switch (overprintMode)
+    {
+        case OverprintMode::NoOveprint:
+            break;
+
+        case OverprintMode::Overprint_Mode_0:
+        {
+            // Select source color, if channel is active,
+            // otherwise select backdrop color.
+            for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+            {
+                uint32_t flag = (static_cast<uint32_t>(1)) << colorChannelIndex;
+                if (channelBlendModes[colorChannelIndex] == BlendMode::Normal && !(activeColorChannels & flag))
+                {
+                    // Color channel is inactive
+                    channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectBackdrop;
+                }
+            }
+
+            break;
+        }
+
+        case OverprintMode::Overprint_Mode_1:
+        {
+            // For process colors, select source color, if it is nonzero,
+            // otherwise select backdrop. If process color channel is inactive,
+            // select backdrop.
+            if (pixelFormat.hasProcessColors() && mode == BlendMode::Normal)
+            {
+                for (uint8_t colorChannelIndex = processColorChannelStart; colorChannelIndex < processColorChannelEnd; ++colorChannelIndex)
+                {
+                    uint32_t flag = (static_cast<uint32_t>(1)) << colorChannelIndex;
+                    if (!(activeColorChannels & flag))
+                    {
+                        // Color channel is inactive
+                        channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectBackdrop;
+                    }
+                    else
+                    {
+                        // Color channel is active, but select source color only, if it is nonzero
+                        channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
+                    }
+                }
+            }
+
+            if (pixelFormat.hasSpotColors())
+            {
+                // For spot colors, select backdrop, if channel is inactive,
+                // otherwise select source color.
+                for (uint8_t colorChannelIndex = spotColorChannelStart; colorChannelIndex < spotColorChannelEnd; ++colorChannelIndex)
+                {
+                    uint32_t flag = (static_cast<uint32_t>(1)) << colorChannelIndex;
+                    if (channelBlendModes[colorChannelIndex] == BlendMode::Normal && !(activeColorChannels & flag))
+                    {
+                        // Color channel is inactive
+                        channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectBackdrop;
+                    }
+                }
+            }
+
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
 
     for (size_t x = 0; x < width; ++x)
     {
         for (size_t y = 0; y < height; ++y)
         {
-            PDFColorBuffer sourceColor = source.getPixel(x, y);
+            PDFConstColorBuffer sourceColor = source.getPixel(x, y);
             PDFColorBuffer targetColor = target.getPixel(x, y);
-            PDFColorBuffer backdropColor = backdrop.getPixel(x, y);
-            PDFColorBuffer initialBackdropColor = initialBackdrop.getPixel(x, y);
+            PDFConstColorBuffer backdropColor = backdrop.getPixel(x, y);
+            PDFConstColorBuffer initialBackdropColor = initialBackdrop.getPixel(x, y);
             PDFColorBuffer alphaColorBuffer = softMask.getPixel(x, y);
 
             const PDFColorComponent softMaskValue = alphaColorBuffer[0];
@@ -199,40 +295,33 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     {
                         for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = PDFBlendFunction::blend(mode, backdropColor[i], sourceColor[i]);
+                            B_i[i] = PDFBlendFunction::blend(channelBlendModes[i], backdropColor[i], sourceColor[i]);
                         }
                     }
                     else
                     {
                         for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = 1.0f - PDFBlendFunction::blend(mode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(channelBlendModes[i], 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
                         }
                     }
                 }
 
                 if (pixelFormat.hasSpotColors())
                 {
-                    // Blend mode for spot colors must be white-preserving,
-                    // see 11.7.4.2 of PDF 2.0 specification
-                    BlendMode spotBlendMode = mode;
-                    if (!PDFBlendModeInfo::isWhitePreserving(mode))
-                    {
-                        spotBlendMode = BlendMode::Normal;
-                    }
 
                     if (!isSpotColorSubtractive)
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = PDFBlendFunction::blend(spotBlendMode, backdropColor[i], sourceColor[i]);
+                            B_i[i] = PDFBlendFunction::blend(channelBlendModes[i], backdropColor[i], sourceColor[i]);
                         }
                     }
                     else
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = 1.0f - PDFBlendFunction::blend(spotBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(channelBlendModes[i], 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
                         }
                     }
                 }
@@ -305,14 +394,14 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = PDFBlendFunction::blend(BlendMode::Normal, backdropColor[i], sourceColor[i]);
+                            B_i[i] = PDFBlendFunction::blend(channelBlendModes[i], backdropColor[i], sourceColor[i]);
                         }
                     }
                     else
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = 1.0f - PDFBlendFunction::blend(BlendMode::Normal, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(channelBlendModes[i], 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
                         }
                     }
                 }
@@ -532,6 +621,8 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
 
 void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
 {
+    Q_UNUSED(transparencyGroup);
+
     if (order == ProcessOrder::AfterOperation)
     {
         // "Unblend" the initial backdrop from immediate backdrop, according to 11.4.8
@@ -543,7 +634,8 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         PDFTransparencyGroupPainterData& targetData = m_transparencyGroupDataStack.back();
         sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
 
-        PDFFloatBitmap::blend(sourceData, targetData, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask, sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal);
+        PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
+                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint);
     }
 }
 
@@ -573,7 +665,7 @@ void PDFTransparencyRenderer::removeInitialBackdrop()
 
             if (!qFuzzyIsNull(alpha_g_n))
             {
-                for (const uint8_t i = colorChannelIndexStart; i < colorChannelIndexEnd; ++i)
+                for (uint8_t i = colorChannelIndexStart; i < colorChannelIndexEnd; ++i)
                 {
                     const PDFColorComponent C_0 = initialBackdropColorBuffer[i];
                     const PDFColorComponent C_n = immediateBackdropColorBuffer[i];

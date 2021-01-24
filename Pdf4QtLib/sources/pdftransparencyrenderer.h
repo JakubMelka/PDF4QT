@@ -134,6 +134,9 @@ public:
     /// Returns buffer with pixel channels
     PDFColorBuffer getPixel(size_t x, size_t y);
 
+    /// Returns constant buffer with pixel channels
+    PDFConstColorBuffer getPixel(size_t x, size_t y) const;
+
     /// Returns buffer with all pixels
     PDFColorBuffer getPixels();
 
@@ -164,9 +167,19 @@ public:
     /// Extract process colors into another bitmap
     PDFFloatBitmap extractProcessColors();
 
+    enum class OverprintMode
+    {
+        NoOveprint,         ///< No oveprint performed
+        Overprint_Mode_0,   ///< Overprint performed (either backdrop or source color is selected)
+        Overprint_Mode_1,   ///< Overprint performed (only nonzero source color is selected, otherwise backdrop)
+    };
+
     /// Performs bitmap blending, pixel format of source and target must be the same.
     /// Blending algorithm uses the one from chapter 11.4.8 in the PDF 2.0 specification.
     /// Bitmap size must be equal for all three bitmaps (source, target and soft mask).
+    /// Oveprinting is also handled. You can specify a mask with active color channels.
+    /// If n-th bit in \p activeColorChannels variable is 1, then color channel is active;
+    /// otherwise backdrop color is selected (if overprint is active).
     /// \param source Source bitmap
     /// \param target Target bitmap
     /// \param backdrop Backdrop
@@ -175,14 +188,18 @@ public:
     /// \param alphaIsShape Both soft mask and constant alpha are shapes and not opacity?
     /// \param constantAlpha Constant alpha, can mean shape or opacity
     /// \param mode Blend mode
-    void blend(const PDFFloatBitmap& source,
-               PDFFloatBitmap& target,
-               const PDFFloatBitmap& backdrop,
-               const PDFFloatBitmap& initialBackdrop,
-               PDFFloatBitmap& softMask,
-               bool alphaIsShape,
-               PDFColorComponent constantAlpha,
-               BlendMode mode);
+    /// \param activeColorChannels Active color channels
+    /// \param overprintMode Overprint mode
+    static void blend(const PDFFloatBitmap& source,
+                      PDFFloatBitmap& target,
+                      const PDFFloatBitmap& backdrop,
+                      const PDFFloatBitmap& initialBackdrop,
+                      PDFFloatBitmap& softMask,
+                      bool alphaIsShape,
+                      PDFColorComponent constantAlpha,
+                      BlendMode mode,
+                      uint32_t activeColorChannels,
+                      OverprintMode overprintMode);
 
 private:
     void fillChannel(size_t channel, PDFColorComponent value);

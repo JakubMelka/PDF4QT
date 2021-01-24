@@ -51,6 +51,10 @@ enum class BlendMode
     // to normal. It should be recognized for sake of compatibility.
     Compatible, ///< Equals to normal
 
+    // Special blend modes for handling overprint. Used only internally.
+    Overprint_SelectBackdrop,
+    Overprint_SelectNonZeroSourceOrBackdrop,
+
     // Invalid blending mode - for internal purposes only
     Invalid
 };

@@ -84,25 +84,27 @@ bool PDFBlendModeInfo::isSeparable(BlendMode mode)
 {
     switch (mode)
     {
-       case BlendMode::Normal:
-       case BlendMode::Multiply:
-       case BlendMode::Screen:
-       case BlendMode::Overlay:
-       case BlendMode::Darken:
-       case BlendMode::Lighten:
-       case BlendMode::ColorDodge:
-       case BlendMode::ColorBurn:
-       case BlendMode::HardLight:
-       case BlendMode::SoftLight:
-       case BlendMode::Difference:
-       case BlendMode::Exclusion:
-       case BlendMode::Compatible:
+        case BlendMode::Normal:
+        case BlendMode::Multiply:
+        case BlendMode::Screen:
+        case BlendMode::Overlay:
+        case BlendMode::Darken:
+        case BlendMode::Lighten:
+        case BlendMode::ColorDodge:
+        case BlendMode::ColorBurn:
+        case BlendMode::HardLight:
+        case BlendMode::SoftLight:
+        case BlendMode::Difference:
+        case BlendMode::Exclusion:
+        case BlendMode::Compatible:
+        case BlendMode::Overprint_SelectBackdrop:
+        case BlendMode::Overprint_SelectNonZeroSourceOrBackdrop:
             return true;
 
-       case BlendMode::Hue:
-       case BlendMode::Saturation:
-       case BlendMode::Color:
-       case BlendMode::Luminosity:
+        case BlendMode::Hue:
+        case BlendMode::Saturation:
+        case BlendMode::Color:
+        case BlendMode::Luminosity:
             return false;
 
         default:
@@ -338,6 +340,19 @@ PDFColorComponent PDFBlendFunction::blend(BlendMode mode, PDFColorComponent Cb, 
 
         case BlendMode::Exclusion:
             return Cb + Cs - 2.0f * Cb * Cs;
+
+        case BlendMode::Overprint_SelectBackdrop:
+            return Cb;
+
+        case BlendMode::Overprint_SelectNonZeroSourceOrBackdrop:
+        {
+            if (qFuzzyIsNull(Cs))
+            {
+                return Cb;
+            }
+
+            return Cs;
+        }
 
         default:
         {
