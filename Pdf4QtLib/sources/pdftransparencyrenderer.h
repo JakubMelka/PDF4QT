@@ -198,6 +198,7 @@ public:
                       bool alphaIsShape,
                       PDFColorComponent constantAlpha,
                       BlendMode mode,
+                      bool knockoutGroup,
                       uint32_t activeColorChannels,
                       OverprintMode overprintMode);
 

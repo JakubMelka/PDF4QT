@@ -137,6 +137,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                            bool alphaIsShape,
                            PDFColorComponent constantAlpha,
                            BlendMode mode,
+                           bool knockoutGroup,
                            uint32_t activeColorChannels,
                            OverprintMode overprintMode)
 {
@@ -263,20 +264,33 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
             const PDFColorComponent f_s_i = f_j_i * f_m_i * f_k_i;
             const PDFColorComponent alpha_j_i = sourceColor[opacityChannel];
             const PDFColorComponent alpha_s_i = alpha_j_i * (f_m_i * q_m_i) * (f_k_i * q_k_i);
-            const PDFColorComponent alpha_g_b = backdropColor[opacityChannel];
 
-            const PDFColorComponent alpha_0 = initialBackdropColor[opacityChannel];
-            const PDFColorComponent f_g_i_1 = targetColor[shapeChannel];
+            // Old alpha (alpha_g_i_1) is stored in target (immediate) buffer
             const PDFColorComponent alpha_g_i_1 = targetColor[opacityChannel];
-            const PDFColorComponent alpha_b = backdropColor[opacityChannel];
+
+            // alpha_g_0 == 0.0f according to the specification, otherwise select alpha_g_i_1 from target color
+            const PDFColorComponent alpha_g_b = knockoutGroup ? 0.0f : alpha_g_i_1;
+
+            // alpha_0 is taken from initial backdrop color buffer
+            const PDFColorComponent alpha_0 = initialBackdropColor[opacityChannel];
+
+            // f_g_i_1 is stored in target (immediate) buffer
+            const PDFColorComponent f_g_i_1 = targetColor[shapeChannel];
+
+            // Formulas taken from
             const PDFColorComponent f_g_i = PDFBlendFunction::blend_Union(f_g_i_1, f_s_i);
             const PDFColorComponent alpha_g_i = (1.0f - f_s_i) * alpha_g_i_1 + (f_s_i - alpha_s_i) * alpha_g_b + alpha_s_i;
             const PDFColorComponent alpha_i_1 = PDFBlendFunction::blend_Union(alpha_0, alpha_g_i_1);
             const PDFColorComponent alpha_i = PDFBlendFunction::blend_Union(alpha_0, alpha_g_i);
 
+            // alpha_b is either alpha_0 (for knockout group) or alpha_i_1
+            const PDFColorComponent alpha_b = knockoutGroup ? alpha_0 : alpha_i_1;
+
             if (qFuzzyIsNull(alpha_g_i))
             {
-                // If alpha_i is zero, then color is undefined
+                // If alpha_i is zero, then color is undefined, just fill shape/opacity
+                targetColor[shapeChannel] = f_g_i;
+                targetColor[opacityChannel] = alpha_g_i;
                 continue;
             }
 
@@ -606,6 +620,24 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
             // Make initial backdrop transparent
             data.initialBackdrop.makeTransparent();
         }
+        else if (!isTransparencyGroupKnockout())
+        {
+            // We have stored alpha_g_i in immediate buffer. We must mix it with alpha_0 to get alpha_i
+            const PDFFloatBitmapWithColorSpace* initialBackdrop = getInitialBackdrop();
+            const uint8_t opacityChannelIndex = initialBackdrop->getPixelFormat().getOpacityChannelIndex();
+            const size_t width = data.initialBackdrop.getWidth();
+            const size_t height = data.initialBackdrop.getHeight();
+
+            for (size_t x = 0; x < width; ++x)
+            {
+                for (size_t y = 0; y < height; ++y)
+                {
+                    PDFConstColorBuffer oldPixel = initialBackdrop->getPixel(x, y);
+                    PDFColorBuffer newPixel = data.initialBackdrop.getPixel(x, y);
+                    newPixel[opacityChannelIndex] = PDFBlendFunction::blend_Union(oldPixel[opacityChannelIndex], newPixel[opacityChannelIndex]);
+                }
+            }
+        }
 
         // Prepare soft mask
         data.softMask = PDFFloatBitmap(oldBackdrop->getWidth(), oldBackdrop->getHeight(), PDFPixelFormat::createOpacityMask());
@@ -614,6 +646,11 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
 
         data.initialBackdrop.convertToColorSpace(getCMS(), data.renderingIntent, data.blendColorSpace, this);
         data.immediateBackdrop = data.initialBackdrop;
+
+        // Jakub Melka: According to 11.4.8 of PDF 2.0 specification, we must
+        // initialize f_g_0 and alpha_g_0 to zero. We store f_g_0 and alpha_g_0
+        // in the immediate backdrop, so we will make it transparent.
+        data.immediateBackdrop.makeTransparent();
 
         m_transparencyGroupDataStack.emplace_back(qMove(data));
     }
@@ -635,7 +672,7 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
 
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
-                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint);
+                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint);
     }
 }
 
