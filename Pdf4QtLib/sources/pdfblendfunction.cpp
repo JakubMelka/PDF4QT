@@ -99,6 +99,7 @@ bool PDFBlendModeInfo::isSeparable(BlendMode mode)
         case BlendMode::Compatible:
         case BlendMode::Overprint_SelectBackdrop:
         case BlendMode::Overprint_SelectNonZeroSourceOrBackdrop:
+        case BlendMode::Overprint_SelectNonOneSourceOrBackdrop:
             return true;
 
         case BlendMode::Hue:
@@ -347,6 +348,16 @@ PDFColorComponent PDFBlendFunction::blend(BlendMode mode, PDFColorComponent Cb, 
         case BlendMode::Overprint_SelectNonZeroSourceOrBackdrop:
         {
             if (qFuzzyIsNull(Cs))
+            {
+                return Cb;
+            }
+
+            return Cs;
+        }
+
+        case BlendMode::Overprint_SelectNonOneSourceOrBackdrop:
+        {
+            if (qFuzzyIsNull(1.0f - Cs))
             {
                 return Cb;
             }

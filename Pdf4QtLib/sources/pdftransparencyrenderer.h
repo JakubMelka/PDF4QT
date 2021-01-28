@@ -21,6 +21,7 @@
 #include "pdfglobal.h"
 #include "pdfcolorspaces.h"
 #include "pdfpagecontentprocessor.h"
+#include "pdfconstants.h"
 
 namespace pdf
 {
@@ -233,6 +234,38 @@ public:
 
 private:
     PDFColorSpacePointer m_colorSpace;
+};
+
+/// Ink mapper for mapping device inks (device colors) and spot inks (spot colors).
+class PDFInkMapper
+{
+public:
+    explicit PDFInkMapper(const PDFDocument* document);
+
+    struct SpotColorInfo
+    {
+        QByteArray name;
+        uint32_t index = 0; ///< Index into DeviceN color space (index of colorant)
+        PDFColorSpacePointer colorSpace;
+        bool active = false; ///< Is spot color active?
+    };
+
+    static constexpr const uint32_t MAX_COLOR_COMPONENTS = PDF_MAX_COLOR_COMPONENTS;
+    static constexpr const uint32_t MAX_DEVICE_COLOR_COMPONENTS = 4;
+    static constexpr const uint32_t MAX_SPOT_COLOR_COMPONENTS = MAX_COLOR_COMPONENTS - MAX_DEVICE_COLOR_COMPONENTS - 2;
+
+    /// Scan document for spot colors and fills color info
+    /// \param activate Set spot colors active?
+    void createSpotColors(bool activate);
+
+    /// Returns true, if mapper contains given spot color
+    /// \param colorName Color name
+    bool containsSpotColor(const QByteArray& colorName) const;
+
+private:
+
+    const PDFDocument* m_document;
+    std::vector<SpotColorInfo> m_spotColors;
 };
 
 /// Renders PDF pages with transparency, using 32-bit floating point precision.

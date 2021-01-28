@@ -215,7 +215,8 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     else
                     {
                         // Color channel is active, but select source color only, if it is nonzero
-                        channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
+                        channelBlendModes[colorChannelIndex] = pixelFormat.hasSpotColorsSubtractive() ? BlendMode::Overprint_SelectNonOneSourceOrBackdrop
+                                                                                                      : BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
                     }
                 }
             }
@@ -750,6 +751,107 @@ bool PDFTransparencyRenderer::isTransparencyGroupIsolated() const
 bool PDFTransparencyRenderer::isTransparencyGroupKnockout() const
 {
     return m_transparencyGroupDataStack.back().group.knockout;
+}
+
+PDFInkMapper::PDFInkMapper(const PDFDocument* document) :
+    m_document(document)
+{
+
+}
+
+void PDFInkMapper::createSpotColors(bool activate)
+{
+    m_spotColors.clear();
+
+    const PDFCatalog* catalog = m_document->getCatalog();
+    const size_t pageCount = catalog->getPageCount();
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        const PDFPage* page = catalog->getPage(i);
+        PDFObject resources = m_document->getObject(page->getResources());
+
+        if (resources.isDictionary() && resources.getDictionary()->hasKey("ColorSpace"))
+        {
+            const PDFDictionary* colorSpaceDictionary = m_document->getDictionaryFromObject(resources.getDictionary()->get("ColorSpace"));
+            if (colorSpaceDictionary)
+            {
+                std::size_t colorSpaces = colorSpaceDictionary->getCount();
+                for (size_t csIndex = 0; csIndex < colorSpaces; ++ csIndex)
+                {
+                    PDFColorSpacePointer colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, colorSpaceDictionary->getValue(csIndex));
+
+                    if (!colorSpacePointer)
+                    {
+                        continue;
+                    }
+
+                    switch (colorSpacePointer->getColorSpace())
+                    {
+                        case PDFAbstractColorSpace::ColorSpace::Separation:
+                        {
+                            const PDFSeparationColorSpace* separationColorSpace = dynamic_cast<const PDFSeparationColorSpace*>(colorSpacePointer.data());
+
+                            if (!separationColorSpace->isNone() && !separationColorSpace->isAll() && !separationColorSpace->getColorName().isEmpty())
+                            {
+                                // Try to add spot color
+                                const QByteArray& colorName = separationColorSpace->getColorName();
+                                if (!containsSpotColor(colorName))
+                                {
+                                    SpotColorInfo info;
+                                    info.name = colorName;
+                                    info.colorSpace = colorSpacePointer;
+                                    m_spotColors.emplace_back(qMove(info));
+                                }
+                            }
+
+                            break;
+                        }
+
+                        case PDFAbstractColorSpace::ColorSpace::DeviceN:
+                        {
+                            const PDFDeviceNColorSpace* deviceNColorSpace = dynamic_cast<const PDFDeviceNColorSpace*>(colorSpacePointer.data());
+
+                            if (!deviceNColorSpace->isNone())
+                            {
+                                const PDFDeviceNColorSpace::Colorants& colorants = deviceNColorSpace->getColorants();
+                                for (size_t i = 0; i < colorants.size(); ++i)
+                                {
+                                    const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
+                                    if (!containsSpotColor(colorantInfo.name))
+                                    {
+                                        SpotColorInfo info;
+                                        info.name = colorantInfo.name;
+                                        info.index = i;
+                                        info.colorSpace = colorSpacePointer;
+                                        m_spotColors.emplace_back(qMove(info));
+                                    }
+                                }
+                            }
+
+                            break;
+                        }
+
+                        default:
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (activate)
+    {
+        size_t minIndex = qMin<uint32_t>(m_spotColors.size(), MAX_SPOT_COLOR_COMPONENTS);
+        for (size_t i = 0; i < minIndex; ++i)
+        {
+            m_spotColors[i].active = true;
+        }
+    }
+}
+
+bool PDFInkMapper::containsSpotColor(const QByteArray& colorName) const
+{
+    return getSpotColor(colorName) != nullptr;
 }
 
 }   // namespace pdf

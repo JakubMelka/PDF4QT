@@ -54,6 +54,7 @@ enum class BlendMode
     // Special blend modes for handling overprint. Used only internally.
     Overprint_SelectBackdrop,
     Overprint_SelectNonZeroSourceOrBackdrop,
+    Overprint_SelectNonOneSourceOrBackdrop,
 
     // Invalid blending mode - for internal purposes only
     Invalid
