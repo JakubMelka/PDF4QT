@@ -762,6 +762,7 @@ PDFInkMapper::PDFInkMapper(const PDFDocument* document) :
 void PDFInkMapper::createSpotColors(bool activate)
 {
     m_spotColors.clear();
+    m_activeSpotColors = 0;
 
     const PDFCatalog* catalog = m_document->getCatalog();
     const size_t pageCount = catalog->getPageCount();
@@ -821,7 +822,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                                     {
                                         SpotColorInfo info;
                                         info.name = colorantInfo.name;
-                                        info.index = i;
+                                        info.index = uint32_t(i);
                                         info.colorSpace = colorSpacePointer;
                                         m_spotColors.emplace_back(qMove(info));
                                     }
@@ -841,17 +842,29 @@ void PDFInkMapper::createSpotColors(bool activate)
 
     if (activate)
     {
-        size_t minIndex = qMin<uint32_t>(m_spotColors.size(), MAX_SPOT_COLOR_COMPONENTS);
+        size_t minIndex = qMin<uint32_t>(uint32_t(m_spotColors.size()), MAX_SPOT_COLOR_COMPONENTS);
         for (size_t i = 0; i < minIndex; ++i)
         {
             m_spotColors[i].active = true;
         }
+        m_activeSpotColors = minIndex;
     }
 }
 
 bool PDFInkMapper::containsSpotColor(const QByteArray& colorName) const
 {
     return getSpotColor(colorName) != nullptr;
+}
+
+const PDFInkMapper::SpotColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colorName) const
+{
+    auto it = std::find_if(m_spotColors.cbegin(), m_spotColors.cend(), [&colorName](const auto& info) { return info.name == colorName; });
+    if (it != m_spotColors.cend())
+    {
+        return &*it;
+    }
+
+    return nullptr;
 }
 
 }   // namespace pdf

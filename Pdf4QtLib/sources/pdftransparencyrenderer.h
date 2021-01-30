@@ -262,10 +262,18 @@ public:
     /// \param colorName Color name
     bool containsSpotColor(const QByteArray& colorName) const;
 
+    /// Returns number of active spot colors
+    size_t getActiveSpotColorCount() const { return m_activeSpotColors; }
+
+    /// Returns spot color information (or nullptr, if spot color is not present)
+    /// \param colorName Color name
+    const SpotColorInfo* getSpotColor(const QByteArray& colorName) const;
+
 private:
 
     const PDFDocument* m_document;
     std::vector<SpotColorInfo> m_spotColors;
+    size_t m_activeSpotColors = 0;
 };
 
 /// Renders PDF pages with transparency, using 32-bit floating point precision.

@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/pdfplugins/outputpreview">
+        <file>preview.svg</file>
+    </qresource>
+</RCC>

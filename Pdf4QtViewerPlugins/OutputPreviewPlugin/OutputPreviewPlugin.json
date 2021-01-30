@@ -1,0 +1,7 @@
+{
+    "Name" : "OutputPreview",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "View prepress output preview (overprint, spot colors, advanced transparency)."
+}

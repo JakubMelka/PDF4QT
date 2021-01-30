@@ -1,4 +1,4 @@
-#    Copyright (C) 2020 Jakub Melka
+#    Copyright (C) 2021 Jakub Melka
 #
 #    This file is part of Pdf4Qt.
 #
@@ -15,13 +15,38 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
+TEMPLATE = lib
+DEFINES += OUTPUTPREVIEWPLUGIN_LIBRARY
 
-TEMPLATE = subdirs
+QT += gui widgets
 
-SUBDIRS += \
-    DimensionsPlugin \
-    SoftProofingPlugin \
-    RedactPlugin \
-    OutputPreviewPlugin
+LIBS += -L$$OUT_PWD/../..
 
+LIBS += -lPdf4QtLib
 
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+INCLUDEPATH += $$PWD/../../Pdf4QtLib/Sources
+
+DESTDIR = $$OUT_PWD/../../pdfplugins
+
+CONFIG += c++11
+
+SOURCES += \
+    outputpreviewdialog.cpp \
+    outputpreviewplugin.cpp
+
+HEADERS += \
+    outputpreviewdialog.h \
+    outputpreviewplugin.h
+
+CONFIG += force_debug_info
+
+DISTFILES += \
+    OutputPreviewPlugin.json
+
+RESOURCES += \
+    icons.qrc
+
+FORMS += \
+    outputpreviewdialog.ui
