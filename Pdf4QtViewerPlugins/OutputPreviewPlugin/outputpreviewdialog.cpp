@@ -18,19 +18,61 @@
 #include "outputpreviewdialog.h"
 #include "ui_outputpreviewdialog.h"
 
+#include "pdfcms.h"
+#include "pdfrenderer.h"
+#include "pdfdrawspacecontroller.h"
+
 namespace pdfplugin
 {
 
-OutputPreviewDialog::OutputPreviewDialog(QWidget* parent) :
+OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::PDFWidget* widget, QWidget* parent) :
     QDialog(parent),
-    ui(new Ui::OutputPreviewDialog)
+    ui(new Ui::OutputPreviewDialog),
+    m_inkMapper(document),
+    m_document(document),
+    m_widget(widget)
 {
     ui->setupUi(this);
+
+    ui->pageIndexScrollBar->setMinimum(1);
+    ui->pageIndexScrollBar->setValue(1);
+    ui->pageIndexScrollBar->setMaximum(int(document->getCatalog()->getPageCount()));
+
+    m_inkMapper.createSpotColors(true);
+    updateImage();
 }
 
 OutputPreviewDialog::~OutputPreviewDialog()
 {
     delete ui;
+}
+
+void OutputPreviewDialog::updateImage()
+{
+    const pdf::PDFPage* page = m_document->getCatalog()->getPage(ui->pageIndexScrollBar->value() - 1);
+    if (!page)
+    {
+        ui->imageLabel->setPixmap(QPixmap());
+    }
+
+    QRectF pageRect = page->getRotatedMediaBox();
+    QSizeF pageSize = pageRect.size();
+    pageSize.scale(ui->imageLabel->width(), ui->imageLabel->height(), Qt::KeepAspectRatio);
+    QSize imageSize = pageSize.toSize();
+
+    if (!imageSize.isValid())
+    {
+        ui->imageLabel->setPixmap(QPixmap());
+    }
+
+    QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
+    pdf::PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
+    pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
+    pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), &m_inkMapper, pagePointToDevicePoint);
+
+    renderer.beginPaint(imageSize);
+    renderer.processContents();
+    renderer.endPaint();
 }
 
 } // namespace pdfplugin

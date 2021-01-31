@@ -18,6 +18,10 @@
 #ifndef OUTPUTPREVIEWDIALOG_H
 #define OUTPUTPREVIEWDIALOG_H
 
+#include "pdfdocument.h"
+#include "pdfdrawwidget.h"
+#include "pdftransparencyrenderer.h"
+
 #include <QDialog>
 
 namespace Ui
@@ -33,11 +37,16 @@ class OutputPreviewDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit OutputPreviewDialog(QWidget* parent);
+    explicit OutputPreviewDialog(const pdf::PDFDocument* document, pdf::PDFWidget* widget, QWidget* parent);
     virtual ~OutputPreviewDialog() override;
 
 private:
+    void updateImage();
+
     Ui::OutputPreviewDialog* ui;
+    pdf::PDFInkMapper m_inkMapper;
+    const pdf::PDFDocument* m_document;
+    pdf::PDFWidget* m_widget;
 };
 
 }   // namespace pdf

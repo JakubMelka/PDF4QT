@@ -697,6 +697,7 @@ bool PDFAbstractColorSpace::transform(const PDFAbstractColorSpace* source,
     std::vector<PDFColorComponent> transformedOutputColorsVector;
     PDFColorBuffer transformedInput = input;
     PDFColorBuffer transformedOutput = output;
+    params.intent = intent;
 
     switch (source->getColorSpace())
     {

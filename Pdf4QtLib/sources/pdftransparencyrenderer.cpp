@@ -534,11 +534,14 @@ PDFTransparencyRenderer::PDFTransparencyRenderer(const PDFPage* page,
                                                  const PDFFontCache* fontCache,
                                                  const PDFCMS* cms,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
+                                                 const PDFInkMapper* inkMapper,
                                                  QMatrix pagePointToDevicePointMatrix) :
     BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, PDFMeshQualitySettings()),
+    m_inkMapper(inkMapper),
     m_active(false)
 {
-
+    m_deviceColorSpace.reset(new PDFDeviceRGBColorSpace());
+    m_processColorSpace.reset(new PDFDeviceCMYKColorSpace());
 }
 
 void PDFTransparencyRenderer::setDeviceColorSpace(PDFColorSpacePointer colorSpace)
@@ -550,15 +553,50 @@ void PDFTransparencyRenderer::setDeviceColorSpace(PDFColorSpacePointer colorSpac
     }
 }
 
-void PDFTransparencyRenderer::beginPaint()
+void PDFTransparencyRenderer::setProcessColorSpace(PDFColorSpacePointer colorSpace)
+{
+    if (!colorSpace || colorSpace->isBlendColorSpace())
+    {
+        // Set process color space only, when it is a blend color space
+        m_processColorSpace = colorSpace;
+    }
+}
+
+void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
 {
     Q_ASSERT(!m_active);
     m_active = true;
+
+    Q_ASSERT(pixelSize.isValid());
+    Q_ASSERT(m_deviceColorSpace);
+    Q_ASSERT(m_processColorSpace);
+
+    PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
+                                                              uint8_t(m_inkMapper->getActiveSpotColorCount()),
+                                                              true, m_deviceColorSpace->getColorComponentCount() == 4);
+
+    PDFTransparencyGroupPainterData deviceGroup;
+    deviceGroup.alphaIsShape = getGraphicState()->getAlphaIsShape();
+    deviceGroup.alphaStroke = getGraphicState()->getAlphaStroking();
+    deviceGroup.alphaFill = getGraphicState()->getAlphaFilling();
+    deviceGroup.blendMode = getGraphicState()->getBlendMode();
+    deviceGroup.blackPointCompensationMode = getGraphicState()->getBlackPointCompensationMode();
+    deviceGroup.renderingIntent = RenderingIntent::RelativeColorimetric;
+    deviceGroup.initialBackdrop = PDFFloatBitmapWithColorSpace(pixelSize.width(), pixelSize.height(), pixelFormat, m_deviceColorSpace);
+    deviceGroup.immediateBackdrop = deviceGroup.initialBackdrop;
+    deviceGroup.blendColorSpace = m_deviceColorSpace;
+
+    m_transparencyGroupDataStack.emplace_back(qMove(deviceGroup));
 
     // Create page transparency group
     PDFObject pageTransparencyGroupObject = getPage()->getTransparencyGroup(&getDocument()->getStorage());
     PDFTransparencyGroup transparencyGroup = parseTransparencyGroup(pageTransparencyGroupObject);
     transparencyGroup.isolated = true;
+
+    if (!transparencyGroup.colorSpacePointer)
+    {
+        transparencyGroup.colorSpacePointer = m_processColorSpace;
+    }
 
     m_pageTransparencyGroupGuard.reset(new PDFTransparencyGroupGuard(this, qMove(transparencyGroup)));
 }
@@ -779,7 +817,16 @@ void PDFInkMapper::createSpotColors(bool activate)
                 std::size_t colorSpaces = colorSpaceDictionary->getCount();
                 for (size_t csIndex = 0; csIndex < colorSpaces; ++ csIndex)
                 {
-                    PDFColorSpacePointer colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, colorSpaceDictionary->getValue(csIndex));
+                    PDFColorSpacePointer colorSpacePointer;
+                    try
+                    {
+                        colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, m_document->getObject(colorSpaceDictionary->getValue(csIndex)));
+                    }
+                    catch (PDFException)
+                    {
+                        // Ignore invalid color spaces
+                        continue;
+                    }
 
                     if (!colorSpacePointer)
                     {

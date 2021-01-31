@@ -62,7 +62,7 @@ std::vector<QAction*> OutputPreviewPlugin::getActions() const
 
 void OutputPreviewPlugin::onOutputPreviewTriggered()
 {
-    OutputPreviewDialog dialog(m_widget);
+    OutputPreviewDialog dialog(m_document, m_widget, m_widget);
     dialog.exec();
 }
 

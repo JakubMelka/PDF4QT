@@ -48,7 +48,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QScrollBar" name="verticalScrollBar">
+         <widget class="QScrollBar" name="pageIndexScrollBar">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>

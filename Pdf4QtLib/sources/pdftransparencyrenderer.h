@@ -67,11 +67,11 @@ public:
     constexpr uint8_t getColorChannelIndexStart() const { return (hasProcessColors() || hasSpotColors()) ? 0 : INVALID_CHANNEL_INDEX; }
     constexpr uint8_t getColorChannelIndexEnd() const { return (hasProcessColors() || hasSpotColors()) ? (m_processColors + m_spotColors) : INVALID_CHANNEL_INDEX; }
     constexpr uint8_t getShapeChannelIndex() const { return hasShapeChannel() ? getProcessColorChannelCount() + getSpotColorChannelCount() : INVALID_CHANNEL_INDEX; }
-    constexpr uint8_t getOpacityChannelIndex() const { return hasShapeChannel() ? getProcessColorChannelCount() + getSpotColorChannelCount() + getShapeChannelCount() : INVALID_CHANNEL_INDEX; }
+    constexpr uint8_t getOpacityChannelIndex() const { return hasOpacityChannel() ? getProcessColorChannelCount() + getSpotColorChannelCount() + getShapeChannelCount() : INVALID_CHANNEL_INDEX; }
 
     /// Pixel format is valid, if we have at least one color channel
     /// (it doesn't matter, if it is process color, or spot color)
-    constexpr bool isValid() const { return getColorChannelCount() > 0; }
+    constexpr bool isValid() const { return getChannelCount() > 0; }
 
     inline void setProcessColors(const uint8_t& processColors) { m_processColors = processColors; }
     inline void setSpotColors(const uint8_t& spotColors) { m_spotColors = spotColors; }
@@ -237,7 +237,7 @@ private:
 };
 
 /// Ink mapper for mapping device inks (device colors) and spot inks (spot colors).
-class PDFInkMapper
+class Pdf4QtLIBSHARED_EXPORT PDFInkMapper
 {
 public:
     explicit PDFInkMapper(const PDFDocument* document);
@@ -281,7 +281,7 @@ private:
 /// page blending space and device blending space. So, painted graphics is being
 /// blended to the page blending space, and then converted to the device blending
 /// space.
-class PDFTransparencyRenderer : public PDFPageContentProcessor
+class Pdf4QtLIBSHARED_EXPORT PDFTransparencyRenderer : public PDFPageContentProcessor
 {
 private:
     using BaseClass = PDFPageContentProcessor;
@@ -292,13 +292,23 @@ public:
                             const PDFFontCache* fontCache,
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
+                            const PDFInkMapper* inkMapper,
                             QMatrix pagePointToDevicePointMatrix);
 
+    /// Sets device color space. This is final color space, to which
+    /// is painted page transformed.
+    /// \param colorSpace Color space
     void setDeviceColorSpace(PDFColorSpacePointer colorSpace);
+
+    /// Sets process color space. This color space is used for blending
+    /// and intermediate results. If page has transparency group, then
+    /// blending color space from transparency group is used.
+    /// \param colorSpace Color space
+    void setProcessColorSpace(PDFColorSpacePointer colorSpace);
 
     /// Starts painting on the device. This function must be called before page
     /// content stream is being processed (and must be called exactly once).
-    void beginPaint();
+    void beginPaint(QSize pixelSize);
 
     /// Finishes painting on the device. This function must be called after page
     /// content stream is processed and all result graphics is being drawn. Page
@@ -345,6 +355,7 @@ private:
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
     std::unique_ptr<PDFTransparencyGroupGuard> m_pageTransparencyGroupGuard;
     std::vector<PDFTransparencyGroupPainterData> m_transparencyGroupDataStack;
+    const PDFInkMapper* m_inkMapper;
     bool m_active;
 };
 
