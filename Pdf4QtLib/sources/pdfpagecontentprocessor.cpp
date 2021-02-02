@@ -289,9 +289,9 @@ void PDFPageContentProcessor::initializeProcessor()
     }
 
     m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
-    m_graphicState.setStrokeColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
+    m_graphicState.setStrokeColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this), m_deviceGrayColorSpace->getDefaultColorOriginal());
     m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
-    m_graphicState.setFillColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
+    m_graphicState.setFillColor(m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this), m_deviceGrayColorSpace->getDefaultColorOriginal());
     m_graphicState.setStateFlags(PDFPageContentProcessorState::StateAll);
     updateGraphicState();
 }
@@ -996,8 +996,8 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
         m_graphicState.setFillColorSpace(uncoloredPatternColorSpace);
 
         QColor color = uncoloredPatternColorSpace->getCheckedColor(uncoloredPatternColor, m_CMS, m_graphicState.getRenderingIntent(), this);
-        m_graphicState.setStrokeColor(color);
-        m_graphicState.setFillColor(color);
+        m_graphicState.setStrokeColor(color, uncoloredPatternColor);
+        m_graphicState.setFillColor(color, uncoloredPatternColor);
     }
     else
     {
@@ -1006,8 +1006,8 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
         m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
 
         QColor color = m_deviceGrayColorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this);
-        m_graphicState.setStrokeColor(color);
-        m_graphicState.setFillColor(color);
+        m_graphicState.setStrokeColor(color, m_deviceGrayColorSpace->getDefaultColorOriginal());
+        m_graphicState.setFillColor(color, m_deviceGrayColorSpace->getDefaultColorOriginal());
     }
 
     updateGraphicState();
@@ -2305,7 +2305,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
     {
         // We must also set default color (it can depend on the color space)
         m_graphicState.setStrokeColorSpace(colorSpace);
-        m_graphicState.setStrokeColor(colorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
+        m_graphicState.setStrokeColor(colorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this), colorSpace->getDefaultColorOriginal());
         updateGraphicState();
         checkStrokingColor();
     }
@@ -2328,7 +2328,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
     {
         // We must also set default color (it can depend on the color space)
         m_graphicState.setFillColorSpace(colorSpace);
-        m_graphicState.setFillColor(colorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this));
+        m_graphicState.setFillColor(colorSpace->getDefaultColor(m_CMS, m_graphicState.getRenderingIntent(), this), colorSpace->getDefaultColorOriginal());
         updateGraphicState();
         checkFillingColor();
     }
@@ -2357,7 +2357,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColor()
         {
             color.push_back(readOperand<PDFReal>(i));
         }
-        m_graphicState.setStrokeColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this, true));
+        m_graphicState.setStrokeColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this, true), color);
         updateGraphicState();
         checkStrokingColor();
     }
@@ -2435,7 +2435,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColor()
         {
             color.push_back(readOperand<PDFReal>(i));
         }
-        m_graphicState.setFillColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this, true));
+        m_graphicState.setFillColor(colorSpace->getColor(color, m_CMS, m_graphicState.getRenderingIntent(), this, true), color);
         updateGraphicState();
         checkFillingColor();
     }
@@ -2503,7 +2503,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceGrayStroking(PDFReal gray)
     }
 
     m_graphicState.setStrokeColorSpace(m_deviceGrayColorSpace);
-    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), gray));
+    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), gray), PDFColor(PDFColorComponent(gray)));
     updateGraphicState();
     checkStrokingColor();
 }
@@ -2517,7 +2517,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceGrayFilling(PDFReal gray)
     }
 
     m_graphicState.setFillColorSpace(m_deviceGrayColorSpace);
-    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), gray));
+    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), gray), PDFColor(PDFColorComponent(gray)));
     updateGraphicState();
     checkFillingColor();
 }
@@ -2531,7 +2531,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceRGBStroking(PDFReal r, PDFRe
     }
 
     m_graphicState.setStrokeColorSpace(m_deviceRGBColorSpace);
-    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), r, g, b));
+    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), r, g, b), PDFColor(PDFColorComponent(r), PDFColorComponent(g), PDFColorComponent(b)));
     updateGraphicState();
     checkStrokingColor();
 }
@@ -2545,7 +2545,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceRGBFilling(PDFReal r, PDFRea
     }
 
     m_graphicState.setFillColorSpace(m_deviceRGBColorSpace);
-    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), r, g, b));
+    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), r, g, b), PDFColor(PDFColorComponent(r), PDFColorComponent(g), PDFColorComponent(b)));
     updateGraphicState();
     checkFillingColor();
 }
@@ -2559,7 +2559,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKStroking(PDFReal c, PDFR
     }
 
     m_graphicState.setStrokeColorSpace(m_deviceCMYKColorSpace);
-    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), c, m, y, k));
+    m_graphicState.setStrokeColor(getColorFromColorSpace(m_graphicState.getStrokeColorSpace(), c, m, y, k), PDFColor(PDFColorComponent(c), PDFColorComponent(m), PDFColorComponent(y), PDFColorComponent(k)));
     updateGraphicState();
     checkStrokingColor();
 }
@@ -2573,7 +2573,7 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFRe
     }
 
     m_graphicState.setFillColorSpace(m_deviceCMYKColorSpace);
-    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), c, m, y, k));
+    m_graphicState.setFillColor(getColorFromColorSpace(m_graphicState.getFillColorSpace(), c, m, y, k), PDFColor(PDFColorComponent(c), PDFColorComponent(m), PDFColorComponent(y), PDFColorComponent(k)));
     updateGraphicState();
     checkFillingColor();
 }
@@ -3324,7 +3324,9 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
     m_fillColorSpace(),
     m_strokeColorSpace(),
     m_fillColor(Qt::black),
+    m_fillColorOriginal(),
     m_strokeColor(Qt::black),
+    m_strokeColorOriginal(),
     m_lineWidth(1.0),
     m_lineCapStyle(Qt::FlatCap),
     m_lineJoinStyle(Qt::MiterJoin),
@@ -3353,6 +3355,9 @@ PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorSt
 {
     m_fillColorSpace.reset(new PDFDeviceGrayColorSpace);
     m_strokeColorSpace = m_fillColorSpace;
+
+    m_fillColorOriginal = m_fillColorSpace->getDefaultColorOriginal();
+    m_strokeColorOriginal = m_fillColorOriginal;
 }
 
 PDFPageContentProcessor::PDFPageContentProcessorState::~PDFPageContentProcessorState()
@@ -3365,8 +3370,8 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     setCurrentTransformationMatrix(other.getCurrentTransformationMatrix());
     setStrokeColorSpace(other.m_strokeColorSpace);
     setFillColorSpace(other.m_fillColorSpace);
-    setStrokeColor(other.getStrokeColor());
-    setFillColor(other.getFillColor());
+    setStrokeColor(other.getStrokeColor(), other.getStrokeColorOriginal());
+    setFillColor(other.getFillColor(), other.getFillColorOriginal());
     setLineWidth(other.getLineWidth());
     setLineCapStyle(other.getLineCapStyle());
     setLineJoinStyle(other.getLineJoinStyle());
@@ -3430,20 +3435,22 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColorSpace(co
     }
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeColor(const QColor& strokeColor)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeColor(const QColor& strokeColor, const PDFColor& originalColor)
 {
     if (m_strokeColor != strokeColor)
     {
         m_strokeColor = strokeColor;
+        m_strokeColorOriginal = originalColor;
         m_stateFlags |= StateStrokeColor;
     }
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColor(const QColor& fillColor)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColor(const QColor& fillColor, const PDFColor& originalColor)
 {
     if (m_fillColor != fillColor)
     {
         m_fillColor = fillColor;
+        m_fillColorOriginal = originalColor;
         m_stateFlags |= StateFillColor;
     }
 }

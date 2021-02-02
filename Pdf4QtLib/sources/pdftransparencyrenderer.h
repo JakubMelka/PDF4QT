@@ -326,6 +326,12 @@ public:
 
 private:
 
+    PDFReal getShapeStroking() const;
+    PDFReal getOpacityStroking() const;
+    PDFReal getShapeFilling() const;
+    PDFReal getOpacityFilling() const;
+
+
     struct PDFTransparencyGroupPainterData
     {
         PDFTransparencyGroup group;
@@ -341,12 +347,19 @@ private:
         PDFColorSpacePointer blendColorSpace;
     };
 
+    struct PDFTransparencyPainterState
+    {
+        QPainterPath clipPath; ///< Clipping path in device state coordinates
+    };
+
     void removeInitialBackdrop();
 
     PDFFloatBitmapWithColorSpace* getInitialBackdrop();
     PDFFloatBitmapWithColorSpace* getImmediateBackdrop();
     PDFFloatBitmapWithColorSpace* getBackdrop();
     const PDFColorSpacePointer& getBlendColorSpace() const;
+
+    PDFTransparencyPainterState* getPainterState() { return &m_painterStateStack.top(); }
 
     bool isTransparencyGroupIsolated() const;
     bool isTransparencyGroupKnockout() const;
@@ -355,6 +368,7 @@ private:
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
     std::unique_ptr<PDFTransparencyGroupGuard> m_pageTransparencyGroupGuard;
     std::vector<PDFTransparencyGroupPainterData> m_transparencyGroupDataStack;
+    std::stack<PDFTransparencyPainterState> m_painterStateStack;
     const PDFInkMapper* m_inkMapper;
     bool m_active;
 };

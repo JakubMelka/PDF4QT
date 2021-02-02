@@ -330,10 +330,12 @@ protected:
         void setFillColorSpace(const QSharedPointer<PDFAbstractColorSpace>& fillColorSpace);
 
         const QColor& getStrokeColor() const { return m_strokeColor; }
-        void setStrokeColor(const QColor& strokeColor);
+        const PDFColor& getStrokeColorOriginal() const { return m_strokeColorOriginal; }
+        void setStrokeColor(const QColor& strokeColor, const PDFColor& originalColor);
 
         const QColor& getFillColor() const { return m_fillColor; }
-        void setFillColor(const QColor& fillColor);
+        const PDFColor& getFillColorOriginal() const { return m_fillColorOriginal; }
+        void setFillColor(const QColor& fillColor, const PDFColor& originalColor);
 
         PDFReal getLineWidth() const { return m_lineWidth; }
         void setLineWidth(PDFReal lineWidth);
@@ -448,7 +450,9 @@ protected:
         PDFColorSpacePointer m_strokeColorSpace;
         PDFColorSpacePointer m_fillColorSpace;
         QColor m_strokeColor;
+        PDFColor m_strokeColorOriginal;
         QColor m_fillColor;
+        PDFColor m_fillColorOriginal;
         PDFReal m_lineWidth;
         Qt::PenCapStyle m_lineCapStyle;
         Qt::PenJoinStyle m_lineJoinStyle;

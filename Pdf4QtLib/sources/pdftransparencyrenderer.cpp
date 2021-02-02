@@ -514,12 +514,12 @@ void PDFFloatBitmapWithColorSpace::convertToColorSpace(const PDFCMS* cms,
             Q_ASSERT(sourceProcessColorBuffer.size() <= targetBuffer.size());
 
             // Copy process colors
-            auto targetIt = targetBuffer.begin();
+            PDFColorComponent* targetIt = targetBuffer.begin();
             targetIt = std::copy(sourceProcessColorBuffer.cbegin(), sourceProcessColorBuffer.cend(), targetIt);
 
             Q_ASSERT(std::distance(targetIt, targetBuffer.end()) == temporary.getPixelFormat().getSpotColorChannelCount() + temporary.getPixelFormat().getAuxiliaryChannelCount());
 
-            auto sourceIt = std::next(sourceSpotColorAndOpacityBuffer.cbegin(), temporary.getPixelFormat().getProcessColorChannelCount());
+            const PDFColorComponent* sourceIt = std::next(sourceSpotColorAndOpacityBuffer.cbegin(), getPixelFormat().getProcessColorChannelCount());
             targetIt = std::copy(sourceIt, sourceSpotColorAndOpacityBuffer.cend(), targetIt);
 
             Q_ASSERT(targetIt == targetBuffer.cend());
@@ -571,6 +571,8 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     Q_ASSERT(m_deviceColorSpace);
     Q_ASSERT(m_processColorSpace);
 
+    m_painterStateStack.push(PDFTransparencyPainterState());
+
     PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
                                                               uint8_t(m_inkMapper->getActiveSpotColorCount()),
                                                               true, m_deviceColorSpace->getColorComponentCount() == 4);
@@ -606,6 +608,7 @@ const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
     Q_ASSERT(m_active);
     m_pageTransparencyGroupGuard.reset();
     m_active = false;
+    m_painterStateStack.pop();
 
     return *getImmediateBackdrop();
 }
@@ -616,18 +619,39 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
 
 void PDFTransparencyRenderer::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
 {
+    Q_UNUSED(fillRule);
+
+    PDFTransparencyPainterState* painterState = getPainterState();
+
+    if (!painterState->clipPath.isEmpty())
+    {
+        painterState->clipPath = painterState->clipPath.intersected(getCurrentWorldMatrix().map(path));
+    }
+    else
+    {
+        painterState->clipPath = getCurrentWorldMatrix().map(path);
+    }
 }
 
 void PDFTransparencyRenderer::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
 {
+    Q_UNUSED(state);
 }
 
 void PDFTransparencyRenderer::performSaveGraphicState(ProcessOrder order)
 {
+    if (order == ProcessOrder::AfterOperation)
+    {
+        m_painterStateStack.push(m_painterStateStack.top());
+    }
 }
 
 void PDFTransparencyRenderer::performRestoreGraphicState(ProcessOrder order)
 {
+    if (order == ProcessOrder::BeforeOperation)
+    {
+        m_painterStateStack.pop();
+    }
 }
 
 void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
@@ -713,6 +737,26 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
                               sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint);
     }
+}
+
+PDFReal PDFTransparencyRenderer::getShapeStroking() const
+{
+    return getGraphicState()->getAlphaIsShape() ? getGraphicState()->getAlphaStroking() : 1.0;
+}
+
+PDFReal PDFTransparencyRenderer::getOpacityStroking() const
+{
+    return !getGraphicState()->getAlphaIsShape() ? getGraphicState()->getAlphaStroking() : 1.0;
+}
+
+PDFReal PDFTransparencyRenderer::getShapeFilling() const
+{
+    return getGraphicState()->getAlphaIsShape() ? getGraphicState()->getAlphaFilling() : 1.0;
+}
+
+PDFReal PDFTransparencyRenderer::getOpacityFilling() const
+{
+    return !getGraphicState()->getAlphaIsShape() ? getGraphicState()->getAlphaFilling() : 1.0;
 }
 
 void PDFTransparencyRenderer::removeInitialBackdrop()
