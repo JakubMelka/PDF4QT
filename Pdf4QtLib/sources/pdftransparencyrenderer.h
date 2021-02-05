@@ -22,6 +22,7 @@
 #include "pdfcolorspaces.h"
 #include "pdfpagecontentprocessor.h"
 #include "pdfconstants.h"
+#include "pdfutils.h"
 
 namespace pdf
 {
@@ -236,6 +237,29 @@ private:
     PDFColorSpacePointer m_colorSpace;
 };
 
+/// Ink mapping
+struct PDFInkMapping
+{
+    inline bool isValid() const { return !mapping.empty(); }
+    inline void reserve(size_t size) { mapping.reserve(size); }
+    inline void map(uint8_t source, uint8_t target) { mapping.emplace_back(Mapping{ source, target, Pass}); activeChannels |= 1 << target; }
+
+    enum Type
+    {
+        Pass
+    };
+
+    struct Mapping
+    {
+        uint8_t source = 0;
+        uint8_t target = 0;
+        Type type = Pass;
+    };
+
+    std::vector<Mapping> mapping;
+    uint32_t activeChannels = 0;
+};
+
 /// Ink mapper for mapping device inks (device colors) and spot inks (spot colors).
 class Pdf4QtLIBSHARED_EXPORT PDFInkMapper
 {
@@ -245,7 +269,8 @@ public:
     struct SpotColorInfo
     {
         QByteArray name;
-        uint32_t index = 0; ///< Index into DeviceN color space (index of colorant)
+        uint32_t spotColorIndex = 0; ///< Index of this spot color
+        uint32_t colorSpaceIndex = 0; ///< Index into DeviceN color space (index of colorant)
         PDFColorSpacePointer colorSpace;
         bool active = false; ///< Is spot color active?
     };
@@ -268,6 +293,17 @@ public:
     /// Returns spot color information (or nullptr, if spot color is not present)
     /// \param colorName Color name
     const SpotColorInfo* getSpotColor(const QByteArray& colorName) const;
+
+    /// Creates color mapping from source color space to the target color space.
+    /// If mapping  cannot be created, then invalid mapping is returned. Target
+    /// color space must be blending color space and must correspond to active
+    /// blending space, if used when painting.
+    /// \param sourceColorSpace Source color space
+    /// \param targetColorSpace Target color space
+    /// \param targetPixelFormat
+    PDFInkMapping createMapping(const PDFAbstractColorSpace* sourceColorSpace,
+                                const PDFAbstractColorSpace* targetColorSpace,
+                                PDFPixelFormat targetPixelFormat) const;
 
 private:
 
@@ -352,7 +388,22 @@ private:
         QPainterPath clipPath; ///< Clipping path in device state coordinates
     };
 
+    struct PDFMappedColor
+    {
+        PDFColor mappedColor;
+        uint32_t activeChannels = 0;
+    };
+
+    void invalidateCachedItems();
     void removeInitialBackdrop();
+
+    void fillMappedColorUsingMapping(const PDFPixelFormat pixelFormat,
+                                     PDFMappedColor& result,
+                                     const PDFInkMapping& inkMapping,
+                                     const PDFColor& sourceColor);
+
+    PDFMappedColor createMappedColor(const PDFColor& sourceColor,
+                                     const PDFAbstractColorSpace* sourceColorSpace);
 
     PDFFloatBitmapWithColorSpace* getInitialBackdrop();
     PDFFloatBitmapWithColorSpace* getImmediateBackdrop();
@@ -364,6 +415,12 @@ private:
     bool isTransparencyGroupIsolated() const;
     bool isTransparencyGroupKnockout() const;
 
+    const PDFMappedColor& getMappedStrokeColor();
+    const PDFMappedColor& getMappedFillColor();
+
+    PDFMappedColor getMappedStrokeColorImpl();
+    PDFMappedColor getMappedFillColorImpl();
+
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
     std::unique_ptr<PDFTransparencyGroupGuard> m_pageTransparencyGroupGuard;
@@ -371,6 +428,8 @@ private:
     std::stack<PDFTransparencyPainterState> m_painterStateStack;
     const PDFInkMapper* m_inkMapper;
     bool m_active;
+    PDFCachedItem<PDFMappedColor> m_mappedStrokeColor;
+    PDFCachedItem<PDFMappedColor> m_mappedFillColor;
 };
 
 }   // namespace pdf

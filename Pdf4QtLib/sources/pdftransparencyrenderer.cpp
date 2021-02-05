@@ -499,7 +499,7 @@ void PDFFloatBitmapWithColorSpace::convertToColorSpace(const PDFCMS* cms,
 
     if (!PDFAbstractColorSpace::transform(m_colorSpace.data(), targetColorSpace.data(), cms, intent, sourceProcessColors.getPixels(), targetProcessColors.getPixels(), reporter))
     {
-        reporter->reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation between blending color spaces failed."));
+        reporter->reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation between blending color space failed."));
     }
 
     PDFFloatBitmapWithColorSpace temporary(getWidth(), getHeight(), newFormat, targetColorSpace);
@@ -615,6 +615,8 @@ const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
 
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
+    auto mappedStrokeColor = getMappedStrokeColor();
+    auto mappedFillColor = getMappedFillColor();
 }
 
 void PDFTransparencyRenderer::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
@@ -635,7 +637,24 @@ void PDFTransparencyRenderer::performClipping(const QPainterPath& path, Qt::Fill
 
 void PDFTransparencyRenderer::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
 {
-    Q_UNUSED(state);
+    PDFPageContentProcessorState::StateFlags stateFlags = state.getStateFlags();
+
+    const bool colorTransformAffected = stateFlags.testFlag(PDFPageContentProcessorState::StateRenderingIntent) ||
+                                        stateFlags.testFlag(PDFPageContentProcessorState::StateBlackPointCompensation);
+
+    if (colorTransformAffected ||
+        stateFlags.testFlag(PDFPageContentProcessorState::StateStrokeColor) ||
+        stateFlags.testFlag(PDFPageContentProcessorState::StateStrokeColorSpace))
+    {
+        m_mappedStrokeColor.dirty();
+    }
+
+    if (colorTransformAffected ||
+        stateFlags.testFlag(PDFPageContentProcessorState::StateFillColor) ||
+        stateFlags.testFlag(PDFPageContentProcessorState::StateFillColorSpace))
+    {
+        m_mappedFillColor.dirty();
+    }
 }
 
 void PDFTransparencyRenderer::performSaveGraphicState(ProcessOrder order)
@@ -716,6 +735,7 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
         data.immediateBackdrop.makeTransparent();
 
         m_transparencyGroupDataStack.emplace_back(qMove(data));
+        invalidateCachedItems();
     }
 }
 
@@ -736,6 +756,8 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
 
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
                               sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint);
+
+        invalidateCachedItems();
     }
 }
 
@@ -757,6 +779,12 @@ PDFReal PDFTransparencyRenderer::getShapeFilling() const
 PDFReal PDFTransparencyRenderer::getOpacityFilling() const
 {
     return !getGraphicState()->getAlphaIsShape() ? getGraphicState()->getAlphaFilling() : 1.0;
+}
+
+void PDFTransparencyRenderer::invalidateCachedItems()
+{
+    m_mappedStrokeColor.dirty();
+    m_mappedFillColor.dirty();
 }
 
 void PDFTransparencyRenderer::removeInitialBackdrop()
@@ -835,6 +863,125 @@ bool PDFTransparencyRenderer::isTransparencyGroupKnockout() const
     return m_transparencyGroupDataStack.back().group.knockout;
 }
 
+const PDFTransparencyRenderer::PDFMappedColor& PDFTransparencyRenderer::getMappedStrokeColor()
+{
+    return m_mappedStrokeColor.get(this, &PDFTransparencyRenderer::getMappedStrokeColorImpl);
+}
+
+const PDFTransparencyRenderer::PDFMappedColor& PDFTransparencyRenderer::getMappedFillColor()
+{
+    return m_mappedFillColor.get(this, &PDFTransparencyRenderer::getMappedFillColorImpl);
+}
+
+void PDFTransparencyRenderer::fillMappedColorUsingMapping(const PDFPixelFormat pixelFormat,
+                                                          PDFMappedColor& result,
+                                                          const PDFInkMapping& inkMapping,
+                                                          const PDFColor& sourceColor)
+{
+    result.mappedColor.resize(pixelFormat.getColorChannelCount());
+
+    // Zero the color
+    for (size_t i = 0; i < pixelFormat.getColorChannelCount(); ++i)
+    {
+        result.mappedColor[i] = 0.0f;
+    }
+
+    for (const PDFInkMapping::Mapping& ink : inkMapping.mapping)
+    {
+        // Sanity check of source color
+        if (ink.source >= sourceColor.size())
+        {
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid source ink index %1.").arg(ink.source));
+            continue;
+        }
+
+        // Sanity check of target color
+        if (ink.target >= result.mappedColor.size())
+        {
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid target ink index %1.").arg(ink.target));
+            continue;
+        }
+
+        switch (ink.type)
+        {
+            case pdf::PDFInkMapping::Pass:
+                result.mappedColor[ink.target] = sourceColor[ink.source];
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    result.activeChannels = inkMapping.activeChannels;
+}
+
+PDFTransparencyRenderer::PDFMappedColor PDFTransparencyRenderer::createMappedColor(const PDFColor& sourceColor, const PDFAbstractColorSpace* sourceColorSpace)
+{
+    PDFMappedColor result;
+
+    const PDFAbstractColorSpace* targetColorSpace = getBlendColorSpace().data();
+    const PDFPixelFormat pixelFormat = getImmediateBackdrop()->getPixelFormat();
+
+    Q_ASSERT(targetColorSpace->equals(getImmediateBackdrop()->getColorSpace().data()));
+
+    PDFInkMapping inkMapping = m_inkMapper->createMapping(sourceColorSpace, targetColorSpace, pixelFormat);
+    if (inkMapping.isValid())
+    {
+        fillMappedColorUsingMapping(pixelFormat, result, inkMapping, sourceColor);
+    }
+    else
+    {
+        // Jakub Melka: We must convert color form source color space to target color space
+        std::vector<PDFColorComponent> sourceColorVector(sourceColor.size(), 0.0f);
+        for (size_t i = 0; i < sourceColorVector.size(); ++i)
+        {
+            sourceColorVector[i] = sourceColor[i];
+        }
+        PDFColorBuffer sourceColorBuffer(sourceColorVector.data(), sourceColorVector.size());
+
+        std::vector<PDFColorComponent> targetColorVector(pixelFormat.getProcessColorChannelCount(), 0.0f);
+        PDFColorBuffer targetColorBuffer(targetColorVector.data(), targetColorVector.size());
+
+        if (!PDFAbstractColorSpace::transform(sourceColorSpace, targetColorSpace, getCMS(), getGraphicState()->getRenderingIntent(), sourceColorBuffer, targetColorBuffer, this))
+        {
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation from source color space to target blending color space failed."));
+        }
+
+        PDFColor adjustedSourceColor;
+        adjustedSourceColor.resize(targetColorBuffer.size());
+
+        for (size_t i = 0; i < targetColorBuffer.size(); ++i)
+        {
+            adjustedSourceColor[i] = targetColorBuffer[i];
+        }
+
+        inkMapping = m_inkMapper->createMapping(targetColorSpace, targetColorSpace, pixelFormat);
+
+        Q_ASSERT(inkMapping.isValid());
+        fillMappedColorUsingMapping(pixelFormat, result, inkMapping, adjustedSourceColor);
+    }
+
+    return result;
+}
+
+PDFTransparencyRenderer::PDFMappedColor PDFTransparencyRenderer::getMappedStrokeColorImpl()
+{
+    const PDFAbstractColorSpace* sourceColorSpace = getGraphicState()->getStrokeColorSpace();
+    const PDFColor& sourceColor = getGraphicState()->getStrokeColorOriginal();
+
+    return createMappedColor(sourceColor, sourceColorSpace);
+}
+
+PDFTransparencyRenderer::PDFMappedColor PDFTransparencyRenderer::getMappedFillColorImpl()
+{
+    const PDFAbstractColorSpace* sourceColorSpace = getGraphicState()->getFillColorSpace();
+    const PDFColor& sourceColor = getGraphicState()->getFillColorOriginal();
+
+    return createMappedColor(sourceColor, sourceColorSpace);
+}
+
 PDFInkMapper::PDFInkMapper(const PDFDocument* document) :
     m_document(document)
 {
@@ -892,6 +1039,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                                     SpotColorInfo info;
                                     info.name = colorName;
                                     info.colorSpace = colorSpacePointer;
+                                    info.spotColorIndex = uint32_t(m_spotColors.size());
                                     m_spotColors.emplace_back(qMove(info));
                                 }
                             }
@@ -913,8 +1061,9 @@ void PDFInkMapper::createSpotColors(bool activate)
                                     {
                                         SpotColorInfo info;
                                         info.name = colorantInfo.name;
-                                        info.index = uint32_t(i);
+                                        info.colorSpaceIndex = uint32_t(i);
                                         info.colorSpace = colorSpacePointer;
+                                        info.spotColorIndex = uint32_t(m_spotColors.size());
                                         m_spotColors.emplace_back(qMove(info));
                                     }
                                 }
@@ -956,6 +1105,85 @@ const PDFInkMapper::SpotColorInfo* PDFInkMapper::getSpotColor(const QByteArray& 
     }
 
     return nullptr;
+}
+
+PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceColorSpace,
+                                          const PDFAbstractColorSpace* targetColorSpace,
+                                          PDFPixelFormat targetPixelFormat) const
+{
+    PDFInkMapping mapping;
+
+    Q_ASSERT(targetColorSpace->getColorComponentCount() == targetPixelFormat.getProcessColorChannelCount());
+
+    if (sourceColorSpace->equals(targetColorSpace))
+    {
+        Q_ASSERT(sourceColorSpace->getColorComponentCount() == targetColorSpace->getColorComponentCount());
+
+        uint8_t colorCount = uint8_t(targetColorSpace->getColorComponentCount());
+        mapping.mapping.reserve(colorCount);
+
+        for (uint8_t i = 0; i < colorCount; ++i)
+        {
+            mapping.map(i, i);
+        }
+    }
+    else
+    {
+        switch (sourceColorSpace->getColorSpace())
+        {
+            case PDFAbstractColorSpace::ColorSpace::Separation:
+            {
+                const PDFSeparationColorSpace* separationColorSpace = dynamic_cast<const PDFSeparationColorSpace*>(sourceColorSpace);
+
+                if (separationColorSpace->isAll())
+                {
+                    // Map this color to all device colors
+                    uint32_t colorCount = static_cast<uint32_t>(targetColorSpace->getColorComponentCount());
+                    mapping.mapping.reserve(colorCount);
+
+                    for (size_t i = 0; i < colorCount; ++i)
+                    {
+                        mapping.map(0, uint8_t(i));
+                    }
+                }
+                else if (!separationColorSpace->isNone() && !separationColorSpace->getColorName().isEmpty())
+                {
+                    const QByteArray& colorName = separationColorSpace->getColorName();
+                    const SpotColorInfo* info = getSpotColor(colorName);
+                    if (info && info->active && targetPixelFormat.hasSpotColors() && info->spotColorIndex < targetPixelFormat.getSpotColorChannelCount())
+                    {
+                        mapping.map(0, uint8_t(targetPixelFormat.getSpotColorChannelIndexStart() + info->spotColorIndex));
+                    }
+                }
+
+                break;
+            }
+
+            case PDFAbstractColorSpace::ColorSpace::DeviceN:
+            {
+                const PDFDeviceNColorSpace* deviceNColorSpace = dynamic_cast<const PDFDeviceNColorSpace*>(sourceColorSpace);
+
+                if (!deviceNColorSpace->isNone())
+                {
+                    const PDFDeviceNColorSpace::Colorants& colorants = deviceNColorSpace->getColorants();
+                    for (size_t i = 0; i < colorants.size(); ++i)
+                    {
+                        const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
+                        const SpotColorInfo* info = getSpotColor(colorantInfo.name);
+
+                        if (info && info->active && targetPixelFormat.hasSpotColors() && info->spotColorIndex < targetPixelFormat.getSpotColorChannelCount())
+                        {
+                            mapping.map(uint8_t(i), uint8_t(targetColorSpace->getColorComponentCount() + info->spotColorIndex));
+                        }
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+
+    return mapping;
 }
 
 }   // namespace pdf
