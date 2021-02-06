@@ -161,6 +161,14 @@ public:
     /// If bitmap doesn't have shape/opacity channel, nothing happens.
     void makeOpaque();
 
+    /// Fillss process color channels to a value, that corresponds to black,
+    /// so 0.0 for additive colors, 1.0 for subtractive colors.
+    void makeColorBlack();
+
+    /// Fillss process color channels to a value, that corresponds to white,
+    /// so 1.0 for additive colors, 0.0 for subtractive colors.
+    void makeColorWhite();
+
     /// Returns index where given pixel starts in the data block
     /// \param x Horizontal coordinate of the pixel
     /// \param y Vertical coordinate of the pixel
@@ -205,6 +213,7 @@ public:
                       OverprintMode overprintMode);
 
 private:
+    void fillProcessColorChannels(PDFColorComponent value);
     void fillChannel(size_t channel, PDFColorComponent value);
 
     PDFPixelFormat m_format;
@@ -306,7 +315,6 @@ public:
                                 PDFPixelFormat targetPixelFormat) const;
 
 private:
-
     const PDFDocument* m_document;
     std::vector<SpotColorInfo> m_spotColors;
     size_t m_activeSpotColors = 0;
@@ -351,6 +359,13 @@ public:
     /// transparency group collapses nad contents are draw onto device transparency
     /// group.
     const PDFFloatBitmap& endPaint();
+
+    /// This function should be called only after call to \p endPaint. After painting,
+    /// when it is finished, the result float image can be converted to QImage with
+    /// this function, but only, if the float image is RGB. If error occurs, empty
+    /// image is returned.
+    /// \param use16bit
+    QImage toImage(bool use16Bit) const;
 
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;

@@ -73,6 +73,9 @@ void OutputPreviewDialog::updateImage()
     renderer.beginPaint(imageSize);
     renderer.processContents();
     renderer.endPaint();
+
+    QImage image = renderer.toImage(false);
+    ui->imageLabel->setPixmap(QPixmap::fromImage(image));
 }
 
 } // namespace pdfplugin

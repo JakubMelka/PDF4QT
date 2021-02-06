@@ -104,6 +104,16 @@ void PDFFloatBitmap::makeOpaque()
     }
 }
 
+void PDFFloatBitmap::makeColorBlack()
+{
+    fillProcessColorChannels(m_format.hasProcessColorsSubtractive() ? 1.0 : 0.0);
+}
+
+void PDFFloatBitmap::makeColorWhite()
+{
+    fillProcessColorChannels(m_format.hasProcessColorsSubtractive() ? 0.0 : 1.0);
+}
+
 size_t PDFFloatBitmap::getPixelIndex(size_t x, size_t y) const
 {
     return (y * m_width + x) * m_pixelSize;
@@ -440,6 +450,23 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
     }
 }
 
+void PDFFloatBitmap::fillProcessColorChannels(PDFColorComponent value)
+{
+    if (!m_format.hasProcessColors())
+    {
+        // No process colors
+        return;
+    }
+
+    const uint8_t channelStart = m_format.getProcessColorChannelIndexStart();
+    const uint8_t channelEnd = m_format.getProcessColorChannelIndexEnd();
+
+    for (PDFColorComponent* pixel = begin(); pixel != end(); pixel += m_pixelSize)
+    {
+        std::fill(pixel + channelStart, pixel + channelEnd, value);
+    }
+}
+
 void PDFFloatBitmap::fillChannel(size_t channel, PDFColorComponent value)
 {
     // Do we have just one channel?
@@ -571,11 +598,15 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     Q_ASSERT(m_deviceColorSpace);
     Q_ASSERT(m_processColorSpace);
 
+    m_transparencyGroupDataStack.clear();
     m_painterStateStack.push(PDFTransparencyPainterState());
 
     PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
                                                               uint8_t(m_inkMapper->getActiveSpotColorCount()),
                                                               true, m_deviceColorSpace->getColorComponentCount() == 4);
+
+    PDFFloatBitmapWithColorSpace paper = PDFFloatBitmapWithColorSpace(pixelSize.width(), pixelSize.height(), pixelFormat, m_deviceColorSpace);
+    paper.makeColorWhite();
 
     PDFTransparencyGroupPainterData deviceGroup;
     deviceGroup.alphaIsShape = getGraphicState()->getAlphaIsShape();
@@ -584,7 +615,7 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     deviceGroup.blendMode = getGraphicState()->getBlendMode();
     deviceGroup.blackPointCompensationMode = getGraphicState()->getBlackPointCompensationMode();
     deviceGroup.renderingIntent = RenderingIntent::RelativeColorimetric;
-    deviceGroup.initialBackdrop = PDFFloatBitmapWithColorSpace(pixelSize.width(), pixelSize.height(), pixelFormat, m_deviceColorSpace);
+    deviceGroup.initialBackdrop = qMove(paper);
     deviceGroup.immediateBackdrop = deviceGroup.initialBackdrop;
     deviceGroup.blendColorSpace = m_deviceColorSpace;
 
@@ -613,10 +644,82 @@ const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
     return *getImmediateBackdrop();
 }
 
+QImage PDFTransparencyRenderer::toImage(bool use16Bit) const
+{
+    QImage image;
+
+    if (m_transparencyGroupDataStack.size() == 1 && // We have finished the painting
+        m_transparencyGroupDataStack.back().immediateBackdrop.getPixelFormat().getProcessColorChannelCount() == 3) // We have exactly three process colors (RGB)
+    {
+        const PDFFloatBitmapWithColorSpace& floatImage = m_transparencyGroupDataStack.back().immediateBackdrop;
+        Q_ASSERT(floatImage.getPixelFormat().hasOpacityChannel());
+
+        if (use16Bit)
+        {
+            image = QImage(int(floatImage.getWidth()), int(floatImage.getHeight()), QImage::Format_RGBA64);
+
+            const PDFPixelFormat pixelFormat = floatImage.getPixelFormat();
+            const int height = image.height();
+            const int width = image.width();
+            const float scale = std::numeric_limits<quint16>::max();
+            const uint8_t channelStart = pixelFormat.getProcessColorChannelIndexStart();
+            const uint8_t channelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+            const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
+
+            for (int y = 0; y < height; ++y)
+            {
+                quint16* pixels = reinterpret_cast<quint16*>(image.bits() + y * image.bytesPerLine());
+
+                for (int x = 0; x < width; ++x)
+                {
+                    PDFConstColorBuffer colorBuffer = floatImage.getPixel(x, y);
+
+                    for (uint8_t channel = channelStart; channel < channelEnd; ++channel)
+                    {
+                        *pixels++ = quint16(colorBuffer[channel] * scale);
+                    }
+
+                    *pixels++ = quint16(colorBuffer[opacityChannel] * scale);
+                }
+            }
+        }
+        else
+        {
+            image = QImage(int(floatImage.getWidth()), int(floatImage.getHeight()), QImage::Format_RGBA8888);
+
+            const PDFPixelFormat pixelFormat = floatImage.getPixelFormat();
+            const int height = image.height();
+            const int width = image.width();
+            const float scale = std::numeric_limits<quint8>::max();
+            const uint8_t channelStart = pixelFormat.getProcessColorChannelIndexStart();
+            const uint8_t channelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+            const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
+
+            for (int y = 0; y < height; ++y)
+            {
+                quint8* pixels = reinterpret_cast<quint8*>(image.bits() + y * image.bytesPerLine());
+
+                for (int x = 0; x < width; ++x)
+                {
+                    PDFConstColorBuffer colorBuffer = floatImage.getPixel(x, y);
+
+                    for (uint8_t channel = channelStart; channel < channelEnd; ++channel)
+                    {
+                        *pixels++ = quint8(colorBuffer[channel] * scale);
+                    }
+
+                    *pixels++ = quint8(colorBuffer[opacityChannel] * scale);
+                }
+            }
+        }
+    }
+
+    return image;
+}
+
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
-    auto mappedStrokeColor = getMappedStrokeColor();
-    auto mappedFillColor = getMappedFillColor();
+
 }
 
 void PDFTransparencyRenderer::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
