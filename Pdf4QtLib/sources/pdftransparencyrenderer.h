@@ -200,6 +200,7 @@ public:
     /// \param mode Blend mode
     /// \param activeColorChannels Active color channels
     /// \param overprintMode Overprint mode
+    /// \param blendRegion Blend region
     static void blend(const PDFFloatBitmap& source,
                       PDFFloatBitmap& target,
                       const PDFFloatBitmap& backdrop,
@@ -210,7 +211,8 @@ public:
                       BlendMode mode,
                       bool knockoutGroup,
                       uint32_t activeColorChannels,
-                      OverprintMode overprintMode);
+                      OverprintMode overprintMode,
+                      QRect blendRegion);
 
 private:
     void fillProcessColorChannels(PDFColorComponent value);
@@ -354,13 +356,24 @@ public:
     void clear();
 
     /// Marks given area as modified
-    void modify(QRect rect);
+    void modify(QRect rect, bool containsFilling, bool containsStroking);
 
     /// Returns true, if draw buffer is modified and needs to be flushed
     bool isModified() const { return m_modifiedRect.isValid(); }
 
+    /// Returns active colors
+    uint32_t getActiveColors() const { return m_activeColors; }
+
+    /// Returns modified rectangle
+    QRect getModifiedRect() const { return m_modifiedRect; }
+
+    bool isContainsFilling() const { return m_containsFilling; }
+    bool isContainsStroking() const { return m_containsStroking; }
+
 private:
     uint32_t m_activeColors = 0;
+    bool m_containsFilling = false;
+    bool m_containsStroking = false;
     QRect m_modifiedRect;
 };
 
@@ -451,6 +464,7 @@ private:
     struct PDFTransparencyPainterState
     {
         QPainterPath clipPath; ///< Clipping path in device state coordinates
+        PDFFloatBitmap softMask;
     };
 
     struct PDFMappedColor
@@ -473,6 +487,9 @@ private:
     PDFFloatBitmapWithColorSpace* getInitialBackdrop();
     PDFFloatBitmapWithColorSpace* getImmediateBackdrop();
     PDFFloatBitmapWithColorSpace* getBackdrop();
+    const PDFFloatBitmapWithColorSpace* getInitialBackdrop() const;
+    const PDFFloatBitmapWithColorSpace* getImmediateBackdrop() const;
+    const PDFFloatBitmapWithColorSpace* getBackdrop() const;
     const PDFColorSpacePointer& getBlendColorSpace() const;
 
     PDFTransparencyPainterState* getPainterState() { return &m_painterStateStack.top(); }
@@ -492,7 +509,7 @@ private:
 
     /// Returns fill area from fill rectangle
     /// \param fillRect Fill rectangle
-    QRect getActualFillRect(QRectF& fillRect) const;
+    QRect getActualFillRect(const QRectF& fillRect) const;
 
     /// Flushes draw buffer
     void flushDrawBuffer();

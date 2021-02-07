@@ -47,6 +47,12 @@ OutputPreviewDialog::~OutputPreviewDialog()
     delete ui;
 }
 
+void OutputPreviewDialog::resizeEvent(QResizeEvent* event)
+{
+    QDialog::resizeEvent(event);
+    updateImage();
+}
+
 void OutputPreviewDialog::updateImage()
 {
     const pdf::PDFPage* page = m_document->getCatalog()->getPage(ui->pageIndexScrollBar->value() - 1);

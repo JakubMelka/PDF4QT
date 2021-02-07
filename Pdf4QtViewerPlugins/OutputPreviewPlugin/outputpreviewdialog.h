@@ -40,6 +40,8 @@ public:
     explicit OutputPreviewDialog(const pdf::PDFDocument* document, pdf::PDFWidget* widget, QWidget* parent);
     virtual ~OutputPreviewDialog() override;
 
+    virtual void resizeEvent(QResizeEvent* event) override;
+
 private:
     void updateImage();
 

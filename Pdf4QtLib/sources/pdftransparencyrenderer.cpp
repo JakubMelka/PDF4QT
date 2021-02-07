@@ -149,7 +149,8 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                            BlendMode mode,
                            bool knockoutGroup,
                            uint32_t activeColorChannels,
-                           OverprintMode overprintMode)
+                           OverprintMode overprintMode,
+                           QRect blendRegion)
 {
     Q_ASSERT(source.getWidth() == target.getWidth());
     Q_ASSERT(source.getHeight() == target.getHeight());
@@ -158,8 +159,11 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
     Q_ASSERT(source.getHeight() == softMask.getHeight());
     Q_ASSERT(softMask.getPixelFormat() == PDFPixelFormat::createOpacityMask());
 
-    const size_t width = source.getWidth();
-    const size_t height = source.getHeight();
+    Q_ASSERT(blendRegion.left() >= 0);
+    Q_ASSERT(blendRegion.top() >= 0);
+    Q_ASSERT(blendRegion.right() < source.getWidth());
+    Q_ASSERT(blendRegion.bottom() < source.getHeight());
+
     const PDFPixelFormat pixelFormat = source.getPixelFormat();
     const uint8_t shapeChannel = pixelFormat.getShapeChannelIndex();
     const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
@@ -256,9 +260,9 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
         }
     }
 
-    for (size_t x = 0; x < width; ++x)
+    for (size_t x = blendRegion.left(); x <= blendRegion.right(); ++x)
     {
-        for (size_t y = 0; y < height; ++y)
+        for (size_t y = blendRegion.top(); y <= blendRegion.bottom(); ++y)
         {
             PDFConstColorBuffer sourceColor = source.getPixel(x, y);
             PDFColorBuffer targetColor = target.getPixel(x, y);
@@ -600,6 +604,8 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
 
     m_transparencyGroupDataStack.clear();
     m_painterStateStack.push(PDFTransparencyPainterState());
+    m_painterStateStack.top().softMask = PDFFloatBitmap(pixelSize.width(), pixelSize.height(), PDFPixelFormat::createOpacityMask());
+    m_painterStateStack.top().softMask.makeOpaque();
 
     PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
                                                               uint8_t(m_inkMapper->getActiveSpotColorCount()),
@@ -719,6 +725,8 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit) const
 
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
+    Q_UNUSED(fillRule);
+
     PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f);
 
     QMatrix worldMatrix = getCurrentWorldMatrix();
@@ -776,7 +784,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
             }
 
             m_drawBuffer.markActiveColors(fillColor.activeChannels);
-            m_drawBuffer.modify(fillRect);
+            m_drawBuffer.modify(fillRect, true, false);
         }
     }
 
@@ -784,12 +792,12 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
     {
         // We must stroke the path.
         QPainterPathStroker stroker;
-        stroker.setCapStyle(m_graphicState.getLineCapStyle());
-        stroker.setWidth(m_graphicState.getLineWidth());
-        stroker.setMiterLimit(m_graphicState.getMitterLimit());
-        stroker.setJoinStyle(m_graphicState.getLineJoinStyle());
+        stroker.setCapStyle(getGraphicState()->getLineCapStyle());
+        stroker.setWidth(getGraphicState()->getLineWidth());
+        stroker.setMiterLimit(getGraphicState()->getMitterLimit());
+        stroker.setJoinStyle(getGraphicState()->getLineJoinStyle());
 
-        const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
+        const PDFLineDashPattern& lineDashPattern = getGraphicState()->getLineDashPattern();
         if (!lineDashPattern.isSolid())
         {
             stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
@@ -834,7 +842,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
             }
 
             m_drawBuffer.markActiveColors(strokeColor.activeChannels);
-            m_drawBuffer.modify(strokeRect);
+            m_drawBuffer.modify(strokeRect, false, true);
         }
     }
 
@@ -983,7 +991,8 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
 
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
-                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint);
+                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, 0xFFFF,
+                              PDFFloatBitmap::OverprintMode::NoOveprint, getPaintRect());
 
         // Create draw buffer
         PDFFloatBitmapWithColorSpace* backdrop = getImmediateBackdrop();
@@ -1077,6 +1086,28 @@ PDFFloatBitmapWithColorSpace* PDFTransparencyRenderer::getImmediateBackdrop()
 }
 
 PDFFloatBitmapWithColorSpace* PDFTransparencyRenderer::getBackdrop()
+{
+    if (isTransparencyGroupKnockout())
+    {
+        return getInitialBackdrop();
+    }
+    else
+    {
+        return getImmediateBackdrop();
+    }
+}
+
+const PDFFloatBitmapWithColorSpace* PDFTransparencyRenderer::getInitialBackdrop() const
+{
+    return &m_transparencyGroupDataStack.back().initialBackdrop;
+}
+
+const PDFFloatBitmapWithColorSpace* PDFTransparencyRenderer::getImmediateBackdrop() const
+{
+    return &m_transparencyGroupDataStack.back().immediateBackdrop;
+}
+
+const PDFFloatBitmapWithColorSpace* PDFTransparencyRenderer::getBackdrop() const
 {
     if (isTransparencyGroupKnockout())
     {
@@ -1224,10 +1255,10 @@ PDFTransparencyRenderer::PDFMappedColor PDFTransparencyRenderer::getMappedFillCo
 
 QRect PDFTransparencyRenderer::getPaintRect() const
 {
-    return QRect(0, 0, getBackdrop()->getWidth(), getBackdrop()->getHeight());
+    return QRect(0, 0, int(getBackdrop()->getWidth()), int(getBackdrop()->getHeight()));
 }
 
-QRect PDFTransparencyRenderer::getActualFillRect(QRectF& fillRect) const
+QRect PDFTransparencyRenderer::getActualFillRect(const QRectF& fillRect) const
 {
     int xLeft = qFloor(fillRect.left()) - 1;
     int xRight = qCeil(fillRect.right()) + 1;
@@ -1242,6 +1273,22 @@ void PDFTransparencyRenderer::flushDrawBuffer()
 {
     if (m_drawBuffer.isModified())
     {
+        PDFOverprintMode overprintMode = getGraphicState()->getOverprintMode();
+        const bool useOverprint = (overprintMode.overprintFilling && m_drawBuffer.isContainsFilling()) ||
+                                  (overprintMode.overprintStroking && m_drawBuffer.isContainsStroking());
+
+        PDFFloatBitmap::OverprintMode selectedOverprintMode = PDFFloatBitmap::OverprintMode::NoOveprint;
+        if (useOverprint)
+        {
+            selectedOverprintMode = overprintMode.overprintMode == 0 ? PDFFloatBitmap::OverprintMode::Overprint_Mode_0
+                                                                     : PDFFloatBitmap::OverprintMode::Overprint_Mode_1;
+        }
+
+        PDFFloatBitmap::blend(m_drawBuffer, *getImmediateBackdrop(), *getBackdrop(), *getInitialBackdrop(), m_painterStateStack.top().softMask,
+                              getGraphicState()->getAlphaIsShape(), 1.0f, getGraphicState()->getBlendMode(), isTransparencyGroupKnockout(),
+                              m_drawBuffer.getActiveColors(), selectedOverprintMode, m_drawBuffer.getModifiedRect());
+
+
         m_drawBuffer.clear();
     }
 }
@@ -1547,12 +1594,16 @@ void PDFDrawBuffer::clear()
     }
 
     m_activeColors = 0;
+    m_containsFilling = false;
+    m_containsStroking = false;
     m_modifiedRect = QRect();
 }
 
-void PDFDrawBuffer::modify(QRect rect)
+void PDFDrawBuffer::modify(QRect rect, bool containsFilling, bool containsStroking)
 {
     m_modifiedRect = m_modifiedRect.united(rect);
+    m_containsFilling |= containsFilling;
+    m_containsStroking |= containsStroking;
 }
 
 }   // namespace pdf
