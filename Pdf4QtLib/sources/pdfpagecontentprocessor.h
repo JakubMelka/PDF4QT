@@ -569,6 +569,12 @@ protected:
     /// Implement to react on character printing
     virtual void performOutputCharacter(const PDFTextCharacterInfo& info);
 
+    /// Implement to respond to text begin operator
+    virtual void performTextBegin(ProcessOrder order);
+
+    /// Implement to respond to text end operator
+    virtual void performTextEnd(ProcessOrder order);
+
     enum class ContentKind
     {
         Shapes,     ///< General shapes (they can be also shaded / tiled)

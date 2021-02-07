@@ -444,7 +444,17 @@ void PDFPageContentProcessor::performOutputCharacter(const PDFTextCharacterInfo&
     Q_UNUSED(info);
 }
 
-bool PDFPageContentProcessor::isContentKindSuppressed(PDFPageContentProcessor::ContentKind kind) const
+void PDFPageContentProcessor::performTextBegin(ProcessOrder order)
+{
+    Q_UNUSED(order);
+}
+
+void PDFPageContentProcessor::performTextEnd(ProcessOrder order)
+{
+    Q_UNUSED(order);
+}
+
+bool PDFPageContentProcessor::isContentKindSuppressed(ContentKind kind) const
 {
     Q_UNUSED(kind);
     return false;
@@ -2580,11 +2590,13 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFRe
 
 void PDFPageContentProcessor::operatorTextBegin()
 {
+    performTextBegin(ProcessOrder::BeforeOperation);
     m_graphicState.setTextMatrix(QMatrix());
     m_graphicState.setTextLineMatrix(QMatrix());
     updateGraphicState();
 
     ++m_textBeginEndState;
+    performTextBegin(ProcessOrder::AfterOperation);
 
     if (m_textBeginEndState > 1)
     {
@@ -2599,12 +2611,14 @@ void PDFPageContentProcessor::operatorTextEnd()
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Text object ended more than once."));
     }
 
+    performTextEnd(ProcessOrder::BeforeOperation);
     if (!m_textClippingPath.isEmpty())
     {
         QPainterPath clippingPath = m_graphicState.getCurrentTransformationMatrix().inverted().map(m_textClippingPath);
         performClipping(clippingPath, clippingPath.fillRule());
         m_textClippingPath = QPainterPath();
     }
+    performTextEnd(ProcessOrder::AfterOperation);
 }
 
 void PDFPageContentProcessor::operatorTextSetCharacterSpacing(PDFReal charSpacing)

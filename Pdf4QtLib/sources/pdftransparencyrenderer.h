@@ -320,6 +320,56 @@ private:
     size_t m_activeSpotColors = 0;
 };
 
+/// Painter path sampler. Returns shape value of pixel. This sampler
+/// uses MSAA with regular grid.
+class PDFPainterPathSampler
+{
+public:
+    /// Creates new painter path sampler, using given painter path,
+    /// sample count (in one direction) and default shape used, when painter path is empty.
+    /// \param path Sampled path
+    /// \param samplesCount Samples count in one direction
+    /// \param defaultShape Default shape returned, if path is empty
+    PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape);
+
+    /// Return sample value for a given pixel
+    PDFColorComponent sample(QPoint point) const;
+
+private:
+    PDFColorComponent m_defaultShape = 0.0;
+    int m_samplesCount; ///< Samples count in one direction
+    QPainterPath m_path;
+};
+
+/// Represents draw buffer, into which is current graphics drawn
+class PDFDrawBuffer : public PDFFloatBitmap
+{
+public:
+    using PDFFloatBitmap::PDFFloatBitmap;
+
+    /// Marks color channels as active
+    void markActiveColors(uint32_t activeColors);
+
+    /// Clears the draw buffer
+    void clear();
+
+    /// Marks given area as modified
+    void modify(QRect rect);
+
+    /// Returns true, if draw buffer is modified and needs to be flushed
+    bool isModified() const { return m_modifiedRect.isValid(); }
+
+private:
+    uint32_t m_activeColors = 0;
+    QRect m_modifiedRect;
+};
+
+struct PDFTransparencyRendererSettings
+{
+    /// Sample count for MSAA antialiasing
+    int samplesCount = 16;
+};
+
 /// Renders PDF pages with transparency, using 32-bit floating point precision.
 /// Both device color space and blending color space can be defined. It implements
 /// page blending space and device blending space. So, painted graphics is being
@@ -374,6 +424,7 @@ public:
     virtual void performRestoreGraphicState(ProcessOrder order) override;
     virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
+    virtual void performTextEnd(ProcessOrder order) override;
 
 private:
 
@@ -381,7 +432,6 @@ private:
     PDFReal getOpacityStroking() const;
     PDFReal getShapeFilling() const;
     PDFReal getOpacityFilling() const;
-
 
     struct PDFTransparencyGroupPainterData
     {
@@ -436,6 +486,17 @@ private:
     PDFMappedColor getMappedStrokeColorImpl();
     PDFMappedColor getMappedFillColorImpl();
 
+    /// Returns painting rectangle (i.e. rectangle, which has topleft coordinate 0,0
+    /// and has width/height equal to bitmap width/height)
+    QRect getPaintRect() const;
+
+    /// Returns fill area from fill rectangle
+    /// \param fillRect Fill rectangle
+    QRect getActualFillRect(QRectF& fillRect) const;
+
+    /// Flushes draw buffer
+    void flushDrawBuffer();
+
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
     std::unique_ptr<PDFTransparencyGroupGuard> m_pageTransparencyGroupGuard;
@@ -445,6 +506,8 @@ private:
     bool m_active;
     PDFCachedItem<PDFMappedColor> m_mappedStrokeColor;
     PDFCachedItem<PDFMappedColor> m_mappedFillColor;
+    PDFTransparencyRendererSettings m_settings;
+    PDFDrawBuffer m_drawBuffer;
 };
 
 }   // namespace pdf
