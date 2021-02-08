@@ -727,7 +727,8 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
 {
     Q_UNUSED(fillRule);
 
-    PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f);
+    PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f,
+                                      m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
 
     QMatrix worldMatrix = getCurrentWorldMatrix();
 
@@ -754,7 +755,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         // and world matrix. Path can be translated outside of the paint area.
         if (fillRect.isValid())
         {
-            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f);
+            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
             const PDFMappedColor& fillColor = getMappedFillColor();
 
             for (int x = fillRect.left(); x < fillRect.right(); ++x)
@@ -812,7 +813,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         // and world matrix. Path can be translated outside of the paint area.
         if (strokeRect.isValid())
         {
-            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f);
+            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
             const PDFMappedColor& strokeColor = getMappedStrokeColor();
 
             for (int x = strokeRect.left(); x < strokeRect.right(); ++x)
@@ -821,7 +822,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
                 {
                     const PDFColorComponent clipValue = clipSampler.sample(QPoint(x, y));
                     const PDFColorComponent objectShapeValue = pathSampler.sample(QPoint(x, y));
-                    const PDFColorComponent shapeValue = objectShapeValue * clipValue * shapeFilling;
+                    const PDFColorComponent shapeValue = objectShapeValue * clipValue * shapeStroking;
 
                     if (shapeValue > 0.0f)
                     {
@@ -830,7 +831,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
 
                         PDFColorBuffer pixel = m_drawBuffer.getPixel(x, y);
                         pixel[shapeChannel] = PDFBlendFunction::blend_Union(shapeValue, pixel[shapeChannel]);
-                        pixel[opacityChannel] = pixel[shapeChannel]  * opacityFilling;
+                        pixel[opacityChannel] = pixel[shapeChannel]  * opacityStroking;
 
                         // Copy color
                         for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
@@ -1497,12 +1498,16 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
     return mapping;
 }
 
-PDFPainterPathSampler::PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape) :
+PDFPainterPathSampler::PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape, bool precise) :
     m_defaultShape(defaultShape),
     m_samplesCount(samplesCount),
+    m_precise(precise),
     m_path(qMove(path))
 {
-
+    if (!precise)
+    {
+        m_fillPolygon = m_path.toFillPolygon();
+    }
 }
 
 PDFColorComponent PDFPainterPathSampler::sample(QPoint point) const
@@ -1528,15 +1533,33 @@ PDFColorComponent PDFPainterPathSampler::sample(QPoint point) const
     if (m_samplesCount <= 1)
     {
         // Jakub Melka: Just one sample
-        return m_path.contains(QPointF(centerX, centerY)) ? 1.0f : 0.0f;
+        if (m_precise)
+        {
+            return m_path.contains(QPointF(centerX, centerY)) ? 1.0f : 0.0f;
+        }
+        else
+        {
+            return m_fillPolygon.contains(QPointF(centerX, centerY)) ? 1.0f : 0.0f;
+        }
     }
 
     int cornerHits = 0;
+    Qt::FillRule fillRule = m_path.fillRule();
 
-    cornerHits += m_path.contains(topLeft) ? 1 : 0;
-    cornerHits += m_path.contains(topRight) ? 1 : 0;
-    cornerHits += m_path.contains(bottomLeft) ? 1 : 0;
-    cornerHits += m_path.contains(bottomRight) ? 1 : 0;
+    if (m_precise)
+    {
+        cornerHits += m_path.contains(topLeft) ? 1 : 0;
+        cornerHits += m_path.contains(topRight) ? 1 : 0;
+        cornerHits += m_path.contains(bottomLeft) ? 1 : 0;
+        cornerHits += m_path.contains(bottomRight) ? 1 : 0;
+    }
+    else
+    {
+        cornerHits += m_fillPolygon.containsPoint(topLeft, fillRule) ? 1 : 0;
+        cornerHits += m_fillPolygon.containsPoint(topRight, fillRule) ? 1 : 0;
+        cornerHits += m_fillPolygon.containsPoint(bottomLeft, fillRule) ? 1 : 0;
+        cornerHits += m_fillPolygon.containsPoint(bottomRight, fillRule) ? 1 : 0;
+    }
 
     if (cornerHits == 4)
     {
@@ -1562,9 +1585,19 @@ PDFColorComponent PDFPainterPathSampler::sample(QPoint point) const
         {
             const qreal y = offset * (iy + 1) + coordY1;
 
-            if (m_path.contains(QPointF(x, y)))
+            if (m_precise)
             {
-                sampleValue += sampleGain;
+                if (m_path.contains(QPointF(x, y)))
+                {
+                    sampleValue += sampleGain;
+                }
+            }
+            else
+            {
+                if (m_fillPolygon.containsPoint(QPointF(x, y), fillRule))
+                {
+                    sampleValue += sampleGain;
+                }
             }
         }
     }

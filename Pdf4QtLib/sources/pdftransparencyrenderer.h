@@ -332,15 +332,18 @@ public:
     /// \param path Sampled path
     /// \param samplesCount Samples count in one direction
     /// \param defaultShape Default shape returned, if path is empty
-    PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape);
+    /// \param precise Use precise sampling (using spline curves), or fill polygon (fast, but not too precise)
+    PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape, bool precise);
 
     /// Return sample value for a given pixel
     PDFColorComponent sample(QPoint point) const;
 
 private:
     PDFColorComponent m_defaultShape = 0.0;
-    int m_samplesCount; ///< Samples count in one direction
+    int m_samplesCount = 0; ///< Samples count in one direction
+    bool m_precise = false;
     QPainterPath m_path;
+    QPolygonF m_fillPolygon;
 };
 
 /// Represents draw buffer, into which is current graphics drawn
@@ -381,6 +384,20 @@ struct PDFTransparencyRendererSettings
 {
     /// Sample count for MSAA antialiasing
     int samplesCount = 16;
+
+    enum Flag
+    {
+        None               = 0x0000,
+
+        /// Use precise path sampler, which uses paths instead
+        /// of filling polygon.
+        PrecisePathSampler = 0x0001
+    };
+
+    Q_DECLARE_FLAGS(Flags, Flag)
+
+    /// Flags
+    Flags flags = None;
 };
 
 /// Renders PDF pages with transparency, using 32-bit floating point precision.
