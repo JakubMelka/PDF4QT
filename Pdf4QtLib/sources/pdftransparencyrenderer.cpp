@@ -889,6 +889,8 @@ void PDFTransparencyRenderer::performUpdateGraphicsState(const PDFPageContentPro
     {
         m_mappedFillColor.dirty();
     }
+
+    BaseClass::performUpdateGraphicsState(state);
 }
 
 void PDFTransparencyRenderer::performSaveGraphicState(ProcessOrder order)
@@ -1519,8 +1521,8 @@ PDFColorComponent PDFPainterPathSampler::sample(QPoint point) const
 
     const qreal coordX1 = point.x();
     const qreal coordX2 = coordX1 + 1.0;
-    const qreal coordY1 = point.x();
-    const qreal coordY2 = coordX1 + 1.0;
+    const qreal coordY1 = point.y();
+    const qreal coordY2 = coordY1 + 1.0;
 
     const qreal centerX = (coordX1 + coordX2) * 0.5;
     const qreal centerY = (coordY1 + coordY2) * 0.5;
