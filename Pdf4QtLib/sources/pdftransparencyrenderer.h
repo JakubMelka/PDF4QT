@@ -214,10 +214,10 @@ public:
                       OverprintMode overprintMode,
                       QRect blendRegion);
 
-private:
     void fillProcessColorChannels(PDFColorComponent value);
     void fillChannel(size_t channel, PDFColorComponent value);
 
+private:
     PDFPixelFormat m_format;
     std::size_t m_width;
     std::size_t m_height;
@@ -443,9 +443,11 @@ public:
     /// This function should be called only after call to \p endPaint. After painting,
     /// when it is finished, the result float image can be converted to QImage with
     /// this function, but only, if the float image is RGB. If error occurs, empty
-    /// image is returned.
-    /// \param use16bit
-    QImage toImage(bool use16Bit) const;
+    /// image is returned. Also, result image can be painted onto opaque paper
+    /// with paper color \p paperColor.
+    /// \param use16bit Produce 16-bit image instead of standard 8-bit
+    /// \param usePaper Blend image with opaque paper, with color \p paperColor
+    QImage toImage(bool use16Bit, bool usePaper = false, PDFRGB paperColor = PDFRGB()) const;
 
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
@@ -500,6 +502,9 @@ private:
 
     PDFMappedColor createMappedColor(const PDFColor& sourceColor,
                                      const PDFAbstractColorSpace* sourceColorSpace);
+
+    /// Converts RGB bitmap to the image.
+    QImage toImageImpl(const PDFFloatBitmapWithColorSpace& floatImage, bool use16Bit) const;
 
     PDFFloatBitmapWithColorSpace* getInitialBackdrop();
     PDFFloatBitmapWithColorSpace* getImmediateBackdrop();

@@ -650,7 +650,75 @@ const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
     return *getImmediateBackdrop();
 }
 
-QImage PDFTransparencyRenderer::toImage(bool use16Bit) const
+QImage PDFTransparencyRenderer::toImageImpl(const PDFFloatBitmapWithColorSpace& floatImage, bool use16Bit) const
+{
+    QImage image;
+
+    Q_ASSERT(floatImage.getPixelFormat().getProcessColorChannelCount() == 3);
+
+    if (use16Bit)
+    {
+        image = QImage(int(floatImage.getWidth()), int(floatImage.getHeight()), QImage::Format_RGBA64);
+
+        const PDFPixelFormat pixelFormat = floatImage.getPixelFormat();
+        const int height = image.height();
+        const int width = image.width();
+        const float scale = std::numeric_limits<quint16>::max();
+        const uint8_t channelStart = pixelFormat.getProcessColorChannelIndexStart();
+        const uint8_t channelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+        const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
+
+        for (int y = 0; y < height; ++y)
+        {
+            quint16* pixels = reinterpret_cast<quint16*>(image.bits() + y * image.bytesPerLine());
+
+            for (int x = 0; x < width; ++x)
+            {
+                PDFConstColorBuffer colorBuffer = floatImage.getPixel(x, y);
+
+                for (uint8_t channel = channelStart; channel < channelEnd; ++channel)
+                {
+                    *pixels++ = quint16(colorBuffer[channel] * scale);
+                }
+
+                *pixels++ = quint16(colorBuffer[opacityChannel] * scale);
+            }
+        }
+    }
+    else
+    {
+        image = QImage(int(floatImage.getWidth()), int(floatImage.getHeight()), QImage::Format_RGBA8888);
+
+        const PDFPixelFormat pixelFormat = floatImage.getPixelFormat();
+        const int height = image.height();
+        const int width = image.width();
+        const float scale = std::numeric_limits<quint8>::max();
+        const uint8_t channelStart = pixelFormat.getProcessColorChannelIndexStart();
+        const uint8_t channelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+        const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
+
+        for (int y = 0; y < height; ++y)
+        {
+            quint8* pixels = reinterpret_cast<quint8*>(image.bits() + y * image.bytesPerLine());
+
+            for (int x = 0; x < width; ++x)
+            {
+                PDFConstColorBuffer colorBuffer = floatImage.getPixel(x, y);
+
+                for (uint8_t channel = channelStart; channel < channelEnd; ++channel)
+                {
+                    *pixels++ = quint8(colorBuffer[channel] * scale);
+                }
+
+                *pixels++ = quint8(colorBuffer[opacityChannel] * scale);
+            }
+        }
+    }
+
+    return image;
+}
+
+QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB paperColor) const
 {
     QImage image;
 
@@ -660,64 +728,24 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit) const
         const PDFFloatBitmapWithColorSpace& floatImage = m_transparencyGroupDataStack.back().immediateBackdrop;
         Q_ASSERT(floatImage.getPixelFormat().hasOpacityChannel());
 
-        if (use16Bit)
+        if (!usePaper)
         {
-            image = QImage(int(floatImage.getWidth()), int(floatImage.getHeight()), QImage::Format_RGBA64);
-
-            const PDFPixelFormat pixelFormat = floatImage.getPixelFormat();
-            const int height = image.height();
-            const int width = image.width();
-            const float scale = std::numeric_limits<quint16>::max();
-            const uint8_t channelStart = pixelFormat.getProcessColorChannelIndexStart();
-            const uint8_t channelEnd = pixelFormat.getProcessColorChannelIndexEnd();
-            const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
-
-            for (int y = 0; y < height; ++y)
-            {
-                quint16* pixels = reinterpret_cast<quint16*>(image.bits() + y * image.bytesPerLine());
-
-                for (int x = 0; x < width; ++x)
-                {
-                    PDFConstColorBuffer colorBuffer = floatImage.getPixel(x, y);
-
-                    for (uint8_t channel = channelStart; channel < channelEnd; ++channel)
-                    {
-                        *pixels++ = quint16(colorBuffer[channel] * scale);
-                    }
-
-                    *pixels++ = quint16(colorBuffer[opacityChannel] * scale);
-                }
-            }
+            return toImageImpl(floatImage, use16Bit);
         }
-        else
-        {
-            image = QImage(int(floatImage.getWidth()), int(floatImage.getHeight()), QImage::Format_RGBA8888);
 
-            const PDFPixelFormat pixelFormat = floatImage.getPixelFormat();
-            const int height = image.height();
-            const int width = image.width();
-            const float scale = std::numeric_limits<quint8>::max();
-            const uint8_t channelStart = pixelFormat.getProcessColorChannelIndexStart();
-            const uint8_t channelEnd = pixelFormat.getProcessColorChannelIndexEnd();
-            const uint8_t opacityChannel = pixelFormat.getOpacityChannelIndex();
+        PDFFloatBitmapWithColorSpace paperImage(floatImage.getWidth(), floatImage.getHeight(), floatImage.getPixelFormat(), floatImage.getColorSpace());
+        paperImage.makeOpaque();
+        paperImage.fillChannel(0, paperColor[0]);
+        paperImage.fillChannel(1, paperColor[1]);
+        paperImage.fillChannel(2, paperColor[2]);
 
-            for (int y = 0; y < height; ++y)
-            {
-                quint8* pixels = reinterpret_cast<quint8*>(image.bits() + y * image.bytesPerLine());
+        PDFFloatBitmap softMask(paperImage.getWidth(), paperImage.getHeight(), PDFPixelFormat::createOpacityMask());
+        softMask.makeOpaque();
 
-                for (int x = 0; x < width; ++x)
-                {
-                    PDFConstColorBuffer colorBuffer = floatImage.getPixel(x, y);
+        QRect blendRegion(0, 0, floatImage.getWidth(), floatImage.getHeight());
+        PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, softMask, false, 1.0f, BlendMode::Normal, false, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
 
-                    for (uint8_t channel = channelStart; channel < channelEnd; ++channel)
-                    {
-                        *pixels++ = quint8(colorBuffer[channel] * scale);
-                    }
-
-                    *pixels++ = quint8(colorBuffer[opacityChannel] * scale);
-                }
-            }
-        }
+        return toImageImpl(paperImage, use16Bit);
     }
 
     return image;

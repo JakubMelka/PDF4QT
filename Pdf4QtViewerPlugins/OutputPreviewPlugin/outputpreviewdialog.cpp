@@ -26,7 +26,7 @@ namespace pdfplugin
 {
 
 OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::PDFWidget* widget, QWidget* parent) :
-    QDialog(parent),
+    QDialog(parent, Qt::Dialog | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint),
     ui(new Ui::OutputPreviewDialog),
     m_inkMapper(document),
     m_document(document),
@@ -80,7 +80,7 @@ void OutputPreviewDialog::updateImage()
     renderer.processContents();
     renderer.endPaint();
 
-    QImage image = renderer.toImage(false);
+    QImage image = renderer.toImage(false, true, pdf::PDFRGB{ 1.0f, 1.0f, 1.0f });
     ui->imageLabel->setPixmap(QPixmap::fromImage(image));
 }
 
