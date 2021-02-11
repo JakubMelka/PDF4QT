@@ -3451,7 +3451,7 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColorSpace(co
 
 void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeColor(const QColor& strokeColor, const PDFColor& originalColor)
 {
-    if (m_strokeColor != strokeColor)
+    if (m_strokeColor != strokeColor || m_strokeColorOriginal != originalColor)
     {
         m_strokeColor = strokeColor;
         m_strokeColorOriginal = originalColor;
@@ -3461,7 +3461,7 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setStrokeColor(const
 
 void PDFPageContentProcessor::PDFPageContentProcessorState::setFillColor(const QColor& fillColor, const PDFColor& originalColor)
 {
-    if (m_fillColor != fillColor)
+    if (m_fillColor != fillColor || m_fillColorOriginal != originalColor)
     {
         m_fillColor = fillColor;
         m_fillColorOriginal = originalColor;

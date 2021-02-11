@@ -907,6 +907,10 @@ void PDFTransparencyRenderer::performRestoreGraphicState(ProcessOrder order)
     {
         m_painterStateStack.pop();
     }
+    if (order == ProcessOrder::AfterOperation)
+    {
+        invalidateCachedItems();
+    }
 }
 
 void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
