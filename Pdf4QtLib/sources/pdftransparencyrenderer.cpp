@@ -742,7 +742,7 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB pap
         PDFFloatBitmap softMask(paperImage.getWidth(), paperImage.getHeight(), PDFPixelFormat::createOpacityMask());
         softMask.makeOpaque();
 
-        QRect blendRegion(0, 0, floatImage.getWidth(), floatImage.getHeight());
+        QRect blendRegion(0, 0, int(floatImage.getWidth()), int(floatImage.getHeight()));
         PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, softMask, false, 1.0f, BlendMode::Normal, false, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
 
         return toImageImpl(paperImage, use16Bit);
@@ -754,9 +754,6 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB pap
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
     Q_UNUSED(fillRule);
-
-    PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f,
-                                      m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
 
     QMatrix worldMatrix = getCurrentWorldMatrix();
 
@@ -783,7 +780,8 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         // and world matrix. Path can be translated outside of the paint area.
         if (fillRect.isValid())
         {
-            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+            PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f, fillRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, fillRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
             const PDFMappedColor& fillColor = getMappedFillColor();
 
             for (int x = fillRect.left(); x < fillRect.right(); ++x)
@@ -841,7 +839,8 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         // and world matrix. Path can be translated outside of the paint area.
         if (strokeRect.isValid())
         {
-            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+            PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f, strokeRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+            PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, strokeRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
             const PDFMappedColor& strokeColor = getMappedStrokeColor();
 
             for (int x = strokeRect.left(); x < strokeRect.right(); ++x)
@@ -916,6 +915,14 @@ void PDFTransparencyRenderer::performUpdateGraphicsState(const PDFPageContentPro
         stateFlags.testFlag(PDFPageContentProcessorState::StateFillColorSpace))
     {
         m_mappedFillColor.dirty();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateSoftMask))
+    {
+        if (getGraphicState()->getSoftMask())
+        {
+            reportRenderErrorOnce(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Soft mask not implemented."));
+        }
     }
 
     BaseClass::performUpdateGraphicsState(state);
@@ -1043,6 +1050,20 @@ void PDFTransparencyRenderer::performTextEnd(ProcessOrder order)
     {
         flushDrawBuffer();
     }
+}
+
+void PDFTransparencyRenderer::performImagePainting(const QImage& image)
+{
+    Q_UNUSED(image);
+
+    reportRenderErrorOnce(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Image painting not implemented."));
+}
+
+void PDFTransparencyRenderer::performMeshPainting(const PDFMesh& mesh)
+{
+    Q_UNUSED(mesh);
+
+    reportRenderErrorOnce(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Mesh painting not implemented."));
 }
 
 PDFReal PDFTransparencyRenderer::getShapeStroking() const
@@ -1532,23 +1553,30 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
     return mapping;
 }
 
-PDFPainterPathSampler::PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape, bool precise) :
+PDFPainterPathSampler::PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape, QRect fillRect, bool precise) :
     m_defaultShape(defaultShape),
-    m_samplesCount(samplesCount),
-    m_precise(precise),
-    m_path(qMove(path))
+    m_samplesCount(qMax(samplesCount, 1)),
+    m_path(qMove(path)),
+    m_fillRect(fillRect),
+    m_precise(precise)
 {
     if (!precise)
     {
         m_fillPolygon = m_path.toFillPolygon();
+        prepareScanLines();
     }
 }
 
 PDFColorComponent PDFPainterPathSampler::sample(QPoint point) const
 {
-    if (m_path.isEmpty())
+    if (m_path.isEmpty() || !m_fillRect.contains(point))
     {
         return m_defaultShape;
+    }
+
+    if (!m_scanLineInfo.empty())
+    {
+        return sampleByScanLine(point);
     }
 
     const qreal coordX1 = point.x();
@@ -1637,6 +1665,181 @@ PDFColorComponent PDFPainterPathSampler::sample(QPoint point) const
     }
 
     return sampleValue;
+}
+
+PDFColorComponent PDFPainterPathSampler::sampleByScanLine(QPoint point) const
+{
+    int scanLinePosition = point.y() - m_fillRect.y();
+
+    size_t scanLineCountPerPixel = getScanLineCountPerPixel();
+    size_t scanLineTopRow = scanLinePosition * scanLineCountPerPixel;
+    size_t scanLineBottomRow = scanLineTopRow + scanLineCountPerPixel - 1;
+    size_t scanLineGridRowTop = scanLineTopRow + 1;
+
+    Qt::FillRule fillRule = m_path.fillRule();
+
+    auto performSampling = [&](size_t scanLineIndex, PDFReal firstOrdinate, int sampleCount, PDFReal step, PDFReal gain)
+    {
+        ScanLineInfo info = m_scanLineInfo[scanLineIndex];
+        auto it = std::next(m_scanLineSamples.cbegin(), info.indexStart);
+        auto itEnd = std::next(m_scanLineSamples.cbegin(), info.indexEnd);
+
+        PDFReal ordinate = firstOrdinate;
+        PDFColorComponent value = 0.0;
+        auto ordinateIt = std::lower_bound(it, itEnd, ordinate);
+        for (int i = 0; i < sampleCount; ++i)
+        {
+            int windingNumber = ordinateIt->windingNumber;
+
+            const bool inside = (fillRule == Qt::WindingFill) ? windingNumber != 0 : windingNumber % 2 != 0;
+            if (inside)
+            {
+                value += gain;
+            }
+
+            ordinate += step;
+            ordinateIt = std::lower_bound(ordinateIt, itEnd, ordinate);
+        }
+
+        return value;
+    };
+
+    const qreal coordX1 = point.x();
+    const PDFReal cornerValue = performSampling(scanLineTopRow, coordX1, 2, 1.0, 1.0) + performSampling(scanLineBottomRow, coordX1, 2, 1.0, 1.0);
+
+    if (qFuzzyIsNull(4.0 - cornerValue))
+    {
+        // Whole inside
+        return 1.0;
+    }
+
+    if (qFuzzyIsNull(cornerValue))
+    {
+        // Whole outside
+        return 0.0;
+    }
+
+    const qreal offset = 1.0f / PDFColorComponent(m_samplesCount + 1);
+    PDFColorComponent sampleValue = 0.0f;
+    const PDFColorComponent sampleGain = 1.0f / PDFColorComponent(m_samplesCount * m_samplesCount);
+
+    for (size_t i = 0; i < m_samplesCount; ++i)
+    {
+        sampleValue += performSampling(scanLineGridRowTop++, coordX1 + offset, m_samplesCount, offset, sampleGain);
+    }
+
+    return sampleValue;
+}
+
+size_t PDFPainterPathSampler::getScanLineCountPerPixel() const
+{
+    return m_samplesCount + 2;
+}
+
+void PDFPainterPathSampler::prepareScanLines()
+{
+    if (m_fillPolygon.isEmpty())
+    {
+        return;
+    }
+
+    for (int yOffset = m_fillRect.top(); yOffset < m_fillRect.bottom(); ++yOffset)
+    {
+        const qreal coordY1 = yOffset;
+        const qreal coordY2 = coordY1 + 1.0;
+
+        // Top pixel line
+        if (m_scanLineInfo.empty())
+        {
+            m_scanLineInfo.emplace_back(createScanLine(coordY1));
+        }
+        else
+        {
+            m_scanLineInfo.emplace_back(m_scanLineInfo.back());
+        }
+
+        // Sample grid
+        const qreal offset = 1.0f / PDFColorComponent(m_samplesCount + 1);
+        for (int iy = 0; iy < m_samplesCount; ++iy)
+        {
+            const qreal y = offset * (iy + 1) + coordY1;
+            m_scanLineInfo.emplace_back(createScanLine(y));
+        }
+
+        // Bottom pixel line
+        m_scanLineInfo.emplace_back(createScanLine(coordY2));
+    }
+}
+
+PDFPainterPathSampler::ScanLineInfo PDFPainterPathSampler::createScanLine(qreal y)
+{
+    ScanLineInfo result;
+    result.indexStart = m_scanLineSamples.size();
+
+    // Add start item
+    m_scanLineSamples.emplace_back(-std::numeric_limits<PDFReal>::infinity(), 0);
+
+    // Traverse polygon, add sample for each polygon line, we must
+    // also implicitly close last edge (if polygon is not closed)
+    for (int i = 1; i < m_fillPolygon.size(); ++i)
+    {
+        createScanLineSample(m_fillPolygon[i - 1], m_fillPolygon[i], y);
+    }
+
+    if (m_fillPolygon.front() != m_fillPolygon.back())
+    {
+        createScanLineSample(m_fillPolygon.back(), m_fillPolygon.front(), y);
+    }
+
+    // Add end item
+    m_scanLineSamples.emplace_back(+std::numeric_limits<PDFReal>::infinity(), 0);
+
+    result.indexEnd = m_scanLineSamples.size();
+
+    auto it = std::next(m_scanLineSamples.begin(), result.indexStart);
+    auto itEnd = std::next(m_scanLineSamples.begin(), result.indexEnd);
+
+    // Jakub Melka: now, sort the line samples and compute properly the winding number
+    std::sort(it, itEnd);
+
+    int currentWindingNumber = 0;
+    for (; it != itEnd; ++it)
+    {
+        currentWindingNumber += it->windingNumber;
+        it->windingNumber = currentWindingNumber;
+    }
+
+    return result;
+}
+
+void PDFPainterPathSampler::createScanLineSample(const QPointF& p1, const QPointF& p2, qreal y)
+{
+    PDFReal y1 = p1.y();
+    PDFReal y2 = p2.y();
+
+    if (qFuzzyIsNull(y2 - y1))
+    {
+        // Ignore horizontal lines
+        return;
+    }
+
+    PDFReal x1 = p1.x();
+    PDFReal x2 = p2.x();
+
+    int windingNumber = 1;
+    if (y2 < y1)
+    {
+        std::swap(y1, y2);
+        std::swap(x1, x2);
+        windingNumber = -1;
+    }
+
+    // Do we have intercept?
+    if (y1 <= y && y < y2)
+    {
+        const PDFReal x = interpolate(y, y1, y2, x1, x2);
+        m_scanLineSamples.emplace_back(x, windingNumber);
+    }
 }
 
 void PDFDrawBuffer::markActiveColors(uint32_t activeColors)

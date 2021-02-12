@@ -329,21 +329,75 @@ class PDFPainterPathSampler
 public:
     /// Creates new painter path sampler, using given painter path,
     /// sample count (in one direction) and default shape used, when painter path is empty.
+    /// Fill rectangle is used to precompute winding numbers for samples. Points outside
+    /// of fill rectangle are considered as outside and defaultShape is returned.
     /// \param path Sampled path
     /// \param samplesCount Samples count in one direction
     /// \param defaultShape Default shape returned, if path is empty
-    /// \param precise Use precise sampling (using spline curves), or fill polygon (fast, but not too precise)
-    PDFPainterPathSampler(QPainterPath path, int samplesCount, PDFColorComponent defaultShape, bool precise);
+    /// \param fillRect Fill rectangle (sample point must be in this rectangle)
+    /// \param precise Use precise painter path computation
+    PDFPainterPathSampler(QPainterPath path,
+                          int samplesCount,
+                          PDFColorComponent defaultShape,
+                          QRect fillRect,
+                          bool precise);
 
     /// Return sample value for a given pixel
     PDFColorComponent sample(QPoint point) const;
 
 private:
+    struct ScanLineSample
+    {
+        inline constexpr ScanLineSample() = default;
+        inline constexpr ScanLineSample(PDFReal x, int windingNumber) :
+            x(x),
+            windingNumber(windingNumber)
+        {
+
+        }
+
+        bool operator<(const ScanLineSample& other) const { return x < other.x; }
+        bool operator<(PDFReal ordinate) const { return x < ordinate; }
+
+        PDFReal x = 0.0;
+        int windingNumber = 0;
+    };
+
+    struct ScanLineInfo
+    {
+        size_t indexStart = 0;
+        size_t indexEnd = 0;
+    };
+
+    /// Compute sample by using scan lines
+    PDFColorComponent sampleByScanLine(QPoint point) const;
+
+    /// Returns number of scan lines per pixel
+    size_t getScanLineCountPerPixel() const;
+
+    /// Creates scan lines using fill rectangle
+    void prepareScanLines();
+
+    /// Creates scan line for given y coordinate and
+    /// returns info about this scan line
+    /// \param y Vertical coordinate of the sample line
+    ScanLineInfo createScanLine(qreal y);
+
+    /// Creates scan line sample (if horizontal line of y coordinate
+    /// is intersecting boundary line segment p1-p2.
+    /// \param p1 First point of the oriented boundary line segment
+    /// \param p2 Second point of the oriented boundary line segment
+    /// \param y Vertical coordinate of the sample line
+    void createScanLineSample(const QPointF& p1, const QPointF& p2, qreal y);
+
     PDFColorComponent m_defaultShape = 0.0;
     int m_samplesCount = 0; ///< Samples count in one direction
-    bool m_precise = false;
     QPainterPath m_path;
     QPolygonF m_fillPolygon;
+    QRect m_fillRect;
+    std::vector<ScanLineSample> m_scanLineSamples;
+    std::vector<ScanLineInfo> m_scanLineInfo;
+    bool m_precise;
 };
 
 /// Represents draw buffer, into which is current graphics drawn
@@ -457,6 +511,8 @@ public:
     virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performTextEnd(ProcessOrder order) override;
+    virtual void performImagePainting(const QImage& image) override;
+    virtual void performMeshPainting(const PDFMesh& mesh);
 
 private:
 
