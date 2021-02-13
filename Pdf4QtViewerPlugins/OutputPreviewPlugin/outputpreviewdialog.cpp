@@ -71,10 +71,17 @@ void OutputPreviewDialog::updateImage()
         ui->imageLabel->setPixmap(QPixmap());
     }
 
+    pdf::PDFTransparencyRendererSettings settings;
+
+    // Jakub Melka: debug is very slow, use multithreading
+#ifdef QT_DEBUG
+    settings.flags.setFlag(pdf::PDFTransparencyRendererSettings::MultithreadedPathSampler, true);
+#endif
+
     QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
     pdf::PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
-    pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), &m_inkMapper, pagePointToDevicePoint);
+    pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), &m_inkMapper, settings, pagePointToDevicePoint);
 
     renderer.beginPaint(imageSize);
     renderer.processContents();

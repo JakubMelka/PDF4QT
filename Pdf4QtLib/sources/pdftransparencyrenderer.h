@@ -439,13 +439,24 @@ struct PDFTransparencyRendererSettings
     /// Sample count for MSAA antialiasing
     int samplesCount = 16;
 
+    /// Threshold for turning on painter path
+    /// multithreaded painting. When number of potential
+    /// pixels of painter path is greater than this constant,
+    /// and MultithreadedPathSampler flag is turned on,
+    /// multithreaded painting is performed.
+    int multithreadingPathSampleThreshold = 128;
+
     enum Flag
     {
         None               = 0x0000,
 
         /// Use precise path sampler, which uses paths instead
         /// of filling polygon.
-        PrecisePathSampler = 0x0001
+        PrecisePathSampler = 0x0001,
+
+        /// Use multithreading when painter paths are painted?
+        /// Multithreading is used to
+        MultithreadedPathSampler = 0x0002
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)
@@ -471,6 +482,7 @@ public:
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
                             const PDFInkMapper* inkMapper,
+                            PDFTransparencyRendererSettings settings,
                             QMatrix pagePointToDevicePointMatrix);
 
     /// Sets device color space. This is final color space, to which
@@ -595,6 +607,37 @@ private:
 
     /// Flushes draw buffer
     void flushDrawBuffer();
+
+    /// Returns true, if multithreaded painter path sampling should be used
+    /// for a given fill rectangle.
+    /// \param fillRect Fill rectangle
+    /// \returns true, if multithreading should be used
+    bool isMultithreadedPathSamplingUsed(QRect fillRect) const;
+
+    /// Performs sampling of single pixel. Sampled pixel is painted
+    /// into the draw buffer.
+    /// \param shape Constant shape value
+    /// \param opacity Constant opacity value
+    /// \param x Horizontal coordinate of the pixel
+    /// \param y Vertical coordinate of the pixel
+    /// \param shapeChannel Shape channel (draw buffer)
+    /// \param opacityChannel Opacity channel (draw buffer)
+    /// \param colorChannelStart Color channel start (draw buffer)
+    /// \param colorChannelEnd Color channel end (draw buffer)
+    /// \param fillColor Fill color
+    /// \param clipSample Clipping sampler
+    /// \param pathSampler Path sampler
+    void performPixelSampling(const PDFReal shape,
+                              const PDFReal opacity,
+                              const uint8_t shapeChannel,
+                              const uint8_t opacityChannel,
+                              const uint8_t colorChannelStart,
+                              const uint8_t colorChannelEnd,
+                              int x,
+                              int y,
+                              const PDFMappedColor& fillColor,
+                              const PDFPainterPathSampler& clipSampler,
+                              const PDFPainterPathSampler& pathSampler);
 
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)

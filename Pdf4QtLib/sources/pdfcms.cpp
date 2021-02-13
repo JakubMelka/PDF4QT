@@ -16,6 +16,7 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfcms.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QApplication>
 #include <QReadWriteLock>
@@ -329,7 +330,52 @@ bool PDFLittleCMS::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& 
         inputPixelCount == outputPixelCount)
     {
         PDFColorBuffer outputBuffer = params.output;
-        cmsDoTransform(transform, inputColors, outputBuffer.begin(), inputPixelCount);
+
+        if (inputPixelCount > params.multithreadingThreshold)
+        {
+            struct TransformInfo
+            {
+                inline TransformInfo(const float* source, float* target, cmsUInt32Number pixelCount) :
+                    source(source),
+                    target(target),
+                    pixelCount(pixelCount)
+                {
+
+                }
+
+                const float* source = nullptr;
+                float* target = nullptr;
+                cmsUInt32Number pixelCount = 0;
+            };
+
+            const cmsUInt32Number blockSize = 4096;
+            std::vector<TransformInfo> infos;
+            infos.reserve(inputPixelCount / blockSize + 1);
+
+            const float* sourcePointer = inputColors;
+            float* targetPointer = outputBuffer.begin();
+
+            cmsUInt32Number remainingPixelCount = inputPixelCount;
+            while (remainingPixelCount > 0)
+            {
+                const cmsUInt32Number currentPixelCount = qMin(blockSize, remainingPixelCount);
+                infos.emplace_back(sourcePointer, targetPointer, currentPixelCount);
+                sourcePointer += currentPixelCount * inputChannels;
+                targetPointer += currentPixelCount * outputChannels;
+                remainingPixelCount -= currentPixelCount;
+            }
+
+            auto processEntry = [transform](const TransformInfo& info)
+            {
+                cmsDoTransform(transform, info.source, info.target, info.pixelCount);
+            };
+            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, infos.begin(), infos.end(), processEntry);
+        }
+        else
+        {
+            // Single-threaded transform
+            cmsDoTransform(transform, inputColors, outputBuffer.begin(), inputPixelCount);
+        }
 
         if (isOutputCMYK)
         {

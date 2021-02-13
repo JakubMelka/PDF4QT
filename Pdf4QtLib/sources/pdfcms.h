@@ -225,6 +225,8 @@ public:
         PDFColorBuffer output;
 
         RenderingIntent intent = RenderingIntent::Unknown;
+
+        PDFInteger multithreadingThreshold = 4096;
     };
 
     /// Transforms color between two color spaces. Doesn't do soft-proofing,

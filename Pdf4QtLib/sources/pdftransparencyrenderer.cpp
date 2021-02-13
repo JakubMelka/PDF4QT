@@ -18,6 +18,7 @@
 #include "pdftransparencyrenderer.h"
 #include "pdfdocument.h"
 #include "pdfcms.h"
+#include "pdfexecutionpolicy.h"
 
 namespace pdf
 {
@@ -566,10 +567,12 @@ PDFTransparencyRenderer::PDFTransparencyRenderer(const PDFPage* page,
                                                  const PDFCMS* cms,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
                                                  const PDFInkMapper* inkMapper,
+                                                 PDFTransparencyRendererSettings settings,
                                                  QMatrix pagePointToDevicePointMatrix) :
     BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, PDFMeshQualitySettings()),
     m_inkMapper(inkMapper),
-    m_active(false)
+    m_active(false),
+    m_settings(settings)
 {
     m_deviceColorSpace.reset(new PDFDeviceRGBColorSpace());
     m_processColorSpace.reset(new PDFDeviceCMYKColorSpace());
@@ -751,6 +754,39 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB pap
     return image;
 }
 
+void PDFTransparencyRenderer::performPixelSampling(const PDFReal shape,
+                                                   const PDFReal opacity,
+                                                   const uint8_t shapeChannel,
+                                                   const uint8_t opacityChannel,
+                                                   const uint8_t colorChannelStart,
+                                                   const uint8_t colorChannelEnd,
+                                                   int x,
+                                                   int y,
+                                                   const PDFMappedColor& fillColor,
+                                                   const PDFPainterPathSampler& clipSampler,
+                                                   const PDFPainterPathSampler& pathSampler)
+{
+    const PDFColorComponent clipValue = clipSampler.sample(QPoint(x, y));
+    const PDFColorComponent objectShapeValue = pathSampler.sample(QPoint(x, y));
+    const PDFColorComponent shapeValue = objectShapeValue * clipValue * shape;
+
+    if (shapeValue > 0.0f)
+    {
+        // We consider old object shape - we use Union function to
+        // set shape channel value.
+
+        PDFColorBuffer pixel = m_drawBuffer.getPixel(x, y);
+        pixel[shapeChannel] = PDFBlendFunction::blend_Union(shapeValue, pixel[shapeChannel]);
+        pixel[opacityChannel] = pixel[shapeChannel]  * opacity;
+
+        // Copy color
+        for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+        {
+            pixel[colorChannelIndex] = fillColor.mappedColor[colorChannelIndex];
+        }
+    }
+}
+
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
     Q_UNUSED(fillRule);
@@ -784,28 +820,42 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
             PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, fillRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
             const PDFMappedColor& fillColor = getMappedFillColor();
 
-            for (int x = fillRect.left(); x < fillRect.right(); ++x)
+            if (isMultithreadedPathSamplingUsed(fillRect))
             {
-                for (int y = fillRect.top(); y < fillRect.bottom(); ++y)
+                if (fillRect.width() > fillRect.height())
                 {
-                    const PDFColorComponent clipValue = clipSampler.sample(QPoint(x, y));
-                    const PDFColorComponent objectShapeValue = pathSampler.sample(QPoint(x, y));
-                    const PDFColorComponent shapeValue = objectShapeValue * clipValue * shapeFilling;
-
-                    if (shapeValue > 0.0f)
+                    // Columns
+                    PDFIntegerRange<int> range(fillRect.left(), fillRect.right() + 1);
+                    auto processEntry = [&, this](int x)
                     {
-                        // We consider old object shape - we use Union function to
-                        // set shape channel value.
-
-                        PDFColorBuffer pixel = m_drawBuffer.getPixel(x, y);
-                        pixel[shapeChannel] = PDFBlendFunction::blend_Union(shapeValue, pixel[shapeChannel]);
-                        pixel[opacityChannel] = pixel[shapeChannel]  * opacityFilling;
-
-                        // Copy color
-                        for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+                        for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
                         {
-                            pixel[colorChannelIndex] = fillColor.mappedColor[colorChannelIndex];
+                            performPixelSampling(shapeFilling, opacityFilling, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, fillColor, clipSampler, pathSampler);
                         }
+                    };
+                    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+                }
+                else
+                {
+                    // Rows
+                    PDFIntegerRange<int> range(fillRect.top(), fillRect.bottom() + 1);
+                    auto processEntry = [&, this](int y)
+                    {
+                        for (int x = fillRect.left(); x <= fillRect.right(); ++x)
+                        {
+                            performPixelSampling(shapeFilling, opacityFilling, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, fillColor, clipSampler, pathSampler);
+                        }
+                    };
+                    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+                }
+            }
+            else
+            {
+                for (int x = fillRect.left(); x <= fillRect.right(); ++x)
+                {
+                    for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
+                    {
+                        performPixelSampling(shapeFilling, opacityFilling, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, fillColor, clipSampler, pathSampler);
                     }
                 }
             }
@@ -843,28 +893,42 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
             PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, strokeRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
             const PDFMappedColor& strokeColor = getMappedStrokeColor();
 
-            for (int x = strokeRect.left(); x < strokeRect.right(); ++x)
+            if (isMultithreadedPathSamplingUsed(strokeRect))
             {
-                for (int y = strokeRect.top(); y < strokeRect.bottom(); ++y)
+                if (strokeRect.width() > strokeRect.height())
                 {
-                    const PDFColorComponent clipValue = clipSampler.sample(QPoint(x, y));
-                    const PDFColorComponent objectShapeValue = pathSampler.sample(QPoint(x, y));
-                    const PDFColorComponent shapeValue = objectShapeValue * clipValue * shapeStroking;
-
-                    if (shapeValue > 0.0f)
+                    // Columns
+                    PDFIntegerRange<int> range(strokeRect.left(), strokeRect.right() + 1);
+                    auto processEntry = [&, this](int x)
                     {
-                        // We consider old object shape - we use Union function to
-                        // set shape channel value.
-
-                        PDFColorBuffer pixel = m_drawBuffer.getPixel(x, y);
-                        pixel[shapeChannel] = PDFBlendFunction::blend_Union(shapeValue, pixel[shapeChannel]);
-                        pixel[opacityChannel] = pixel[shapeChannel]  * opacityStroking;
-
-                        // Copy color
-                        for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+                        for (int y = strokeRect.top(); y <= strokeRect.bottom(); ++y)
                         {
-                            pixel[colorChannelIndex] = strokeColor.mappedColor[colorChannelIndex];
+                            performPixelSampling(shapeStroking, opacityStroking, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, strokeColor, clipSampler, pathSampler);
                         }
+                    };
+                    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+                }
+                else
+                {
+                    // Rows
+                    PDFIntegerRange<int> range(strokeRect.top(), strokeRect.bottom() + 1);
+                    auto processEntry = [&, this](int y)
+                    {
+                        for (int x = strokeRect.left(); x <= strokeRect.right(); ++x)
+                        {
+                            performPixelSampling(shapeStroking, opacityStroking, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, strokeColor, clipSampler, pathSampler);
+                        }
+                    };
+                    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+                }
+            }
+            else
+            {
+                for (int x = strokeRect.left(); x <= strokeRect.right(); ++x)
+                {
+                    for (int y = strokeRect.top(); y <= strokeRect.bottom(); ++y)
+                    {
+                        performPixelSampling(shapeStroking, opacityStroking, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, strokeColor, clipSampler, pathSampler);
                     }
                 }
             }
@@ -1349,6 +1413,16 @@ void PDFTransparencyRenderer::flushDrawBuffer()
     }
 }
 
+bool PDFTransparencyRenderer::isMultithreadedPathSamplingUsed(QRect fillRect) const
+{
+    if (!m_settings.flags.testFlag(PDFTransparencyRendererSettings::MultithreadedPathSampler))
+    {
+        return false;
+    }
+
+    return fillRect.width() * fillRect.height() > m_settings.multithreadingPathSampleThreshold && fillRect.width() > 1;
+}
+
 PDFInkMapper::PDFInkMapper(const PDFDocument* document) :
     m_document(document)
 {
@@ -1746,7 +1820,7 @@ void PDFPainterPathSampler::prepareScanLines()
         return;
     }
 
-    for (int yOffset = m_fillRect.top(); yOffset < m_fillRect.bottom(); ++yOffset)
+    for (int yOffset = m_fillRect.top(); yOffset <= m_fillRect.bottom(); ++yOffset)
     {
         const qreal coordY1 = yOffset;
         const qreal coordY2 = coordY1 + 1.0;
