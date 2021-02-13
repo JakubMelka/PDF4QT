@@ -22,6 +22,9 @@
 #include "pdfrenderer.h"
 #include "pdfdrawspacecontroller.h"
 
+#include <QCloseEvent>
+#include <QtConcurrent/QtConcurrent>
+
 namespace pdfplugin
 {
 
@@ -30,7 +33,9 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui(new Ui::OutputPreviewDialog),
     m_inkMapper(document),
     m_document(document),
-    m_widget(widget)
+    m_widget(widget),
+    m_needUpdateImage(false),
+    m_futureWatcher(nullptr)
 {
     ui->setupUi(this);
 
@@ -39,7 +44,7 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->pageIndexScrollBar->setMaximum(int(document->getCatalog()->getPageCount()));
 
     m_inkMapper.createSpotColors(true);
-    updateImage();
+    updatePageImage();
 }
 
 OutputPreviewDialog::~OutputPreviewDialog()
@@ -50,25 +55,67 @@ OutputPreviewDialog::~OutputPreviewDialog()
 void OutputPreviewDialog::resizeEvent(QResizeEvent* event)
 {
     QDialog::resizeEvent(event);
-    updateImage();
+    updatePageImage();
 }
 
-void OutputPreviewDialog::updateImage()
+void OutputPreviewDialog::closeEvent(QCloseEvent* event)
 {
+    if (!isRenderingDone())
+    {
+        event->ignore();
+    }
+}
+
+void OutputPreviewDialog::showEvent(QShowEvent* event)
+{
+    Q_UNUSED(event);
+
+    updatePageImage();
+}
+
+void OutputPreviewDialog::updatePageImage()
+{
+    if (!isRenderingDone())
+    {
+        m_needUpdateImage = true;
+        return;
+    }
+
+    m_needUpdateImage = false;
+
     const pdf::PDFPage* page = m_document->getCatalog()->getPage(ui->pageIndexScrollBar->value() - 1);
     if (!page)
     {
         ui->imageLabel->setPixmap(QPixmap());
+        return;
     }
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    QSize renderSize = ui->imageLabel->size();
+    auto renderImage = [this, page, renderSize]() -> RenderedImage
+    {
+        return renderPage(page, renderSize);
+    };
+
+    m_future = QtConcurrent::run(renderImage);
+    m_futureWatcher = new QFutureWatcher<RenderedImage>();
+    connect(m_futureWatcher, &QFutureWatcher<RenderedImage>::finished, this, &OutputPreviewDialog::onPageImageRendered);
+    m_futureWatcher->setFuture(m_future);
+}
+
+OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PDFPage* page, QSize renderSize)
+{
+    RenderedImage result;
 
     QRectF pageRect = page->getRotatedMediaBox();
     QSizeF pageSize = pageRect.size();
-    pageSize.scale(ui->imageLabel->width(), ui->imageLabel->height(), Qt::KeepAspectRatio);
+    pageSize.scale(renderSize.width(), renderSize.height(), Qt::KeepAspectRatio);
     QSize imageSize = pageSize.toSize();
 
     if (!imageSize.isValid())
     {
-        ui->imageLabel->setPixmap(QPixmap());
+        return result;
     }
 
     pdf::PDFTransparencyRendererSettings settings;
@@ -88,7 +135,31 @@ void OutputPreviewDialog::updateImage()
     renderer.endPaint();
 
     QImage image = renderer.toImage(false, true, pdf::PDFRGB{ 1.0f, 1.0f, 1.0f });
-    ui->imageLabel->setPixmap(QPixmap::fromImage(image));
+
+    result.image = qMove(image);
+    return result;
+}
+
+void OutputPreviewDialog::onPageImageRendered()
+{
+    QApplication::restoreOverrideCursor();
+
+    RenderedImage result = m_future.result();
+    m_future = QFuture<RenderedImage>();
+    m_futureWatcher->deleteLater();
+    m_futureWatcher = nullptr;
+
+    ui->imageLabel->setPixmap(QPixmap::fromImage(result.image));
+
+    if (m_needUpdateImage)
+    {
+        updatePageImage();
+    }
+}
+
+bool OutputPreviewDialog::isRenderingDone() const
+{
+    return !(m_futureWatcher && m_futureWatcher->isRunning());
 }
 
 } // namespace pdfplugin

@@ -23,6 +23,8 @@
 #include "pdftransparencyrenderer.h"
 
 #include <QDialog>
+#include <QFuture>
+#include <QFutureWatcher>
 
 namespace Ui
 {
@@ -41,14 +43,29 @@ public:
     virtual ~OutputPreviewDialog() override;
 
     virtual void resizeEvent(QResizeEvent* event) override;
+    virtual void closeEvent(QCloseEvent* event) override;
+    virtual void showEvent(QShowEvent* event) override;
 
 private:
-    void updateImage();
+
+    struct RenderedImage
+    {
+        QImage image;
+    };
+
+    void updatePageImage();
+    void onPageImageRendered();
+    RenderedImage renderPage(const pdf::PDFPage* page, QSize renderSize);
+    bool isRenderingDone() const;
 
     Ui::OutputPreviewDialog* ui;
     pdf::PDFInkMapper m_inkMapper;
     const pdf::PDFDocument* m_document;
     pdf::PDFWidget* m_widget;
+    bool m_needUpdateImage;
+
+    QFuture<RenderedImage> m_future;
+    QFutureWatcher<RenderedImage>* m_futureWatcher;
 };
 
 }   // namespace pdf
