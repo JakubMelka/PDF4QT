@@ -975,7 +975,7 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
         if (isTransparencyGroupIsolated())
         {
             // Make initial backdrop transparent
-            data.initialBackdrop.makeTransparent();
+            data.makeInitialBackdropTransparent();
         }
         else if (!isTransparencyGroupKnockout())
         {
@@ -999,7 +999,7 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
         // Prepare soft mask
         data.softMask = PDFFloatBitmap(oldBackdrop->getWidth(), oldBackdrop->getHeight(), PDFPixelFormat::createOpacityMask());
         // TODO: Create soft mask
-        data.softMask.makeOpaque();
+        data.makeSoftMaskOpaque();
 
         data.initialBackdrop.convertToColorSpace(getCMS(), data.renderingIntent, data.blendColorSpace, this);
         data.immediateBackdrop = data.initialBackdrop;
@@ -1007,7 +1007,7 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
         // Jakub Melka: According to 11.4.8 of PDF 2.0 specification, we must
         // initialize f_g_0 and alpha_g_0 to zero. We store f_g_0 and alpha_g_0
         // in the immediate backdrop, so we will make it transparent.
-        data.immediateBackdrop.makeTransparent();
+        data.makeImmediateBackdropTransparent();
 
         // Create draw buffer
         m_drawBuffer = PDFDrawBuffer(data.immediateBackdrop.getWidth(), data.immediateBackdrop.getHeight(), data.immediateBackdrop.getPixelFormat());
@@ -1682,13 +1682,17 @@ PDFColorComponent PDFPainterPathSampler::sampleByScanLine(QPoint point) const
     {
         ScanLineInfo info = m_scanLineInfo[scanLineIndex];
         auto it = std::next(m_scanLineSamples.cbegin(), info.indexStart);
-        auto itEnd = std::next(m_scanLineSamples.cbegin(), info.indexEnd);
 
         PDFReal ordinate = firstOrdinate;
         PDFColorComponent value = 0.0;
-        auto ordinateIt = std::lower_bound(it, itEnd, ordinate);
+        auto ordinateIt = it;
         for (int i = 0; i < sampleCount; ++i)
         {
+            while (std::next(ordinateIt)->x < ordinate)
+            {
+                ++ordinateIt;
+            }
+
             int windingNumber = ordinateIt->windingNumber;
 
             const bool inside = (fillRule == Qt::WindingFill) ? windingNumber != 0 : windingNumber % 2 != 0;
@@ -1698,7 +1702,6 @@ PDFColorComponent PDFPainterPathSampler::sampleByScanLine(QPoint point) const
             }
 
             ordinate += step;
-            ordinateIt = std::lower_bound(ordinateIt, itEnd, ordinate);
         }
 
         return value;
@@ -1874,6 +1877,21 @@ void PDFDrawBuffer::modify(QRect rect, bool containsFilling, bool containsStroki
     m_modifiedRect = m_modifiedRect.united(rect);
     m_containsFilling |= containsFilling;
     m_containsStroking |= containsStroking;
+}
+
+void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeInitialBackdropTransparent()
+{
+    initialBackdrop.makeTransparent();
+}
+
+void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeImmediateBackdropTransparent()
+{
+    immediateBackdrop.makeTransparent();
+}
+
+void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeSoftMaskOpaque()
+{
+    softMask.makeOpaque();
 }
 
 }   // namespace pdf

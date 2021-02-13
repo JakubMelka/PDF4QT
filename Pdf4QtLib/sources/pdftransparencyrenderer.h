@@ -523,6 +523,10 @@ private:
 
     struct PDFTransparencyGroupPainterData
     {
+        void makeInitialBackdropTransparent();
+        void makeImmediateBackdropTransparent();
+        void makeSoftMaskOpaque();
+
         PDFTransparencyGroup group;
         bool alphaIsShape = false;
         PDFReal alphaStroke = 1.0;
