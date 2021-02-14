@@ -641,6 +641,9 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     }
 
     m_pageTransparencyGroupGuard.reset(new PDFTransparencyGroupGuard(this, qMove(transparencyGroup)));
+    m_transparencyGroupDataStack.back().filterColorsUsingMask = (m_settings.flags.testFlag(PDFTransparencyRendererSettings::ActiveColorMask) &&
+                                                                 m_settings.activeColorMask != PDFPixelFormat::getAllColorsMask());
+    m_transparencyGroupDataStack.back().activeColorMask = m_settings.activeColorMask;
 }
 
 const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
@@ -1093,6 +1096,28 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         PDFTransparencyGroupPainterData sourceData = qMove(m_transparencyGroupDataStack.back());
         m_transparencyGroupDataStack.pop_back();
 
+        // Filter inactive colors - clear all colors in immediate mask,
+        // which are set to inactive.
+        if (sourceData.filterColorsUsingMask)
+        {
+            const PDFPixelFormat pixelFormat = sourceData.immediateBackdrop.getPixelFormat();
+            const uint32_t colorChannelStart = pixelFormat.getColorChannelIndexStart();
+            const uint32_t colorChannelEnd = pixelFormat.getColorChannelIndexEnd();
+            const uint32_t processColorChannelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+
+            for (uint32_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+            {
+                const uint32_t flag = 1 << colorChannelIndex;
+                if (!(sourceData.activeColorMask & flag))
+                {
+                    const bool isProcessColor = colorChannelIndex < processColorChannelEnd;
+                    const bool isSubtractive = isProcessColor ? pixelFormat.hasProcessColorsSubtractive() : pixelFormat.hasSpotColorsSubtractive();
+
+                    sourceData.immediateBackdrop.fillChannel(colorChannelIndex, isSubtractive ? 0.0f : 1.0f);
+                }
+            }
+        }
+
         PDFTransparencyGroupPainterData& targetData = m_transparencyGroupDataStack.back();
         sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
 
@@ -1429,6 +1454,118 @@ PDFInkMapper::PDFInkMapper(const PDFDocument* document) :
 
 }
 
+std::vector<PDFInkMapper::ColorInfo> PDFInkMapper::getSeparations(uint32_t processColorCount) const
+{
+    std::vector<ColorInfo> result;
+    result.reserve(getActiveSpotColorCount() + processColorCount);
+
+    switch (processColorCount)
+    {
+        case 1:
+        {
+            ColorInfo gray;
+            gray.name = "Process Gray";
+            gray.textName = PDFTranslationContext::tr("Process Gray");
+            gray.canBeActive = true;
+            gray.active = true;
+            gray.isSpot = false;
+            result.emplace_back(qMove(gray));
+            break;
+        }
+
+        case 3:
+        {
+            ColorInfo red;
+            red.name = "Process Red";
+            red.textName = PDFTranslationContext::tr("Process Red");
+            red.canBeActive = true;
+            red.active = true;
+            red.isSpot = false;
+            result.emplace_back(qMove(red));
+
+            ColorInfo green;
+            green.name = "Process Green";
+            green.textName = PDFTranslationContext::tr("Process Green");
+            green.canBeActive = true;
+            green.active = true;
+            green.isSpot = false;
+            result.emplace_back(qMove(green));
+
+            ColorInfo blue;
+            blue.name = "Process Blue";
+            blue.textName = PDFTranslationContext::tr("Process Blue");
+            blue.canBeActive = true;
+            blue.active = true;
+            blue.isSpot = false;
+            result.emplace_back(qMove(blue));
+            break;
+        }
+
+        case 4:
+        {
+            ColorInfo cyan;
+            cyan.name = "Process Cyan";
+            cyan.textName = PDFTranslationContext::tr("Process Cyan");
+            cyan.canBeActive = true;
+            cyan.active = true;
+            cyan.isSpot = false;
+            result.emplace_back(qMove(cyan));
+
+            ColorInfo magenta;
+            magenta.name = "Process Magenta";
+            magenta.textName = PDFTranslationContext::tr("Process Magenta");
+            magenta.canBeActive = true;
+            magenta.active = true;
+            magenta.isSpot = false;
+            result.emplace_back(qMove(magenta));
+
+            ColorInfo yellow;
+            yellow.name = "Process Yellow";
+            yellow.textName = PDFTranslationContext::tr("Process Yellow");
+            yellow.canBeActive = true;
+            yellow.active = true;
+            yellow.isSpot = false;
+            result.emplace_back(qMove(yellow));
+
+            ColorInfo black;
+            black.name = "Process Black";
+            black.textName = PDFTranslationContext::tr("Process Black");
+            black.canBeActive = true;
+            black.active = true;
+            black.isSpot = false;
+            result.emplace_back(qMove(black));
+            break;
+        }
+
+        default:
+        {
+            for (uint32_t i = 0; i < processColorCount; ++i)
+            {
+                ColorInfo generic;
+                generic.textName = PDFTranslationContext::tr("Process Generic%1").arg(i + 1);
+                generic.name = generic.textName.toLatin1();
+                generic.canBeActive = true;
+                generic.active = true;
+                generic.isSpot = false;
+                result.emplace_back(qMove(generic));
+            }
+        }
+    }
+
+    for (const auto& spotColor : m_spotColors)
+    {
+        if (!spotColor.active)
+        {
+            // Skip inactive spot colors
+            continue;
+        }
+
+        result.emplace_back(spotColor);
+    }
+
+    return result;
+}
+
 void PDFInkMapper::createSpotColors(bool activate)
 {
     m_spotColors.clear();
@@ -1477,8 +1614,9 @@ void PDFInkMapper::createSpotColors(bool activate)
                                 const QByteArray& colorName = separationColorSpace->getColorName();
                                 if (!containsSpotColor(colorName))
                                 {
-                                    SpotColorInfo info;
+                                    ColorInfo info;
                                     info.name = colorName;
+                                    info.textName = PDFEncoding::convertTextString(info.name);
                                     info.colorSpace = colorSpacePointer;
                                     info.spotColorIndex = uint32_t(m_spotColors.size());
                                     m_spotColors.emplace_back(qMove(info));
@@ -1500,8 +1638,9 @@ void PDFInkMapper::createSpotColors(bool activate)
                                     const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
                                     if (!containsSpotColor(colorantInfo.name))
                                     {
-                                        SpotColorInfo info;
+                                        ColorInfo info;
                                         info.name = colorantInfo.name;
+                                        info.textName = PDFEncoding::convertTextString(info.name);
                                         info.colorSpaceIndex = uint32_t(i);
                                         info.colorSpace = colorSpacePointer;
                                         info.spotColorIndex = uint32_t(m_spotColors.size());
@@ -1521,15 +1660,13 @@ void PDFInkMapper::createSpotColors(bool activate)
         }
     }
 
-    if (activate)
+    size_t minIndex = qMin<uint32_t>(uint32_t(m_spotColors.size()), MAX_SPOT_COLOR_COMPONENTS);
+    for (size_t i = 0; i < minIndex; ++i)
     {
-        size_t minIndex = qMin<uint32_t>(uint32_t(m_spotColors.size()), MAX_SPOT_COLOR_COMPONENTS);
-        for (size_t i = 0; i < minIndex; ++i)
-        {
-            m_spotColors[i].active = true;
-        }
-        m_activeSpotColors = minIndex;
+        m_spotColors[i].canBeActive = true;
     }
+
+    setSpotColorsActive(activate);
 }
 
 bool PDFInkMapper::containsSpotColor(const QByteArray& colorName) const
@@ -1537,7 +1674,7 @@ bool PDFInkMapper::containsSpotColor(const QByteArray& colorName) const
     return getSpotColor(colorName) != nullptr;
 }
 
-const PDFInkMapper::SpotColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colorName) const
+const PDFInkMapper::ColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colorName) const
 {
     auto it = std::find_if(m_spotColors.cbegin(), m_spotColors.cend(), [&colorName](const auto& info) { return info.name == colorName; });
     if (it != m_spotColors.cend())
@@ -1546,6 +1683,30 @@ const PDFInkMapper::SpotColorInfo* PDFInkMapper::getSpotColor(const QByteArray& 
     }
 
     return nullptr;
+}
+
+void PDFInkMapper::setSpotColorsActive(bool active)
+{
+    m_activeSpotColors = 0;
+
+    if (active)
+    {
+        for (auto& spotColor : m_spotColors)
+        {
+            if (spotColor.canBeActive)
+            {
+                spotColor.active = true;
+                ++m_activeSpotColors;
+            }
+        }
+    }
+    else
+    {
+        for (auto& spotColor : m_spotColors)
+        {
+            spotColor.active = false;
+        }
+    }
 }
 
 PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceColorSpace,
@@ -1590,7 +1751,7 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
                 else if (!separationColorSpace->isNone() && !separationColorSpace->getColorName().isEmpty())
                 {
                     const QByteArray& colorName = separationColorSpace->getColorName();
-                    const SpotColorInfo* info = getSpotColor(colorName);
+                    const ColorInfo* info = getSpotColor(colorName);
                     if (info && info->active && targetPixelFormat.hasSpotColors() && info->spotColorIndex < targetPixelFormat.getSpotColorChannelCount())
                     {
                         mapping.map(0, uint8_t(targetPixelFormat.getSpotColorChannelIndexStart() + info->spotColorIndex));
@@ -1610,7 +1771,7 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
                     for (size_t i = 0; i < colorants.size(); ++i)
                     {
                         const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
-                        const SpotColorInfo* info = getSpotColor(colorantInfo.name);
+                        const ColorInfo* info = getSpotColor(colorantInfo.name);
 
                         if (info && info->active && targetPixelFormat.hasSpotColors() && info->spotColorIndex < targetPixelFormat.getSpotColorChannelCount())
                         {

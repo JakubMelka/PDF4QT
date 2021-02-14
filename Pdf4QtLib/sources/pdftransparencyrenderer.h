@@ -97,6 +97,8 @@ public:
     static constexpr PDFPixelFormat removeSpotColors(PDFPixelFormat format) { return PDFPixelFormat(format.getProcessColorChannelCount(), 0, format.getFlags()); }
     static constexpr PDFPixelFormat removeShapeAndOpacity(PDFPixelFormat format) { return PDFPixelFormat(format.getProcessColorChannelCount(), format.getSpotColorChannelCount(), format.hasProcessColorsSubtractive() ? FLAG_PROCESS_COLORS_SUBTRACTIVE : 0); }
 
+    static constexpr uint32_t getAllColorsMask() { return 0xFFFF; }
+
     static constexpr PDFPixelFormat createFormat(uint8_t processColors, uint8_t spotColors, bool withShapeAndOpacity, bool processColorSubtractive)
     {
         return PDFPixelFormat(processColors, spotColors, (withShapeAndOpacity ? FLAG_HAS_SHAPE_CHANNEL + FLAG_HAS_OPACITY_CHANNEL : 0) + (processColorSubtractive ? FLAG_PROCESS_COLORS_SUBTRACTIVE : 0));
@@ -277,18 +279,27 @@ class Pdf4QtLIBSHARED_EXPORT PDFInkMapper
 public:
     explicit PDFInkMapper(const PDFDocument* document);
 
-    struct SpotColorInfo
+    struct ColorInfo
     {
         QByteArray name;
+        QString textName;
         uint32_t spotColorIndex = 0; ///< Index of this spot color
         uint32_t colorSpaceIndex = 0; ///< Index into DeviceN color space (index of colorant)
         PDFColorSpacePointer colorSpace;
+        bool canBeActive = false; ///< Can spot color be activated?
         bool active = false; ///< Is spot color active?
+        bool isSpot = true;
     };
 
     static constexpr const uint32_t MAX_COLOR_COMPONENTS = PDF_MAX_COLOR_COMPONENTS;
     static constexpr const uint32_t MAX_DEVICE_COLOR_COMPONENTS = 4;
     static constexpr const uint32_t MAX_SPOT_COLOR_COMPONENTS = MAX_COLOR_COMPONENTS - MAX_DEVICE_COLOR_COMPONENTS - 2;
+
+    /// Returns a vector of separations correspoding to the process colors
+    /// and spot colors. Only active spot colors are added. Only 1, 3 and 4
+    /// process colors are supported.
+    /// \param processColorCount Process color count
+    std::vector<ColorInfo> getSeparations(uint32_t processColorCount) const;
 
     /// Scan document for spot colors and fills color info
     /// \param activate Set spot colors active?
@@ -303,7 +314,11 @@ public:
 
     /// Returns spot color information (or nullptr, if spot color is not present)
     /// \param colorName Color name
-    const SpotColorInfo* getSpotColor(const QByteArray& colorName) const;
+    const ColorInfo* getSpotColor(const QByteArray& colorName) const;
+
+    /// Activates / deactivates spot colors
+    /// \param active Make spot colors active?
+    void setSpotColorsActive(bool active);
 
     /// Creates color mapping from source color space to the target color space.
     /// If mapping  cannot be created, then invalid mapping is returned. Target
@@ -318,7 +333,7 @@ public:
 
 private:
     const PDFDocument* m_document;
-    std::vector<SpotColorInfo> m_spotColors;
+    std::vector<ColorInfo> m_spotColors;
     size_t m_activeSpotColors = 0;
 };
 
@@ -456,13 +471,23 @@ struct PDFTransparencyRendererSettings
 
         /// Use multithreading when painter paths are painted?
         /// Multithreading is used to
-        MultithreadedPathSampler = 0x0002
+        MultithreadedPathSampler = 0x0002,
+
+        /// When using CMYK process color space, transfer spot
+        /// colors to the CMYK color space.
+        SeparationSimulation = 0x0004,
+
+        /// Use active color mask
+        ActiveColorMask = 0x0008
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)
 
     /// Flags
     Flags flags = None;
+
+    /// Active color mask
+    uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
 };
 
 /// Renders PDF pages with transparency, using 32-bit floating point precision.
@@ -550,6 +575,8 @@ private:
         PDFFloatBitmapWithColorSpace immediateBackdrop; ///< Immediate backdrop
         PDFFloatBitmap softMask; ///< Soft mask for this group
         PDFColorSpacePointer blendColorSpace;
+        bool filterColorsUsingMask = false;
+        uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
     };
 
     struct PDFTransparencyPainterState

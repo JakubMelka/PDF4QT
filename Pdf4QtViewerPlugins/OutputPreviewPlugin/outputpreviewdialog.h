@@ -46,7 +46,18 @@ public:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void showEvent(QShowEvent* event) override;
 
+    virtual void accept() override;
+    virtual void reject() override;
+
 private:
+
+    void updateInks();
+    void updatePaperColorWidgets();
+
+    void onPaperColorChanged();
+    void onSimulateSeparationsChecked(bool checked);
+    void onSimulatePaperColorChecked(bool checked);
+    void onInksChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>& roles);
 
     struct RenderedImage
     {
@@ -55,11 +66,12 @@ private:
 
     void updatePageImage();
     void onPageImageRendered();
-    RenderedImage renderPage(const pdf::PDFPage* page, QSize renderSize);
+    RenderedImage renderPage(const pdf::PDFPage* page, QSize renderSize, pdf::PDFRGB paperColor, uint32_t activeColorMask);
     bool isRenderingDone() const;
 
     Ui::OutputPreviewDialog* ui;
     pdf::PDFInkMapper m_inkMapper;
+    pdf::PDFInkMapper m_inkMapperForRendering;
     const pdf::PDFDocument* m_document;
     pdf::PDFWidget* m_widget;
     bool m_needUpdateImage;
