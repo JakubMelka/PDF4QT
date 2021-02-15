@@ -120,7 +120,7 @@ size_t PDFFloatBitmap::getPixelIndex(size_t x, size_t y) const
     return (y * m_width + x) * m_pixelSize;
 }
 
-PDFFloatBitmap PDFFloatBitmap::extractProcessColors()
+PDFFloatBitmap PDFFloatBitmap::extractProcessColors() const
 {
     PDFPixelFormat format = PDFPixelFormat::createFormat(m_format.getProcessColorChannelCount(), 0, false, m_format.hasProcessColorsSubtractive());
     PDFFloatBitmap result(getWidth(), getHeight(), format);
@@ -129,11 +129,34 @@ PDFFloatBitmap PDFFloatBitmap::extractProcessColors()
     {
         for (size_t y = 0; y < getHeight(); ++y)
         {
-            PDFColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+            PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
             PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
 
             Q_ASSERT(sourceProcessColorBuffer.size() >= targetProcessColorBuffer.size());
             std::copy(sourceProcessColorBuffer.cbegin(), std::next(sourceProcessColorBuffer.cbegin(), targetProcessColorBuffer.size()), targetProcessColorBuffer.begin());
+        }
+    }
+
+    return result;
+}
+
+PDFFloatBitmap PDFFloatBitmap::extractSpotChannel(uint8_t channel) const
+{
+    PDFPixelFormat format = PDFPixelFormat::createFormat(0, 1, false, m_format.hasProcessColorsSubtractive());
+    PDFFloatBitmap result(getWidth(), getHeight(), format);
+
+    Q_ASSERT(m_format.hasSpotColors());
+    Q_ASSERT(m_format.getSpotColorChannelIndexStart() <= channel);
+    Q_ASSERT(m_format.getSpotColorChannelIndexEnd() > channel);
+
+    for (size_t x = 0; x < getWidth(); ++x)
+    {
+        for (size_t y = 0; y < getHeight(); ++y)
+        {
+            PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+            PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+
+            targetProcessColorBuffer[0] = sourceProcessColorBuffer[channel];
         }
     }
 
@@ -455,6 +478,30 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
     }
 }
 
+void PDFFloatBitmap::blendConvertedSpots(const PDFFloatBitmap& convertedSpotColors)
+{
+    Q_ASSERT(convertedSpotColors.getPixelFormat().getProcessColorChannelCount() == m_format.getProcessColorChannelCount());
+
+    const uint8_t processColorChannelStart = m_format.getProcessColorChannelIndexStart();
+    const uint8_t processColorChannelEnd = m_format.getProcessColorChannelIndexEnd();
+
+    const PDFColorComponent* sourcePixel = convertedSpotColors.begin();
+    for (PDFColorComponent* targetPixel = begin(); targetPixel != end(); targetPixel += m_pixelSize, sourcePixel+= convertedSpotColors.getPixelSize())
+    {
+        for (uint8_t i = processColorChannelStart; i < processColorChannelEnd; ++i)
+        {
+            if (m_format.hasProcessColorsSubtractive())
+            {
+                targetPixel[i] = PDFBlendFunction::blend_Union(targetPixel[i], sourcePixel[i]);
+            }
+            else
+            {
+                targetPixel[i] = targetPixel[i] * sourcePixel[i];
+            }
+        }
+    }
+}
+
 void PDFFloatBitmap::fillProcessColorChannels(PDFColorComponent value)
 {
     if (!m_format.hasProcessColors())
@@ -644,6 +691,7 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     m_transparencyGroupDataStack.back().filterColorsUsingMask = (m_settings.flags.testFlag(PDFTransparencyRendererSettings::ActiveColorMask) &&
                                                                  m_settings.activeColorMask != PDFPixelFormat::getAllColorsMask());
     m_transparencyGroupDataStack.back().activeColorMask = m_settings.activeColorMask;
+    m_transparencyGroupDataStack.back().transformSpotsToDevice = m_settings.flags.testFlag(PDFTransparencyRendererSettings::SeparationSimulation);
 }
 
 const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
@@ -787,6 +835,48 @@ void PDFTransparencyRenderer::performPixelSampling(const PDFReal shape,
         {
             pixel[colorChannelIndex] = fillColor.mappedColor[colorChannelIndex];
         }
+    }
+}
+
+void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWithColorSpace& bitmap)
+{
+    PDFPixelFormat pixelFormat = bitmap.getPixelFormat();
+
+    if (!pixelFormat.hasSpotColors())
+    {
+        return;
+    }
+
+    const uint8_t spotColorIndexStart = pixelFormat.getSpotColorChannelIndexStart();
+    const uint8_t spotColorIndexEnd = pixelFormat.getSpotColorChannelIndexEnd();
+
+    for (uint8_t i = spotColorIndexStart; i < spotColorIndexEnd; ++i)
+    {
+        // Collapse spot color
+        PDFFloatBitmap spotColorBitmap = bitmap.extractSpotChannel(i);
+
+        const PDFInkMapper::ColorInfo* spotColor = m_inkMapper->getActiveSpotColor(i - spotColorIndexStart);
+        Q_ASSERT(spotColor);
+
+        switch (spotColor->colorSpace->getColorSpace())
+        {
+            case PDFAbstractColorSpace::ColorSpace::Separation:
+            {
+                PDFFloatBitmap processColorBitmap(spotColorBitmap.getWidth(), spotColorBitmap.getHeight(), PDFPixelFormat::createFormat(pixelFormat.getProcessColorChannelCount(), 0, false, pixelFormat.hasProcessColorsSubtractive()));
+                if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), spotColorBitmap.getPixels(), processColorBitmap.getPixels(), this))
+                {
+                    reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
+                }
+
+                bitmap.blendConvertedSpots(processColorBitmap);
+                break;
+            }
+
+            default:
+                reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
+                break;
+        }
+
     }
 }
 
@@ -1116,6 +1206,12 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
                     sourceData.immediateBackdrop.fillChannel(colorChannelIndex, isSubtractive ? 0.0f : 1.0f);
                 }
             }
+        }
+
+        // Collapse spot colors
+        if (sourceData.transformSpotsToDevice)
+        {
+            collapseSpotColorsToDeviceColors(sourceData.immediateBackdrop);
         }
 
         PDFTransparencyGroupPainterData& targetData = m_transparencyGroupDataStack.back();
@@ -1680,6 +1776,24 @@ const PDFInkMapper::ColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colo
     if (it != m_spotColors.cend())
     {
         return &*it;
+    }
+
+    return nullptr;
+}
+
+const PDFInkMapper::ColorInfo* PDFInkMapper::getActiveSpotColor(size_t index) const
+{
+    for (const ColorInfo& info : m_spotColors)
+    {
+        if (info.active)
+        {
+            if (index == 0)
+            {
+                return &info;
+            }
+
+            --index;
+        }
     }
 
     return nullptr;

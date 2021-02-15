@@ -177,7 +177,11 @@ public:
     size_t getPixelIndex(size_t x, size_t y) const;
 
     /// Extract process colors into another bitmap
-    PDFFloatBitmap extractProcessColors();
+    PDFFloatBitmap extractProcessColors() const;
+
+    /// Extract spot channel
+    /// \param channel Channel
+    PDFFloatBitmap extractSpotChannel(uint8_t channel) const;
 
     enum class OverprintMode
     {
@@ -215,6 +219,11 @@ public:
                       uint32_t activeColorChannels,
                       OverprintMode overprintMode,
                       QRect blendRegion);
+
+    /// Blends converted spot colors, which are in \p convertedSpotColors bitmap.
+    /// Process colors must match.
+    /// \param convertedSpotColors Bitmap with converted spot colors
+    void blendConvertedSpots(const PDFFloatBitmap& convertedSpotColors);
 
     void fillProcessColorChannels(PDFColorComponent value);
     void fillChannel(size_t channel, PDFColorComponent value);
@@ -315,6 +324,12 @@ public:
     /// Returns spot color information (or nullptr, if spot color is not present)
     /// \param colorName Color name
     const ColorInfo* getSpotColor(const QByteArray& colorName) const;
+
+    /// Returns active spot color with given index. If index
+    /// of the spot color is invalid, or no active spot color
+    /// is found, then nullptr is returned.
+    /// \param index Active color index
+    const ColorInfo* getActiveSpotColor(size_t index) const;
 
     /// Activates / deactivates spot colors
     /// \param active Make spot colors active?
@@ -577,6 +592,7 @@ private:
         PDFColorSpacePointer blendColorSpace;
         bool filterColorsUsingMask = false;
         uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
+        bool transformSpotsToDevice = false;
     };
 
     struct PDFTransparencyPainterState
@@ -665,6 +681,10 @@ private:
                               const PDFMappedColor& fillColor,
                               const PDFPainterPathSampler& clipSampler,
                               const PDFPainterPathSampler& pathSampler);
+
+    /// Collapses spot colors to device colors
+    /// \param data Bitmap with data
+    void collapseSpotColorsToDeviceColors(PDFFloatBitmapWithColorSpace& bitmap);
 
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)

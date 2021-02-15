@@ -272,6 +272,7 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
 #endif
 
     settings.flags.setFlag(pdf::PDFTransparencyRendererSettings::ActiveColorMask, activeColorMask != pdf::PDFPixelFormat::getAllColorsMask());
+    settings.flags.setFlag(pdf::PDFTransparencyRendererSettings::SeparationSimulation, m_inkMapperForRendering.getActiveSpotColorCount() > 0);
     settings.activeColorMask = activeColorMask;
 
     QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
