@@ -562,6 +562,7 @@ public:
     virtual void performRestoreGraphicState(ProcessOrder order) override;
     virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
+    virtual void performTextBegin(ProcessOrder order) override;
     virtual void performTextEnd(ProcessOrder order) override;
     virtual void performImagePainting(const QImage& image) override;
     virtual void performMeshPainting(const PDFMesh& mesh);
@@ -689,6 +690,7 @@ private:
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
     std::unique_ptr<PDFTransparencyGroupGuard> m_pageTransparencyGroupGuard;
+    std::unique_ptr<PDFTransparencyGroupGuard> m_textTransparencyGroupGuard;
     std::vector<PDFTransparencyGroupPainterData> m_transparencyGroupDataStack;
     std::stack<PDFTransparencyPainterState> m_painterStateStack;
     const PDFInkMapper* m_inkMapper;

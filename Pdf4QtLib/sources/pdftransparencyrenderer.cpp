@@ -697,6 +697,7 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
 const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
 {
     Q_ASSERT(m_active);
+    m_textTransparencyGroupGuard.reset(); // Just safeguard - ET operator may not be present
     m_pageTransparencyGroupGuard.reset();
     m_active = false;
     m_painterStateStack.pop();
@@ -882,6 +883,7 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
 
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
+    Q_UNUSED(text);
     Q_UNUSED(fillRule);
 
     QMatrix worldMatrix = getCurrentWorldMatrix();
@@ -1031,10 +1033,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         }
     }
 
-    if (!text || !getGraphicState()->getTextKnockout())
-    {
-        flushDrawBuffer();
-    }
+    flushDrawBuffer();
 }
 
 void PDFTransparencyRenderer::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
@@ -1229,11 +1228,22 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
     }
 }
 
+void PDFTransparencyRenderer::performTextBegin(ProcessOrder order)
+{
+    if (order == ProcessOrder::AfterOperation && getGraphicState()->getTextKnockout())
+    {
+        // In a case of text knockout, use text transparency group of type knockout
+        PDFTransparencyGroup transparencyGroup;
+        transparencyGroup.knockout = true;
+        m_textTransparencyGroupGuard.reset(new PDFTransparencyGroupGuard(this, qMove(transparencyGroup)));
+    }
+}
+
 void PDFTransparencyRenderer::performTextEnd(ProcessOrder order)
 {
-    if (order == ProcessOrder::AfterOperation)
+    if (order == ProcessOrder::BeforeOperation)
     {
-        flushDrawBuffer();
+        m_textTransparencyGroupGuard.reset();
     }
 }
 

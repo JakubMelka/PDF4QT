@@ -2596,12 +2596,13 @@ void PDFPageContentProcessor::operatorTextBegin()
     updateGraphicState();
 
     ++m_textBeginEndState;
-    performTextBegin(ProcessOrder::AfterOperation);
 
     if (m_textBeginEndState > 1)
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Text object already started."));
     }
+
+    performTextBegin(ProcessOrder::AfterOperation);
 }
 
 void PDFPageContentProcessor::operatorTextEnd()
