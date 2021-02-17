@@ -40,6 +40,11 @@ PDFFloatBitmap::PDFFloatBitmap(size_t width, size_t height, PDFPixelFormat forma
     Q_ASSERT(format.isValid());
 
     m_data.resize(format.calculateBitmapDataLength(width, height), static_cast<PDFColorComponent>(0.0f));
+
+    if (m_format.hasActiveColorMask())
+    {
+        m_activeColorMask.resize(width * height, 0);
+    }
 }
 
 PDFColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y)
@@ -120,9 +125,32 @@ size_t PDFFloatBitmap::getPixelIndex(size_t x, size_t y) const
     return (y * m_width + x) * m_pixelSize;
 }
 
+uint32_t PDFFloatBitmap::getPixelActiveColorMask(size_t x, size_t y) const
+{
+    Q_ASSERT(hasActiveColorMask());
+    return m_activeColorMask[y * m_width + x];
+}
+
+void PDFFloatBitmap::markPixelActiveColorMask(size_t x, size_t y, uint32_t activeColorMask)
+{
+    Q_ASSERT(hasActiveColorMask());
+    m_activeColorMask[y * m_width + x] |= activeColorMask;
+}
+
+void PDFFloatBitmap::setPixelActiveColorMask(size_t x, size_t y, uint32_t activeColorMask)
+{
+    Q_ASSERT(hasActiveColorMask());
+    m_activeColorMask[y * m_width + x] = activeColorMask;
+}
+
+void PDFFloatBitmap::setAllColorActive()
+{
+    std::fill(m_activeColorMask.begin(), m_activeColorMask.end(), PDFPixelFormat::getAllColorsMask());
+}
+
 PDFFloatBitmap PDFFloatBitmap::extractProcessColors() const
 {
-    PDFPixelFormat format = PDFPixelFormat::createFormat(m_format.getProcessColorChannelCount(), 0, false, m_format.hasProcessColorsSubtractive());
+    PDFPixelFormat format = PDFPixelFormat::createFormat(m_format.getProcessColorChannelCount(), 0, false, m_format.hasProcessColorsSubtractive(), false);
     PDFFloatBitmap result(getWidth(), getHeight(), format);
 
     for (size_t x = 0; x < getWidth(); ++x)
@@ -142,7 +170,7 @@ PDFFloatBitmap PDFFloatBitmap::extractProcessColors() const
 
 PDFFloatBitmap PDFFloatBitmap::extractSpotChannel(uint8_t channel) const
 {
-    PDFPixelFormat format = PDFPixelFormat::createFormat(0, 1, false, m_format.hasProcessColorsSubtractive());
+    PDFPixelFormat format = PDFPixelFormat::createFormat(0, 1, false, m_format.hasProcessColorsSubtractive(), false);
     PDFFloatBitmap result(getWidth(), getHeight(), format);
 
     Q_ASSERT(m_format.hasSpotColors());
@@ -172,7 +200,6 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                            PDFColorComponent constantAlpha,
                            BlendMode mode,
                            bool knockoutGroup,
-                           uint32_t activeColorChannels,
                            OverprintMode overprintMode,
                            QRect blendRegion)
 {
@@ -213,76 +240,79 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
     // Handle overprint mode for normal blend mode. We do not support
     // oveprinting for other blend modes, than normal.
 
-    switch (overprintMode)
+    auto getBlendModeForPixel = [&source, &channelBlendModes, pixelFormat, overprintMode, mode](size_t x, size_t y, uint8_t channel)
     {
-        case OverprintMode::NoOveprint:
-            break;
-
-        case OverprintMode::Overprint_Mode_0:
+        switch (overprintMode)
         {
-            // Select source color, if channel is active,
-            // otherwise select backdrop color.
-            for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+            case OverprintMode::NoOveprint:
+                break;
+
+            case OverprintMode::Overprint_Mode_0:
             {
-                uint32_t flag = (static_cast<uint32_t>(1)) << colorChannelIndex;
-                if (channelBlendModes[colorChannelIndex] == BlendMode::Normal && !(activeColorChannels & flag))
+                // Select source color, if channel is active,
+                // otherwise select backdrop color.
+
+                const uint32_t activeColorChannels = source.hasActiveColorMask() ? source.getPixelActiveColorMask(x, y) : PDFPixelFormat::getAllColorsMask();
+                uint32_t flag = (static_cast<uint32_t>(1)) << channel;
+                if (channelBlendModes[channel] == BlendMode::Normal && !(activeColorChannels & flag))
                 {
                     // Color channel is inactive
-                    channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectBackdrop;
+                    return BlendMode::Overprint_SelectBackdrop;
                 }
+
+                break;
             }
 
-            break;
-        }
-
-        case OverprintMode::Overprint_Mode_1:
-        {
-            // For process colors, select source color, if it is nonzero,
-            // otherwise select backdrop. If process color channel is inactive,
-            // select backdrop.
-            if (pixelFormat.hasProcessColors() && mode == BlendMode::Normal)
+            case OverprintMode::Overprint_Mode_1:
             {
-                for (uint8_t colorChannelIndex = processColorChannelStart; colorChannelIndex < processColorChannelEnd; ++colorChannelIndex)
+                // For process colors, select source color, if it is nonzero,
+                // otherwise select backdrop. If process color channel is inactive,
+                // select backdrop.
+
+                const uint32_t activeColorChannels = source.hasActiveColorMask() ? source.getPixelActiveColorMask(x, y) : PDFPixelFormat::getAllColorsMask();
+
+                if (pixelFormat.hasProcessColors() && mode == BlendMode::Normal &&
+                    channel >= pixelFormat.getProcessColorChannelIndexStart() && channel < pixelFormat.getProcessColorChannelIndexEnd())
                 {
-                    uint32_t flag = (static_cast<uint32_t>(1)) << colorChannelIndex;
+                    uint32_t flag = (static_cast<uint32_t>(1)) << channel;
                     if (!(activeColorChannels & flag))
                     {
                         // Color channel is inactive
-                        channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectBackdrop;
+                        return BlendMode::Overprint_SelectBackdrop;
                     }
                     else
                     {
                         // Color channel is active, but select source color only, if it is nonzero
-                        channelBlendModes[colorChannelIndex] = pixelFormat.hasSpotColorsSubtractive() ? BlendMode::Overprint_SelectNonOneSourceOrBackdrop
-                                                                                                      : BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
+                        return pixelFormat.hasSpotColorsSubtractive() ? BlendMode::Overprint_SelectNonOneSourceOrBackdrop
+                                                                      : BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
                     }
                 }
-            }
 
-            if (pixelFormat.hasSpotColors())
-            {
-                // For spot colors, select backdrop, if channel is inactive,
-                // otherwise select source color.
-                for (uint8_t colorChannelIndex = spotColorChannelStart; colorChannelIndex < spotColorChannelEnd; ++colorChannelIndex)
+                if (pixelFormat.hasSpotColors() && channel >= pixelFormat.getSpotColorChannelIndexStart() && channel < pixelFormat.getSpotColorChannelIndexEnd())
                 {
-                    uint32_t flag = (static_cast<uint32_t>(1)) << colorChannelIndex;
-                    if (channelBlendModes[colorChannelIndex] == BlendMode::Normal && !(activeColorChannels & flag))
+                    // For spot colors, select backdrop, if channel is inactive,
+                    // otherwise select source color.
+
+                    uint32_t flag = (static_cast<uint32_t>(1)) << channel;
+                    if (channelBlendModes[channel] == BlendMode::Normal && !(activeColorChannels & flag))
                     {
                         // Color channel is inactive
-                        channelBlendModes[colorChannelIndex] = BlendMode::Overprint_SelectBackdrop;
+                        return BlendMode::Overprint_SelectBackdrop;
                     }
                 }
+
+                break;
             }
 
-            break;
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
         }
 
-        default:
-        {
-            Q_ASSERT(false);
-            break;
-        }
-    }
+        return channelBlendModes[channel];
+    };
 
     for (size_t x = blendRegion.left(); x <= blendRegion.right(); ++x)
     {
@@ -348,14 +378,16 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     {
                         for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = PDFBlendFunction::blend(channelBlendModes[i], backdropColor[i], sourceColor[i]);
+                            const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
+                            B_i[i] = PDFBlendFunction::blend(pixelBlendMode, backdropColor[i], sourceColor[i]);
                         }
                     }
                     else
                     {
                         for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = 1.0f - PDFBlendFunction::blend(channelBlendModes[i], 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                            const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(pixelBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
                         }
                     }
                 }
@@ -367,14 +399,16 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = PDFBlendFunction::blend(channelBlendModes[i], backdropColor[i], sourceColor[i]);
+                            const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
+                            B_i[i] = PDFBlendFunction::blend(pixelBlendMode, backdropColor[i], sourceColor[i]);
                         }
                     }
                     else
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = 1.0f - PDFBlendFunction::blend(channelBlendModes[i], 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                            const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(pixelBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
                         }
                     }
                 }
@@ -447,14 +481,16 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = PDFBlendFunction::blend(channelBlendModes[i], backdropColor[i], sourceColor[i]);
+                            const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
+                            B_i[i] = PDFBlendFunction::blend(pixelBlendMode, backdropColor[i], sourceColor[i]);
                         }
                     }
                     else
                     {
                         for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
                         {
-                            B_i[i] = 1.0f - PDFBlendFunction::blend(channelBlendModes[i], 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
+                            const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
+                            B_i[i] = 1.0f - PDFBlendFunction::blend(pixelBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
                         }
                     }
                 }
@@ -574,7 +610,7 @@ void PDFFloatBitmapWithColorSpace::convertToColorSpace(const PDFCMS* cms,
     newFormat.setProcessColorsSubtractive(targetDeviceColors == 4);
 
     PDFFloatBitmap sourceProcessColors = extractProcessColors();
-    PDFFloatBitmap targetProcessColors(sourceProcessColors.getWidth(), sourceProcessColors.getHeight(), PDFPixelFormat::createFormat(targetDeviceColors, 0, false, newFormat.hasProcessColorsSubtractive()));
+    PDFFloatBitmap targetProcessColors(sourceProcessColors.getWidth(), sourceProcessColors.getHeight(), PDFPixelFormat::createFormat(targetDeviceColors, 0, false, newFormat.hasProcessColorsSubtractive(), newFormat.hasActiveColorMask()));
 
     if (!PDFAbstractColorSpace::transform(m_colorSpace.data(), targetColorSpace.data(), cms, intent, sourceProcessColors.getPixels(), targetProcessColors.getPixels(), reporter))
     {
@@ -605,6 +641,8 @@ void PDFFloatBitmapWithColorSpace::convertToColorSpace(const PDFCMS* cms,
         }
     }
 
+    // Simplification - set all color channels active
+    temporary.setAllColorActive();
     *this = qMove(temporary);
 }
 
@@ -659,7 +697,8 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
 
     PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
                                                               uint8_t(m_inkMapper->getActiveSpotColorCount()),
-                                                              true, m_deviceColorSpace->getColorComponentCount() == 4);
+                                                              true, m_deviceColorSpace->getColorComponentCount() == 4,
+                                                              true);
 
     PDFFloatBitmapWithColorSpace paper = PDFFloatBitmapWithColorSpace(pixelSize.width(), pixelSize.height(), pixelFormat, m_deviceColorSpace);
     paper.makeColorWhite();
@@ -798,7 +837,7 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB pap
         softMask.makeOpaque();
 
         QRect blendRegion(0, 0, int(floatImage.getWidth()), int(floatImage.getHeight()));
-        PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, softMask, false, 1.0f, BlendMode::Normal, false, 0xFFFF, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
+        PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, softMask, false, 1.0f, BlendMode::Normal, false, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
 
         return toImageImpl(paperImage, use16Bit);
     }
@@ -836,6 +875,8 @@ void PDFTransparencyRenderer::performPixelSampling(const PDFReal shape,
         {
             pixel[colorChannelIndex] = fillColor.mappedColor[colorChannelIndex];
         }
+
+        m_drawBuffer.markPixelActiveColorMask(x, y, fillColor.activeChannels);
     }
 }
 
@@ -863,7 +904,7 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
         {
             case PDFAbstractColorSpace::ColorSpace::Separation:
             {
-                PDFFloatBitmap processColorBitmap(spotColorBitmap.getWidth(), spotColorBitmap.getHeight(), PDFPixelFormat::createFormat(pixelFormat.getProcessColorChannelCount(), 0, false, pixelFormat.hasProcessColorsSubtractive()));
+                PDFFloatBitmap processColorBitmap(spotColorBitmap.getWidth(), spotColorBitmap.getHeight(), PDFPixelFormat::createFormat(pixelFormat.getProcessColorChannelCount(), 0, false, pixelFormat.hasProcessColorsSubtractive(), false));
                 if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), spotColorBitmap.getPixels(), processColorBitmap.getPixels(), this))
                 {
                     reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
@@ -955,7 +996,6 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
                 }
             }
 
-            m_drawBuffer.markActiveColors(fillColor.activeChannels);
             m_drawBuffer.modify(fillRect, true, false);
         }
     }
@@ -1028,7 +1068,6 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
                 }
             }
 
-            m_drawBuffer.markActiveColors(strokeColor.activeChannels);
             m_drawBuffer.modify(strokeRect, false, true);
         }
     }
@@ -1216,9 +1255,18 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         PDFTransparencyGroupPainterData& targetData = m_transparencyGroupDataStack.back();
         sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
 
+        PDFOverprintMode overprintMode = getGraphicState()->getOverprintMode();
+        const bool useOverprint = overprintMode.overprintFilling || overprintMode.overprintStroking;
+
+        PDFFloatBitmap::OverprintMode selectedOverprintMode = PDFFloatBitmap::OverprintMode::NoOveprint;
+        if (useOverprint)
+        {
+            selectedOverprintMode = overprintMode.overprintMode == 0 ? PDFFloatBitmap::OverprintMode::Overprint_Mode_0
+                                                                     : PDFFloatBitmap::OverprintMode::Overprint_Mode_1;
+        }
+
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
-                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, 0xFFFF,
-                              PDFFloatBitmap::OverprintMode::NoOveprint, getPaintRect());
+                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, selectedOverprintMode, getPaintRect());
 
         // Create draw buffer
         PDFFloatBitmapWithColorSpace* backdrop = getImmediateBackdrop();
@@ -1537,7 +1585,7 @@ void PDFTransparencyRenderer::flushDrawBuffer()
 
         PDFFloatBitmap::blend(m_drawBuffer, *getImmediateBackdrop(), *getBackdrop(), *getInitialBackdrop(), m_painterStateStack.top().softMask,
                               getGraphicState()->getAlphaIsShape(), 1.0f, getGraphicState()->getBlendMode(), isTransparencyGroupKnockout(),
-                              m_drawBuffer.getActiveColors(), selectedOverprintMode, m_drawBuffer.getModifiedRect());
+                              selectedOverprintMode, m_drawBuffer.getModifiedRect());
 
 
         m_drawBuffer.clear();
@@ -2204,11 +2252,6 @@ void PDFPainterPathSampler::createScanLineSample(const QPointF& p1, const QPoint
     }
 }
 
-void PDFDrawBuffer::markActiveColors(uint32_t activeColors)
-{
-    m_activeColors |= activeColors;
-}
-
 void PDFDrawBuffer::clear()
 {
     if (!m_modifiedRect.isValid())
@@ -2222,10 +2265,10 @@ void PDFDrawBuffer::clear()
         {
             PDFColorBuffer buffer = getPixel(x, y);
             std::fill(buffer.begin(), buffer.end(), 0.0f);
+            setPixelActiveColorMask(x, y, 0);
         }
     }
 
-    m_activeColors = 0;
     m_containsFilling = false;
     m_containsStroking = false;
     m_modifiedRect = QRect();

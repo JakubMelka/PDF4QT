@@ -50,6 +50,7 @@ public:
     constexpr bool hasOpacityChannel() const { return m_flags & FLAG_HAS_OPACITY_CHANNEL; }
     constexpr bool hasProcessColorsSubtractive() const { return m_flags & FLAG_PROCESS_COLORS_SUBTRACTIVE; }
     constexpr bool hasSpotColorsSubtractive() const { return true; }
+    constexpr bool hasActiveColorMask() const { return m_flags & FLAG_HAS_ACTIVE_COLOR_MASK; }
 
     constexpr uint8_t getFlags() const { return m_flags; }
     constexpr uint8_t getMaximalColorChannelCount() const { return 32; }
@@ -89,9 +90,9 @@ public:
     }
 
     static constexpr PDFPixelFormat createOpacityMask() { return PDFPixelFormat(0, 0, FLAG_HAS_OPACITY_CHANNEL); }
-    static constexpr PDFPixelFormat createFormatDefaultGray(uint8_t spotColors) { return createFormat(1, spotColors, true, false); }
-    static constexpr PDFPixelFormat createFormatDefaultRGB(uint8_t spotColors) { return createFormat(3, spotColors, true, false); }
-    static constexpr PDFPixelFormat createFormatDefaultCMYK(uint8_t spotColors) { return createFormat(4, spotColors, true, true); }
+    static constexpr PDFPixelFormat createFormatDefaultGray(uint8_t spotColors) { return createFormat(1, spotColors, true, false, false); }
+    static constexpr PDFPixelFormat createFormatDefaultRGB(uint8_t spotColors) { return createFormat(3, spotColors, true, false, false); }
+    static constexpr PDFPixelFormat createFormatDefaultCMYK(uint8_t spotColors) { return createFormat(4, spotColors, true, true, false); }
 
     static constexpr PDFPixelFormat removeProcessColors(PDFPixelFormat format) { return PDFPixelFormat(0, format.getSpotColorChannelCount(), format.getFlags()); }
     static constexpr PDFPixelFormat removeSpotColors(PDFPixelFormat format) { return PDFPixelFormat(format.getProcessColorChannelCount(), 0, format.getFlags()); }
@@ -99,9 +100,12 @@ public:
 
     static constexpr uint32_t getAllColorsMask() { return 0xFFFF; }
 
-    static constexpr PDFPixelFormat createFormat(uint8_t processColors, uint8_t spotColors, bool withShapeAndOpacity, bool processColorSubtractive)
+    static constexpr PDFPixelFormat createFormat(uint8_t processColors, uint8_t spotColors, bool withShapeAndOpacity, bool processColorSubtractive, bool hasActiveColorMask)
     {
-        return PDFPixelFormat(processColors, spotColors, (withShapeAndOpacity ? FLAG_HAS_SHAPE_CHANNEL + FLAG_HAS_OPACITY_CHANNEL : 0) + (processColorSubtractive ? FLAG_PROCESS_COLORS_SUBTRACTIVE : 0));
+        const uint8_t flags = (withShapeAndOpacity ? FLAG_HAS_SHAPE_CHANNEL + FLAG_HAS_OPACITY_CHANNEL : 0) +
+                              (processColorSubtractive ? FLAG_PROCESS_COLORS_SUBTRACTIVE : 0) +
+                              (hasActiveColorMask ? FLAG_HAS_ACTIVE_COLOR_MASK : 0);
+        return PDFPixelFormat(processColors, spotColors, flags);
     }
 
     /// Calculates bitmap data length required to store bitmapt with given pixel format.
@@ -121,6 +125,7 @@ private:
     constexpr static uint8_t FLAG_HAS_SHAPE_CHANNEL = 0x01;
     constexpr static uint8_t FLAG_HAS_OPACITY_CHANNEL = 0x02;
     constexpr static uint8_t FLAG_PROCESS_COLORS_SUBTRACTIVE = 0x04;
+    constexpr static uint8_t FLAG_HAS_ACTIVE_COLOR_MASK = 0x08;
 
     uint8_t m_processColors = 0;
     uint8_t m_spotColors = 0;
@@ -176,6 +181,30 @@ public:
     /// \param y Vertical coordinate of the pixel
     size_t getPixelIndex(size_t x, size_t y) const;
 
+    /// Returns true, if bitmap has active color mask
+    bool hasActiveColorMask() const { return !m_activeColorMask.empty(); }
+
+    /// Get color mask for given pixel. This function must be called
+    /// only on bitmaps, which use active color mask.
+    /// \param x Horizontal coordinate of the pixel
+    /// \param y Vertical coordinate of the pixel
+    uint32_t getPixelActiveColorMask(size_t x, size_t y) const;
+
+    /// Marks active color channels for given pixel as active
+    /// \param x Horizontal coordinate of the pixel
+    /// \param y Vertical coordinate of the pixel
+    /// \param activeColorMask Active color mask
+    void markPixelActiveColorMask(size_t x, size_t y, uint32_t activeColorMask);
+
+    /// Sets active color channels for given pixel
+    /// \param x Horizontal coordinate of the pixel
+    /// \param y Vertical coordinate of the pixel
+    /// \param activeColorMask Active color mask
+    void setPixelActiveColorMask(size_t x, size_t y, uint32_t activeColorMask);
+
+    /// Sets all colors as active
+    void setAllColorActive();
+
     /// Extract process colors into another bitmap
     PDFFloatBitmap extractProcessColors() const;
 
@@ -204,7 +233,6 @@ public:
     /// \param alphaIsShape Both soft mask and constant alpha are shapes and not opacity?
     /// \param constantAlpha Constant alpha, can mean shape or opacity
     /// \param mode Blend mode
-    /// \param activeColorChannels Active color channels
     /// \param overprintMode Overprint mode
     /// \param blendRegion Blend region
     static void blend(const PDFFloatBitmap& source,
@@ -216,7 +244,6 @@ public:
                       PDFColorComponent constantAlpha,
                       BlendMode mode,
                       bool knockoutGroup,
-                      uint32_t activeColorChannels,
                       OverprintMode overprintMode,
                       QRect blendRegion);
 
@@ -234,6 +261,7 @@ private:
     std::size_t m_height;
     std::size_t m_pixelSize;
     std::vector<PDFColorComponent> m_data;
+    std::vector<uint32_t> m_activeColorMask;
 };
 
 /// Float bitmap with color space
@@ -436,9 +464,6 @@ class PDFDrawBuffer : public PDFFloatBitmap
 public:
     using PDFFloatBitmap::PDFFloatBitmap;
 
-    /// Marks color channels as active
-    void markActiveColors(uint32_t activeColors);
-
     /// Clears the draw buffer
     void clear();
 
@@ -448,9 +473,6 @@ public:
     /// Returns true, if draw buffer is modified and needs to be flushed
     bool isModified() const { return m_modifiedRect.isValid(); }
 
-    /// Returns active colors
-    uint32_t getActiveColors() const { return m_activeColors; }
-
     /// Returns modified rectangle
     QRect getModifiedRect() const { return m_modifiedRect; }
 
@@ -458,7 +480,6 @@ public:
     bool isContainsStroking() const { return m_containsStroking; }
 
 private:
-    uint32_t m_activeColors = 0;
     bool m_containsFilling = false;
     bool m_containsStroking = false;
     QRect m_modifiedRect;
