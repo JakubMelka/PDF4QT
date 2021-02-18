@@ -205,6 +205,9 @@ public:
     /// Sets all colors as active
     void setAllColorActive();
 
+    /// Sets all colors as inactive
+    void setAllColorInactive();
+
     /// Extract process colors into another bitmap
     PDFFloatBitmap extractProcessColors() const;
 

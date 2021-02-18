@@ -148,6 +148,11 @@ void PDFFloatBitmap::setAllColorActive()
     std::fill(m_activeColorMask.begin(), m_activeColorMask.end(), PDFPixelFormat::getAllColorsMask());
 }
 
+void PDFFloatBitmap::setAllColorInactive()
+{
+    std::fill(m_activeColorMask.begin(), m_activeColorMask.end(), 0);
+}
+
 PDFFloatBitmap PDFFloatBitmap::extractProcessColors() const
 {
     PDFPixelFormat format = PDFPixelFormat::createFormat(m_format.getProcessColorChannelCount(), 0, false, m_format.hasProcessColorsSubtractive(), false);
@@ -361,6 +366,12 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                 targetColor[shapeChannel] = f_g_i;
                 targetColor[opacityChannel] = alpha_g_i;
                 continue;
+            }
+
+            if (target.hasActiveColorMask())
+            {
+                const uint32_t activeColorChannels = source.hasActiveColorMask() ? source.getPixelActiveColorMask(x, y) : PDFPixelFormat::getAllColorsMask();
+                target.markPixelActiveColorMask(x, y, activeColorChannels);
             }
 
             std::fill(B_i.begin(), B_i.end(), 0.0f);
@@ -2289,6 +2300,7 @@ void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeInitialBackdr
 void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeImmediateBackdropTransparent()
 {
     immediateBackdrop.makeTransparent();
+    immediateBackdrop.setAllColorInactive();
 }
 
 void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeSoftMaskOpaque()
