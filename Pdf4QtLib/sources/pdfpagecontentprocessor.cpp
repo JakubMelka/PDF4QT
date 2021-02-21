@@ -365,6 +365,12 @@ void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::Fill
     Q_UNUSED(fillRule);
 }
 
+bool PDFPageContentProcessor::performOriginalImagePainting(const PDFImage& image)
+{
+    Q_UNUSED(image);
+    return false;
+}
+
 void PDFPageContentProcessor::performImagePainting(const QImage& image)
 {
     Q_UNUSED(image);
@@ -2911,24 +2917,28 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
     }
 
     PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), false, m_graphicState.getRenderingIntent(), this);
-    QImage image = pdfImage.getImage(m_CMS, this);
 
-    if (image.format() == QImage::Format_Alpha8)
+    if (!performOriginalImagePainting(pdfImage))
     {
-        QSize size = image.size();
-        QImage unmaskedImage(size, QImage::Format_ARGB32_Premultiplied);
-        unmaskedImage.fill(m_graphicState.getFillColor());
-        unmaskedImage.setAlphaChannel(image);
-        image = qMove(unmaskedImage);
-    }
+        QImage image = pdfImage.getImage(m_CMS, this);
 
-    if (!image.isNull())
-    {
-        performImagePainting(image);
-    }
-    else
-    {
-        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+        if (image.format() == QImage::Format_Alpha8)
+        {
+            QSize size = image.size();
+            QImage unmaskedImage(size, QImage::Format_ARGB32_Premultiplied);
+            unmaskedImage.fill(m_graphicState.getFillColor());
+            unmaskedImage.setAlphaChannel(image);
+            image = qMove(unmaskedImage);
+        }
+
+        if (!image.isNull())
+        {
+            performImagePainting(image);
+        }
+        else
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+        }
     }
 }
 

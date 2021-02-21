@@ -321,6 +321,17 @@ static inline constexpr PDFReal interpolate(PDFReal x, PDFReal x_min, PDFReal x_
     return y_min + (x - x_min) * (y_max - y_min) / (x_max - x_min);
 }
 
+/// Performs linear mapping of value x in interval [x_min, x_max] to the interval [y_min, y_max].
+/// \param x Value to be linearly remapped from interval [x_min, x_max] to the interval [y_min, y_max].
+/// \param x_min Start of the input interval
+/// \param x_max End of the input interval
+/// \param y_min Start of the output interval
+/// \param y_max End of the output interval
+static inline constexpr PDFColorComponent interpolateColors(PDFColorComponent x, PDFColorComponent x_min, PDFColorComponent x_max, PDFColorComponent y_min, PDFColorComponent y_max)
+{
+    return y_min + (x - x_min) * (y_max - y_min) / (x_max - x_min);
+}
+
 inline
 std::vector<uint8_t> convertByteArrayToVector(const QByteArray& data)
 {

@@ -39,6 +39,7 @@ namespace pdf
 {
 class PDFCMS;
 class PDFMesh;
+class PDFImage;
 class PDFTilingPattern;
 class PDFOptionalContentActivity;
 
@@ -507,6 +508,13 @@ protected:
     /// This function has to be implemented in the client drawing implementation, it should
     /// clip along the path (intersect with current clipping path).
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule);
+
+    /// Performs image processing on original image. If processor processes
+    /// original image, it should return true, so no conversion to QImage occurs,
+    /// which can be performance bottleneck.
+    /// \param image Image
+    /// \returns true, if image is successfully processed
+    virtual bool performOriginalImagePainting(const PDFImage& image);
 
     /// This function has to be implemented in the client drawing implementation, it should
     /// draw the image.

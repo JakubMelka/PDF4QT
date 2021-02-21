@@ -33,7 +33,7 @@ namespace pdf
 /// shape channel and opacity channel. Shape channel defines the shape (so, for
 /// example, if we draw a rectangle onto the bitmap, shape value is 1.0 inside the
 /// rectangle and 0.0 outside the rectangle). PDF transparency processing requires
-/// shape and opacity values separated.
+/// shape and opacity values separated for correct transparency processing.
 class PDFPixelFormat
 {
 public:
@@ -208,12 +208,22 @@ public:
     /// Sets all colors as inactive
     void setAllColorInactive();
 
+    /// Sets color activity to all pixels
+    /// \param mask Color activity
+    void setColorActivity(uint32_t mask);
+
     /// Extract process colors into another bitmap
     PDFFloatBitmap extractProcessColors() const;
 
     /// Extract spot channel
     /// \param channel Channel
     PDFFloatBitmap extractSpotChannel(uint8_t channel) const;
+
+    /// Resize the bitmap using given transformation mode. Fast transformation mode
+    /// uses nearest neighbour mapping, smooth transformation mode uses weighted
+    /// averaging algorithm.
+    /// \param mode Transformation mode
+    PDFFloatBitmap resize(size_t width, size_t height, Qt::TransformationMode mode) const;
 
     enum class OverprintMode
     {
@@ -517,7 +527,12 @@ struct PDFTransparencyRendererSettings
         SeparationSimulation = 0x0004,
 
         /// Use active color mask
-        ActiveColorMask = 0x0008
+        ActiveColorMask = 0x0008,
+
+        /// Use smooth image transform, if it is possible. For
+        /// images, which doesn't have Interpolate set to true,
+        /// fast image transformation is used.
+        SmoothImageTransformation = 0x0010,
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)
@@ -588,6 +603,7 @@ public:
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performTextBegin(ProcessOrder order) override;
     virtual void performTextEnd(ProcessOrder order) override;
+    virtual bool performOriginalImagePainting(const PDFImage& image) override;
     virtual void performImagePainting(const QImage& image) override;
     virtual void performMeshPainting(const PDFMesh& mesh);
 
@@ -710,6 +726,21 @@ private:
     /// Collapses spot colors to device colors
     /// \param data Bitmap with data
     void collapseSpotColorsToDeviceColors(PDFFloatBitmapWithColorSpace& bitmap);
+
+    /// Transforms image to float image in actual blending color space,
+    /// with marked colors. Function for internal use only.
+    /// \param sourceImage
+    PDFFloatBitmapWithColorSpace getImage(const PDFImage& sourceImage);
+
+    /// Transforms colored image to float image in actual blending color space,
+    /// with marked colors. Function for internal use only.
+    /// \param sourceImage
+    PDFFloatBitmapWithColorSpace getColoredImage(const PDFImage& sourceImage);
+
+    /// Create soft mask from image data. Image data must contain proper soft
+    /// mask, otherwise function will throw exception.
+    /// \param imageData Soft mask data
+    PDFFloatBitmap getAlphaMaskFromSoftMask(const PDFImageData& softMask);
 
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)

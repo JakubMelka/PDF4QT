@@ -105,6 +105,9 @@ public:
     const PDFObject& getMeasure() const { return m_measure; }
     const PDFObject& getPointData() const { return m_pointData; }
 
+    const PDFImageData& getImageData() const { return m_imageData; }
+    const PDFImageData& getSoftMaskData() const { return m_softMask; }
+
 private:
     PDFImage() = default;
 
