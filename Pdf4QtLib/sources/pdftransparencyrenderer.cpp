@@ -1,4 +1,4 @@
-//    Copyright (C) 2020 Jakub Melka
+//    Copyright (C) 2020-2021 Jakub Melka
 //
 //    This file is part of Pdf4Qt.
 //
@@ -700,6 +700,12 @@ PDFFloatBitmapWithColorSpace::PDFFloatBitmapWithColorSpace()
 
 }
 
+PDFFloatBitmapWithColorSpace::PDFFloatBitmapWithColorSpace(size_t width, size_t height, PDFPixelFormat format) :
+    PDFFloatBitmap(width, height, format)
+{
+
+}
+
 PDFFloatBitmapWithColorSpace::PDFFloatBitmapWithColorSpace(size_t width, size_t height, PDFPixelFormat format, PDFColorSpacePointer blendColorSpace) :
     PDFFloatBitmap(width, height, format),
     m_colorSpace(blendColorSpace)
@@ -1134,257 +1140,414 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
     const PDFImageData& softMask = sourceImage.getSoftMaskData();
 
     PDFColorSpacePointer imageColorSpace = sourceImage.getColorSpace();
-    const size_t colorComponentCount = imageColorSpace->getColorComponentCount();
-    const bool isCMYK = colorComponentCount == 4;
+    size_t colorComponentCount = imageColorSpace->getColorComponentCount();
+    bool isCMYK = colorComponentCount == 4;
     const bool useSmoothImageTransformation = m_settings.flags.testFlag(PDFTransparencyRendererSettings::SmoothImageTransformation) && sourceImage.isInterpolated();
 
-    Q_ASSERT(imageData.isValid());
-    switch (imageData.getMaskingType())
+    if (!imageColorSpace)
     {
-        case PDFImageData::MaskingType::None:
+        throw PDFException(PDFTranslationContext::tr("Invalid image color space."));
+    }
+
+    Q_ASSERT(imageData.isValid());
+    if (imageColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::Indexed)
+    {
+        const PDFIndexedColorSpace* indexedColorSpace = dynamic_cast<const PDFIndexedColorSpace*>(imageColorSpace.data());
+        imageColorSpace = indexedColorSpace->getBaseColorSpace();
+
+        if (!imageColorSpace)
         {
-            result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
-            result.makeOpaque();
-
-            unsigned int componentCount = imageData.getComponents();
-            if (componentCount != colorComponentCount)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
-            }
-
-            const std::vector<PDFReal>& decode = imageData.getDecode();
-            if (!decode.empty() && decode.size() != componentCount * 2)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
-            }
-
-            const unsigned int imageWidth = imageData.getWidth();
-            const unsigned int imageHeight = imageData.getHeight();
-
-            PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
-            const PDFColorComponent max = reader.max();
-            const PDFColorComponent coefficient = 1.0 / max;
-
-            for (size_t i = 0; i < imageHeight; ++i)
-            {
-                reader.seek(i * imageData.getStride());
-
-                for (size_t j = 0; j < imageWidth; ++j)
-                {
-                    PDFColorBuffer buffer = result.getPixel(j, i);
-
-                    for (size_t k = 0; k < componentCount; ++k)
-                    {
-                        PDFReal value = reader.read();
-
-                        // Interpolate value, if it is not empty
-                        if (!decode.empty())
-                        {
-                            buffer[k] = interpolateColors(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
-                        }
-                        else
-                        {
-                            buffer[k] = value * coefficient;
-                        }
-                    }
-                }
-            }
-
-            break;
+            throw PDFException(PDFTranslationContext::tr("Invalid base color space of indexed color space."));
         }
 
-        case PDFImageData::MaskingType::SoftMask:
+        unsigned int componentCount = imageData.getComponents();
+        PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+
+        if (componentCount != colorComponentCount)
         {
-            result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
-
-            const bool hasMatte = !softMask.getMatte().empty();
-            std::vector<PDFReal> matte = softMask.getMatte();
-
-            if (hasMatte && matte.size() != colorComponentCount)
-            {
-                reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Invalid matte color."));
-            }
-
-            matte.resize(colorComponentCount, 0.0f);
-
-            unsigned int componentCount = imageData.getComponents();
-            if (componentCount != colorComponentCount)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
-            }
-
-            const std::vector<PDFReal>& decode = imageData.getDecode();
-            if (!decode.empty() && decode.size() != componentCount * 2)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
-            }
-
-            const unsigned int imageWidth = imageData.getWidth();
-            const unsigned int imageHeight = imageData.getHeight();
-
-            PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(softMask);
-            if (alphaMask.getWidth() != result.getWidth() || alphaMask.getHeight() != result.getHeight())
-            {
-                // Scale the alpha mask, if it is masked
-                alphaMask = alphaMask.resize(result.getWidth(), result.getHeight(), useSmoothImageTransformation ? Qt::SmoothTransformation : Qt::FastTransformation);
-            }
-            Q_ASSERT(alphaMask.getPixelFormat().getChannelCount() == 2);
-            Q_ASSERT(alphaMask.getPixelFormat().hasOpacityChannel());
-            Q_ASSERT(alphaMask.getPixelFormat().hasShapeChannel());
-
-            PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
-            const PDFColorComponent max = reader.max();
-            const PDFColorComponent coefficient = 1.0 / max;
-
-            Q_ASSERT(result.getPixelFormat().hasShapeChannel());
-            Q_ASSERT(result.getPixelFormat().hasOpacityChannel());
-
-            const uint8_t sourceShapeChannelIndex = alphaMask.getPixelFormat().getShapeChannelIndex();
-            const uint8_t sourceOpacityChannelIndex = alphaMask.getPixelFormat().getOpacityChannelIndex();
-            const uint8_t targetShapeChannelIndex = result.getPixelFormat().getShapeChannelIndex();
-            const uint8_t targetOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
-
-            for (size_t i = 0; i < imageHeight; ++i)
-            {
-                reader.seek(i * imageData.getStride());
-
-                for (unsigned int j = 0; j < imageWidth; ++j)
-                {
-                    PDFColorBuffer targetBuffer = result.getPixel(j, i);
-                    PDFColorBuffer alphaBuffer = alphaMask.getPixel(j, i);
-
-                    for (unsigned int k = 0; k < componentCount; ++k)
-                    {
-                        PDFReal value = reader.read();
-
-                        // Interpolate value, if it is not empty
-                        if (!decode.empty())
-                        {
-                            targetBuffer[k] = interpolateColors(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
-                        }
-                        else
-                        {
-                            targetBuffer[k] = value * coefficient;
-                        }
-                    }
-
-                    targetBuffer[targetShapeChannelIndex] = alphaBuffer[sourceShapeChannelIndex];
-                    targetBuffer[targetOpacityChannelIndex] = alphaBuffer[sourceOpacityChannelIndex];
-                    const PDFColorComponent alpha = targetBuffer[targetOpacityChannelIndex];
-
-                    // Un-premultiply with matte color, according to chapter 11.6.5.2 in PDF
-                    // 2.0 specification, we use inversion of following formula:
-                    //
-                    //      c' = m + alpha * (c - m)
-                    //
-                    //  So, inversion is:
-                    //
-                    //      c = m + (c' - m) / alpha
-                    //
-                    if (hasMatte && !qFuzzyIsNull(alpha))
-                    {
-                        for (unsigned int k = 0; k < componentCount; ++k)
-                        {
-                            const PDFColorComponent m = matte[k];
-                            targetBuffer[k] = qBound(0.0f, m + (targetBuffer[k] - m) / alpha, 1.0f);
-                        }
-                    }
-                }
-            }
-
-            break;
+            throw PDFException(PDFTranslationContext::tr("Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
         }
 
-        case PDFImageData::MaskingType::ColorKeyMasking:
+        const unsigned int imageWidth = imageData.getWidth();
+        const unsigned int imageHeight = imageData.getHeight();
+        Q_ASSERT(componentCount == 1);
+
+        std::vector<PDFColorComponent> colorIndices;
+        colorIndices.reserve(imageData.getWidth() * imageData.getHeight());
+
+        for (unsigned int i = 0; i < imageHeight; ++i)
         {
-            result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
-            result.makeOpaque();
+            reader.seek(i * imageData.getStride());
 
-            unsigned int componentCount = imageData.getComponents();
-            if (componentCount != colorComponentCount)
+            for (unsigned int j = 0; j < imageWidth; ++j)
             {
-                throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
+                PDFBitReader::Value index = reader.read();
+                colorIndices.push_back(index);
             }
-
-            Q_ASSERT(componentCount > 0);
-            const std::vector<PDFInteger>& colorKeyMask = imageData.getColorKeyMask();
-            if (colorKeyMask.size() / 2 != componentCount)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid number of color components in color key mask. Expected %1, provided %2.").arg(2 * componentCount).arg(colorKeyMask.size()));
-            }
-
-            const std::vector<PDFReal>& decode = imageData.getDecode();
-            if (!decode.empty() && decode.size() != componentCount * 2)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
-            }
-
-            PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
-
-            PDFColor color;
-            color.resize(componentCount);
-
-            const PDFColorComponent max = reader.max();
-            const PDFColorComponent coefficient = 1.0 / max;
-            const bool alphaIsShape = getGraphicState()->getAlphaIsShape();
-
-            const uint8_t targetShapeChannelIndex = result.getPixelFormat().getShapeChannelIndex();
-            const uint8_t targetOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
-
-            for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
-            {
-                reader.seek(i * imageData.getStride());
-
-                for (unsigned int j = 0; j < imageData.getWidth(); ++j)
-                {
-                    // Number of masked-out colors
-                    unsigned int maskedColors = 0;
-
-                    PDFColorBuffer targetBuffer = result.getPixel(j, i);
-
-                    for (unsigned int k = 0; k < componentCount; ++k)
-                    {
-                        PDFBitReader::Value value = reader.read();
-
-                        // Interpolate value, if decode is not empty
-                        if (!decode.empty())
-                        {
-                            targetBuffer[k] = interpolateColors(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
-                        }
-                        else
-                        {
-                            targetBuffer[k] = value * coefficient;
-                        }
-
-                        Q_ASSERT(2 * k + 1 < colorKeyMask.size());
-                        if (static_cast<std::decay<decltype(colorKeyMask)>::type::value_type>(value) >= colorKeyMask[2 * k] &&
-                            static_cast<std::decay<decltype(colorKeyMask)>::type::value_type>(value) <= colorKeyMask[2 * k + 1])
-                        {
-                            ++maskedColors;
-                        }
-                    }
-
-                    const PDFColorComponent alpha = (maskedColors == componentCount) ? 0.0f : 1.0f;
-                    const PDFColorComponent shape = alphaIsShape ? alpha : 1.0f;
-
-                    targetBuffer[targetShapeChannelIndex] = shape;
-                    targetBuffer[targetOpacityChannelIndex] = alpha;
-                }
-            }
-
-            break;
         }
 
-        default:
+        PDFColorBuffer indicesBuffer(colorIndices.data(), colorIndices.size());
+        std::vector<PDFColorComponent> transformedColors = indexedColorSpace->transformColorsToBaseColorSpace(indicesBuffer);
+        colorComponentCount = imageColorSpace->getColorComponentCount();
+        isCMYK = colorComponentCount == 4;
+
+        if (transformedColors.size() != colorComponentCount * imageWidth * imageHeight)
         {
-            throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Image masking not implemented!"));
+            throw PDFException(PDFTranslationContext::tr("Conversion of indexed image to base color space failed."));
+        }
+
+        result = PDFFloatBitmapWithColorSpace(imageWidth, imageHeight, PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+        result.makeOpaque();
+
+        for (unsigned int i = 0; i < imageHeight; ++i)
+        {
+            for (unsigned int j = 0; j < imageWidth; ++j)
+            {
+                PDFColorBuffer buffer = result.getPixel(j, i);
+
+                size_t pixelIndex = (i * imageWidth + j) * colorComponentCount;
+                for (size_t k = 0; k < colorComponentCount; ++k)
+                {
+                    Q_ASSERT(pixelIndex + k < transformedColors.size());
+                    buffer[k] = transformedColors[pixelIndex + k];
+                }
+            }
+        }
+
+        switch (imageData.getMaskingType())
+        {
+            case PDFImageData::MaskingType::None:
+                break;
+
+            case PDFImageData::MaskingType::SoftMask:
+            {
+                PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(softMask);
+                if (alphaMask.getWidth() != result.getWidth() || alphaMask.getHeight() != result.getHeight())
+                {
+                    // Scale the alpha mask, if it is masked
+                    alphaMask = alphaMask.resize(result.getWidth(), result.getHeight(), useSmoothImageTransformation ? Qt::SmoothTransformation : Qt::FastTransformation);
+                }
+                Q_ASSERT(alphaMask.getPixelFormat().getChannelCount() == 2);
+                Q_ASSERT(alphaMask.getPixelFormat().hasOpacityChannel());
+                Q_ASSERT(alphaMask.getPixelFormat().hasShapeChannel());
+
+                Q_ASSERT(result.getPixelFormat().hasShapeChannel());
+                Q_ASSERT(result.getPixelFormat().hasOpacityChannel());
+
+                const uint8_t sourceShapeChannelIndex = alphaMask.getPixelFormat().getShapeChannelIndex();
+                const uint8_t sourceOpacityChannelIndex = alphaMask.getPixelFormat().getOpacityChannelIndex();
+                const uint8_t targetShapeChannelIndex = result.getPixelFormat().getShapeChannelIndex();
+                const uint8_t targetOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
+
+                for (size_t i = 0; i < imageHeight; ++i)
+                {
+                    for (unsigned int j = 0; j < imageWidth; ++j)
+                    {
+                        PDFColorBuffer targetBuffer = result.getPixel(j, i);
+                        PDFColorBuffer alphaBuffer = alphaMask.getPixel(j, i);
+
+                        targetBuffer[targetShapeChannelIndex] = alphaBuffer[sourceShapeChannelIndex];
+                        targetBuffer[targetOpacityChannelIndex] = alphaBuffer[sourceOpacityChannelIndex];
+                    }
+                }
+
+                break;
+            }
+
+            default:
+                throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Image masking not implemented!"));
         }
     }
-/*
-    mapovani barev, pripadne prevod do blend color space
-            vyresit indexed color space
-            vyresit aktivni barvy
-*/
+    else
+    {
+        switch (imageData.getMaskingType())
+        {
+            case PDFImageData::MaskingType::None:
+            {
+                result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+                result.makeOpaque();
+
+                unsigned int componentCount = imageData.getComponents();
+                if (componentCount != colorComponentCount)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
+                }
+
+                const std::vector<PDFReal>& decode = imageData.getDecode();
+                if (!decode.empty() && decode.size() != componentCount * 2)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                }
+
+                const unsigned int imageWidth = imageData.getWidth();
+                const unsigned int imageHeight = imageData.getHeight();
+
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+                const PDFColorComponent max = reader.max();
+                const PDFColorComponent coefficient = 1.0 / max;
+
+                for (size_t i = 0; i < imageHeight; ++i)
+                {
+                    reader.seek(i * imageData.getStride());
+
+                    for (size_t j = 0; j < imageWidth; ++j)
+                    {
+                        PDFColorBuffer buffer = result.getPixel(j, i);
+
+                        for (size_t k = 0; k < componentCount; ++k)
+                        {
+                            PDFReal value = reader.read();
+
+                            // Interpolate value, if it is not empty
+                            if (!decode.empty())
+                            {
+                                buffer[k] = interpolateColors(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                            }
+                            else
+                            {
+                                buffer[k] = value * coefficient;
+                            }
+                        }
+                    }
+                }
+
+                break;
+            }
+
+            case PDFImageData::MaskingType::SoftMask:
+            {
+                result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+
+                const bool hasMatte = !softMask.getMatte().empty();
+                std::vector<PDFReal> matte = softMask.getMatte();
+
+                if (hasMatte && matte.size() != colorComponentCount)
+                {
+                    reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Invalid matte color."));
+                }
+
+                matte.resize(colorComponentCount, 0.0f);
+
+                unsigned int componentCount = imageData.getComponents();
+                if (componentCount != colorComponentCount)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
+                }
+
+                const std::vector<PDFReal>& decode = imageData.getDecode();
+                if (!decode.empty() && decode.size() != componentCount * 2)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                }
+
+                const unsigned int imageWidth = imageData.getWidth();
+                const unsigned int imageHeight = imageData.getHeight();
+
+                PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(softMask);
+                if (alphaMask.getWidth() != result.getWidth() || alphaMask.getHeight() != result.getHeight())
+                {
+                    // Scale the alpha mask, if it is masked
+                    alphaMask = alphaMask.resize(result.getWidth(), result.getHeight(), useSmoothImageTransformation ? Qt::SmoothTransformation : Qt::FastTransformation);
+                }
+                Q_ASSERT(alphaMask.getPixelFormat().getChannelCount() == 2);
+                Q_ASSERT(alphaMask.getPixelFormat().hasOpacityChannel());
+                Q_ASSERT(alphaMask.getPixelFormat().hasShapeChannel());
+
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+                const PDFColorComponent max = reader.max();
+                const PDFColorComponent coefficient = 1.0 / max;
+
+                Q_ASSERT(result.getPixelFormat().hasShapeChannel());
+                Q_ASSERT(result.getPixelFormat().hasOpacityChannel());
+
+                const uint8_t sourceShapeChannelIndex = alphaMask.getPixelFormat().getShapeChannelIndex();
+                const uint8_t sourceOpacityChannelIndex = alphaMask.getPixelFormat().getOpacityChannelIndex();
+                const uint8_t targetShapeChannelIndex = result.getPixelFormat().getShapeChannelIndex();
+                const uint8_t targetOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
+
+                for (size_t i = 0; i < imageHeight; ++i)
+                {
+                    reader.seek(i * imageData.getStride());
+
+                    for (unsigned int j = 0; j < imageWidth; ++j)
+                    {
+                        PDFColorBuffer targetBuffer = result.getPixel(j, i);
+                        PDFColorBuffer alphaBuffer = alphaMask.getPixel(j, i);
+
+                        for (unsigned int k = 0; k < componentCount; ++k)
+                        {
+                            PDFReal value = reader.read();
+
+                            // Interpolate value, if it is not empty
+                            if (!decode.empty())
+                            {
+                                targetBuffer[k] = interpolateColors(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                            }
+                            else
+                            {
+                                targetBuffer[k] = value * coefficient;
+                            }
+                        }
+
+                        targetBuffer[targetShapeChannelIndex] = alphaBuffer[sourceShapeChannelIndex];
+                        targetBuffer[targetOpacityChannelIndex] = alphaBuffer[sourceOpacityChannelIndex];
+                        const PDFColorComponent alpha = targetBuffer[targetOpacityChannelIndex];
+
+                        // Un-premultiply with matte color, according to chapter 11.6.5.2 in PDF
+                        // 2.0 specification, we use inversion of following formula:
+                        //
+                        //      c' = m + alpha * (c - m)
+                        //
+                        //  So, inversion is:
+                        //
+                        //      c = m + (c' - m) / alpha
+                        //
+                        if (hasMatte && !qFuzzyIsNull(alpha))
+                        {
+                            for (unsigned int k = 0; k < componentCount; ++k)
+                            {
+                                const PDFColorComponent m = matte[k];
+                                targetBuffer[k] = qBound(0.0f, m + (targetBuffer[k] - m) / alpha, 1.0f);
+                            }
+                        }
+                    }
+                }
+
+                break;
+            }
+
+            case PDFImageData::MaskingType::ColorKeyMasking:
+            {
+                result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+                result.makeOpaque();
+
+                unsigned int componentCount = imageData.getComponents();
+                if (componentCount != colorComponentCount)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid colors for color space. Color space has %1 colors. Provided color count is %4.").arg(colorComponentCount).arg(componentCount));
+                }
+
+                Q_ASSERT(componentCount > 0);
+                const std::vector<PDFInteger>& colorKeyMask = imageData.getColorKeyMask();
+                if (colorKeyMask.size() / 2 != componentCount)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid number of color components in color key mask. Expected %1, provided %2.").arg(2 * componentCount).arg(colorKeyMask.size()));
+                }
+
+                const std::vector<PDFReal>& decode = imageData.getDecode();
+                if (!decode.empty() && decode.size() != componentCount * 2)
+                {
+                    throw PDFException(PDFTranslationContext::tr("Invalid size of the decoded array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
+                }
+
+                PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
+
+                PDFColor color;
+                color.resize(componentCount);
+
+                const PDFColorComponent max = reader.max();
+                const PDFColorComponent coefficient = 1.0 / max;
+                const bool alphaIsShape = getGraphicState()->getAlphaIsShape();
+
+                const uint8_t targetShapeChannelIndex = result.getPixelFormat().getShapeChannelIndex();
+                const uint8_t targetOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
+
+                for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
+                {
+                    reader.seek(i * imageData.getStride());
+
+                    for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                    {
+                        // Number of masked-out colors
+                        unsigned int maskedColors = 0;
+
+                        PDFColorBuffer targetBuffer = result.getPixel(j, i);
+
+                        for (unsigned int k = 0; k < componentCount; ++k)
+                        {
+                            PDFBitReader::Value value = reader.read();
+
+                            // Interpolate value, if decode is not empty
+                            if (!decode.empty())
+                            {
+                                targetBuffer[k] = interpolateColors(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
+                            }
+                            else
+                            {
+                                targetBuffer[k] = value * coefficient;
+                            }
+
+                            Q_ASSERT(2 * k + 1 < colorKeyMask.size());
+                            if (static_cast<std::decay<decltype(colorKeyMask)>::type::value_type>(value) >= colorKeyMask[2 * k] &&
+                                    static_cast<std::decay<decltype(colorKeyMask)>::type::value_type>(value) <= colorKeyMask[2 * k + 1])
+                            {
+                                ++maskedColors;
+                            }
+                        }
+
+                        const PDFColorComponent alpha = (maskedColors == componentCount) ? 0.0f : 1.0f;
+                        const PDFColorComponent shape = alphaIsShape ? alpha : 1.0f;
+
+                        targetBuffer[targetShapeChannelIndex] = shape;
+                        targetBuffer[targetOpacityChannelIndex] = alpha;
+                    }
+                }
+
+                break;
+            }
+
+            default:
+            {
+                throw PDFRendererException(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Image masking not implemented!"));
+            }
+        }
+    }
+
+    // Jakub Melka: We are mapping into draw buffer, so we must use draw buffer pixel format
+    PDFInkMapping inkMapping = m_inkMapper->createMapping(imageColorSpace.data(), getBlendColorSpace().data(), m_drawBuffer.getPixelFormat());
+    if (!inkMapping.isValid())
+    {
+        result.convertToColorSpace(getCMS(), getGraphicState()->getRenderingIntent(), getBlendColorSpace(), this);
+        inkMapping = m_inkMapper->createMapping(getBlendColorSpace().data(), getBlendColorSpace().data(), m_drawBuffer.getPixelFormat());
+    }
+
+    Q_ASSERT(inkMapping.isValid());
+
+    PDFFloatBitmapWithColorSpace finalResult(result.getWidth(), result.getHeight(), m_drawBuffer.getPixelFormat(), getBlendColorSpace());
+
+    const uint8_t sourceBufferShapeChannelIndex = result.getPixelFormat().getShapeChannelIndex();
+    const uint8_t sourceBufferOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
+    const uint8_t targetBufferShapeChannelIndex = finalResult.getPixelFormat().getShapeChannelIndex();
+    const uint8_t targetBufferOpacityChannelIndex = finalResult.getPixelFormat().getOpacityChannelIndex();
+
+    for (size_t y = 0; y < result.getHeight(); ++y)
+    {
+        for (size_t x = 0; x < result.getWidth(); ++x)
+        {
+            PDFColorBuffer sourceBuffer = result.getPixel(x, y);
+            PDFColorBuffer targetBuffer = finalResult.getPixel(x,  y);
+
+            for (const PDFInkMapping::Mapping& ink : inkMapping.mapping)
+            {
+                switch (ink.type)
+                {
+                    case pdf::PDFInkMapping::Pass:
+                        targetBuffer[ink.target] = sourceBuffer[ink.source];
+                        break;
+
+                    default:
+                        Q_ASSERT(false);
+                        break;
+                }
+            }
+
+            targetBuffer[targetBufferShapeChannelIndex] = sourceBuffer[sourceBufferShapeChannelIndex];
+            targetBuffer[targetBufferOpacityChannelIndex] = sourceBuffer[sourceBufferOpacityChannelIndex];
+        }
+    }
+
+    result = qMove(finalResult);
+    result.setColorActivity(inkMapping.activeChannels);
     return result;
 }
 
