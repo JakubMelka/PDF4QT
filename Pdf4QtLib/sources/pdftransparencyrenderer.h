@@ -526,7 +526,8 @@ struct PDFTransparencyRendererSettings
         /// colors to the CMYK color space.
         SeparationSimulation = 0x0004,
 
-        /// Use active color mask
+        /// Use active color mask (so we can clear channels,
+        /// which are not active)
         ActiveColorMask = 0x0008,
 
         /// Use smooth image transform, if it is possible. For
@@ -709,7 +710,7 @@ private:
     /// \param colorChannelStart Color channel start (draw buffer)
     /// \param colorChannelEnd Color channel end (draw buffer)
     /// \param fillColor Fill color
-    /// \param clipSample Clipping sampler
+    /// \param clipSampler Clipping sampler
     /// \param pathSampler Path sampler
     void performPixelSampling(const PDFReal shape,
                               const PDFReal opacity,
@@ -722,6 +723,31 @@ private:
                               const PDFMappedColor& fillColor,
                               const PDFPainterPathSampler& clipSampler,
                               const PDFPainterPathSampler& pathSampler);
+
+    /// Performs fragment fill from texture. Sampled pixel is painted
+    /// into the draw buffer.
+    /// \param shape Constant shape value
+    /// \param opacity Constant opacity value
+    /// \param shapeChannel Shape channel (draw buffer)
+    /// \param opacityChannel Opacity channel (draw buffer)
+    /// \param colorChannelStart Color channel start (draw buffer)
+    /// \param colorChannelEnd Color channel end (draw buffer)
+    /// \param x Horizontal coordinate of the fragment pixel
+    /// \param y Vertical coordinate of the fragment pixel
+    /// \param worldToTextureMatrix World to texture matrix
+    /// \param texture Texture
+    /// \param clipSampler Clipping sampler
+    void performFillFragmentFromTexture(const PDFReal shape,
+                                        const PDFReal opacity,
+                                        const uint8_t shapeChannel,
+                                        const uint8_t opacityChannel,
+                                        const uint8_t colorChannelStart,
+                                        const uint8_t colorChannelEnd,
+                                        int x,
+                                        int y,
+                                        const QMatrix& worldToTextureMatrix,
+                                        const PDFFloatBitmap& texture,
+                                        const PDFPainterPathSampler& clipSampler);
 
     /// Collapses spot colors to device colors
     /// \param data Bitmap with data

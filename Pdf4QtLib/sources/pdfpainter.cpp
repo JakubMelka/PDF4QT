@@ -323,7 +323,7 @@ void PDFPainter::performImagePainting(const QImage& image)
     {
         // Test, if we can use smooth images. We can use them under following conditions:
         //  1) Transformed rectangle is not skewed or deformed (so vectors (0, 1) and (1, 0) are orthogonal)
-        //  2) Image enlargement is not too big (so we doesn't run out of memory)
+        //  2) We are shrinking the image
 
         QMatrix matrix = m_painter->worldMatrix();
         QLineF mappedWidthVector = matrix.map(QLineF(0, 0, 1, 0));
@@ -338,7 +338,7 @@ void PDFPainter::performImagePainting(const QImage& image)
             const int newPixels = newWidth * newHeight;
             const int oldPixels = image.width() * image.height();
 
-            if (newPixels < oldPixels * 8)
+            if (newPixels < oldPixels)
             {
                 QSize size = adjustedImage.size();
                 QSize adjustedImageSize = size.scaled(newWidth, newHeight, Qt::KeepAspectRatio);

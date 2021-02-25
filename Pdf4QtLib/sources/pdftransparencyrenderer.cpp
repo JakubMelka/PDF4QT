@@ -1010,6 +1010,61 @@ void PDFTransparencyRenderer::performPixelSampling(const PDFReal shape,
     }
 }
 
+void PDFTransparencyRenderer::performFillFragmentFromTexture(const PDFReal shape,
+                                                             const PDFReal opacity,
+                                                             const uint8_t shapeChannel,
+                                                             const uint8_t opacityChannel,
+                                                             const uint8_t colorChannelStart,
+                                                             const uint8_t colorChannelEnd,
+                                                             int x,
+                                                             int y,
+                                                             const QMatrix& worldToTextureMatrix,
+                                                             const PDFFloatBitmap& texture,
+                                                             const PDFPainterPathSampler& clipSampler)
+{
+    // Get pixel buffer from texture
+    QPointF sourcePoint(x, y);
+    QPointF texturePoint = sourcePoint * worldToTextureMatrix;
+
+    if (texturePoint.x() < 0.0 ||
+        texturePoint.x() >= texture.getWidth() ||
+        texturePoint.y() < 0.0 ||
+        texturePoint.y() >= texture.getHeight())
+    {
+        // Fragment is outside of the texture
+        return;
+    }
+
+    const size_t texelCoordinateX = qFloor(texturePoint.x());
+    const size_t texelCoordinateY = qFloor(texturePoint.y());
+
+    PDFConstColorBuffer texel = texture.getPixel(texelCoordinateX, texelCoordinateY);
+
+    const PDFColorComponent clipValue = clipSampler.sample(QPoint(x, y));
+    const PDFColorComponent objectShapeValue = texel[shapeChannel];
+    const PDFColorComponent objectOpacityValue = texel[opacityChannel];
+    const PDFColorComponent shapeValue = objectShapeValue * clipValue * shape;
+    const PDFColorComponent opacityValue = objectOpacityValue * clipValue * shape * opacity;
+
+    if (shapeValue > 0.0f)
+    {
+        // We consider old object shape - we use Union function to
+        // set shape channel value.
+
+        PDFColorBuffer pixel = m_drawBuffer.getPixel(x, y);
+        pixel[shapeChannel] = PDFBlendFunction::blend_Union(shapeValue, pixel[shapeChannel]);
+        pixel[opacityChannel] = opacityValue;
+
+        // Copy color
+        for (uint8_t colorChannelIndex = colorChannelStart; colorChannelIndex < colorChannelEnd; ++colorChannelIndex)
+        {
+            pixel[colorChannelIndex] = texel[colorChannelIndex];
+        }
+
+        m_drawBuffer.markPixelActiveColorMask(x, y, texture.getPixelActiveColorMask(texelCoordinateX, texelCoordinateY));
+    }
+}
+
 void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWithColorSpace& bitmap)
 {
     PDFPixelFormat pixelFormat = bitmap.getPixelFormat();
@@ -1995,6 +2050,117 @@ void PDFTransparencyRenderer::performTextEnd(ProcessOrder order)
 bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image)
 {
     PDFFloatBitmap texture = getImage(image);
+
+    if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::SmoothImageTransformation) && image.isInterpolated())
+    {
+        // Test, if we can use smooth images. We can use them under following conditions:
+        //  1) Transformed rectangle is not skewed or deformed (so vectors (0, 1) and (1, 0) are orthogonal)
+        //  2) We are shrinking the image
+        //  3) Aspect ratio of the image is the same
+
+        QMatrix matrix = getCurrentWorldMatrix();
+        QLineF mappedWidthVector = matrix.map(QLineF(0, 0, texture.getWidth(), 0));
+        QLineF mappedHeightVector = matrix.map(QLineF(0, 0, 0, texture.getHeight()));
+        qreal angle = mappedWidthVector.angleTo(mappedHeightVector);
+        if (qFuzzyCompare(angle, 90.0))
+        {
+            // Image is not skewed, so we if we are shrinking the image
+            const qreal originalWidth = texture.getWidth();
+            const qreal originalHeight = texture.getHeight();
+            const qreal originalRatio = originalWidth / originalHeight;
+            const qreal transformedWidth = mappedWidthVector.length();
+            const qreal transformedHeight = mappedHeightVector.length();
+            const qreal transformedRatio = transformedWidth / transformedHeight;
+
+            if (qFuzzyCompare(originalRatio, transformedRatio) && originalWidth > transformedWidth && originalHeight > transformedHeight)
+            {
+                uint32_t activeColorMask = texture.getPixelActiveColorMask(0, 0);
+                texture = texture.resize(qCeil(transformedWidth), qCeil(transformedHeight), Qt::SmoothTransformation);
+                texture.setColorActivity(activeColorMask);
+            }
+        }
+    }
+
+    QMatrix imageTransform(1.0 / qreal(texture.getWidth()), 0, 0, 1.0 / qreal(texture.getHeight()), 0, 0);
+    QMatrix worldMatrix = imageTransform * getCurrentWorldMatrix();
+
+    // Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
+    // to the opposite (so the image is then unchanged)
+    worldMatrix.translate(0.0, texture.getHeight());
+    worldMatrix.scale(1, -1);
+
+    QPolygonF imagePolygon;
+    imagePolygon << QPointF(0.0, 0.0);
+    imagePolygon << QPointF(0.0, texture.getHeight());
+    imagePolygon << QPointF(texture.getWidth(), texture.getHeight());
+    imagePolygon << QPointF(texture.getWidth(), 0.0);
+
+    QMatrix worldToTextureMatrix = worldMatrix.inverted();
+    QRectF boundingRectangle = worldMatrix.map(imagePolygon).boundingRect();
+    QRect fillRect = getActualFillRect(boundingRectangle);
+
+    const PDFReal shape = getShapeFilling();
+    const PDFReal opacity = getOpacityFilling();
+
+    PDFPixelFormat format = m_drawBuffer.getPixelFormat();
+    Q_ASSERT(format.hasShapeChannel());
+    Q_ASSERT(format.hasOpacityChannel());
+    Q_ASSERT(format == texture.getPixelFormat());
+
+    const uint8_t shapeChannel = format.getShapeChannelIndex();
+    const uint8_t opacityChannel = format.getOpacityChannelIndex();
+    const uint8_t colorChannelStart = format.getColorChannelIndexStart();
+    const uint8_t colorChannelEnd = format.getColorChannelIndexEnd();
+
+    // Fill rect may be, or may not be valid. It depends on the painter path
+    // and world matrix. Path can be translated outside of the paint area.
+    if (fillRect.isValid())
+    {
+        PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f, fillRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+
+        if (isMultithreadedPathSamplingUsed(fillRect))
+        {
+            if (fillRect.width() > fillRect.height())
+            {
+                // Columns
+                PDFIntegerRange<int> range(fillRect.left(), fillRect.right() + 1);
+                auto processEntry = [&, this](int x)
+                {
+                    for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
+                    {
+                        performFillFragmentFromTexture(shape, opacity, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, worldToTextureMatrix, texture, clipSampler);
+                    }
+                };
+                PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+            }
+            else
+            {
+                // Rows
+                PDFIntegerRange<int> range(fillRect.top(), fillRect.bottom() + 1);
+                auto processEntry = [&, this](int y)
+                {
+                    for (int x = fillRect.left(); x <= fillRect.right(); ++x)
+                    {
+                        performFillFragmentFromTexture(shape, opacity, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, worldToTextureMatrix, texture, clipSampler);
+                    }
+                };
+                PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+            }
+        }
+        else
+        {
+            for (int x = fillRect.left(); x <= fillRect.right(); ++x)
+            {
+                for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
+                {
+                    performFillFragmentFromTexture(shape, opacity, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, worldToTextureMatrix, texture, clipSampler);
+                }
+            }
+        }
+
+        m_drawBuffer.modify(fillRect, true, false);
+        flushDrawBuffer();
+    }
 
     return true;
 }
