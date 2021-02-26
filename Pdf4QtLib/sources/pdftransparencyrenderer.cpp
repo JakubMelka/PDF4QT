@@ -1252,6 +1252,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
         }
 
         result = PDFFloatBitmapWithColorSpace(imageWidth, imageHeight, PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+        result.setColorSpace(imageColorSpace);
         result.makeOpaque();
 
         for (unsigned int i = 0; i < imageHeight; ++i)
@@ -1320,6 +1321,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
             case PDFImageData::MaskingType::None:
             {
                 result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+                result.setColorSpace(imageColorSpace);
                 result.makeOpaque();
 
                 unsigned int componentCount = imageData.getComponents();
@@ -1372,6 +1374,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
             case PDFImageData::MaskingType::SoftMask:
             {
                 result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+                result.setColorSpace(imageColorSpace);
 
                 const bool hasMatte = !softMask.getMatte().empty();
                 std::vector<PDFReal> matte = softMask.getMatte();
@@ -1474,6 +1477,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
             case PDFImageData::MaskingType::ColorKeyMasking:
             {
                 result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
+                result.setColorSpace(imageColorSpace);
                 result.makeOpaque();
 
                 unsigned int componentCount = imageData.getComponents();
