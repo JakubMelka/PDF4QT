@@ -32,7 +32,8 @@ namespace pdf
 PDFLexicalAnalyzer::PDFLexicalAnalyzer(const char* begin, const char* end) :
     m_begin(begin),
     m_current(begin),
-    m_end(end)
+    m_end(end),
+    m_tokenizingPostScriptFunction(false)
 {
 
 }
@@ -453,6 +454,16 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                 {
                     return Token(TokenType::Command, std::move(command));
                 }
+            }
+            else if (m_tokenizingPostScriptFunction)
+            {
+                const char currentChar = lookChar();
+                if (currentChar == CHAR_LEFT_CURLY_BRACKET || currentChar == CHAR_RIGHT_CURLY_BRACKET)
+                {
+                    return Token(TokenType::Command, QByteArray(1, fetchChar()));
+                }
+
+                error(tr("Unexpected character '%1' in the stream.").arg(currentChar));
             }
             else
             {

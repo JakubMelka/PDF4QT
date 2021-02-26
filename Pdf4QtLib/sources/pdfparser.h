@@ -153,6 +153,9 @@ public:
     /// \param position Position, from which the search is started
     PDFInteger findSubstring(const char* str, PDFInteger position) const;
 
+    /// Switch parser mode for tokenizing PostScript function
+    void setTokenizingPostScriptFunction() { m_tokenizingPostScriptFunction = true; }
+
     /// Returns true, if character is a whitespace character according to the PDF 1.7 specification
     /// \param character Character to be tested
     static constexpr bool isWhitespace(char character);
@@ -198,6 +201,7 @@ private:
     const char* m_begin;
     const char* m_current;
     const char* m_end;
+    bool m_tokenizingPostScriptFunction;
 };
 
 /// Parsing context. Used for example to detect cyclic reference errors.

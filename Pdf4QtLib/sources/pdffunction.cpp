@@ -1663,6 +1663,7 @@ PDFPostScriptFunction::Program PDFPostScriptFunction::parseProgram(const QByteAr
 
     Program result;
     PDFLexicalAnalyzer parser(adjustedArray.constBegin(), adjustedArray.constEnd());
+    parser.setTokenizingPostScriptFunction();
 
     std::stack<InstructionPointer> blockCallStack;
     while (true)
