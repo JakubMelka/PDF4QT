@@ -271,7 +271,8 @@ public:
         Indexed,
         Separation,
         DeviceN,
-        Pattern
+        Pattern,
+        Invalid
     };
 
     /// Returns color space identification

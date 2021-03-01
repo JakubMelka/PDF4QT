@@ -319,6 +319,9 @@ public:
     /// Returns color space of the pattern.
     const PDFAbstractColorSpace* getColorSpace() const;
 
+    /// Returns color space pointer
+    const PDFColorSpacePointer& getColorSpacePtr() const { return m_colorSpace; }
+
     /// Returns patterns background color (if pattern has background color).
     /// If pattern has not background color, then invalid color is returned.
     const QColor& getBackgroundColor() const { return m_backgroundColor; }

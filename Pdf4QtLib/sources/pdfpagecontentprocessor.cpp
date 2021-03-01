@@ -362,6 +362,8 @@ void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool
 bool PDFPageContentProcessor::performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern)
 {
     Q_UNUSED(path);
+    Q_UNUSED(stroke);
+    Q_UNUSED(fill);
     Q_UNUSED(shadingPattern);
 
     return false;

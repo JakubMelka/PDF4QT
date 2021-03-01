@@ -339,6 +339,7 @@ public:
         bool canBeActive = false; ///< Can spot color be activated?
         bool active = false; ///< Is spot color active?
         bool isSpot = true;
+        PDFAbstractColorSpace::ColorSpace colorSpaceType = PDFAbstractColorSpace::ColorSpace::Invalid;
     };
 
     static constexpr const uint32_t MAX_COLOR_COMPONENTS = PDF_MAX_COLOR_COMPONENTS;
@@ -349,7 +350,8 @@ public:
     /// and spot colors. Only active spot colors are added. Only 1, 3 and 4
     /// process colors are supported.
     /// \param processColorCount Process color count
-    std::vector<ColorInfo> getSeparations(uint32_t processColorCount) const;
+    /// \param withSpots Add active spot colors?
+    std::vector<ColorInfo> getSeparations(uint32_t processColorCount, bool withSpots = true) const;
 
     /// Scan document for spot colors and fills color info
     /// \param activate Set spot colors active?
@@ -365,6 +367,15 @@ public:
     /// Returns spot color information (or nullptr, if spot color is not present)
     /// \param colorName Color name
     const ColorInfo* getSpotColor(const QByteArray& colorName) const;
+
+    /// Returns process color information (or nullptr, if process color is not present)
+    /// \param colorName Color name
+    const ColorInfo* getProcessColor(const QByteArray& colorName) const;
+
+    /// Returns process color information (or nullptr, if process color is not present or is inactive)
+    /// \param colorName Color name
+    /// \param colorSpace Color space (actively used color space)
+    const ColorInfo* getActiveProcessColor(const QByteArray& colorName, PDFAbstractColorSpace::ColorSpace colorSpace) const;
 
     /// Returns active spot color with given index. If index
     /// of the spot color is invalid, or no active spot color
@@ -390,6 +401,7 @@ public:
 private:
     const PDFDocument* m_document;
     std::vector<ColorInfo> m_spotColors;
+    std::vector<ColorInfo> m_deviceColors; ///< Device color space separations
     size_t m_activeSpotColors = 0;
 };
 
@@ -665,6 +677,12 @@ private:
 
     PDFMappedColor createMappedColor(const PDFColor& sourceColor,
                                      const PDFAbstractColorSpace* sourceColorSpace);
+
+    /// Converts image in some other color space to the blend color space,
+    /// so pixel format is equal to the draw buffer's pixel format and active
+    /// colors are set.
+    /// \param image Image
+    PDFFloatBitmapWithColorSpace convertImageToBlendSpace(const PDFFloatBitmapWithColorSpace& image);
 
     /// Converts RGB bitmap to the image.
     QImage toImageImpl(const PDFFloatBitmapWithColorSpace& floatImage, bool use16Bit) const;
