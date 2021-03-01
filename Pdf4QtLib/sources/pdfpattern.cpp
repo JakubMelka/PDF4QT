@@ -21,6 +21,7 @@
 #include "pdfutils.h"
 #include "pdfcolorspaces.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfconstants.h"
 
 #include <QPainter>
 
@@ -34,9 +35,21 @@ PatternType PDFShadingPattern::getType() const
     return PatternType::Shading;
 }
 
+const PDFAbstractColorSpace* PDFShadingPattern::getColorSpace() const
+{
+    return m_colorSpace.data();
+}
+
 QMatrix PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const
 {
     return m_matrix * settings.userSpaceToDeviceSpaceMatrix;
+}
+
+PDFShadingSampler* PDFShadingPattern::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    Q_UNUSED(userSpaceToDeviceSpaceMatrix);
+
+    return nullptr;
 }
 
 ShadingType PDFAxialShading::getShadingType() const
@@ -171,12 +184,19 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
     }
 
     QColor backgroundColor;
+    PDFColor originalBackgroundColor;
     if (!ignoreBackgroundColor)
     {
         std::vector<PDFReal> backgroundColorValues = loader.readNumberArrayFromDictionary(shadingDictionary, "Background");
         if (!backgroundColorValues.empty())
         {
             backgroundColor = colorSpace->getCheckedColor(PDFAbstractColorSpace::convertToColor(backgroundColorValues), cms, intent, reporter);
+        }
+
+        originalBackgroundColor.resize(backgroundColorValues.size());
+        for (size_t i = 0; i < backgroundColorValues.size(); ++i)
+        {
+            originalBackgroundColor[i] = backgroundColorValues[i];
         }
     }
     QRectF boundingBox = loader.readRectangle(shadingDictionary->get("BBox"), QRectF());
@@ -240,6 +260,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             // Load items for function shading
             functionShading->m_antiAlias = antialias;
             functionShading->m_backgroundColor = backgroundColor;
+            functionShading->m_originalBackgroundColor = qMove(originalBackgroundColor);
             functionShading->m_colorSpace = colorSpace;
             functionShading->m_boundingBox = boundingBox;
             functionShading->m_domain = QRectF(functionDomain[0], functionDomain[2], functionDomain[1] - functionDomain[0], functionDomain[3] - functionDomain[2]);
@@ -281,6 +302,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             // Load items for axial shading
             axialShading->m_antiAlias = antialias;
             axialShading->m_backgroundColor = backgroundColor;
+            axialShading->m_originalBackgroundColor = qMove(originalBackgroundColor);
             axialShading->m_colorSpace = colorSpace;
             axialShading->m_boundingBox = boundingBox;
             axialShading->m_domainStart = domain[0];
@@ -331,6 +353,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             // Load items for axial shading
             radialShading->m_antiAlias = antialias;
             radialShading->m_backgroundColor = backgroundColor;
+            radialShading->m_originalBackgroundColor = qMove(originalBackgroundColor);
             radialShading->m_colorSpace = colorSpace;
             radialShading->m_boundingBox = boundingBox;
             radialShading->m_domainStart = domain[0];
@@ -422,6 +445,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 
             type4567Shading->m_antiAlias = antialias;
             type4567Shading->m_backgroundColor = backgroundColor;
+            type4567Shading->m_originalBackgroundColor = qMove(originalBackgroundColor);
             type4567Shading->m_colorSpace = colorSpace;
             type4567Shading->m_matrix = matrix;
             type4567Shading->m_patternGraphicState = patternGraphicState;
@@ -1009,6 +1033,158 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings, cons
     }
 
     return mesh;
+}
+
+class PDFAxialShadingSampler : public PDFShadingSampler
+{
+public:
+    PDFAxialShadingSampler(const PDFAxialShading* axialShadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+        PDFShadingSampler(axialShadingPattern),
+        m_axialShadingPattern(axialShadingPattern),
+        m_xStart(0.0),
+        m_xEnd(0.0),
+        m_tAtStart(0.0),
+        m_tAtEnd(0.0),
+        m_tMin(0.0),
+        m_tMax(0.0)
+    {
+        QMatrix patternSpaceToDeviceSpace = axialShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
+
+        QPointF p1 = patternSpaceToDeviceSpace.map(axialShadingPattern->getStartPoint());
+        QPointF p2 = patternSpaceToDeviceSpace.map(axialShadingPattern->getEndPoint());
+
+        // Strategy: for simplification, we rotate the line clockwise so we will
+        // get the shading axis equal to the x-axis. Then we will determine the shading
+        // area and create mesh according the settings.
+        QLineF line(p1, p2);
+        const double angle = line.angleTo(QLineF(0, 0, 1, 0));
+
+        // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
+        // points on the line to the global coordinate system. So, point (0, 0) will
+        // map onto p1 and point (length(p1-p2), 0) will map onto p2.
+        QMatrix p1p2LCS;
+        p1p2LCS.translate(p1.x(), p1.y());
+        p1p2LCS.rotate(angle);
+        QMatrix p1p2GCS = p1p2LCS.inverted();
+
+        QPointF p1m = p1p2GCS.map(p1);
+        QPointF p2m = p1p2GCS.map(p2);
+
+        Q_ASSERT(isZero(p1m.y()));
+        Q_ASSERT(isZero(p2m.y()));
+        Q_ASSERT(p1m.x() <= p2m.x());
+
+        m_xStart = p1m.x();
+        m_xEnd = p2m.x();
+
+        m_tAtStart = axialShadingPattern->getDomainStart();
+        m_tAtEnd = axialShadingPattern->getDomainEnd();
+        m_tMin = qMin(m_tAtStart, m_tAtEnd);
+        m_tMax = qMax(m_tAtStart, m_tAtEnd);
+    }
+
+    virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
+    {
+        Q_UNUSED(limit);
+
+        if (!m_pattern->getColorSpace() || m_pattern->getColorSpace()->getColorComponentCount() != outputBuffer.size())
+        {
+            // Invalid color space, or invalid color buffer
+            return false;
+        }
+
+        QPointF mappedPoint = m_p1p2GCS.map(devicePoint);
+        const PDFReal x = mappedPoint.x();
+
+        PDFReal t = m_tAtStart;
+
+        if (x < m_xStart)
+        {
+            if (!m_axialShadingPattern->isExtendStart())
+            {
+                return fillBackgroundColor(outputBuffer);
+            }
+
+            t = m_tAtStart;
+        }
+        else if (x > m_xEnd)
+        {
+            if (!m_axialShadingPattern->isExtendEnd())
+            {
+                return fillBackgroundColor(outputBuffer);
+            }
+
+            t = m_tAtEnd;
+        }
+        else
+        {
+            t = interpolate(x, m_xStart, m_xEnd, m_tAtStart, m_tAtEnd);
+            t = qBound(m_tMin, t, m_tMax);
+        }
+
+        const auto& functions = m_axialShadingPattern->getFunctions();
+        std::array<PDFReal, PDF_MAX_COLOR_COMPONENTS> colorBuffer = { };
+
+        if (colorBuffer.size() < outputBuffer.size())
+        {
+            // Jakub Melka: Too much colors - we cant process it
+            return false;
+        }
+
+        if (functions.size() == 1)
+        {
+            Q_ASSERT(outputBuffer.size() <= colorBuffer.size());
+            PDFFunction::FunctionResult result = functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + outputBuffer.size());
+
+            if (!result)
+            {
+                // Function call failed
+                return false;
+            }
+        }
+        else
+        {
+            if (functions.size() != outputBuffer.size())
+            {
+                // Invalid number of functions
+                return false;
+            }
+
+            Q_ASSERT(outputBuffer.size() <= colorBuffer.size());
+            for (size_t i = 0, count = outputBuffer.size(); i < count; ++i)
+            {
+                PDFFunction::FunctionResult result = functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
+
+                if (!result)
+                {
+                    // Function call failed
+                    return false;
+                }
+            }
+        }
+
+        for (size_t i = 0, count = outputBuffer.size(); i < count; ++i)
+        {
+            outputBuffer[i] = colorBuffer[i];
+        }
+
+        return true;
+    }
+
+private:
+    const PDFAxialShading* m_axialShadingPattern;
+    QMatrix m_p1p2GCS;
+    PDFReal m_xStart;
+    PDFReal m_xEnd;
+    PDFReal m_tAtStart;
+    PDFReal m_tAtEnd;
+    PDFReal m_tMin;
+    PDFReal m_tMax;
+};
+
+PDFShadingSampler* PDFAxialShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    return new PDFAxialShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
 
 void PDFMesh::paint(QPainter* painter, PDFReal alpha) const
@@ -2647,6 +2823,23 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
 
     fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches, cms, intent, reporter);
     return mesh;
+}
+
+bool PDFShadingSampler::fillBackgroundColor(PDFColorBuffer outputBuffer) const
+{
+    const auto& originalBackgroundColor = m_pattern->getOriginalBackgroundColor();
+
+    if (originalBackgroundColor.size() == outputBuffer.size())
+    {
+        for (size_t i = 0; i < outputBuffer.size(); ++i)
+        {
+            outputBuffer[i] = originalBackgroundColor[i];
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 }   // namespace pdf

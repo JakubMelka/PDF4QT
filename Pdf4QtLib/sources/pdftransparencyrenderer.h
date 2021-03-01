@@ -510,6 +510,10 @@ struct PDFTransparencyRendererSettings
     /// multithreaded painting is performed.
     int multithreadingPathSampleThreshold = 128;
 
+    /// Maximal number of steps performed in numerical algorithm
+    /// used when some shadings are being sampled.
+    int shadingAlgorithmLimit = 64;
+
     enum Flag
     {
         None               = 0x0000,
@@ -596,6 +600,8 @@ public:
     QImage toImage(bool use16Bit, bool usePaper = false, PDFRGB paperColor = PDFRGB()) const;
 
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
+    virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern);
+    virtual void performFinishPathPainting();
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;

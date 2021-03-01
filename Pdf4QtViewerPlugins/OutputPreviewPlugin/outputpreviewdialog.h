@@ -62,6 +62,7 @@ private:
     struct RenderedImage
     {
         QImage image;
+        QList<pdf::PDFRenderError> errors;
     };
 
     void updatePageImage();

@@ -41,6 +41,7 @@ class PDFCMS;
 class PDFMesh;
 class PDFImage;
 class PDFTilingPattern;
+class PDFShadingPattern;
 class PDFOptionalContentActivity;
 
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
@@ -504,6 +505,17 @@ protected:
     /// \param text Is text being drawn?
     /// \param fillRule Fill rule used in the fill mode
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule);
+
+    /// This function is used, when we want to implement custom fill using shading. If path is successfully
+    /// filled by shading, then true should be returned.
+    /// \param path Path to be filled
+    /// \param stroke Is path actually stroked?
+    /// \param fill Is path actually filled?
+    /// \param shadingPattern Shading pattern
+    virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern);
+
+    /// This function is called after path paintig is finished
+    virtual void performFinishPathPainting();
 
     /// This function has to be implemented in the client drawing implementation, it should
     /// clip along the path (intersect with current clipping path).

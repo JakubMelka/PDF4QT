@@ -282,7 +282,7 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
                                           &m_inkMapperForRendering, settings, pagePointToDevicePoint);
 
     renderer.beginPaint(imageSize);
-    renderer.processContents();
+    result.errors = renderer.processContents();
     renderer.endPaint();
 
     QImage image = renderer.toImage(false, true, paperColor);

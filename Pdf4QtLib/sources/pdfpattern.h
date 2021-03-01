@@ -264,6 +264,34 @@ private:
     QByteArray m_content;
 };
 
+/// Compute color of sample points from shading pattern. Some sampler implementation
+/// uses numerical algorithms (such as Newton-Raphson method for type 6/7 shading), so
+/// calculation can be very slow for some types of shadings.
+class PDFShadingSampler
+{
+public:
+    explicit inline PDFShadingSampler(const PDFShadingPattern* pattern) :
+        m_pattern(pattern)
+    {
+
+    }
+    virtual ~PDFShadingSampler() = default;
+
+    /// Try to compute color of the point in device space coordinates in the shading. If color
+    /// can't be computed, then false is returned, otherwise true is returned.
+    /// \param devicePoint Point in device space coordinates
+    /// \param outputBuffer Color output buffer (where computed color is stored)
+    /// \param limit Maximal number of the steps of numerical calculation algorithms (for type 6/7 shading only)
+    virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const = 0;
+
+    /// Fill background color to the output buffer. If the background color is not filled,
+    /// or is invalid, then false is returned, otherwise true is returned.
+    bool fillBackgroundColor(PDFColorBuffer outputBuffer) const;
+
+protected:
+    const PDFShadingPattern* m_pattern;
+};
+
 /// Shading pattern - smooth color distribution along the pattern's space
 class PDFShadingPattern : public PDFPattern
 {
@@ -295,11 +323,20 @@ public:
     /// If pattern has not background color, then invalid color is returned.
     const QColor& getBackgroundColor() const { return m_backgroundColor; }
 
+    /// Returns original background color (in color space of the shading pattern)
+    const PDFColor& getOriginalBackgroundColor() const { return m_originalBackgroundColor; }
+
     /// Returns true, if shading pattern should be anti-aliased
     bool isAntialiasing() const { return m_antiAlias; }
 
     /// Returns matrix transforming pattern space to device space
     QMatrix getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const;
+
+    /// Create sampler which can compute shading colors in device space coordinates. If sampler can't
+    /// be created (or shading is invalid), then nullptr is returned.
+    /// \param userSpaceToDeviceSpaceMatrix Matrix, which transforms user space points
+    ///        (user space is target space of the shading) to the device space of the paint device.
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const;
 
 protected:
     friend class PDFPattern;
@@ -307,6 +344,7 @@ protected:
     PDFObject m_patternGraphicState;
     PDFColorSpacePointer m_colorSpace;
     QColor m_backgroundColor;
+    PDFColor m_originalBackgroundColor;
     bool m_antiAlias = false;
 };
 
@@ -314,6 +352,14 @@ class PDFSingleDimensionShading : public PDFShadingPattern
 {
 public:
     explicit PDFSingleDimensionShading() = default;
+
+    const std::vector<PDFFunctionPtr>& getFunctions() const { return m_functions; }
+    const QPointF& getStartPoint() const { return m_startPoint; }
+    const QPointF& getEndPoint() const { return m_endPoint; }
+    PDFReal getDomainStart() const { return m_domainStart; }
+    PDFReal getDomainEnd() const { return m_domainEnd; }
+    bool isExtendStart() const { return m_extendStart; }
+    bool isExtendEnd() const { return m_extendEnd; }
 
 protected:
     friend class PDFPattern;
@@ -350,6 +396,7 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const;
 
 private:
     friend class PDFPattern;

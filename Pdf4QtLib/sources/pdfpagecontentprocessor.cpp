@@ -359,6 +359,19 @@ void PDFPageContentProcessor::performPathPainting(const QPainterPath& path, bool
     Q_UNUSED(fillRule);
 }
 
+bool PDFPageContentProcessor::performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern)
+{
+    Q_UNUSED(path);
+    Q_UNUSED(shadingPattern);
+
+    return false;
+}
+
+void PDFPageContentProcessor::performFinishPathPainting()
+{
+
+}
+
 void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
 {
     Q_UNUSED(path);
@@ -820,21 +833,24 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
                         settings.initResolution();
 
-                        PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
-
-                        // Now, merge the current path to the mesh clipping path
-                        QPainterPath boundingPath = mesh.getBoundingPath();
-                        if (boundingPath.isEmpty())
+                        if (!performPathPaintingUsingShading(path, false, true, shadingPattern))
                         {
-                            boundingPath = getCurrentWorldMatrix().map(path);
-                        }
-                        else
-                        {
-                            boundingPath = boundingPath.intersected(path);
-                        }
-                        mesh.setBoundingPath(boundingPath);
+                            PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
 
-                        performMeshPainting(mesh);
+                            // Now, merge the current path to the mesh clipping path
+                            QPainterPath boundingPath = mesh.getBoundingPath();
+                            if (boundingPath.isEmpty())
+                            {
+                                boundingPath = getCurrentWorldMatrix().map(path);
+                            }
+                            else
+                            {
+                                boundingPath = boundingPath.intersected(path);
+                            }
+                            mesh.setBoundingPath(boundingPath);
+
+                            performMeshPainting(mesh);
+                        }
                     }
                     break;
                 }
@@ -917,8 +933,6 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
                         settings.initResolution();
 
-                        PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
-
                         // We must stroke the path.
                         QPainterPathStroker stroker;
                         stroker.setCapStyle(m_graphicState.getLineCapStyle());
@@ -934,18 +948,23 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         }
                         QPainterPath strokedPath = stroker.createStroke(path);
 
-                        QPainterPath boundingPath = mesh.getBoundingPath();
-                        if (boundingPath.isEmpty())
+                        if (!performPathPaintingUsingShading(strokedPath, true, false, shadingPattern))
                         {
-                            boundingPath = getCurrentWorldMatrix().map(strokedPath);
-                        }
-                        else
-                        {
-                            boundingPath = boundingPath.intersected(strokedPath);
-                        }
-                        mesh.setBoundingPath(boundingPath);
+                            PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
 
-                        performMeshPainting(mesh);
+                            QPainterPath boundingPath = mesh.getBoundingPath();
+                            if (boundingPath.isEmpty())
+                            {
+                                boundingPath = getCurrentWorldMatrix().map(strokedPath);
+                            }
+                            else
+                            {
+                                boundingPath = boundingPath.intersected(strokedPath);
+                            }
+                            mesh.setBoundingPath(boundingPath);
+
+                            performMeshPainting(mesh);
+                        }
                     }
                     break;
                 }
@@ -971,6 +990,8 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
     {
         performPathPainting(path, stroke, fill, text, fillRule);
     }
+
+    performFinishPathPainting();
 }
 
 void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPattern* tilingPattern,

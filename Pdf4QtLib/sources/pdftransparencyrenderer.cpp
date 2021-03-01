@@ -20,6 +20,7 @@
 #include "pdfcms.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfimage.h"
+#include "pdfpattern.h"
 
 namespace pdf
 {
@@ -1828,6 +1829,98 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         }
     }
 
+    flushDrawBuffer();
+}
+
+bool PDFTransparencyRenderer::performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern)
+{
+    if (path.isEmpty())
+    {
+        // Path is empty
+        return true;
+    }
+
+    QMatrix worldMatrix = getCurrentWorldMatrix();
+    QPainterPath worldPath = worldMatrix.map(path);
+    QRect fillRect = getActualFillRect(worldPath.controlPointRect());
+
+    if (fillRect.isEmpty())
+    {
+        // Jakub Melka: nothing to draw, rectangle is empty
+        return true;
+    }
+
+    std::unique_ptr<PDFShadingSampler> sampler(shadingPattern->createSampler(getPatternBaseMatrix()));
+    if (!sampler)
+    {
+        // Can't create sampler - this is error
+        reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Cannot create shading sampler."));
+        return true;
+    }
+
+    // Now, we have a sampler, so we create a texture, which we will later use
+    // as color source.
+    const PDFAbstractColorSpace* colorSpace = shadingPattern->getColorSpace();
+    const size_t shadingColorComponentCount = colorSpace->getColorComponentCount();
+    PDFFloatBitmapWithColorSpace texture(fillRect.width() + 1, fillRect.height() + 1, PDFPixelFormat::createFormat(shadingColorComponentCount, 0, true, shadingColorComponentCount == 4, false), colorSpace);
+    QPointF offset = fillRect.topLeft();
+
+    const PDFPixelFormat texturePixelFormat = texture.getPixelFormat();
+    const uint8_t textureShapeChannel = texturePixelFormat.getShapeChannelIndex();
+    const uint8_t textureOpacityChannel = texturePixelFormat.getOpacityChannelIndex();
+
+    if (fillRect.width() > fillRect.height())
+    {
+        // Columns
+        PDFIntegerRange<int> range(fillRect.left(), fillRect.right() + 1);
+        auto processEntry = [&, this](int x)
+        {
+            for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
+            {
+                PDFColorBuffer buffer = texture.getPixel(x, y);
+                bool isSampled = sampler->sample(QPointF(x, y) + offset, buffer.resized(shadingColorComponentCount), m_settings.shadingAlgorithmLimit);
+                const PDFColorComponent textureSampleShape = isSampled ? 1.0f : 0.0f;
+                buffer[textureShapeChannel] = textureSampleShape;
+                buffer[textureOpacityChannel] = textureSampleShape;
+            }
+        };
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+    }
+    else
+    {
+        // Rows
+        PDFIntegerRange<int> range(fillRect.top(), fillRect.bottom() + 1);
+        auto processEntry = [&, this](int y)
+        {
+            for (int x = fillRect.left(); x <= fillRect.right(); ++x)
+            {
+                PDFColorBuffer buffer = texture.getPixel(x, y);
+                bool isSampled = sampler->sample(QPointF(x, y) + offset, buffer.resized(shadingColorComponentCount), m_settings.shadingAlgorithmLimit);
+                const PDFColorComponent textureSampleShape = isSampled ? 1.0f : 0.0f;
+                buffer[textureShapeChannel] = textureSampleShape;
+                buffer[textureOpacityChannel] = textureSampleShape;
+            }
+        };
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), processEntry);
+    }
+
+    PDFPainterPathSampler clipSampler(m_painterStateStack.top().clipPath, m_settings.samplesCount, 1.0f, fillRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+    PDFPainterPathSampler pathSampler(worldPath, m_settings.samplesCount, 0.0f, fillRect, m_settings.flags.testFlag(PDFTransparencyRendererSettings::PrecisePathSampler));
+
+    for (int x = fillRect.left(); x <= fillRect.right(); ++x)
+    {
+        for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
+        {
+           /* performPixelSampling(shapeStroking, opacityStroking, shapeChannel, opacityChannel, colorChannelStart, colorChannelEnd, x, y, strokeColor, clipSampler, pathSampler);*/
+        }
+    }
+
+    m_drawBuffer.modify(fillRect, fill, stroke);
+    return true;
+}
+
+void PDFTransparencyRenderer::performFinishPathPainting()
+{
     flushDrawBuffer();
 }
 

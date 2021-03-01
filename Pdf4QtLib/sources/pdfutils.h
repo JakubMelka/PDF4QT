@@ -551,6 +551,12 @@ public:
 
     size_t size() const { return m_end - m_begin; }
 
+    PDFBuffer resized(size_t newSize) const
+    {
+        Q_ASSERT(newSize <= size());
+        return PDFBuffer(m_begin, newSize);
+    }
+
 private:
     value_ptr m_begin;
     value_ptr m_end;
