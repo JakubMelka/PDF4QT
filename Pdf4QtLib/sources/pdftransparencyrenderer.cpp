@@ -2819,7 +2819,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                             {
                                 // Try to add spot color
                                 const QByteArray& colorName = separationColorSpace->getColorName();
-                                if (!containsSpotColor(colorName))
+                                if (!containsSpotColor(colorName) && !containsProcessColor(colorName))
                                 {
                                     ColorInfo info;
                                     info.name = colorName;
@@ -2843,7 +2843,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                                 for (size_t i = 0; i < colorants.size(); ++i)
                                 {
                                     const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
-                                    if (!containsSpotColor(colorantInfo.name))
+                                    if (!containsSpotColor(colorantInfo.name) && !containsProcessColor(colorantInfo.name))
                                     {
                                         ColorInfo info;
                                         info.name = colorantInfo.name;
@@ -2881,6 +2881,11 @@ bool PDFInkMapper::containsSpotColor(const QByteArray& colorName) const
     return getSpotColor(colorName) != nullptr;
 }
 
+bool PDFInkMapper::containsProcessColor(const QByteArray& colorName) const
+{
+    return getProcessColor(colorName) != nullptr;
+}
+
 const PDFInkMapper::ColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colorName) const
 {
     auto it = std::find_if(m_spotColors.cbegin(), m_spotColors.cend(), [&colorName](const auto& info) { return info.name == colorName; });
@@ -2895,7 +2900,7 @@ const PDFInkMapper::ColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colo
 const PDFInkMapper::ColorInfo* PDFInkMapper::getProcessColor(const QByteArray& colorName) const
 {
     auto it = std::find_if(m_deviceColors.cbegin(), m_deviceColors.cend(), [&colorName](const auto& info) { return info.name == colorName; });
-    if (it != m_spotColors.cend())
+    if (it != m_deviceColors.cend())
     {
         return &*it;
     }
@@ -3039,7 +3044,7 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
                         {
                             if (targetPixelFormat.hasProcessColors() && processColor->spotColorIndex < targetPixelFormat.getProcessColorChannelCount())
                             {
-                                mapping.map(0, uint8_t(targetPixelFormat.getProcessColorChannelIndexStart() + processColor->spotColorIndex));
+                                mapping.map(uint8_t(i), uint8_t(targetPixelFormat.getProcessColorChannelIndexStart() + processColor->spotColorIndex));
                             }
                         }
                         else

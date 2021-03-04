@@ -361,6 +361,10 @@ public:
     /// \param colorName Color name
     bool containsSpotColor(const QByteArray& colorName) const;
 
+    /// Returns true, if mapper contains given process color
+    /// \param colorName Color name
+    bool containsProcessColor(const QByteArray& colorName) const;
+
     /// Returns number of active spot colors
     size_t getActiveSpotColorCount() const { return m_activeSpotColors; }
 

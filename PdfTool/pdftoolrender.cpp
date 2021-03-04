@@ -172,6 +172,7 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
     // We are ready to render the document
     pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::Export, nullptr);
     pdf::PDFCMSManager cmsManager(nullptr);
+    cmsManager.setDocument(&document);
     cmsManager.setSettings(options.cmsSettings);
     pdf::PDFMeshQualitySettings meshQualitySettings;
     pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);

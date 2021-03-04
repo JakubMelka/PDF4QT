@@ -66,6 +66,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_colorManagementSystemSettings.intent = static_cast<pdf::RenderingIntent>(settings.value("intent", int(defaultCMSSettings.intent)).toInt());
     m_colorManagementSystemSettings.isBlackPointCompensationActive = settings.value("isBlackPointCompensationActive", defaultCMSSettings.isBlackPointCompensationActive).toBool();
     m_colorManagementSystemSettings.isWhitePaperColorTransformed = settings.value("isWhitePaperColorTransformed", defaultCMSSettings.isWhitePaperColorTransformed).toBool();
+    m_colorManagementSystemSettings.isConsiderOutputIntent = settings.value("isConsiderOutputIntent", defaultCMSSettings.isConsiderOutputIntent).toBool();
     m_colorManagementSystemSettings.outputCS = settings.value("outputCS", defaultCMSSettings.outputCS).toString();
     m_colorManagementSystemSettings.deviceGray = settings.value("deviceGray", defaultCMSSettings.deviceGray).toString();
     m_colorManagementSystemSettings.deviceRGB = settings.value("deviceRGB", defaultCMSSettings.deviceRGB).toString();
@@ -130,6 +131,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("intent", int(m_colorManagementSystemSettings.intent));
     settings.setValue("isBlackPointCompensationActive", m_colorManagementSystemSettings.isBlackPointCompensationActive);
     settings.setValue("isWhitePaperColorTransformed", m_colorManagementSystemSettings.isWhitePaperColorTransformed);
+    settings.setValue("isConsiderOutputIntent", m_colorManagementSystemSettings.isConsiderOutputIntent);
     settings.setValue("outputCS", m_colorManagementSystemSettings.outputCS);
     settings.setValue("deviceGray", m_colorManagementSystemSettings.deviceGray);
     settings.setValue("deviceRGB", m_colorManagementSystemSettings.deviceRGB);

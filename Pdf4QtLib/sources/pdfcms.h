@@ -65,6 +65,7 @@ struct PDFCMSSettings
     bool isWhitePaperColorTransformed = false;
     bool isGamutChecking = false;
     bool isSoftProofing = false;
+    bool isConsiderOutputIntent = true;
     QColor outOfGamutColor = Qt::red; ///< Color, which marks out-of-gamut when soft-proofing is proceeded
     QString outputCS;               ///< Output (rendering) color space
     QString deviceGray;             ///< Identifiers for color space (device gray)
@@ -269,8 +270,14 @@ struct PDFColorProfileIdentifier
         FileGray,
         FileRGB,
         FileCMYK,
+        MemoryGray,
+        MemoryRGB,
+        MemoryCMYK,
         Invalid
     };
+
+    bool operator==(const PDFColorProfileIdentifier&) const = default;
+    bool operator!=(const PDFColorProfileIdentifier&) const = default;
 
     Type type = Type::sRGB;
     QString name;
@@ -280,6 +287,10 @@ struct PDFColorProfileIdentifier
     QPointF primaryG;
     QPointF primaryB;
     PDFReal gamma = 1.0;
+    bool isOutputIntentProfile = false;
+
+    /// Data for MemoryGray, MemoryRGB and MemoryCMYK
+    QByteArray profileMemoryData;
 
     /// Creates gray color profile identifier
     /// \param name Name of color profile
@@ -303,6 +314,9 @@ struct PDFColorProfileIdentifier
 
     /// Create file color profile identifier
     static PDFColorProfileIdentifier createFile(Type type, QString name, QString id);
+
+    /// Create memory output intent color profile identifier
+    static PDFColorProfileIdentifier createOutputIntent(Type type, QString name, QString id, QByteArray profileData);
 };
 
 using PDFColorProfileIdentifiers = std::vector<PDFColorProfileIdentifier>;
@@ -338,6 +352,11 @@ public:
     /// Returns default color management settings
     PDFCMSSettings getDefaultSettings() const;
 
+    /// Set current document. Document is examined for output
+    /// rendering intents and they can be used when rendering.
+    /// \param document Document
+    void setDocument(const PDFDocument* document);
+
     /// Get translated name for color management system
     /// \param system System
     static QString getSystemName(PDFCMSSettings::System system);
@@ -348,6 +367,9 @@ signals:
 private:
     /// Creates new CMS based on current settings
     PDFCMSPointer getCurrentCMSImpl() const;
+
+    /// Clear cached items
+    void clearCache();
 
     /// This function returns external profiles. It is not protected by mutex,
     /// so it is not thread-safe. For this reason, it is not in public
@@ -365,11 +387,18 @@ private:
     /// \param type Type of profile
     PDFColorProfileIdentifiers getFilteredExternalProfiles(PDFColorProfileIdentifier::Type type) const;
 
+    /// Returns filtered list of output intent profiles (list are filtered by type,
+    /// so, for example, only CMYK profiles are returned)
+    /// \param type Type of profile
+    PDFColorProfileIdentifiers getFilteredOutputIntentProfiles(PDFColorProfileIdentifier::Type type) const;
+
     /// Gets list of color profiles from external directory
     /// \param profileDirectory Directory with profiles
     PDFColorProfileIdentifiers getExternalColorProfiles(QString profileDirectory) const;
 
     PDFCMSSettings m_settings;
+    const PDFDocument* m_document;
+    PDFColorProfileIdentifiers m_outputIntentProfiles;
 
     mutable QMutex m_mutex;
     mutable PDFCachedItem<PDFCMSPointer> m_CMS;

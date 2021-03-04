@@ -151,6 +151,7 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
     // We are ready to render the document
     pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::Export, nullptr);
     pdf::PDFCMSManager cmsManager(nullptr);
+    cmsManager.setDocument(&document);
     cmsManager.setSettings(options.cmsSettings);
     pdf::PDFCMSPointer cms = cmsManager.getCurrentCMS();
     pdf::PDFMeshQualitySettings meshQualitySettings;

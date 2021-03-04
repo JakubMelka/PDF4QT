@@ -16,6 +16,7 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfcms.h"
+#include "pdfdocument.h"
 #include "pdfexecutionpolicy.h"
 
 #include <QApplication>
@@ -69,10 +70,13 @@ private:
     bool isSoftProofing() const;
 
     /// Creates a profile using provided id and a list of profile descriptors.
-    /// If profile can't be created, then null handle is returned.
+    /// If profile can't be created, then null handle is returned. If \p preferOutputProfile
+    /// is set to true, and given profile is not output profile, then first output profile
+    /// is being selected.
     /// \param id Id of color profile
     /// \param profileDescriptors Profile descriptor list
-    cmsHPROFILE createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors) const;
+    /// \param preferOutputProfile
+    cmsHPROFILE createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors, bool preferOutputProfile) const;
 
     /// Gets transform from cache. If transform doesn't exist, then it is created.
     /// \param profile Color profile
@@ -659,11 +663,11 @@ QColor PDFLittleCMS::getColorFromICC(const PDFColor& color, RenderingIntent rend
 void PDFLittleCMS::init()
 {
     // Jakub Melka: initialize all color profiles
-    m_profiles[Output] = createProfile(m_settings.outputCS, m_manager->getOutputProfiles());
-    m_profiles[Gray] = createProfile(m_settings.deviceGray, m_manager->getGrayProfiles());
-    m_profiles[RGB] = createProfile(m_settings.deviceRGB, m_manager->getRGBProfiles());
-    m_profiles[CMYK] = createProfile(m_settings.deviceCMYK, m_manager->getCMYKProfiles());
-    m_profiles[SoftProofing] = createProfile(m_settings.softProofingProfile, m_manager->getCMYKProfiles());
+    m_profiles[Output] = createProfile(m_settings.outputCS, m_manager->getOutputProfiles(), false);
+    m_profiles[Gray] = createProfile(m_settings.deviceGray, m_manager->getGrayProfiles(), m_settings.isConsiderOutputIntent);
+    m_profiles[RGB] = createProfile(m_settings.deviceRGB, m_manager->getRGBProfiles(), m_settings.isConsiderOutputIntent);
+    m_profiles[CMYK] = createProfile(m_settings.deviceCMYK, m_manager->getCMYKProfiles(), m_settings.isConsiderOutputIntent);
+    m_profiles[SoftProofing] = createProfile(m_settings.softProofingProfile, m_manager->getCMYKProfiles(), false);
     m_profiles[XYZ] = cmsCreateXYZProfile();
 
     cmsUInt16Number outOfGamutR = m_settings.outOfGamutColor.redF() * 0xFFFF;
@@ -695,9 +699,23 @@ bool PDFLittleCMS::isSoftProofing() const
     return (m_settings.isSoftProofing || m_settings.isGamutChecking) && m_profiles[SoftProofing];
 }
 
-cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors) const
+cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfileIdentifiers& profileDescriptors, bool preferOutputProfile) const
 {
     auto it = std::find_if(profileDescriptors.cbegin(), profileDescriptors.cend(), [&id](const PDFColorProfileIdentifier& identifier) { return identifier.id == id; });
+    if (preferOutputProfile && it != profileDescriptors.end())
+    {
+        const PDFColorProfileIdentifier& identifier = *it;
+        if (!identifier.isOutputIntentProfile)
+        {
+            // Find first output intent color profile
+            auto itOutputIntentColorProfile = std::find_if(profileDescriptors.cbegin(), profileDescriptors.cend(), [&id](const PDFColorProfileIdentifier& identifier) { return identifier.isOutputIntentProfile; });
+            if (itOutputIntentColorProfile != profileDescriptors.end())
+            {
+                it = itOutputIntentColorProfile;
+            }
+        }
+    }
+
     if (it != profileDescriptors.cend())
     {
         const PDFColorProfileIdentifier& identifier = *it;
@@ -751,6 +769,11 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
 
                 break;
             }
+
+            case PDFColorProfileIdentifier::Type::MemoryGray:
+            case PDFColorProfileIdentifier::Type::MemoryRGB:
+            case PDFColorProfileIdentifier::Type::MemoryCMYK:
+                return cmsOpenProfileFromMem(identifier.profileMemoryData.data(), identifier.profileMemoryData.size());
 
             default:
                 Q_ASSERT(false);
@@ -1190,7 +1213,8 @@ bool PDFCMSGeneric::transformColorSpace(const PDFCMS::ColorSpaceTransformParams&
 
 PDFCMSManager::PDFCMSManager(QObject* parent) :
     BaseClass(parent),
-    m_mutex(QMutex::Recursive)
+    m_mutex(QMutex::Recursive),
+    m_document(nullptr)
 {
 
 }
@@ -1210,12 +1234,7 @@ void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
         {
             QMutexLocker lock(&m_mutex);
             m_settings = settings;
-            m_CMS.dirty();
-            m_outputProfiles.dirty();
-            m_grayProfiles.dirty();
-            m_RGBProfiles.dirty();
-            m_CMYKProfiles.dirty();
-            m_externalProfiles.dirty();
+            clearCache();
         }
 
         emit colorManagementSystemChanged();
@@ -1275,6 +1294,98 @@ PDFCMSSettings PDFCMSManager::getDefaultSettings() const
     return settings;
 }
 
+void PDFCMSManager::setDocument(const PDFDocument* document)
+{
+    std::optional<QMutexLocker> lock;
+    lock.emplace(&m_mutex);
+
+    if (m_document == document)
+    {
+        return;
+    }
+
+    m_document = document;
+
+    int i = 0;
+    PDFColorProfileIdentifiers outputIntentProfiles;
+
+    if (m_document)
+    {
+        for (const PDFOutputIntent& outputIntent : m_document->getCatalog()->getOutputIntents())
+        {
+            QByteArray content;
+
+            try
+            {
+                // Try to read the profile from the output intent stream. If it fails, then do nothing.
+                PDFObject outputProfileObject = m_document->getObject(outputIntent.getOutputProfile());
+                if (outputProfileObject.isStream())
+                {
+                    content = m_document->getDecodedStream(outputProfileObject.getStream());
+                }
+            }
+            catch (PDFException)
+            {
+                continue;
+            }
+
+            if (content.isEmpty())
+            {
+                // Decoding of output profile failed. Continue
+                // with next output profile.
+                continue;
+            }
+
+            cmsHPROFILE profile = cmsOpenProfileFromMem(content.data(), content.size());
+            if (profile)
+            {
+                PDFColorProfileIdentifier::Type csiType = PDFColorProfileIdentifier::Type::Invalid;
+                const cmsColorSpaceSignature colorSpace = cmsGetColorSpace(profile);
+                switch (colorSpace)
+                {
+                    case cmsSigGrayData:
+                        csiType = PDFColorProfileIdentifier::Type::MemoryGray;
+                        break;
+
+                    case cmsSigRgbData:
+                        csiType = PDFColorProfileIdentifier::Type::MemoryRGB;
+                        break;
+
+                    case cmsSigCmykData:
+                        csiType = PDFColorProfileIdentifier::Type::MemoryCMYK;
+                        break;
+
+                    default:
+                        break;
+                }
+
+                QString description = getInfoFromProfile(profile, cmsInfoDescription);
+                cmsCloseProfile(profile);
+
+                // If we have a valid profile, then add it
+                if (csiType != PDFColorProfileIdentifier::Type::Invalid)
+                {
+                    outputIntentProfiles.emplace_back(PDFColorProfileIdentifier::createOutputIntent(csiType, qMove(description), QString("@@OUTPUT_INTENT_PROFILE_%1").arg(++i), qMove(content)));
+                }
+            }
+        }
+    }
+
+    bool outputIntentProfilesChanged = false;
+    if (m_outputIntentProfiles != outputIntentProfiles)
+    {
+        m_outputIntentProfiles = qMove(outputIntentProfiles);
+        clearCache();
+        outputIntentProfilesChanged = true;
+    }
+
+    if (outputIntentProfilesChanged)
+    {
+        lock = std::nullopt;
+        emit colorManagementSystemChanged();
+    }
+}
+
 QString PDFCMSManager::getSystemName(PDFCMSSettings::System system)
 {
     switch (system)
@@ -1317,6 +1428,17 @@ PDFCMSPointer PDFCMSManager::getCurrentCMSImpl() const
     return PDFCMSPointer(new PDFCMSGeneric());
 }
 
+void PDFCMSManager::clearCache()
+{
+    QMutexLocker lock(&m_mutex);
+    m_CMS.dirty();
+    m_outputProfiles.dirty();
+    m_grayProfiles.dirty();
+    m_RGBProfiles.dirty();
+    m_CMYKProfiles.dirty();
+    m_externalProfiles.dirty();
+}
+
 PDFColorProfileIdentifiers PDFCMSManager::getOutputProfilesImpl() const
 {
     // Currently, we only support sRGB output color profile.
@@ -1337,14 +1459,16 @@ PDFColorProfileIdentifiers PDFCMSManager::getGrayProfilesImpl() const
         PDFColorProfileIdentifier::createGray(tr("Gray D93, γ = 1.0 (linear)"), "@GENERIC_Gray_D93_g10", 9300.0, 1.0)
     };
 
-    PDFColorProfileIdentifiers externalRGBProfiles = getFilteredExternalProfiles(PDFColorProfileIdentifier::Type::FileGray);
-    result.insert(result.end(), externalRGBProfiles.begin(), externalRGBProfiles.end());
+    PDFColorProfileIdentifiers externalGrayProfiles = getFilteredExternalProfiles(PDFColorProfileIdentifier::Type::FileGray);
+    result.insert(result.end(), std::make_move_iterator(externalGrayProfiles.begin()), std::make_move_iterator(externalGrayProfiles.end()));
+    PDFColorProfileIdentifiers outputIntentRGBProfiles = getFilteredOutputIntentProfiles(PDFColorProfileIdentifier::Type::MemoryGray);
+    result.insert(result.end(), std::make_move_iterator(outputIntentRGBProfiles.begin()), std::make_move_iterator(outputIntentRGBProfiles.end()));
     return result;
 }
 
 PDFColorProfileIdentifiers PDFCMSManager::getRGBProfilesImpl() const
 {
-    // Jakub Melka: We create RGB profiles for common standars and also for
+    // Jakub Melka: We create RGB profiles for common standards and also for
     // default standard sRGB. See https://en.wikipedia.org/wiki/Color_spaces_with_RGB_primaries.
     PDFColorProfileIdentifiers result =
     {
@@ -1359,12 +1483,21 @@ PDFColorProfileIdentifiers PDFCMSManager::getRGBProfilesImpl() const
 
     PDFColorProfileIdentifiers externalRGBProfiles = getFilteredExternalProfiles(PDFColorProfileIdentifier::Type::FileRGB);
     result.insert(result.end(), externalRGBProfiles.begin(), externalRGBProfiles.end());
+    PDFColorProfileIdentifiers outputIntentRGBProfiles = getFilteredOutputIntentProfiles(PDFColorProfileIdentifier::Type::MemoryRGB);
+    result.insert(result.end(), std::make_move_iterator(outputIntentRGBProfiles.begin()), std::make_move_iterator(outputIntentRGBProfiles.end()));
     return result;
 }
 
 PDFColorProfileIdentifiers PDFCMSManager::getCMYKProfilesImpl() const
 {
-    return getFilteredExternalProfiles(PDFColorProfileIdentifier::Type::FileCMYK);
+    PDFColorProfileIdentifiers result;
+
+    PDFColorProfileIdentifiers externalCMYKProfiles = getFilteredExternalProfiles(PDFColorProfileIdentifier::Type::FileCMYK);
+    result.insert(result.end(), externalCMYKProfiles.begin(), externalCMYKProfiles.end());
+    PDFColorProfileIdentifiers outputIntentCMYKProfiles = getFilteredOutputIntentProfiles(PDFColorProfileIdentifier::Type::MemoryCMYK);
+    result.insert(result.end(), std::make_move_iterator(outputIntentCMYKProfiles.begin()), std::make_move_iterator(outputIntentCMYKProfiles.end()));
+
+    return result;
 }
 
 PDFColorProfileIdentifiers PDFCMSManager::getExternalColorProfiles(QString profileDirectory) const
@@ -1454,6 +1587,13 @@ PDFColorProfileIdentifiers PDFCMSManager::getFilteredExternalProfiles(PDFColorPr
     return result;
 }
 
+PDFColorProfileIdentifiers PDFCMSManager::getFilteredOutputIntentProfiles(PDFColorProfileIdentifier::Type type) const
+{
+    PDFColorProfileIdentifiers result;
+    std::copy_if(m_outputIntentProfiles.cbegin(), m_outputIntentProfiles.cend(), std::back_inserter(result), [type](const PDFColorProfileIdentifier& identifier) { return identifier.type == type; });
+    return result;
+}
+
 PDFColorProfileIdentifier PDFColorProfileIdentifier::createGray(QString name, QString id, PDFReal temperature, PDFReal gamma)
 {
     PDFColorProfileIdentifier result;
@@ -1494,6 +1634,17 @@ PDFColorProfileIdentifier PDFColorProfileIdentifier::createFile(Type type, QStri
     result.type = type;
     result.name = qMove(name);
     result.id = qMove(id);
+    return result;
+}
+
+PDFColorProfileIdentifier PDFColorProfileIdentifier::createOutputIntent(PDFColorProfileIdentifier::Type type, QString name, QString id, QByteArray profileData)
+{
+    PDFColorProfileIdentifier result;
+    result.type = type;
+    result.name = qMove(name);
+    result.id = qMove(id);
+    result.profileMemoryData = qMove(profileData);
+    result.isOutputIntentProfile = true;
     return result;
 }
 

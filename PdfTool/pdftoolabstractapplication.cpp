@@ -283,6 +283,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("cms-intent", "Rendering intent. Valid values are auto|perceptual|abs|rel|saturation.", "intent", "auto"));
         parser->addOption(QCommandLineOption("cms-black-compensated", "Black point compensation.", "bool", "1"));
         parser->addOption(QCommandLineOption("cms-white-paper-trans", "Transform also color of paper using cms.", "bool", "0"));
+        parser->addOption(QCommandLineOption("cms-consider-output-intents", "Consider output rendering intents in the document.", "bool", "1"));
         parser->addOption(QCommandLineOption("cms-profile-output", "Output color profile.", "profile"));
         parser->addOption(QCommandLineOption("cms-profile-gray", "Gray color profile for gray device.", "profile"));
         parser->addOption(QCommandLineOption("cms-profile-rgb", "RGB color profile for RGB device.", "profile"));
@@ -761,6 +762,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         if (parser->isSet("cms-white-paper-trans"))
         {
             options.cmsSettings.isWhitePaperColorTransformed = parser->value("cms-white-paper-trans").toInt();
+        }
+
+        if (parser->isSet("cms-consider-output-intents"))
+        {
+            options.cmsSettings.isConsiderOutputIntent = parser->value("cms-consider-output-intents").toInt();
         }
 
         auto setProfile = [&parser, &options](QString settings, QString& profile)

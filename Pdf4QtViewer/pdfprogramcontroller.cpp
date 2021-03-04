@@ -1569,6 +1569,7 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document)
 
     m_pdfWidget->setDocument(document);
     m_mainWindowInterface->setDocument(document);
+    m_CMSManager->setDocument(document);
 
     updateTitle();
     m_mainWindowInterface->updateUI(true);

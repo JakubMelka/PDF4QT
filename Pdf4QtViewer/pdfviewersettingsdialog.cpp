@@ -305,6 +305,8 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsAccuracyComboBox->setCurrentIndex(ui->cmsAccuracyComboBox->findData(int(m_cmsSettings.accuracy)));
         ui->cmsIsBlackPointCompensationCheckBox->setEnabled(true);
         ui->cmsIsBlackPointCompensationCheckBox->setChecked(m_cmsSettings.isBlackPointCompensationActive);
+        ui->cmsConsiderOutputIntentCheckBox->setEnabled(true);
+        ui->cmsConsiderOutputIntentCheckBox->setChecked(m_cmsSettings.isConsiderOutputIntent);
         ui->cmsWhitePaperColorTransformedCheckBox->setEnabled(true);
         ui->cmsWhitePaperColorTransformedCheckBox->setChecked(m_cmsSettings.isWhitePaperColorTransformed);
         ui->cmsOutputColorProfileComboBox->setEnabled(true);
@@ -327,6 +329,8 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsAccuracyComboBox->setCurrentIndex(-1);
         ui->cmsIsBlackPointCompensationCheckBox->setEnabled(false);
         ui->cmsIsBlackPointCompensationCheckBox->setChecked(false);
+        ui->cmsConsiderOutputIntentCheckBox->setEnabled(false);
+        ui->cmsConsiderOutputIntentCheckBox->setChecked(false);
         ui->cmsWhitePaperColorTransformedCheckBox->setEnabled(false);
         ui->cmsWhitePaperColorTransformedCheckBox->setChecked(false);
         ui->cmsOutputColorProfileComboBox->setEnabled(false);
@@ -471,6 +475,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->cmsWhitePaperColorTransformedCheckBox)
     {
         m_cmsSettings.isWhitePaperColorTransformed = ui->cmsWhitePaperColorTransformedCheckBox->isChecked();
+    }
+    else if (sender == ui->cmsConsiderOutputIntentCheckBox)
+    {
+        m_cmsSettings.isConsiderOutputIntent = ui->cmsConsiderOutputIntentCheckBox->isChecked();
     }
     else if (sender == ui->cmsOutputColorProfileComboBox)
     {
