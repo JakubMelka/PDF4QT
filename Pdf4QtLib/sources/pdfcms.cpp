@@ -274,7 +274,7 @@ bool PDFLittleCMS::fillRGBBufferFromICC(const std::vector<float>& colors, Render
         cmykColors = colors;
         for (size_t i = 0; i < cmykColors.size(); ++i)
         {
-            cmykColors[i] = cmykColors[i] * 100.0;
+            cmykColors[i] = cmykColors[i] * 100.0f;
         }
         inputColors = cmykColors.data();
     }
@@ -321,7 +321,7 @@ bool PDFLittleCMS::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& 
         cmykColors = std::vector<float>(params.input.cbegin(), params.input.cend());
         for (size_t i = 0; i < cmykColors.size(); ++i)
         {
-            cmykColors[i] = cmykColors[i] * 100.0;
+            cmykColors[i] = cmykColors[i] * 100.0f;
         }
         inputColors = cmykColors.data();
     }
@@ -645,7 +645,7 @@ QColor PDFLittleCMS::getColorFromICC(const PDFColor& color, RenderingIntent rend
     {
         for (size_t i = 0; i < color.size(); ++i)
         {
-            inputBuffer[i] = isCMYK ? color[i] * 100.0 : color[i];
+            inputBuffer[i] = isCMYK ? color[i] * 100.0f : color[i];
         }
 
         std::array<float, 3> rgbOutputColor = { };
@@ -837,7 +837,9 @@ cmsHTRANSFORM PDFLittleCMS::getTransform(Profile profile, RenderingIntent intent
 
 cmsUInt32Number PDFLittleCMS::getTransformationFlags() const
 {
-    cmsUInt32Number flags = cmsFLAGS_NOCACHE;
+    // Flag cmsFLAGS_NONEGATIVES is used here to avoid invalid transformation
+    // between CMYK color space and RGB color space in the Ghent output suite examples.
+    cmsUInt32Number flags = cmsFLAGS_NOCACHE | cmsFLAGS_NONEGATIVES;
 
     if (m_settings.isBlackPointCompensationActive)
     {
