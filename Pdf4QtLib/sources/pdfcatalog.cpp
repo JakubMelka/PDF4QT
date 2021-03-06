@@ -261,7 +261,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
 
         auto getObject = [](const PDFObjectStorage*, PDFObject object)
         {
-            return qMove(object);
+            return object;
         };
 
         catalogObject.m_namedDestinations = PDFNameTreeLoader<PDFDestination>::parse(&document->getStorage(), namesDictionary->get("Dests"), parseDestination);

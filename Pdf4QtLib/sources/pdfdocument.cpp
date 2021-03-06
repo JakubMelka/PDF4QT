@@ -363,9 +363,8 @@ std::vector<PDFReal> PDFDocumentDataLoaderDecorator::readNumberArray(const PDFOb
             result.push_back(number);
         }
 
-        // We assume, that RVO (return value optimization) will not work for this function
-        // (multiple return points).
-        return std::move(result);
+        // We assume, that RVO (return value optimization) will work
+        return result;
     }
 
     return defaultValue;
@@ -386,7 +385,7 @@ std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const P
             // This value is not representable in the current PDF parser. So we assume we
             // can't get this value.
             constexpr const PDFInteger INVALID_VALUE = std::numeric_limits<PDFInteger>::max();
-            const PDFReal number = readInteger(array->getItem(i), INVALID_VALUE);
+            const PDFInteger number = readInteger(array->getItem(i), INVALID_VALUE);
             if (number == INVALID_VALUE)
             {
                 return std::vector<PDFInteger>();
@@ -394,9 +393,8 @@ std::vector<PDFInteger> PDFDocumentDataLoaderDecorator::readIntegerArray(const P
             result.push_back(number);
         }
 
-        // We assume, that RVO (return value optimization) will not work for this function
-        // (multiple return points).
-        return std::move(result);
+        // We assume, that RVO (return value optimization) will work
+        return result;
     }
 
     return std::vector<PDFInteger>();
@@ -448,9 +446,8 @@ std::vector<PDFObjectReference> PDFDocumentDataLoaderDecorator::readReferenceArr
             }
         }
 
-        // We assume, that RVO (return value optimization) will not work for this function
-        // (multiple return points).
-        return std::move(result);
+        // We assume, that RVO (return value optimization) will work
+        return result;
     }
 
     return std::vector<PDFObjectReference>();
@@ -480,9 +477,8 @@ std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readNameArray(const PDFO
             }
         }
 
-        // We assume, that RVO (return value optimization) will not work for this function
-        // (multiple return points).
-        return std::move(result);
+        // We assume, that RVO (return value optimization) will work
+        return result;
     }
 
     return std::vector<QByteArray>();
@@ -619,9 +615,8 @@ std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArray(const PD
             }
         }
 
-        // We assume, that RVO (return value optimization) will not work for this function
-        // (multiple return points).
-        return std::move(result);
+        // We assume, that RVO (return value optimization) will work
+        return result;
     }
 
     return std::vector<QByteArray>();

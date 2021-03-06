@@ -315,7 +315,7 @@ public:
     virtual void resetValue(const ResetValueParameters& parameters) override;
 
 private:
-    friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
     /// List of export names of 'On' state for radio buttons. In widget annotation's appearance
     /// dictionaries, state names are computer generated numbers (for example /1, /3, ...),
@@ -340,7 +340,7 @@ public:
     virtual void resetValue(const ResetValueParameters& parameters) override;
 
 private:
-    friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
     /// Maximal length of text in the field. If zero,
     /// no maximal length is specified.
@@ -387,7 +387,7 @@ public:
     virtual void reloadValue(const PDFObjectStorage* storage, PDFObject parentValue) override;
 
 private:
-    friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
     Options m_options;
     PDFInteger m_topIndex;
@@ -402,7 +402,7 @@ public:
     const PDFSignature& getSignature() const { return m_signature; }
 
 private:
-    friend static PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
 
     PDFSignature m_signature;
 };

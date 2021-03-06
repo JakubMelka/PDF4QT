@@ -73,7 +73,7 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
     const unsigned char* it = dataBegin;
     const constexpr uint32_t STREAM_END = 0xFFFFFFFF;
 
-    auto getChar = [&it, dataEnd, STREAM_END]() -> uint32_t
+    auto getChar = [&it, dataEnd]() -> uint32_t
     {
         // Skip whitespace characters
         while (it != dataEnd && PDFLexicalAnalyzer::isWhitespace(*it))

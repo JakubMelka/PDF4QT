@@ -484,7 +484,7 @@ private:
 class Pdf4QtLIBSHARED_EXPORT PDFFontCMap
 {
 public:
-    constexpr explicit PDFFontCMap() = default;
+    explicit PDFFontCMap() = default;
 
     /// Returns true, if mapping is valid
     bool isValid() const { return !m_entries.empty(); }

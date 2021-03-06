@@ -132,12 +132,12 @@ public:
     inline ~PDFInplaceOrMemoryString() = default;
 
     // Enforce default copy constructor and default move constructor
-    constexpr inline PDFInplaceOrMemoryString(const PDFInplaceOrMemoryString&) = default;
-    constexpr inline PDFInplaceOrMemoryString(PDFInplaceOrMemoryString&&) = default;
+    inline PDFInplaceOrMemoryString(const PDFInplaceOrMemoryString&) = default;
+    inline PDFInplaceOrMemoryString(PDFInplaceOrMemoryString&&) = default;
 
     // Enforce default copy assignment operator and move assignment operator
-    constexpr inline PDFInplaceOrMemoryString& operator=(const PDFInplaceOrMemoryString&) = default;
-    constexpr inline PDFInplaceOrMemoryString& operator=(PDFInplaceOrMemoryString&&) = default;
+    inline PDFInplaceOrMemoryString& operator=(const PDFInplaceOrMemoryString&) = default;
+    inline PDFInplaceOrMemoryString& operator=(PDFInplaceOrMemoryString&&) = default;
 
     bool equals(const char* value, size_t length) const;
 
@@ -183,8 +183,8 @@ public:
 
     // Default constructor should be constexpr
     constexpr inline PDFObject() :
-        m_type(Type::Null),
-        m_data()
+        m_data(),
+        m_type(Type::Null)
     {
 
     }
@@ -193,12 +193,12 @@ public:
     inline ~PDFObject() = default;
 
     // Enforce default copy constructor and default move constructor
-    constexpr inline PDFObject(const PDFObject&) = default;
-    constexpr inline PDFObject(PDFObject&&) = default;
+    inline PDFObject(const PDFObject&) = default;
+    inline PDFObject(PDFObject&&) = default;
 
     // Enforce default copy assignment operator and move assignment operator
-    constexpr inline PDFObject& operator=(const PDFObject&) = default;
-    constexpr inline PDFObject& operator=(PDFObject&&) = default;
+    inline PDFObject& operator=(const PDFObject&) = default;
+    inline PDFObject& operator=(PDFObject&&) = default;
 
     inline Type getType() const { return m_type; }
 
@@ -268,7 +268,7 @@ public:
 
 private:
     template<typename T>
-    constexpr inline PDFObject(Type type, T&& value) :
+    inline PDFObject(Type type, T&& value) :
         m_data(std::forward<T>(value)),
         m_type(type)
     {
@@ -310,7 +310,7 @@ private:
 class PDFArray : public PDFObjectContent
 {
 public:
-    inline constexpr PDFArray() = default;
+    inline PDFArray() = default;
     inline PDFArray(std::vector<PDFObject>&& objects) : m_objects(qMove(objects)) { }
     virtual ~PDFArray() override = default;
 
@@ -354,7 +354,7 @@ class Pdf4QtLIBSHARED_EXPORT PDFDictionary : public PDFObjectContent
 public:
     using DictionaryEntry = std::pair<PDFInplaceOrMemoryString, PDFObject>;
 
-    inline constexpr PDFDictionary() = default;
+    inline PDFDictionary() = default;
     inline PDFDictionary(std::vector<DictionaryEntry>&& dictionary) : m_dictionary(qMove(dictionary)) { }
     virtual ~PDFDictionary() override = default;
 
@@ -453,7 +453,7 @@ private:
 class PDFStream : public PDFObjectContent
 {
 public:
-    inline explicit constexpr PDFStream() = default;
+    inline explicit PDFStream() = default;
     inline explicit PDFStream(PDFDictionary&& dictionary, QByteArray&& content) :
         m_dictionary(std::move(dictionary)),
         m_content(std::move(content))

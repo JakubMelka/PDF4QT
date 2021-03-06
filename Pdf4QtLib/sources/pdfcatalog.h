@@ -94,6 +94,11 @@ public:
     /// Comparison operator, works only with page indices (because they should be unique)
     bool operator<(const PDFPageLabel& other) const { return m_pageIndex < other.m_pageIndex; }
 
+    NumberingStyle getNumberingStyle() const { return m_numberingType; }
+    const QString& getPrefix() const { return m_prefix; }
+    PDFInteger getPageIndex() const { return m_pageIndex; }
+    PDFInteger getPageStartNumber() const { return m_startNumber; }
+
     /// Parses page label object from PDF object, according to PDF Reference 1.7, Table 8.10
     static PDFPageLabel parse(PDFInteger pageIndex, const PDFObjectStorage* storage, const PDFObject& object);
 
@@ -196,13 +201,13 @@ public:
         EndProperties
     };
 
-    constexpr inline PDFViewerPreferences() = default;
+    inline PDFViewerPreferences() = default;
 
-    constexpr inline PDFViewerPreferences(const PDFViewerPreferences&) = default;
-    constexpr inline PDFViewerPreferences(PDFViewerPreferences&&) = default;
+    inline PDFViewerPreferences(const PDFViewerPreferences&) = default;
+    inline PDFViewerPreferences(PDFViewerPreferences&&) = default;
 
-    constexpr inline PDFViewerPreferences& operator=(const PDFViewerPreferences&) = default;
-    constexpr inline PDFViewerPreferences& operator=(PDFViewerPreferences&&) = default;
+    inline PDFViewerPreferences& operator=(const PDFViewerPreferences&) = default;
+    inline PDFViewerPreferences& operator=(PDFViewerPreferences&&) = default;
 
     /// Parses viewer preferences from catalog dictionary. If object cannot be parsed, or error occurs,
     /// then exception is thrown.
@@ -561,13 +566,13 @@ private:
 class Pdf4QtLIBSHARED_EXPORT PDFCatalog
 {
 public:
-    constexpr inline PDFCatalog() = default;
+    inline PDFCatalog() = default;
 
-    constexpr inline PDFCatalog(const PDFCatalog&) = default;
-    constexpr inline PDFCatalog(PDFCatalog&&) = default;
+    inline PDFCatalog(const PDFCatalog&) = default;
+    inline PDFCatalog(PDFCatalog&&) = default;
 
-    constexpr inline PDFCatalog& operator=(const PDFCatalog&) = default;
-    constexpr inline PDFCatalog& operator=(PDFCatalog&&) = default;
+    inline PDFCatalog& operator=(const PDFCatalog&) = default;
+    inline PDFCatalog& operator=(PDFCatalog&&) = default;
 
     static constexpr const size_t INVALID_PAGE_INDEX = std::numeric_limits<size_t>::max();
 

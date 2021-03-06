@@ -217,7 +217,7 @@ class PDFInvalidPattern : public PDFPattern
 public:
     explicit PDFInvalidPattern() = default;
 
-    virtual PatternType getType() const { return PatternType::Invalid; }
+    virtual PatternType getType() const override { return PatternType::Invalid; }
     virtual const PDFShadingPattern* getShadingPattern() const override { return nullptr; }
     virtual const PDFTilingPattern* getTilingPattern() const override { return nullptr; }
 };
@@ -399,7 +399,7 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const;
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
 private:
     friend class PDFPattern;

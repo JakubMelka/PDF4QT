@@ -2196,6 +2196,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         }
     }
 
+    int8_t gbat0_x = -static_cast<int8_t>(HDPW);
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = HDMMR;
     parameters.GBW = (GRAYMAX + 1) * HDPW;
@@ -2203,7 +2204,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
     parameters.GBTEMPLATE = HDTEMPLATE;
     parameters.TPGDON = false;
     parameters.SKIP = nullptr;
-    parameters.GBAT[0] = { -static_cast<int8_t>(HDPW), 0 };
+    parameters.GBAT[0] = { gbat0_x, 0 };
     parameters.GBAT[1] = { -3, -1 };
     parameters.GBAT[2] = { 2, -2 };
     parameters.GBAT[3] = { -2, -2 };
@@ -2363,6 +2364,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     }
 
     /*  Annex C5 decoding procedure */
+    const int8_t gbat0_x = ((HTEMPLATE <= 1) ? 3 : 2);
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = HMMR;
     parameters.GBW = HGW;
@@ -2370,7 +2372,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     parameters.GBTEMPLATE = HTEMPLATE;
     parameters.SKIP = HENABLESKIP ? &HSKIP : nullptr;
     parameters.TPGDON = false;
-    parameters.GBAT[0] = { ((HTEMPLATE <= 1) ? 3 : 2), -1 };
+    parameters.GBAT[0] = { gbat0_x, -1 };
     parameters.GBAT[1] = { -3, -1 };
     parameters.GBAT[2] = { 2, -2 };
     parameters.GBAT[3] = { -2, -2 };
@@ -2660,6 +2662,8 @@ void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
 
     const uint8_t flags = m_reader.readUnsignedByte();
     const uint16_t striping = m_reader.readUnsignedWord();
+
+    Q_UNUSED(striping);
 
     m_pageDefaultPixelValue = (flags & 0x04) ? 0xFF : 0x00;
     m_pageDefaultCompositionOperatorOverriden = (flags & 0x40);

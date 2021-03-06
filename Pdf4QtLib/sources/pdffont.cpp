@@ -373,8 +373,10 @@ public:
 class PDFRealizedType3FontImpl : public IRealizedFontImpl
 {
 public:
-    explicit PDFRealizedType3FontImpl(PDFFontPointer parentFont, PDFReal pixelSize) : m_parentFont(parentFont), m_pixelSize(pixelSize) { }
+    explicit PDFRealizedType3FontImpl(PDFFontPointer parentFont, PDFReal pixelSize) : m_pixelSize(pixelSize), m_parentFont(parentFont) { }
     virtual ~PDFRealizedType3FontImpl() override = default;
+
+    PDFReal getPixelSize() const { return m_pixelSize; }
 
     virtual void fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter) override;
     virtual bool isHorizontalWritingSystem() const override;
@@ -1942,7 +1944,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
             return std::pair<unsigned int, unsigned int>();
         };
 
-        auto fetchCID = [&parser] (const PDFLexicalAnalyzer::Token& currentToken) -> CID
+        auto fetchCID = [] (const PDFLexicalAnalyzer::Token& currentToken) -> CID
         {
             if (currentToken.type == PDFLexicalAnalyzer::TokenType::Integer)
             {
@@ -1953,7 +1955,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
             return 0;
         };
 
-        auto fetchUnicode = [&parser](const PDFLexicalAnalyzer::Token& currentToken) -> CID
+        auto fetchUnicode = [](const PDFLexicalAnalyzer::Token& currentToken) -> CID
         {
             if (currentToken.type == PDFLexicalAnalyzer::TokenType::String)
             {

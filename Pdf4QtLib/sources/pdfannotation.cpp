@@ -496,7 +496,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         std::vector<PDFReal> captionOffset = loader.readNumberArrayFromDictionary(dictionary, "CO");
         if (captionOffset.size() == 2)
         {
-            lineAnnotation->m_captionOffset == QPointF(captionOffset[0], captionOffset[1]);
+            lineAnnotation->m_captionOffset = QPointF(captionOffset[0], captionOffset[1]);
         }
     }
     else if (subtype == "Square" || subtype == "Circle")
@@ -1056,7 +1056,7 @@ QPen PDFAnnotation::getPen() const
     {
         PDFLineDashPattern lineDashPattern(border.getDashPattern(), 0.0);
         pen.setStyle(Qt::CustomDashLine);
-        pen.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+        pen.setDashPattern(QVector<qreal>(lineDashPattern.getDashArray().begin(), lineDashPattern.getDashArray().end()));
         pen.setDashOffset(lineDashPattern.getDashOffset());
     }
 
@@ -1562,7 +1562,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
     if (isContentVisible && m_target == Target::View)
     {
         PDFPainterStateGuard guard(painter);
-        painter->resetMatrix();
+        painter->resetTransform();
         drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, userSpaceToDeviceSpace);
     }
 }
@@ -3518,7 +3518,7 @@ const PDFAnnotationManager::PageAnnotation* PDFAnnotationManager::PageAnnotation
     if (markupAnnotation)
     {
         const PDFObjectReference popupAnnotation = markupAnnotation->getPopupAnnotation();
-        auto it = std::find_if(annotations.cbegin(), annotations.cend(), [this, popupAnnotation](const PageAnnotation& pa) { return pa.annotation->getSelfReference() == popupAnnotation; });
+        auto it = std::find_if(annotations.cbegin(), annotations.cend(), [popupAnnotation](const PageAnnotation& pa) { return pa.annotation->getSelfReference() == popupAnnotation; });
         if (it != annotations.cend())
         {
             return &*it;

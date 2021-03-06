@@ -616,8 +616,8 @@ public:
     QImage toImage(bool use16Bit, bool usePaper = false, PDFRGB paperColor = PDFRGB()) const;
 
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
-    virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern);
-    virtual void performFinishPathPainting();
+    virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern) override;
+    virtual void performFinishPathPainting() override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;
@@ -628,7 +628,7 @@ public:
     virtual void performTextEnd(ProcessOrder order) override;
     virtual bool performOriginalImagePainting(const PDFImage& image) override;
     virtual void performImagePainting(const QImage& image) override;
-    virtual void performMeshPainting(const PDFMesh& mesh);
+    virtual void performMeshPainting(const PDFMesh& mesh) override;
 
 private:
 

@@ -1672,7 +1672,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     const VertexData* vc = nullptr;
     const VertexData* vd = nullptr;
 
-    auto addTriangle = [this, &settings, &mesh, &vertices, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
     {
         const uint32_t via = va->index;
         const uint32_t vib = vb->index;

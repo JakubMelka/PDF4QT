@@ -837,7 +837,7 @@ std::vector<PDFInteger> PDFPageImageExportSettings::getPages() const
                 }
 
                 // We must remove duplicate pages
-                qSort(result);
+                std::sort(result.begin(), result.end());
                 result.erase(std::unique(result.begin(), result.end()), result.end());
             }
 

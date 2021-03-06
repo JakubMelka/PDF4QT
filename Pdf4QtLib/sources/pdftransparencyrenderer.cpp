@@ -503,7 +503,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                 {
                     if (!isProcessColorSubtractive)
                     {
-                        for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
+                        for (uint8_t i = processColorChannelStart; i < processColorChannelEnd; ++i)
                         {
                             const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
                             B_i[i] = PDFBlendFunction::blend(pixelBlendMode, backdropColor[i], sourceColor[i]);
@@ -511,7 +511,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     }
                     else
                     {
-                        for (uint8_t i = pixelFormat.getProcessColorChannelIndexStart(); i < pixelFormat.getProcessColorChannelIndexEnd(); ++i)
+                        for (uint8_t i = processColorChannelStart; i < processColorChannelEnd; ++i)
                         {
                             const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
                             B_i[i] = 1.0f - PDFBlendFunction::blend(pixelBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
@@ -524,7 +524,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
 
                     if (!isSpotColorSubtractive)
                     {
-                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        for (uint8_t i = spotColorChannelStart; i < spotColorChannelEnd; ++i)
                         {
                             const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
                             B_i[i] = PDFBlendFunction::blend(pixelBlendMode, backdropColor[i], sourceColor[i]);
@@ -532,7 +532,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     }
                     else
                     {
-                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        for (uint8_t i = spotColorChannelStart; i < spotColorChannelEnd; ++i)
                         {
                             const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
                             B_i[i] = 1.0f - PDFBlendFunction::blend(pixelBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
@@ -550,8 +550,8 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                         case 1:
                         {
                             // Gray
-                            const PDFGray Cb = backdropColor[pixelFormat.getProcessColorChannelIndexStart()];
-                            const PDFGray Cs = sourceColor[pixelFormat.getProcessColorChannelIndexStart()];
+                            const PDFGray Cb = backdropColor[processColorChannelStart];
+                            const PDFGray Cs = sourceColor[processColorChannelStart];
                             const PDFGray blended = PDFBlendFunction::blend_Nonseparable(mode, Cb, Cs);
                             B_i[pixelFormat.getProcessColorChannelIndexStart()] = blended;
                             break;
@@ -560,35 +560,35 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                         case 3:
                         {
                             // RGB
-                            const PDFRGB Cb = { backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
-                                                backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
-                                                backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 2] };
-                            const PDFRGB Cs = { sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
-                                                sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
-                                                sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 2] };
+                            const PDFRGB Cb = { backdropColor[processColorChannelStart + 0],
+                                                backdropColor[processColorChannelStart + 1],
+                                                backdropColor[processColorChannelStart + 2] };
+                            const PDFRGB Cs = { sourceColor[processColorChannelStart + 0],
+                                                sourceColor[processColorChannelStart + 1],
+                                                sourceColor[processColorChannelStart + 2] };
                             const PDFRGB blended = PDFBlendFunction::blend_Nonseparable(mode, Cb, Cs);
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 0] = blended[0];
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 1] = blended[1];
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 2] = blended[2];
+                            B_i[processColorChannelStart + 0] = blended[0];
+                            B_i[processColorChannelStart + 1] = blended[1];
+                            B_i[processColorChannelStart + 2] = blended[2];
                             break;
                         }
 
                         case 4:
                         {
                             // CMYK
-                            const PDFCMYK Cb = { backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
-                                                 backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
-                                                 backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 2],
-                                                 backdropColor[pixelFormat.getProcessColorChannelIndexStart() + 3] };
-                            const PDFCMYK Cs = { sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 0],
-                                                 sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 1],
-                                                 sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 2],
-                                                 sourceColor[pixelFormat.getProcessColorChannelIndexStart() + 3] };
+                            const PDFCMYK Cb = { backdropColor[processColorChannelStart + 0],
+                                                 backdropColor[processColorChannelStart + 1],
+                                                 backdropColor[processColorChannelStart + 2],
+                                                 backdropColor[processColorChannelStart + 3] };
+                            const PDFCMYK Cs = { sourceColor[processColorChannelStart + 0],
+                                                 sourceColor[processColorChannelStart + 1],
+                                                 sourceColor[processColorChannelStart + 2],
+                                                 sourceColor[processColorChannelStart + 3] };
                             const PDFCMYK blended = PDFBlendFunction::blend_Nonseparable(mode, Cb, Cs);
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 0] = blended[0];
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 1] = blended[1];
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 2] = blended[2];
-                            B_i[pixelFormat.getProcessColorChannelIndexStart() + 3] = blended[3];
+                            B_i[processColorChannelStart + 0] = blended[0];
+                            B_i[processColorChannelStart + 1] = blended[1];
+                            B_i[processColorChannelStart + 2] = blended[2];
+                            B_i[processColorChannelStart + 3] = blended[3];
                             break;
                         }
 
@@ -606,7 +606,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     const bool isSpotColorSubtractive = pixelFormat.hasSpotColorsSubtractive();
                     if (!isSpotColorSubtractive)
                     {
-                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        for (uint8_t i = spotColorChannelStart; i < spotColorChannelEnd; ++i)
                         {
                             const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
                             B_i[i] = PDFBlendFunction::blend(pixelBlendMode, backdropColor[i], sourceColor[i]);
@@ -614,7 +614,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     }
                     else
                     {
-                        for (uint8_t i = pixelFormat.getSpotColorChannelIndexStart(); i < pixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        for (uint8_t i = spotColorChannelStart; i < spotColorChannelEnd; ++i)
                         {
                             const BlendMode pixelBlendMode = getBlendModeForPixel(x, y, i);
                             B_i[i] = 1.0f - PDFBlendFunction::blend(pixelBlendMode, 1.0f - backdropColor[i], 1.0f - sourceColor[i]);
@@ -3061,6 +3061,9 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
 
                 break;
             }
+
+            default:
+                break;
         }
     }
 

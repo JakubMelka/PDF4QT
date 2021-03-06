@@ -231,11 +231,11 @@ void PDFOptimizer::optimize()
 {
     // Jakub Melka: We divide optimization into stages, each
     // stage can consist from multiple passes.
-    constexpr auto stages = { OptimizationFlags(DereferenceSimpleObjects),
-                              OptimizationFlags(RemoveNullObjects),
-                              OptimizationFlags(RemoveUnusedObjects | MergeIdenticalObjects),
-                              OptimizationFlags(ShrinkObjectStorage),
-                              OptimizationFlags(RecompressFlateStreams) };
+    constexpr OptimizationFlags stages[] = { OptimizationFlags(DereferenceSimpleObjects),
+                                             OptimizationFlags(RemoveNullObjects),
+                                             OptimizationFlags(RemoveUnusedObjects | MergeIdenticalObjects),
+                                             OptimizationFlags(ShrinkObjectStorage),
+                                             OptimizationFlags(RecompressFlateStreams) };
 
     int stage = 1;
 
@@ -337,7 +337,7 @@ bool PDFOptimizer::performRemoveUnusedObjects()
     std::set<PDFObjectReference> references = PDFObjectUtils::getReferences({ m_storage.getTrailerDictionary() }, m_storage);
 
     PDFIntegerRange<size_t> range(0, objects.size());
-    auto processEntry = [this, &counter, &objects, &references](size_t index)
+    auto processEntry = [&counter, &objects, &references](size_t index)
     {
         PDFObjectStorage::Entry& entry = objects[index];
         PDFObjectReference reference(PDFInteger(index), entry.generation);

@@ -273,7 +273,7 @@ public:
     void initializeTextEdit(PDFTextEditPseudowidget* textEdit) const;
 
 protected:
-    virtual void setFocusImpl(bool focused);
+    virtual void setFocusImpl(bool focused) override;
 
 private:
     PDFTextEditPseudowidget m_textEdit;
@@ -446,7 +446,7 @@ public:
     void initializeListBox(PDFListBoxPseudowidget* listBox) const;
 
 protected:
-    virtual void setFocusImpl(bool focused);
+    virtual void setFocusImpl(bool focused) override;
 
 private:
     static PDFFormField::FieldFlags getTextEditFlags(PDFFormField::FieldFlags flags);
@@ -489,7 +489,7 @@ public:
     void initializeListBox(PDFListBoxPseudowidget* listBox) const;
 
 protected:
-    virtual void setFocusImpl(bool focused);
+    virtual void setFocusImpl(bool focused) override;
 
 private:
     /// Returns list of selected items parsed from the object.

@@ -55,8 +55,8 @@ private:
     std::atomic<int> m_percentage = 0;
 };
 
-Q_DECLARE_METATYPE(ProgressStartupInfo)
-
 }   // namespace pdf
+
+Q_DECLARE_METATYPE(pdf::ProgressStartupInfo)
 
 #endif // PDFPROGRESS_H

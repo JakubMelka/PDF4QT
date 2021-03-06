@@ -37,6 +37,7 @@
 
 #pragma warning(push)
 #pragma warning(disable:5033)
+#define CMS_NO_REGISTER_KEYWORD
 #include <lcms2.h>
 #pragma warning(pop)
 
@@ -444,7 +445,7 @@ void PDFClosedIntervalSet::normalize()
     //   1) sort all ranges
     //   2) merge adjacent ones
 
-    qSort(m_intervals);
+    std::sort(m_intervals.begin(), m_intervals.end());
 
     std::vector<ClosedInterval> intervals;
     auto it = m_intervals.cbegin();

@@ -187,7 +187,7 @@ protected:
 class PDFNoneSecurityHandler : public PDFSecurityHandler
 {
 public:
-    virtual EncryptionMode getMode() const { return EncryptionMode::None; }
+    virtual EncryptionMode getMode() const override { return EncryptionMode::None; }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&) override { return AuthorizationResult::OwnerAuthorized; }
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
@@ -201,12 +201,12 @@ public:
 class PDFStandardSecurityHandler : public PDFSecurityHandler
 {
 public:
-    virtual EncryptionMode getMode() const { return EncryptionMode::Standard; }
+    virtual EncryptionMode getMode() const override { return EncryptionMode::Standard; }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) override;
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
-    virtual bool isAllowed(Permission permission) const { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
+    virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
     virtual AuthorizationResult getAuthorizationResult() const override { return m_authorizationData.authorizationResult; }
 
     struct AuthorizationData
@@ -218,7 +218,7 @@ public:
     };
 
 private:
-    friend static PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
+    friend PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
     struct UserOwnerData_r6
     {

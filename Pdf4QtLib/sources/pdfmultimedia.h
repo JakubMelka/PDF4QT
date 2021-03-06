@@ -84,6 +84,7 @@ public:
 
     static PDFMediaOffset parse(const PDFObjectStorage* storage, PDFObject object);
 
+    Type getType() const { return m_type; }
     const TimeData* getTimeData() const { return std::holds_alternative<TimeData>(m_data) ? &std::get<TimeData>(m_data) : nullptr; }
     const FrameData* getFrameData() const { return std::holds_alternative<FrameData>(m_data) ? &std::get<FrameData>(m_data) : nullptr; }
     const MarkerData* getMarkerData() const { return std::holds_alternative<MarkerData>(m_data) ? &std::get<MarkerData>(m_data) : nullptr; }
@@ -152,8 +153,8 @@ public:
                                     std::vector<PDFMediaPlayer>&& playersAlternate,
                                     std::vector<PDFMediaPlayer>&& playersNeverUsed) :
         m_playersMustUsed(qMove(playersMustUsed)),
-        m_playersNeverUsed(qMove(playersNeverUsed)),
-        m_playersAlternate(qMove(playersAlternate))
+        m_playersAlternate(qMove(playersAlternate)),
+        m_playersNeverUsed(qMove(playersNeverUsed))
     {
 
     }
@@ -398,6 +399,10 @@ public:
     }
 
     static PDFMediaMinimumScreenSize parse(const PDFObjectStorage* storage, PDFObject object);
+
+    PDFInteger getMinimumWidth() const { return m_minimumWidth; }
+    PDFInteger getMinimumHeight() const { return m_minimumHeight; }
+    PDFInteger getMonitorSpecifier() const { return m_monitorSpecifier; }
 
 private:
     PDFInteger m_minimumWidth;

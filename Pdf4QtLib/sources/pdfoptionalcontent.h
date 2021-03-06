@@ -80,10 +80,10 @@ class PDFOptionalContentMembershipObject
 public:
     explicit PDFOptionalContentMembershipObject() = default;
 
-    constexpr inline PDFOptionalContentMembershipObject(const PDFOptionalContentMembershipObject&) = delete;
-    constexpr inline PDFOptionalContentMembershipObject(PDFOptionalContentMembershipObject&&) = default;
-    constexpr inline PDFOptionalContentMembershipObject& operator=(const PDFOptionalContentMembershipObject&) = delete;
-    constexpr inline PDFOptionalContentMembershipObject& operator=(PDFOptionalContentMembershipObject&&) = default;
+    inline PDFOptionalContentMembershipObject(const PDFOptionalContentMembershipObject&) = delete;
+    inline PDFOptionalContentMembershipObject(PDFOptionalContentMembershipObject&&) = default;
+    inline PDFOptionalContentMembershipObject& operator=(const PDFOptionalContentMembershipObject&) = delete;
+    inline PDFOptionalContentMembershipObject& operator=(PDFOptionalContentMembershipObject&&) = default;
 
     /// Creates optional content membership dictionary. If creation fails, then
     /// exception is thrown.

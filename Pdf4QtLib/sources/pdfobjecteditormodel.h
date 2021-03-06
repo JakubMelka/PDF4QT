@@ -45,6 +45,15 @@ enum ObjectEditorAttributeType
 
 struct PDFObjectEditorModelAttributeEnumItem
 {
+    PDFObjectEditorModelAttributeEnumItem() = default;
+    PDFObjectEditorModelAttributeEnumItem(QString name, uint32_t flags, PDFObject value) :
+        name(qMove(name)),
+        flags(flags),
+        value(qMove(value))
+    {
+
+    }
+
     QString name;
     uint32_t flags = 0;
     PDFObject value;

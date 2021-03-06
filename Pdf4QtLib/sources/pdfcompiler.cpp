@@ -377,7 +377,7 @@ PDFTextSelection PDFAsynchronousTextLayoutCompiler::getTextSelectionAll(QColor c
 
         QMutex mutex;
         PDFIntegerRange<size_t> pageRange(0, textLayouts.getCount());
-        auto selectPageText = [this, &mutex, &textLayouts, &result, color](PDFInteger pageIndex)
+        auto selectPageText = [&mutex, &textLayouts, &result, color](PDFInteger pageIndex)
         {
             PDFTextLayout textLayout = textLayouts.getTextLayout(pageIndex);
             PDFTextSelectionItems items;

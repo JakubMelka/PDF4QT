@@ -688,7 +688,7 @@ QVariant PDFThumbnailsItemModel::data(const QModelIndex& index, int role) const
             QString key = getKey(index.row());
 
             QPixmap pixmap;
-            if (!m_thumbnailCache.find(key, pixmap))
+            if (!m_thumbnailCache.find(key, &pixmap))
             {
                 QImage thumbnail = m_proxy->drawThumbnailImage(index.row(), m_thumbnailSize);
                 if (!thumbnail.isNull())

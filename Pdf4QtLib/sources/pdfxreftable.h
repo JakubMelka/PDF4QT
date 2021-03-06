@@ -37,15 +37,15 @@ class PDFXRefTable
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFXRefTable)
 
 public:
-    constexpr inline explicit PDFXRefTable() = default;
+    inline explicit PDFXRefTable() = default;
 
     // Enforce default copy constructor and default move constructor
-    constexpr inline PDFXRefTable(const PDFXRefTable&) = default;
-    constexpr inline PDFXRefTable(PDFXRefTable&&) = default;
+    inline PDFXRefTable(const PDFXRefTable&) = default;
+    inline PDFXRefTable(PDFXRefTable&&) = default;
 
     // Enforce default copy assignment operator and move assignment operator
-    constexpr inline PDFXRefTable& operator=(const PDFXRefTable&) = default;
-    constexpr inline PDFXRefTable& operator=(PDFXRefTable&&) = default;
+    inline PDFXRefTable& operator=(const PDFXRefTable&) = default;
+    inline PDFXRefTable& operator=(PDFXRefTable&&) = default;
 
     enum class EntryType
     {

@@ -51,8 +51,8 @@ public:
 
 protected:
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
-    virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
-    virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup);
+    virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
+    virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void setWorldMatrix(const QMatrix& matrix) = 0;
     virtual void setCompositionMode(QPainter::CompositionMode mode) = 0;
 

@@ -672,8 +672,8 @@ void PDFParsingContext::endParsingObject(PDFObjectReference reference)
 
 PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Features features) :
     m_context(context),
-    m_lexicalAnalyzer(data.constData(), data.constData() + data.size()),
-    m_features(features)
+    m_features(features),
+    m_lexicalAnalyzer(data.constData(), data.constData() + data.size())
 {
     m_lookAhead1 = fetch();
     m_lookAhead2 = fetch();
@@ -681,8 +681,8 @@ PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Feature
 
 PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* context, Features features) :
     m_context(context),
-    m_lexicalAnalyzer(begin, end),
-    m_features(features)
+    m_features(features),
+    m_lexicalAnalyzer(begin, end)
 {
     m_lookAhead1 = fetch();
     m_lookAhead2 = fetch();
@@ -691,8 +691,8 @@ PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* cont
 PDFParser::PDFParser(std::function<PDFLexicalAnalyzer::Token ()> tokenFetcher) :
     m_tokenFetcher(qMove(tokenFetcher)),
     m_context(nullptr),
-    m_lexicalAnalyzer(nullptr, nullptr),
-    m_features(None)
+    m_features(None),
+    m_lexicalAnalyzer(nullptr, nullptr)
 {
     m_lookAhead1 = fetch();
     m_lookAhead2 = fetch();

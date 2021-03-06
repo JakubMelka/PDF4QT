@@ -211,7 +211,7 @@ public:
                              const PDFObject& parameters,
                              const PDFSecurityHandler* securityHandler) const override;
 
-    virtual PDFInteger getStreamDataLength(const QByteArray& data, PDFInteger offset) const;
+    virtual PDFInteger getStreamDataLength(const QByteArray& data, PDFInteger offset) const override;
 
     /// Recompresses data. So, first, data are decompressed, and then
     /// recompressed again with maximal compress ratio possible.

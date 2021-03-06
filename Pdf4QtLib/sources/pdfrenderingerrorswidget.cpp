@@ -35,7 +35,7 @@ PDFRenderingErrorsWidget::PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* p
 
     Q_ASSERT(pdfWidget);
     std::vector<PDFInteger> currentPages = pdfWidget->getDrawWidget()->getCurrentPages();
-    qSort(currentPages);
+    std::sort(currentPages.begin(), currentPages.end());
 
     QTreeWidgetItem* scrollToItem = nullptr;
     const PDFWidget::PageRenderingErrors* pageRenderingErrors = pdfWidget->getPageRenderingErrors();
@@ -84,7 +84,7 @@ PDFRenderingErrorsWidget::PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* p
         }
 
         bool isCurrentPage = std::binary_search(currentPages.cbegin(), currentPages.cend(), pageIndex);
-        ui->renderErrorsTreeWidget->setItemExpanded(root, isCurrentPage);
+        root->setExpanded(isCurrentPage);
 
         if (isCurrentPage && !scrollToItem)
         {

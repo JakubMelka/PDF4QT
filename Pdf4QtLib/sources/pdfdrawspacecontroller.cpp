@@ -394,8 +394,8 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_horizontalOffset(0),
     m_controller(nullptr),
     m_widget(nullptr),
-    m_horizontalScrollbar(nullptr),
     m_verticalScrollbar(nullptr),
+    m_horizontalScrollbar(nullptr),
     m_features(PDFRenderer::getDefaultFeatures()),
     m_compiler(new PDFAsynchronousPageCompiler(this)),
     m_textLayoutCompiler(new PDFAsynchronousTextLayoutCompiler(this)),
@@ -878,7 +878,7 @@ std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect)
             pages.push_back(item.pageIndex);
         }
     }
-    qSort(pages);
+    std::sort(pages.begin(), pages.end());
 
     return pages;
 }

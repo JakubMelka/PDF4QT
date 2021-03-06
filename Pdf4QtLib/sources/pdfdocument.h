@@ -41,13 +41,13 @@ class PDFDocumentBuilder;
 class PDFObjectStorage
 {
 public:
-    constexpr inline PDFObjectStorage() = default;
+    inline PDFObjectStorage() = default;
 
-    constexpr inline PDFObjectStorage(const PDFObjectStorage&) = default;
-    constexpr inline PDFObjectStorage(PDFObjectStorage&&) = default;
+    inline PDFObjectStorage(const PDFObjectStorage&) = default;
+    inline PDFObjectStorage(PDFObjectStorage&&) = default;
 
-    constexpr inline PDFObjectStorage& operator=(const PDFObjectStorage&) = default;
-    constexpr inline PDFObjectStorage& operator=(PDFObjectStorage&&) = default;
+    inline PDFObjectStorage& operator=(const PDFObjectStorage&) = default;
+    inline PDFObjectStorage& operator=(PDFObjectStorage&&) = default;
 
     bool operator==(const PDFObjectStorage& other) const;
     bool operator!=(const PDFObjectStorage& other) const { return !(*this == other); }

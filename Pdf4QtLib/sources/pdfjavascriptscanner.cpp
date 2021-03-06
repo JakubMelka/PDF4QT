@@ -32,7 +32,7 @@ PDFJavaScriptScanner::Entries PDFJavaScriptScanner::scan(const std::vector<PDFIn
 {
     Entries result;
 
-    auto scanAction = [this, options, &result](PDFJavaScriptEntry::Type type, PDFInteger pageIndex, const PDFAction* action)
+    auto scanAction = [options, &result](PDFJavaScriptEntry::Type type, PDFInteger pageIndex, const PDFAction* action)
     {
         if (!result.empty() && options.testFlag(FindFirstOnly))
         {
@@ -79,7 +79,7 @@ PDFJavaScriptScanner::Entries PDFJavaScriptScanner::scan(const std::vector<PDFIn
         }
     };
 
-    auto scanContainer = [this, options, &scanAction](PDFJavaScriptEntry::Type type, PDFInteger pageIndex, const auto& container)
+    auto scanContainer = [&scanAction](PDFJavaScriptEntry::Type type, PDFInteger pageIndex, const auto& container)
     {
         for (const PDFActionPtr& action : container)
         {
@@ -107,7 +107,7 @@ PDFJavaScriptScanner::Entries PDFJavaScriptScanner::scan(const std::vector<PDFIn
         PDFForm form = PDFForm::parse(m_document, catalog->getFormObject());
         if (form.isAcroForm() || form.isXFAForm())
         {
-            auto fillActions = [this, &scanContainer](const PDFFormField* formField)
+            auto fillActions = [&scanContainer](const PDFFormField* formField)
             {
                 scanContainer(PDFJavaScriptEntry::Type::Form, -1, formField->getActions().getActions());
             };
@@ -188,7 +188,7 @@ PDFJavaScriptScanner::Entries PDFJavaScriptScanner::scan(const std::vector<PDFIn
         }
     }
 
-    qSort(result);
+    std::sort(result.begin(), result.end());
     if (options.testFlag(Optimize))
     {
         result.erase(std::unique(result.begin(), result.end()), result.end());

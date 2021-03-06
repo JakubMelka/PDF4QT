@@ -24,6 +24,7 @@
 
 #pragma warning(push)
 #pragma warning(disable:5033)
+#define CMS_NO_REGISTER_KEYWORD
 #include <lcms2.h>
 #pragma warning(pop)
 
@@ -708,7 +709,7 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
         if (!identifier.isOutputIntentProfile)
         {
             // Find first output intent color profile
-            auto itOutputIntentColorProfile = std::find_if(profileDescriptors.cbegin(), profileDescriptors.cend(), [&id](const PDFColorProfileIdentifier& identifier) { return identifier.isOutputIntentProfile; });
+            auto itOutputIntentColorProfile = std::find_if(profileDescriptors.cbegin(), profileDescriptors.cend(), [](const PDFColorProfileIdentifier& identifier) { return identifier.isOutputIntentProfile; });
             if (itOutputIntentColorProfile != profileDescriptors.end())
             {
                 it = itOutputIntentColorProfile;
@@ -1215,8 +1216,8 @@ bool PDFCMSGeneric::transformColorSpace(const PDFCMS::ColorSpaceTransformParams&
 
 PDFCMSManager::PDFCMSManager(QObject* parent) :
     BaseClass(parent),
-    m_mutex(QMutex::Recursive),
-    m_document(nullptr)
+    m_document(nullptr),
+    m_mutex(QMutex::Recursive)
 {
 
 }

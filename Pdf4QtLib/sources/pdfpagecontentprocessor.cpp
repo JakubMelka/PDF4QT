@@ -3369,12 +3369,12 @@ bool PDFPageContentProcessor::isContentSuppressedByOC(PDFObjectReference ocgOrOc
 
 PDFPageContentProcessor::PDFPageContentProcessorState::PDFPageContentProcessorState() :
     m_currentTransformationMatrix(),
-    m_fillColorSpace(),
     m_strokeColorSpace(),
-    m_fillColor(Qt::black),
-    m_fillColorOriginal(),
+    m_fillColorSpace(),
     m_strokeColor(Qt::black),
     m_strokeColorOriginal(),
+    m_fillColor(Qt::black),
+    m_fillColorOriginal(),
     m_lineWidth(1.0),
     m_lineCapStyle(Qt::FlatCap),
     m_lineJoinStyle(Qt::MiterJoin),

@@ -858,7 +858,7 @@ PDFTextBlock::PDFTextBlock(PDFTextLines textLines) :
         const PDFReal xR = br.x();
         const PDFReal yL = qRound(bl.y() * 100.0);
         const PDFReal yR = qRound(br.y() * 100.0);
-        return std::tie(-yL, xL) < std::tie(-yR, xR);
+        return std::make_pair(-yL, xL) < std::make_pair(-yR, xR);
     };
     std::sort(m_lines.begin(), m_lines.end(), sortFunction);
 

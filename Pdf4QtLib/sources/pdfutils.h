@@ -29,6 +29,7 @@
 #include <vector>
 #include <iterator>
 #include <functional>
+#include <type_traits>
 
 namespace pdf
 {
@@ -518,10 +519,10 @@ class PDFBuffer
 public:
     using value_type = T;
     using value_ptr = value_type*;
-    using const_value_type = const value_type;
+    using const_value_type = typename std::add_const<value_type>::type;
     using const_value_ptr = const_value_type*;
     using value_ref = value_type&;
-    using const_value_ref = const value_ref;
+    using const_value_ref = typename std::add_const<value_ref>::type;
 
     explicit inline PDFBuffer() :
         m_begin(nullptr),
