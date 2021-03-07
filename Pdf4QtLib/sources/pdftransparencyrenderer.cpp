@@ -698,6 +698,13 @@ void PDFFloatBitmap::fillChannel(size_t channel, PDFColorComponent value)
     }
 }
 
+PDFFloatBitmap PDFFloatBitmap::createOpaqueSoftMask(size_t width, size_t height)
+{
+    PDFFloatBitmap result(width, height, PDFPixelFormat::createOpacityMask());
+    result.makeOpaque();
+    return result;
+}
+
 PDFFloatBitmapWithColorSpace::PDFFloatBitmapWithColorSpace()
 {
 
@@ -945,14 +952,14 @@ QImage PDFTransparencyRenderer::toImageImpl(const PDFFloatBitmapWithColorSpace& 
     return image;
 }
 
-QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB paperColor) const
+QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, const PDFRGB& paperColor) const
 {
     QImage image;
 
     if (m_transparencyGroupDataStack.size() == 1 && // We have finished the painting
-        m_transparencyGroupDataStack.back().immediateBackdrop.getPixelFormat().getProcessColorChannelCount() == 3) // We have exactly three process colors (RGB)
+        getImmediateBackdrop()->getPixelFormat().getProcessColorChannelCount() == 3) // We have exactly three process colors (RGB)
     {
-        const PDFFloatBitmapWithColorSpace& floatImage = m_transparencyGroupDataStack.back().immediateBackdrop;
+        const PDFFloatBitmapWithColorSpace& floatImage = *getImmediateBackdrop();
         Q_ASSERT(floatImage.getPixelFormat().hasOpacityChannel());
 
         if (!usePaper)
@@ -961,13 +968,10 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, PDFRGB pap
         }
 
         PDFFloatBitmapWithColorSpace paperImage(floatImage.getWidth(), floatImage.getHeight(), floatImage.getPixelFormat(), floatImage.getColorSpace());
-        paperImage.makeOpaque();
-        paperImage.fillChannel(0, paperColor[0]);
-        paperImage.fillChannel(1, paperColor[1]);
-        paperImage.fillChannel(2, paperColor[2]);
+        createPaperBitmap(paperImage, paperColor);
 
-        PDFFloatBitmap softMask(paperImage.getWidth(), paperImage.getHeight(), PDFPixelFormat::createOpacityMask());
-        softMask.makeOpaque();
+        PDFFloatBitmap softMask;
+        createOpaqueSoftMask(softMask, paperImage.getWidth(), paperImage.getHeight());
 
         QRect blendRegion(0, 0, int(floatImage.getWidth()), int(floatImage.getHeight()));
         PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, softMask, false, 1.0f, BlendMode::Normal, false, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
@@ -1261,6 +1265,12 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
         throw PDFException(PDFTranslationContext::tr("Invalid image color space."));
     }
 
+    auto setColorSpaceAndMakeOpaque = [&](auto imageColorSpace)
+    {
+        result.setColorSpace(imageColorSpace);
+        result.makeOpaque();
+    };
+
     Q_ASSERT(imageData.isValid());
     if (imageColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::Indexed)
     {
@@ -1309,8 +1319,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
         }
 
         result = PDFFloatBitmapWithColorSpace(imageWidth, imageHeight, PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
-        result.setColorSpace(imageColorSpace);
-        result.makeOpaque();
+        setColorSpaceAndMakeOpaque(imageColorSpace);
 
         for (unsigned int i = 0; i < imageHeight; ++i)
         {
@@ -1378,8 +1387,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
             case PDFImageData::MaskingType::None:
             {
                 result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
-                result.setColorSpace(imageColorSpace);
-                result.makeOpaque();
+                setColorSpaceAndMakeOpaque(imageColorSpace);
 
                 unsigned int componentCount = imageData.getComponents();
                 if (componentCount != colorComponentCount)
@@ -1534,8 +1542,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
             case PDFImageData::MaskingType::ColorKeyMasking:
             {
                 result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
-                result.setColorSpace(imageColorSpace);
-                result.makeOpaque();
+                setColorSpaceAndMakeOpaque(imageColorSpace);
 
                 unsigned int componentCount = imageData.getComponents();
                 if (componentCount != colorComponentCount)
@@ -1689,6 +1696,19 @@ PDFFloatBitmap PDFTransparencyRenderer::getAlphaMaskFromSoftMask(const PDFImageD
     }
 
     return result;
+}
+
+void PDFTransparencyRenderer::createOpaqueBitmap(PDFFloatBitmap& bitmap)
+{
+    bitmap.makeOpaque();
+}
+
+void PDFTransparencyRenderer::createPaperBitmap(PDFFloatBitmap& bitmap, const PDFRGB& paperColor)
+{
+    bitmap.makeOpaque();
+    bitmap.fillChannel(0, paperColor[0]);
+    bitmap.fillChannel(1, paperColor[1]);
+    bitmap.fillChannel(2, paperColor[2]);
 }
 
 void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)

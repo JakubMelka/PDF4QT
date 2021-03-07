@@ -24,6 +24,8 @@
 #include "pdfconstants.h"
 #include "pdfutils.h"
 
+#include <QImage>
+
 namespace pdf
 {
 
@@ -139,6 +141,12 @@ class PDFFloatBitmap
 public:
     explicit PDFFloatBitmap();
     explicit PDFFloatBitmap(size_t width, size_t height, PDFPixelFormat format);
+
+    PDFFloatBitmap(const PDFFloatBitmap&) = default;
+    PDFFloatBitmap(PDFFloatBitmap&&) = default;
+
+    PDFFloatBitmap& operator=(const PDFFloatBitmap&) = default;
+    PDFFloatBitmap& operator=(PDFFloatBitmap&&) = default;
 
     /// Returns buffer with pixel channels
     PDFColorBuffer getPixel(size_t x, size_t y);
@@ -267,6 +275,11 @@ public:
 
     void fillProcessColorChannels(PDFColorComponent value);
     void fillChannel(size_t channel, PDFColorComponent value);
+
+    /// Creates opaque soft mask of given size
+    /// \param width Width
+    /// \param height Height
+    static PDFFloatBitmap createOpaqueSoftMask(size_t width, size_t height);
 
 private:
     PDFPixelFormat m_format;
@@ -613,7 +626,8 @@ public:
     /// with paper color \p paperColor.
     /// \param use16bit Produce 16-bit image instead of standard 8-bit
     /// \param usePaper Blend image with opaque paper, with color \p paperColor
-    QImage toImage(bool use16Bit, bool usePaper = false, PDFRGB paperColor = PDFRGB()) const;
+    /// \param paperColor Paper color
+    QImage toImage(bool use16Bit, bool usePaper, const PDFRGB& paperColor) const;
 
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern) override;
@@ -795,6 +809,10 @@ private:
     /// mask, otherwise function will throw exception.
     /// \param imageData Soft mask data
     PDFFloatBitmap getAlphaMaskFromSoftMask(const PDFImageData& softMask);
+
+    static void createOpaqueBitmap(PDFFloatBitmap& bitmap);
+    static void createPaperBitmap(PDFFloatBitmap& bitmap, const PDFRGB& paperColor);
+    static void createOpaqueSoftMask(PDFFloatBitmap& softMask, size_t width, size_t height) { softMask = PDFFloatBitmap::createOpaqueSoftMask(width, height); }
 
     PDFColorSpacePointer m_deviceColorSpace;    ///< Device color space (color space for final result)
     PDFColorSpacePointer m_processColorSpace;   ///< Process color space (color space, in which is page graphic's blended)
