@@ -1181,6 +1181,8 @@ public:
         m_tAtEnd = axialShadingPattern->getDomainEnd();
         m_tMin = qMin(m_tAtStart, m_tAtEnd);
         m_tMax = qMax(m_tAtStart, m_tAtEnd);
+
+        m_p1p2GCS = p1p2GCS;
     }
 
     virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
@@ -1202,7 +1204,12 @@ public:
         {
             if (!m_axialShadingPattern->isExtendStart())
             {
-                return fillBackgroundColor(outputBuffer);
+                return false;
+            }
+
+            if (fillBackgroundColor(outputBuffer))
+            {
+                return true;
             }
 
             t = m_tAtStart;
@@ -1211,7 +1218,12 @@ public:
         {
             if (!m_axialShadingPattern->isExtendEnd())
             {
-                return fillBackgroundColor(outputBuffer);
+                return false;
+            }
+
+            if (fillBackgroundColor(outputBuffer))
+            {
+                return true;
             }
 
             t = m_tAtEnd;
