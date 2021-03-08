@@ -502,6 +502,101 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
     return PDFPatternPtr();
 }
 
+class PDFFunctionShadingSampler : public PDFShadingSampler
+{
+public:
+    PDFFunctionShadingSampler(const PDFFunctionShading* functionShadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+        PDFShadingSampler(functionShadingPattern),
+        m_functionShadingPattern(functionShadingPattern),
+        m_domain(functionShadingPattern->getDomain())
+    {
+        QMatrix patternSpaceToDeviceSpaceMatrix = functionShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
+        QMatrix domainToDeviceSpaceMatrix = functionShadingPattern->getDomainToTargetTransform() * patternSpaceToDeviceSpaceMatrix;
+
+        if (domainToDeviceSpaceMatrix.isInvertible())
+        {
+            m_deviceSpaceToDomainMatrix = domainToDeviceSpaceMatrix.inverted();
+        }
+        else
+        {
+            m_deviceSpaceToDomainMatrix = QMatrix();
+        }
+    }
+
+    virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
+    {
+        Q_UNUSED(limit);
+
+        if (!m_pattern->getColorSpace() || m_pattern->getColorSpace()->getColorComponentCount() != outputBuffer.size())
+        {
+            // Invalid color space, or invalid color buffer
+            return false;
+        }
+
+        QPointF domainPoint = m_deviceSpaceToDomainMatrix.map(devicePoint);
+
+        if (!m_domain.contains(domainPoint))
+        {
+            return fillBackgroundColor(outputBuffer);
+        }
+
+        const auto& functions = m_functionShadingPattern->getFunctions();
+        std::array<PDFReal, PDF_MAX_COLOR_COMPONENTS> colorBuffer = { };
+
+        if (colorBuffer.size() < outputBuffer.size())
+        {
+            // Jakub Melka: Too much colors - we cant process it
+            return false;
+        }
+
+        std::array<PDFReal, 2> input = { domainPoint.x(), domainPoint.y() };
+
+        if (functions.size() == 1)
+        {
+            Q_ASSERT(outputBuffer.size() <= colorBuffer.size());
+            PDFFunction::FunctionResult result = functions.front()->apply(input.data(), input.data() + input.size(), colorBuffer.data(), colorBuffer.data() + outputBuffer.size());
+
+            if (!result)
+            {
+                // Function call failed
+                return false;
+            }
+        }
+        else
+        {
+            if (functions.size() != outputBuffer.size())
+            {
+                // Invalid number of functions
+                return false;
+            }
+
+            Q_ASSERT(outputBuffer.size() <= colorBuffer.size());
+            for (size_t i = 0, count = outputBuffer.size(); i < count; ++i)
+            {
+                PDFFunction::FunctionResult result = functions[i]->apply(input.data(), input.data() + input.size(), colorBuffer.data() + i, colorBuffer.data() + i + 1);
+
+                if (!result)
+                {
+                    // Function call failed
+                    return false;
+                }
+            }
+        }
+
+        for (size_t i = 0, count = outputBuffer.size(); i < count; ++i)
+        {
+            outputBuffer[i] = colorBuffer[i];
+        }
+
+        return true;
+    }
+
+private:
+    const PDFFunctionShading* m_functionShadingPattern;
+    QRectF m_domain;
+    QMatrix m_deviceSpaceToDomainMatrix;
+};
+
 ShadingType PDFFunctionShading::getShadingType() const
 {
     return ShadingType::Function;
@@ -808,6 +903,11 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, c
     }
 
     return mesh;
+}
+
+PDFShadingSampler* PDFFunctionShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    return new PDFFunctionShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
 
 PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
