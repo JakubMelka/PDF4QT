@@ -1702,6 +1702,229 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings, con
     return mesh;
 }
 
+class PDFRadialShadingSampler : public PDFShadingSampler
+{
+public:
+    PDFRadialShadingSampler(const PDFRadialShading* radialShadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+        PDFShadingSampler(radialShadingPattern),
+        m_radialShadingPattern(radialShadingPattern),
+        m_xStart(0.0),
+        m_xEnd(0.0),
+        m_tAtStart(0.0),
+        m_tAtEnd(0.0),
+        m_tMin(0.0),
+        m_tMax(0.0),
+        m_r0(0.0),
+        m_r1(0.0)
+    {
+        QMatrix patternSpaceToDeviceSpace = radialShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
+
+        QPointF p1 = patternSpaceToDeviceSpace.map(radialShadingPattern->getStartPoint());
+        QPointF p2 = patternSpaceToDeviceSpace.map(radialShadingPattern->getEndPoint());
+
+        // Strategy: for simplification, we rotate the line clockwise so we will
+        // get the shading axis equal to the x-axis.
+        QLineF line(p1, p2);
+        const double angle = line.angleTo(QLineF(0, 0, 1, 0));
+
+        // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
+        // points on the line to the global coordinate system. So, point (0, 0) will
+        // map onto p1 and point (length(p1-p2), 0) will map onto p2.
+        QMatrix p1p2LCS;
+        p1p2LCS.translate(p1.x(), p1.y());
+        p1p2LCS.rotate(angle);
+        QMatrix p1p2GCS = p1p2LCS.inverted();
+
+        QPointF p1m = p1p2GCS.map(p1);
+        QPointF p2m = p1p2GCS.map(p2);
+
+        Q_ASSERT(isZero(p1m.y()));
+        Q_ASSERT(isZero(p2m.y()));
+        Q_ASSERT(p1m.x() <= p2m.x());
+
+        m_xStart = p1m.x();
+        m_xEnd = p2m.x();
+
+        m_tAtStart = radialShadingPattern->getDomainStart();
+        m_tAtEnd = radialShadingPattern->getDomainEnd();
+        m_tMin = qMin(m_tAtStart, m_tAtEnd);
+        m_tMax = qMax(m_tAtStart, m_tAtEnd);
+
+        m_r0 = radialShadingPattern->getR0();
+        m_r1 = radialShadingPattern->getR1();
+
+        m_p1p2GCS = p1p2GCS;
+    }
+
+    virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
+    {
+        Q_UNUSED(limit);
+
+        if (!m_pattern->getColorSpace() || m_pattern->getColorSpace()->getColorComponentCount() != outputBuffer.size())
+        {
+            // Invalid color space, or invalid color buffer
+            return false;
+        }
+
+        QPointF mappedPoint = m_p1p2GCS.map(devicePoint);
+
+        // Well, how to proceed with sampling? We would like to find parameter s for point (x_p, y_p),
+        // where (x_p, y_p) is mappedPoint. According to the formulas in the PDF 2.0 specification, we want
+        // to find variable s:
+        //
+        //    x_c = x_0 + s * (x_1 - x_0)
+        //    y_c = y_0 + s * (y_1 - y_0)
+        //      r = r_0 + s * (r_1 - r_0)
+        //
+        // Where (x_c, y_c) is center of the circle. We assume this simplification: we translate the pattern
+        // to horizontal axis, this implies y_0 = y_1 = 0, so y_c will be always zero. This will allow us to use
+        // simplification.
+        //
+        // This is general equation, which we want to solve:
+        //
+        // (x_p - x_c)^2 + (y_p - y_c)^2 = r^2,
+        // where (x_p, y_p) is sample point, (x_c, y_c) is coordinate of the circle center and r is radius.
+        // If we use y_c = 0, then we get following equation:
+        //
+        // (x_p - x_c)^2 + y_p^2 = r^2,
+        //
+        // If we substitute x_c and r with formulas above, we get:
+        //
+        // (x_p - x_0 - s * (x_1 - x_0))^2 + y_p^2 = (r_0 + s * (r_1 - r_0))^2,
+        //
+        // We also have x_0 = 0, because we have origin at (0, 0), so we get following final equation:
+        //
+        // (x_p - s * x_1)^2 + y_p^2 = (r_0 + s * (r_1 - r_0))^2,
+        //
+        // which is easily solvable quadratic equation in variable s. Using wxMaxima, we get following formula
+        // for our variable s:
+        //
+        // a.s^2 + b.s + c = 0,
+        //
+        // where:
+        //
+        // a = x_1 * x_1 - r_1 * r_1 + 2.0 * r_0 * r_1 - r_0 * r_0 = (x_1 - r_1 + r_0) * (x_1 + r_1 - r_0)
+        // b = 2.0 * (-x_1 * x_p - r_0 * r_1 + r_0 * r_0)
+        // c = y_p * y_p + x_p * x_p - r_0 * r_0
+        //
+
+        Q_ASSERT(qIsNull(m_xStart));
+
+        const PDFReal x_p = mappedPoint.x();
+        const PDFReal y_p = mappedPoint.y();
+        const PDFReal x_1 = m_xEnd;
+        const PDFReal r_0 = m_r0;
+        const PDFReal r_1 = m_r1;
+        const PDFReal a = (x_1 - r_1 + r_0) * (x_1 + r_1 - r_0);
+        const PDFReal b = 2.0 * (-x_1 * x_p - r_0 * r_1 + r_0 * r_0);
+        const PDFReal c = y_p * y_p + x_p * x_p - r_0 * r_0;
+        const PDFReal Dsqr = b * b - 4.0 * a * c;
+
+        if (Dsqr < 0.0)
+        {
+            return false;
+        }
+
+        const PDFReal D = std::sqrt(Dsqr);
+        PDFReal s1 = (-b - D) / (2.0 * a);
+        PDFReal s2 = (-b + D) / (2.0 * a);
+        PDFReal s = 0.0;
+
+        if (s1 < 0.0 && m_radialShadingPattern->isExtendStart())
+        {
+            s1 = 0.0;
+        }
+        if (s2 > 1.0 && m_radialShadingPattern->isExtendEnd())
+        {
+            s2 = 1.0;
+        }
+
+        const bool s1Valid = s1 >= 0.0 && s1 <= 0.0;
+        const bool s2Valid = s2 >= 0.0 && s2 <= 0.0;
+
+        if (s2Valid)
+        {
+            s = s2;
+        }
+        else if (s1Valid)
+        {
+            s = s1;
+        }
+        else
+        {
+            return false;
+        }
+
+        PDFReal t = interpolate(s, m_xStart, m_xEnd, m_tAtStart, m_tAtEnd);
+        t = qBound(m_tMin, t, m_tMax);
+
+        const auto& functions = m_radialShadingPattern->getFunctions();
+        std::array<PDFReal, PDF_MAX_COLOR_COMPONENTS> colorBuffer = { };
+
+        if (colorBuffer.size() < outputBuffer.size())
+        {
+            // Jakub Melka: Too much colors - we cant process it
+            return false;
+        }
+
+        if (functions.size() == 1)
+        {
+            Q_ASSERT(outputBuffer.size() <= colorBuffer.size());
+            PDFFunction::FunctionResult result = functions.front()->apply(&t, &t + 1, colorBuffer.data(), colorBuffer.data() + outputBuffer.size());
+
+            if (!result)
+            {
+                // Function call failed
+                return false;
+            }
+        }
+        else
+        {
+            if (functions.size() != outputBuffer.size())
+            {
+                // Invalid number of functions
+                return false;
+            }
+
+            Q_ASSERT(outputBuffer.size() <= colorBuffer.size());
+            for (size_t i = 0, count = outputBuffer.size(); i < count; ++i)
+            {
+                PDFFunction::FunctionResult result = functions[i]->apply(&t, &t + 1, colorBuffer.data() + i, colorBuffer.data() + i + 1);
+
+                if (!result)
+                {
+                    // Function call failed
+                    return false;
+                }
+            }
+        }
+
+        for (size_t i = 0, count = outputBuffer.size(); i < count; ++i)
+        {
+            outputBuffer[i] = colorBuffer[i];
+        }
+
+        return true;
+    }
+
+private:
+    const PDFRadialShading* m_radialShadingPattern;
+    QMatrix m_p1p2GCS;
+    PDFReal m_xStart;
+    PDFReal m_xEnd;
+    PDFReal m_tAtStart;
+    PDFReal m_tAtEnd;
+    PDFReal m_tMin;
+    PDFReal m_tMax;
+    PDFReal m_r0;
+    PDFReal m_r1;
+};
+
+PDFShadingSampler* PDFRadialShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    return new PDFRadialShadingSampler(this, userSpaceToDeviceSpaceMatrix);
+}
+
 ShadingType PDFFreeFormGouradTriangleShading::getShadingType() const
 {
     return ShadingType::FreeFormGouradTriangle;

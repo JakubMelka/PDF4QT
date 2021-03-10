@@ -417,6 +417,10 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+
+    PDFReal getR0() const { return m_r0; }
+    PDFReal getR1() const { return m_r1; }
 
 private:
     friend class PDFPattern;
