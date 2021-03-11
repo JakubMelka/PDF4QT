@@ -1722,6 +1722,12 @@ public:
         QPointF p1 = patternSpaceToDeviceSpace.map(radialShadingPattern->getStartPoint());
         QPointF p2 = patternSpaceToDeviceSpace.map(radialShadingPattern->getEndPoint());
 
+        QPointF r0TestPoint = patternSpaceToDeviceSpace.map(radialShadingPattern->getStartPoint() + QPointF(0.0, radialShadingPattern->getR0()));
+        QPointF r1TestPoint = patternSpaceToDeviceSpace.map(radialShadingPattern->getEndPoint() + QPointF(0.0, radialShadingPattern->getR1()));
+
+        const PDFReal r0 = QLineF(p1, r0TestPoint).length();
+        const PDFReal r1 = QLineF(p2, r1TestPoint).length();
+
         // Strategy: for simplification, we rotate the line clockwise so we will
         // get the shading axis equal to the x-axis.
         QLineF line(p1, p2);
@@ -1750,8 +1756,8 @@ public:
         m_tMin = qMin(m_tAtStart, m_tAtEnd);
         m_tMax = qMax(m_tAtStart, m_tAtEnd);
 
-        m_r0 = radialShadingPattern->getR0();
-        m_r1 = radialShadingPattern->getR1();
+        m_r0 = r0;
+        m_r1 = r1;
 
         m_p1p2GCS = p1p2GCS;
     }
@@ -1815,7 +1821,8 @@ public:
         const PDFReal x_1 = m_xEnd;
         const PDFReal r_0 = m_r0;
         const PDFReal r_1 = m_r1;
-        const PDFReal a = (x_1 - r_1 + r_0) * (x_1 + r_1 - r_0);
+        const PDFReal r_1_0 = r_1 - r_0;
+        const PDFReal a = x_1 * x_1 - r_1_0 * r_1_0;
         const PDFReal b = 2.0 * (-x_1 * x_p - r_0 * r_1 + r_0 * r_0);
         const PDFReal c = y_p * y_p + x_p * x_p - r_0 * r_0;
         const PDFReal Dsqr = b * b - 4.0 * a * c;
@@ -1825,9 +1832,27 @@ public:
             return false;
         }
 
-        const PDFReal D = std::sqrt(Dsqr);
-        PDFReal s1 = (-b - D) / (2.0 * a);
-        PDFReal s2 = (-b + D) / (2.0 * a);
+        PDFReal s1 = 0.0;
+        PDFReal s2 = 0.0;
+
+        if (qFuzzyIsNull(a))
+        {
+            // We have equation b.s + c = 0
+            if (qFuzzyIsNull(b))
+            {
+                return false;
+            }
+
+            const PDFReal solution = -c / b;
+            s1 = solution;
+            s2 = solution;
+        }
+        else
+        {
+            const PDFReal D = std::sqrt(Dsqr);
+            s1 = (-b - D) / (2.0 * a);
+            s2 = (-b + D) / (2.0 * a);
+        }
         PDFReal s = 0.0;
 
         if (s1 < 0.0 && m_radialShadingPattern->isExtendStart())
