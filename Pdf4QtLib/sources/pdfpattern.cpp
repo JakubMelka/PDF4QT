@@ -1855,32 +1855,50 @@ public:
         }
         PDFReal s = 0.0;
 
-        if (s1 < 0.0 && m_radialShadingPattern->isExtendStart())
+        while (true)
         {
-            s1 = 0.0;
-        }
-        if (s2 > 1.0 && m_radialShadingPattern->isExtendEnd())
-        {
-            s2 = 1.0;
-        }
+            const PDFReal radius2 = r_0 + s2 * r_1_0;
+            if (radius2 >= 0.0)
+            {
+                if (m_radialShadingPattern->isExtendStart())
+                {
+                    s2 = qMax(s2, 0.0);
+                }
+                if (m_radialShadingPattern->isExtendEnd())
+                {
+                    s2 = qMin(s2, 1.0);
+                }
 
-        const bool s1Valid = s1 >= 0.0 && s1 <= 0.0;
-        const bool s2Valid = s2 >= 0.0 && s2 <= 0.0;
+                if (s2 >= 0.0 && s2 <= 1.0)
+                {
+                    s = s2;
+                    break;
+                }
+            }
 
-        if (s2Valid)
-        {
-            s = s2;
-        }
-        else if (s1Valid)
-        {
-            s = s1;
-        }
-        else
-        {
+            const PDFReal radius1 = r_0 + s1 * r_1_0;
+            if (radius1 >= 0.0)
+            {
+                if (m_radialShadingPattern->isExtendStart())
+                {
+                    s1 = qMax(s1, 0.0);
+                }
+                if (m_radialShadingPattern->isExtendEnd())
+                {
+                    s1 = qMin(s1, 1.0);
+                }
+
+                if (s1 >= 0.0 && s1 <= 1.0)
+                {
+                    s = s1;
+                    break;
+                }
+            }
+
             return false;
         }
 
-        PDFReal t = interpolate(s, m_xStart, m_xEnd, m_tAtStart, m_tAtEnd);
+        PDFReal t = interpolate(s, 0.0, 1.0, m_tAtStart, m_tAtEnd);
         t = qBound(m_tMin, t, m_tMax);
 
         const auto& functions = m_radialShadingPattern->getFunctions();
