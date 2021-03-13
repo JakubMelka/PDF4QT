@@ -53,12 +53,18 @@ PDFFloatBitmap::PDFFloatBitmap(size_t width, size_t height, PDFPixelFormat forma
 
 PDFColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y)
 {
+    Q_ASSERT(x < m_width);
+    Q_ASSERT(y < m_height);
+
     const size_t index = getPixelIndex(x, y);
     return PDFColorBuffer(m_data.data() + index, m_pixelSize);
 }
 
 PDFConstColorBuffer PDFFloatBitmap::getPixel(size_t x, size_t y) const
 {
+    Q_ASSERT(x < m_width);
+    Q_ASSERT(y < m_height);
+
     const size_t index = getPixelIndex(x, y);
     return PDFConstColorBuffer(m_data.data() + index, m_pixelSize);
 }
@@ -1912,7 +1918,10 @@ bool PDFTransparencyRenderer::performPathPaintingUsingShading(const QPainterPath
         {
             for (int y = fillRect.top(); y <= fillRect.bottom(); ++y)
             {
-                PDFColorBuffer buffer = texture.getPixel(x, y);
+                const int texelCoordinateX = x - fillRect.left();
+                const int texelCoordinateY = y - fillRect.top();
+
+                PDFColorBuffer buffer = texture.getPixel(texelCoordinateX, texelCoordinateY);
                 bool isSampled = sampler->sample(QPointF(x, y) + offset, buffer.resized(shadingColorComponentCount), m_settings.shadingAlgorithmLimit);
                 const PDFColorComponent textureSampleShape = isSampled ? 1.0f : 0.0f;
                 buffer[textureShapeChannel] = textureSampleShape;
@@ -1929,7 +1938,10 @@ bool PDFTransparencyRenderer::performPathPaintingUsingShading(const QPainterPath
         {
             for (int x = fillRect.left(); x <= fillRect.right(); ++x)
             {
-                PDFColorBuffer buffer = texture.getPixel(x, y);
+                const int texelCoordinateX = x - fillRect.left();
+                const int texelCoordinateY = y - fillRect.top();
+
+                PDFColorBuffer buffer = texture.getPixel(texelCoordinateX, texelCoordinateY);
                 bool isSampled = sampler->sample(QPointF(x, y) + offset, buffer.resized(shadingColorComponentCount), m_settings.shadingAlgorithmLimit);
                 const PDFColorComponent textureSampleShape = isSampled ? 1.0f : 0.0f;
                 buffer[textureShapeChannel] = textureSampleShape;

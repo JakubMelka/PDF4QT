@@ -45,6 +45,11 @@ QMatrix PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQuali
     return m_matrix * settings.userSpaceToDeviceSpaceMatrix;
 }
 
+QMatrix PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const QMatrix& userSpaceToDeviceSpaceMatrix) const
+{
+    return m_matrix * userSpaceToDeviceSpaceMatrix;
+}
+
 PDFShadingSampler* PDFShadingPattern::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
 {
     Q_UNUSED(userSpaceToDeviceSpaceMatrix);
@@ -1968,16 +1973,151 @@ PDFShadingSampler* PDFRadialShading::createSampler(QMatrix userSpaceToDeviceSpac
     return new PDFRadialShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
 
+class PDFTriangleShadingSampler : public PDFShadingSampler
+{
+private:
+    struct Triangle
+    {
+        std::array<uint32_t, 3> vertexIndices = { };
+        std::array<PDFColor, 3> vertexColors;
+        QMatrix barycentricCoordinateMatrix;
+    };
+
+public:
+    PDFTriangleShadingSampler(const PDFType4567Shading* shadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+        PDFShadingSampler(shadingPattern),
+        m_type4567ShadingPattern(shadingPattern)
+    {
+        Q_UNUSED(userSpaceToDeviceSpaceMatrix);
+    }
+
+    virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
+    {
+        Q_UNUSED(limit);
+
+        for (const Triangle& triangle : m_triangles)
+        {
+            // Calculate barycentric coordinates
+            QPointF p3 = m_vertices[triangle.vertexIndices[2]];
+            QPointF b1b2 = triangle.barycentricCoordinateMatrix.map(devicePoint - p3);
+
+            const qreal b1 = b1b2.x();
+            const qreal b2 = b1b2.y();
+            const qreal b3 = 1.0 - b1 - b2;
+
+            if (b1 >= 0.0 && b2 >= 0.0 && b3 >= 0.0 && qFuzzyCompare(b1 + b2 + b3, 1.0))
+            {
+                // Jakub Melka: we got hit, we are in the triangle. Using the barycentric
+                // coordinates, we can calculate result color.
+
+                const PDFColor& c1 = triangle.vertexColors[0];
+                const PDFColor& c2 = triangle.vertexColors[1];
+                const PDFColor& c3 = triangle.vertexColors[2];
+
+                Q_ASSERT(c1.size() == c2.size());
+                Q_ASSERT(c2.size() == c3.size());
+
+                const size_t inputColorSize = c1.size();
+                PDFColor interpolatedColor;
+                interpolatedColor.resize(inputColorSize);
+                for (size_t i = 0; i < inputColorSize; ++i)
+                {
+                    interpolatedColor[i] = c1[i] * b1 + c2[i] * b2 + c3[i] * b3;
+                }
+
+                interpolatedColor = m_type4567ShadingPattern->getColor(interpolatedColor);
+
+                if (interpolatedColor.size() != outputBuffer.size())
+                {
+                    return false;
+                }
+
+                for (size_t i = 0; i < outputBuffer.size(); ++i)
+                {
+                    outputBuffer[i] = interpolatedColor[i];
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void addTriangle(std::array<uint32_t, 3> vertexIndices, std::array<PDFColor, 3> vertexColors)
+    {
+        Triangle triangle;
+        triangle.vertexIndices = qMove(vertexIndices);
+        triangle.vertexColors = qMove(vertexColors);
+
+        // Compute barycentric coordinate matrix, which will tranform cartesian coordinates of given
+        // point in the plane into the barycentric coordinates in the triangle. Barycentric coordinate system
+        // is three point coordinates (b1, b2, b3), where b1,b2,b3 >= 0 and b1 + b2 + b3 = 1.0, such that
+        //
+        // (x, y) = b1 * p1 + b2 * p2 + b3 * p3, where
+        // triangle consists of vertices p1, p2, p3 and (x, y) is point inside triangle. If requirements
+        // of b1, b2, b3 are not met, then point doesn't lie in the triangle.
+        //
+        // We will use following transformation from caresian plane to barycentric coordinate system:
+        // Usign equation b1 + b2 + b3 = 1.0 we get b3 = 1.0 - b1 - b2, so we will get following system
+        // of equations:
+        //
+        // x = b1 * x1 + b2 * x2 + (1.0 - b1 - b2) * x3
+        // y = b1 * y1 + b2 * y2 + (1.0 - b1 - b2) * y3
+        //
+        // b1 * (x1 - x3) + b2 * (x2 - x3) = x - x3
+        // b1 * (y1 - y3) + b2 * (y2 - y3) = y - y3
+        //
+        // Now, we have system of two linear equation of two variables (b1, b2) and b3 can be computed
+        // easily from equation b1 + b2 + b3 = 1.0. Now, we will introduce matrix B:
+        //
+        // B = ( x1 - x3, x2 - x3)
+        //     ( y1 - y3, y2 - y3)
+        //
+        // And we will have final equation:
+        //
+        // (b1, b2) = B^-1 * (p - p3)
+        //
+
+        QPointF p1 = m_vertices[triangle.vertexIndices[0]];
+        QPointF p2 = m_vertices[triangle.vertexIndices[1]];
+        QPointF p3 = m_vertices[triangle.vertexIndices[2]];
+
+        QPointF p1p3 = p1 - p3;
+        QPointF p2p3 = p2 - p3;
+
+        QMatrix B(p1p3.x(), p2p3.x(), p1p3.y(), p2p3.y(), 0.0, 0.0);
+
+        if (!B.isInvertible())
+        {
+            // Jakub Melka: B is is not invertible, triangle is degenerated
+            return;
+        }
+
+        triangle.barycentricCoordinateMatrix = B.inverted();
+        m_triangles.emplace_back(qMove(triangle));
+    }
+
+    void setVertexArray(std::vector<QPointF>&& vertices) { m_vertices = qMove(vertices); }
+    void reserveSpaceForTriangles(size_t triangleCount) { m_triangles.reserve(triangleCount); }
+
+private:
+    const PDFType4567Shading* m_type4567ShadingPattern;
+    std::vector<QPointF> m_vertices;
+    std::vector<Triangle> m_triangles;
+};
+
 ShadingType PDFFreeFormGouradTriangleShading::getShadingType() const
 {
     return ShadingType::FreeFormGouradTriangle;
 }
 
-PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+bool PDFFreeFormGouradTriangleShading::processTriangles(InitializeFunction initializeMeshFunction,
+                                                        AddTriangleFunction addTriangle,
+                                                        const QMatrix& userSpaceToDeviceSpaceMatrix,
+                                                        bool convertColors) const
 {
-    PDFMesh mesh;
-
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
     size_t bitsPerVertex = m_bitsPerFlag + 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
     bitsPerVertex += remainder;
@@ -1987,21 +2127,12 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     if (vertexCount < 3)
     {
         // No mesh produced
-        return mesh;
+        return true;
     }
 
     // We have 3 vertices for start triangle, then for each new vertex, we get
     // a new triangle, or, based on flags, no triangle (if new triangle is processed)
     size_t triangleCount = vertexCount - 2;
-    mesh.reserve(0, triangleCount);
-
-    struct VertexData
-    {
-        uint32_t index = 0;
-        uint8_t flags = 0;
-        QPointF position;
-        PDFColor color;
-    };
 
     const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
     const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
@@ -2013,7 +2144,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     std::vector<QPointF> meshVertices;
     meshVertices.resize(vertexCount);
 
-    auto readVertex = [this, &vertices, &patternSpaceToDeviceSpaceMatrix, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
+    auto readVertex = [this, &vertices, &patternSpaceToDeviceSpaceMatrix, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio, convertColors](size_t index)
     {
         PDFBitReader reader(&m_data, 8);
         reader.seek(index * bytesPerVertex);
@@ -2034,14 +2165,17 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
             data.color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
         }
 
-        data.color = getColor(data.color);
+        if (convertColors)
+        {
+            data.color = getColor(data.color);
+        }
 
         vertices[index] = qMove(data);
     };
 
     PDFIntegerRange indices(size_t(0), vertexCount);
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.begin(), indices.end(), readVertex);
-    mesh.setVertices(qMove(meshVertices));
+    initializeMeshFunction(qMove(meshVertices), triangleCount);
 
     vertices.front().flags = 0;
 
@@ -2049,15 +2183,6 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     const VertexData* vb = nullptr;
     const VertexData* vc = nullptr;
     const VertexData* vd = nullptr;
-
-    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
-    {
-        const uint32_t via = va->index;
-        const uint32_t vib = vb->index;
-        const uint32_t vic = vc->index;
-
-        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter);
-    };
 
     for (size_t i = 0; i < vertexCount;)
     {
@@ -2069,7 +2194,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
             {
                 if (i + 2 >= vertexCount)
                 {
-                    throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid free form gourad triangle data stream - not enough vertices."));
+                    return false;
                 }
                 va = vd;
                 vb = &vertices[i + 1];
@@ -2101,9 +2226,35 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
             }
 
             default:
-                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid free form gourad triangle data stream - invalid vertex flag %1.").arg(vd->flags));
-                break;
+                return false;
         }
+    }
+
+    return true;
+}
+
+PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    PDFMesh mesh;
+
+    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        const uint32_t via = va->index;
+        const uint32_t vib = vb->index;
+        const uint32_t vic = vc->index;
+
+        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter);
+    };
+
+    auto initializeMeshFunction = [&mesh](std::vector<QPointF>&& vertices, size_t triangleCount)
+    {
+        mesh.reserve(0, triangleCount);
+        mesh.setVertices(qMove(vertices));
+    };
+
+    if (!processTriangles(initializeMeshFunction, addTriangle, settings.userSpaceToDeviceSpaceMatrix, true))
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid free form gourad triangle data stream."));
     }
 
     if (m_backgroundColor.isValid())
@@ -2115,6 +2266,35 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     }
 
     return mesh;
+}
+
+PDFShadingSampler* PDFFreeFormGouradTriangleShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    PDFTriangleShadingSampler* sampler = new PDFTriangleShadingSampler(this, userSpaceToDeviceSpaceMatrix);
+
+    auto addTriangle = [sampler](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        const uint32_t via = va->index;
+        const uint32_t vib = vb->index;
+        const uint32_t vic = vc->index;
+
+        sampler->addTriangle({ via, vib, vic }, { va->color, vb->color, vc->color });
+    };
+
+    auto initializeMeshFunction = [sampler](std::vector<QPointF>&& vertices, size_t triangleCount)
+    {
+        sampler->setVertexArray(qMove(vertices));
+        sampler->reserveSpaceForTriangles(triangleCount);
+    };
+
+    if (!processTriangles(initializeMeshFunction, addTriangle, userSpaceToDeviceSpaceMatrix, false))
+    {
+        // Just delete the sampler, data are invalid
+        delete sampler;
+        sampler = nullptr;
+    }
+
+    return sampler;
 }
 
 ShadingType PDFLatticeFormGouradTriangleShading::getShadingType() const

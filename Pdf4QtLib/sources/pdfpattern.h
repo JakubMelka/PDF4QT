@@ -335,6 +335,9 @@ public:
     /// Returns matrix transforming pattern space to device space
     QMatrix getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const;
 
+    /// Returns matrix transforming pattern space to device space
+    QMatrix getPatternSpaceToDeviceSpaceMatrix(const QMatrix& userSpaceToDeviceSpaceMatrix) const;
+
     /// Create sampler which can compute shading colors in device space coordinates. If sampler can't
     /// be created (or shading is invalid), then nullptr is returned.
     /// \param userSpaceToDeviceSpaceMatrix Matrix, which transforms user space points
@@ -434,11 +437,11 @@ class PDFType4567Shading : public PDFShadingPattern
 public:
     explicit PDFType4567Shading() = default;
 
-protected:
-    friend class PDFPattern;
-
     /// Returns color for given color or function parameter
     PDFColor getColor(PDFColor colorOrFunctionParameter) const;
+
+protected:
+    friend class PDFPattern;
 
     void addSubdividedTriangles(const PDFMeshQualitySettings& settings,
                                 PDFMesh& mesh,
@@ -477,9 +480,26 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
 private:
+    struct VertexData
+    {
+        uint32_t index = 0;
+        uint8_t flags = 0;
+        QPointF position;
+        PDFColor color;
+    };
+
     friend class PDFPattern;
+
+    using InitializeFunction = std::function<void(std::vector<QPointF>&&, size_t)>;
+    using AddTriangleFunction = std::function<void(const VertexData*, const VertexData*, const VertexData*)>;
+
+    bool processTriangles(InitializeFunction initializeMeshFunction,
+                          AddTriangleFunction addTriangle,
+                          const QMatrix& userSpaceToDeviceSpaceMatrix,
+                          bool convertColors) const;
 };
 
 class PDFLatticeFormGouradTriangleShading : public PDFType4567Shading
