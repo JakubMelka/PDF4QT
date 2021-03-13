@@ -1998,8 +1998,7 @@ public:
         for (const Triangle& triangle : m_triangles)
         {
             // Calculate barycentric coordinates
-            QPointF p3 = m_vertices[triangle.vertexIndices[2]];
-            QPointF b1b2 = triangle.barycentricCoordinateMatrix.map(devicePoint - p3);
+            QPointF b1b2 = triangle.barycentricCoordinateMatrix.map(devicePoint);
 
             const qreal b1 = b1b2.x();
             const qreal b2 = b1b2.y();
@@ -2086,7 +2085,7 @@ public:
         QPointF p1p3 = p1 - p3;
         QPointF p2p3 = p2 - p3;
 
-        QMatrix B(p1p3.x(), p2p3.x(), p1p3.y(), p2p3.y(), 0.0, 0.0);
+        QMatrix B(p1p3.x(), p1p3.y(), p2p3.x(), p2p3.y(), 0.0, 0.0);
 
         if (!B.isInvertible())
         {
@@ -2094,7 +2093,13 @@ public:
             return;
         }
 
-        triangle.barycentricCoordinateMatrix = B.inverted();
+        // We precalculate B^-1 * (-p3), so we do not have it to compute it
+        // in each iteration.
+        QMatrix Binv = B.inverted();
+        QPointF pt = Binv.map(-p3);
+        Binv.setMatrix(Binv.m11(), Binv.m12(), Binv.m21(), Binv.m22(), pt.x(), pt.y());
+
+        triangle.barycentricCoordinateMatrix = Binv;
         m_triangles.emplace_back(qMove(triangle));
     }
 
