@@ -509,9 +509,25 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
 private:
     friend class PDFPattern;
+
+    struct VertexData
+    {
+        uint32_t index = 0;
+        QPointF position;
+        PDFColor color;
+    };
+
+    using InitializeFunction = std::function<void(std::vector<QPointF>&&, size_t)>;
+    using AddTriangleFunction = std::function<void(const VertexData*, const VertexData*, const VertexData*)>;
+
+    bool processTriangles(InitializeFunction initializeMeshFunction,
+                          AddTriangleFunction addTriangle,
+                          const QMatrix& userSpaceToDeviceSpaceMatrix,
+                          bool convertColors) const;
 
     PDFInteger m_verticesPerRow = 0;
 };

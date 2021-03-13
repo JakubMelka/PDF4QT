@@ -2307,11 +2307,12 @@ ShadingType PDFLatticeFormGouradTriangleShading::getShadingType() const
     return ShadingType::LatticeFormGouradTriangle;
 }
 
-PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+bool PDFLatticeFormGouradTriangleShading::processTriangles(InitializeFunction initializeMeshFunction,
+                                                           AddTriangleFunction addTriangle,
+                                                           const QMatrix& userSpaceToDeviceSpaceMatrix,
+                                                           bool convertColors) const
 {
-    PDFMesh mesh;
-
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
     size_t bitsPerVertex = 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
     bitsPerVertex += remainder;
@@ -2323,20 +2324,12 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     if (rowCount < 2)
     {
         // No mesh produced
-        return mesh;
+        return false;
     }
 
     // We have 2 triangles for each quad. We have (columnCount - 1) quads
     // in single line and we have (rowCount - 1) lines.
     size_t triangleCount = (rowCount - 1) * (columnCount - 1) * 2;
-    mesh.reserve(0, triangleCount);
-
-    struct VertexData
-    {
-        uint32_t index = 0;
-        QPointF position;
-        PDFColor color;
-    };
 
     const PDFReal vertexScaleRatio = 1.0 / double((static_cast<uint64_t>(1) << m_bitsPerCoordinate) - 1);
     const PDFReal xScaleRatio = (m_xmax - m_xmin) * vertexScaleRatio;
@@ -2348,7 +2341,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     std::vector<QPointF> meshVertices;
     meshVertices.resize(vertexCount);
 
-    auto readVertex = [this, &vertices, &patternSpaceToDeviceSpaceMatrix, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio](size_t index)
+    auto readVertex = [this, &vertices, &patternSpaceToDeviceSpaceMatrix, &meshVertices, bytesPerVertex, xScaleRatio, yScaleRatio, colorScaleRatio, convertColors](size_t index)
     {
         PDFBitReader reader(&m_data, 8);
         reader.seek(index * bytesPerVertex);
@@ -2368,14 +2361,17 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
             data.color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
         }
 
-        data.color = getColor(data.color);
+        if (convertColors)
+        {
+            data.color = getColor(data.color);
+        }
 
         vertices[index] = qMove(data);
     };
 
     PDFIntegerRange indices(size_t(0), vertexCount);
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, indices.begin(), indices.end(), readVertex);
-    mesh.setVertices(qMove(meshVertices));
+    initializeMeshFunction(qMove(meshVertices), triangleCount);
 
     auto getVertexIndex = [columnCount](size_t row, size_t column) -> size_t
     {
@@ -2396,9 +2392,36 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
             const VertexData& vertexBottomRight = vertices[vBottomRight];
             const VertexData& vertexBottomLeft = vertices[vBottomLeft];
 
-            addSubdividedTriangles(settings, mesh, vertexTopLeft.index, vertexTopRight.index, vertexBottomRight.index, vertexTopLeft.color, vertexTopRight.color, vertexBottomRight.color, cms, intent, reporter);
-            addSubdividedTriangles(settings, mesh, vertexBottomRight.index, vertexBottomLeft.index, vertexTopLeft.index, vertexBottomRight.color, vertexBottomLeft.color, vertexTopLeft.color, cms, intent, reporter);
+            addTriangle(&vertexTopLeft, &vertexTopRight, &vertexBottomRight);
+            addTriangle(&vertexBottomRight, &vertexBottomLeft, &vertexTopLeft);
         }
+    }
+
+    return true;
+}
+
+PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    PDFMesh mesh;
+
+    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        const uint32_t via = va->index;
+        const uint32_t vib = vb->index;
+        const uint32_t vic = vc->index;
+
+        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter);
+    };
+
+    auto initializeMeshFunction = [&mesh](std::vector<QPointF>&& vertices, size_t triangleCount)
+    {
+        mesh.reserve(0, triangleCount);
+        mesh.setVertices(qMove(vertices));
+    };
+
+    if (!processTriangles(initializeMeshFunction, addTriangle, settings.userSpaceToDeviceSpaceMatrix, true))
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid lattice form gourad triangle data stream."));
     }
 
     if (m_backgroundColor.isValid())
@@ -2410,6 +2433,35 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     }
 
     return mesh;
+}
+
+PDFShadingSampler* PDFLatticeFormGouradTriangleShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    PDFTriangleShadingSampler* sampler = new PDFTriangleShadingSampler(this, userSpaceToDeviceSpaceMatrix);
+
+    auto addTriangle = [sampler](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        const uint32_t via = va->index;
+        const uint32_t vib = vb->index;
+        const uint32_t vic = vc->index;
+
+        sampler->addTriangle({ via, vib, vic }, { va->color, vb->color, vc->color });
+    };
+
+    auto initializeMeshFunction = [sampler](std::vector<QPointF>&& vertices, size_t triangleCount)
+    {
+        sampler->setVertexArray(qMove(vertices));
+        sampler->reserveSpaceForTriangles(triangleCount);
+    };
+
+    if (!processTriangles(initializeMeshFunction, addTriangle, userSpaceToDeviceSpaceMatrix, false))
+    {
+        // Just delete the sampler, data are invalid
+        delete sampler;
+        sampler = nullptr;
+    }
+
+    return sampler;
 }
 
 PDFColor PDFType4567Shading::getColor(PDFColor colorOrFunctionParameter) const
