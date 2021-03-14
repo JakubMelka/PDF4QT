@@ -2602,6 +2602,76 @@ QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v, int derivativeOrderU, int
     return result;
 }
 
+bool PDFTensorPatch::getUV(PDFReal& u, PDFReal& v, PDFReal x, PDFReal y, PDFReal epsilon, int maximalNumberOfSteps) const
+{
+    int i = 0;
+
+    // Jakub Melka: We are finding root of function F(u, v) defined as:
+    //
+    //            F(u, v) = getValue(u, v) - (x, y)
+    //
+    // And using Newton-Raphson method to find the root
+    //   v_n+1 = v_n - J^-1(v_n) * F(v_n)
+    //
+    // Where J^-1 is inverse of Jacobi matrix of the function F(u, v), defined as:
+    //   dF1/du   dF1/dv
+    //   dF2/du   dF2/dv
+
+    QPointF v_n(u, v);
+    QPointF p_xy(x, y);
+
+    while (i++ < maximalNumberOfSteps)
+    {
+        // Evaluate function at pivot
+        QPointF value_F_v_n = getValue(v_n.x(), v_n.y(), 0, 0) - p_xy;
+
+        // Do we actually converge?
+        if (qAbs(value_F_v_n.x()) < epsilon && qAbs(value_F_v_n.y()) < epsilon)
+        {
+            u = v_n.x();
+            v = v_n.y();
+
+            const bool uValid = u >= 0.0 && u <= 1.0;
+            const bool vValid = v >= 0.0 && v <= 1.0;
+
+            return uValid && vValid;
+        }
+
+        // Evaluate Jacobi matrix
+        QPointF dfdu = getValue(v_n.x(), v_n.y(), 1, 0);
+        QPointF dfdv = getValue(v_n.x(), v_n.y(), 0, 1);
+
+        const PDFReal m11 = dfdu.x();
+        const PDFReal m12 = dfdv.x();
+        const PDFReal m21 = dfdu.y();
+        const PDFReal m22 = dfdv.y();
+
+        // Create inverse of Jacobi matrix
+        const PDFReal determinant = m11 * m22 - m12 * m21;
+
+        if (qFuzzyIsNull(determinant))
+        {
+            // We did not converge, unfortunately, we are probably,
+            // in a stationary point.
+            return false;
+        }
+
+        const PDFReal inverseDeterminant = 1.0 / determinant;
+        const PDFReal im11 = m22 * inverseDeterminant;
+        const PDFReal im12 = -m12 * inverseDeterminant;
+        const PDFReal im21 = -m21 * inverseDeterminant;
+        const PDFReal im22 = m11 * inverseDeterminant;
+
+        QPointF imFirstRow(im11, im12);
+        QPointF imSecondRow(im21, im22);
+        QPointF delta(QPointF::dotProduct(imFirstRow, value_F_v_n), QPointF::dotProduct(imSecondRow, value_F_v_n));
+
+        v_n = v_n - delta;
+    }
+
+    return false;
+}
+
 PDFReal PDFTensorPatch::getCurvature_u(PDFReal u, PDFReal v) const
 {
     QPointF dSdu = getDerivative_u(u, v);
@@ -2751,11 +2821,9 @@ ShadingType PDFTensorProductPatchShading::getShadingType() const
     return ShadingType::TensorProductPatchMesh;
 }
 
-PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFTensorPatches PDFTensorProductPatchShading::createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const
 {
-    PDFMesh mesh;
-
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
 
     size_t bitsPerPatch = m_bitsPerFlag + 16 * 2 * m_bitsPerCoordinate + 4 * m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerPatch % 8)) % 8;
@@ -2785,7 +2853,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
         return patternSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
     };
 
-    auto readColor = [this, &reader, colorScaleRatio]() -> PDFColor
+    auto readColor = [this, &reader, colorScaleRatio, transformColor]() -> PDFColor
     {
         PDFColor color;
         color.resize(m_colorComponentCount);
@@ -2797,7 +2865,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
             color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
         }
 
-        return getColor(color);
+        return transformColor ? getColor(color) : color;
     };
 
     while (!reader.isAtEnd())
@@ -2966,11 +3034,26 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
             }
 
             default:
-                throw PDFException(PDFTranslationContext::tr("Invalid data in tensor product patch shading (flags = %1).").arg(flags));
+                patches.clear();
+                return patches;
         }
     }
 
-    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches, cms, intent, reporter);
+    return patches;
+}
+
+PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    PDFMesh mesh;
+
+    PDFTensorPatches patches = createPatches(settings.userSpaceToDeviceSpaceMatrix, true);
+
+    if (patches.empty())
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid data in tensor product patch shading."));
+    }
+
+    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings.userSpaceToDeviceSpaceMatrix), settings, patches, cms, intent, reporter);
     return mesh;
 }
 
@@ -3014,6 +3097,99 @@ struct PDFTensorProductPatchShadingBase::Triangle
         return std::fabs(0.5 * (x1 * y2 + x2 * y3 + x3 * y1 - x2 * y1 - x3 * y2 - x1 * y3));
     }
 };
+
+class PDFTensorPatchesSample : public PDFShadingSampler
+{
+public:
+    PDFTensorPatchesSample(const PDFTensorProductPatchShadingBase* shadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+        PDFShadingSampler(shadingPattern),
+        m_tensorProductShadingPattern(shadingPattern)
+    {
+        m_patches = shadingPattern->createPatches(userSpaceToDeviceSpaceMatrix, false);
+        std::reverse(m_patches.begin(), m_patches.end());
+    }
+
+    virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
+    {
+        constexpr PDFReal epsilon = 0.001;
+        std::array initialSamples = { QPointF(0.5, 0.5) };
+
+        for (const PDFTensorPatch& patch : m_patches)
+        {
+            PDFReal u = -1.0;
+            PDFReal v = -1.0;
+
+            for (const QPointF& initialSample : initialSamples)
+            {
+                PDFReal uSample = initialSample.x();
+                PDFReal vSample = initialSample.y();
+
+                if (patch.getUV(uSample, vSample, devicePoint.x(), devicePoint.y(), epsilon, limit))
+                {
+                    // We have successfully retrieved u,v source for the target x,y point. But is it actually
+                    // better than previous sample?
+                    if (vSample > v || (qAbs(vSample - v) < epsilon && uSample > u))
+                    {
+                        u = uSample;
+                        v = vSample;
+                    }
+                }
+            }
+
+            if (u >= 0.0 && v >= 0.0)
+            {
+                const PDFTensorPatch::Colors& colors = patch.getColors();
+                const PDFColor& topLeft = colors[PDFTensorPatch::C_00];
+                const PDFColor& topRight = colors[PDFTensorPatch::C_30];
+                const PDFColor& bottomLeft = colors[PDFTensorPatch::C_03];
+                const PDFColor& bottomRight = colors[PDFTensorPatch::C_33];
+
+                PDFColor color;
+                color.resize(topLeft.size());
+
+                const size_t colorComponentCount = color.size();
+                for (size_t i = 0; i < colorComponentCount; ++i)
+                {
+                    color[i] = topLeft[i] * (1.0 - u) * (1.0 - v) +
+                               topRight[i] * u * (1.0 - v) +
+                               bottomLeft[i] * (1.0 - u) * v +
+                               bottomRight[i] * u * v;
+                }
+
+                PDFColor finalColor = m_tensorProductShadingPattern->getColor(color);
+                if (finalColor.size() != outputBuffer.size())
+                {
+                    return false;
+                }
+
+                for (size_t i = 0; i < finalColor.size(); ++i)
+                {
+                    outputBuffer[i] = finalColor[i];
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+private:
+    const PDFTensorProductPatchShadingBase* m_tensorProductShadingPattern;
+    PDFTensorPatches m_patches;
+};
+
+PDFShadingSampler* PDFTensorProductPatchShadingBase::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+{
+    PDFTensorPatches patches = createPatches(userSpaceToDeviceSpaceMatrix, false);
+
+    if (patches.empty())
+    {
+        return nullptr;
+    }
+
+    return new PDFTensorPatchesSample(this, userSpaceToDeviceSpaceMatrix);
+}
 
 void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 const PDFMeshQualitySettings& settings,
@@ -3242,11 +3418,9 @@ ShadingType PDFCoonsPatchShading::getShadingType() const
     return ShadingType::CoonsPatchMesh;
 }
 
-PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFTensorPatches PDFCoonsPatchShading::createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const
 {
-    PDFMesh mesh;
-
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
 
     size_t bitsPerPatch = m_bitsPerFlag + 16 * 2 * m_bitsPerCoordinate + 4 * m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerPatch % 8)) % 8;
@@ -3276,7 +3450,7 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
         return patternSpaceToDeviceSpaceMatrix.map(QPointF(x, y));
     };
 
-    auto readColor = [this, &reader, colorScaleRatio]() -> PDFColor
+    auto readColor = [this, &reader, colorScaleRatio, transformColor]() -> PDFColor
     {
         PDFColor color;
         color.resize(m_colorComponentCount);
@@ -3288,7 +3462,7 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
             color[i] = cMin + (reader.read(m_bitsPerComponent)) * (cMax - cMin) * colorScaleRatio;
         }
 
-        return getColor(color);
+        return transformColor ? getColor(color) : color;
     };
 
     std::array<QPointF, 12> vertices;
@@ -3432,11 +3606,26 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
             }
 
             default:
-                throw PDFException(PDFTranslationContext::tr("Invalid data in coons patch shading (flags = %1).").arg(flags));
+                // This is error, clear patches and return
+                patches.clear();
+                return patches;
         }
     }
 
-    fillMesh(mesh, patternSpaceToDeviceSpaceMatrix, settings, patches, cms, intent, reporter);
+    return patches;
+}
+
+PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+{
+    PDFMesh mesh;
+    PDFTensorPatches patches = createPatches(settings.userSpaceToDeviceSpaceMatrix, true);
+
+    if (patches.empty())
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid data in coons patch shading."));
+    }
+
+    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings), settings, patches, cms, intent, reporter);
     return mesh;
 }
 

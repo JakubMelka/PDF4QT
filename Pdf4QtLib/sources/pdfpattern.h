@@ -561,6 +561,18 @@ public:
     /// \param derivativeOrderV Derivation order in direction v (0 means no derivation)
     QPointF getValue(PDFReal u, PDFReal v, int derivativeOrderU, int derivativeOrderV) const;
 
+    /// Tries to find value (u,v) using Newton-Raphson numerical algorithm method.
+    /// This can fail and when it fails, false is returned. As initial point, input uv
+    /// is considered. Also, if maximal number of steps is reached, false is returned.
+    /// \param[in,out] u Output value of u (passed value is used as a seed)
+    /// \param[in,out] v Output value of v (passed value is used as a seed)
+    /// \param x Input x coordinate, for which we want to compute (u, v)
+    /// \param y Input y coordinate, for which we want to compute (u, v)
+    /// \param epsilon Epsilon, when distance from the getValue(u, v) and (x, y)
+    ///                is less than epsilon, convergence is reached
+    /// \param maximalNumberOfSteps Maximal number of steps of Newton-Raphson algorithm
+    bool getUV(PDFReal& u, PDFReal& v, PDFReal x, PDFReal y, PDFReal epsilon, int maximalNumberOfSteps) const;
+
     /// Calculates first derivate in the surface, in the direction of variable u.
     /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
     /// \param v Vertical coordinate of the patch, must be in range [0, 1]
@@ -653,6 +665,9 @@ class PDFTensorProductPatchShadingBase : public PDFType4567Shading
 public:
     explicit inline PDFTensorProductPatchShadingBase() = default;
 
+    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const = 0;
+
 protected:
     struct Triangle;
 
@@ -671,6 +686,7 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:
     friend class PDFPattern;
@@ -683,6 +699,7 @@ public:
 
     virtual ShadingType getShadingType() const override;
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:
     friend class PDFPattern;
