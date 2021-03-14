@@ -50,6 +50,7 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     connect(ui->redPaperColorEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onPaperColorChanged);
     connect(ui->greenPaperColorEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onPaperColorChanged);
     connect(ui->bluePaperColorEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onPaperColorChanged);
+    connect(ui->pageIndexScrollBar, &QScrollBar::valueChanged, this, &OutputPreviewDialog::updatePageImage);
     connect(ui->inksTreeWidget->model(), &QAbstractItemModel::dataChanged, this, &OutputPreviewDialog::onInksChanged);
 
     updatePageImage();
@@ -295,16 +296,19 @@ void OutputPreviewDialog::onPageImageRendered()
 {
     QApplication::restoreOverrideCursor();
 
-    RenderedImage result = m_future.result();
-    m_future = QFuture<RenderedImage>();
-    m_futureWatcher->deleteLater();
-    m_futureWatcher = nullptr;
-
-    ui->imageLabel->setPixmap(QPixmap::fromImage(result.image));
-
-    if (m_needUpdateImage)
+    if (m_future.isFinished())
     {
-        updatePageImage();
+        RenderedImage result = m_future.result();
+        m_future = QFuture<RenderedImage>();
+        m_futureWatcher->deleteLater();
+        m_futureWatcher = nullptr;
+
+        ui->imageLabel->setPixmap(QPixmap::fromImage(result.image));
+
+        if (m_needUpdateImage)
+        {
+            updatePageImage();
+        }
     }
 }
 
