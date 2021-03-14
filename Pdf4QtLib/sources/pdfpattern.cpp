@@ -3112,7 +3112,9 @@ public:
     virtual bool sample(const QPointF& devicePoint, PDFColorBuffer outputBuffer, int limit) const override
     {
         constexpr PDFReal epsilon = 0.001;
-        std::array initialSamples = { QPointF(0.5, 0.5) };
+        std::array initialSamples = { QPointF(0.5, 0.5), // Middle of the patch
+                                      QPointF(0.0, 0.0), QPointF(1.0, 0.0), QPointF(0.0, 1.0), QPointF(1.0, 1.0), // Four corners
+                                      QPointF(0.5, 0.0), QPointF(0.5, 1.0), QPointF(0.0, 0.5), QPointF(1.0, 0.5) }; // Middle point of edges
 
         for (const PDFTensorPatch& patch : m_patches)
         {
