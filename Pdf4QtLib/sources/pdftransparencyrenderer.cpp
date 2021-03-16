@@ -2206,7 +2206,7 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         }
 
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
-                              sourceData.alphaIsShape, sourceData.alphaFill, BlendMode::Normal, targetData.group.knockout, selectedOverprintMode, getPaintRect());
+                              sourceData.alphaIsShape, sourceData.alphaFill, sourceData.blendMode, targetData.group.knockout, selectedOverprintMode, getPaintRect());
 
         // Create draw buffer
         PDFFloatBitmapWithColorSpace* backdrop = getImmediateBackdrop();
