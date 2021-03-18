@@ -211,6 +211,23 @@ PDFFloatBitmap PDFFloatBitmap::extractSpotChannel(uint8_t channel) const
     return result;
 }
 
+void PDFFloatBitmap::copyChannel(const PDFFloatBitmap& sourceBitmap, uint8_t channelFrom, uint8_t channelTo)
+{
+    Q_ASSERT(getWidth() == sourceBitmap.getWidth());
+    Q_ASSERT(getHeight() == sourceBitmap.getHeight());
+
+    for (size_t x = 0; x < getWidth(); ++x)
+    {
+        for (size_t y = 0; y < getHeight(); ++y)
+        {
+            PDFConstColorBuffer sourceProcessColorBuffer = sourceBitmap.getPixel(x, y);
+            PDFColorBuffer targetProcessColorBuffer = getPixel(x, y);
+
+            targetProcessColorBuffer[channelTo] = sourceProcessColorBuffer[channelFrom];
+        }
+    }
+}
+
 PDFFloatBitmap PDFFloatBitmap::resize(size_t width, size_t height, Qt::TransformationMode mode) const
 {
     if (width == 0 || height == 0)
@@ -410,8 +427,8 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                     else
                     {
                         // Color channel is active, but select source color only, if it is nonzero
-                        return pixelFormat.hasSpotColorsSubtractive() ? BlendMode::Overprint_SelectNonOneSourceOrBackdrop
-                                                                      : BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
+                        return pixelFormat.hasProcessColorsSubtractive() ? BlendMode::Overprint_SelectNonOneSourceOrBackdrop
+                                                                         : BlendMode::Overprint_SelectNonZeroSourceOrBackdrop;
                     }
                 }
 
@@ -1093,8 +1110,6 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
     for (uint8_t i = spotColorIndexStart; i < spotColorIndexEnd; ++i)
     {
         // Collapse spot color
-        PDFFloatBitmap spotColorBitmap = bitmap.extractSpotChannel(i);
-
         const PDFInkMapper::ColorInfo* spotColor = m_inkMapper->getActiveSpotColor(i - spotColorIndexStart);
         Q_ASSERT(spotColor);
 
@@ -1102,8 +1117,26 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
         {
             case PDFAbstractColorSpace::ColorSpace::Separation:
             {
+
+                PDFFloatBitmap spotColorBitmap = bitmap.extractSpotChannel(i);
                 PDFFloatBitmap processColorBitmap(spotColorBitmap.getWidth(), spotColorBitmap.getHeight(), PDFPixelFormat::createFormat(pixelFormat.getProcessColorChannelCount(), 0, false, pixelFormat.hasProcessColorsSubtractive(), false));
                 if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), spotColorBitmap.getPixels(), processColorBitmap.getPixels(), this))
+                {
+                    reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
+                }
+
+                bitmap.blendConvertedSpots(processColorBitmap);
+                break;
+            }
+
+            case PDFAbstractColorSpace::ColorSpace::DeviceN:
+            {
+                PDFFloatBitmap deviceNBitmap(bitmap.getWidth(), bitmap.getHeight(), PDFPixelFormat::createFormat(uint8_t(spotColor->colorSpace->getColorComponentCount()), 0, false, true, false));
+                PDFFloatBitmap processColorBitmap(bitmap.getWidth(), bitmap.getHeight(), PDFPixelFormat::createFormat(pixelFormat.getProcessColorChannelCount(), 0, false, pixelFormat.hasProcessColorsSubtractive(), false));
+
+                deviceNBitmap.copyChannel(bitmap, i, spotColor->colorSpaceIndex);
+
+                if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), deviceNBitmap.getPixels(), processColorBitmap.getPixels(), this))
                 {
                     reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
                 }

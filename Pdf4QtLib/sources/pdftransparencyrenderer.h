@@ -227,6 +227,12 @@ public:
     /// \param channel Channel
     PDFFloatBitmap extractSpotChannel(uint8_t channel) const;
 
+    /// Copies channel from source bitmap to target channel in this bitmap
+    /// \param sourceBitmap Source bitmap
+    /// \param channelFrom Source channel
+    /// \param channelTo Target channel
+    void copyChannel(const PDFFloatBitmap& sourceBitmap, uint8_t channelFrom, uint8_t channelTo);
+
     /// Resize the bitmap using given transformation mode. Fast transformation mode
     /// uses nearest neighbour mapping, smooth transformation mode uses weighted
     /// averaging algorithm.
