@@ -1117,7 +1117,6 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
         {
             case PDFAbstractColorSpace::ColorSpace::Separation:
             {
-
                 PDFFloatBitmap spotColorBitmap = bitmap.extractSpotChannel(i);
                 PDFFloatBitmap processColorBitmap(spotColorBitmap.getWidth(), spotColorBitmap.getHeight(), PDFPixelFormat::createFormat(pixelFormat.getProcessColorChannelCount(), 0, false, pixelFormat.hasProcessColorsSubtractive(), false));
                 if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), spotColorBitmap.getPixels(), processColorBitmap.getPixels(), this))

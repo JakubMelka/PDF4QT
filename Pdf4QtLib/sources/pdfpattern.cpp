@@ -2604,6 +2604,13 @@ QPointF PDFTensorPatch::getValue(PDFReal u, PDFReal v, int derivativeOrderU, int
 
 bool PDFTensorPatch::getUV(PDFReal& u, PDFReal& v, PDFReal x, PDFReal y, PDFReal epsilon, int maximalNumberOfSteps) const
 {
+    // First we will text, if point (x, y) is in bounding rectangle of the patch.
+    // If it isn't, then return false immediately, because point is not in tensor patch.
+    if (!m_boundingBox.contains(x, y))
+    {
+        return false;
+    }
+
     int i = 0;
 
     // Jakub Melka: We are finding root of function F(u, v) defined as:
@@ -2814,6 +2821,27 @@ constexpr PDFReal PDFTensorPatch::B3(PDFReal t, int derivative)
     }
 
     return std::numeric_limits<PDFReal>::signaling_NaN();
+}
+
+void PDFTensorPatch::computeBoundingRectangle()
+{
+    PDFReal xMin = std::numeric_limits<PDFReal>::infinity();
+    PDFReal xMax = -xMin;
+    PDFReal yMin = xMin;
+    PDFReal yMax = xMax;
+
+    for (const auto& row : m_P)
+    {
+        for (const auto& point : row)
+        {
+            xMin = qMin(xMin, point.x());
+            xMax = qMax(xMax, point.x());
+            yMin = qMin(yMin, point.y());
+            yMax = qMax(yMax, point.y());
+        }
+    }
+
+    m_boundingBox = QRectF(xMin, yMin, xMax - xMin, yMax - yMin);
 }
 
 ShadingType PDFTensorProductPatchShading::getShadingType() const
@@ -3198,7 +3226,8 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 const PDFTensorPatch& patch,
                                                 const PDFCMS* cms,
                                                 RenderingIntent intent,
-                                                PDFRenderErrorReporter* reporter) const
+                                                PDFRenderErrorReporter* reporter,
+                                                bool fastAlgorithm) const
 {
     // We implement algorithm similar to Ruppert's algorithm (see https://en.wikipedia.org/wiki/Ruppert%27s_algorithm), but
     // we do not need a mesh for FEM calculation, so we do not care about quality of the triangles (we can have triangles with
@@ -3216,24 +3245,31 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
 
     std::atomic<PDFReal> maximalCurvature(0.0);
 
-    Q_ASSERT(settings.patchTestPoints > 2);
-    const PDFReal testPointScale = 1.0 / (settings.patchTestPoints - 1.0);
-    PDFIntegerRange<PDFInteger> range(0, settings.patchTestPoints * settings.patchTestPoints);
-    auto updateCurvature = [&](PDFInteger i)
+    if (!fastAlgorithm)
     {
-        PDFInteger row = i / settings.patchTestPoints;
-        PDFInteger column = i % settings.patchTestPoints;
+        Q_ASSERT(settings.patchTestPoints > 2);
+        const PDFReal testPointScale = 1.0 / (settings.patchTestPoints - 1.0);
+        PDFIntegerRange<PDFInteger> range(0, settings.patchTestPoints * settings.patchTestPoints);
+        auto updateCurvature = [&](PDFInteger i)
+        {
+            PDFInteger row = i / settings.patchTestPoints;
+            PDFInteger column = i % settings.patchTestPoints;
 
-        const PDFReal u = column * testPointScale;
-        const PDFReal v = row * testPointScale;
+            const PDFReal u = column * testPointScale;
+            const PDFReal v = row * testPointScale;
 
-        const PDFReal curvature = patch.getCurvature_u(u, v) + patch.getCurvature_v(u, v);
+            const PDFReal curvature = patch.getCurvature_u(u, v) + patch.getCurvature_v(u, v);
 
-        // Atomically update the maximum curvature
-        PDFReal previousCurvature = maximalCurvature;
-        while (previousCurvature < curvature && !maximalCurvature.compare_exchange_weak(previousCurvature, curvature)) { }
-    };
-    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), updateCurvature);
+            // Atomically update the maximum curvature
+            PDFReal previousCurvature = maximalCurvature;
+            while (previousCurvature < curvature && !maximalCurvature.compare_exchange_weak(previousCurvature, curvature)) { }
+        };
+        std::for_each(range.begin(), range.end(), updateCurvature);
+    }
+    else
+    {
+        maximalCurvature = std::numeric_limits<PDFReal>::infinity();
+    }
 
     auto getColorForUV = [&](PDFReal u, PDFReal v)
     {
@@ -3382,9 +3418,10 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 RenderingIntent intent,
                                                 PDFRenderErrorReporter* reporter) const
 {
+    const bool fastAlgorithm = patches.size() > 16;
     for (const auto& patch : patches)
     {
-        fillMesh(mesh, settings, patch, cms, intent, reporter);
+        fillMesh(mesh, settings, patch, cms, intent, reporter, fastAlgorithm);
     }
 
     // Create bounding path

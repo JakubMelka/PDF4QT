@@ -22,7 +22,7 @@
 namespace pdf
 {
 
-static constexpr const std::array<std::pair<QChar, const char*>, 4281> glyphNameToUnicode = {
+static constexpr const std::array glyphNameToUnicode = {
     std::pair<QChar, const char*>{ QChar(0x0041), "A" },                            // Character 'A' Letter, Uppercase
     std::pair<QChar, const char*>{ QChar(0x00C6), "AE" },                           // Character 'Æ' Letter, Uppercase
     std::pair<QChar, const char*>{ QChar(0x01FC), "AEacute" },                      // Character 'Ǽ' Letter, Uppercase
@@ -1831,6 +1831,10 @@ static constexpr const std::array<std::pair<QChar, const char*>, 4281> glyphName
     std::pair<QChar, const char*>{ QChar(0x01B9), "ezhreversed" },                  // Character 'ƹ' Letter, Lowercase
     std::pair<QChar, const char*>{ QChar(0x01BA), "ezhtail" },                      // Character 'ƺ' Letter, Lowercase
     std::pair<QChar, const char*>{ QChar(0x0066), "f" },                            // Character 'f' Letter, Lowercase
+    std::pair<QChar, const char*>{ QChar(0xFB00), "f_f" },                          // Character 'ﬀ' Letter, Lowercase // NOT LISTED IN UNICODE CHARACTER LIST
+    std::pair<QChar, const char*>{ QChar(0xFB03), "f_f_i" },                        // Character 'ﬃ' Letter, Lowercase // NOT LISTED IN UNICODE CHARACTER LIST
+    std::pair<QChar, const char*>{ QChar(0xFB04), "f_f_l" },                        // Character 'ﬄ' Letter, Lowercase // NOT LISTED IN UNICODE CHARACTER LIST
+    std::pair<QChar, const char*>{ QChar(0xFB01), "f_i" },                          // Character 'ﬁ' Letter, Lowercase // NOT LISTED IN UNICODE CHARACTER LIST
     std::pair<QChar, const char*>{ QChar(0x095E), "fadeva" },                       // Character 'फ़' Letter
     std::pair<QChar, const char*>{ QChar(0x0A5E), "fagurmukhi" },                   // Character 'ਫ਼' Letter
     std::pair<QChar, const char*>{ QChar(0x2109), "fahrenheit" },                   // Character '℉' Symbol

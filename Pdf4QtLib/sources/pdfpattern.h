@@ -546,7 +546,7 @@ public:
     using PointMatrix = std::array<std::array<QPointF, 4>, 4>;
     using Colors = std::array<PDFColor, 4>;
 
-    explicit inline PDFTensorPatch(PointMatrix P, Colors colors) : m_P(P), m_colors(colors) { }
+    explicit inline PDFTensorPatch(PointMatrix P, Colors colors) : m_P(P), m_colors(colors) { computeBoundingRectangle(); }
 
     /// Calculates value at point in the patch.
     /// \param u Horizontal coordinate of the patch, must be in range [0, 1]
@@ -654,8 +654,11 @@ private:
     static constexpr PDFReal pow2(PDFReal x) { return x * x; }
     static constexpr PDFReal pow3(PDFReal x) { return x * x * x; }
 
+    void computeBoundingRectangle();
+
     PointMatrix m_P = { };
     Colors m_colors = { };
+    QRectF m_boundingBox; ///< Bounding box of the tensor product patch
 };
 
 using PDFTensorPatches = std::vector<PDFTensorPatch>;
@@ -671,7 +674,7 @@ public:
 protected:
     struct Triangle;
 
-    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const;
+    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool fastAlgorithm) const;
     void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const;
     static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
 
