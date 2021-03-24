@@ -192,6 +192,18 @@ public:
     /// \param Cs Source color
     static PDFCMYK blend_Nonseparable(BlendMode mode, PDFCMYK Cb, PDFCMYK Cs);
 
+    /// Get luminosity from color value
+    /// \param gray Color value
+    static PDFColorComponent getLuminosity(PDFGray gray);
+
+    /// Get luminosity from color value
+    /// \param rgb Color value
+    static PDFColorComponent getLuminosity(PDFRGB rgb);
+
+    /// Get luminosity from color value
+    /// \param cmyk Color value
+    static PDFColorComponent getLuminosity(PDFCMYK cmyk);
+
     /// Union function
     static constexpr PDFColorComponent blend_Union(PDFColorComponent b, PDFColorComponent s) { return b + s - b * s; }
 

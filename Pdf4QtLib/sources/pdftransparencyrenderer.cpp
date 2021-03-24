@@ -211,6 +211,120 @@ PDFFloatBitmap PDFFloatBitmap::extractSpotChannel(uint8_t channel) const
     return result;
 }
 
+PDFFloatBitmap PDFFloatBitmap::extractOpacityChannel() const
+{
+    PDFFloatBitmap result(getWidth(), getHeight(), PDFPixelFormat::createOpacityMask());
+
+    if (m_format.hasOpacityChannel())
+    {
+        const uint8_t opacityChannel = m_format.getOpacityChannelIndex();
+        for (size_t x = 0; x < getWidth(); ++x)
+        {
+            for (size_t y = 0; y < getHeight(); ++y)
+            {
+                PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+                PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+
+                targetProcessColorBuffer[0] = sourceProcessColorBuffer[opacityChannel];
+            }
+        }
+    }
+    else
+    {
+        result.makeOpaque();
+    }
+
+    return result;
+}
+
+PDFFloatBitmap PDFFloatBitmap::extractLuminosityChannel() const
+{
+    PDFFloatBitmap result(getWidth(), getHeight(), PDFPixelFormat::createOpacityMask());
+
+    const uint8_t sourceChannelIndex = m_format.getProcessColorChannelIndexStart();
+    switch (m_format.getProcessColorChannelCount())
+    {
+        case 1:
+        {
+            for (size_t x = 0; x < getWidth(); ++x)
+            {
+                for (size_t y = 0; y < getHeight(); ++y)
+                {
+                    PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+                    PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+
+                    targetProcessColorBuffer[0] = PDFBlendFunction::getLuminosity(PDFGray(sourceProcessColorBuffer[sourceChannelIndex]));
+                }
+            }
+            break;
+        }
+
+        case 3:
+        {
+            for (size_t x = 0; x < getWidth(); ++x)
+            {
+                for (size_t y = 0; y < getHeight(); ++y)
+                {
+                    PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+                    PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+
+                    PDFColorComponent r = sourceProcessColorBuffer[sourceChannelIndex + 0];
+                    PDFColorComponent g = sourceProcessColorBuffer[sourceChannelIndex + 1];
+                    PDFColorComponent b = sourceProcessColorBuffer[sourceChannelIndex + 2];
+                    targetProcessColorBuffer[0] = PDFBlendFunction::getLuminosity(PDFRGB{ r, g, b });
+                }
+            }
+            break;
+        }
+
+        case 4:
+        {
+            for (size_t x = 0; x < getWidth(); ++x)
+            {
+                for (size_t y = 0; y < getHeight(); ++y)
+                {
+                    PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+                    PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+
+                    PDFColorComponent _c = sourceProcessColorBuffer[sourceChannelIndex + 0];
+                    PDFColorComponent _m = sourceProcessColorBuffer[sourceChannelIndex + 1];
+                    PDFColorComponent _y = sourceProcessColorBuffer[sourceChannelIndex + 2];
+                    PDFColorComponent _k = sourceProcessColorBuffer[sourceChannelIndex + 3];
+                    targetProcessColorBuffer[0] = PDFBlendFunction::getLuminosity(PDFCMYK{ _c, _m, _y, _k });
+                }
+            }
+            break;
+        }
+
+        default:
+        {
+            result.makeOpaque();
+            break;
+        }
+    }
+
+    if (m_format.hasOpacityChannel())
+    {
+        const uint8_t opacityChannel = m_format.getOpacityChannelIndex();
+        for (size_t x = 0; x < getWidth(); ++x)
+        {
+            for (size_t y = 0; y < getHeight(); ++y)
+            {
+                PDFConstColorBuffer sourceProcessColorBuffer = getPixel(x, y);
+                PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+
+                targetProcessColorBuffer[0] = sourceProcessColorBuffer[opacityChannel];
+            }
+        }
+    }
+    else
+    {
+        result.makeOpaque();
+    }
+
+    return result;
+}
+
 void PDFFloatBitmap::copyChannel(const PDFFloatBitmap& sourceBitmap, uint8_t channelFrom, uint8_t channelTo)
 {
     Q_ASSERT(getWidth() == sourceBitmap.getWidth());
@@ -339,7 +453,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
                            PDFFloatBitmap& target,
                            const PDFFloatBitmap& backdrop,
                            const PDFFloatBitmap& initialBackdrop,
-                           PDFFloatBitmap& softMask,
+                           const PDFFloatBitmap& blendSoftMask,
                            bool alphaIsShape,
                            PDFColorComponent constantAlpha,
                            BlendMode mode,
@@ -350,9 +464,9 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
     Q_ASSERT(source.getWidth() == target.getWidth());
     Q_ASSERT(source.getHeight() == target.getHeight());
     Q_ASSERT(source.getPixelFormat() == target.getPixelFormat());
-    Q_ASSERT(source.getWidth() == softMask.getWidth());
-    Q_ASSERT(source.getHeight() == softMask.getHeight());
-    Q_ASSERT(softMask.getPixelFormat() == PDFPixelFormat::createOpacityMask());
+    Q_ASSERT(source.getWidth() == blendSoftMask.getWidth());
+    Q_ASSERT(source.getHeight() == blendSoftMask.getHeight());
+    Q_ASSERT(blendSoftMask.getPixelFormat() == PDFPixelFormat::createOpacityMask());
 
     Q_ASSERT(blendRegion.left() >= 0);
     Q_ASSERT(blendRegion.top() >= 0);
@@ -466,7 +580,7 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
             PDFColorBuffer targetColor = target.getPixel(x, y);
             PDFConstColorBuffer backdropColor = backdrop.getPixel(x, y);
             PDFConstColorBuffer initialBackdropColor = initialBackdrop.getPixel(x, y);
-            PDFColorBuffer alphaColorBuffer = softMask.getPixel(x, y);
+            PDFConstColorBuffer alphaColorBuffer = blendSoftMask.getPixel(x, y);
 
             const PDFColorComponent softMaskValue = alphaColorBuffer[0];
             const PDFColorComponent f_j_i = sourceColor[shapeChannel];
@@ -855,8 +969,11 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
 
     m_transparencyGroupDataStack.clear();
     m_painterStateStack.push(PDFTransparencyPainterState());
-    m_painterStateStack.top().softMask = PDFFloatBitmap(pixelSize.width(), pixelSize.height(), PDFPixelFormat::createOpacityMask());
-    m_painterStateStack.top().softMask.makeOpaque();
+
+    // Initialize initial opaque soft mask
+    PDFFloatBitmap initialSoftMaskBitmap(pixelSize.width(), pixelSize.height(), PDFPixelFormat::createOpacityMask());
+    initialSoftMaskBitmap.makeOpaque();
+    m_painterStateStack.top().softMask = PDFTransparencySoftMask(true, qMove(initialSoftMaskBitmap));
 
     PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
                                                               uint8_t(m_inkMapper->getActiveSpotColorCount()),
@@ -993,11 +1110,11 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, const PDFR
         PDFFloatBitmapWithColorSpace paperImage(floatImage.getWidth(), floatImage.getHeight(), floatImage.getPixelFormat(), floatImage.getColorSpace());
         createPaperBitmap(paperImage, paperColor);
 
-        PDFFloatBitmap softMask;
-        createOpaqueSoftMask(softMask, paperImage.getWidth(), paperImage.getHeight());
+        PDFFloatBitmap imageSoftMask;
+        createOpaqueSoftMask(imageSoftMask, paperImage.getWidth(), paperImage.getHeight());
 
         QRect blendRegion(0, 0, int(floatImage.getWidth()), int(floatImage.getHeight()));
-        PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, softMask, false, 1.0f, BlendMode::Normal, false, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
+        PDFFloatBitmapWithColorSpace::blend(floatImage, paperImage, paperImage, paperImage, imageSoftMask, false, 1.0f, BlendMode::Normal, false, PDFFloatBitmap::OverprintMode::NoOveprint, blendRegion);
 
         return toImageImpl(paperImage, use16Bit);
     }
@@ -1291,7 +1408,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
     PDFFloatBitmapWithColorSpace result;
 
     const PDFImageData& imageData = sourceImage.getImageData();
-    const PDFImageData& softMask = sourceImage.getSoftMaskData();
+    const PDFImageData& imageSoftMask = sourceImage.getSoftMaskData();
 
     PDFColorSpacePointer imageColorSpace = sourceImage.getColorSpace();
     size_t colorComponentCount = imageColorSpace->getColorComponentCount();
@@ -1381,7 +1498,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
 
             case PDFImageData::MaskingType::SoftMask:
             {
-                PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(softMask);
+                PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(imageSoftMask);
                 if (alphaMask.getWidth() != result.getWidth() || alphaMask.getHeight() != result.getHeight())
                 {
                     // Scale the alpha mask, if it is masked
@@ -1479,8 +1596,8 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
                 result = PDFFloatBitmapWithColorSpace(imageData.getWidth(), imageData.getHeight(), PDFPixelFormat::createFormat(uint8_t(colorComponentCount), 0, true, isCMYK, false));
                 result.setColorSpace(imageColorSpace);
 
-                const bool hasMatte = !softMask.getMatte().empty();
-                std::vector<PDFReal> matte = softMask.getMatte();
+                const bool hasMatte = !imageSoftMask.getMatte().empty();
+                std::vector<PDFReal> matte = imageSoftMask.getMatte();
 
                 if (hasMatte && matte.size() != colorComponentCount)
                 {
@@ -1504,7 +1621,7 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
                 const unsigned int imageWidth = imageData.getWidth();
                 const unsigned int imageHeight = imageData.getHeight();
 
-                PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(softMask);
+                PDFFloatBitmap alphaMask = getAlphaMaskFromSoftMask(imageSoftMask);
                 if (alphaMask.getWidth() != result.getWidth() || alphaMask.getHeight() != result.getHeight())
                 {
                     // Scale the alpha mask, if it is masked
@@ -1668,33 +1785,33 @@ PDFFloatBitmapWithColorSpace PDFTransparencyRenderer::getColoredImage(const PDFI
     return convertImageToBlendSpace(result);
 }
 
-PDFFloatBitmap PDFTransparencyRenderer::getAlphaMaskFromSoftMask(const PDFImageData& softMask)
+PDFFloatBitmap PDFTransparencyRenderer::getAlphaMaskFromSoftMask(const PDFImageData& imageSoftMask)
 {
-    if (softMask.getMaskingType() != PDFImageData::MaskingType::None)
+    if (imageSoftMask.getMaskingType() != PDFImageData::MaskingType::None)
     {
         throw PDFException(PDFTranslationContext::tr("Soft mask can't have masking."));
     }
 
-    if (softMask.getWidth() < 1 || softMask.getHeight() < 1)
+    if (imageSoftMask.getWidth() < 1 || imageSoftMask.getHeight() < 1)
     {
         throw PDFException(PDFTranslationContext::tr("Invalid size of soft mask."));
     }
 
-    PDFFloatBitmap result(softMask.getWidth(), softMask.getHeight(), PDFPixelFormat::createFormat(0, 0, true, false, false));
+    PDFFloatBitmap result(imageSoftMask.getWidth(), imageSoftMask.getHeight(), PDFPixelFormat::createFormat(0, 0, true, false, false));
 
-    unsigned int componentCount = softMask.getComponents();
+    unsigned int componentCount = imageSoftMask.getComponents();
     if (componentCount != 1)
     {
         throw PDFException(PDFTranslationContext::tr("Soft mask should have only 1 color component (alpha) instead of %1.").arg(componentCount));
     }
 
-    const std::vector<PDFReal>& decode = softMask.getDecode();
+    const std::vector<PDFReal>& decode = imageSoftMask.getDecode();
     if (!decode.empty() && decode.size() != componentCount * 2)
     {
         throw PDFException(PDFTranslationContext::tr("Invalid size of the decode array. Expected %1, actual %2.").arg(componentCount * 2).arg(decode.size()));
     }
 
-    PDFBitReader reader(&softMask.getData(), softMask.getBitsPerComponent());
+    PDFBitReader reader(&imageSoftMask.getData(), imageSoftMask.getBitsPerComponent());
 
     PDFColor color;
     color.resize(componentCount);
@@ -1705,11 +1822,11 @@ PDFFloatBitmap PDFTransparencyRenderer::getAlphaMaskFromSoftMask(const PDFImageD
     const uint8_t targetOpacityChannelIndex = result.getPixelFormat().getOpacityChannelIndex();
     const bool alphaIsShape = getGraphicState()->getAlphaIsShape();
 
-    for (unsigned int i = 0, rowCount = softMask.getHeight(); i < rowCount; ++i)
+    for (unsigned int i = 0, rowCount = imageSoftMask.getHeight(); i < rowCount; ++i)
     {
-        reader.seek(i * softMask.getStride());
+        reader.seek(i * imageSoftMask.getStride());
 
-        for (unsigned int j = 0, colCount = softMask.getWidth(); j < colCount; ++j)
+        for (unsigned int j = 0, colCount = imageSoftMask.getWidth(); j < colCount; ++j)
         {
             PDFColorComponent alpha = 0.0;
             PDFReal value = reader.read();
@@ -1734,6 +1851,84 @@ PDFFloatBitmap PDFTransparencyRenderer::getAlphaMaskFromSoftMask(const PDFImageD
     }
 
     return result;
+}
+
+void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
+{
+    if (m_painterStateStack.empty())
+    {
+        // Jakub Melka: This occurs only in initialization phase.
+        // Just quit, opaque soft mask is initialized when beginPaint is called.
+        return;
+    }
+
+    if (!softMask)
+    {
+        // Make soft mask opaque
+        getPainterState()->softMask.makeOpaque();
+    }
+    else
+    {
+        PDFSoftMaskDefinition softMaskDefinition = PDFSoftMaskDefinition::parse(softMask, this);
+
+        if (!softMaskDefinition.getFormStream())
+        {
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalind soft mask."));
+            getPainterState()->softMask.makeOpaque();
+            return;
+        }
+
+        // Jakub Melka: Define blend color space
+        PDFColorSpacePointer blendColorSpace = softMaskDefinition.getTransparencyGroup().colorSpacePointer;
+        if (!blendColorSpace)
+        {
+            blendColorSpace.reset(new PDFDeviceRGBColorSpace());
+        }
+        if (!blendColorSpace->isBlendColorSpace())
+        {
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalind blend color space of soft mask definition."));
+            getPainterState()->softMask.makeOpaque();
+            return;
+        }
+
+        PDFInkMapper inkMapper(getDocument());
+        PDFTransparencyRenderer softMaskRenderer(getPage(), getDocument(), getFontCache(), getCMS(), getOptionalContentActivity(), &inkMapper, m_settings, getPagePointToDevicePointMatrix());
+        softMaskRenderer.initializeProcessor();
+
+        PDFPageContentProcessorState graphicState = *getGraphicState();
+        graphicState.setSoftMask(nullptr);
+
+        // TODO: soft mask background color
+        softMaskRenderer.setDeviceColorSpace(blendColorSpace);
+        softMaskRenderer.setProcessColorSpace(blendColorSpace);
+
+        softMaskRenderer.beginPaint(QSize(int(m_drawBuffer.getWidth()), int(m_drawBuffer.getHeight())));
+        softMaskRenderer.setGraphicsState(graphicState);
+        softMaskRenderer.processForm(softMaskDefinition.getFormStream());
+        const PDFFloatBitmap& renderedSoftMask = softMaskRenderer.endPaint();
+        PDFFloatBitmap softMask;
+
+        switch (softMaskDefinition.getType())
+        {
+            case pdf::PDFPageContentProcessor::PDFSoftMaskDefinition::Type::Alpha:
+                softMask = renderedSoftMask.extractOpacityChannel();
+                break;
+
+            case pdf::PDFPageContentProcessor::PDFSoftMaskDefinition::Type::Luminosity:
+                softMask = renderedSoftMask.extractLuminosityChannel();
+                break;
+
+            default:
+            case pdf::PDFPageContentProcessor::PDFSoftMaskDefinition::Type::Invalid:
+                reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid soft mask type."));
+                softMask = renderedSoftMask.extractOpacityChannel();
+                break;
+        }
+
+        getPainterState()->softMask = PDFTransparencySoftMask(false, qMove(softMask));
+
+        // TODO: use transfer function
+    }
 }
 
 void PDFTransparencyRenderer::createOpaqueBitmap(PDFFloatBitmap& bitmap)
@@ -2084,15 +2279,12 @@ void PDFTransparencyRenderer::performUpdateGraphicsState(const PDFPageContentPro
         m_mappedFillColor.dirty();
     }
 
+    BaseClass::performUpdateGraphicsState(state);
+
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateSoftMask))
     {
-        if (getGraphicState()->getSoftMask())
-        {
-            reportRenderErrorOnce(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Soft mask not implemented."));
-        }
+        processSoftMask(state.getSoftMask());
     }
-
-    BaseClass::performUpdateGraphicsState(state);
 }
 
 void PDFTransparencyRenderer::performSaveGraphicState(ProcessOrder order)
@@ -2136,7 +2328,6 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
 
         // Create initial backdrop, according to 11.4.8 of PDF 2.0 specification.
         // If group is knockout, use initial backdrop.
-        PDFFloatBitmapWithColorSpace* oldBackdrop = getBackdrop();
         data.initialBackdrop = *getBackdrop();
 
         if (isTransparencyGroupIsolated())
@@ -2164,9 +2355,7 @@ void PDFTransparencyRenderer::performBeginTransparencyGroup(ProcessOrder order, 
         }
 
         // Prepare soft mask
-        data.softMask = PDFFloatBitmap(oldBackdrop->getWidth(), oldBackdrop->getHeight(), PDFPixelFormat::createOpacityMask());
-        // TODO: Create soft mask
-        data.makeSoftMaskOpaque();
+        data.softMask = getPainterState()->softMask;
 
         data.initialBackdrop.convertToColorSpace(getCMS(), data.renderingIntent, data.blendColorSpace, this);
         data.immediateBackdrop = data.initialBackdrop;
@@ -2237,7 +2426,7 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
                                                                      : PDFFloatBitmap::OverprintMode::Overprint_Mode_1;
         }
 
-        PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), sourceData.softMask,
+        PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), *sourceData.softMask.getSoftMask(),
                               sourceData.alphaIsShape, sourceData.alphaFill, sourceData.blendMode, targetData.group.knockout, selectedOverprintMode, getPaintRect());
 
         // Create draw buffer
@@ -2673,7 +2862,7 @@ void PDFTransparencyRenderer::flushDrawBuffer()
                                                                      : PDFFloatBitmap::OverprintMode::Overprint_Mode_1;
         }
 
-        PDFFloatBitmap::blend(m_drawBuffer, *getImmediateBackdrop(), *getBackdrop(), *getInitialBackdrop(), m_painterStateStack.top().softMask,
+        PDFFloatBitmap::blend(m_drawBuffer, *getImmediateBackdrop(), *getBackdrop(), *getInitialBackdrop(), *getPainterState()->softMask.getSoftMask(),
                               getGraphicState()->getAlphaIsShape(), 1.0f, getGraphicState()->getBlendMode(), isTransparencyGroupKnockout(),
                               selectedOverprintMode, m_drawBuffer.getModifiedRect());
 
@@ -3466,9 +3655,13 @@ void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeImmediateBack
     immediateBackdrop.setAllColorInactive();
 }
 
-void PDFTransparencyRenderer::PDFTransparencyGroupPainterData::makeSoftMaskOpaque()
+void PDFTransparencyRenderer::PDFTransparencySoftMask::makeOpaque()
 {
-    softMask.makeOpaque();
+    if (!isOpaque())
+    {
+        m_data->isOpaque = true;
+        m_data->softMask.makeOpaque();
+    }
 }
 
 }   // namespace pdf

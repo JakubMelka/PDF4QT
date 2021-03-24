@@ -246,6 +246,40 @@ protected:
         bool knockout = false;
     };
 
+    /// Parses transparency group
+    PDFTransparencyGroup parseTransparencyGroup(const PDFObject& object);
+
+    /// Soft mask definition
+    class PDFSoftMaskDefinition
+    {
+    public:
+
+        enum class Type
+        {
+            Invalid,
+            Alpha,
+            Luminosity
+        };
+
+        Type getType() const { return m_type; }
+        const PDFStream* getFormStream() const { return m_formStream; }
+        const PDFDictionary* getFormDictionary() const { return m_formStream ? m_formStream->getDictionary() : nullptr; }
+        const PDFTransparencyGroup& getTransparencyGroup() const { return m_transparencyGroup; }
+        const PDFColor& getBackdropColor() const { return m_backdropColor; }
+        const PDFFunction* getTransferFunction() const { return m_transferFunction.get(); }
+
+        static PDFSoftMaskDefinition parse(const PDFDictionary* softMask, PDFPageContentProcessor* processor);
+
+    private:
+        Type m_type = Type::Invalid;
+        const PDFStream* m_formStream = nullptr;
+        PDFTransparencyGroup m_transparencyGroup;
+        PDFColor m_backdropColor;
+        PDFFunctionPtr m_transferFunction;
+
+        friend class PDFPageContentProcessor;
+    };
+
     struct PDFOverprintMode
     {
         bool overprintStroking = false;
@@ -608,6 +642,10 @@ protected:
     /// shading, images, ...)
     virtual bool isContentKindSuppressed(ContentKind kind) const;
 
+    /// Sets current graphic state and updates data
+    /// \param state New graphic state
+    void setGraphicsState(const PDFPageContentProcessorState& state);
+
     /// Returns current structural parent key
     PDFInteger getStructuralParentKey() const { return m_structuralParentKey; }
 
@@ -646,8 +684,11 @@ protected:
     /// Returns color management system
     const PDFCMS* getCMS() const { return m_CMS; }
 
-    /// Parses transparency group
-    PDFTransparencyGroup parseTransparencyGroup(const PDFObject& object);
+    /// Returns font cache
+    const PDFFontCache* getFontCache() const { return m_fontCache; }
+
+    /// Returns optional content activity
+    const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
     class PDFTransparencyGroupGuard
     {
@@ -658,6 +699,9 @@ protected:
     private:
         PDFPageContentProcessor* m_processor;
     };
+
+    /// Process form using form stream
+    void processForm(const PDFStream* stream);
 
 private:
     /// Initializes the resources dictionaries

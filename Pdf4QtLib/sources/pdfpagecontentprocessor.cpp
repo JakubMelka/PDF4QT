@@ -481,6 +481,12 @@ bool PDFPageContentProcessor::isContentKindSuppressed(ContentKind kind) const
     return false;
 }
 
+void PDFPageContentProcessor::setGraphicsState(const PDFPageContentProcessorState& state)
+{
+    m_graphicState = state;
+    updateGraphicState();
+}
+
 bool PDFPageContentProcessor::isContentSuppressed() const
 {
     return std::any_of(m_markedContentStack.cbegin(), m_markedContentStack.cend(), [](const MarkedContentState& state) { return state.contentSuppressed; });
@@ -2970,7 +2976,33 @@ void PDFPageContentProcessor::reportWarningAboutColorOperatorsInUTP()
     reportRenderErrorOnce(RenderErrorType::Warning, PDFTranslationContext::tr("Color operators are not allowed in uncolored tilling pattern."));
 }
 
-void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFOperandName name)
+void PDFPageContentProcessor::processForm(const PDFStream* stream)
+{
+    PDFDocumentDataLoaderDecorator loader(getDocument());
+    const PDFDictionary* streamDictionary = stream->getDictionary();
+
+    // Read the bounding rectangle, if it is present
+    QRectF boundingBox = loader.readRectangle(streamDictionary->get("BBox"), QRectF());
+
+    // Read the transformation matrix, if it is present
+    QMatrix transformationMatrix = loader.readMatrixFromDictionary(streamDictionary, "Matrix", QMatrix());
+
+    // Read the dictionary content
+    QByteArray content = m_document->getDecodedStream(stream);
+
+    // Read resources
+    PDFObject resources = m_document->getObject(streamDictionary->get("Resources"));
+
+    // Transparency group
+    PDFObject transparencyGroup = m_document->getObject(streamDictionary->get("Group"));
+
+    // Form structural parent key
+    const PDFInteger formStructuralParentKey = loader.readIntegerFromDictionary(streamDictionary, "StructParent", m_structuralParentKey);
+
+    processForm(transformationMatrix, boundingBox, resources, transparencyGroup, content, formStructuralParentKey);
+}
+
+void PDFPageContentProcessor::operatorPaintXObject(PDFOperandName name)
 {
     // We want to have empty operands, when we are invoking forms
     m_operands.clear();
@@ -3014,25 +3046,7 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFPageContentProcessor::PDFO
                     throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Form of type %1 not supported.").arg(formType));
                 }
 
-                // Read the bounding rectangle, if it is present
-                QRectF boundingBox = loader.readRectangle(streamDictionary->get("BBox"), QRectF());
-
-                // Read the transformation matrix, if it is present
-                QMatrix transformationMatrix = loader.readMatrixFromDictionary(streamDictionary, "Matrix", QMatrix());
-
-                // Read the dictionary content
-                QByteArray content = m_document->getDecodedStream(stream);
-
-                // Read resources
-                PDFObject resources = m_document->getObject(streamDictionary->get("Resources"));
-
-                // Transparency group
-                PDFObject transparencyGroup = m_document->getObject(streamDictionary->get("Group"));
-
-                // Form structural parent key
-                const PDFInteger formStructuralParentKey = loader.readIntegerFromDictionary(streamDictionary, "StructParent", m_structuralParentKey);
-
-                processForm(transformationMatrix, boundingBox, resources, transparencyGroup, content, formStructuralParentKey);
+                processForm(stream);
             }
             else
             {
@@ -3928,6 +3942,48 @@ void PDFLineDashPattern::fix()
             *this = PDFLineDashPattern();
         }
     }
+}
+
+PDFPageContentProcessor::PDFSoftMaskDefinition PDFPageContentProcessor::PDFSoftMaskDefinition::parse(const PDFDictionary* softMask, PDFPageContentProcessor* processor)
+{
+    PDFSoftMaskDefinition result;
+
+    PDFDocumentDataLoaderDecorator loader(processor->getDocument());
+
+    constexpr const std::array type = {
+        std::pair<const char*, Type>{ "Alpha", Type::Alpha },
+        std::pair<const char*, Type>{ "Luminosity", Type::Luminosity }
+    };
+
+    result.m_type = loader.readEnumByName(softMask->get("S"), type.begin(), type.end(), Type::Invalid);
+    PDFObject streamObject = processor->getDocument()->getObject(softMask->get("G"));
+    result.m_formStream = streamObject.isStream() ? streamObject.getStream() : nullptr;
+
+    if (result.m_formStream)
+    {
+        result.m_transparencyGroup = processor->parseTransparencyGroup(result.m_formStream->getDictionary()->get("Group"));
+    }
+
+    std::vector<PDFReal> backdropColor = loader.readNumberArrayFromDictionary(softMask, "BC");
+    result.m_backdropColor = PDFAbstractColorSpace::convertToColor(backdropColor);
+    if (result.m_backdropColor.empty() && result.m_transparencyGroup.colorSpacePointer)
+    {
+        result.m_transparencyGroup.colorSpacePointer->getDefaultColorOriginal();
+    }
+
+    if (softMask->hasKey("TR"))
+    {
+        try
+        {
+            result.m_transferFunction = PDFFunction::createFunction(processor->getDocument(), softMask->get("TR"));
+        }
+        catch (PDFException)
+        {
+            processor->reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid soft mask transfer function."));
+        }
+    }
+
+    return result;
 }
 
 }   // namespace pdf

@@ -507,6 +507,21 @@ PDFCMYK PDFBlendFunction::blend_Nonseparable(BlendMode mode, PDFCMYK Cb, PDFCMYK
     return Cs;
 }
 
+PDFColorComponent PDFBlendFunction::getLuminosity(PDFGray gray)
+{
+    return nonseparable_Lum(nonseparable_gray2rgb(gray));
+}
+
+PDFColorComponent PDFBlendFunction::getLuminosity(PDFRGB rgb)
+{
+    return nonseparable_Lum(rgb);
+}
+
+PDFColorComponent PDFBlendFunction::getLuminosity(PDFCMYK cmyk)
+{
+    return nonseparable_Lum(nonseparable_cmyk2rgb(cmyk));
+}
+
 PDFRGB PDFBlendFunction::nonseparable_gray2rgb(PDFGray gray)
 {
     return nonseparable_SetLum(PDFRGB{ 0.0f, 0.0f, 0.0f }, gray);

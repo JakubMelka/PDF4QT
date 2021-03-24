@@ -227,6 +227,15 @@ public:
     /// \param channel Channel
     PDFFloatBitmap extractSpotChannel(uint8_t channel) const;
 
+    /// Extract opacity channel. If bitmap doesn't have opacity channel,
+    /// opaque opacity bitmap of same size is returned.
+    PDFFloatBitmap extractOpacityChannel() const;
+
+    /// Extract luminosity channel as opacity channel. Bitmap should have
+    /// 1 (gray), 3 (red, green, blue) or 4 (cyan, magenta, yellow, black)
+    /// process colors. Otherwise opaque bitmap of same size is returned.
+    PDFFloatBitmap extractLuminosityChannel() const;
+
     /// Copies channel from source bitmap to target channel in this bitmap
     /// \param sourceBitmap Source bitmap
     /// \param channelFrom Source channel
@@ -266,7 +275,7 @@ public:
                       PDFFloatBitmap& target,
                       const PDFFloatBitmap& backdrop,
                       const PDFFloatBitmap& initialBackdrop,
-                      PDFFloatBitmap& softMask,
+                      const PDFFloatBitmap& softMask,
                       bool alphaIsShape,
                       PDFColorComponent constantAlpha,
                       BlendMode mode,
@@ -657,11 +666,39 @@ private:
     PDFReal getShapeFilling() const;
     PDFReal getOpacityFilling() const;
 
+    struct PDFTransparencySoftMaskImpl : public QSharedData
+    {
+        PDFTransparencySoftMaskImpl() = default;
+        PDFTransparencySoftMaskImpl(bool isOpaque, PDFFloatBitmap softMask) :
+            isOpaque(isOpaque),
+            softMask(qMove(softMask))
+        {
+
+        }
+
+        bool isOpaque = false;
+        PDFFloatBitmap softMask;
+    };
+
+    class PDFTransparencySoftMask
+    {
+    public:
+        PDFTransparencySoftMask() { m_data = new PDFTransparencySoftMaskImpl; }
+        PDFTransparencySoftMask(bool isOpaque, PDFFloatBitmap softMask) { m_data = new PDFTransparencySoftMaskImpl(isOpaque, qMove(softMask)); }
+
+        bool isOpaque() const { return m_data->isOpaque; }
+        const PDFFloatBitmap* getSoftMask() const { return &m_data->softMask; }
+
+        void makeOpaque();
+
+    private:
+        QSharedDataPointer<PDFTransparencySoftMaskImpl> m_data;
+    };
+
     struct PDFTransparencyGroupPainterData
     {
         void makeInitialBackdropTransparent();
         void makeImmediateBackdropTransparent();
-        void makeSoftMaskOpaque();
 
         PDFTransparencyGroup group;
         bool alphaIsShape = false;
@@ -672,7 +709,7 @@ private:
         RenderingIntent renderingIntent = RenderingIntent::RelativeColorimetric;
         PDFFloatBitmapWithColorSpace initialBackdrop;   ///< Initial backdrop
         PDFFloatBitmapWithColorSpace immediateBackdrop; ///< Immediate backdrop
-        PDFFloatBitmap softMask; ///< Soft mask for this group
+        PDFTransparencySoftMask softMask; ///< Soft mask for this group
         PDFColorSpacePointer blendColorSpace;
         bool filterColorsUsingMask = false;
         uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
@@ -682,7 +719,7 @@ private:
     struct PDFTransparencyPainterState
     {
         QPainterPath clipPath; ///< Clipping path in device state coordinates
-        PDFFloatBitmap softMask;
+        PDFTransparencySoftMask softMask;
     };
 
     struct PDFMappedColor
@@ -815,6 +852,10 @@ private:
     /// mask, otherwise function will throw exception.
     /// \param imageData Soft mask data
     PDFFloatBitmap getAlphaMaskFromSoftMask(const PDFImageData& softMask);
+
+    /// Processes soft mask and sets it as active
+    /// \param softMask Soft mask
+    void processSoftMask(const PDFDictionary* softMask);
 
     static void createOpaqueBitmap(PDFFloatBitmap& bitmap);
     static void createPaperBitmap(PDFFloatBitmap& bitmap, const PDFRGB& paperColor);
