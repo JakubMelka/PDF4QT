@@ -1122,6 +1122,31 @@ QImage PDFTransparencyRenderer::toImage(bool use16Bit, bool usePaper, const PDFR
     return image;
 }
 
+void PDFTransparencyRenderer::clearColor(const PDFColor& color)
+{
+    PDFFloatBitmapWithColorSpace* backdrop = getImmediateBackdrop();
+    const PDFPixelFormat pixelFormat = backdrop->getPixelFormat();
+
+    const uint8_t processColorChannelStart = pixelFormat.getProcessColorChannelIndexStart();
+    const uint8_t processColorChannelEnd = pixelFormat.getProcessColorChannelIndexEnd();
+
+    for (uint8_t i = processColorChannelStart; i < processColorChannelEnd; ++i)
+    {
+        if (i >= color.size())
+        {
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid clear color - process color %1 was not found in clear color.").arg(i));
+            return;
+        }
+
+        backdrop->fillChannel(i, color[i]);
+    }
+
+    if (color.size() > pixelFormat.getProcessColorChannelCount())
+    {
+        reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("More colors in clear color (%1) than process color channel count (%2).").arg(color.size()).arg(pixelFormat.getProcessColorChannelCount()));
+    }
+}
+
 void PDFTransparencyRenderer::performPixelSampling(const PDFReal shape,
                                                    const PDFReal opacity,
                                                    const uint8_t shapeChannel,
@@ -1886,7 +1911,7 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
         }
         if (!blendColorSpace->isBlendColorSpace())
         {
-            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalind blend color space of soft mask definition."));
+            reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid blend color space of soft mask definition."));
             getPainterState()->softMask.makeOpaque();
             return;
         }
@@ -1898,11 +1923,11 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
         PDFPageContentProcessorState graphicState = *getGraphicState();
         graphicState.setSoftMask(nullptr);
 
-        // TODO: soft mask background color
         softMaskRenderer.setDeviceColorSpace(blendColorSpace);
         softMaskRenderer.setProcessColorSpace(blendColorSpace);
 
         softMaskRenderer.beginPaint(QSize(int(m_drawBuffer.getWidth()), int(m_drawBuffer.getHeight())));
+        softMaskRenderer.clearColor(softMaskDefinition.getBackdropColor());
         softMaskRenderer.setGraphicsState(graphicState);
         softMaskRenderer.processForm(softMaskDefinition.getFormStream());
         const PDFFloatBitmap& renderedSoftMask = softMaskRenderer.endPaint();
@@ -1925,9 +1950,32 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
                 break;
         }
 
-        getPainterState()->softMask = PDFTransparencySoftMask(false, qMove(softMask));
+        if (const PDFFunction* function = softMaskDefinition.getTransferFunction())
+        {
+            const size_t width = softMask.getWidth();
+            const size_t height = softMask.getHeight();
 
-        // TODO: use transfer function
+            for (size_t y = 0; y < height; ++y)
+            {
+                for (size_t x = 0; x < width; ++x)
+                {
+                    PDFColorBuffer pixel = softMask.getPixel(x, y);
+                    PDFReal sourceValue = pixel[0];
+                    PDFReal targetValue = sourceValue;
+
+                    PDFFunction::FunctionResult result = function->apply(&sourceValue, &sourceValue + 1, &targetValue, &targetValue + 1);
+
+                    if (!result)
+                    {
+                        reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Evaulation of soft mask transfer function failed."));
+                    }
+
+                    pixel[0] = targetValue;
+                }
+            }
+        }
+
+        getPainterState()->softMask = PDFTransparencySoftMask(false, qMove(softMask));
     }
 }
 

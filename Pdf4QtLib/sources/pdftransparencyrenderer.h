@@ -644,6 +644,13 @@ public:
     /// \param paperColor Paper color
     QImage toImage(bool use16Bit, bool usePaper, const PDFRGB& paperColor) const;
 
+    /// Clear color buffer with given color (this affects all process colors). If a number
+    /// of process colors are different from a number of colors in color, then error is triggered,
+    /// and most min(process color count, colors in color) process color channels are filled
+    /// with color.
+    /// \param color Color
+    void clearColor(const PDFColor& color);
+
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern) override;
     virtual void performFinishPathPainting() override;
