@@ -519,7 +519,8 @@ PDFColorComponent PDFBlendFunction::getLuminosity(PDFRGB rgb)
 
 PDFColorComponent PDFBlendFunction::getLuminosity(PDFCMYK cmyk)
 {
-    return nonseparable_Lum(nonseparable_cmyk2rgb(cmyk));
+    // This is according to chapter 11.5.3, deriving soft mask from a group luminosity
+    return 1.0f - qMin(1.0f, 0.30f * cmyk[0] + 0.59f * cmyk[1] + 0.11f * cmyk[2] + cmyk[3]);
 }
 
 PDFRGB PDFBlendFunction::nonseparable_gray2rgb(PDFGray gray)

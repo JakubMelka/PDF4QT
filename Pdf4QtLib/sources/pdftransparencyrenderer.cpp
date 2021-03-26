@@ -168,6 +168,28 @@ void PDFFloatBitmap::setColorActivity(uint32_t mask)
     std::fill(m_activeColorMask.begin(), m_activeColorMask.end(), mask);
 }
 
+QImage PDFFloatBitmap::getChannelImage(uint8_t channelIndex) const
+{
+    if (channelIndex >= getPixelSize())
+    {
+        return QImage();
+    }
+
+    QImage image(int(getWidth()), int(getHeight()), QImage::Format_Grayscale8);
+
+    for (int y = 0; y < image.height(); ++y)
+    {
+        uchar* line = image.scanLine(y);
+        for (int x = 0; x < image.width(); ++x)
+        {
+            PDFConstColorBuffer buffer = getPixel(x, y);
+            line[x] = qRound(buffer[channelIndex] * 255);
+        }
+    }
+
+    return image;
+}
+
 PDFFloatBitmap PDFFloatBitmap::extractProcessColors() const
 {
     PDFPixelFormat format = PDFPixelFormat::createFormat(m_format.getProcessColorChannelCount(), 0, false, m_format.hasProcessColorsSubtractive(), false);

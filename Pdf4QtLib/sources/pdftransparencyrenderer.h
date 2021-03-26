@@ -220,6 +220,11 @@ public:
     /// \param mask Color activity
     void setColorActivity(uint32_t mask);
 
+    /// Returns gray image created from color channel. If color channel
+    /// is invalid, then empty image is returned.
+    /// \param channelIndex Channel index
+    QImage getChannelImage(uint8_t channelIndex) const;
+
     /// Extract process colors into another bitmap
     PDFFloatBitmap extractProcessColors() const;
 
