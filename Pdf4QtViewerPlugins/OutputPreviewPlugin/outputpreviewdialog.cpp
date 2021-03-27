@@ -44,11 +44,13 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->pageIndexScrollBar->setValue(1);
     ui->pageIndexScrollBar->setMaximum(int(document->getCatalog()->getPageCount()));
 
-    ui->displayModeComboBox->addItem(tr("Separations"), Separations);
-    ui->displayModeComboBox->addItem(tr("Color Warnings | Ink Coverage"), ColorWarningInkCoverage);
-    ui->displayModeComboBox->addItem(tr("Color Warnings | Rich Black"), ColorWarningRichBlack);
-    ui->displayModeComboBox->addItem(tr("Ink Coverage"), InkCoverage);
+    ui->displayModeComboBox->addItem(tr("Separations"), OutputPreviewWidget::Separations);
+    ui->displayModeComboBox->addItem(tr("Color Warnings | Ink Coverage"), OutputPreviewWidget::ColorWarningInkCoverage);
+    ui->displayModeComboBox->addItem(tr("Color Warnings | Rich Black"), OutputPreviewWidget::ColorWarningRichBlack);
+    ui->displayModeComboBox->addItem(tr("Ink Coverage"), OutputPreviewWidget::InkCoverage);
     ui->displayModeComboBox->setCurrentIndex(0);
+
+    ui->imageWidget->setInkMapper(&m_inkMapper);
 
     m_inkMapper.createSpotColors(ui->simulateSeparationsCheckBox->isChecked());
     connect(ui->simulateSeparationsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::onSimulateSeparationsChecked);
@@ -208,7 +210,7 @@ void OutputPreviewDialog::updatePageImage()
     const pdf::PDFPage* page = m_document->getCatalog()->getPage(ui->pageIndexScrollBar->value() - 1);
     if (!page)
     {
-        ui->imageLabel->setPixmap(QPixmap());
+        ui->imageWidget->clear();
         return;
     }
 
@@ -255,9 +257,10 @@ void OutputPreviewDialog::updatePageImage()
     flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayVectorGraphics, ui->displayVectorGraphicsCheckBox->isChecked());
     flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayShadings, ui->displayShadingCheckBox->isChecked());
     flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayTilingPatterns, ui->displayTilingPatternsCheckBox->isChecked());
+    flags.setFlag(pdf::PDFTransparencyRendererSettings::SaveOriginalProcessImage, true);
 
     m_inkMapperForRendering = m_inkMapper;
-    QSize renderSize = ui->imageLabel->size();
+    QSize renderSize = ui->imageWidget->getPageImageSizeHint();
     auto renderImage = [this, page, renderSize, paperColor, activeColorMask, flags]() -> RenderedImage
     {
         return renderPage(page, renderSize, paperColor, activeColorMask, flags);
@@ -312,6 +315,8 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
     QImage image = renderer.toImage(false, true, paperColor);
 
     result.image = qMove(image);
+    result.originalProcessImage = renderer.getOriginalProcessBitmap();
+    result.pageSize = page->getRotatedMediaBoxMM().size();
     return result;
 }
 
@@ -326,7 +331,7 @@ void OutputPreviewDialog::onPageImageRendered()
         m_futureWatcher->deleteLater();
         m_futureWatcher = nullptr;
 
-        ui->imageLabel->setPixmap(QPixmap::fromImage(result.image));
+        ui->imageWidget->setPageImage(qMove(result.image), qMove(result.originalProcessImage), result.pageSize);
 
         if (m_needUpdateImage)
         {

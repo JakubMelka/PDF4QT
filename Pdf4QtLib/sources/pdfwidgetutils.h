@@ -31,19 +31,19 @@ public:
     PDFWidgetUtils() = delete;
 
     /// Converts size in MM to pixel size
-    static int getPixelSize(QPaintDevice* device, pdf::PDFReal sizeMM);
+    static int getPixelSize(const QPaintDevice* device, pdf::PDFReal sizeMM);
 
     /// Scale horizontal DPI value
     /// \param device Paint device to obtain logical DPI for scaling
-    static int scaleDPI_x(QPaintDevice* device, int unscaledSize);
+    static int scaleDPI_x(const QPaintDevice* device, int unscaledSize);
 
     /// Scale vertical DPI value
     /// \param device Paint device to obtain logical DPI for scaling
-    static int scaleDPI_y(QPaintDevice* device, int unscaledSize);
+    static int scaleDPI_y(const QPaintDevice* device, int unscaledSize);
 
     /// Scale horizontal DPI value
     /// \param device Paint device to obtain logical DPI for scaling
-    static PDFReal scaleDPI_x(QPaintDevice* device, PDFReal unscaledSize);
+    static PDFReal scaleDPI_x(const QPaintDevice* device, PDFReal unscaledSize);
 
     /// Scales widget based on DPI
     /// \param widget Widget to be scaled
@@ -53,7 +53,7 @@ public:
     /// Scales size based on DPI
     /// \param device Paint device to obtain logical DPI for scaling
     /// \param unscaledSize Unscaled size
-    static QSize scaleDPI(QPaintDevice* widget, QSize unscaledSize);
+    static QSize scaleDPI(const QPaintDevice* widget, QSize unscaledSize);
 };
 
 } // namespace pdf

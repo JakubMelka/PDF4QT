@@ -989,12 +989,13 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     Q_ASSERT(m_deviceColorSpace);
     Q_ASSERT(m_processColorSpace);
 
+    m_originalProcessBitmap = PDFFloatBitmapWithColorSpace();
     m_transparencyGroupDataStack.clear();
     m_painterStateStack.push(PDFTransparencyPainterState());
 
     // Initialize initial opaque soft mask
-    PDFFloatBitmap initialSoftMaskBitmap(pixelSize.width(), pixelSize.height(), PDFPixelFormat::createOpacityMask());
-    initialSoftMaskBitmap.makeOpaque();
+    PDFFloatBitmap initialSoftMaskBitmap;
+    createOpaqueSoftMask(initialSoftMaskBitmap, pixelSize.width(), pixelSize.height());
     m_painterStateStack.top().softMask = PDFTransparencySoftMask(true, qMove(initialSoftMaskBitmap));
 
     PDFPixelFormat pixelFormat = PDFPixelFormat::createFormat(uint8_t(m_deviceColorSpace->getColorComponentCount()),
@@ -1033,6 +1034,7 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
                                                                  m_settings.activeColorMask != PDFPixelFormat::getAllColorsMask());
     m_transparencyGroupDataStack.back().activeColorMask = m_settings.activeColorMask;
     m_transparencyGroupDataStack.back().transformSpotsToDevice = m_settings.flags.testFlag(PDFTransparencyRendererSettings::SeparationSimulation);
+    m_transparencyGroupDataStack.back().saveOriginalImage = m_settings.flags.testFlag(PDFTransparencyRendererSettings::SaveOriginalProcessImage);
 }
 
 const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
@@ -2522,6 +2524,11 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
                     sourceData.immediateBackdrop.fillChannel(colorChannelIndex, isSubtractive ? 0.0f : 1.0f);
                 }
             }
+        }
+
+        if (sourceData.saveOriginalImage)
+        {
+            m_originalProcessBitmap = sourceData.immediateBackdrop;
         }
 
         // Collapse spot colors

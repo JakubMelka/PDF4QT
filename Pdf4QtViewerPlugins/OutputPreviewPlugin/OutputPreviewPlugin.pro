@@ -34,11 +34,13 @@ CONFIG += c++11
 
 SOURCES += \
     outputpreviewdialog.cpp \
-    outputpreviewplugin.cpp
+    outputpreviewplugin.cpp \
+    outputpreviewwidget.cpp
 
 HEADERS += \
     outputpreviewdialog.h \
-    outputpreviewplugin.h
+    outputpreviewplugin.h \
+    outputpreviewwidget.h
 
 CONFIG += force_debug_info
 

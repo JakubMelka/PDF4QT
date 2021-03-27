@@ -136,7 +136,7 @@ private:
 
 /// Represents float bitmap with arbitrary color channel count. Bitmap can also
 /// have auxiliary channels, such as shape and opacity channels.
-class PDFFloatBitmap
+class Pdf4QtLIBSHARED_EXPORT PDFFloatBitmap
 {
 public:
     explicit PDFFloatBitmap();
@@ -311,7 +311,7 @@ private:
 };
 
 /// Float bitmap with color space
-class PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
+class Pdf4QtLIBSHARED_EXPORT PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
 {
 public:
     explicit PDFFloatBitmapWithColorSpace();
@@ -602,6 +602,11 @@ struct PDFTransparencyRendererSettings
 
         /// Display tiling patterns (if this flag is false, tiling patterns aren't processed)
         DisplayTilingPatterns       = 0x0200,
+
+        /// Saves process image before it is transformed into device space
+        /// and before separation simulation is applied. Active color mask
+        /// is still applied to this image.
+        SaveOriginalProcessImage    = 0x0400,
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)
@@ -670,6 +675,11 @@ public:
     /// with color.
     /// \param color Color
     void clearColor(const PDFColor& color);
+
+    /// Returns original process bitmap, before it is transformed into device space,
+    /// and before separation simulation is being processed. Active color mask is still
+    /// applied to this image.
+    PDFFloatBitmapWithColorSpace getOriginalProcessBitmap() const { return m_originalProcessBitmap; }
 
     virtual bool isContentKindSuppressed(ContentKind kind) const override;
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
@@ -742,6 +752,7 @@ private:
         bool filterColorsUsingMask = false;
         uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
         bool transformSpotsToDevice = false;
+        bool saveOriginalImage = false;
     };
 
     struct PDFTransparencyPainterState
@@ -901,6 +912,7 @@ private:
     PDFCachedItem<PDFMappedColor> m_mappedFillColor;
     PDFTransparencyRendererSettings m_settings;
     PDFDrawBuffer m_drawBuffer;
+    PDFFloatBitmapWithColorSpace m_originalProcessBitmap;
 };
 
 }   // namespace pdf

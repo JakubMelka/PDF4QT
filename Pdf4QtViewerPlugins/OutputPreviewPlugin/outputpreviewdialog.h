@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 #include "pdfdrawwidget.h"
 #include "pdftransparencyrenderer.h"
+#include "outputpreviewwidget.h"
 
 #include <QDialog>
 #include <QFuture>
@@ -50,15 +51,6 @@ public:
     virtual void reject() override;
 
 private:
-
-    enum DisplayMode
-    {
-        Separations,
-        ColorWarningInkCoverage,
-        ColorWarningRichBlack,
-        InkCoverage
-    };
-
     void updateInks();
     void updatePaperColorWidgets();
 
@@ -70,6 +62,8 @@ private:
     struct RenderedImage
     {
         QImage image;
+        pdf::PDFFloatBitmapWithColorSpace originalProcessImage;
+        QSizeF pageSize;
         QList<pdf::PDFRenderError> errors;
     };
 
