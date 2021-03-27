@@ -20,6 +20,7 @@
 
 #include "pdfcms.h"
 #include "pdfrenderer.h"
+#include "pdfwidgetutils.h"
 #include "pdfdrawspacecontroller.h"
 
 #include <QCloseEvent>
@@ -31,8 +32,8 @@ namespace pdfplugin
 OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::PDFWidget* widget, QWidget* parent) :
     QDialog(parent, Qt::Dialog | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint),
     ui(new Ui::OutputPreviewDialog),
-    m_inkMapper(document),
-    m_inkMapperForRendering(document),
+    m_inkMapper(widget->getCMSManager(), document),
+    m_inkMapperForRendering(widget->getCMSManager(), document),
     m_document(document),
     m_widget(widget),
     m_needUpdateImage(false),
@@ -51,6 +52,7 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->displayModeComboBox->setCurrentIndex(0);
 
     ui->imageWidget->setInkMapper(&m_inkMapper);
+    ui->inksTreeWidget->setMinimumHeight(pdf::PDFWidgetUtils::scaleDPI_y(ui->inksTreeWidget, 150));
 
     m_inkMapper.createSpotColors(ui->simulateSeparationsCheckBox->isChecked());
     connect(ui->simulateSeparationsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::onSimulateSeparationsChecked);
@@ -111,6 +113,10 @@ void OutputPreviewDialog::updateInks()
     spotColorsRoot->setFlags(spotColorsRoot->flags() | Qt::ItemIsUserCheckable);
     spotColorsRoot->setCheckState(0, Qt::Checked);
 
+    QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(ui->inksTreeWidget, QSize(16, 16));
+    ui->inksTreeWidget->setIconSize(iconSize);
+    ui->inksTreeWidget->setRootIsDecorated(true);
+
     int colorIndex = 0;
     std::vector<pdf::PDFInkMapper::ColorInfo> separations = m_inkMapper.getSeparations(4);
     for (const auto& colorInfo : separations)
@@ -125,6 +131,13 @@ void OutputPreviewDialog::updateInks()
         {
             // Spot color (ink)
             item = new QTreeWidgetItem(spotColorsRoot, QStringList(colorInfo.textName));
+        }
+
+        if (colorInfo.color.isValid())
+        {
+            QPixmap icon(iconSize);
+            icon.fill(colorInfo.color);
+            item->setIcon(0, QIcon(icon));
         }
 
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);

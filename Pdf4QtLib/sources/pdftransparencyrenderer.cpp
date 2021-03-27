@@ -1987,7 +1987,7 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
             return;
         }
 
-        PDFInkMapper inkMapper(getDocument());
+        PDFInkMapper inkMapper(nullptr, getDocument());
         PDFTransparencyRenderer softMaskRenderer(getPage(), getDocument(), getFontCache(), getCMS(), getOptionalContentActivity(), &inkMapper, m_settings, getPagePointToDevicePointMatrix());
         softMaskRenderer.initializeProcessor();
 
@@ -3005,7 +3005,8 @@ bool PDFTransparencyRenderer::isMultithreadedPathSamplingUsed(QRect fillRect) co
     return fillRect.width() * fillRect.height() > m_settings.multithreadingPathSampleThreshold && fillRect.width() > 1;
 }
 
-PDFInkMapper::PDFInkMapper(const PDFDocument* document) :
+PDFInkMapper::PDFInkMapper(const PDFCMSManager* manager, const PDFDocument* document) :
+    m_cmsManager(manager),
     m_document(document)
 {
     // Initialize device separations
@@ -3023,96 +3024,113 @@ std::vector<PDFInkMapper::ColorInfo> PDFInkMapper::getSeparations(uint32_t proce
     std::vector<ColorInfo> result;
     result.reserve(getActiveSpotColorCount() + processColorCount);
 
+    PDFRenderErrorReporterDummy renderErrorReporter;
+    PDFCMSPointer cms = m_cmsManager ? m_cmsManager->getCurrentCMS() : nullptr;
+
     switch (processColorCount)
     {
         case 1:
         {
+            PDFDeviceGrayColorSpace grayColorSpace;
+
             ColorInfo gray;
             gray.name = "Gray";
-            gray.textName = PDFTranslationContext::tr("Process Gray");
+            gray.textName = PDFTranslationContext::tr("Gray");
             gray.canBeActive = true;
             gray.active = true;
             gray.isSpot = false;
             gray.spotColorIndex = 0;
             gray.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceGray;
+            gray.color = cms ? grayColorSpace.getColor(PDFColor(1.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(gray));
             break;
         }
 
         case 3:
         {
+            PDFDeviceRGBColorSpace rgbColorSpace;
+
             ColorInfo red;
             red.name = "Red";
-            red.textName = PDFTranslationContext::tr("Process Red");
+            red.textName = PDFTranslationContext::tr("Red");
             red.canBeActive = true;
             red.active = true;
             red.isSpot = false;
             red.spotColorIndex = 0;
             red.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceRGB;
+            red.color = cms ? rgbColorSpace.getColor(PDFColor(1.0f, 0.0f, 0.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(red));
 
             ColorInfo green;
             green.name = "Green";
-            green.textName = PDFTranslationContext::tr("Process Green");
+            green.textName = PDFTranslationContext::tr("Green");
             green.canBeActive = true;
             green.active = true;
             green.isSpot = false;
             green.spotColorIndex = 1;
             green.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceRGB;
+            green.color = cms ? rgbColorSpace.getColor(PDFColor(0.0f, 1.0f, 0.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(green));
 
             ColorInfo blue;
             blue.name = "Blue";
-            blue.textName = PDFTranslationContext::tr("Process Blue");
+            blue.textName = PDFTranslationContext::tr("Blue");
             blue.canBeActive = true;
             blue.active = true;
             blue.isSpot = false;
             blue.spotColorIndex = 2;
             blue.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceRGB;
+            blue.color = cms ? rgbColorSpace.getColor(PDFColor(0.0f, 0.0f, 1.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(blue));
             break;
         }
 
         case 4:
         {
+            PDFDeviceCMYKColorSpace cmykColorSpace;
+
             ColorInfo cyan;
             cyan.name = "Cyan";
-            cyan.textName = PDFTranslationContext::tr("Process Cyan");
+            cyan.textName = PDFTranslationContext::tr("Cyan");
             cyan.canBeActive = true;
             cyan.active = true;
             cyan.isSpot = false;
             cyan.spotColorIndex = 0;
             cyan.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceCMYK;
+            cyan.color = cms ? cmykColorSpace.getColor(PDFColor(1.0f, 0.0f, 0.0f, 0.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(cyan));
 
             ColorInfo magenta;
             magenta.name = "Magenta";
-            magenta.textName = PDFTranslationContext::tr("Process Magenta");
+            magenta.textName = PDFTranslationContext::tr("Magenta");
             magenta.canBeActive = true;
             magenta.active = true;
             magenta.isSpot = false;
             magenta.spotColorIndex = 1;
             magenta.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceCMYK;
+            magenta.color = cms ? cmykColorSpace.getColor(PDFColor(0.0f, 1.0f, 0.0f, 0.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(magenta));
 
             ColorInfo yellow;
             yellow.name = "Yellow";
-            yellow.textName = PDFTranslationContext::tr("Process Yellow");
+            yellow.textName = PDFTranslationContext::tr("Yellow");
             yellow.canBeActive = true;
             yellow.active = true;
             yellow.isSpot = false;
             yellow.spotColorIndex = 2;
             yellow.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceCMYK;
+            yellow.color = cms ? cmykColorSpace.getColor(PDFColor(0.0f, 0.0f, 1.0f, 0.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(yellow));
 
             ColorInfo black;
             black.name = "Black";
-            black.textName = PDFTranslationContext::tr("Process Black");
+            black.textName = PDFTranslationContext::tr("Black");
             black.canBeActive = true;
             black.active = true;
             black.isSpot = false;
             black.spotColorIndex = 3;
             black.colorSpaceType = PDFAbstractColorSpace::ColorSpace::DeviceCMYK;
+            black.color = cms ? cmykColorSpace.getColor(PDFColor(0.0f, 0.0f, 0.0f, 1.0f), cms.get(), RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
             result.emplace_back(qMove(black));
             break;
         }
@@ -3154,6 +3172,9 @@ void PDFInkMapper::createSpotColors(bool activate)
 {
     m_spotColors.clear();
     m_activeSpotColors = 0;
+
+    PDFRenderErrorReporterDummy renderErrorReporter;
+    PDFCMSPointer cms = m_cmsManager ? m_cmsManager->getCurrentCMS() : nullptr;
 
     const PDFCatalog* catalog = m_document->getCatalog();
     const size_t pageCount = catalog->getPageCount();
@@ -3203,6 +3224,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                                     info.textName = PDFEncoding::convertTextString(info.name);
                                     info.colorSpace = colorSpacePointer;
                                     info.spotColorIndex = uint32_t(m_spotColors.size());
+                                    info.color = cms ? separationColorSpace->getColor(pdf::PDFColor(1.0f), cms.get(), pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : nullptr;
                                     m_spotColors.emplace_back(qMove(info));
                                 }
                             }
@@ -3222,12 +3244,17 @@ void PDFInkMapper::createSpotColors(bool activate)
                                     const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
                                     if (!containsSpotColor(colorantInfo.name) && !containsProcessColor(colorantInfo.name))
                                     {
+                                        PDFColor color;
+                                        color.resize(deviceNColorSpace->getColorComponentCount());
+                                        color[i] = 1.0f;
+
                                         ColorInfo info;
                                         info.name = colorantInfo.name;
                                         info.textName = PDFEncoding::convertTextString(info.name);
                                         info.colorSpaceIndex = uint32_t(i);
                                         info.colorSpace = colorSpacePointer;
                                         info.spotColorIndex = uint32_t(m_spotColors.size());
+                                        info.color = cms ? deviceNColorSpace->getColor(color, cms.get(), pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : nullptr;
                                         m_spotColors.emplace_back(qMove(info));
                                     }
                                 }

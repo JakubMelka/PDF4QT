@@ -360,7 +360,7 @@ struct PDFInkMapping
 class Pdf4QtLIBSHARED_EXPORT PDFInkMapper
 {
 public:
-    explicit PDFInkMapper(const PDFDocument* document);
+    explicit PDFInkMapper(const PDFCMSManager* manager, const PDFDocument* document);
 
     struct ColorInfo
     {
@@ -372,6 +372,7 @@ public:
         bool canBeActive = false; ///< Can spot color be activated?
         bool active = false; ///< Is spot color active?
         bool isSpot = true;
+        QColor color; ///< Spot/process color transformed to RGB color space
         PDFAbstractColorSpace::ColorSpace colorSpaceType = PDFAbstractColorSpace::ColorSpace::Invalid;
     };
 
@@ -436,6 +437,7 @@ public:
                                 PDFPixelFormat targetPixelFormat) const;
 
 private:
+    const PDFCMSManager* m_cmsManager;
     const PDFDocument* m_document;
     std::vector<ColorInfo> m_spotColors;
     std::vector<ColorInfo> m_deviceColors; ///< Device color space separations

@@ -35,12 +35,12 @@ OutputPreviewWidget::OutputPreviewWidget(QWidget* parent) :
 
 QSize OutputPreviewWidget::sizeHint() const
 {
-    return pdf::PDFWidgetUtils::scaleDPI(this, QSize(400, 300));
+    return pdf::PDFWidgetUtils::scaleDPI(this, QSize(500, 300));
 }
 
 QSize OutputPreviewWidget::minimumSizeHint() const
 {
-    return pdf::PDFWidgetUtils::scaleDPI(this, QSize(200, 200));
+    return pdf::PDFWidgetUtils::scaleDPI(this, QSize(400, 300));
 }
 
 void OutputPreviewWidget::clear()
@@ -244,7 +244,7 @@ void OutputPreviewWidget::buildInfoBoxItems()
                             continue;
                         }
 
-                        addInfoBoxColoredItem(Qt::green, colorInfo.textName, QString("100 %"));
+                        addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, QString("100 %"));
                     }
                 }
 
@@ -260,7 +260,7 @@ void OutputPreviewWidget::buildInfoBoxItems()
                             continue;
                         }
 
-                        addInfoBoxColoredItem(Qt::blue, colorInfo.textName, QString("100 %"));
+                        addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, QString("100 %"));
                     }
                 }
             }
