@@ -51,6 +51,14 @@ public:
 
 private:
 
+    enum DisplayMode
+    {
+        Separations,
+        ColorWarningInkCoverage,
+        ColorWarningRichBlack,
+        InkCoverage
+    };
+
     void updateInks();
     void updatePaperColorWidgets();
 
@@ -67,7 +75,11 @@ private:
 
     void updatePageImage();
     void onPageImageRendered();
-    RenderedImage renderPage(const pdf::PDFPage* page, QSize renderSize, pdf::PDFRGB paperColor, uint32_t activeColorMask);
+    RenderedImage renderPage(const pdf::PDFPage* page,
+                             QSize renderSize,
+                             pdf::PDFRGB paperColor,
+                             uint32_t activeColorMask,
+                             pdf::PDFTransparencyRendererSettings::Flags additionalFlags);
     bool isRenderingDone() const;
 
     Ui::OutputPreviewDialog* ui;

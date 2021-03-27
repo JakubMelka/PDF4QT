@@ -569,30 +569,45 @@ struct PDFTransparencyRendererSettings
 
         /// Use precise path sampler, which uses paths instead
         /// of filling polygon.
-        PrecisePathSampler = 0x0001,
+        PrecisePathSampler          = 0x0001,
 
         /// Use multithreading when painter paths are painted?
         /// Multithreading is used to
-        MultithreadedPathSampler = 0x0002,
+        MultithreadedPathSampler    = 0x0002,
 
         /// When using CMYK process color space, transfer spot
         /// colors to the CMYK color space.
-        SeparationSimulation = 0x0004,
+        SeparationSimulation        = 0x0004,
 
         /// Use active color mask (so we can clear channels,
         /// which are not active)
-        ActiveColorMask = 0x0008,
+        ActiveColorMask             = 0x0008,
 
         /// Use smooth image transform, if it is possible. For
         /// images, which doesn't have Interpolate set to true,
         /// fast image transformation is used.
-        SmoothImageTransformation = 0x0010,
+        SmoothImageTransformation   = 0x0010,
+
+        /// Display images (if this flag is false, images aren't processed)
+        DisplayImages               = 0x0020,
+
+        /// Display text (if this flag is false, text isnn't processed)
+        DisplayText                 = 0x0040,
+
+        /// Display vector graphics (if this flag is false, vector graphics isn't processed)
+        DisplayVectorGraphics       = 0x0080,
+
+        /// Display shading patterns (if this flag is false, shading patterns aren't processed)
+        DisplayShadings             = 0x0100,
+
+        /// Display tiling patterns (if this flag is false, tiling patterns aren't processed)
+        DisplayTilingPatterns       = 0x0200,
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)
 
     /// Flags
-    Flags flags = None;
+    Flags flags = DisplayImages | DisplayText | DisplayVectorGraphics | DisplayShadings | DisplayTilingPatterns;
 
     /// Active color mask
     uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
@@ -656,6 +671,7 @@ public:
     /// \param color Color
     void clearColor(const PDFColor& color);
 
+    virtual bool isContentKindSuppressed(ContentKind kind) const override;
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern) override;
     virtual void performFinishPathPainting() override;

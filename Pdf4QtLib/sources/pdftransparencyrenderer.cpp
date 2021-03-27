@@ -1169,6 +1169,53 @@ void PDFTransparencyRenderer::clearColor(const PDFColor& color)
     }
 }
 
+bool PDFTransparencyRenderer::isContentKindSuppressed(ContentKind kind) const
+{
+    switch (kind)
+    {
+        case ContentKind::Shapes:
+            if (!m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayVectorGraphics))
+            {
+                return true;
+            }
+            break;
+
+        case ContentKind::Text:
+            if (!m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayText))
+            {
+                return true;
+            }
+            break;
+
+        case ContentKind::Images:
+            if (!m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayImages))
+            {
+                return true;
+            }
+            break;
+
+        case ContentKind::Shading:
+            if (!m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayShadings))
+            {
+                return true;
+            }
+            break;
+
+        case ContentKind::Tiling:
+            if (!m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayTilingPatterns))
+            {
+                return true;
+            }
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return BaseClass::isContentKindSuppressed(kind);
+}
+
 void PDFTransparencyRenderer::performPixelSampling(const PDFReal shape,
                                                    const PDFReal opacity,
                                                    const uint8_t shapeChannel,

@@ -44,6 +44,12 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->pageIndexScrollBar->setValue(1);
     ui->pageIndexScrollBar->setMaximum(int(document->getCatalog()->getPageCount()));
 
+    ui->displayModeComboBox->addItem(tr("Separations"), Separations);
+    ui->displayModeComboBox->addItem(tr("Color Warnings | Ink Coverage"), ColorWarningInkCoverage);
+    ui->displayModeComboBox->addItem(tr("Color Warnings | Rich Black"), ColorWarningRichBlack);
+    ui->displayModeComboBox->addItem(tr("Ink Coverage"), InkCoverage);
+    ui->displayModeComboBox->setCurrentIndex(0);
+
     m_inkMapper.createSpotColors(ui->simulateSeparationsCheckBox->isChecked());
     connect(ui->simulateSeparationsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::onSimulateSeparationsChecked);
     connect(ui->simulatePaperColorCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::onSimulatePaperColorChecked);
@@ -51,6 +57,11 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     connect(ui->greenPaperColorEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onPaperColorChanged);
     connect(ui->bluePaperColorEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onPaperColorChanged);
     connect(ui->pageIndexScrollBar, &QScrollBar::valueChanged, this, &OutputPreviewDialog::updatePageImage);
+    connect(ui->displayImagesCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
+    connect(ui->displayShadingCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
+    connect(ui->displayTextCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
+    connect(ui->displayTilingPatternsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
+    connect(ui->displayVectorGraphicsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
     connect(ui->inksTreeWidget->model(), &QAbstractItemModel::dataChanged, this, &OutputPreviewDialog::onInksChanged);
 
     updatePageImage();
@@ -238,11 +249,18 @@ void OutputPreviewDialog::updatePageImage()
         paperColor[2] = ui->bluePaperColorEdit->value();
     }
 
+    pdf::PDFTransparencyRendererSettings::Flags flags = pdf::PDFTransparencyRendererSettings::None;
+    flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayImages, ui->displayImagesCheckBox->isChecked());
+    flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayText, ui->displayTextCheckBox->isChecked());
+    flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayVectorGraphics, ui->displayVectorGraphicsCheckBox->isChecked());
+    flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayShadings, ui->displayShadingCheckBox->isChecked());
+    flags.setFlag(pdf::PDFTransparencyRendererSettings::DisplayTilingPatterns, ui->displayTilingPatternsCheckBox->isChecked());
+
     m_inkMapperForRendering = m_inkMapper;
     QSize renderSize = ui->imageLabel->size();
-    auto renderImage = [this, page, renderSize, paperColor, activeColorMask]() -> RenderedImage
+    auto renderImage = [this, page, renderSize, paperColor, activeColorMask, flags]() -> RenderedImage
     {
-        return renderPage(page, renderSize, paperColor, activeColorMask);
+        return renderPage(page, renderSize, paperColor, activeColorMask, flags);
     };
 
     m_future = QtConcurrent::run(renderImage);
@@ -251,7 +269,11 @@ void OutputPreviewDialog::updatePageImage()
     m_futureWatcher->setFuture(m_future);
 }
 
-OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PDFPage* page, QSize renderSize, pdf::PDFRGB paperColor, uint32_t activeColorMask)
+OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PDFPage* page,
+                                                                   QSize renderSize,
+                                                                   pdf::PDFRGB paperColor,
+                                                                   uint32_t activeColorMask,
+                                                                   pdf::PDFTransparencyRendererSettings::Flags additionalFlags)
 {
     RenderedImage result;
 
@@ -266,6 +288,7 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
     }
 
     pdf::PDFTransparencyRendererSettings settings;
+    settings.flags = additionalFlags;
 
     // Jakub Melka: debug is very slow, use multithreading
 #ifdef QT_DEBUG
