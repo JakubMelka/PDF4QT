@@ -20,6 +20,7 @@
 #include "pdfwidgetutils.h"
 
 #include <QPainter>
+#include <QMouseEvent>
 #include <QFontMetrics>
 
 namespace pdfplugin
@@ -28,9 +29,10 @@ namespace pdfplugin
 OutputPreviewWidget::OutputPreviewWidget(QWidget* parent) :
     BaseClass(parent),
     m_inkMapper(nullptr),
-    m_displayMode(Separations)
+    m_displayMode(Separations),
+    m_alarmColor(Qt::red)
 {
-
+    setMouseTracking(true);
 }
 
 QSize OutputPreviewWidget::sizeHint() const
@@ -49,6 +51,7 @@ void OutputPreviewWidget::clear()
     m_originalProcessBitmap = pdf::PDFFloatBitmapWithColorSpace();
     m_pageSizeMM = QSizeF();
     m_infoBoxItems.clear();
+    m_imagePointUnderCursor = std::nullopt;
     update();
 }
 
@@ -57,6 +60,16 @@ void OutputPreviewWidget::setPageImage(QImage image, pdf::PDFFloatBitmapWithColo
     m_pageImage = qMove(image);
     m_originalProcessBitmap = qMove(originalProcessBitmap);
     m_pageSizeMM = pageSizeMM;
+
+    if (m_imagePointUnderCursor.has_value())
+    {
+        QPoint point = m_imagePointUnderCursor.value();
+        if (point.x() >= image.width() || point.y() >= image.height())
+        {
+            m_imagePointUnderCursor = std::nullopt;
+        }
+    }
+
     buildInfoBoxItems();
     update();
 }
@@ -215,6 +228,35 @@ void OutputPreviewWidget::buildInfoBoxItems()
                 const pdf::PDFPixelFormat pixelFormat = m_originalProcessBitmap.getPixelFormat();
                 std::vector<pdf::PDFInkMapper::ColorInfo> separations = m_inkMapper->getSeparations(pixelFormat.getProcessColorChannelCount(), true);
 
+                QStringList colorValues;
+                colorValues.reserve(pixelFormat.getColorChannelCount());
+                Q_ASSERT(pixelFormat.getColorChannelCount() == separations.size());
+
+                if (m_imagePointUnderCursor.has_value())
+                {
+                    QPoint point = m_imagePointUnderCursor.value();
+
+                    Q_ASSERT(point.x() >= 0);
+                    Q_ASSERT(point.x() < m_pageImage.width());
+                    Q_ASSERT(point.y() >= 0);
+                    Q_ASSERT(point.y() < m_pageImage.height());
+
+                    pdf::PDFColorBuffer buffer = m_originalProcessBitmap.getPixel(point.x(), point.y());
+                    for (int i = 0; i < pixelFormat.getColorChannelCount(); ++i)
+                    {
+                        const pdf::PDFColorComponent color = buffer[i] * 100.0f;
+                        const int percent = qRound(color);
+                        colorValues << QString("%1 %").arg(percent);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < pixelFormat.getColorChannelCount(); ++i)
+                    {
+                        colorValues << QString();
+                    }
+                }
+
                 // Count process/spot inks
 
                 int processInks = 0;
@@ -232,6 +274,7 @@ void OutputPreviewWidget::buildInfoBoxItems()
                     }
                 }
 
+                int colorValueIndex = 0;
                 if (processInks > 0)
                 {
                     addInfoBoxSeparator();
@@ -244,7 +287,7 @@ void OutputPreviewWidget::buildInfoBoxItems()
                             continue;
                         }
 
-                        addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, QString("100 %"));
+                        addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, colorValues[colorValueIndex++]);
                     }
                 }
 
@@ -260,7 +303,7 @@ void OutputPreviewWidget::buildInfoBoxItems()
                             continue;
                         }
 
-                        addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, QString("100 %"));
+                        addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, colorValues[colorValueIndex++]);
                     }
                 }
             }
@@ -294,6 +337,21 @@ void OutputPreviewWidget::addInfoBoxColoredItem(QColor color, QString caption, Q
     m_infoBoxItems.push_back(InfoBoxItem(ColoredItem, color, caption, value));
 }
 
+void OutputPreviewWidget::addColoredOval(QColor color)
+{
+    m_infoBoxItems.push_back(InfoBoxItem(ColoredOval, color, QString(), QString()));
+}
+
+QColor OutputPreviewWidget::getAlarmColor() const
+{
+    return m_alarmColor;
+}
+
+void OutputPreviewWidget::setAlarmColor(const QColor& alarmColor)
+{
+    m_alarmColor = alarmColor;
+}
+
 const pdf::PDFInkMapper* OutputPreviewWidget::getInkMapper() const
 {
     return m_inkMapper;
@@ -307,6 +365,35 @@ void OutputPreviewWidget::setInkMapper(const pdf::PDFInkMapper* inkMapper)
 QSize OutputPreviewWidget::getPageImageSizeHint() const
 {
     return getPageImageRect(getContentRect()).size();
+}
+
+void OutputPreviewWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    m_imagePointUnderCursor = std::nullopt;
+
+    if (m_pageImage.isNull())
+    {
+        // Nothing to do...
+        return;
+    }
+
+    QPoint position = event->pos();
+    QRect rect = getPageImageRect(getContentRect());
+
+    if (rect.contains(position))
+    {
+        int verticalImageOffset = (rect.height() - m_pageImage.height()) / 2;
+        QPoint imagePoint = position - rect.topLeft() - QPoint(0, verticalImageOffset);
+
+        if (imagePoint.x() >= 0 && imagePoint.x() < m_pageImage.width() &&
+            imagePoint.y() >= 0 && imagePoint.y() < m_pageImage.height())
+        {
+            m_imagePointUnderCursor = imagePoint;
+        }
+    }
+
+    buildInfoBoxItems();
+    update();
 }
 
 }   // pdfplugin

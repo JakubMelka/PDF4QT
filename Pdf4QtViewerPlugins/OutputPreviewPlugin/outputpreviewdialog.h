@@ -53,8 +53,10 @@ public:
 private:
     void updateInks();
     void updatePaperColorWidgets();
+    void updateAlarmColorButtonIcon();
 
     void onPaperColorChanged();
+    void onAlarmColorButtonClicked();
     void onSimulateSeparationsChecked(bool checked);
     void onSimulatePaperColorChecked(bool checked);
     void onInksChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>& roles);

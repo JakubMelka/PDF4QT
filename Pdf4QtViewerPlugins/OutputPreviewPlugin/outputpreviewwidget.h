@@ -58,8 +58,12 @@ public:
     /// Returns page image size hint (ideal size of page image)
     QSize getPageImageSizeHint() const;
 
+    QColor getAlarmColor() const;
+    void setAlarmColor(const QColor& alarmColor);
+
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual void mouseMoveEvent(QMouseEvent* event) override;
 
 private:
     QMargins getDrawMargins() const;
@@ -73,12 +77,14 @@ private:
     void addInfoBoxHeader(QString caption);
     void addInfoBoxSeparator();
     void addInfoBoxColoredItem(QColor color, QString caption, QString value);
+    void addColoredOval(QColor color);
 
     enum InfoBoxStyle
     {
         Header,
         Separator,
-        ColoredItem
+        ColoredItem,
+        ColoredOval
     };
 
     struct InfoBoxItem
@@ -101,6 +107,8 @@ private:
     const pdf::PDFInkMapper* m_inkMapper;
     DisplayMode m_displayMode;
     std::vector<InfoBoxItem> m_infoBoxItems;
+    QColor m_alarmColor;
+    std::optional<QPoint> m_imagePointUnderCursor;
 
     QImage m_pageImage;
     pdf::PDFFloatBitmapWithColorSpace m_originalProcessBitmap;

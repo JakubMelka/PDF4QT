@@ -24,6 +24,7 @@
 #include "pdfdrawspacecontroller.h"
 
 #include <QCloseEvent>
+#include <QColorDialog>
 #include <QtConcurrent/QtConcurrent>
 
 namespace pdfplugin
@@ -67,10 +68,12 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     connect(ui->displayTilingPatternsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
     connect(ui->displayVectorGraphicsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
     connect(ui->inksTreeWidget->model(), &QAbstractItemModel::dataChanged, this, &OutputPreviewDialog::onInksChanged);
+    connect(ui->alarmColorButton, &QPushButton::clicked, this, &OutputPreviewDialog::onAlarmColorButtonClicked);
 
     updatePageImage();
     updateInks();
     updatePaperColorWidgets();
+    updateAlarmColorButtonIcon();
 }
 
 OutputPreviewDialog::~OutputPreviewDialog()
@@ -175,12 +178,30 @@ void OutputPreviewDialog::updatePaperColorWidgets()
     }
 }
 
+void OutputPreviewDialog::updateAlarmColorButtonIcon()
+{
+    QSize iconSize = ui->alarmColorButton->iconSize();
+    QPixmap pixmap(iconSize);
+    pixmap.fill(ui->imageWidget->getAlarmColor());
+    ui->alarmColorButton->setIcon(QIcon(pixmap));
+}
+
 void OutputPreviewDialog::onPaperColorChanged()
 {
     const bool isPaperColorEnabled = ui->simulatePaperColorCheckBox->isChecked();
     if (isPaperColorEnabled)
     {
         updatePageImage();
+    }
+}
+
+void OutputPreviewDialog::onAlarmColorButtonClicked()
+{
+    QColorDialog colorDialog(ui->imageWidget->getAlarmColor(), this);
+    if (colorDialog.exec() == QColorDialog::Accepted)
+    {
+        ui->imageWidget->setAlarmColor(colorDialog.currentColor());
+        updateAlarmColorButtonIcon();
     }
 }
 
