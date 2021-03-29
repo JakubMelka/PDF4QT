@@ -158,6 +158,16 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
                     break;
                 }
 
+                case pdfplugin::OutputPreviewWidget::ColorOnly:
+                {
+                    QRect cellRect = rowRect.marginsRemoved(QMargins(itemHorizontalMargin, 0, itemHorizontalMargin, 0));
+                    QPoint center = cellRect.center();
+                    cellRect.setWidth(cellRect.width() / 4);
+                    cellRect.moveCenter(center);
+                    painter.fillRect(cellRect, infoBoxItem.color);
+                    break;
+                }
+
                 default:
                     Q_ASSERT(false);
                     break;
@@ -232,14 +242,17 @@ void OutputPreviewWidget::buildInfoBoxItems()
                 colorValues.reserve(pixelFormat.getColorChannelCount());
                 Q_ASSERT(pixelFormat.getColorChannelCount() == separations.size());
 
+                QColor sampleColor;
+                std::vector<QColor> inkColors;
+
                 if (m_imagePointUnderCursor.has_value())
                 {
                     QPoint point = m_imagePointUnderCursor.value();
 
                     Q_ASSERT(point.x() >= 0);
-                    Q_ASSERT(point.x() < m_pageImage.width());
+                    Q_ASSERT(point.x() < m_originalProcessBitmap.getWidth());
                     Q_ASSERT(point.y() >= 0);
-                    Q_ASSERT(point.y() < m_pageImage.height());
+                    Q_ASSERT(point.y() < m_originalProcessBitmap.getHeight());
 
                     pdf::PDFColorBuffer buffer = m_originalProcessBitmap.getPixel(point.x(), point.y());
                     for (int i = 0; i < pixelFormat.getColorChannelCount(); ++i)
@@ -247,7 +260,21 @@ void OutputPreviewWidget::buildInfoBoxItems()
                         const pdf::PDFColorComponent color = buffer[i] * 100.0f;
                         const int percent = qRound(color);
                         colorValues << QString("%1 %").arg(percent);
+
+                        QColor inkColor = separations[i].color;
+                        if (inkColor.isValid())
+                        {
+                            inkColor.setAlphaF(buffer[i]);
+                            inkColors.push_back(inkColor);
+                        }
                     }
+
+                    Q_ASSERT(point.x() >= 0);
+                    Q_ASSERT(point.x() < m_pageImage.width());
+                    Q_ASSERT(point.y() >= 0);
+                    Q_ASSERT(point.y() < m_pageImage.height());
+
+                    sampleColor = m_pageImage.pixelColor(point);
                 }
                 else
                 {
@@ -306,6 +333,13 @@ void OutputPreviewWidget::buildInfoBoxItems()
                         addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, colorValues[colorValueIndex++]);
                     }
                 }
+
+                if (sampleColor.isValid())
+                {
+                    addInfoBoxSeparator();
+                    addInfoBoxHeader(tr("Sample Color"));
+                    addInfoBoxColoredRect(sampleColor);
+                }
             }
             break;
         }
@@ -337,9 +371,9 @@ void OutputPreviewWidget::addInfoBoxColoredItem(QColor color, QString caption, Q
     m_infoBoxItems.push_back(InfoBoxItem(ColoredItem, color, caption, value));
 }
 
-void OutputPreviewWidget::addColoredOval(QColor color)
+void OutputPreviewWidget::addInfoBoxColoredRect(QColor color)
 {
-    m_infoBoxItems.push_back(InfoBoxItem(ColoredOval, color, QString(), QString()));
+    m_infoBoxItems.push_back(InfoBoxItem(ColorOnly, color, QString(), QString()));
 }
 
 QColor OutputPreviewWidget::getAlarmColor() const

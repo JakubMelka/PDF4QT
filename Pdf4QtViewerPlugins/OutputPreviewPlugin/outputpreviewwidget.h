@@ -77,14 +77,14 @@ private:
     void addInfoBoxHeader(QString caption);
     void addInfoBoxSeparator();
     void addInfoBoxColoredItem(QColor color, QString caption, QString value);
-    void addColoredOval(QColor color);
+    void addInfoBoxColoredRect(QColor color);
 
     enum InfoBoxStyle
     {
         Header,
         Separator,
         ColoredItem,
-        ColoredOval
+        ColorOnly
     };
 
     struct InfoBoxItem
