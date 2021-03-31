@@ -79,6 +79,10 @@ private:
     void addInfoBoxColoredItem(QColor color, QString caption, QString value);
     void addInfoBoxColoredRect(QColor color);
 
+    const std::vector<pdf::PDFColorComponent>& getInkCoverage() const;
+
+    std::vector<pdf::PDFColorComponent> getInkCoverageImpl() const;
+
     enum InfoBoxStyle
     {
         Header,
@@ -109,6 +113,8 @@ private:
     std::vector<InfoBoxItem> m_infoBoxItems;
     QColor m_alarmColor;
     std::optional<QPoint> m_imagePointUnderCursor;
+
+    mutable pdf::PDFCachedItem<std::vector<pdf::PDFColorComponent>> m_inkCoverageMM;
 
     QImage m_pageImage;
     pdf::PDFFloatBitmapWithColorSpace m_originalProcessBitmap;

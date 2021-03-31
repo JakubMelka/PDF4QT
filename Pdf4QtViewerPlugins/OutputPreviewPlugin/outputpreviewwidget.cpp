@@ -52,6 +52,7 @@ void OutputPreviewWidget::clear()
     m_pageSizeMM = QSizeF();
     m_infoBoxItems.clear();
     m_imagePointUnderCursor = std::nullopt;
+    m_inkCoverageMM.dirty();
     update();
 }
 
@@ -69,6 +70,8 @@ void OutputPreviewWidget::setPageImage(QImage image, pdf::PDFFloatBitmapWithColo
             m_imagePointUnderCursor = std::nullopt;
         }
     }
+
+    m_inkCoverageMM.dirty();
 
     buildInfoBoxItems();
     update();
@@ -215,7 +218,7 @@ int OutputPreviewWidget::getInfoBoxWidth() const
         return 0;
     }
 
-    return pdf::PDFWidgetUtils::scaleDPI_x(this, 150);
+    return pdf::PDFWidgetUtils::scaleDPI_x(this, 200);
 }
 
 int OutputPreviewWidget::getInfoBoxContentHorizontalMargin() const
@@ -229,9 +232,9 @@ void OutputPreviewWidget::buildInfoBoxItems()
 
     switch (m_displayMode)
     {
-        case pdfplugin::OutputPreviewWidget::Separations:
-        case pdfplugin::OutputPreviewWidget::ColorWarningInkCoverage:
-        case pdfplugin::OutputPreviewWidget::ColorWarningRichBlack:
+        case Separations:
+        case ColorWarningInkCoverage:
+        case ColorWarningRichBlack:
         {
             if (m_originalProcessBitmap.getWidth() > 0 && m_originalProcessBitmap.getHeight() > 0)
             {
@@ -344,12 +347,39 @@ void OutputPreviewWidget::buildInfoBoxItems()
             break;
         }
 
-        case pdfplugin::OutputPreviewWidget::InkCoverage:
+        case InkCoverage:
             break;
 
         default:
             Q_ASSERT(false);
             break;
+    }
+
+    if (m_displayMode == Separations || m_displayMode == InkCoverage)
+    {
+        if (m_originalProcessBitmap.getWidth() > 0 && m_originalProcessBitmap.getHeight() > 0)
+        {
+            const pdf::PDFPixelFormat pixelFormat = m_originalProcessBitmap.getPixelFormat();
+            std::vector<pdf::PDFInkMapper::ColorInfo> separations = m_inkMapper->getSeparations(pixelFormat.getProcessColorChannelCount(), true);
+            const std::vector<pdf::PDFColorComponent>& inkCoverage = getInkCoverage();
+
+            if (!inkCoverage.empty() && inkCoverage.size() == separations.size())
+            {
+                addInfoBoxSeparator();
+                addInfoBoxHeader(tr("Ink Coverage"));
+
+                QLocale locale;
+
+                for (size_t i = 0; i < inkCoverage.size(); ++i)
+                {
+                    const pdf::PDFColorComponent area = inkCoverage[i];
+                    const QColor separationColor = separations[i].color;
+                    const QString& name = separations[i].textName;
+
+                    addInfoBoxColoredItem(separationColor, name, QString("%1 mm²").arg(locale.toString(area, 'f', 2)));
+                }
+            }
+        }
     }
 }
 
@@ -374,6 +404,47 @@ void OutputPreviewWidget::addInfoBoxColoredItem(QColor color, QString caption, Q
 void OutputPreviewWidget::addInfoBoxColoredRect(QColor color)
 {
     m_infoBoxItems.push_back(InfoBoxItem(ColorOnly, color, QString(), QString()));
+}
+
+const std::vector<pdf::PDFColorComponent>& OutputPreviewWidget::getInkCoverage() const
+{
+    return m_inkCoverageMM.get(this, &OutputPreviewWidget::getInkCoverageImpl);
+}
+
+std::vector<pdf::PDFColorComponent> OutputPreviewWidget::getInkCoverageImpl() const
+{
+    std::vector<pdf::PDFColorComponent> result;
+
+    if (m_originalProcessBitmap.getWidth() > 0 && m_originalProcessBitmap.getHeight() > 0)
+    {
+        pdf::PDFPixelFormat pixelFormat = m_originalProcessBitmap.getPixelFormat();
+        pdf::PDFColorComponent totalArea = m_pageSizeMM.width() * m_pageSizeMM.height();
+        pdf::PDFColorComponent pixelArea = totalArea / pdf::PDFColorComponent(m_originalProcessBitmap.getWidth() * m_originalProcessBitmap.getHeight());
+
+        const uint8_t colorChannelCount = pixelFormat.getColorChannelCount();
+        result.resize(colorChannelCount, 0.0f);
+
+        for (size_t y = 0; y < m_originalProcessBitmap.getHeight(); ++y)
+        {
+            for (size_t x = 0; x < m_originalProcessBitmap.getWidth(); ++x)
+            {
+                const pdf::PDFConstColorBuffer buffer = m_originalProcessBitmap.getPixel(x, y);
+                const pdf::PDFColorComponent alpha = pixelFormat.hasOpacityChannel() ? buffer[pixelFormat.getOpacityChannelIndex()] : 1.0f;
+
+                for (uint8_t i = 0; i < colorChannelCount; ++i)
+                {
+                    result[i] += buffer[i] * alpha;
+                }
+            }
+        }
+
+        for (uint8_t i = 0; i < colorChannelCount; ++i)
+        {
+            result[i] *= pixelArea;
+        }
+    }
+
+    return result;
 }
 
 QColor OutputPreviewWidget::getAlarmColor() const
