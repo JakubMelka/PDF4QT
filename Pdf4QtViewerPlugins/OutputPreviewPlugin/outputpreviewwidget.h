@@ -88,13 +88,20 @@ private:
     void addInfoBoxColoredItem(QColor color, QString caption, QString value);
     void addInfoBoxColoredRect(QColor color);
 
+    struct AlarmImageInfo
+    {
+        QImage image;
+        pdf::PDFColorComponent areaValid = 0.0f;
+        pdf::PDFColorComponent areaInvalid = 0.0f;
+    };
+
     const std::vector<pdf::PDFColorComponent>& getInkCoverage() const;
-    const QImage& getAlarmCoverageImage() const;
-    const QImage& getAlarmRichBlackImage() const;
+    const AlarmImageInfo& getAlarmCoverageImage() const;
+    const AlarmImageInfo& getAlarmRichBlackImage() const;
 
     std::vector<pdf::PDFColorComponent> getInkCoverageImpl() const;
-    QImage getAlarmCoverageImageImpl() const;
-    QImage getAlarmRichBlackImageImpl() const;
+    AlarmImageInfo getAlarmCoverageImageImpl() const;
+    AlarmImageInfo getAlarmRichBlackImageImpl() const;
 
     enum InfoBoxStyle
     {
@@ -130,8 +137,8 @@ private:
     pdf::PDFColorComponent m_richBlackLimit;
 
     mutable pdf::PDFCachedItem<std::vector<pdf::PDFColorComponent>> m_inkCoverageMM;
-    mutable pdf::PDFCachedItem<QImage> m_alarmCoverageImage;
-    mutable pdf::PDFCachedItem<QImage> m_alarmRichBlackImage;
+    mutable pdf::PDFCachedItem<AlarmImageInfo> m_alarmCoverageImage;
+    mutable pdf::PDFCachedItem<AlarmImageInfo> m_alarmRichBlackImage;
 
     QImage m_pageImage;
     pdf::PDFFloatBitmapWithColorSpace m_originalProcessBitmap;

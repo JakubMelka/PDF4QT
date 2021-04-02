@@ -114,22 +114,22 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
 
             case ColorWarningInkCoverage:
             {
-                const QImage& image = getAlarmCoverageImage();
-                if (!image.isNull())
+                const AlarmImageInfo& alarmImage = getAlarmCoverageImage();
+                if (!alarmImage.image.isNull())
                 {
-                    painter.translate(0, (pageImageRect.height() - image.height()) / 2);
-                    painter.drawImage(pageImageRect.topLeft(), image);
+                    painter.translate(0, (pageImageRect.height() - alarmImage.image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), alarmImage.image);
                 }
                 break;
             }
 
             case ColorWarningRichBlack:
             {
-                const QImage& image = getAlarmRichBlackImage();
-                if (!image.isNull())
+                const AlarmImageInfo& image = getAlarmRichBlackImage();
+                if (!image.image.isNull())
                 {
-                    painter.translate(0, (pageImageRect.height() - image.height()) / 2);
-                    painter.drawImage(pageImageRect.topLeft(), image);
+                    painter.translate(0, (pageImageRect.height() - image.image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), image.image);
                 }
                 break;
             }
@@ -276,6 +276,8 @@ void OutputPreviewWidget::buildInfoBoxItems()
 {
     m_infoBoxItems.clear();
 
+    QColor sampleColor;
+
     switch (m_displayMode)
     {
         case Separations:
@@ -291,7 +293,6 @@ void OutputPreviewWidget::buildInfoBoxItems()
                 colorValues.reserve(pixelFormat.getColorChannelCount());
                 Q_ASSERT(pixelFormat.getColorChannelCount() == separations.size());
 
-                QColor sampleColor;
                 std::vector<QColor> inkColors;
 
                 if (m_imagePointUnderCursor.has_value())
@@ -382,13 +383,6 @@ void OutputPreviewWidget::buildInfoBoxItems()
                         addInfoBoxColoredItem(colorInfo.color, colorInfo.textName, colorValues[colorValueIndex++]);
                     }
                 }
-
-                if (sampleColor.isValid())
-                {
-                    addInfoBoxSeparator();
-                    addInfoBoxHeader(tr("Sample Color"));
-                    addInfoBoxColoredRect(sampleColor);
-                }
             }
             break;
         }
@@ -399,6 +393,28 @@ void OutputPreviewWidget::buildInfoBoxItems()
         default:
             Q_ASSERT(false);
             break;
+    }
+
+    if (m_displayMode == ColorWarningInkCoverage)
+    {
+        addInfoBoxSeparator();
+        addInfoBoxHeader(tr("Warning | Ink Coverage"));
+
+        QLocale locale;
+        const auto& alarmImage = getAlarmCoverageImage();
+        addInfoBoxColoredItem(Qt::green, tr("OK"), QString("%1 mm²").arg(locale.toString(alarmImage.areaValid, 'f', 2)));
+        addInfoBoxColoredItem(Qt::red, tr("Failure"), QString("%1 mm²").arg(locale.toString(alarmImage.areaInvalid, 'f', 2)));
+    }
+
+    if (m_displayMode == ColorWarningRichBlack)
+    {
+        addInfoBoxSeparator();
+        addInfoBoxHeader(tr("Warning | Rich Black"));
+
+        QLocale locale;
+        const auto& alarmImage = getAlarmRichBlackImage();
+        addInfoBoxColoredItem(Qt::green, tr("OK"), QString("%1 mm²").arg(locale.toString(alarmImage.areaValid, 'f', 2)));
+        addInfoBoxColoredItem(Qt::red, tr("Failure"), QString("%1 mm²").arg(locale.toString(alarmImage.areaInvalid, 'f', 2)));
     }
 
     if (m_displayMode == Separations || m_displayMode == InkCoverage)
@@ -426,6 +442,13 @@ void OutputPreviewWidget::buildInfoBoxItems()
                 }
             }
         }
+    }
+
+    if (sampleColor.isValid())
+    {
+        addInfoBoxSeparator();
+        addInfoBoxHeader(tr("Sample Color"));
+        addInfoBoxColoredRect(sampleColor);
     }
 }
 
@@ -457,12 +480,12 @@ const std::vector<pdf::PDFColorComponent>& OutputPreviewWidget::getInkCoverage()
     return m_inkCoverageMM.get(this, &OutputPreviewWidget::getInkCoverageImpl);
 }
 
-const QImage& OutputPreviewWidget::getAlarmCoverageImage() const
+const OutputPreviewWidget::AlarmImageInfo& OutputPreviewWidget::getAlarmCoverageImage() const
 {
     return m_alarmCoverageImage.get(this, &OutputPreviewWidget::getAlarmCoverageImageImpl);
 }
 
-const QImage& OutputPreviewWidget::getAlarmRichBlackImage() const
+const OutputPreviewWidget::AlarmImageInfo& OutputPreviewWidget::getAlarmRichBlackImage() const
 {
     return m_alarmRichBlackImage.get(this, &OutputPreviewWidget::getAlarmRichBlackImageImpl);
 }
@@ -503,37 +526,56 @@ std::vector<pdf::PDFColorComponent> OutputPreviewWidget::getInkCoverageImpl() co
     return result;
 }
 
-QImage OutputPreviewWidget::getAlarmCoverageImageImpl() const
+OutputPreviewWidget::AlarmImageInfo OutputPreviewWidget::getAlarmCoverageImageImpl() const
 {
-    QImage alarmImage = m_pageImage;
+    AlarmImageInfo alarmImage;
+    alarmImage.image = m_pageImage;
+    alarmImage.areaValid = 0.0f;
+    alarmImage.areaInvalid = 0.0f;
 
-    const int width = alarmImage.width();
-    const int height = alarmImage.height();
+    const int width = alarmImage.image.width();
+    const int height = alarmImage.image.height();
 
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
             pdf::PDFColorComponent inkCoverage = m_originalProcessBitmap.getPixelInkCoverage(x, y);
+
             if (inkCoverage > m_inkCoverageLimit)
             {
-                alarmImage.setPixelColor(x, y, m_alarmColor);
+                alarmImage.areaInvalid += 1.0f;
+                alarmImage.image.setPixelColor(x, y, m_alarmColor);
+            }
+            else if (!qFuzzyIsNull(inkCoverage))
+            {
+                alarmImage.areaValid += 1.0f;
             }
         }
+    }
+
+    if (width > 0 && height > 0)
+    {
+        const pdf::PDFColorComponent factor = m_pageSizeMM.width() * m_pageSizeMM.height() / (pdf::PDFColorComponent(width) * pdf::PDFColorComponent(height));
+        alarmImage.areaValid *= factor;
+        alarmImage.areaInvalid *= factor;
     }
 
     return alarmImage;
 }
 
-QImage OutputPreviewWidget::getAlarmRichBlackImageImpl() const
+OutputPreviewWidget::AlarmImageInfo OutputPreviewWidget::getAlarmRichBlackImageImpl() const
 {
-    QImage alarmImage = m_pageImage;
+    AlarmImageInfo alarmImage;
+    alarmImage.image = m_pageImage;
+    alarmImage.areaValid = 0.0f;
+    alarmImage.areaInvalid = 0.0f;
 
     const pdf::PDFPixelFormat pixelFormat = m_originalProcessBitmap.getPixelFormat();
     if (pixelFormat.getProcessColorChannelCount() == 4)
     {
-        const int width = alarmImage.width();
-        const int height = alarmImage.height();
+        const int width = alarmImage.image.width();
+        const int height = alarmImage.image.height();
 
         const uint8_t blackChannelIndex = pixelFormat.getProcessColorChannelIndexStart() + 3;
 
@@ -543,18 +585,26 @@ QImage OutputPreviewWidget::getAlarmRichBlackImageImpl() const
             {
                 pdf::PDFConstColorBuffer buffer = m_originalProcessBitmap.getPixel(x, y);
                 pdf::PDFColorComponent blackInk = buffer[blackChannelIndex];
+                pdf::PDFColorComponent inkCoverage = m_originalProcessBitmap.getPixelInkCoverage(x, y);
+                pdf::PDFColorComponent inkCoverageWithoutBlack = inkCoverage - blackInk;
 
-                if (blackInk > m_richBlackLimit)
+                if (blackInk > m_richBlackLimit && !qFuzzyIsNull(inkCoverageWithoutBlack))
                 {
-                    pdf::PDFColorComponent inkCoverage = m_originalProcessBitmap.getPixelInkCoverage(x, y);
-                    pdf::PDFColorComponent inkCoverageWithoutBlack = inkCoverage - blackInk;
-
-                    if (!qFuzzyIsNull(inkCoverageWithoutBlack))
-                    {
-                        alarmImage.setPixelColor(x, y, m_alarmColor);
-                    }
+                    alarmImage.areaInvalid += 1.0f;
+                    alarmImage.image.setPixelColor(x, y, m_alarmColor);
+                }
+                else if (!qFuzzyIsNull(inkCoverage))
+                {
+                    alarmImage.areaValid += 1.0f;
                 }
             }
+        }
+
+        if (width > 0 && height > 0)
+        {
+            const pdf::PDFColorComponent factor = m_pageSizeMM.width() * m_pageSizeMM.height() / (pdf::PDFColorComponent(width) * pdf::PDFColorComponent(height));
+            alarmImage.areaValid *= factor;
+            alarmImage.areaInvalid *= factor;
         }
     }
 
