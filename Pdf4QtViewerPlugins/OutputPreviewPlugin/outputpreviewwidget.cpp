@@ -57,6 +57,7 @@ void OutputPreviewWidget::clear()
     m_inkCoverageMM.dirty();
     m_alarmCoverageImage.dirty();
     m_alarmRichBlackImage.dirty();
+    m_inkCoverageImage.dirty();
     update();
 }
 
@@ -78,6 +79,7 @@ void OutputPreviewWidget::setPageImage(QImage image, pdf::PDFFloatBitmapWithColo
     m_inkCoverageMM.dirty();
     m_alarmCoverageImage.dirty();
     m_alarmRichBlackImage.dirty();
+    m_inkCoverageImage.dirty();
 
     buildInfoBoxItems();
     update();
@@ -135,7 +137,15 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
             }
 
             case InkCoverage:
+            {
+                const InkCoverageInfo& image = getInkCoverageInfo();
+                if (!image.image.isNull())
+                {
+                    painter.translate(0, (pageImageRect.height() - image.image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), image.image);
+                }
                 break;
+            }
 
             default:
                 Q_ASSERT(false);
@@ -490,6 +500,11 @@ const OutputPreviewWidget::AlarmImageInfo& OutputPreviewWidget::getAlarmRichBlac
     return m_alarmRichBlackImage.get(this, &OutputPreviewWidget::getAlarmRichBlackImageImpl);
 }
 
+const OutputPreviewWidget::InkCoverageInfo& OutputPreviewWidget::getInkCoverageInfo() const
+{
+    return m_inkCoverageImage.get(this, &OutputPreviewWidget::getInkCoverageInfoImpl);
+}
+
 std::vector<pdf::PDFColorComponent> OutputPreviewWidget::getInkCoverageImpl() const
 {
     std::vector<pdf::PDFColorComponent> result;
@@ -609,6 +624,47 @@ OutputPreviewWidget::AlarmImageInfo OutputPreviewWidget::getAlarmRichBlackImageI
     }
 
     return alarmImage;
+}
+
+OutputPreviewWidget::InkCoverageInfo OutputPreviewWidget::getInkCoverageInfoImpl() const
+{
+    InkCoverageInfo coverageInfo;
+    coverageInfo.minValue = 0.0f;
+    coverageInfo.maxValue = 1.0f;
+
+    pdf::PDFFloatBitmap inkCoverageBitmap = m_originalProcessBitmap.getInkCoverageBitmap();
+
+    int width = int(inkCoverageBitmap.getWidth());
+    int height = int(inkCoverageBitmap.getHeight());
+
+    if (width > 0 && height > 0)
+    {
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                pdf::PDFColorBuffer buffer = inkCoverageBitmap.getPixel(x, y);
+                const pdf::PDFColorComponent coverage = buffer[0];
+                coverageInfo.maxValue = qMax(coverage, coverageInfo.maxValue);
+            }
+        }
+
+        pdf::PDFColorScale colorScale(coverageInfo.minValue, coverageInfo.maxValue);
+        coverageInfo.image = QImage(width, height, QImage::Format_RGBX8888);
+
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                pdf::PDFColorBuffer buffer = inkCoverageBitmap.getPixel(x, y);
+                const pdf::PDFColorComponent coverage = buffer[0];
+
+                coverageInfo.image.setPixelColor(x, y, colorScale.map(coverage));
+            }
+        }
+    }
+
+    return coverageInfo;
 }
 
 pdf::PDFColorComponent OutputPreviewWidget::getRichBlackLimit() const

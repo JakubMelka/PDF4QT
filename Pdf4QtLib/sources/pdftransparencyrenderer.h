@@ -160,6 +160,10 @@ public:
     /// Returns ink coverage
     PDFColorComponent getPixelInkCoverage(size_t x, size_t y) const;
 
+    /// Returns ink coverage bitmap. Bitmap consists of one color channel,
+    /// which consists of ink coverage.
+    PDFFloatBitmap getInkCoverageBitmap() const;
+
     const PDFColorComponent* begin() const;
     const PDFColorComponent* end() const;
 

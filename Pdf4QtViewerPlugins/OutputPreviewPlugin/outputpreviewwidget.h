@@ -95,13 +95,22 @@ private:
         pdf::PDFColorComponent areaInvalid = 0.0f;
     };
 
+    struct InkCoverageInfo
+    {
+        QImage image;
+        pdf::PDFColorComponent minValue = 0.0f;
+        pdf::PDFColorComponent maxValue = 0.0f;
+    };
+
     const std::vector<pdf::PDFColorComponent>& getInkCoverage() const;
     const AlarmImageInfo& getAlarmCoverageImage() const;
     const AlarmImageInfo& getAlarmRichBlackImage() const;
+    const InkCoverageInfo& getInkCoverageInfo() const;
 
     std::vector<pdf::PDFColorComponent> getInkCoverageImpl() const;
     AlarmImageInfo getAlarmCoverageImageImpl() const;
     AlarmImageInfo getAlarmRichBlackImageImpl() const;
+    InkCoverageInfo getInkCoverageInfoImpl() const;
 
     enum InfoBoxStyle
     {
@@ -139,6 +148,7 @@ private:
     mutable pdf::PDFCachedItem<std::vector<pdf::PDFColorComponent>> m_inkCoverageMM;
     mutable pdf::PDFCachedItem<AlarmImageInfo> m_alarmCoverageImage;
     mutable pdf::PDFCachedItem<AlarmImageInfo> m_alarmRichBlackImage;
+    mutable pdf::PDFCachedItem<InkCoverageInfo> m_inkCoverageImage;
 
     QImage m_pageImage;
     pdf::PDFFloatBitmapWithColorSpace m_originalProcessBitmap;

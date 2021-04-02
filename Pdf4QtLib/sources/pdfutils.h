@@ -806,6 +806,21 @@ QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
     return stream;
 }
 
+/// Color scale represents hot-to-cold color scale. It maps value
+/// to the color from blue trough green to red.
+class Pdf4QtLIBSHARED_EXPORT PDFColorScale
+{
+public:
+    explicit PDFColorScale(PDFReal min, PDFReal max);
+
+    QColor map(PDFReal value) const;
+
+private:
+    std::vector<QColor> m_colorScales;
+    PDFReal m_min;
+    PDFReal m_max;
+};
+
 }   // namespace pdf
 
 #endif // PDFUTILS_H

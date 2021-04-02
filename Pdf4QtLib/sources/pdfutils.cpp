@@ -518,4 +518,43 @@ QString PDFSysUtils::getUserName()
     return userName;
 }
 
+PDFColorScale::PDFColorScale(PDFReal min, PDFReal max) :
+    m_min(min),
+    m_max(max)
+{
+    m_colorScales = {
+        Qt::blue,
+        Qt::cyan,
+        Qt::green,
+        Qt::yellow,
+        Qt::red
+    };
+}
+
+QColor PDFColorScale::map(PDFReal value) const
+{
+    PDFReal correctedValue = qBound(m_min, value, m_max);
+    PDFReal intervalValue = interpolate(correctedValue, m_min, m_max, 0.0, PDFReal(m_colorScales.size() - 1));
+    PDFReal indexValue = qFloor(intervalValue);
+    int index = indexValue;
+    PDFReal fractionValue = intervalValue - index;
+
+    if (index == int(m_colorScales.size()) - 1)
+    {
+        --index;
+        fractionValue = 1.0;
+    }
+
+    Q_ASSERT(index + 1 < m_colorScales.size());
+
+    const QColor& leftValue = m_colorScales[index];
+    const QColor& rightValue = m_colorScales[index + 1];
+
+    qreal r = (1.0 - fractionValue) * leftValue.redF() + fractionValue * rightValue.redF();
+    qreal g = (1.0 - fractionValue) * leftValue.greenF() + fractionValue * rightValue.greenF();
+    qreal b = (1.0 - fractionValue) * leftValue.blueF() + fractionValue * rightValue.blueF();
+
+    return QColor::fromRgbF(r, g, b);
+}
+
 }   // namespace pdf

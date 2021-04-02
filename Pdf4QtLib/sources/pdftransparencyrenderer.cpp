@@ -90,6 +90,23 @@ PDFColorComponent PDFFloatBitmap::getPixelInkCoverage(size_t x, size_t y) const
     return inkCoverage;
 }
 
+PDFFloatBitmap PDFFloatBitmap::getInkCoverageBitmap() const
+{
+    PDFFloatBitmap result(getWidth(), getHeight(), PDFPixelFormat::createFormat(1, 0, false, true, false));
+
+    for (size_t y = 0; y < getHeight(); ++y)
+    {
+        for (size_t x = 0; x < getWidth(); ++x)
+        {
+            PDFColorComponent coverage = getPixelInkCoverage(x, y);
+            PDFColorBuffer targetProcessColorBuffer = result.getPixel(x, y);
+            targetProcessColorBuffer[0] = coverage;
+        }
+    }
+
+    return result;
+}
+
 const PDFColorComponent* PDFFloatBitmap::begin() const
 {
     return m_data.data();
