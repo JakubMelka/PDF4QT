@@ -59,7 +59,10 @@ private:
     void onAlarmColorButtonClicked();
     void onSimulateSeparationsChecked(bool checked);
     void onSimulatePaperColorChecked(bool checked);
+    void onDisplayModeChanged();
     void onInksChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>& roles);
+    void onInkCoverageLimitChanged(double value);
+    void onRichBlackLimtiChanged(double value);
 
     struct RenderedImage
     {

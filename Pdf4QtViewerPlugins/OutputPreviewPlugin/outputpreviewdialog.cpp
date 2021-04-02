@@ -69,11 +69,17 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     connect(ui->displayVectorGraphicsCheckBox, &QCheckBox::clicked, this, &OutputPreviewDialog::updatePageImage);
     connect(ui->inksTreeWidget->model(), &QAbstractItemModel::dataChanged, this, &OutputPreviewDialog::onInksChanged);
     connect(ui->alarmColorButton, &QPushButton::clicked, this, &OutputPreviewDialog::onAlarmColorButtonClicked);
+    connect(ui->displayModeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &OutputPreviewDialog::onDisplayModeChanged);
+    connect(ui->inkCoverageLimitEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onInkCoverageLimitChanged);
+    connect(ui->richBlackLimitEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OutputPreviewDialog::onRichBlackLimtiChanged);
 
     updatePageImage();
     updateInks();
     updatePaperColorWidgets();
     updateAlarmColorButtonIcon();
+    onDisplayModeChanged();
+    onInkCoverageLimitChanged(ui->inkCoverageLimitEdit->value());
+    onRichBlackLimtiChanged(ui->richBlackLimitEdit->value());
 }
 
 OutputPreviewDialog::~OutputPreviewDialog()
@@ -220,6 +226,11 @@ void OutputPreviewDialog::onSimulatePaperColorChecked(bool checked)
     updatePageImage();
 }
 
+void OutputPreviewDialog::onDisplayModeChanged()
+{
+    ui->imageWidget->setDisplayMode(OutputPreviewWidget::DisplayMode(ui->displayModeComboBox->currentData().toInt()));
+}
+
 void OutputPreviewDialog::onInksChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>& roles)
 {
     Q_UNUSED(topLeft);
@@ -229,6 +240,16 @@ void OutputPreviewDialog::onInksChanged(const QModelIndex& topLeft, const QModel
     {
         updatePageImage();
     }
+}
+
+void OutputPreviewDialog::onInkCoverageLimitChanged(double value)
+{
+    ui->imageWidget->setInkCoverageLimit(value / 100.0);
+}
+
+void OutputPreviewDialog::onRichBlackLimtiChanged(double value)
+{
+    ui->imageWidget->setRichBlackLimit(value / 100.0);
 }
 
 void OutputPreviewDialog::updatePageImage()

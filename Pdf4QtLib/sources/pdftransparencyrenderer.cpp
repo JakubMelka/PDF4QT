@@ -74,6 +74,22 @@ PDFColorBuffer PDFFloatBitmap::getPixels()
     return PDFColorBuffer(m_data.data(), m_data.size());
 }
 
+PDFColorComponent PDFFloatBitmap::getPixelInkCoverage(size_t x, size_t y) const
+{
+    PDFConstColorBuffer buffer = getPixel(x, y);
+
+    const uint8_t colorChannelIndexStart = m_format.getColorChannelIndexStart();
+    const uint8_t colorChannelIndexEnd = m_format.getColorChannelIndexEnd();
+
+    PDFColorComponent inkCoverage = 0.0;
+    for (uint8_t i = colorChannelIndexStart; i < colorChannelIndexEnd; ++i)
+    {
+        inkCoverage += buffer[i];
+    }
+
+    return inkCoverage;
+}
+
 const PDFColorComponent* PDFFloatBitmap::begin() const
 {
     return m_data.data();

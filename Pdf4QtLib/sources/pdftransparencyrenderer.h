@@ -157,6 +157,9 @@ public:
     /// Returns buffer with all pixels
     PDFColorBuffer getPixels();
 
+    /// Returns ink coverage
+    PDFColorComponent getPixelInkCoverage(size_t x, size_t y) const;
+
     const PDFColorComponent* begin() const;
     const PDFColorComponent* end() const;
 

@@ -61,6 +61,15 @@ public:
     QColor getAlarmColor() const;
     void setAlarmColor(const QColor& alarmColor);
 
+    DisplayMode getDisplayMode() const;
+    void setDisplayMode(const DisplayMode& displayMode);
+
+    pdf::PDFColorComponent getInkCoverageLimit() const;
+    void setInkCoverageLimit(pdf::PDFColorComponent inkCoverageLimit);
+
+    pdf::PDFColorComponent getRichBlackLimit() const;
+    void setRichBlackLimit(pdf::PDFColorComponent richBlackLimit);
+
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void mouseMoveEvent(QMouseEvent* event) override;
@@ -80,8 +89,12 @@ private:
     void addInfoBoxColoredRect(QColor color);
 
     const std::vector<pdf::PDFColorComponent>& getInkCoverage() const;
+    const QImage& getAlarmCoverageImage() const;
+    const QImage& getAlarmRichBlackImage() const;
 
     std::vector<pdf::PDFColorComponent> getInkCoverageImpl() const;
+    QImage getAlarmCoverageImageImpl() const;
+    QImage getAlarmRichBlackImageImpl() const;
 
     enum InfoBoxStyle
     {
@@ -113,8 +126,12 @@ private:
     std::vector<InfoBoxItem> m_infoBoxItems;
     QColor m_alarmColor;
     std::optional<QPoint> m_imagePointUnderCursor;
+    pdf::PDFColorComponent m_inkCoverageLimit;
+    pdf::PDFColorComponent m_richBlackLimit;
 
     mutable pdf::PDFCachedItem<std::vector<pdf::PDFColorComponent>> m_inkCoverageMM;
+    mutable pdf::PDFCachedItem<QImage> m_alarmCoverageImage;
+    mutable pdf::PDFCachedItem<QImage> m_alarmRichBlackImage;
 
     QImage m_pageImage;
     pdf::PDFFloatBitmapWithColorSpace m_originalProcessBitmap;

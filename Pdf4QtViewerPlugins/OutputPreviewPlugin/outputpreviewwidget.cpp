@@ -30,7 +30,9 @@ OutputPreviewWidget::OutputPreviewWidget(QWidget* parent) :
     BaseClass(parent),
     m_inkMapper(nullptr),
     m_displayMode(Separations),
-    m_alarmColor(Qt::red)
+    m_alarmColor(Qt::red),
+    m_inkCoverageLimit(3.0),
+    m_richBlackLimit(1.0)
 {
     setMouseTracking(true);
 }
@@ -53,6 +55,8 @@ void OutputPreviewWidget::clear()
     m_infoBoxItems.clear();
     m_imagePointUnderCursor = std::nullopt;
     m_inkCoverageMM.dirty();
+    m_alarmCoverageImage.dirty();
+    m_alarmRichBlackImage.dirty();
     update();
 }
 
@@ -72,6 +76,8 @@ void OutputPreviewWidget::setPageImage(QImage image, pdf::PDFFloatBitmapWithColo
     }
 
     m_inkCoverageMM.dirty();
+    m_alarmCoverageImage.dirty();
+    m_alarmRichBlackImage.dirty();
 
     buildInfoBoxItems();
     update();
@@ -89,12 +95,52 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
     QRect contentRect = getContentRect();
     QRect pageImageRect = getPageImageRect(contentRect);
 
-    if (pageImageRect.isValid() && !m_pageImage.isNull())
+    if (pageImageRect.isValid())
     {
         painter.save();
         painter.setClipRect(pageImageRect, Qt::IntersectClip);
-        painter.translate(0, (pageImageRect.height() - m_pageImage.height()) / 2);
-        painter.drawImage(pageImageRect.topLeft(), m_pageImage);
+
+        switch (m_displayMode)
+        {
+            case Separations:
+            {
+                if (!m_pageImage.isNull())
+                {
+                    painter.translate(0, (pageImageRect.height() - m_pageImage.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), m_pageImage);
+                }
+                break;
+            }
+
+            case ColorWarningInkCoverage:
+            {
+                const QImage& image = getAlarmCoverageImage();
+                if (!image.isNull())
+                {
+                    painter.translate(0, (pageImageRect.height() - image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), image);
+                }
+                break;
+            }
+
+            case ColorWarningRichBlack:
+            {
+                const QImage& image = getAlarmRichBlackImage();
+                if (!image.isNull())
+                {
+                    painter.translate(0, (pageImageRect.height() - image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), image);
+                }
+                break;
+            }
+
+            case InkCoverage:
+                break;
+
+            default:
+                Q_ASSERT(false);
+        }
+
         painter.restore();
     }
 
@@ -411,6 +457,16 @@ const std::vector<pdf::PDFColorComponent>& OutputPreviewWidget::getInkCoverage()
     return m_inkCoverageMM.get(this, &OutputPreviewWidget::getInkCoverageImpl);
 }
 
+const QImage& OutputPreviewWidget::getAlarmCoverageImage() const
+{
+    return m_alarmCoverageImage.get(this, &OutputPreviewWidget::getAlarmCoverageImageImpl);
+}
+
+const QImage& OutputPreviewWidget::getAlarmRichBlackImage() const
+{
+    return m_alarmRichBlackImage.get(this, &OutputPreviewWidget::getAlarmRichBlackImageImpl);
+}
+
 std::vector<pdf::PDFColorComponent> OutputPreviewWidget::getInkCoverageImpl() const
 {
     std::vector<pdf::PDFColorComponent> result;
@@ -447,6 +503,111 @@ std::vector<pdf::PDFColorComponent> OutputPreviewWidget::getInkCoverageImpl() co
     return result;
 }
 
+QImage OutputPreviewWidget::getAlarmCoverageImageImpl() const
+{
+    QImage alarmImage = m_pageImage;
+
+    const int width = alarmImage.width();
+    const int height = alarmImage.height();
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            pdf::PDFColorComponent inkCoverage = m_originalProcessBitmap.getPixelInkCoverage(x, y);
+            if (inkCoverage > m_inkCoverageLimit)
+            {
+                alarmImage.setPixelColor(x, y, m_alarmColor);
+            }
+        }
+    }
+
+    return alarmImage;
+}
+
+QImage OutputPreviewWidget::getAlarmRichBlackImageImpl() const
+{
+    QImage alarmImage = m_pageImage;
+
+    const pdf::PDFPixelFormat pixelFormat = m_originalProcessBitmap.getPixelFormat();
+    if (pixelFormat.getProcessColorChannelCount() == 4)
+    {
+        const int width = alarmImage.width();
+        const int height = alarmImage.height();
+
+        const uint8_t blackChannelIndex = pixelFormat.getProcessColorChannelIndexStart() + 3;
+
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                pdf::PDFConstColorBuffer buffer = m_originalProcessBitmap.getPixel(x, y);
+                pdf::PDFColorComponent blackInk = buffer[blackChannelIndex];
+
+                if (blackInk > m_richBlackLimit)
+                {
+                    pdf::PDFColorComponent inkCoverage = m_originalProcessBitmap.getPixelInkCoverage(x, y);
+                    pdf::PDFColorComponent inkCoverageWithoutBlack = inkCoverage - blackInk;
+
+                    if (!qFuzzyIsNull(inkCoverageWithoutBlack))
+                    {
+                        alarmImage.setPixelColor(x, y, m_alarmColor);
+                    }
+                }
+            }
+        }
+    }
+
+    return alarmImage;
+}
+
+pdf::PDFColorComponent OutputPreviewWidget::getRichBlackLimit() const
+{
+    return m_richBlackLimit;
+}
+
+void OutputPreviewWidget::setRichBlackLimit(pdf::PDFColorComponent richBlackLimit)
+{
+    if (m_richBlackLimit != richBlackLimit)
+    {
+        m_richBlackLimit = richBlackLimit;
+        m_alarmRichBlackImage.dirty();
+        buildInfoBoxItems();
+        update();
+    }
+}
+
+pdf::PDFColorComponent OutputPreviewWidget::getInkCoverageLimit() const
+{
+    return m_inkCoverageLimit;
+}
+
+void OutputPreviewWidget::setInkCoverageLimit(pdf::PDFColorComponent inkCoverageLimit)
+{
+    if (m_inkCoverageLimit != inkCoverageLimit)
+    {
+        m_inkCoverageLimit = inkCoverageLimit;
+        m_alarmCoverageImage.dirty();
+        buildInfoBoxItems();
+        update();
+    }
+}
+
+OutputPreviewWidget::DisplayMode OutputPreviewWidget::getDisplayMode() const
+{
+    return m_displayMode;
+}
+
+void OutputPreviewWidget::setDisplayMode(const DisplayMode& displayMode)
+{
+    if (m_displayMode != displayMode)
+    {
+        m_displayMode = displayMode;
+        buildInfoBoxItems();
+        update();
+    }
+}
+
 QColor OutputPreviewWidget::getAlarmColor() const
 {
     return m_alarmColor;
@@ -454,7 +615,13 @@ QColor OutputPreviewWidget::getAlarmColor() const
 
 void OutputPreviewWidget::setAlarmColor(const QColor& alarmColor)
 {
-    m_alarmColor = alarmColor;
+    if (m_alarmColor != alarmColor)
+    {
+        m_alarmColor = alarmColor;
+        m_alarmCoverageImage.dirty();
+        m_alarmRichBlackImage.dirty();
+        update();
+    }
 }
 
 const pdf::PDFInkMapper* OutputPreviewWidget::getInkMapper() const
