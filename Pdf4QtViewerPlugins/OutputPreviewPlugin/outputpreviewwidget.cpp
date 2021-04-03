@@ -235,7 +235,112 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
             rowRect.translate(0, rowRect.height());
         }
 
+        rowRect.translate(0, rowRect.height());
+
         painter.restore();
+
+        if (m_displayMode == InkCoverage)
+        {
+            const InkCoverageInfo& info = getInkCoverageInfo();
+            if (info.colorScale.isValid())
+            {
+                painter.save();
+
+                int rowHeight = rowRect.height();
+                QRect colorScaleRect = rowRect;
+                colorScaleRect.setBottom(contentRect.bottom());
+                const int maxRows = colorScaleRect.height() / rowHeight;
+                int rows = maxRows;
+
+                if (rows > 6)
+                {
+                    painter.save();
+                    QFont font = painter.font();
+                    font.setBold(true);
+                    painter.setFont(font);
+                    painter.drawText(rowRect, Qt::AlignCenter | Qt::TextSingleLine, tr("Distribution"));
+                    rowRect.translate(0, rowRect.height());
+                    colorScaleRect.setTop(rowRect.top());
+                    painter.restore();
+                    --rows;
+
+                    const pdf::PDFColorScale& colorScale = info.colorScale;
+                    pdf::PDFLinearInterpolation<qreal> interpolation(0, rows - 1, colorScale.getMax(), colorScale.getMin());
+
+                    QRect colorRect = colorScaleRect;
+                    colorRect.setLeft(colorScaleRect.left() + colorScaleRect.width() / 3);
+                    colorRect.setWidth(colorScaleRect.width() / 3);
+                    colorRect.setHeight(rowHeight);
+                    colorRect.translate(0, rowHeight / 2);
+
+                    QRect textRect = rowRect;
+                    textRect.setLeft(colorRect.right() + colorRect.height() / 2);
+
+                    QLocale locale;
+
+                    qreal colorScaleTop = colorRect.top();
+                    qreal colorScaleBottom = colorRect.bottom();
+
+                    for (int i = 0; i < rows; ++i)
+                    {
+                        if (i < rows - 1)
+                        {
+                            QLinearGradient gradient(0, colorRect.top(), 0, colorRect.bottom());
+                            gradient.setColorAt(0, colorScale.map(interpolation(i)));
+                            gradient.setColorAt(1, colorScale.map(interpolation(i + 1)));
+                            painter.setPen(Qt::NoPen);
+                            painter.setBrush(QBrush(gradient));
+                            painter.drawRect(colorRect);
+                            colorScaleBottom = colorRect.bottom();
+                        }
+
+                        pdf::PDFReal value = interpolation(i) * 100.0;
+
+                        QPointF point2 = (textRect.topLeft() + textRect.bottomLeft()) * 0.5;
+                        point2.rx() -= rowHeight / 4;
+                        QPointF point1 = point2;
+                        point1.rx() -= rowHeight / 4;
+
+                        painter.setPen(Qt::black);
+                        painter.drawLine(point1, point2);
+                        painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, QString("%1 %").arg(locale.toString(value, 'f', 2)));
+
+                        colorRect.translate(0, colorRect.height());
+                        textRect.translate(0, textRect.height());
+                    }
+
+                    if (m_imagePointUnderCursor.has_value())
+                    {
+                        pdf::PDFLinearInterpolation<qreal> inverseInterpolation(colorScale.getMax(), colorScale.getMin(), colorScaleTop, colorScaleBottom);
+                        pdf::PDFColorComponent coverage = m_originalProcessBitmap.getPixelInkCoverage(m_imagePointUnderCursor->x(), m_imagePointUnderCursor->y());
+                        qreal yCoordinate = inverseInterpolation(coverage);
+
+                        const int triangleRight = colorRect.left();
+                        const int triangleLeft = triangleRight - colorRect.height();
+                        const int halfHeight = (triangleRight - triangleLeft) * 0.5;
+
+                        QPolygonF triangle;
+                        triangle << QPointF(triangleLeft, yCoordinate - halfHeight);
+                        triangle << QPointF(triangleRight, yCoordinate);
+                        triangle << QPointF(triangleLeft, yCoordinate + halfHeight);
+                        painter.setPen(Qt::NoPen);
+                        painter.setBrush(QBrush(Qt::red));
+                        painter.drawConvexPolygon(triangle);
+
+                        QString textCoverage = QString("%1 %").arg(locale.toString(coverage * 100.0, 'f', 2));
+                        const int textRight = triangleLeft - rowHeight / 4;
+                        const int textWidth = painter.fontMetrics().width(textCoverage);
+                        const int textStart = textRight - textWidth;
+
+                        QRect textRect(textStart, yCoordinate - halfHeight, textWidth + 1, rowHeight);
+                        painter.setPen(Qt::black);
+                        painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, textCoverage);
+                    }
+                }
+
+                painter.restore();
+            }
+        }
     }
 }
 
@@ -649,7 +754,7 @@ OutputPreviewWidget::InkCoverageInfo OutputPreviewWidget::getInkCoverageInfoImpl
             }
         }
 
-        pdf::PDFColorScale colorScale(coverageInfo.minValue, coverageInfo.maxValue);
+        coverageInfo.colorScale = pdf::PDFColorScale(coverageInfo.minValue, coverageInfo.maxValue);
         coverageInfo.image = QImage(width, height, QImage::Format_RGBX8888);
 
         for (int y = 0; y < height; ++y)
@@ -659,7 +764,7 @@ OutputPreviewWidget::InkCoverageInfo OutputPreviewWidget::getInkCoverageInfoImpl
                 pdf::PDFColorBuffer buffer = inkCoverageBitmap.getPixel(x, y);
                 const pdf::PDFColorComponent coverage = buffer[0];
 
-                coverageInfo.image.setPixelColor(x, y, colorScale.map(coverage));
+                coverageInfo.image.setPixelColor(x, y, coverageInfo.colorScale.map(coverage));
             }
         }
     }

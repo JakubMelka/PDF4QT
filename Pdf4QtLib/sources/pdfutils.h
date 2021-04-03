@@ -811,9 +811,26 @@ QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
 class Pdf4QtLIBSHARED_EXPORT PDFColorScale
 {
 public:
+    explicit PDFColorScale();
+
+    /// Creates a new color scale for defined range
+    /// \param min Lower bound of a scale range
+    /// \param max Upper bound of a scale range
     explicit PDFColorScale(PDFReal min, PDFReal max);
 
+    /// Map value to the color. If value is outside of the range, it
+    /// is clamped to fit in the range.
+    /// \param value Value
     QColor map(PDFReal value) const;
+
+    /// Returns color values of the scale
+    const std::vector<QColor> getColorScales() const { return m_colorScales; }
+
+    PDFReal getMin() const { return m_min; }
+    PDFReal getMax() const { return m_max; }
+
+    /// Returns true, if color scale is valid
+    bool isValid() const { return m_min < m_max && !m_colorScales.empty(); }
 
 private:
     std::vector<QColor> m_colorScales;

@@ -100,6 +100,7 @@ private:
         QImage image;
         pdf::PDFColorComponent minValue = 0.0f;
         pdf::PDFColorComponent maxValue = 0.0f;
+        pdf::PDFColorScale colorScale;
     };
 
     const std::vector<pdf::PDFColorComponent>& getInkCoverage() const;

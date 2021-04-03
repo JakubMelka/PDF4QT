@@ -518,6 +518,13 @@ QString PDFSysUtils::getUserName()
     return userName;
 }
 
+PDFColorScale::PDFColorScale() :
+    m_min(0.0),
+    m_max(0.0)
+{
+
+}
+
 PDFColorScale::PDFColorScale(PDFReal min, PDFReal max) :
     m_min(min),
     m_max(max)
