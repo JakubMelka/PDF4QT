@@ -40,7 +40,9 @@ public:
         Separations,
         ColorWarningInkCoverage,
         ColorWarningRichBlack,
-        InkCoverage
+        InkCoverage,
+        ShapeChannel,
+        OpacityChannel
     };
 
     virtual QSize sizeHint() const override;
@@ -107,11 +109,15 @@ private:
     const AlarmImageInfo& getAlarmCoverageImage() const;
     const AlarmImageInfo& getAlarmRichBlackImage() const;
     const InkCoverageInfo& getInkCoverageInfo() const;
+    const QImage& getShapeImage() const;
+    const QImage& getOpacityImage() const;
 
     std::vector<pdf::PDFColorComponent> getInkCoverageImpl() const;
     AlarmImageInfo getAlarmCoverageImageImpl() const;
     AlarmImageInfo getAlarmRichBlackImageImpl() const;
     InkCoverageInfo getInkCoverageInfoImpl() const;
+    QImage getShapeImageImpl() const;
+    QImage getOpacityImageImpl() const;
 
     enum InfoBoxStyle
     {
@@ -150,6 +156,8 @@ private:
     mutable pdf::PDFCachedItem<AlarmImageInfo> m_alarmCoverageImage;
     mutable pdf::PDFCachedItem<AlarmImageInfo> m_alarmRichBlackImage;
     mutable pdf::PDFCachedItem<InkCoverageInfo> m_inkCoverageImage;
+    mutable pdf::PDFCachedItem<QImage> m_opacityMask;
+    mutable pdf::PDFCachedItem<QImage> m_shapeMask;
 
     QImage m_pageImage;
     pdf::PDFFloatBitmapWithColorSpace m_originalProcessBitmap;

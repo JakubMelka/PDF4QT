@@ -50,6 +50,8 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->displayModeComboBox->addItem(tr("Color Warnings | Ink Coverage"), OutputPreviewWidget::ColorWarningInkCoverage);
     ui->displayModeComboBox->addItem(tr("Color Warnings | Rich Black"), OutputPreviewWidget::ColorWarningRichBlack);
     ui->displayModeComboBox->addItem(tr("Ink Coverage"), OutputPreviewWidget::InkCoverage);
+    ui->displayModeComboBox->addItem(tr("Shape Channel"), OutputPreviewWidget::ShapeChannel);
+    ui->displayModeComboBox->addItem(tr("Opacity Channel"), OutputPreviewWidget::OpacityChannel);
     ui->displayModeComboBox->setCurrentIndex(0);
 
     ui->imageWidget->setInkMapper(&m_inkMapper);

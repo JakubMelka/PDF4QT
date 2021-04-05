@@ -58,6 +58,8 @@ void OutputPreviewWidget::clear()
     m_alarmCoverageImage.dirty();
     m_alarmRichBlackImage.dirty();
     m_inkCoverageImage.dirty();
+    m_shapeMask.dirty();
+    m_opacityMask.dirty();
     update();
 }
 
@@ -80,6 +82,8 @@ void OutputPreviewWidget::setPageImage(QImage image, pdf::PDFFloatBitmapWithColo
     m_alarmCoverageImage.dirty();
     m_alarmRichBlackImage.dirty();
     m_inkCoverageImage.dirty();
+    m_shapeMask.dirty();
+    m_opacityMask.dirty();
 
     buildInfoBoxItems();
     update();
@@ -143,6 +147,28 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
                 {
                     painter.translate(0, (pageImageRect.height() - image.image.height()) / 2);
                     painter.drawImage(pageImageRect.topLeft(), image.image);
+                }
+                break;
+            }
+
+            case ShapeChannel:
+            {
+                const QImage& image = getShapeImage();
+                if (!image.isNull())
+                {
+                    painter.translate(0, (pageImageRect.height() - image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), image);
+                }
+                break;
+            }
+
+            case OpacityChannel:
+            {
+                const QImage& image = getOpacityImage();
+                if (!image.isNull())
+                {
+                    painter.translate(0, (pageImageRect.height() - image.height()) / 2);
+                    painter.drawImage(pageImageRect.topLeft(), image);
                 }
                 break;
             }
@@ -398,6 +424,7 @@ void OutputPreviewWidget::buildInfoBoxItems()
         case Separations:
         case ColorWarningInkCoverage:
         case ColorWarningRichBlack:
+        case InkCoverage:
         {
             if (m_originalProcessBitmap.getWidth() > 0 && m_originalProcessBitmap.getHeight() > 0)
             {
@@ -502,7 +529,8 @@ void OutputPreviewWidget::buildInfoBoxItems()
             break;
         }
 
-        case InkCoverage:
+        case ShapeChannel:
+        case OpacityChannel:
             break;
 
         default:
@@ -559,6 +587,12 @@ void OutputPreviewWidget::buildInfoBoxItems()
         }
     }
 
+    if (m_displayMode == ShapeChannel || m_displayMode == OpacityChannel)
+    {
+        addInfoBoxSeparator();
+        addInfoBoxHeader(tr("Shape/Opacity"));
+    }
+
     if (sampleColor.isValid())
     {
         addInfoBoxSeparator();
@@ -608,6 +642,16 @@ const OutputPreviewWidget::AlarmImageInfo& OutputPreviewWidget::getAlarmRichBlac
 const OutputPreviewWidget::InkCoverageInfo& OutputPreviewWidget::getInkCoverageInfo() const
 {
     return m_inkCoverageImage.get(this, &OutputPreviewWidget::getInkCoverageInfoImpl);
+}
+
+const QImage& OutputPreviewWidget::getShapeImage() const
+{
+    return m_shapeMask.get(this, &OutputPreviewWidget::getShapeImageImpl);
+}
+
+const QImage& OutputPreviewWidget::getOpacityImage() const
+{
+    return m_opacityMask.get(this, &OutputPreviewWidget::getOpacityImageImpl);
 }
 
 std::vector<pdf::PDFColorComponent> OutputPreviewWidget::getInkCoverageImpl() const
@@ -770,6 +814,26 @@ OutputPreviewWidget::InkCoverageInfo OutputPreviewWidget::getInkCoverageInfoImpl
     }
 
     return coverageInfo;
+}
+
+QImage OutputPreviewWidget::getShapeImageImpl() const
+{
+    if (!m_originalProcessBitmap.getPixelFormat().hasShapeChannel())
+    {
+        return QImage();
+    }
+
+    return m_originalProcessBitmap.getChannelImage(m_originalProcessBitmap.getPixelFormat().getShapeChannelIndex());
+}
+
+QImage OutputPreviewWidget::getOpacityImageImpl() const
+{
+    if (!m_originalProcessBitmap.getPixelFormat().hasOpacityChannel())
+    {
+        return QImage();
+    }
+
+    return m_originalProcessBitmap.getChannelImage(m_originalProcessBitmap.getPixelFormat().getOpacityChannelIndex());
 }
 
 pdf::PDFColorComponent OutputPreviewWidget::getRichBlackLimit() const
