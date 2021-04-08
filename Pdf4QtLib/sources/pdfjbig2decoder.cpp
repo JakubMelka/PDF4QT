@@ -1706,7 +1706,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
             {
                 // Uncompressed data
                 collectiveBitmap = PDFJBIG2Bitmap(TOTWIDTH, HCHEIGHT, 0x00);
-                BMSIZE = HCHEIGHT * (TOTWIDTH + 7) / 8;
+                // BMSIZE is computed BMSIZE = HCHEIGHT * (TOTWIDTH + 7) / 8;
                 for (uint32_t y = 0; y < HCHEIGHT; ++y)
                 {
                     for (uint32_t x = 0; x < TOTWIDTH; ++x)
@@ -2890,20 +2890,81 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
             switch (parameters.GBTEMPLATE)
             {
                 case 0:
-                    LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0x9B25
+                {
+                    //  Figure 8. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┬───┬───┐
+                    //          │ 1 │ 0 │ 0 │ 1 │ 1 │
+                    //      ┌───┼───┼───┼───┼───┼───┼───┐
+                    //      │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │ 0 │
+                    //  ┌───┼───┼───┼───┼───┼───┴───┴───┘
+                    //  │ 0 │ 1 │ 0 │ 1 │ X │
+                    //  └───┴───┴───┴───┴───┘
+                    //
+                    // Bottom row from right to left: 1010
+                    // Middle row from right to left: 0100110
+                    // Top row from right to left: 11001
+                    //  => 0b1010 0100110 11001
+                    LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0xA4D9
                     break;
+                }
 
                 case 1:
-                    LTPContext = 0b0011110010101; // 13-bit context, hexadecimal value is 0x0795
+                {
+                    //  Figure 9. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┬───┐
+                    //          │ 0 │ 0 │ 1 │ 1 │
+                    //      ┌───┼───┼───┼───┼───┼───┐
+                    //      │ 1 │ 1 │ 0 │ 0 │ 1 │ 0 │
+                    //  ┌───┼───┼───┼───┼───┴───┴───┘
+                    //  │ 1 │ 0 │ 1 │ x │
+                    //  └───┴───┴───┴───┘
+                    //
+                    // Bottom row from right to left: 101
+                    // Middle row from right to left: 010011
+                    // Top row from right to left: 1100
+                    //  => 0b101 010011 1100
+                    LTPContext = 0b1010100111100; // 13-bit context, hexadecimal value is 0x153C
                     break;
+                }
 
                 case 2:
-                    LTPContext = 0b0011100101; // 10-bit context, hexadecimal value is 0x00E5
+                {
+                    //  Figure 10. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┐
+                    //          │ 0 │ 0 │ 1 │
+                    //      ┌───┼───┼───┼───┼───┐
+                    //      │ 1 │ 1 │ 0 │ 0 │ 1 │
+                    //      ├───┼───┼───┼───┴───┘
+                    //      │ 0 │ 1 │ x │
+                    //      └───┴───┴───┘
+                    //
+                    // Bottom row from right to left: 10
+                    // Middle row from right to left: 10011
+                    // Top row from right to left: 100
+                    //  => 0b10 10011 100
+                    LTPContext = 0b1010011100; // 10-bit context, hexadecimal value is 0x029C
                     break;
+                }
 
                 case 3:
-                    LTPContext = 0b0110010101; // 10-bit context, hexadecimal value is 0x0195
+                {
+                    //  Figure 11. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┬───┬───┬───┐
+                    //          │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │
+                    //      ┌───┼───├───┼───┼───┼───┴───┘
+                    //      │ 0 │ 1 │ 0 │ 1 │ x │
+                    //      └───┴───└───┴───┴───┘
+                    //
+                    // Bottom row from right to left: 1010
+                    // Top row from right to left: 100110
+                    //  => 0b1010100110
+                    LTPContext = 0b1010100110; // 10-bit context, hexadecimal value is 0x02A6
                     break;
+                }
 
                 default:
                     Q_ASSERT(false);
