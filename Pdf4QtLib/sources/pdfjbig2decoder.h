@@ -298,6 +298,12 @@ public:
     /// Constructs huffman decoder from huffman code table, in this case, memory is allocated
     explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector<PDFJBIG2HuffmanTableEntry>&& table);
 
+    PDFJBIG2HuffmanDecoder(const PDFJBIG2HuffmanDecoder&) = delete;
+    PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other);
+
+    PDFJBIG2HuffmanDecoder& operator=(const PDFJBIG2HuffmanDecoder&) = delete;
+    PDFJBIG2HuffmanDecoder& operator=(PDFJBIG2HuffmanDecoder&& other);
+
     /// Returns true, if huffman table is valid (and usable)
     bool isValid() const { return m_begin != m_end; }
 

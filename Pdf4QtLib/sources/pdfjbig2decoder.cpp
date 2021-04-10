@@ -2955,9 +2955,9 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                     //
                     //          ┌───┬───┬───┬───┬───┬───┐
                     //          │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │
-                    //      ┌───┼───├───┼───┼───┼───┴───┘
+                    //      ┌───┼───┼───┼───┼───┼───┴───┘
                     //      │ 0 │ 1 │ 0 │ 1 │ x │
-                    //      └───┴───└───┴───┴───┘
+                    //      └───┴───┴───┴───┴───┘
                     //
                     // Bottom row from right to left: 1010
                     // Top row from right to left: 100110
@@ -3016,6 +3016,16 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                 {
                     case 0:
                     {
+                        //  Figure 8. Reused context for coding the SLTP value
+                        //
+                        //          ┌───┬───┬───┬───┬───┐
+                        //          │A15│ 14│ 13│ 12│A11│
+                        //      ┌───┼───┼───┼───┼───┼───┼───┐
+                        //      │A10│ 9 │ 8 │ 7 │ 6 │ 5 │A4 │
+                        //  ┌───┼───┼───┼───┼───┼───┴───┴───┘
+                        //  │ 3 │ 2 │ 1 │ 0 │ X │
+                        //  └───┴───┴───┴───┴───┘
+
                         // 16-bit context
                         createContextBit(x - 1, y);
                         createContextBit(x - 2, y);
@@ -3038,6 +3048,16 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
 
                     case 1:
                     {
+                        //  Figure 9. Reused context for coding the SLTP value
+                        //
+                        //          ┌───┬───┬───┬───┐
+                        //          │ 12│ 11│ 10│ 9 │
+                        //      ┌───┼───┼───┼───┼───┼───┐
+                        //      │ 8 │ 7 │ 6 │ 5 │ 4 │A3 │
+                        //  ┌───┼───┼───┼───┼───┴───┴───┘
+                        //  │ 2 │ 1 │ 0 │ x │
+                        //  └───┴───┴───┴───┘
+
                         // 13-bit context
                         createContextBit(x - 1, y);
                         createContextBit(x - 2, y);
@@ -3057,6 +3077,16 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
 
                     case 2:
                     {
+                        //  Figure 10. Reused context for coding the SLTP value
+                        //
+                        //          ┌───┬───┬───┐
+                        //          │ 9 │ 8 │ 7 │
+                        //      ┌───┼───┼───┼───┼───┐
+                        //      │ 6 │ 5 │ 4 │ 3 │A2 │
+                        //      ├───┼───┼───┼───┴───┘
+                        //      │ 1 │ 0 │ x │
+                        //      └───┴───┴───┘
+
                         // 10-bit context
                         createContextBit(x - 1, y);
                         createContextBit(x - 2, y);
@@ -3073,6 +3103,14 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
 
                     case 3:
                     {
+                        //  Figure 11. Reused context for coding the SLTP value
+                        //
+                        //          ┌───┬───┬───┬───┬───┬───┐
+                        //          │ 9 │ 8 │ 7 │ 6 │ 5 │A4 │
+                        //      ┌───┼───┼───┼───┼───┼───┴───┘
+                        //      │ 3 │ 2 │ 1 │ 0 │ x │
+                        //      └───┴───┴───┴───┴───┘
+
                         // 10-bit context
                         createContextBit(x - 1, y);
                         createContextBit(x - 2, y);
@@ -3797,6 +3835,35 @@ PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector
         m_begin = m_entries.data();
         m_end = m_entries.data() + m_entries.size();
     }
+}
+
+PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other) :
+    m_reader(other.m_reader),
+    m_begin(other.m_begin),
+    m_end(other.m_end),
+    m_entries(qMove(other.m_entries))
+{
+    if (!m_entries.empty())
+    {
+        m_begin = m_entries.data();
+        m_end = m_entries.data() + m_entries.size();
+    }
+}
+
+PDFJBIG2HuffmanDecoder& PDFJBIG2HuffmanDecoder::operator=(PDFJBIG2HuffmanDecoder&& other)
+{
+    m_reader = other.m_reader;
+    m_begin = other.m_begin;
+    m_end = other.m_end;
+    m_entries = qMove(other.m_entries);
+
+    if (!m_entries.empty())
+    {
+        m_begin = m_entries.data();
+        m_end = m_entries.data() + m_entries.size();
+    }
+
+    return *this;
 }
 
 bool PDFJBIG2HuffmanDecoder::isOutOfBandSupported() const
