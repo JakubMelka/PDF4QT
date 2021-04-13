@@ -3848,4 +3848,146 @@ void PDFTransparencyRenderer::PDFTransparencySoftMask::makeOpaque()
     }
 }
 
+PDFInkCoverageCalculator::PDFInkCoverageCalculator(const PDFDocument* document,
+                                                   const PDFFontCache* fontCache,
+                                                   const PDFCMSManager* cmsManager,
+                                                   const PDFOptionalContentActivity* optionalContentActivity,
+                                                   const PDFInkMapper* inkMapper,
+                                                   PDFTransparencyRendererSettings settings) :
+    m_document(document),
+    m_fontCache(fontCache),
+    m_cmsManager(cmsManager),
+    m_optionalContentActivity(optionalContentActivity),
+    m_inkMapper(inkMapper),
+    m_settings(settings)
+{
+    Q_ASSERT(m_document);
+    Q_ASSERT(m_fontCache);
+    Q_ASSERT(m_cmsManager);
+    Q_ASSERT(m_optionalContentActivity);
+    Q_ASSERT(m_inkMapper);
+}
+
+void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>& pages)
+{
+    if (pages.empty())
+    {
+        // Nothing to do
+        return;
+    }
+
+    auto calculatePageCoverage = [this, size](PDFInteger pageIndex)
+    {
+        if (pageIndex >= PDFInteger(m_document->getCatalog()->getPageCount()))
+        {
+            return;
+        }
+
+        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+        if (!page)
+        {
+            return;
+        }
+
+        QRectF pageRect = page->getRotatedMediaBox();
+        QSizeF pageSize = pageRect.size();
+        pageSize.scale(size.width(), size.height(), Qt::KeepAspectRatio);
+        QSize imageSize = pageSize.toSize();
+
+        if (!imageSize.isValid())
+        {
+            return;
+        }
+
+        pdf::PDFTransparencyRendererSettings settings;
+        settings.flags.setFlag(PDFTransparencyRendererSettings::SaveOriginalProcessImage, true);
+
+        // Jakub Melka: debug is very slow, use multithreading
+#ifdef QT_DEBUG
+        settings.flags.setFlag(PDFTransparencyRendererSettings::MultithreadedPathSampler, true);
+#endif
+
+        settings.flags.setFlag(PDFTransparencyRendererSettings::ActiveColorMask, false);
+        settings.flags.setFlag(PDFTransparencyRendererSettings::SeparationSimulation, true);
+        settings.activeColorMask = PDFPixelFormat::getAllColorsMask();
+
+        QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
+        pdf::PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
+        pdf::PDFTransparencyRenderer renderer(page, m_document, m_fontCache, cms.data(), m_optionalContentActivity,
+                                              m_inkMapper, settings, pagePointToDevicePoint);
+
+        renderer.beginPaint(imageSize);
+        renderer.processContents();
+        renderer.endPaint();
+
+        PDFFloatBitmapWithColorSpace originalProcessImage = renderer.getOriginalProcessBitmap();
+        QSizeF pageSizeMM = page->getRotatedMediaBoxMM().size();
+
+        pdf::PDFPixelFormat pixelFormat = originalProcessImage.getPixelFormat();
+        pdf::PDFColorComponent totalArea = pageSizeMM.width() * pageSizeMM.height();
+        pdf::PDFColorComponent pixelArea = totalArea / pdf::PDFColorComponent(originalProcessImage.getWidth() * originalProcessImage.getHeight());
+
+        std::vector<PDFColorComponent> pageCoverage;
+        const uint8_t colorChannelCount = pixelFormat.getColorChannelCount();
+        pageCoverage.resize(colorChannelCount, 0.0f);
+
+        for (size_t y = 0; y < originalProcessImage.getHeight(); ++y)
+        {
+            for (size_t x = 0; x < originalProcessImage.getWidth(); ++x)
+            {
+                const pdf::PDFColorBuffer buffer = originalProcessImage.getPixel(x, y);
+                const pdf::PDFColorComponent alpha = pixelFormat.hasOpacityChannel() ? buffer[pixelFormat.getOpacityChannelIndex()] : 1.0f;
+
+                for (uint8_t i = 0; i < colorChannelCount; ++i)
+                {
+                    pageCoverage[i] += buffer[i] * alpha;
+                }
+            }
+        }
+
+        std::vector<PDFColorComponent> pageRatioCoverage = pageCoverage;
+        for (uint8_t i = 0; i < colorChannelCount; ++i)
+        {
+            pageCoverage[i] *= pixelArea;
+            pageRatioCoverage[i] *= pixelArea / totalArea;
+        }
+
+        std::vector<PDFInkMapper::ColorInfo> separations = m_inkMapper->getSeparations(pixelFormat.getProcessColorChannelCount());
+        Q_ASSERT(pixelFormat.getColorChannelCount() == separations.size());
+
+        std::vector<InkCoverageChannelInfo> results;
+        results.reserve(separations.size());
+
+        for (size_t i = 0; i < separations.size(); ++i)
+        {
+            const PDFInkMapper::ColorInfo& colorInfo = separations[i];
+
+            InkCoverageChannelInfo info;
+            info.color = colorInfo.color;
+            info.name = colorInfo.name;
+            info.textName = colorInfo.textName;
+            info.isSpot = colorInfo.isSpot;
+            info.coveredArea = pageCoverage[i];
+            results.emplace_back(qMove(info));
+        }
+
+        QMutexLocker lock(&m_mutex);
+        m_inkCoverageResults[pageIndex] = qMove(results);
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pages.begin(), pages.end(), calculatePageCoverage);
+}
+
+const std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo>* PDFInkCoverageCalculator::getInkCoverage(PDFInteger pageIndex) const
+{
+    auto it = m_inkCoverageResults.find(pageIndex);
+    if (it != m_inkCoverageResults.end())
+    {
+        return &it->second;
+    }
+
+    static const std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo> dummy;
+    return &dummy;
+}
+
 }   // namespace pdf

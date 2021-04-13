@@ -924,6 +924,52 @@ private:
     PDFFloatBitmapWithColorSpace m_originalProcessBitmap;
 };
 
+/// Ink coverage calculator. Calculates ink coverage for a given
+/// page range. Calculates ink coverage of both cmyk colors and spot colors.
+class Pdf4QtLIBSHARED_EXPORT PDFInkCoverageCalculator
+{
+public:
+    PDFInkCoverageCalculator(const PDFDocument* document,
+                             const PDFFontCache* fontCache,
+                             const PDFCMSManager* cmsManager,
+                             const PDFOptionalContentActivity* optionalContentActivity,
+                             const PDFInkMapper* inkMapper,
+                             PDFTransparencyRendererSettings settings);
+
+    struct InkCoverageChannelInfo
+    {
+        QByteArray name;
+        QString textName;
+        bool isSpot = true;
+        QColor color;
+        PDFColorComponent coveredArea = 0.0f;
+        PDFColorComponent ratio = 0.0f;
+    };
+
+    /// Perform ink coverage calculations on given pages. Results are stored
+    /// in this object. Page images are rendered using \p size resolution,
+    /// and in this resolution, ink coverage is calculated.
+    /// \param size Resolution size (for ink coverage calculation)
+    /// \param pages Page indices
+    void perform(QSize size, const std::vector<PDFInteger>& pages);
+
+    /// Clears calculated ink coverage for all pages. If ink coverage is not
+    /// calculated for given page index, empty vector is returned.
+    /// \param pageIndex Page index
+    const std::vector<InkCoverageChannelInfo>* getInkCoverage(PDFInteger pageIndex) const;
+
+private:
+    const PDFDocument* m_document;
+    const PDFFontCache* m_fontCache;
+    const PDFCMSManager* m_cmsManager;
+    const PDFOptionalContentActivity* m_optionalContentActivity;
+    const PDFInkMapper* m_inkMapper;
+    PDFTransparencyRendererSettings m_settings;
+
+    QMutex m_mutex;
+    std::map<pdf::PDFInteger, std::vector<InkCoverageChannelInfo>> m_inkCoverageResults;
+};
+
 }   // namespace pdf
 
 #endif // PDFTRANSPARENCYRENDERER_H
