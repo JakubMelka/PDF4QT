@@ -127,9 +127,11 @@ void InkCoverageDialog::updateInkCoverage()
 
             for (const auto& info : *coverage)
             {
-                pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(currentInfo,  info.name);
+                pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(currentInfo, info.name);
+                pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* sumChannelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(sumInfo, info.name);
                 channelInfo->coveredArea = info.coveredArea;
                 channelInfo->ratio = info.ratio;
+                sumChannelInfo->coveredArea += info.coveredArea;
             }
         }
 
@@ -239,8 +241,13 @@ QVariant InkCoverageStatisticsModel::data(const QModelIndex& index, int role) co
             const int row = index.row();
             QLocale locale;
 
+            const bool isTotalRow = row == rowCount(index.parent()) - 1;
             if (index.column() == StandardColumnPageIndex)
             {
+                if (isTotalRow)
+                {
+                    return tr("Total");
+                }
                 return locale.toString(row + 1);
             }
 
@@ -263,11 +270,11 @@ QVariant InkCoverageStatisticsModel::data(const QModelIndex& index, int role) co
             switch (channelColumn)
             {
                 case pdfplugin::InkCoverageStatisticsModel::ChannelColumnColorant:
-                    return channelInfo.coveredArea > 0.0 ? channelInfo.textName : QString();
+                    return QString();
                 case pdfplugin::InkCoverageStatisticsModel::ChannelColumnCoverageArea:
                     return locale.toString(channelInfo.coveredArea, 'f', 2);
                 case pdfplugin::InkCoverageStatisticsModel::ChannelColumnCoverageRatio:
-                    return locale.toString(channelInfo.ratio * 100.0, 'f', 0);
+                    return !isTotalRow ? locale.toString(channelInfo.ratio * 100.0, 'f', 0) : QString();
 
                 default:
                     Q_ASSERT(false);
@@ -300,6 +307,17 @@ QVariant InkCoverageStatisticsModel::data(const QModelIndex& index, int role) co
                     Q_ASSERT(false);
                     break;
             }
+        }
+
+        case Qt::BackgroundColorRole:
+        {
+            if (index.column() >= LastStandardColumn && getChannelColumn(index.column()) == ChannelColumnColorant)
+            {
+                const int channelIndex = getChannelIndex(index.column());
+                return m_inkCoverageResults.sumInfo[channelIndex].color;
+            }
+
+            break;
         }
 
         default:
