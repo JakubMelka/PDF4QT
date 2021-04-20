@@ -42,9 +42,11 @@ public:
 
 private:
     void onOutputPreviewTriggered();
+    void onInkCoverageTriggered();
     void updateActions();
 
     QAction* m_outputPreviewAction;
+    QAction* m_inkCoverageAction;
 };
 
 }   // namespace pdfplugin

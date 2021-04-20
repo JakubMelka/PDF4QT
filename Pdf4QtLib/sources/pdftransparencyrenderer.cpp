@@ -3853,12 +3853,14 @@ PDFInkCoverageCalculator::PDFInkCoverageCalculator(const PDFDocument* document,
                                                    const PDFCMSManager* cmsManager,
                                                    const PDFOptionalContentActivity* optionalContentActivity,
                                                    const PDFInkMapper* inkMapper,
+                                                   PDFProgress* progress,
                                                    PDFTransparencyRendererSettings settings) :
     m_document(document),
     m_fontCache(fontCache),
     m_cmsManager(cmsManager),
     m_optionalContentActivity(optionalContentActivity),
     m_inkMapper(inkMapper),
+    m_progress(progress),
     m_settings(settings)
 {
     Q_ASSERT(m_document);
@@ -3874,6 +3876,11 @@ void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>
     {
         // Nothing to do
         return;
+    }
+
+    if (m_progress)
+    {
+        m_progress->start(pages.size(), ProgressStartupInfo());
     }
 
     auto calculatePageCoverage = [this, size](PDFInteger pageIndex)
@@ -3971,11 +3978,27 @@ void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>
             results.emplace_back(qMove(info));
         }
 
+        if (m_progress)
+        {
+            m_progress->step();
+        }
+
         QMutexLocker lock(&m_mutex);
         m_inkCoverageResults[pageIndex] = qMove(results);
     };
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pages.begin(), pages.end(), calculatePageCoverage);
+
+    if (m_progress)
+    {
+        m_progress->finish();
+    }
+}
+
+void PDFInkCoverageCalculator::clear()
+{
+    QMutexLocker lock(&m_mutex);
+    m_inkCoverageResults.clear();
 }
 
 const std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo>* PDFInkCoverageCalculator::getInkCoverage(PDFInteger pageIndex) const
@@ -3988,6 +4011,29 @@ const std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo>* PDFInkCover
 
     static const std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo> dummy;
     return &dummy;
+}
+
+const PDFInkCoverageCalculator::InkCoverageChannelInfo* PDFInkCoverageCalculator::findCoverageInfoByName(const std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo>& infos,
+                                                                                                         const QByteArray& name)
+{
+    auto it = std::find_if(infos.cbegin(), infos.cend(), [&name](const auto& info) { return info.name == name; });
+    if (it != infos.cend())
+    {
+        return &*it;
+    }
+
+    return nullptr;
+}
+
+PDFInkCoverageCalculator::InkCoverageChannelInfo* PDFInkCoverageCalculator::findCoverageInfoByName(std::vector<PDFInkCoverageCalculator::InkCoverageChannelInfo>& infos, const QByteArray& name)
+{
+    auto it = std::find_if(infos.begin(), infos.end(), [&name](const auto& info) { return info.name == name; });
+    if (it != infos.cend())
+    {
+        return &*it;
+    }
+
+    return nullptr;
 }
 
 }   // namespace pdf

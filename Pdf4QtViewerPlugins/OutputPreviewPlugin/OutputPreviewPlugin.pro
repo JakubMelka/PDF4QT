@@ -33,11 +33,13 @@ DESTDIR = $$OUT_PWD/../../pdfplugins
 CONFIG += c++11
 
 SOURCES += \
+    inkcoveragedialog.cpp \
     outputpreviewdialog.cpp \
     outputpreviewplugin.cpp \
     outputpreviewwidget.cpp
 
 HEADERS += \
+    inkcoveragedialog.h \
     outputpreviewdialog.h \
     outputpreviewplugin.h \
     outputpreviewwidget.h
@@ -51,4 +53,5 @@ RESOURCES += \
     icons.qrc
 
 FORMS += \
+    inkcoveragedialog.ui \
     outputpreviewdialog.ui

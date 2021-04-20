@@ -17,6 +17,7 @@
 
 #include "outputpreviewplugin.h"
 #include "outputpreviewdialog.h"
+#include "inkcoveragedialog.h"
 #include "pdfdrawwidget.h"
 
 #include <QAction>
@@ -26,7 +27,8 @@ namespace pdfplugin
 
 OutputPreviewPlugin::OutputPreviewPlugin() :
     pdf::PDFPlugin(nullptr),
-    m_outputPreviewAction(nullptr)
+    m_outputPreviewAction(nullptr),
+    m_inkCoverageAction(nullptr)
 {
 
 }
@@ -39,8 +41,11 @@ void OutputPreviewPlugin::setWidget(pdf::PDFWidget* widget)
 
     m_outputPreviewAction = new QAction(QIcon(":/pdfplugins/outputpreview/preview.svg"), tr("Output Preview"), this);
     m_outputPreviewAction->setObjectName("actionOutputPreview_OutputPreview");
+    m_inkCoverageAction = new QAction(QIcon(":/pdfplugins/outputpreview/ink-coverage.svg"), tr("Ink Coverage"), this);
+    m_inkCoverageAction->setObjectName("actionOutputPreview_InkCoverage");
 
     connect(m_outputPreviewAction, &QAction::triggered, this, &OutputPreviewPlugin::onOutputPreviewTriggered);
+    connect(m_inkCoverageAction, &QAction::triggered, this, &OutputPreviewPlugin::onInkCoverageTriggered);
 
     updateActions();
 }
@@ -57,7 +62,7 @@ void OutputPreviewPlugin::setDocument(const pdf::PDFModifiedDocument& document)
 
 std::vector<QAction*> OutputPreviewPlugin::getActions() const
 {
-    return { m_outputPreviewAction };
+    return { m_outputPreviewAction, m_inkCoverageAction };
 }
 
 void OutputPreviewPlugin::onOutputPreviewTriggered()
@@ -66,9 +71,16 @@ void OutputPreviewPlugin::onOutputPreviewTriggered()
     dialog.exec();
 }
 
+void OutputPreviewPlugin::onInkCoverageTriggered()
+{
+    InkCoverageDialog dialog(m_document, m_widget, m_widget);
+    dialog.exec();
+}
+
 void OutputPreviewPlugin::updateActions()
 {
     m_outputPreviewAction->setEnabled(m_widget && m_document);
+    m_inkCoverageAction->setEnabled(m_widget && m_document);
 }
 
 }

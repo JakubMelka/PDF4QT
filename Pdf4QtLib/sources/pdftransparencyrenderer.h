@@ -23,6 +23,7 @@
 #include "pdfpagecontentprocessor.h"
 #include "pdfconstants.h"
 #include "pdfutils.h"
+#include "pdfprogress.h"
 
 #include <QImage>
 
@@ -934,6 +935,7 @@ public:
                              const PDFCMSManager* cmsManager,
                              const PDFOptionalContentActivity* optionalContentActivity,
                              const PDFInkMapper* inkMapper,
+                             PDFProgress* progress,
                              PDFTransparencyRendererSettings settings);
 
     struct InkCoverageChannelInfo
@@ -953,10 +955,27 @@ public:
     /// \param pages Page indices
     void perform(QSize size, const std::vector<PDFInteger>& pages);
 
+    /// Clear all calculated ink coverage results
+    void clear();
+
     /// Clears calculated ink coverage for all pages. If ink coverage is not
     /// calculated for given page index, empty vector is returned.
     /// \param pageIndex Page index
     const std::vector<InkCoverageChannelInfo>* getInkCoverage(PDFInteger pageIndex) const;
+
+    /// Find coverage info in vector by colorant name. If coverage info with a given colorant
+    /// name is not found, then nullptr is returned.
+    /// \param infos Vector of coverage info
+    /// \param name Colornant name
+    /// \returns Info for a given colorant name, or nullptr, if it is not found
+    static const InkCoverageChannelInfo* findCoverageInfoByName(const std::vector<InkCoverageChannelInfo>& infos, const QByteArray& name);
+
+    /// Find coverage info in vector by colorant name. If coverage info with a given colorant
+    /// name is not found, then nullptr is returned.
+    /// \param infos Vector of coverage info
+    /// \param name Colornant name
+    /// \returns Info for a given colorant name, or nullptr, if it is not found
+    static InkCoverageChannelInfo* findCoverageInfoByName(std::vector<InkCoverageChannelInfo>& infos, const QByteArray& name);
 
 private:
     const PDFDocument* m_document;
@@ -964,6 +983,7 @@ private:
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFInkMapper* m_inkMapper;
+    PDFProgress* m_progress;
     PDFTransparencyRendererSettings m_settings;
 
     QMutex m_mutex;

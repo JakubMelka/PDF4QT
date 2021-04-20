@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/pdfplugins/outputpreview">
         <file>preview.svg</file>
+        <file>ink-coverage.svg</file>
     </qresource>
 </RCC>
