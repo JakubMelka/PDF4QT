@@ -96,3 +96,4 @@ INSTALLS += plugins
 RESOURCES += \
     pdf4qtviewer.qrc
 
+DEFINES += QT_INSTALL_DIRECTORY=\"\\\"$$[QT_INSTALL_BINS]\\\"\"

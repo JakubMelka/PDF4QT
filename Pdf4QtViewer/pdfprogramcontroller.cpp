@@ -23,6 +23,7 @@
 #include "pdfadvancedtools.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfwidgetutils.h"
+#include "pdfconstants.h"
 
 #include "pdfviewersettings.h"
 #include "pdfundoredomanager.h"
@@ -47,6 +48,7 @@
 #include <QDesktopWidget>
 #include <QMainWindow>
 #include <QToolBar>
+#include <QXmlStreamWriter>
 
 #ifdef Q_OS_WIN
 #pragma comment(lib, "Shell32")
@@ -492,6 +494,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Close))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionCloseTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::DeveloperCreateInstaller))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionDeveloperCreateInstaller);
     }
 
     if (m_recentFileManager)
@@ -1827,6 +1833,132 @@ void PDFProgramController::onActionOpenTriggered()
 void PDFProgramController::onActionCloseTriggered()
 {
     closeDocument();
+}
+
+void PDFProgramController::onActionDeveloperCreateInstaller()
+{
+    QString directory = QFileDialog::getExistingDirectory(m_mainWindow, tr("Select Directory for Installer"));
+
+    if (directory.isEmpty())
+    {
+        return;
+    }
+
+    // Config.xml
+    {
+        QDir().mkpath(directory + "/config");
+        QFile configFile(directory + "/config/config.xml");
+        if (configFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QXmlStreamWriter configWriter(&configFile);
+            configWriter.setAutoFormatting(true);
+            configWriter.setAutoFormattingIndent(2);
+
+            configWriter.writeStartDocument();
+            configWriter.writeStartElement("Installer");
+
+            configWriter.writeTextElement("Name", tr("PDF4QT"));
+            configWriter.writeTextElement("Title", tr("PDF4QT Suite (library, viewer, editor, command line tool)"));
+            configWriter.writeTextElement("Version", pdf::PDF_LIBRARY_VERSION);
+            configWriter.writeTextElement("Publisher", tr("Jakub Melka"));
+            configWriter.writeTextElement("StartMenuDir", "PDF4QT");
+            configWriter.writeTextElement("TargetDir", "@ApplicationsDir@/PDF4QT");
+            configWriter.writeTextElement("CreateLocalRepository", "true");
+            configWriter.writeTextElement("InstallActionColumnVisible", "true");
+
+            configWriter.writeEndElement();
+            configWriter.writeEndDocument();
+            configFile.close();
+        }
+    }
+
+    // Installer project file
+    {
+        QString qtInstallDirectory = QT_INSTALL_DIRECTORY;
+        int indexofQtRoot = qtInstallDirectory.lastIndexOf("/Qt/");
+        QString binaryCreatorDirectory;
+
+        if (indexofQtRoot != -1)
+        {
+            indexofQtRoot += 4;
+            QString qtRootDirectory = qtInstallDirectory.left(indexofQtRoot);
+            QString qtInstallerFrameworkRoot = qtRootDirectory + "Tools/QtInstallerFramework/";
+
+            QDir qtInstallerFrameworkRootDir(qtInstallerFrameworkRoot);
+            QStringList entries = qtInstallerFrameworkRootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+
+            if (!entries.isEmpty())
+            {
+                binaryCreatorDirectory = QString("%1/%2/bin").arg(qtInstallerFrameworkRoot, entries.back());
+                binaryCreatorDirectory = QDir(binaryCreatorDirectory).absolutePath();
+            }
+        }
+
+        QFile configFile(directory + "/installer.pro");
+        if (configFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QTextStream stream(&configFile);
+            stream << "TEMPLATE = aux" << endl << endl;
+            stream << "INSTALLER_NAME = $$PWD/instpdf4qt" << endl;
+            stream << "INPUT = $$PWD/config/config.xml $$PWD/packages" << endl;
+            stream << "pdfforqtinstaller.input = INPUT" << endl;
+            stream << "pdfforqtinstaller.output = $$INSTALLER_NAME" << endl;
+            stream << QString("pdfforqtinstaller.commands = %1/binarycreator -c $$PWD/config/config.xml -p $$PWD/packages ${QMAKE_FILE_OUT}").arg(binaryCreatorDirectory) << endl;
+            stream << "pdfforqtinstaller.CONFIG += target_predeps no_link combine" << endl << endl;
+            stream << "QMAKE_EXTRA_COMPILERS += pdfforqtinstaller";
+            configFile.close();
+        }
+    }
+
+    // Packages
+    QDir().mkpath(directory + "/packages");
+
+    auto addComponentMeta = [&](QString componentName, QString displayName, QString description, QString version, QString internalName, bool forcedInstallation, bool defaultInstall, bool addDefaultLicense)
+    {
+        QString componentMetaDirectory = directory + QString("/packages/%1/meta").arg(componentName);
+        QDir().mkpath(componentMetaDirectory);
+
+        QString metaFileName = QString("%1/package.xml").arg(componentMetaDirectory);
+
+        QFile metaFile(metaFileName);
+        if (metaFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QXmlStreamWriter metaFileWriter(&metaFile);
+            metaFileWriter.setAutoFormatting(true);
+            metaFileWriter.setAutoFormattingIndent(2);
+
+            metaFileWriter.writeStartDocument();
+            metaFileWriter.writeStartElement("Package");
+
+            metaFileWriter.writeTextElement("DisplayName", displayName);
+            metaFileWriter.writeTextElement("Description", description);
+            metaFileWriter.writeTextElement("Version", version);
+            metaFileWriter.writeTextElement("ReleaseDate", QDateTime::currentDateTime().toString("yyyy-MM-dd"));
+            metaFileWriter.writeTextElement("Name", internalName);
+            metaFileWriter.writeTextElement("ExpandedByDefault", "true");
+            metaFileWriter.writeTextElement("ForcedInstallation", forcedInstallation ? "true" : "false");
+            metaFileWriter.writeTextElement("Default", defaultInstall ? "true" : "false");
+
+            if (addDefaultLicense)
+            {
+                QFile::copy(":/LICENSE.txt", QString("%1/LICENSE.txt").arg(componentMetaDirectory));
+
+                metaFileWriter.writeStartElement("Licenses");
+                metaFileWriter.writeStartElement("License");
+                metaFileWriter.writeAttribute("name", tr("License Agreement"));
+                metaFileWriter.writeAttribute("file", tr("LICENSE.txt"));
+                metaFileWriter.writeEndElement();
+                metaFileWriter.writeEndElement();
+            }
+
+            metaFileWriter.writeEndElement();
+            metaFileWriter.writeEndDocument();
+            metaFile.close();
+        }
+    };
+
+    // CoreLib package
+    addComponentMeta("pdf4qt_framework", tr("Framework (Core libraries)"), tr("Framework libraries and other data files required to run all other programs."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_framework", true, true, true);
 }
 
 void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)

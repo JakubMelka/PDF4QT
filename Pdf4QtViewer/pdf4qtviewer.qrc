@@ -57,5 +57,6 @@
         <file>resources/squiggly.svg</file>
         <file>resources/strikeout.svg</file>
         <file>resources/underline.svg</file>
+        <file>../LICENSE.txt</file>
     </qresource>
 </RCC>

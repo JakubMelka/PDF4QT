@@ -161,6 +161,7 @@ public:
         ToolMagnifier,
         ToolScreenshot,
         ToolExtractImage,
+        DeveloperCreateInstaller,
         LastAction
     };
 
@@ -329,6 +330,7 @@ private:
     void onActionOptionsTriggered();
     void onActionOpenTriggered();
     void onActionCloseTriggered();
+    void onActionDeveloperCreateInstaller();
 
     void onDrawSpaceChanged();
     void onPageLayoutChanged();

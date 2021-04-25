@@ -1,4 +1,5 @@
 #include "pdfviewermainwindow.h"
+#include "pdfconstants.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -12,7 +13,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PDF4QT Viewer Profi");
-    QCoreApplication::setApplicationVersion("1.0.0");
+    QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer Profi"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());

@@ -1,4 +1,4 @@
-//    Copyright (C) 2020 Jakub Melka
+//    Copyright (C) 2020-2021 Jakub Melka
 //
 //    This file is part of Pdf4Qt.
 //
@@ -16,6 +16,7 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdftoolabstractapplication.h"
+#include "pdfconstants.h"
 
 #include <QGuiApplication>
 #include <QCommandLineParser>
@@ -26,7 +27,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PdfTool");
-    QCoreApplication::setApplicationVersion("1.0.0");
+    QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
 
     QStringList arguments = QCoreApplication::arguments();
 
