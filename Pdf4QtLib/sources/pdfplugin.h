@@ -40,6 +40,8 @@ struct Pdf4QtLIBSHARED_EXPORT PDFPluginInfo
     QString version;
     QString license;
     QString description;
+    QString pluginFile;
+    QString pluginFileWithPath;
 
     static PDFPluginInfo loadFromJson(const QJsonObject* json);
 };

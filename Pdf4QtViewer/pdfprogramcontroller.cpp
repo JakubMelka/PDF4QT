@@ -1684,6 +1684,8 @@ void PDFProgramController::loadPlugins()
         {
             QJsonObject metaData = loader.metaData();
             m_plugins.emplace_back(pdf::PDFPluginInfo::loadFromJson(&metaData));
+            m_plugins.back().pluginFile = availablePlugin;
+            m_plugins.back().pluginFileWithPath = pluginFileName;
 
             if (!m_enabledPlugins.contains(m_plugins.back().name))
             {
@@ -1957,8 +1959,67 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
         }
     };
 
+    auto addDirectoryContent = [&](QString componentName, QString applicationDirectory)
+    {
+        QString componentDataDirectory = directory + QString("/packages/%1/data/%2").arg(componentName, applicationDirectory);
+        QDir().mkpath(componentDataDirectory);
+
+        QString applicationDataDirectory = QString("%1/%2").arg(QApplication::applicationDirPath(), applicationDirectory);
+        QStringList fileNames = QDir(applicationDataDirectory).entryList(QDir::Files | QDir::NoDotAndDotDot);
+
+        for (QString fileName : fileNames)
+        {
+            QFile::copy(QString("%1/%2").arg(applicationDataDirectory, fileName), QString("%1/%2").arg(componentDataDirectory, fileName));
+        }
+    };
+
+    auto addFileContent = [&](QString componentName, QString filter)
+    {
+        QString componentDataDirectory = directory + QString("/packages/%1/data").arg(componentName);
+        QDir().mkpath(componentDataDirectory);
+
+        QString applicationDataDirectory = QApplication::applicationDirPath();
+
+        QStringList fileNames = QDir(applicationDataDirectory).entryList(QStringList() << filter, QDir::Files | QDir::NoDotAndDotDot);
+
+        for (QString fileName : fileNames)
+        {
+            QFile::copy(QString("%1/%2").arg(applicationDataDirectory, fileName), QString("%1/%2").arg(componentDataDirectory, fileName));
+        }
+    };
+
     // CoreLib package
     addComponentMeta("pdf4qt_framework", tr("Framework (Core libraries)"), tr("Framework libraries and other data files required to run all other programs."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_framework", true, true, true);
+    addDirectoryContent("pdf4qt_framework", "colorprofiles");
+    addDirectoryContent("pdf4qt_framework", "iconengines");
+    addDirectoryContent("pdf4qt_framework", "imageformats");
+    addDirectoryContent("pdf4qt_framework", "platforms");
+    addDirectoryContent("pdf4qt_framework", "printsupport");
+    addDirectoryContent("pdf4qt_framework", "styles");
+    addDirectoryContent("pdf4qt_framework", "texttospeech");
+    addFileContent("pdf4qt_framework", "*.dll");
+
+    addComponentMeta("pdf4qt_v_lite", tr("Viewer (Lite)"), tr("Simple PDF viewer with basic functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_v_lite", false, true, false);
+    addFileContent("pdf4qt_v_lite", "Pdf4QtViewerLite.exe");
+
+    addComponentMeta("pdf4qt_v_profi", tr("Viewer (Profi)"), tr("Advanced PDF viewer with many functions, such as annotation editing, form filling, signature verification, and many optional plugins."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_v_profi", false, true, false);
+    addFileContent("pdf4qt_v_profi", "Pdf4QtViewerProfi.exe");
+
+    addComponentMeta("pdf4qt_tool", tr("PdfTool"), tr("Command line tool for manipulation of PDF files with many functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_tool", false, false, false);
+    addFileContent("pdf4qt_tool", "PdfTool.exe");
+
+    for (const pdf::PDFPluginInfo& info : m_plugins)
+    {
+        QString pluginName = info.pluginFile;
+        pluginName.remove(".dll");
+
+        QString componentName = QString("pdf4qt_v_profi.%1").arg(pluginName);
+        addComponentMeta(componentName, info.name, info.description, info.version, componentName, false, false, false);
+
+        QString componentDataDirectory = directory + QString("/packages/%1/data/pdfplugins").arg(componentName);
+        QDir().mkpath(componentDataDirectory);
+        QFile::copy(info.pluginFileWithPath, QString("%1/%2").arg(componentDataDirectory, info.pluginFile));
+    }
 }
 
 void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)
