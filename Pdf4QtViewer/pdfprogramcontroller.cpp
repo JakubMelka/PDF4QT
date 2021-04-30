@@ -1,11 +1,11 @@
-//    Copyright (C) 2020 Jakub Melka
+//    Copyright (C) 2020-2021 Jakub Melka
 //
 //    This file is part of Pdf4Qt.
 //
 //    Pdf4Qt is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
-//    (at your option) any later version.
+//    with the written consent of the copyright owner, any later version.
 //
 //    Pdf4Qt is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -1915,7 +1915,7 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
     // Packages
     QDir().mkpath(directory + "/packages");
 
-    auto addComponentMeta = [&](QString componentName, QString displayName, QString description, QString version, QString internalName, bool forcedInstallation, bool defaultInstall, bool addDefaultLicense)
+    auto addComponentMeta = [&](QString componentName, QString displayName, QString description, QString version, QString internalName, bool forcedInstallation, bool defaultInstall, bool addDefaultLicense, QString dependencies = QString())
     {
         QString componentMetaDirectory = directory + QString("/packages/%1/meta").arg(componentName);
         QDir().mkpath(componentMetaDirectory);
@@ -1940,6 +1940,11 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
             metaFileWriter.writeTextElement("ExpandedByDefault", "true");
             metaFileWriter.writeTextElement("ForcedInstallation", forcedInstallation ? "true" : "false");
             metaFileWriter.writeTextElement("Default", defaultInstall ? "true" : "false");
+
+            if (!dependencies.isEmpty())
+            {
+                metaFileWriter.writeTextElement("Dependencies", dependencies);
+            }
 
             if (addDefaultLicense)
             {
@@ -2008,13 +2013,15 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
     addComponentMeta("pdf4qt_tool", tr("PdfTool"), tr("Command line tool for manipulation of PDF files with many functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_tool", false, false, false);
     addFileContent("pdf4qt_tool", "PdfTool.exe");
 
+    addComponentMeta("pdf4qt_v_profi_plugins", tr("Viewer (Profi) | Plugins"), tr("Plugins for profi viewer providing additional functionality."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_v_profi_plugins", false, false, false, "pdf4qt_v_profi");
+
     for (const pdf::PDFPluginInfo& info : m_plugins)
     {
         QString pluginName = info.pluginFile;
         pluginName.remove(".dll");
 
-        QString componentName = QString("pdf4qt_v_profi.%1").arg(pluginName);
-        addComponentMeta(componentName, info.name, info.description, info.version, componentName, false, false, false);
+        QString componentName = QString("pdf4qt_v_profi_plugins.%1").arg(pluginName);
+        addComponentMeta(componentName, info.name, info.description, info.version, componentName, false, false, false, "pdf4qt_v_profi");
 
         QString componentDataDirectory = directory + QString("/packages/%1/data/pdfplugins").arg(componentName);
         QDir().mkpath(componentDataDirectory);

@@ -1,11 +1,11 @@
-#    Copyright (C) 2018-2020 Jakub Melka
+#    Copyright (C) 2018-2021 Jakub Melka
 #
 #    This file is part of Pdf4Qt.
 #
 #    Pdf4Qt is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    with the written consent of the copyright owner, any later version.
 #
 #    Pdf4Qt is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,7 +24,7 @@ win32:TARGET_EXT = .dll
 VERSION = 1.0.0
 
 QMAKE_TARGET_DESCRIPTION = "PDF rendering / editing library for Qt"
-QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2020"
+QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"
 
 DEFINES += Pdf4QtLIB_LIBRARY
 
@@ -257,7 +257,15 @@ qt_plugin_style.files = $$[QT_INSTALL_PLUGINS]/styles/qwindowsvistastyle$${SUFFI
 qt_plugin_style.path = $$DESTDIR/install/styles
 INSTALLS += qt_plugin_style
 
-qt_plugin_imageformat.files = $$[QT_INSTALL_PLUGINS]/imageformats/q*$${SUFFIX}.dll
+qt_plugin_imageformat.files = $$[QT_INSTALL_PLUGINS]/imageformats/qgif$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qicns$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qico$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qjpeg$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qsvg$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qtga$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qtiff$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qwbpm$${SUFFIX}.dll \
+                              $$[QT_INSTALL_PLUGINS]/imageformats/qwebp$${SUFFIX}.dll
 qt_plugin_imageformat.path = $$DESTDIR/install/imageformats
 INSTALLS += qt_plugin_imageformat
 
