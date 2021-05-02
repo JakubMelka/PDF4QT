@@ -1958,6 +1958,12 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
                 metaFileWriter.writeEndElement();
             }
 
+            QString scriptFile = QString("%1/inst.qs").arg(componentMetaDirectory);
+            if (QFile::exists(scriptFile))
+            {
+                metaFileWriter.writeTextElement("Script", "inst.qs");
+            }
+
             metaFileWriter.writeEndElement();
             metaFileWriter.writeEndDocument();
             metaFile.close();
@@ -1993,7 +1999,40 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
         }
     };
 
+    auto addStartMenuShortcut = [&](QString componentName, QString exeFileNameWithoutSuffix, QString description)
+    {
+        QString componentMetaDirectory = directory + QString("/packages/%1/meta").arg(componentName);
+        QDir().mkpath(componentMetaDirectory);
+
+        QString script =
+        "function Component() \n"
+        "{\n"
+        "\n"
+        "}\n"
+        "Component.prototype.createOperations = function() \n"
+        "{ \n"
+        "    component.createOperations(); \n"
+        "    if (systemInfo.productType === \"windows\") { \n"
+        "        component.addOperation(\"CreateShortcut\", \"@TargetDir@/%1.exe\", \"@StartMenuDir@/%2.lnk\", \n"
+        "            \"workingDirectory=@TargetDir@\", \"iconPath=@TargetDir@/%1.exe\", \n"
+        "            \"iconId=0\", \"description=%2\"); \n"
+        "    } \n"
+        "} ";
+
+        script = script.arg(exeFileNameWithoutSuffix, description);
+
+        QFile installScriptFile(QString("%1/inst.qs").arg(componentMetaDirectory));
+        if (installScriptFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QTextStream stream(&installScriptFile);
+            stream << script;
+
+            installScriptFile.close();
+        }
+    };
+
     // CoreLib package
+    addStartMenuShortcut("pdf4qt_framework", "maintenancetool", tr("PDF4QT Maintenance Tool"));
     addComponentMeta("pdf4qt_framework", tr("Framework (Core libraries)"), tr("Framework libraries and other data files required to run all other programs."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_framework", true, true, true);
     addDirectoryContent("pdf4qt_framework", "colorprofiles");
     addDirectoryContent("pdf4qt_framework", "iconengines");
@@ -2004,12 +2043,15 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
     addDirectoryContent("pdf4qt_framework", "texttospeech");
     addFileContent("pdf4qt_framework", "*.dll");
 
+    addStartMenuShortcut("pdf4qt_v_lite", "Pdf4QtViewerLite", tr("PDF4QT Viewer Lite"));
     addComponentMeta("pdf4qt_v_lite", tr("Viewer (Lite)"), tr("Simple PDF viewer with basic functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_v_lite", false, true, false);
     addFileContent("pdf4qt_v_lite", "Pdf4QtViewerLite.exe");
 
+    addStartMenuShortcut("pdf4qt_v_profi", "Pdf4QtViewerProfi", tr("PDF4QT Viewer Profi"));
     addComponentMeta("pdf4qt_v_profi", tr("Viewer (Profi)"), tr("Advanced PDF viewer with many functions, such as annotation editing, form filling, signature verification, and many optional plugins."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_v_profi", false, true, false);
     addFileContent("pdf4qt_v_profi", "Pdf4QtViewerProfi.exe");
 
+    addStartMenuShortcut("pdf4qt_tool", "PdfTool", tr("PDF4QT Command Line Tool"));
     addComponentMeta("pdf4qt_tool", tr("PdfTool"), tr("Command line tool for manipulation of PDF files with many functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_tool", false, false, false);
     addFileContent("pdf4qt_tool", "PdfTool.exe");
 
