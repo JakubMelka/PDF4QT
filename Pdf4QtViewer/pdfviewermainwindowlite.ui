@@ -102,6 +102,7 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionGetSource"/>
     <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
@@ -426,6 +427,11 @@
    </property>
    <property name="text">
     <string>Go to previous line</string>
+   </property>
+  </action>
+  <action name="actionGetSource">
+   <property name="text">
+    <string>Get Source</string>
    </property>
   </action>
  </widget>

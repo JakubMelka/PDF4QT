@@ -98,6 +98,7 @@ public:
         SaveAs,
         Properties,
         Options,
+        GetSource,
         About,
         SendByMail,
         RenderToImages,
@@ -331,6 +332,7 @@ private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
     void onActionDeveloperCreateInstaller();
+    void onActionGetSource();
 
     void onDrawSpaceChanged();
     void onPageLayoutChanged();

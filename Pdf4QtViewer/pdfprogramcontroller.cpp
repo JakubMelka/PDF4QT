@@ -499,6 +499,10 @@ void PDFProgramController::initialize(Features features,
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionDeveloperCreateInstaller);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::GetSource))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionGetSource);
+    }
 
     if (m_recentFileManager)
     {
@@ -2069,6 +2073,11 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
         QDir().mkpath(componentDataDirectory);
         QFile::copy(info.pluginFileWithPath, QString("%1/%2").arg(componentDataDirectory, info.pluginFile));
     }
+}
+
+void PDFProgramController::onActionGetSource()
+{
+    QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PdfForQt"));
 }
 
 void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)
