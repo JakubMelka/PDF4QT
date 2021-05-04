@@ -53,6 +53,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_instancedFontCacheLimit = settings.value("instancedFontCacheLimit", defaultSettings.m_instancedFontCacheLimit).toInt();
     m_settings.m_allowLaunchApplications = settings.value("allowLaunchApplications", defaultSettings.m_allowLaunchApplications).toBool();
     m_settings.m_allowLaunchURI = settings.value("allowLaunchURI", defaultSettings.m_allowLaunchURI).toBool();
+    m_settings.m_allowDeveloperMode = settings.value("allowDeveloperMode", defaultSettings.m_allowDeveloperMode).toBool();
     m_settings.m_multithreadingStrategy = static_cast<pdf::PDFExecutionPolicy::Strategy>(settings.value("multithreadingStrategy", static_cast<int>(defaultSettings.m_multithreadingStrategy)).toInt());
     m_settings.m_magnifierSize = settings.value("magnifierSize", defaultSettings.m_magnifierSize).toInt();
     m_settings.m_magnifierZoom = settings.value("magnifierZoom", defaultSettings.m_magnifierZoom).toDouble();
@@ -118,6 +119,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("instancedFontCacheLimit", m_settings.m_instancedFontCacheLimit);
     settings.setValue("allowLaunchApplications", m_settings.m_allowLaunchApplications);
     settings.setValue("allowLaunchURI", m_settings.m_allowLaunchURI);
+    settings.setValue("allowDeveloperMode", m_settings.m_allowDeveloperMode);
     settings.setValue("multithreadingStrategy", static_cast<int>(m_settings.m_multithreadingStrategy));
     settings.setValue("magnifierSize", m_settings.m_magnifierSize);
     settings.setValue("magnifierZoom", m_settings.m_magnifierZoom);
@@ -257,6 +259,7 @@ PDFViewerSettings::Settings::Settings() :
     m_colorTolerance(0.01),
     m_allowLaunchApplications(true),
     m_allowLaunchURI(true),
+    m_allowDeveloperMode(false),
     m_compiledPageCacheLimit(128 * 1024),
     m_thumbnailsCacheLimit(PIXMAP_CACHE_LIMIT),
     m_fontCacheLimit(pdf::DEFAULT_FONT_CACHE_LIMIT),

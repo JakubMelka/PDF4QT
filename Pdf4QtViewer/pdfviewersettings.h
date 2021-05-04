@@ -57,6 +57,7 @@ public:
         pdf::PDFReal m_colorTolerance;
         bool m_allowLaunchApplications;
         bool m_allowLaunchURI;
+        bool m_allowDeveloperMode;
         pdf::PDFExecutionPolicy::Strategy m_multithreadingStrategy;
 
         // Cache settings

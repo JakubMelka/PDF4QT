@@ -101,6 +101,8 @@ private:
     void onProgressStep(int percentage);
     void onProgressFinished();
 
+    void updateDeveloperMenu();
+
     QIcon createStickyNoteIcon(QString key) const;
 
     Ui::PDFViewerMainWindow* ui;

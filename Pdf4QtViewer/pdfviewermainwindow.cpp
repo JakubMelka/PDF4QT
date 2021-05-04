@@ -282,6 +282,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
 
     m_programController->finishInitialization();
+    updateDeveloperMenu();
 
     if (pdf::PDFToolManager* toolManager = m_programController->getToolManager())
     {
@@ -382,6 +383,12 @@ void PDFViewerMainWindow::onProgressFinished()
 
     m_programController->setIsBusy(false);
     m_programController->updateActionsAvailability();
+}
+
+void PDFViewerMainWindow::updateDeveloperMenu()
+{
+    bool isDeveloperMode = m_programController->getSettings()->getSettings().m_allowDeveloperMode;
+    ui->menuDeveloper->menuAction()->setVisible(isDeveloperMode);
 }
 
 void PDFViewerMainWindow::updateUI(bool fullUpdate)

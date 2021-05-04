@@ -294,6 +294,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->magnifierZoomEdit->setValue(m_settings.m_magnifierZoom);
     ui->maximumUndoStepsEdit->setValue(m_settings.m_maximumUndoSteps);
     ui->maximumRedoStepsEdit->setValue(m_settings.m_maximumRedoSteps);
+    ui->developerModeCheckBox->setChecked(m_settings.m_allowDeveloperMode);
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -439,6 +440,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->allowRunURICheckBox)
     {
         m_settings.m_allowLaunchURI = ui->allowRunURICheckBox->isChecked();
+    }
+    else if (sender == ui->developerModeCheckBox)
+    {
+        m_settings.m_allowDeveloperMode = ui->developerModeCheckBox->isChecked();
     }
     else if (sender == ui->compiledPageCacheSizeEdit)
     {
