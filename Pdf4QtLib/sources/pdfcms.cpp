@@ -541,7 +541,6 @@ QColor PDFLittleCMS::getColorFromDeviceCMYK(const PDFColor& color, RenderingInte
 
 QColor PDFLittleCMS::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor3& color, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
 {
-    Q_UNUSED(whitePoint);
     cmsHTRANSFORM transform = getTransform(XYZ, getEffectiveRenderingIntent(intent), false);
 
     if (!transform)

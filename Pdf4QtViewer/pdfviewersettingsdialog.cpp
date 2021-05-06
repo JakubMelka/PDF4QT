@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfutils.h"
+#include "pdfwidgetutils.h"
 #include "pdfrecentfilemanager.h"
 
 #include <QAction>
@@ -31,9 +32,27 @@
 #include <QNetworkReply>
 #include <QNetworkAccessManager>
 #include <QDomDocument>
+#include <QStyledItemDelegate>
 
 namespace pdfviewer
 {
+
+class SettingsDelegate : public QStyledItemDelegate
+{
+public:
+    SettingsDelegate(QObject* parent) :
+        QStyledItemDelegate(parent)
+    {
+
+    }
+
+    virtual QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        QSize size = QStyledItemDelegate::sizeHint(option, index);
+        size.setHeight(qMax(size.height(), pdf::PDFWidgetUtils::scaleDPI_y(qobject_cast<QWidget*>(parent()), 48)));
+        return size;
+    }
+};
 
 PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settings& settings,
                                                  const pdf::PDFCMSSettings& cmsSettings,
@@ -74,6 +93,15 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/signature.svg"), tr("Signature"), ui->optionsPagesWidget, SignatureSettings);
     new QListWidgetItem(QIcon(":/resources/plugins.svg"), tr("Plugins"), ui->optionsPagesWidget, PluginsSettings);
 
+    ui->optionsPagesWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->optionsPagesWidget->setItemDelegate(new SettingsDelegate(ui->optionsPagesWidget));
+    ui->optionsPagesWidget->setIconSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(32, 32)));
+
+    // Scale font
+    QFont font = ui->optionsPagesWidget->font();
+    font.setPointSize(font.pointSize() * 1.5);
+    ui->optionsPagesWidget->setFont(font);
+
     ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
     ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
 
@@ -102,6 +130,12 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->cmsAccuracyComboBox->addItem(tr("Low"), int(pdf::PDFCMSSettings::Accuracy::Low));
     ui->cmsAccuracyComboBox->addItem(tr("Medium"), int(pdf::PDFCMSSettings::Accuracy::Medium));
     ui->cmsAccuracyComboBox->addItem(tr("High"), int(pdf::PDFCMSSettings::Accuracy::High));
+
+    ui->cmsColorAdaptationXYZComboBox->addItem(tr("None"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::None));
+    ui->cmsColorAdaptationXYZComboBox->addItem(tr("XYZ scaling"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::XYZScaling));
+    ui->cmsColorAdaptationXYZComboBox->addItem(tr("CAT97 matrix"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT97));
+    ui->cmsColorAdaptationXYZComboBox->addItem(tr("CAT02 matrix"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT02));
+    ui->cmsColorAdaptationXYZComboBox->addItem(tr("Bradford method"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::Bradford));
 
     auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorProfileIdentifiers& identifiers)
     {
@@ -157,6 +191,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
 
     connect(ui->trustedCertificateStoreTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updateTrustedCertificatesTableActions);
     connect(ui->pluginsTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updatePluginInformation);
+
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(1000, 700)));
 
     ui->optionsPagesWidget->setCurrentRow(0);
     adjustSize();
@@ -304,6 +340,8 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsRenderingIntentComboBox->setCurrentIndex(ui->cmsRenderingIntentComboBox->findData(int(m_cmsSettings.intent)));
         ui->cmsAccuracyComboBox->setEnabled(true);
         ui->cmsAccuracyComboBox->setCurrentIndex(ui->cmsAccuracyComboBox->findData(int(m_cmsSettings.accuracy)));
+        ui->cmsColorAdaptationXYZComboBox->setEnabled(true);
+        ui->cmsColorAdaptationXYZComboBox->setCurrentIndex(ui->cmsColorAdaptationXYZComboBox->findData(int(m_cmsSettings.colorAdaptationXYZ)));
         ui->cmsIsBlackPointCompensationCheckBox->setEnabled(true);
         ui->cmsIsBlackPointCompensationCheckBox->setChecked(m_cmsSettings.isBlackPointCompensationActive);
         ui->cmsConsiderOutputIntentCheckBox->setEnabled(true);
@@ -328,6 +366,8 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsRenderingIntentComboBox->setCurrentIndex(-1);
         ui->cmsAccuracyComboBox->setEnabled(false);
         ui->cmsAccuracyComboBox->setCurrentIndex(-1);
+        ui->cmsColorAdaptationXYZComboBox->setEnabled(false);
+        ui->cmsColorAdaptationXYZComboBox->setCurrentIndex(-1);
         ui->cmsIsBlackPointCompensationCheckBox->setEnabled(false);
         ui->cmsIsBlackPointCompensationCheckBox->setChecked(false);
         ui->cmsConsiderOutputIntentCheckBox->setEnabled(false);
@@ -472,6 +512,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->cmsAccuracyComboBox)
     {
         m_cmsSettings.accuracy = static_cast<pdf::PDFCMSSettings::Accuracy>(ui->cmsAccuracyComboBox->currentData().toInt());
+    }
+    else if (sender == ui->cmsColorAdaptationXYZComboBox)
+    {
+        m_cmsSettings.colorAdaptationXYZ = static_cast<pdf::PDFCMSSettings::ColorAdaptationXYZ>(ui->cmsColorAdaptationXYZComboBox->currentData().toInt());
     }
     else if (sender == ui->cmsIsBlackPointCompensationCheckBox)
     {

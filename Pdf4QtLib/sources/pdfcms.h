@@ -55,12 +55,22 @@ struct PDFCMSSettings
         High
     };
 
+    enum class ColorAdaptationXYZ
+    {
+        None,
+        XYZScaling,
+        CAT97,
+        CAT02,
+        Bradford
+    };
+
     bool operator==(const PDFCMSSettings&) const = default;
 
     System system = System::Generic;
     Accuracy accuracy = Accuracy::Medium;
     RenderingIntent intent = RenderingIntent::Auto;
     RenderingIntent proofingIntent = RenderingIntent::RelativeColorimetric;
+    ColorAdaptationXYZ colorAdaptationXYZ = ColorAdaptationXYZ::Bradford;
     bool isBlackPointCompensationActive = true;
     bool isWhitePaperColorTransformed = false;
     bool isGamutChecking = false;

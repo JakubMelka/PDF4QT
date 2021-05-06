@@ -280,6 +280,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     {
         parser->addOption(QCommandLineOption("cms", "Color management system. Valid values are generic|lcms.", "cms", "lcms"));
         parser->addOption(QCommandLineOption("cms-accuracy", "Accuracy of cms system. Valid values are low|medium|high. Higher accuracy means higher memory consumption.", "accuracy", "medium"));
+        parser->addOption(QCommandLineOption("cms-color-adaptation", "Color adaptation method for XYZ whitepoint scaling. Valid values are none|xyzscaling|cat97|cat02|bradford. Higher accuracy means higher memory consumption.", "color-adaptation-method", "bradford"));
         parser->addOption(QCommandLineOption("cms-intent", "Rendering intent. Valid values are auto|perceptual|abs|rel|saturation.", "intent", "auto"));
         parser->addOption(QCommandLineOption("cms-black-compensated", "Black point compensation.", "bool", "1"));
         parser->addOption(QCommandLineOption("cms-white-paper-trans", "Transform also color of paper using cms.", "bool", "0"));
@@ -725,6 +726,33 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         {
             PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown color management system accuracy '%1'. Defaulting to medium.").arg(accuracy), options.outputCodec);
             options.cmsSettings.accuracy = pdf::PDFCMSSettings::Accuracy::Medium;
+        }
+
+        QString colorAdaptationMethod = parser->value("cms-color-adaptation");
+        if (colorAdaptationMethod == "none")
+        {
+            options.cmsSettings.colorAdaptationXYZ = pdf::PDFCMSSettings::ColorAdaptationXYZ::None;
+        }
+        else if (colorAdaptationMethod == "xyzscaling")
+        {
+            options.cmsSettings.colorAdaptationXYZ = pdf::PDFCMSSettings::ColorAdaptationXYZ::XYZScaling;
+        }
+        else if (colorAdaptationMethod == "cat97")
+        {
+            options.cmsSettings.colorAdaptationXYZ = pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT97;
+        }
+        else if (colorAdaptationMethod == "cat02")
+        {
+            options.cmsSettings.colorAdaptationXYZ = pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT02;
+        }
+        else if (colorAdaptationMethod == "bradford")
+        {
+            options.cmsSettings.colorAdaptationXYZ = pdf::PDFCMSSettings::ColorAdaptationXYZ::Bradford;
+        }
+        else
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown color adaptation method '%1'. Defaulting to bradford.").arg(colorAdaptationMethod), options.outputCodec);
+            options.cmsSettings.colorAdaptationXYZ = pdf::PDFCMSSettings::ColorAdaptationXYZ::Bradford;
         }
 
         QString intent = parser->value("cms-intent");

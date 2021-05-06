@@ -65,6 +65,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_colorManagementSystemSettings.system = static_cast<pdf::PDFCMSSettings::System>(settings.value("system", int(defaultCMSSettings.system)).toInt());
     m_colorManagementSystemSettings.accuracy = static_cast<pdf::PDFCMSSettings::Accuracy>(settings.value("accuracy", int(defaultCMSSettings.accuracy)).toInt());
     m_colorManagementSystemSettings.intent = static_cast<pdf::RenderingIntent>(settings.value("intent", int(defaultCMSSettings.intent)).toInt());
+    m_colorManagementSystemSettings.colorAdaptationXYZ = static_cast<pdf::PDFCMSSettings::ColorAdaptationXYZ>(settings.value("colorAdaptationXYZ"), int(defaultCMSSettings.colorAdaptationXYZ));
     m_colorManagementSystemSettings.isBlackPointCompensationActive = settings.value("isBlackPointCompensationActive", defaultCMSSettings.isBlackPointCompensationActive).toBool();
     m_colorManagementSystemSettings.isWhitePaperColorTransformed = settings.value("isWhitePaperColorTransformed", defaultCMSSettings.isWhitePaperColorTransformed).toBool();
     m_colorManagementSystemSettings.isConsiderOutputIntent = settings.value("isConsiderOutputIntent", defaultCMSSettings.isConsiderOutputIntent).toBool();
@@ -131,6 +132,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("system", int(m_colorManagementSystemSettings.system));
     settings.setValue("accuracy", int(m_colorManagementSystemSettings.accuracy));
     settings.setValue("intent", int(m_colorManagementSystemSettings.intent));
+    settings.setValue("colorAdaptationXYZ", int(m_colorManagementSystemSettings.colorAdaptationXYZ));
     settings.setValue("isBlackPointCompensationActive", m_colorManagementSystemSettings.isBlackPointCompensationActive);
     settings.setValue("isWhitePaperColorTransformed", m_colorManagementSystemSettings.isWhitePaperColorTransformed);
     settings.setValue("isConsiderOutputIntent", m_colorManagementSystemSettings.isConsiderOutputIntent);

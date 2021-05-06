@@ -18,15 +18,24 @@
     <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,3">
      <item>
       <widget class="QListWidget" name="optionsPagesWidget">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="selectionBehavior">
         <enum>QAbstractItemView::SelectRows</enum>
+       </property>
+       <property name="viewMode">
+        <enum>QListView::ListMode</enum>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>7</number>
+        <number>5</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -610,42 +619,28 @@
            <layout class="QVBoxLayout" name="verticalLayout_6">
             <item>
              <layout class="QGridLayout" name="cmsWidgetsLayout" columnstretch="1,1">
-              <item row="1" column="1">
-               <widget class="QComboBox" name="cmsRenderingIntentComboBox"/>
+              <item row="7" column="1">
+               <widget class="QComboBox" name="cmsOutputColorProfileComboBox"/>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="cmsBlackPointCompensationLabel">
+                <property name="text">
+                 <string>Black point compensation</string>
+                </property>
+               </widget>
               </item>
               <item row="8" column="0">
-               <widget class="QLabel" name="cmsDeviceRGBProfileLabel">
+               <widget class="QLabel" name="cmsDeviceGrayColorProfileLabel">
                 <property name="text">
-                 <string>Device RGB color profile</string>
+                 <string>Device gray color profile</string>
                 </property>
                </widget>
               </item>
               <item row="0" column="1">
                <widget class="QComboBox" name="cmsTypeComboBox"/>
               </item>
-              <item row="4" column="1">
-               <widget class="QCheckBox" name="cmsWhitePaperColorTransformedCheckBox">
-                <property name="text">
-                 <string>Enable</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="cmsWhitePaperColorTransformedLabel">
-                <property name="text">
-                 <string>White paper color transformed</string>
-                </property>
-               </widget>
-              </item>
               <item row="8" column="1">
-               <widget class="QComboBox" name="cmsDeviceRGBColorProfileComboBox"/>
-              </item>
-              <item row="9" column="0">
-               <widget class="QLabel" name="cmsDeviceCMYKColorProfileLabel">
-                <property name="text">
-                 <string>Device CMYK color profile</string>
-                </property>
-               </widget>
+               <widget class="QComboBox" name="cmsDeviceGrayColorProfileComboBox"/>
               </item>
               <item row="2" column="0">
                <widget class="QLabel" name="cmsAccuracyLabel">
@@ -654,21 +649,50 @@
                 </property>
                </widget>
               </item>
-              <item row="2" column="1">
-               <widget class="QComboBox" name="cmsAccuracyComboBox"/>
+              <item row="1" column="1">
+               <widget class="QComboBox" name="cmsRenderingIntentComboBox"/>
               </item>
-              <item row="5" column="0">
+              <item row="6" column="0">
                <widget class="QLabel" name="cmsProfileDirectoryLabel">
                 <property name="text">
                  <string>Additional color profile directory</string>
                 </property>
                </widget>
               </item>
-              <item row="6" column="1">
-               <widget class="QComboBox" name="cmsOutputColorProfileComboBox"/>
+              <item row="5" column="0">
+               <widget class="QLabel" name="cmsWhitePaperColorTransformedLabel">
+                <property name="text">
+                 <string>White paper color transformed</string>
+                </property>
+               </widget>
               </item>
-              <item row="9" column="1">
-               <widget class="QComboBox" name="cmsDeviceCMYKColorProfileComboBox"/>
+              <item row="11" column="1">
+               <widget class="QCheckBox" name="cmsConsiderOutputIntentCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="0">
+               <widget class="QLabel" name="cmsOutputProfileLabel">
+                <property name="text">
+                 <string>Output color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QCheckBox" name="cmsIsBlackPointCompensationCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QCheckBox" name="cmsWhitePaperColorTransformedCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
               </item>
               <item row="1" column="0">
                <widget class="QLabel" name="cmsRenderingIntentLabel">
@@ -677,10 +701,41 @@
                 </property>
                </widget>
               </item>
-              <item row="7" column="1">
-               <widget class="QComboBox" name="cmsDeviceGrayColorProfileComboBox"/>
+              <item row="9" column="1">
+               <widget class="QComboBox" name="cmsDeviceRGBColorProfileComboBox"/>
               </item>
-              <item row="5" column="1">
+              <item row="10" column="1">
+               <widget class="QComboBox" name="cmsDeviceCMYKColorProfileComboBox"/>
+              </item>
+              <item row="11" column="0">
+               <widget class="QLabel" name="cmsConsiderOutputIntentLabel">
+                <property name="text">
+                 <string>Consider document output intents</string>
+                </property>
+               </widget>
+              </item>
+              <item row="9" column="0">
+               <widget class="QLabel" name="cmsDeviceRGBProfileLabel">
+                <property name="text">
+                 <string>Device RGB color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="cmsLabel">
+                <property name="text">
+                 <string>Color management system</string>
+                </property>
+               </widget>
+              </item>
+              <item row="10" column="0">
+               <widget class="QLabel" name="cmsDeviceCMYKColorProfileLabel">
+                <property name="text">
+                 <string>Device CMYK color profile</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
                <layout class="QHBoxLayout" name="cmsProfileDirectoryLayout">
                 <item>
                  <widget class="QLineEdit" name="cmsProfileDirectoryEdit"/>
@@ -694,52 +749,16 @@
                 </item>
                </layout>
               </item>
-              <item row="6" column="0">
-               <widget class="QLabel" name="cmsOutputProfileLabel">
-                <property name="text">
-                 <string>Output color profile</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="QLabel" name="cmsLabel">
-                <property name="text">
-                 <string>Color management system</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="cmsBlackPointCompensationLabel">
-                <property name="text">
-                 <string>Black point compensation</string>
-                </property>
-               </widget>
-              </item>
-              <item row="7" column="0">
-               <widget class="QLabel" name="cmsDeviceGrayColorProfileLabel">
-                <property name="text">
-                 <string>Device gray color profile</string>
-                </property>
-               </widget>
+              <item row="2" column="1">
+               <widget class="QComboBox" name="cmsAccuracyComboBox"/>
               </item>
               <item row="3" column="1">
-               <widget class="QCheckBox" name="cmsIsBlackPointCompensationCheckBox">
-                <property name="text">
-                 <string>Enable</string>
-                </property>
-               </widget>
+               <widget class="QComboBox" name="cmsColorAdaptationXYZComboBox"/>
               </item>
-              <item row="10" column="1">
-               <widget class="QCheckBox" name="cmsConsiderOutputIntentCheckBox">
+              <item row="3" column="0">
+               <widget class="QLabel" name="cmsColorAdaptationMethodLabel">
                 <property name="text">
-                 <string>Enable</string>
-                </property>
-               </widget>
-              </item>
-              <item row="10" column="0">
-               <widget class="QLabel" name="cmsConsiderOutputIntentLabel">
-                <property name="text">
-                 <string>Consider document output intents</string>
+                 <string>Color adaptation method (XYZ whitepoint)</string>
                 </property>
                </widget>
               </item>
