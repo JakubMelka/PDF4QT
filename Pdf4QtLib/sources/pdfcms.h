@@ -419,6 +419,18 @@ private:
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_externalProfiles;
 };
 
+/// Class providing chromatic adaptation of whitepoints
+/// using various method.
+class PDFChromaticAdaptationXYZ
+{
+public:
+    PDFChromaticAdaptationXYZ() = delete;
+
+    static PDFColorComponentMatrix_3x3 createWhitepointChromaticAdaptation(const PDFColor3& targetWhitePoint,
+                                                                           const PDFColor3& sourceWhitePoint,
+                                                                           PDFCMSSettings::ColorAdaptationXYZ method);
+};
+
 }   // namespace pdf
 
 #endif // PDFCMS_H

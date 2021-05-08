@@ -234,12 +234,20 @@ bool PDFLittleCMS::fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::
     {
         Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_8);
 
-        const cmsCIEXYZ* d50WhitePoint = cmsD50_XYZ();
-        std::array<float, 3> correctionCoefficients = { float(d50WhitePoint->X) / whitePoint[0], float(d50WhitePoint->Y) / whitePoint[1], float(d50WhitePoint->Z) / whitePoint[2] };
+        PDFColorComponentMatrix_3x3 adaptationMatrix = PDFChromaticAdaptationXYZ::createWhitepointChromaticAdaptation(getDefaultXYZWhitepoint(), whitePoint, m_settings.colorAdaptationXYZ);
         std::vector<float> fixedColors = colors;
-        for (size_t i = 0, count = fixedColors.size(); i < count; ++i)
+
+        const size_t count = fixedColors.size() / 3;
+        for (size_t i = 0; i < count; ++i)
         {
-            fixedColors[i] = fixedColors[i] * correctionCoefficients[i % correctionCoefficients.size()];
+            const size_t indexX = i * 3;
+            const size_t indexY = i * 3 + 1;
+            const size_t indexZ = i * 3 + 2;
+            const PDFColor3 sourceXYZ = { fixedColors[indexX], fixedColors[indexY], fixedColors[indexZ] };
+            const PDFColor3 adaptedXYZ = adaptationMatrix * sourceXYZ;
+            fixedColors[indexX] = adaptedXYZ[0];
+            fixedColors[indexY] = adaptedXYZ[1];
+            fixedColors[indexZ] = adaptedXYZ[2];
         }
 
         cmsDoTransform(transform, fixedColors.data(), outputBuffer, static_cast<cmsUInt32Number>(colors.size()) / T_CHANNELS(inputFormat));
@@ -553,10 +561,8 @@ QColor PDFLittleCMS::getColorFromXYZ(const PDFColor3& whitePoint, const PDFColor
     {
         Q_ASSERT(cmsGetTransformOutputFormat(transform) == TYPE_RGB_FLT);
 
-        // Jakub Melka: It seems, that Adobe Acrobat Reader doesn't do the gamut remapping (whitepoint remapping).
-        // so, we don't do that too.
-        const cmsCIEXYZ* d50WhitePoint = cmsD50_XYZ();
-        std::array<float, 3> xyzInputColor = { color[0] * float(d50WhitePoint->X), color[1] * float(d50WhitePoint->Y), color[2] * float(d50WhitePoint->Z)};
+        const PDFColorComponentMatrix_3x3 adaptationMatrix = PDFChromaticAdaptationXYZ::createWhitepointChromaticAdaptation(getDefaultXYZWhitepoint(), whitePoint, m_settings.colorAdaptationXYZ);
+        const PDFColor3 xyzInputColor = adaptationMatrix * color;
         std::array<float, 3> rgbOutputColor = { };
         cmsDoTransform(transform, xyzInputColor.data(), rgbOutputColor.data(), 1);
         return getColorFromOutputColor(rgbOutputColor);
@@ -1654,6 +1660,121 @@ PDFColor3 PDFCMS::getDefaultXYZWhitepoint()
 {
     const cmsCIEXYZ* whitePoint = cmsD50_XYZ();
     return PDFColor3{ PDFColorComponent(whitePoint->X), PDFColorComponent(whitePoint->Y), PDFColorComponent(whitePoint->Z) };
+}
+
+PDFColorComponentMatrix_3x3 PDFChromaticAdaptationXYZ::createWhitepointChromaticAdaptation(const PDFColor3& targetWhitePoint,
+                                                                                           const PDFColor3& sourceWhitePoint,
+                                                                                           PDFCMSSettings::ColorAdaptationXYZ method)
+{
+    PDFColorComponentMatrix_3x3 matrix;
+    matrix.makeIdentity();
+
+    switch (method)
+    {
+        case pdf::PDFCMSSettings::ColorAdaptationXYZ::None:
+            // No scaling performed, just return identity matrix
+            break;
+
+        case pdf::PDFCMSSettings::ColorAdaptationXYZ::XYZScaling:
+            matrix.makeDiagonal(std::array{ targetWhitePoint[0] / sourceWhitePoint[0],
+                                  targetWhitePoint[1] / sourceWhitePoint[1],
+                                  targetWhitePoint[2] / sourceWhitePoint[2]
+                                });
+            break;
+
+        case pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT97:
+        {
+            // CAT97 matrix, as defined in https://en.wikipedia.org/wiki/LMS_color_space
+            constexpr PDFColorComponentMatrix_3x3 cat97Matrix(
+                         0.8562f,  0.3372f, -0.1934f,
+                        -0.8360f,  1.8327f,  0.0033f,
+                         0.0357f, -0.0469f,  1.0112f);
+
+            // Inverse of CAT97 matrix (using wxMaxima to compute it)
+            constexpr PDFColorComponentMatrix_3x3 inverseCat97Matrix(
+                         0.9873999149199271f,   -0.1768250198556842f,   0.1894251049357571f,
+                         0.4504351090445315f,    0.464932897752711f,    0.08463199320275755f,
+                        -0.01396832510725165f,   0.027806572501434f,    0.9861617526058175f);
+
+            PDFColor3 adaptedTargetWhitePoint = cat97Matrix * targetWhitePoint;
+            PDFColor3 adaptedSourceWhitePoint = cat97Matrix * sourceWhitePoint;
+            PDFColor3 gain = {
+                adaptedTargetWhitePoint[0] / adaptedSourceWhitePoint[0],
+                adaptedTargetWhitePoint[1] / adaptedSourceWhitePoint[1],
+                adaptedTargetWhitePoint[2] / adaptedSourceWhitePoint[2]
+            };
+
+            PDFColorComponentMatrix_3x3 gainMatrix;
+            gainMatrix.makeDiagonal(gain);
+
+            matrix = inverseCat97Matrix * gainMatrix * cat97Matrix;
+            break;
+        }
+
+        case pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT02:
+        {
+            // CAT02 matrix, as defined in https://en.wikipedia.org/wiki/LMS_color_space
+            constexpr PDFColorComponentMatrix_3x3 cat02Matrix(
+                         0.7328f,  0.4296f, -0.1624f,
+                        -0.7036f,  1.6975f,  0.0061f,
+                         0.0030f,  0.0136f,  0.9834f);
+
+            // Inverse of CAT02 matrix (using wxMaxima to compute it)
+            constexpr PDFColorComponentMatrix_3x3 inverseCat02Matrix(
+                        1.096123820835514f,     -0.2788690002182872f,   0.182745179382773f,
+                        0.4543690419753592f,     0.4735331543074117f,   0.0720978037172291f,
+                       -0.009627608738429352f,  -0.005698031216113419f, 1.015325639954543f);
+
+            PDFColor3 adaptedTargetWhitePoint = cat02Matrix * targetWhitePoint;
+            PDFColor3 adaptedSourceWhitePoint = cat02Matrix * sourceWhitePoint;
+            PDFColor3 gain = {
+                adaptedTargetWhitePoint[0] / adaptedSourceWhitePoint[0],
+                adaptedTargetWhitePoint[1] / adaptedSourceWhitePoint[1],
+                adaptedTargetWhitePoint[2] / adaptedSourceWhitePoint[2]
+            };
+
+            PDFColorComponentMatrix_3x3 gainMatrix;
+            gainMatrix.makeDiagonal(gain);
+
+            matrix = inverseCat02Matrix * gainMatrix * cat02Matrix;
+            break;
+        }
+
+        case pdf::PDFCMSSettings::ColorAdaptationXYZ::Bradford:
+        {
+            // Bradford matrix, as defined in https://en.wikipedia.org/wiki/LMS_color_space
+            constexpr PDFColorComponentMatrix_3x3 bradfordMatrix(
+                 0.8951f,  0.2264f, -0.1614f,
+                -0.7502f,  1.7135f,  0.0367f,
+                 0.0389f, -0.0685f,  1.0296f);
+
+            // Inverse of bradford matrix (using wxMaxima to compute it)
+            constexpr PDFColorComponentMatrix_3x3 inverseBradfordMatrix(
+                    1.004360519274085f,     -0.1262294327613208f,   0.1619428982062721f,
+                    0.4399123264001572f,     0.527481594455384f,    0.05015858096782513f,
+                   -0.008678739162151443f,   0.03986287311053728f,  0.9684695843590444f);
+
+            PDFColor3 adaptedTargetWhitePoint = bradfordMatrix * targetWhitePoint;
+            PDFColor3 adaptedSourceWhitePoint = bradfordMatrix * sourceWhitePoint;
+            PDFColor3 gain = {
+                adaptedTargetWhitePoint[0] / adaptedSourceWhitePoint[0],
+                adaptedTargetWhitePoint[1] / adaptedSourceWhitePoint[1],
+                adaptedTargetWhitePoint[2] / adaptedSourceWhitePoint[2]
+            };
+
+            PDFColorComponentMatrix_3x3 gainMatrix;
+            gainMatrix.makeDiagonal(gain);
+
+            matrix = inverseBradfordMatrix * gainMatrix * bradfordMatrix;
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return matrix;
 }
 
 }   // namespace pdf

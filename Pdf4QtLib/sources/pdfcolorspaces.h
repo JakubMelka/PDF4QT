@@ -218,6 +218,10 @@ public:
     {
         return m_values[row * Cols + column];
     }
+    inline void setValue(size_t row, size_t column, PDFColorComponent value)
+    {
+        m_values[row * Cols + column] = value;
+    }
 
     void transpose()
     {
@@ -231,6 +235,33 @@ public:
                 const size_t index2 = column * Cols + row;
                 std::swap(m_values[index1], m_values[index2]);
             }
+        }
+    }
+
+    void makeIdentity()
+    {
+        Q_ASSERT(Rows == Cols);
+
+        m_values = { };
+
+        for (size_t row = 0; row < Rows; ++row)
+        {
+            const size_t index = row * Cols + row;
+            m_values[index] = PDFColorComponent(1.0f);
+        }
+    }
+
+    void makeDiagonal(auto diagonalItems)
+    {
+        Q_ASSERT(Rows == Cols);
+        Q_ASSERT(diagonalItems.size() == Rows);
+
+        m_values = { };
+
+        for (size_t row = 0; row < Rows; ++row)
+        {
+            const size_t index = row * Cols + row;
+            m_values[index] = diagonalItems[row];
         }
     }
 
@@ -248,6 +279,29 @@ public:
 private:
     std::array<PDFColorComponent, Rows * Cols> m_values;
 };
+
+template<size_t i, size_t k, size_t j>
+static inline PDFColorComponentMatrix<i, j> operator*(const PDFColorComponentMatrix<i, k>& left, const PDFColorComponentMatrix<k, j>& right)
+{
+    PDFColorComponentMatrix<i, j> result;
+
+    for (size_t ci = 0; ci < i; ++ci)
+    {
+        for (size_t cj = 0; cj < j; ++cj)
+        {
+            PDFColorComponent value = 0.0f;
+
+            for (size_t ck = 0; ck < k; ++ck)
+            {
+                value += left.getValue(ci, ck) * right.getValue(ck, cj);
+            }
+
+            result.setValue(ci, cj, value);
+        }
+    }
+
+    return result;
+}
 
 using PDFColorComponentMatrix_3x3 = PDFColorComponentMatrix<3, 3>;
 
