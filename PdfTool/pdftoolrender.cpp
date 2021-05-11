@@ -147,7 +147,7 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
 {
     pdf::PDFDocument document;
     QByteArray sourceData;
-    if (!readDocument(options, document, &sourceData))
+    if (!readDocument(options, document, &sourceData, false))
     {
         return ErrorDocumentReading;
     }

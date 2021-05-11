@@ -34,11 +34,12 @@
 namespace pdf
 {
 
-PDFDocumentReader::PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive) :
+PDFDocumentReader::PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive, bool authorizeOwnerOnly) :
     m_result(Result::OK),
     m_getPasswordCallback(getPasswordCallback),
     m_progress(progress),
-    m_permissive(permissive)
+    m_permissive(permissive),
+    m_authorizeOwnerOnly(authorizeOwnerOnly)
 {
 
 }
@@ -375,7 +376,7 @@ PDFDocumentReader::Result PDFDocumentReader::processSecurityHandler(const PDFObj
 
     // Read the security handler
     m_securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject, id);
-    PDFSecurityHandler::AuthorizationResult authorizationResult = m_securityHandler->authenticate(m_getPasswordCallback);
+    PDFSecurityHandler::AuthorizationResult authorizationResult = m_securityHandler->authenticate(m_getPasswordCallback, m_authorizeOwnerOnly);
 
     if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
     {

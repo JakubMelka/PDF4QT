@@ -421,6 +421,11 @@ public:
     /// \param annotationReference Annotation reference
     void copyAnnotation(PDFObjectReference pageReference, PDFObjectReference annotationReference);
 
+    /// Sets security handler to the object storage. Trailer dictionary is not
+    /// updated and so must be updated manually.
+    /// \param handler New security handler
+    void setSecurityHandler(PDFSecurityHandlerPointer handler);
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.
@@ -1185,6 +1190,10 @@ public:
     void removeDocumentActions();
 
 
+    /// Removes encryption from a document.
+    void removeEncryption();
+
+
     /// Removes outline tree from document catalog.
     void removeOutline();
 
@@ -1372,15 +1381,15 @@ public:
 
 
     /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
-
-
-    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
+
+
+    /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
 
 
     /// Set document outline.

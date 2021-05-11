@@ -899,7 +899,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     return options;
 }
 
-bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData)
+bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly)
 {
     bool isFirstPasswordAttempt = true;
     auto passwordCallback = [&options, &isFirstPasswordAttempt](bool* ok) -> QString
@@ -908,7 +908,7 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
         isFirstPasswordAttempt = false;
         return options.password;
     };
-    pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading);
+    pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading, authorizeOwnerOnly);
     document = reader.readFromFile(options.document);
 
     switch (reader.getReadingResult())

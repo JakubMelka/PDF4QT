@@ -8944,6 +8944,47 @@ return rootNodeReference;</property>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
                   <property name="items"/>
+                  <property name="dictionaryItemName">Encrypt</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedTrailerDictionary</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">m_storage.updateTrailerDictionary(qMove(updatedTrailerDictionary));</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">removeEncryption</property>
+      <property name="functionDescription">Removes encryption from a document.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
                   <property name="dictionaryItemName">Outlines</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">PDFObject()</property>
@@ -10731,39 +10772,6 @@ return rootNodeReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
-              <property name="parameterName">locale</property>
-              <property name="parameterType">_QLocale</property>
-              <property name="parameterDescription">Locale, from which is language determined</property>
-            </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">setLanguage(locale.name());</property>
-        </QObject>
-      </property>
-      <property name="functionType">Structure</property>
-      <property name="functionName">setLanguage</property>
-      <property name="functionDescription">Set document language.</property>
-      <property name="returnType">_void</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
               <property name="parameterName">language</property>
               <property name="parameterType">_QString</property>
               <property name="parameterDescription">Document language. It should be a language identifier, as defined in ISO 639 and ISO 3166. For example, "en-US", where first two letter means language code (en = english), and the latter two is country code (US - United States).</property>
@@ -10805,6 +10813,39 @@ return rootNodeReference;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">setLanguage</property>
+      <property name="functionDescription">Set document language.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">locale</property>
+              <property name="parameterType">_QLocale</property>
+              <property name="parameterDescription">Locale, from which is language determined</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">setLanguage(locale.name());</property>
         </QObject>
       </property>
       <property name="functionType">Structure</property>

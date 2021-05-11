@@ -187,6 +187,7 @@ public:
         ErrorUnknown,
         ErrorNoDocumentSpecified,
         ErrorDocumentReading,
+        ErrorDocumentWriting,
         ErrorCertificateReading,
         ErrorInvalidArguments,
         ErrorFailedWriteToFile,
@@ -245,7 +246,8 @@ protected:
     /// \param options Options
     /// \param document Document
     /// \param[out] sourceData Pointer, to which source data are stored
-    bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData = nullptr);
+    /// \param authorizeOwnerOnly Require to authorize as owner
+    bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly);
 };
 
 /// This class stores information about all applications available. Application

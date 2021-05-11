@@ -47,7 +47,7 @@ QString PDFToolAttachmentsApplication::getStandardString(StandardString standard
 int PDFToolAttachmentsApplication::execute(const PDFToolOptions& options)
 {
     pdf::PDFDocument document;
-    if (!readDocument(options, document))
+    if (!readDocument(options, document, nullptr, false))
     {
         return ErrorDocumentReading;
     }

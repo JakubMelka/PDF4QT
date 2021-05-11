@@ -369,7 +369,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
 
             if (it == handler.m_cryptFilters.cend())
             {
-                throw PDFException(PDFTranslationContext::tr("Uknown crypt filter '%1'.").arg(QString::fromLatin1(name)));
+                throw PDFException(PDFTranslationContext::tr("Unknown crypt filter '%1'.").arg(QString::fromLatin1(name)));
             }
 
             return it->second;
@@ -446,7 +446,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     return PDFSecurityHandlerPointer(new PDFStandardSecurityHandler(qMove(handler)));
 }
 
-PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate(const std::function<QString(bool*)>& getPasswordCallback)
+PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly)
 {
     QByteArray password;
     bool passwordObtained = true;
@@ -478,15 +478,18 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 }
 
                 // Try to authorize user password
-                QByteArray fileEncryptionKey = createFileEncryptionKey(password);
-                QByteArray U = createEntryValueU_r234(fileEncryptionKey);
-
-                if (U == m_U)
+                if (!authorizeOwnerOnly)
                 {
-                    // We have authorized owner access
-                    m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
-                    m_authorizationData.fileEncryptionKey = fileEncryptionKey;
-                    return AuthorizationResult::UserAuthorized;
+                    QByteArray fileEncryptionKey = createFileEncryptionKey(password);
+                    QByteArray U = createEntryValueU_r234(fileEncryptionKey);
+
+                    if (U == m_U)
+                    {
+                        // We have authorized user access
+                        m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+                        m_authorizationData.fileEncryptionKey = fileEncryptionKey;
+                        return AuthorizationResult::UserAuthorized;
+                    }
                 }
 
                 break;
@@ -534,7 +537,7 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 }
 
                 // Try to authorize user password
-                if (!m_authorizationData.isAuthorized())
+                if (!m_authorizationData.isAuthorized() && !authorizeOwnerOnly)
                 {
                     QByteArray inputData = password + userData.validationSalt;
                     QByteArray hash = createHash_r56(inputData, password, false);
@@ -925,7 +928,7 @@ QByteArray PDFStandardSecurityHandler::createUserPasswordFromOwnerPassword(const
     const int keyByteLength = m_keyLength / 8;
     if (keyByteLength > MD5_DIGEST_LENGTH)
     {
-        throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
+        throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of %2.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
     }
 
     if (m_R >= 3)

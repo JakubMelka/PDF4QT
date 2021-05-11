@@ -332,7 +332,7 @@ int PDFToolAudioBook::getDocumentTextFlow(const PDFToolOptions& options, pdf::PD
 {
     pdf::PDFDocument document;
     QByteArray sourceData;
-    if (!readDocument(options, document, &sourceData))
+    if (!readDocument(options, document, &sourceData, false))
     {
         return ErrorDocumentReading;
     }

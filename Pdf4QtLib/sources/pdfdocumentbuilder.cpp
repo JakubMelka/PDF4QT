@@ -1141,6 +1141,11 @@ void PDFDocumentBuilder::copyAnnotation(PDFObjectReference pageReference, PDFObj
     appendTo(pageReference, pageAnnots);
 }
 
+void PDFDocumentBuilder::setSecurityHandler(PDFSecurityHandlerPointer handler)
+{
+    m_storage.setSecurityHandler(qMove(handler));
+}
+
 PDFObjectReference PDFDocumentBuilder::getCatalogReference() const
 {
     if (const PDFDictionary* trailerDictionary = getDictionaryFromObject(m_storage.getTrailerDictionary()))
@@ -1582,7 +1587,7 @@ PDFContentStreamBuilder::ContentStream PDFContentStreamBuilder::end(QPainter* pa
     delete m_buffer;
     m_buffer = nullptr;
 
-    PDFDocumentReader reader(nullptr, nullptr, false);
+    PDFDocumentReader reader(nullptr, nullptr, false, false);
     result.document = reader.readFromBuffer(bufferData);
 
     if (result.document.getCatalog()->getPageCount() > 0)
@@ -4288,6 +4293,20 @@ void PDFDocumentBuilder::removeDocumentActions()
 }
 
 
+void PDFDocumentBuilder::removeEncryption()
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Encrypt");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedTrailerDictionary = objectBuilder.takeObject();
+    m_storage.updateTrailerDictionary(qMove(updatedTrailerDictionary));
+}
+
+
 void PDFDocumentBuilder::removeOutline()
 {
     PDFObjectFactory objectBuilder;
@@ -4731,14 +4750,6 @@ void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
 }
 
 
-void PDFDocumentBuilder::setLanguage(QLocale locale)
-{
-    PDFObjectFactory objectBuilder;
-
-    setLanguage(locale.name());
-}
-
-
 void PDFDocumentBuilder::setLanguage(QString language)
 {
     PDFObjectFactory objectBuilder;
@@ -4750,6 +4761,14 @@ void PDFDocumentBuilder::setLanguage(QString language)
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
     mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
 }
 
 
@@ -4855,6 +4874,7 @@ void PDFDocumentBuilder::setPageRotation(PDFObjectReference page,
     PDFObject updatedPageObject = objectBuilder.takeObject();
     mergeTo(page, updatedPageObject);
 }
+
 
 void PDFDocumentBuilder::setPageTrimBox(PDFObjectReference page,
                                         QRectF box)

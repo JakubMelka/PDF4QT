@@ -116,8 +116,9 @@ public:
     /// to cancel the authentication (and \p Cancelled authentication result is returned) or true,
     /// to try provided password.
     /// \param getPasswordCallback Callback to get user password
+    /// \param authorizeOwnerOnly Authorize owner only
     /// \returns Result of authentication
-    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) = 0;
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) = 0;
 
     /// Decrypts the PDF object. This function works properly only (and only if)
     /// \p authenticate function returns user/owner authorization code.
@@ -188,7 +189,7 @@ class PDFNoneSecurityHandler : public PDFSecurityHandler
 {
 public:
     virtual EncryptionMode getMode() const override { return EncryptionMode::None; }
-    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&) override { return AuthorizationResult::OwnerAuthorized; }
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&, bool) override { return AuthorizationResult::OwnerAuthorized; }
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
     virtual bool isMetadataEncrypted() const override { return true; }
@@ -202,7 +203,7 @@ class PDFStandardSecurityHandler : public PDFSecurityHandler
 {
 public:
     virtual EncryptionMode getMode() const override { return EncryptionMode::Standard; }
-    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback) override;
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) override;
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }

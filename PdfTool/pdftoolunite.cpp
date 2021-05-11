@@ -79,7 +79,7 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
         std::vector<pdf::PDFObjectReference> pages;
         for (const QString& fileName : files)
         {
-            pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, options.permissiveReading);
+            pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, options.permissiveReading, false);
             pdf::PDFDocument document = reader.readFromFile(fileName);
             if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
             {

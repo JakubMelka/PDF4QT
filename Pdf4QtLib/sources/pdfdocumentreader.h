@@ -40,7 +40,7 @@ class Pdf4QtLIBSHARED_EXPORT PDFDocumentReader
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 
 public:
-    explicit PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive);
+    explicit PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive, bool authorizeOwnerOnly);
 
     constexpr inline PDFDocumentReader(const PDFDocumentReader&) = delete;
     constexpr inline PDFDocumentReader(PDFDocumentReader&&) = delete;
@@ -165,6 +165,10 @@ private:
 
     /// Be permissive when reading, tolerate errors and try to fix broken document
     bool m_permissive;
+
+    /// Authorize as owner only (if owner authorization fails, then whole document
+    /// reading fails)
+    bool m_authorizeOwnerOnly;
 
     /// Warnings
     QStringList m_warnings;

@@ -63,7 +63,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
         isFirstPasswordAttempt = false;
         return options.password;
     };
-    pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading);
+    pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading, false);
     pdf::PDFDocument document = reader.readFromFile(options.document);
 
     switch (reader.getReadingResult())
