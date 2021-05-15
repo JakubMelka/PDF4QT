@@ -127,6 +127,13 @@ public:
     /// \returns Decrypted object
     PDFObject decryptObject(const PDFObject& object, PDFObjectReference reference) const;
 
+    /// Encrypts the PDF object. This function works properly only (and only if)
+    /// \p authenticate function returns user/owner authorization code.
+    /// \param object Object to be encrypted
+    /// \param reference Reference of indirect object (some algorithms require to generate key also from reference)
+    /// \returns Encrypted object
+    PDFObject encryptObject(const PDFObject& object, PDFObjectReference reference) const;
+
     /// Decrypts the PDF object data. This function works properly only (and only if)
     /// \p authenticate function returns user/owner authorization code.
     /// \param data Data to be decrypted
@@ -141,12 +148,30 @@ public:
     /// \param reference Reference object
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const = 0;
 
+    /// Encrypts the PDF object data. This function works properly only (and only if)
+    /// \p authenticate function returns user/owner authorization code.
+    /// \param data Data to be encrypted
+    /// \param reference Reference of indirect object (some algorithms require to generate key also from reference)
+    /// \param encryptionScope Scope of the encryption (if it is string/stream/...)
+    /// \returns Encrypted object data
+    virtual QByteArray encrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const = 0;
+
+    /// Encrypts data using specified filter. Throws exception, if filter is not found.
+    /// \param data Data to be encrypted
+    /// \param filterName Filter name to be used to encrypt the data
+    /// \param reference Reference object
+    virtual QByteArray encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const = 0;
+
     /// Returns true, if given permission is allowed in the current authorization context.
     /// If owner is authorized, then this function allways returns true.
     virtual bool isAllowed(Permission permission) const = 0;
 
     /// Returns true, if metadata are encrypted
     virtual bool isMetadataEncrypted() const = 0;
+
+    /// Returns true, if encryption is allowed (and document
+    /// can be encrypted, if it was decrypted)
+    virtual bool isEncryptionAllowed() const = 0;
 
     /// Returns result of authorization process
     virtual AuthorizationResult getAuthorizationResult() const = 0;
@@ -192,8 +217,11 @@ public:
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&, bool) override { return AuthorizationResult::OwnerAuthorized; }
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
+    virtual QByteArray encrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
+    virtual QByteArray encryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
     virtual bool isMetadataEncrypted() const override { return true; }
     virtual bool isAllowed(Permission) const override { return true; }
+    virtual bool isEncryptionAllowed() const override { return true; }
     virtual AuthorizationResult getAuthorizationResult() const override { return AuthorizationResult::NoAuthorizationRequired; }
 };
 
@@ -206,8 +234,11 @@ public:
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) override;
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
+    virtual QByteArray encrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
+    virtual QByteArray encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
     virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
+    virtual bool isEncryptionAllowed() const override { return m_authorizationData.isAuthorized(); }
     virtual AuthorizationResult getAuthorizationResult() const override { return m_authorizationData.authorizationResult; }
 
     struct AuthorizationData
@@ -266,6 +297,17 @@ private:
     /// \param reference Object reference for key generation
     /// \returns Decrypted data
     QByteArray decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
+
+    /// Encrypts data using specified filter. This function can be called only, if authorization was successfull.
+    /// \param data Data to be encrypted
+    /// \param filter Filter to be used for encryption
+    /// \param reference Object reference for key generation
+    /// \returns Encrypted data
+    QByteArray encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
+
+    std::vector<uint8_t> createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const;
+    std::vector<uint8_t> createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const;
+    CryptFilter getCryptFilter(EncryptionScope encryptionScope) const;
 
     /// Returns true, if character with unicode code is non-ascii space character
     /// according the RFC 3454, section C.1.2

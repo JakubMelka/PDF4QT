@@ -21,6 +21,8 @@
 #include "pdfvisitor.h"
 #include "pdfutils.h"
 
+#include <QRandomGenerator>
+
 #include <openssl/rc4.h>
 #include <openssl/md5.h>
 #include <openssl/aes.h>
@@ -39,12 +41,20 @@ static constexpr std::array<uint8_t, 32> PDFPasswordPadding = {
     0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A
 };
 
-class PDFDecryptObjectVisitor : public PDFAbstractVisitor
+class PDFDecryptOrEncryptObjectVisitor : public PDFAbstractVisitor
 {
 public:
-    explicit PDFDecryptObjectVisitor(const PDFSecurityHandler* securityHandler, PDFObjectReference reference) :
+
+    enum class Mode
+    {
+        Decrypt,
+        Encrypt
+    };
+
+    explicit PDFDecryptOrEncryptObjectVisitor(const PDFSecurityHandler* securityHandler, PDFObjectReference reference, Mode mode) :
         m_securityHandler(securityHandler),
-        m_reference(reference)
+        m_reference(reference),
+        m_mode(mode)
     {
         m_objectStack.reserve(32);
     }
@@ -60,45 +70,58 @@ public:
     virtual void visitStream(const PDFStream* stream) override;
     virtual void visitReference(const PDFObjectReference reference) override;
 
-    PDFObject getDecryptedObject();
+    PDFObject getProcessedObject();
 
 private:
-    const PDFSecurityHandler* m_securityHandler;
+    const PDFSecurityHandler* m_securityHandler = nullptr;
     std::vector<PDFObject> m_objectStack;
     PDFObjectReference m_reference;
+    Mode m_mode = Mode::Decrypt;
 };
 
-void PDFDecryptObjectVisitor::visitNull()
+void PDFDecryptOrEncryptObjectVisitor::visitNull()
 {
     m_objectStack.push_back(PDFObject::createNull());
 }
 
-void PDFDecryptObjectVisitor::visitBool(bool value)
+void PDFDecryptOrEncryptObjectVisitor::visitBool(bool value)
 {
     m_objectStack.push_back(PDFObject::createBool(value));
 }
 
-void PDFDecryptObjectVisitor::visitInt(PDFInteger value)
+void PDFDecryptOrEncryptObjectVisitor::visitInt(PDFInteger value)
 {
     m_objectStack.push_back(PDFObject::createInteger(value));
 }
 
-void PDFDecryptObjectVisitor::visitReal(PDFReal value)
+void PDFDecryptOrEncryptObjectVisitor::visitReal(PDFReal value)
 {
     m_objectStack.push_back(PDFObject::createReal(value));
 }
 
-void PDFDecryptObjectVisitor::visitString(PDFStringRef string)
+void PDFDecryptOrEncryptObjectVisitor::visitString(PDFStringRef string)
 {
-    m_objectStack.push_back(PDFObject::createString(m_securityHandler->decrypt(string.getString(), m_reference, PDFSecurityHandler::EncryptionScope::String)));
+    switch (m_mode)
+    {
+        case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
+            m_objectStack.push_back(PDFObject::createString(m_securityHandler->decrypt(string.getString(), m_reference, PDFSecurityHandler::EncryptionScope::String)));
+            break;
+        case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt:
+            m_objectStack.push_back(PDFObject::createString(m_securityHandler->encrypt(string.getString(), m_reference, PDFSecurityHandler::EncryptionScope::String)));
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 }
 
-void PDFDecryptObjectVisitor::visitName(PDFStringRef name)
+void PDFDecryptOrEncryptObjectVisitor::visitName(PDFStringRef name)
 {
     m_objectStack.push_back(PDFObject::createName(name));
 }
 
-void PDFDecryptObjectVisitor::visitArray(const PDFArray* array)
+void PDFDecryptOrEncryptObjectVisitor::visitArray(const PDFArray* array)
 {
     acceptArray(array);
 
@@ -112,12 +135,12 @@ void PDFDecryptObjectVisitor::visitArray(const PDFArray* array)
     m_objectStack.push_back(object);
 }
 
-void PDFDecryptObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
+void PDFDecryptOrEncryptObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
 {
     Q_ASSERT(dictionary);
 
     // We must check, if it is or isn't a signature dictionary. If it is,
-    // then don't decrypt the Content value. We also don't check, if signature
+    // then don't decrypt/encrypt the Content value. We also don't check, if signature
     // isn't indirectly referenced by reference. Hope it isn't...
     const PDFObject& typeObject = dictionary->get("Type");
     bool isSignatureObject = (typeObject.isName() && typeObject.getString() == "Sig");
@@ -142,9 +165,9 @@ void PDFDecryptObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
     m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
 }
 
-void PDFDecryptObjectVisitor::visitStream(const PDFStream* stream)
+void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
 {
-    // Don't decrypt, if it is a Metadata stream and Metadata encryption is turned off
+    // Don't decrypt/encrypt, if it is a Metadata stream and Metadata encryption is turned off
     const PDFDictionary* dictionary = stream->getDictionary();
 
     const PDFObject& typeObject = dictionary->get("Type");
@@ -156,34 +179,66 @@ void PDFDecryptObjectVisitor::visitStream(const PDFStream* stream)
         return;
     }
 
-    // Decrypt the dictionary
+    // Decrypt/encrypt the dictionary
     visitDictionary(dictionary);
     PDFObject dictionaryObject = m_objectStack.back();
     m_objectStack.pop_back();
 
     // We must also handle situation, that stream has specified Crypt filter.
-    // In this case, we must delegate decryption to the stream filters.
-    PDFDictionary decryptedDictionary(*dictionaryObject.getDictionary());
-    QByteArray decryptedData;
-    if (!decryptedDictionary.hasKey("Crypt"))
+    // In this case, we must delegate decryption/encryption to the stream filters.
+    PDFDictionary processedDictionary(*dictionaryObject.getDictionary());
+    QByteArray processedData;
+    if (!processedDictionary.hasKey("Crypt"))
     {
-        decryptedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+        switch (m_mode)
+        {
+            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
+                processedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+                break;
+            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt:
+                processedData = m_securityHandler->encrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
     }
     else
     {
-        decryptedData = *stream->getContent();
-        decryptedDictionary.addEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(m_reference));
+        switch (m_mode)
+        {
+            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
+            {
+                processedData = *stream->getContent();
+                processedDictionary.removeEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
+                processedDictionary.addEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(m_reference));
+                break;
+            }
+
+            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt:
+            {
+                processedData = *stream->getContent();
+                processedDictionary.removeEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
+                break;
+            }
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
     }
 
-    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(decryptedDictionary), qMove(decryptedData))));
+    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(processedDictionary), qMove(processedData))));
 }
 
-void PDFDecryptObjectVisitor::visitReference(const PDFObjectReference reference)
+void PDFDecryptOrEncryptObjectVisitor::visitReference(const PDFObjectReference reference)
 {
     m_objectStack.push_back(PDFObject::createReference(reference));
 }
 
-PDFObject PDFDecryptObjectVisitor::getDecryptedObject()
+PDFObject PDFDecryptOrEncryptObjectVisitor::getProcessedObject()
 {
     Q_ASSERT(m_objectStack.size() == 1);
     return qMove(m_objectStack.back());
@@ -191,9 +246,16 @@ PDFObject PDFDecryptObjectVisitor::getDecryptedObject()
 
 PDFObject PDFSecurityHandler::decryptObject(const PDFObject& object, PDFObjectReference reference) const
 {
-    PDFDecryptObjectVisitor visitor(this, reference);
+    PDFDecryptOrEncryptObjectVisitor visitor(this, reference, PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt);
     object.accept(&visitor);
-    return visitor.getDecryptedObject();
+    return visitor.getProcessedObject();
+}
+
+PDFObject PDFSecurityHandler::encryptObject(const PDFObject& object, PDFObjectReference reference) const
+{
+    PDFDecryptOrEncryptObjectVisitor visitor(this, reference, PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt);
+    object.accept(&visitor);
+    return visitor.getProcessedObject();
 }
 
 PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id)
@@ -608,6 +670,34 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
     return AuthorizationResult::Cancelled;
 }
 
+std::vector<uint8_t> PDFStandardSecurityHandler::createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const
+{
+    std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
+    uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
+    uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
+    inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF) });
+    std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
+    MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
+
+    // Use up to (n + 5) bytes, maximally 16, from the digest as object encryption key
+    size_t objectEncryptionKeySize = qMin(filter.keyLength + 5, MD5_DIGEST_LENGTH);
+    objectEncryptionKey.resize(objectEncryptionKeySize);
+
+    return objectEncryptionKey;
+}
+
+std::vector<uint8_t> PDFStandardSecurityHandler::createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const
+{
+    std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
+    uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
+    uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
+    inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF), 0x73, 0x41, 0x6C, 0x54 });
+    std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
+    MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
+
+    return objectEncryptionKey;
+}
+
 QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
 {
     QByteArray decryptedData;
@@ -618,6 +708,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
     {
         QByteArray initializationVector;
         QByteArray paddedData;
+        int paddingRemainder = 0;
     };
 
     auto prepareAES_data = [](const QByteArray& data)
@@ -637,11 +728,11 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
 
         // Add padding remainder according to the specification
         int size = result.paddedData.size();
-        int paddingRemainder = AES_BLOCK_SIZE - (size % AES_BLOCK_SIZE);
+        result.paddingRemainder = AES_BLOCK_SIZE - (size % AES_BLOCK_SIZE);
 
-        for (int i = 0; i < paddingRemainder; ++i)
+        for (int i = 0; i < result.paddingRemainder; ++i)
         {
-            result.paddedData.push_back(paddingRemainder);
+            result.paddedData.push_back(result.paddingRemainder);
         }
 
         return result;
@@ -659,17 +750,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
 
         case CryptFilterType::V2:         // Use file encryption key for RC4 algorithm
         {
-            std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
-            uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
-            uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
-            inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF) });
-            std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
-            MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
-
-            // Use up to (n + 5) bytes, maximally 16, from the digest as object encryption key
-            size_t objectEncryptionKeySize = qMin(filter.keyLength + 5, MD5_DIGEST_LENGTH);
-            objectEncryptionKey.resize(objectEncryptionKeySize);
-
+            std::vector<uint8_t> objectEncryptionKey = createV2_ObjectEncryptionKey(reference, filter);
             decryptedData.resize(data.size());
 
             RC4_KEY key = { };
@@ -681,12 +762,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
 
         case CryptFilterType::AESV2:      // Use file encryption key for AES algorithm
         {
-            std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
-            uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
-            uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
-            inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF), 0x73, 0x41, 0x6C, 0x54 });
-            std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
-            MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
+            std::vector<uint8_t> objectEncryptionKey = createAESV2_ObjectEncryptionKey(reference);
 
             // For AES algorithm, always use 16 bytes key (128 bit encryption mode)
 
@@ -698,7 +774,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
             {
                 decryptedData.resize(aes_data.paddedData.size());
                 AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(decryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_DECRYPT);
-                decryptedData = decryptedData.left(data.length() - AES_BLOCK_SIZE);
+                decryptedData = decryptedData.left(data.length() - aes_data.paddingRemainder);
             }
 
             break;
@@ -715,7 +791,7 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
             {
                 decryptedData.resize(aes_data.paddedData.size());
                 AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(decryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_DECRYPT);
-                decryptedData = decryptedData.left(data.length() - AES_BLOCK_SIZE);
+                decryptedData = decryptedData.left(data.length() - aes_data.paddingRemainder);
             }
 
             break;
@@ -731,7 +807,135 @@ QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data
     return decryptedData;
 }
 
-QByteArray PDFStandardSecurityHandler::decrypt(const QByteArray& data, PDFObjectReference reference, PDFSecurityHandler::EncryptionScope encryptionScope) const
+QByteArray PDFStandardSecurityHandler::encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
+{
+    QByteArray encryptedData;
+
+    Q_ASSERT(m_authorizationData.isAuthorized());
+
+    struct AES_data
+    {
+        QByteArray initializationVector;
+        QByteArray paddedData;
+        int paddingRemainder = 0;
+    };
+
+    auto prepareAES_data = [](const QByteArray& data)
+    {
+        AES_data result;
+
+        QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+
+        result.initializationVector.resize(AES_BLOCK_SIZE);
+        for (int i = 0; i < AES_BLOCK_SIZE; ++i)
+        {
+            result.initializationVector[i] = uint8_t(randomNumberGenerator.generate());
+        }
+
+        result.paddedData = data;
+
+        // Add padding remainder according to the specification
+        int size = data.size();
+        result.paddingRemainder = AES_BLOCK_SIZE - (size % AES_BLOCK_SIZE);
+
+        for (int i = 0; i < result.paddingRemainder; ++i)
+        {
+            result.paddedData.push_back(result.paddingRemainder);
+        }
+
+        return result;
+    };
+
+    switch (filter.type)
+    {
+        case CryptFilterType::None:       // The application shall encrypt the data using the security handler
+        {
+            // This shouldn't occur, because in case the used filter has None value, then default filter
+            // is used and default filter can't have this value.
+            Q_ASSERT(false);
+            break;
+        }
+
+        case CryptFilterType::V2:         // Use file encryption key for RC4 algorithm
+        {
+            // This algorithm is same as the encrypt algorithm, because RC4 cipher is symmetrical
+            std::vector<uint8_t> objectEncryptionKey = createV2_ObjectEncryptionKey(reference, filter);
+            encryptedData.resize(data.size());
+
+            RC4_KEY key = { };
+            RC4_set_key(&key, static_cast<int>(objectEncryptionKey.size()), objectEncryptionKey.data());
+            RC4(&key, data.size(), convertByteArrayToUcharPtr(data), convertByteArrayToUcharPtr(encryptedData));
+
+            break;
+        }
+
+        case CryptFilterType::AESV2:      // Use file encryption key for AES algorithm
+        {
+            std::vector<uint8_t> objectEncryptionKey = createAESV2_ObjectEncryptionKey(reference);
+
+            // For AES algorithm, always use 16 bytes key (128 bit encryption mode)
+
+            AES_KEY key = { };
+            AES_set_encrypt_key(objectEncryptionKey.data(), static_cast<int>(objectEncryptionKey.size()) * 8, &key);
+
+            AES_data aes_data = prepareAES_data(data);
+            if (!aes_data.paddedData.isEmpty())
+            {
+                encryptedData.resize(aes_data.paddedData.size());
+                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(encryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_ENCRYPT);
+                encryptedData = encryptedData.left(data.length() - aes_data.paddingRemainder);
+                encryptedData.prepend(aes_data.initializationVector);
+            }
+
+            break;
+        }
+
+        case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
+        {
+            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
+            AES_KEY key = { };
+            AES_set_encrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
+
+            AES_data aes_data = prepareAES_data(data);
+            if (!aes_data.paddedData.isEmpty())
+            {
+                encryptedData.resize(aes_data.paddedData.size());
+                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(encryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_ENCRYPT);
+                encryptedData = encryptedData.left(data.length() - aes_data.paddingRemainder);
+                encryptedData.prepend(aes_data.initializationVector);
+            }
+
+            break;
+        }
+
+        case CryptFilterType::Identity:   // Don't decrypt anything, use identity function
+        {
+            encryptedData = data;
+            break;
+        }
+    }
+
+    return encryptedData;
+}
+
+QByteArray PDFStandardSecurityHandler::decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const
+{
+    CryptFilter filter = getCryptFilter(encryptionScope);
+    return decryptUsingFilter(data, filter, reference);
+}
+
+QByteArray PDFStandardSecurityHandler::decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
+{
+    auto it = m_cryptFilters.find(filterName);
+    if (it == m_cryptFilters.cend())
+    {
+        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
+    }
+
+    return decryptUsingFilter(data, it->second, reference);
+}
+
+CryptFilter PDFStandardSecurityHandler::getCryptFilter(EncryptionScope encryptionScope) const
 {
     CryptFilter filter = m_filterDefault;
 
@@ -768,10 +972,16 @@ QByteArray PDFStandardSecurityHandler::decrypt(const QByteArray& data, PDFObject
         }
     }
 
-    return decryptUsingFilter(data, filter, reference);
+    return filter;
 }
 
-QByteArray PDFStandardSecurityHandler::decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
+QByteArray PDFStandardSecurityHandler::encrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const
+{
+    CryptFilter filter = getCryptFilter(encryptionScope);
+    return encryptUsingFilter(data, filter, reference);
+}
+
+QByteArray PDFStandardSecurityHandler::encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
 {
     auto it = m_cryptFilters.find(filterName);
     if (it == m_cryptFilters.cend())
@@ -779,7 +989,7 @@ QByteArray PDFStandardSecurityHandler::decryptByFilter(const QByteArray& data, c
         throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
     }
 
-    return decryptUsingFilter(data, it->second, reference);
+    return encryptUsingFilter(data, it->second, reference);
 }
 
 QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray& password) const

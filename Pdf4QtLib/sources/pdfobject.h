@@ -383,6 +383,11 @@ public:
     /// \param key Key to be found in the dictionary
     bool hasKey(const char* key) const { return find(key) != m_dictionary.cend(); }
 
+    /// Removes entry with given key. If entry with this key is not found,
+    /// nothing happens.
+    /// \param key Key to be removed
+    void removeEntry(const char* key);
+
     /// Adds a new entry to the dictionary.
     /// \param key Key
     /// \param value Value
@@ -434,6 +439,11 @@ private:
     /// then end iterator is returned.
     /// \param key Key to be found
     std::vector<DictionaryEntry>::const_iterator find(const char* key) const;
+
+    /// Finds an item in the dictionary array, if the item is not in the dictionary,
+    /// then end iterator is returned.
+    /// \param key Key to be found
+    std::vector<DictionaryEntry>::iterator find(const char* key);
 
     /// Finds an item in the dictionary array, if the item is not in the dictionary,
     /// then end iterator is returned.

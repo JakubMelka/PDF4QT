@@ -291,6 +291,15 @@ const PDFObject& PDFDictionary::get(const PDFInplaceOrMemoryString& key) const
     }
 }
 
+void PDFDictionary::removeEntry(const char* key)
+{
+    auto it = find(key);
+    if (it != m_dictionary.end())
+    {
+        m_dictionary.erase(it);
+    }
+}
+
 void PDFDictionary::setEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value)
 {
     auto it = find(key);
@@ -327,7 +336,7 @@ std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const 
 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const char* key) const
 {
-    return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+    return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [key](const DictionaryEntry& entry) { return entry.first == key; });
 }
 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const PDFInplaceOrMemoryString& key) const
@@ -338,6 +347,11 @@ std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(
 std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const PDFInplaceOrMemoryString& key)
 {
     return std::find_if(m_dictionary.begin(), m_dictionary.end(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+}
+
+std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const char* key)
+{
+    return std::find_if(m_dictionary.begin(), m_dictionary.end(), [key](const DictionaryEntry& entry) { return entry.first == key; });
 }
 
 bool PDFStream::equals(const PDFObjectContent* other) const

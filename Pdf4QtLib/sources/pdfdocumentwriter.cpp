@@ -223,7 +223,8 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     const PDFObjectStorage& storage = document->getStorage();
     const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
     const size_t objectCount = objects.size();
-    if (storage.getSecurityHandler()->getMode() != EncryptionMode::None)
+    const bool isEncrypted = storage.getSecurityHandler()->getMode() != EncryptionMode::None;
+    if (!storage.getSecurityHandler()->isEncryptionAllowed())
     {
         return tr("Writing of encrypted documents is not supported.");
     }
@@ -238,6 +239,13 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     writeCRLF(device);
     writeCRLF(device);
 
+    PDFObjectReference encryptObjectReference;
+    PDFObject encryptObject = document->getTrailerDictionary()->get("Encrypt");
+    if (encryptObject.isReference())
+    {
+        encryptObjectReference = encryptObject.getReference();
+    }
+
     // Write objects
     std::vector<PDFInteger> offsets(objectCount, -1);
     for (size_t i = 0; i < objectCount; ++i)
@@ -251,10 +259,28 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
         // Jakub Melka: we must mark actual position of object
         offsets[i] = device->pos();
 
-        PDFWriteObjectVisitor visitor(device);
-        writeObjectHeader(device, PDFObjectReference(i, entry.generation));
-        entry.object.accept(&visitor);
-        writeObjectFooter(device);
+        if (isEncrypted)
+        {
+            PDFObjectReference reference(i, entry.generation);
+            PDFObject objectToWrite = entry.object;
+
+            if (reference != encryptObjectReference)
+            {
+                objectToWrite = storage.getSecurityHandler()->encryptObject(objectToWrite, reference);
+            }
+
+            PDFWriteObjectVisitor visitor(device);
+            writeObjectHeader(device, reference);
+            objectToWrite.accept(&visitor);
+            writeObjectFooter(device);
+        }
+        else
+        {
+            PDFWriteObjectVisitor visitor(device);
+            writeObjectHeader(device, PDFObjectReference(i, entry.generation));
+            entry.object.accept(&visitor);
+            writeObjectFooter(device);
+        }
     }
 
     // Write cross-reference table
