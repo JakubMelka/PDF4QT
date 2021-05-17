@@ -316,10 +316,16 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
         device->write(entry.object.isNull() ? "f" : "n");
         writeCRLF(device);
     }
+
+    // Jakub Melka: Adjust trailer dictionary, to be really dictionary, not a stream
+    PDFDictionary trailerDictionary = *document->getTrailerDictionary();
+    trailerDictionary.removeEntry("XRefStm");
+    PDFObject trailerDictionaryObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(trailerDictionary)));
+
     device->write("trailer");
     writeCRLF(device);
     PDFWriteObjectVisitor trailerVisitor(device);
-    storage.getTrailerDictionary().accept(&trailerVisitor);
+    trailerDictionaryObject.accept(&trailerVisitor);
     writeCRLF(device);
     device->write("startxref");
     writeCRLF(device);
@@ -339,7 +345,7 @@ void PDFDocumentWriter::writeCRLF(QIODevice* device)
 
 void PDFDocumentWriter::writeObjectHeader(QIODevice* device, PDFObjectReference reference)
 {
-    QString objectHeader = QString("%1 %2 obj").arg(QString::number(reference.objectNumber)).arg(QString::number(reference.generation));
+    QString objectHeader = QString("%1 %2 obj").arg(QString::number(reference.objectNumber), QString::number(reference.generation));
     device->write(objectHeader.toLatin1());
     writeCRLF(device);
 }
