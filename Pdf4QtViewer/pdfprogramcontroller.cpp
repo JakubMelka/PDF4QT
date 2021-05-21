@@ -35,6 +35,7 @@
 #include "pdfsendmail.h"
 #include "pdfrecentfilemanager.h"
 #include "pdftexttospeech.h"
+#include "pdfencryptionsettingsdialog.h"
 
 #include <QMenu>
 #include <QPrinter>
@@ -442,6 +443,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Optimize))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptimizeTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::Encryption))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionEncryptionTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::FitPage))
     {
@@ -1126,6 +1131,12 @@ void PDFProgramController::onActionOptimizeTriggered()
     }
 }
 
+void PDFProgramController::onActionEncryptionTriggered()
+{
+    PDFEncryptionSettingsDialog dialog(m_mainWindow);
+    dialog.exec();
+}
+
 void PDFProgramController::onActionFitPageTriggered()
 {
     m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
@@ -1354,6 +1365,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::Print, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::RenderToImages, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::Optimize, hasValidDocument);
+    m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::SaveAs, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Properties, hasDocument);

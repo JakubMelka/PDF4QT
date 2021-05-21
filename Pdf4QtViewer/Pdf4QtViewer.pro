@@ -41,6 +41,8 @@ SOURCES += \
         pdfaboutdialog.cpp \
         pdfadvancedfindwidget.cpp \
         pdfdocumentpropertiesdialog.cpp \
+        pdfencryptionsettingsdialog.cpp \
+        pdfencryptionstrengthhintwidget.cpp \
         pdfoptimizedocumentdialog.cpp \
         pdfprogramcontroller.cpp \
         pdfrecentfilemanager.cpp \
@@ -58,6 +60,8 @@ HEADERS += \
         pdfaboutdialog.h \
         pdfadvancedfindwidget.h \
         pdfdocumentpropertiesdialog.h \
+        pdfencryptionsettingsdialog.h \
+        pdfencryptionstrengthhintwidget.h \
         pdfoptimizedocumentdialog.h \
         pdfprogramcontroller.h \
         pdfrecentfilemanager.h \
@@ -76,6 +80,7 @@ FORMS += \
         pdfaboutdialog.ui \
         pdfadvancedfindwidget.ui \
         pdfdocumentpropertiesdialog.ui \
+        pdfencryptionsettingsdialog.ui \
         pdfoptimizedocumentdialog.ui \
         pdfrendertoimagesdialog.ui \
         pdfsidebarwidget.ui \

@@ -163,6 +163,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::SendByMail, ui->actionSend_by_E_Mail);
     m_actionManager->setAction(PDFActionManager::RenderToImages, ui->actionRender_to_Images);
     m_actionManager->setAction(PDFActionManager::Optimize, ui->actionOptimize);
+    m_actionManager->setAction(PDFActionManager::Encryption, ui->actionEncryption);
     m_actionManager->setAction(PDFActionManager::FitPage, ui->actionFitPage);
     m_actionManager->setAction(PDFActionManager::FitWidth, ui->actionFitWidth);
     m_actionManager->setAction(PDFActionManager::FitHeight, ui->actionFitHeight);

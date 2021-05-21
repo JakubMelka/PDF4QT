@@ -103,6 +103,7 @@ public:
         SendByMail,
         RenderToImages,
         Optimize,
+        Encryption,
         FitPage,
         FitWidth,
         FitHeight,
@@ -318,6 +319,7 @@ private:
     void onActionSendByEMailTriggered();
     void onActionRenderToImagesTriggered();
     void onActionOptimizeTriggered();
+    void onActionEncryptionTriggered();
     void onActionFitPageTriggered();
     void onActionFitWidthTriggered();
     void onActionFitHeightTriggered();

@@ -135,6 +135,7 @@
     <addaction name="actionSelectTextAll"/>
     <addaction name="actionDeselectText"/>
     <addaction name="separator"/>
+    <addaction name="actionEncryption"/>
     <addaction name="actionOptimize"/>
     <addaction name="separator"/>
    </widget>
@@ -397,7 +398,7 @@
      <normaloff>:/resources/info.svg</normaloff>:/resources/info.svg</iconset>
    </property>
    <property name="text">
-    <string>Properties</string>
+    <string>Properties...</string>
    </property>
   </action>
   <action name="actionSend_by_E_Mail">
@@ -586,7 +587,7 @@
   </action>
   <action name="actionOptimize">
    <property name="text">
-    <string>Optimize</string>
+    <string>Optimize...</string>
    </property>
   </action>
   <action name="actionSave_As">
@@ -825,6 +826,11 @@
   <action name="actionGetSource">
    <property name="text">
     <string>Get Source</string>
+   </property>
+  </action>
+  <action name="actionEncryption">
+   <property name="text">
+    <string>Encryption...</string>
    </property>
   </action>
  </widget>
