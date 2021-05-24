@@ -112,12 +112,12 @@ void PDFOptimizeDocumentDialog::onOptimizationStarted()
 void PDFOptimizeDocumentDialog::onOptimizationProgress(QString progressText)
 {
     Q_ASSERT(m_optimizationInProgress);
-    ui->logTextEdit->setPlainText(QString("%1\n%2").arg(ui->logTextEdit->toPlainText()).arg(progressText));
+    ui->logTextEdit->setPlainText(QString("%1\n%2").arg(ui->logTextEdit->toPlainText(), progressText));
 }
 
 void PDFOptimizeDocumentDialog::onOptimizationFinished()
 {
-    ui->logTextEdit->setPlainText(QString("%1\n%2").arg(ui->logTextEdit->toPlainText()).arg(tr("Optimization finished!")));
+    ui->logTextEdit->setPlainText(QString("%1\n%2").arg(ui->logTextEdit->toPlainText(), tr("Optimization finished!")));
     m_future.waitForFinished();
     m_optimizationInProgress = false;
     m_wasOptimized = true;

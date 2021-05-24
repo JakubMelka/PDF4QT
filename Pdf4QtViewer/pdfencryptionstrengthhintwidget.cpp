@@ -67,6 +67,7 @@ void PDFEncryptionStrengthHintWidget::paintEvent(QPaintEvent* event)
     const QSize markSize = getMarkSize();
     const int markSpacing = getMarkSpacing();
     const int xAdvance = markSize.width() + markSpacing;
+    const bool isEnabled = this->isEnabled();
 
     QRect rect = this->rect();
     painter.fillRect(rect, Qt::lightGray);
@@ -78,11 +79,20 @@ void PDFEncryptionStrengthHintWidget::paintEvent(QPaintEvent* event)
     {
         --currentLevel;
     }
+    if (!isEnabled)
+    {
+        currentLevel = -1;
+    }
 
-    Q_ASSERT(currentLevel >= 0);
-    Q_ASSERT(currentLevel < m_levels.size());
+    Q_ASSERT(currentLevel >= -1);
+    Q_ASSERT(currentLevel == -1 || currentLevel < m_levels.size());
 
-    QColor fillColor = m_levels[currentLevel].color;
+    QColor fillColor = Qt::darkGray;
+    if (currentLevel >= 0)
+    {
+        fillColor = m_levels[currentLevel].color;
+    }
+
     QColor invalidColor = Qt::darkGray;
 
     QRect markRect(QPoint(0, (rect.height() - markSize.height()) / 2), markSize);
@@ -97,7 +107,10 @@ void PDFEncryptionStrengthHintWidget::paintEvent(QPaintEvent* event)
     }
     painter.restore();
 
-    painter.drawText(rect, Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignLeft | Qt::AlignVCenter, m_levels[currentLevel].text);
+    if (isEnabled)
+    {
+        painter.drawText(rect, Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignLeft | Qt::AlignVCenter, m_levels[currentLevel].text);
+    }
 }
 
 void PDFEncryptionStrengthHintWidget::correctValue()

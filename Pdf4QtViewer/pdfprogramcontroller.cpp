@@ -1133,6 +1133,40 @@ void PDFProgramController::onActionOptimizeTriggered()
 
 void PDFProgramController::onActionEncryptionTriggered()
 {
+    // Check that we have owner acces to the document
+    const pdf::PDFSecurityHandler* securityHandler =  m_pdfDocument->getStorage().getSecurityHandler();
+    pdf::PDFSecurityHandler::AuthorizationResult authorizationResult = securityHandler->getAuthorizationResult();
+    if (authorizationResult != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized &&
+        authorizationResult != pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired)
+    {
+        // Jakub Melka: we must authorize as owner, otherwise we can't continue,
+        // because we don't have sufficient permissions.
+        pdf::PDFSecurityHandlerPointer clonedSecurityHandler(securityHandler->clone());
+
+        auto queryPassword = [this](bool* ok)
+        {
+            QString result;
+            *ok = false;
+            onQueryPasswordRequest(&result, ok);
+            return result;
+        };
+
+        authorizationResult = clonedSecurityHandler->authenticate(queryPassword, true);
+
+        if (authorizationResult != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
+        {
+            QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Permission to change document security is denied."));
+            return;
+        }
+
+        pdf::PDFObjectStorage storage = m_pdfDocument->getStorage();
+        storage.setSecurityHandler(qMove(clonedSecurityHandler));
+
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(qMove(storage), m_pdfDocument->getInfo()->version));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        onDocumentModified(qMove(document));
+    }
+
     PDFEncryptionSettingsDialog dialog(m_mainWindow);
     dialog.exec();
 }

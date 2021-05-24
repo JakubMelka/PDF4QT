@@ -508,6 +508,11 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     return PDFSecurityHandlerPointer(new PDFStandardSecurityHandler(qMove(handler)));
 }
 
+PDFSecurityHandler* PDFStandardSecurityHandler::clone() const
+{
+    return new PDFStandardSecurityHandler(*this);
+}
+
 PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly)
 {
     QByteArray password;
@@ -664,7 +669,7 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 return AuthorizationResult::Failed;
         }
 
-        password = adjustPassword(getPasswordCallback(&passwordObtained));
+        password = adjustPassword(getPasswordCallback(&passwordObtained), m_R);
     }
 
     return AuthorizationResult::Cancelled;
@@ -1375,11 +1380,11 @@ PDFStandardSecurityHandler::UserOwnerData_r6 PDFStandardSecurityHandler::parsePa
     return result;
 }
 
-QByteArray PDFStandardSecurityHandler::adjustPassword(const QString& password)
+QByteArray PDFStandardSecurityHandler::adjustPassword(const QString& password, int revision)
 {
     QByteArray result;
 
-    switch (m_R)
+    switch (revision)
     {
         case 2:
         case 3:
@@ -1484,6 +1489,86 @@ bool PDFStandardSecurityHandler::isUnicodeMappedToNothing(ushort unicode)
         default:
             return false;
     }
+}
+
+PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const PDFSecurityHandlerFactory::SecuritySettings& settings)
+{
+    return nullptr;
+}
+
+int PDFSecurityHandlerFactory::getPasswordOptimalEntropy()
+{
+    return 128;
+}
+
+int PDFSecurityHandlerFactory::getPasswordEntropy(const QString& password, Algorithm algorithm)
+{
+    if (algorithm == None)
+    {
+        return 0;
+    }
+
+    QByteArray adjustedPassword = PDFStandardSecurityHandler::adjustPassword(password, getRevisionFromAlgorithm(algorithm));
+
+    if (adjustedPassword.isEmpty())
+    {
+        return 0;
+    }
+
+    const int length = adjustedPassword.length();
+    std::sort(adjustedPassword.begin(), adjustedPassword.end());
+
+    int charCount = 0;
+    char lastChar = adjustedPassword.front();
+    PDFReal entropy = 0.0;
+
+    for (int i = 0; i < length; ++i)
+    {
+        const char currentChar = adjustedPassword[i];
+
+        if (currentChar == lastChar)
+        {
+            ++charCount;
+        }
+        else
+        {
+            const PDFReal probability = PDFReal(charCount) / PDFReal(length);
+            entropy += -probability * std::log2(probability);
+
+            charCount = 1;
+            lastChar = currentChar;
+        }
+    }
+
+    // Jakub Melka: last character
+    const PDFReal probability = PDFReal(charCount) / PDFReal(length);
+    entropy += -probability * std::log2(probability);
+
+    return entropy * length;
+}
+
+int PDFSecurityHandlerFactory::getRevisionFromAlgorithm(Algorithm algorithm)
+{
+    switch (algorithm)
+    {
+        case None:
+            return 0;
+
+        case RC4:
+            return 3;
+
+        case AES_128:
+            return 4;
+
+        case AES_256:
+            return 6;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return 0;
 }
 
 }   // namespace pdf

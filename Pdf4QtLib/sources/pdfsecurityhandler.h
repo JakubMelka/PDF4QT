@@ -109,6 +109,9 @@ public:
     /// Retrieve encryption mode (none/standard encryption/custom)
     virtual EncryptionMode getMode() const = 0;
 
+    /// Creates a clone of this object
+    virtual PDFSecurityHandler* clone() const = 0;
+
     /// Performs authentication of the document content access. First, algorithm should check,
     /// if empty password allows document access (so, for example, only owner password is provided).
     /// If this fails, function \p getPasswordCallback is called to retrieve user entered password.
@@ -214,6 +217,7 @@ class PDFNoneSecurityHandler : public PDFSecurityHandler
 {
 public:
     virtual EncryptionMode getMode() const override { return EncryptionMode::None; }
+    virtual PDFSecurityHandler* clone() const override { return new PDFNoneSecurityHandler(); }
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>&, bool) override { return AuthorizationResult::OwnerAuthorized; }
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference, EncryptionScope) const override { return data; }
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray&, PDFObjectReference) const override { return data; }
@@ -231,6 +235,7 @@ class PDFStandardSecurityHandler : public PDFSecurityHandler
 {
 public:
     virtual EncryptionMode getMode() const override { return EncryptionMode::Standard; }
+    virtual PDFSecurityHandler* clone() const override;
     virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) override;
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
@@ -248,6 +253,9 @@ public:
         AuthorizationResult authorizationResult = AuthorizationResult::Failed;
         QByteArray fileEncryptionKey;
     };
+
+    /// Adjusts the password according to the PDF specification
+    static QByteArray adjustPassword(const QString& password, int revision);
 
 private:
     friend PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
@@ -288,8 +296,6 @@ private:
     /// Parses parts of the user/owner data (U/O values of the encryption dictionary)
     UserOwnerData_r6 parseParts(const QByteArray& data) const;
 
-    /// Adjusts the password according to the PDF specification
-    QByteArray adjustPassword(const QString& password);
 
     /// Decrypts data using specified filter. This function can be called only, if authorization was successfull.
     /// \param data Data to be decrypted
@@ -354,6 +360,57 @@ private:
 
     /// Authorization data
     AuthorizationData m_authorizationData;
+};
+
+/// Factory, which creates security handler based on settings.
+class Pdf4QtLIBSHARED_EXPORT PDFSecurityHandlerFactory
+{
+public:
+
+    enum Algorithm
+    {
+        None,
+        RC4,
+        AES_128,
+        AES_256
+    };
+
+    enum EncryptContents
+    {
+        All,
+        AllExceptMetadata,
+        EmbeddedFiles
+    };
+
+    struct SecuritySettings
+    {
+        Algorithm algorithm = None;
+        EncryptContents encryptContents = All;
+        QString userPassword;
+        QString ownerPassword;
+        uint32_t permissions = 0;
+    };
+
+    /// Creates security handler based on given settings. If security handler cannot
+    /// be created, then nullptr is returned.
+    /// \param settings Security handler settings
+    static PDFSecurityHandlerPointer createSecurityHandler(const SecuritySettings& settings);
+
+    /// Returns optimal number of bits (entropy) for strong password
+    static int getPasswordOptimalEntropy();
+
+    /// Calculates password entropy (number of bits), can be used
+    /// for ranking the password security. Encryption algorithm must be also
+    /// considered, because password is adjusted according to the specification
+    /// before it's entropy is being computed.
+    /// \param password Password to be scored
+    /// \param algorithm Encryption algorithm
+    static int getPasswordEntropy(const QString& password, Algorithm algorithm);
+
+    /// Returns revision number of standard security handler for a given
+    /// algorithm. If algorithm is invalid or None, zero is returned.
+    /// \param algorithm Algorithm
+    static int getRevisionFromAlgorithm(Algorithm algorithm);
 };
 
 }   // namespace pdf

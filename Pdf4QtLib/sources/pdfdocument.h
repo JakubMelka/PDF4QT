@@ -449,11 +449,6 @@ public:
     /// header.
     QByteArray getVersion() const;
 
-private:
-    friend class PDFDocumentReader;
-    friend class PDFDocumentBuilder;
-    friend class PDFOptimizer;
-
     explicit PDFDocument(PDFObjectStorage&& storage, PDFVersion version) :
         m_pdfObjectStorage(std::move(storage))
     {
@@ -461,6 +456,11 @@ private:
 
         m_info.version = version;
     }
+
+private:
+    friend class PDFDocumentReader;
+    friend class PDFDocumentBuilder;
+    friend class PDFOptimizer;
 
     /// Initialize data based on object in the storage.
     /// Can throw exception if error is detected.

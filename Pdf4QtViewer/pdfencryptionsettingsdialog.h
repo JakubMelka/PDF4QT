@@ -19,6 +19,7 @@
 #define PDFENCRYPTIONSETTINGSDIALOG_H
 
 #include "pdfviewerglobal.h"
+#include "pdfsecurityhandler.h"
 
 #include <QDialog>
 
@@ -26,6 +27,8 @@ namespace Ui
 {
 class PDFEncryptionSettingsDialog;
 }
+
+class QCheckBox;
 
 namespace pdfviewer
 {
@@ -40,6 +43,12 @@ public:
 
 private:
     Ui::PDFEncryptionSettingsDialog* ui;
+
+    void updateUi();
+    void updatePasswordScore();
+
+    bool m_isUpdatingUi;
+    std::map<QCheckBox*, pdf::PDFSecurityHandler::Permission> m_checkBoxToPermission;
 };
 
 }   // namespace pdfviewer
