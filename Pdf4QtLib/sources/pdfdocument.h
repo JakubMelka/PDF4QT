@@ -496,10 +496,11 @@ public:
 
     enum ModificationFlag
     {
-        None        = 0x0000,   ///< No flag
-        Reset       = 0x0001,   ///< Whole document content is changed (for example, new document is being set)
-        Annotation  = 0x0002,   ///< Annotations changed
-        FormField   = 0x0004,   ///< Form field content changed
+        None            = 0x0000,   ///< No flag
+        Reset           = 0x0001,   ///< Whole document content is changed (for example, new document is being set)
+        Annotation      = 0x0002,   ///< Annotations changed
+        FormField       = 0x0004,   ///< Form field content changed
+        Authorization   = 0x0008,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
     };
 
     Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)

@@ -1163,7 +1163,7 @@ void PDFProgramController::onActionEncryptionTriggered()
         storage.setSecurityHandler(qMove(clonedSecurityHandler));
 
         pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(qMove(storage), m_pdfDocument->getInfo()->version));
-        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Authorization);
         onDocumentModified(qMove(document));
     }
 

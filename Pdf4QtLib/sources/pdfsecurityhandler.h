@@ -29,6 +29,7 @@
 
 namespace pdf
 {
+class PDFObjectFactory;
 
 enum class EncryptionMode
 {
@@ -61,6 +62,9 @@ enum class CryptFilterApplication
 
 struct CryptFilter
 {
+    bool operator ==(const CryptFilter&) const = default;
+    bool operator !=(const CryptFilter&) const = default;
+
     CryptFilterType type = CryptFilterType::None;
     AuthEvent authEvent = AuthEvent::DocOpen;
     int keyLength = 0; ///< Key length in bytes
@@ -179,6 +183,9 @@ public:
     /// Returns result of authorization process
     virtual AuthorizationResult getAuthorizationResult() const = 0;
 
+    /// Creates encryption dictionary object
+    virtual PDFObject createEncryptionDictionaryObject() const = 0;
+
     /// Returns version of the encryption
     int getVersion() const { return m_V; }
 
@@ -189,6 +196,11 @@ public:
     static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
 protected:
+
+    /// Fills encryption dictionary with basic data
+    /// \param factory Factory
+    void fillEncryptionDictionary(PDFObjectFactory& factory);
+
     /// Version of the encryption, shall be a number from 1 to 5, according the
     /// PDF specification. Other values are invalid.
     int m_V = 0;
@@ -227,6 +239,7 @@ public:
     virtual bool isAllowed(Permission) const override { return true; }
     virtual bool isEncryptionAllowed() const override { return true; }
     virtual AuthorizationResult getAuthorizationResult() const override { return AuthorizationResult::NoAuthorizationRequired; }
+    virtual PDFObject createEncryptionDictionaryObject() const override { return PDFObject(); }
 };
 
 /// Specifies the security using standard security handler (see PDF specification
@@ -245,6 +258,7 @@ public:
     virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
     virtual bool isEncryptionAllowed() const override { return m_authorizationData.isAuthorized(); }
     virtual AuthorizationResult getAuthorizationResult() const override { return m_authorizationData.authorizationResult; }
+    virtual PDFObject createEncryptionDictionaryObject() const override;
 
     struct AuthorizationData
     {
@@ -258,6 +272,7 @@ public:
     static QByteArray adjustPassword(const QString& password, int revision);
 
 private:
+    friend class PDFSecurityHandlerFactory;
     friend PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
     struct UserOwnerData_r6

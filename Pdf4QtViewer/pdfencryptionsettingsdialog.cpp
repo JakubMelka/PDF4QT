@@ -128,6 +128,16 @@ void PDFEncryptionSettingsDialog::updateUi()
     ui->userPasswordEdit->setEnabled(ui->userPasswordEnableCheckBox->isChecked());
     ui->ownerPasswordEdit->setEnabled(ui->ownerPasswordEnableCheckBox->isChecked());
 
+    if (!ui->userPasswordEdit->isEnabled())
+    {
+        ui->userPasswordEdit->clear();
+    }
+
+    if (!ui->ownerPasswordEdit->isEnabled())
+    {
+        ui->ownerPasswordEdit->clear();
+    }
+
     ui->userPasswordStrengthHintWidget->setEnabled(ui->userPasswordEnableCheckBox->isChecked());
     ui->ownerPasswordStrengthHintWidget->setEnabled(ui->ownerPasswordEnableCheckBox->isChecked());
 
@@ -149,6 +159,39 @@ void PDFEncryptionSettingsDialog::updatePasswordScore()
 
     ui->userPasswordStrengthHintWidget->setCurrentValue(userPasswordScore);
     ui->ownerPasswordStrengthHintWidget->setCurrentValue(ownerPasswordScore);
+}
+
+void PDFEncryptionSettingsDialog::accept()
+{
+    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+    pdf::PDFSecurityHandlerFactory::EncryptContents encryptContents = pdf::PDFSecurityHandlerFactory::All;
+
+    if (ui->encryptAllExceptMetadataRadioButton->isChecked())
+    {
+        encryptContents = pdf::PDFSecurityHandlerFactory::AllExceptMetadata;
+    }
+    else if (ui->encryptFileAttachmentsOnlyRadioButton->isChecked())
+    {
+        encryptContents = pdf::PDFSecurityHandlerFactory::EmbeddedFiles;
+    }
+
+    settings.algorithm = static_cast<const pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
+    settings.encryptContents = encryptContents;
+    settings.userPassword = ui->userPasswordEdit->text();
+    settings.ownerPassword = ui->ownerPasswordEdit->text();
+    settings.permissions = 0;
+
+    for (auto item : m_checkBoxToPermission)
+    {
+        if (item.first->isChecked())
+        {
+            settings.permissions += uint32_t(item.second);
+        }
+    }
+
+    m_updatedSecurityHandler = pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings);
+
+    QDialog::accept();
 }
 
 }   // namespace pdfviewer

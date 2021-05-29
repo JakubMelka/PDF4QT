@@ -41,6 +41,9 @@ public:
     explicit PDFEncryptionSettingsDialog(QWidget* parent);
     virtual ~PDFEncryptionSettingsDialog() override;
 
+public slots:
+    virtual void accept() override;
+
 private:
     Ui::PDFEncryptionSettingsDialog* ui;
 
@@ -49,6 +52,7 @@ private:
 
     bool m_isUpdatingUi;
     std::map<QCheckBox*, pdf::PDFSecurityHandler::Permission> m_checkBoxToPermission;
+    pdf::PDFSecurityHandlerPointer m_updatedSecurityHandler;
 };
 
 }   // namespace pdfviewer

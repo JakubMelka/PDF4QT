@@ -20,6 +20,7 @@
 #include "pdfencoding.h"
 #include "pdfvisitor.h"
 #include "pdfutils.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QRandomGenerator>
 
@@ -506,6 +507,131 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     handler.m_ID = id;
 
     return PDFSecurityHandlerPointer(new PDFStandardSecurityHandler(qMove(handler)));
+}
+
+void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory)
+{
+    factory.beginDictionaryItem("V");
+    factory << PDFInteger(m_V);
+    factory.endDictionaryItem();
+
+    if (m_V == 2 || m_V == 3)
+    {
+        factory.beginDictionaryItem("Length");
+        factory << PDFInteger(m_keyLength);
+        factory.endDictionaryItem();
+    }
+
+    if (m_V == 4 || m_V == 5)
+    {
+        factory.beginDictionaryItem("CF");
+
+        factory.beginDictionary();
+
+        QByteArray stmfName = "Identity";
+        QByteArray strfName = stmfName;
+        QByteArray effName = stmfName;
+
+        for (const auto& cryptFilter : m_cryptFilters)
+        {
+            factory.beginDictionaryItem(cryptFilter.first);
+
+            factory.beginDictionary();
+            factory.beginDictionaryItem("CFM");
+
+            if (cryptFilter.second == m_filterStrings)
+            {
+                strfName = cryptFilter.first;
+            }
+            if (cryptFilter.second == m_filterStreams)
+            {
+                stmfName = cryptFilter.first;
+            }
+            if (cryptFilter.second == m_filterEmbeddedFiles)
+            {
+                effName = cryptFilter.first;
+            }
+
+            switch (cryptFilter.second.type)
+            {
+                case CryptFilterType::None:
+                    // The application shall decrypt the data using the security handler
+                    factory << WrapName("None");
+                    break;
+
+                case CryptFilterType::V2:
+                    // Use file encryption key for RC4 algorithm
+                    factory << WrapName("V2");
+                    break;
+
+                case CryptFilterType::AESV2:
+                    // Use file encryption key for AES algorithm
+                    factory << WrapName("AESV2");
+                    break;
+
+                case CryptFilterType::AESV3:
+                    // Use file encryption key for AES 256 bit algorithm
+                    factory << WrapName("AESV3");
+                    break;
+
+                case CryptFilterType::Identity:
+                    // Don't decrypt anything, use identity function
+                    factory << WrapName("Identity");
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    factory << WrapName("None");
+                    break;
+            }
+
+            factory.endDictionaryItem();
+
+            factory.beginDictionaryItem("AuthEvent");
+
+            switch (cryptFilter.second.authEvent)
+            {
+                case AuthEvent::DocOpen:
+                    factory << WrapName("DocOpen");
+                    break;
+
+                case AuthEvent::EFOpen:
+                    factory << WrapName("EFOpen");
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            factory.endDictionaryItem();
+
+            factory.beginDictionaryItem("Length");
+            factory << cryptFilter.second.keyLength;
+            factory.endDictionaryItem();
+
+            factory.endDictionary();
+
+            factory.endDictionaryItem();
+        }
+
+        factory.endDictionary();
+
+        factory.endDictionaryItem();
+
+        // Store StmF, StrF, EFF
+        factory.beginDictionaryItem("StmF");
+        factory << stmfName;
+        factory.endDictionaryItem();
+
+        factory.beginDictionaryItem("StrF");
+        factory << strfName;
+        factory.endDictionaryItem();
+
+        factory.beginDictionaryItem("EFF");
+        factory << effName;
+        factory.endDictionaryItem();
+    }
 }
 
 PDFSecurityHandler* PDFStandardSecurityHandler::clone() const
@@ -1009,6 +1135,62 @@ QByteArray PDFStandardSecurityHandler::encryptByFilter(const QByteArray& data, c
     return encryptUsingFilter(data, it->second, reference);
 }
 
+PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
+{
+    PDFObjectFactory factory;
+
+    factory.beginDictionary();
+
+    factory.beginDictionaryItem("Filter");
+    factory << WrapName("Standard");
+    factory.endDictionaryItem();
+
+    factory.beginDictionaryItem("R");
+    factory << PDFInteger(m_R);
+    factory.endDictionaryItem();
+
+    factory.beginDictionaryItem("O");
+    factory << m_O;
+    factory.endDictionaryItem();
+
+    factory.beginDictionaryItem("U");
+    factory << m_U;
+    factory.endDictionaryItem();
+
+    if (m_R == 6)
+    {
+        factory.beginDictionaryItem("OE");
+        factory << m_OE;
+        factory.endDictionaryItem();
+
+        factory.beginDictionaryItem("UE");
+        factory << m_UE;
+        factory.endDictionaryItem();
+    }
+
+    factory.beginDictionaryItem("P");
+    factory << PDFInteger(m_permissions);
+    factory.endDictionaryItem();
+
+    if (m_R == 6)
+    {
+        factory.beginDictionaryItem("Perms");
+        factory << m_Perms;
+        factory.endDictionaryItem();
+    }
+
+    if (m_V == 4 || m_V == 5)
+    {
+        factory.beginDictionaryItem("EncryptMetadata");
+        factory << m_encryptMetadata;
+        factory.endDictionaryItem();
+    }
+
+    factory.endDictionary();
+
+    return factory.takeObject();
+}
+
 QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray& password) const
 {
     QByteArray result;
@@ -1127,6 +1309,13 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
             // want to compare byte arrays entirely (otherwise we must compare only 16 bytes to authenticate
             // user password).
             result = m_U;
+
+            if (result.size() != 32)
+            {
+                // In case of error, we resize it to correct size. We can't assume, that m_U has correct length.
+                result.resize(32);
+            }
+
             std::copy_n(encryptedHash.begin(), encryptedHash.size(), result.begin());
             break;
         }
@@ -1491,9 +1680,149 @@ bool PDFStandardSecurityHandler::isUnicodeMappedToNothing(ushort unicode)
     }
 }
 
-PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const PDFSecurityHandlerFactory::SecuritySettings& settings)
+PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const SecuritySettings& settings)
 {
-    return nullptr;
+    if (settings.algorithm == Algorithm::None)
+    {
+        return PDFSecurityHandlerPointer(new PDFNoneSecurityHandler);
+    }
+
+    // Jakub Melka: create standard security handler, with given settings
+    PDFStandardSecurityHandler* handler = new PDFStandardSecurityHandler();
+
+    const bool isEncryptingEmbeddedFilesOnly = settings.encryptContents == EncryptContents::EmbeddedFiles;
+
+    switch (settings.algorithm)
+    {
+        case RC4:
+        {
+            handler->m_V = 4;
+            handler->m_keyLength = 128;
+
+            CryptFilter defaultFilter;
+            defaultFilter.type = CryptFilterType::V2;
+            defaultFilter.authEvent = !isEncryptingEmbeddedFilesOnly ? AuthEvent::DocOpen : AuthEvent::EFOpen;
+            defaultFilter.keyLength = handler->m_keyLength / 8;
+            handler->m_filterDefault = defaultFilter;
+            break;
+        }
+
+        case AES_128:
+        {
+            handler->m_V = 4;
+            handler->m_keyLength = 128;
+
+            CryptFilter defaultFilter;
+            defaultFilter.type = CryptFilterType::AESV2;
+            defaultFilter.authEvent = !isEncryptingEmbeddedFilesOnly ? AuthEvent::DocOpen : AuthEvent::EFOpen;
+            defaultFilter.keyLength = handler->m_keyLength / 8;
+            handler->m_filterDefault = defaultFilter;
+            break;
+        }
+
+        case AES_256:
+        {
+            handler->m_V = 5;
+            handler->m_keyLength = 256;
+
+            CryptFilter defaultFilter;
+            defaultFilter.type = CryptFilterType::AESV3;
+            defaultFilter.authEvent = !isEncryptingEmbeddedFilesOnly ? AuthEvent::DocOpen : AuthEvent::EFOpen;
+            defaultFilter.keyLength = handler->m_keyLength / 8;
+            handler->m_filterDefault = defaultFilter;
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    CryptFilter identityFilter;
+    identityFilter.type = CryptFilterType::Identity;
+
+    switch (settings.encryptContents)
+    {
+        case All:
+            handler->m_filterStrings = handler->m_filterDefault;
+            handler->m_filterStreams = handler->m_filterDefault;
+            handler->m_filterEmbeddedFiles = handler->m_filterDefault;
+            handler->m_encryptMetadata = true;
+            break;
+
+        case AllExceptMetadata:
+            handler->m_filterStrings = handler->m_filterDefault;
+            handler->m_filterStreams = handler->m_filterDefault;
+            handler->m_filterEmbeddedFiles = handler->m_filterDefault;
+            handler->m_encryptMetadata = false;
+            break;
+
+        case EmbeddedFiles:
+            handler->m_filterStrings = identityFilter;
+            handler->m_filterStreams = identityFilter;
+            handler->m_filterEmbeddedFiles = handler->m_filterDefault;
+            handler->m_encryptMetadata = false;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    handler->m_cryptFilters["DefaultCF"] = handler->m_filterDefault;
+    handler->m_R = getRevisionFromAlgorithm(settings.algorithm);
+    handler->m_permissions = settings.permissions;
+
+    QByteArray adjustedOwnerPassword = handler->adjustPassword(settings.ownerPassword, handler->m_R);
+    QByteArray adjustedUserPassword = handler->adjustPassword(settings.userPassword, handler->m_R);
+
+    // Generate encryption entries
+    switch (handler->m_R)
+    {
+        case 2:
+        case 3:
+        case 4:
+        {
+            // Trick for computing "O" entry for revisions 2,3,4: in O entry, there is stored
+            // user password encrypted by owner password. Because RC4 cipher is symmetric, we
+            // can store user password in "O" entry and then use standard function to retrieve
+            // user password, which in fact will be encrypted user password.
+
+            std::array<uint8_t, 32> paddedUserPasswordArray = handler->createPaddedPassword32(adjustedUserPassword);
+            QByteArray paddedUserPassword;
+            paddedUserPassword.resize(int(paddedUserPasswordArray.size()));
+            std::copy(paddedUserPasswordArray.cbegin(), paddedUserPasswordArray.cend(), paddedUserPassword.data());
+            handler->m_O = paddedUserPassword;
+            QByteArray entryO = handler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword);
+            handler->m_O = entryO;
+            Q_ASSERT(handler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword) == paddedUserPassword);
+
+            handler->m_U.resize(32);
+            QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+            for (int i = 0; i < handler->m_U.size(); ++i)
+            {
+                handler->m_U[i] = char(randomNumberGenerator.generate());
+            }
+
+            QByteArray fileEncryptionKey = handler->createFileEncryptionKey(paddedUserPassword);
+            QByteArray U = handler->createEntryValueU_r234(fileEncryptionKey);
+            handler->m_U = U;
+
+            break;
+        }
+
+            // TODO: Dodelat R6
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    handler->authenticate([&settings](bool* b) { *b = false; return settings.ownerPassword; }, true);
+    Q_ASSERT(handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized);
+    return PDFSecurityHandlerPointer(handler);
 }
 
 int PDFSecurityHandlerFactory::getPasswordOptimalEntropy()
