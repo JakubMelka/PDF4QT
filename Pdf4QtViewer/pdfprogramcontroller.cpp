@@ -24,6 +24,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfwidgetutils.h"
 #include "pdfconstants.h"
+#include "pdfdocumentbuilder.h"
 
 #include "pdfviewersettings.h"
 #include "pdfundoredomanager.h"
@@ -1133,7 +1134,15 @@ void PDFProgramController::onActionOptimizeTriggered()
 
 void PDFProgramController::onActionEncryptionTriggered()
 {
-    // Check that we have owner acces to the document
+    auto queryPassword = [this](bool* ok)
+    {
+        QString result;
+        *ok = false;
+        onQueryPasswordRequest(&result, ok);
+        return result;
+    };
+
+    // Check that we have owner access to the document
     const pdf::PDFSecurityHandler* securityHandler =  m_pdfDocument->getStorage().getSecurityHandler();
     pdf::PDFSecurityHandler::AuthorizationResult authorizationResult = securityHandler->getAuthorizationResult();
     if (authorizationResult != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized &&
@@ -1142,15 +1151,6 @@ void PDFProgramController::onActionEncryptionTriggered()
         // Jakub Melka: we must authorize as owner, otherwise we can't continue,
         // because we don't have sufficient permissions.
         pdf::PDFSecurityHandlerPointer clonedSecurityHandler(securityHandler->clone());
-
-        auto queryPassword = [this](bool* ok)
-        {
-            QString result;
-            *ok = false;
-            onQueryPasswordRequest(&result, ok);
-            return result;
-        };
-
         authorizationResult = clonedSecurityHandler->authenticate(queryPassword, true);
 
         if (authorizationResult != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
@@ -1167,8 +1167,30 @@ void PDFProgramController::onActionEncryptionTriggered()
         onDocumentModified(qMove(document));
     }
 
-    PDFEncryptionSettingsDialog dialog(m_mainWindow);
-    dialog.exec();
+    PDFEncryptionSettingsDialog dialog(m_pdfDocument->getIdPart(0), m_mainWindow);
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        pdf::PDFSecurityHandlerPointer updatedSecurityHandler = dialog.getUpdatedSecurityHandler();
+
+        // Jakub Melka: If we changed encryption (password), recheck, that user doesn't
+        // forgot (or accidentally entered wrong) password. So, we require owner authentization
+        // to continue.
+        if (updatedSecurityHandler->getMode() != pdf::EncryptionMode::None)
+        {
+            if (updatedSecurityHandler->authenticate(queryPassword, true) != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
+            {
+                QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
+                return;
+            }
+        }
+
+        pdf::PDFDocumentBuilder builder(m_pdfDocument.data());
+        builder.setSecurityHandler(qMove(updatedSecurityHandler));
+
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(builder.build()));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        onDocumentModified(qMove(document));
+    }
 }
 
 void PDFProgramController::onActionFitPageTriggered()

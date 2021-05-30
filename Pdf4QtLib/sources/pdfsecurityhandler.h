@@ -199,7 +199,7 @@ protected:
 
     /// Fills encryption dictionary with basic data
     /// \param factory Factory
-    void fillEncryptionDictionary(PDFObjectFactory& factory);
+    void fillEncryptionDictionary(PDFObjectFactory& factory) const;
 
     /// Version of the encryption, shall be a number from 1 to 5, according the
     /// PDF specification. Other values are invalid.
@@ -404,6 +404,7 @@ public:
         QString userPassword;
         QString ownerPassword;
         uint32_t permissions = 0;
+        QByteArray id;
     };
 
     /// Creates security handler based on given settings. If security handler cannot

@@ -72,6 +72,12 @@ struct WrapString
 
     }
 
+    WrapString(const QByteArray& byteArray) :
+        string(byteArray)
+    {
+
+    }
+
     QByteArray string;
 };
 
@@ -421,9 +427,10 @@ public:
     /// \param annotationReference Annotation reference
     void copyAnnotation(PDFObjectReference pageReference, PDFObjectReference annotationReference);
 
-    /// Sets security handler to the object storage. Trailer dictionary is not
-    /// updated and so must be updated manually.
-    /// \param handler New security handler
+    /// Sets security handler to the object storage. Trailer dictionary is also
+    /// updated, so it is not needed to update it. Pass nullptr as handler to remove
+    /// security.
+    /// \param handler New security handler, or nullptr
     void setSecurityHandler(PDFSecurityHandlerPointer handler);
 
 /* START GENERATED CODE */

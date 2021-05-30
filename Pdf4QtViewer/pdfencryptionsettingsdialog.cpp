@@ -24,10 +24,11 @@
 namespace pdfviewer
 {
 
-PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QWidget* parent) :
+PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, QWidget* parent) :
     QDialog(parent),
     ui(new Ui::PDFEncryptionSettingsDialog),
-    m_isUpdatingUi(false)
+    m_isUpdatingUi(false),
+    m_documentId(documentId)
 {
     ui->setupUi(this);
 
@@ -175,6 +176,7 @@ void PDFEncryptionSettingsDialog::accept()
         encryptContents = pdf::PDFSecurityHandlerFactory::EmbeddedFiles;
     }
 
+    settings.id = m_documentId;
     settings.algorithm = static_cast<const pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
     settings.encryptContents = encryptContents;
     settings.userPassword = ui->userPasswordEdit->text();

@@ -509,7 +509,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     return PDFSecurityHandlerPointer(new PDFStandardSecurityHandler(qMove(handler)));
 }
 
-void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory)
+void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) const
 {
     factory.beginDictionaryItem("V");
     factory << PDFInteger(m_V);
@@ -621,15 +621,15 @@ void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory)
 
         // Store StmF, StrF, EFF
         factory.beginDictionaryItem("StmF");
-        factory << stmfName;
+        factory << WrapName(stmfName);
         factory.endDictionaryItem();
 
         factory.beginDictionaryItem("StrF");
-        factory << strfName;
+        factory << WrapName(strfName);
         factory.endDictionaryItem();
 
         factory.beginDictionaryItem("EFF");
-        factory << effName;
+        factory << WrapName(effName);
         factory.endDictionaryItem();
     }
 }
@@ -1141,6 +1141,8 @@ PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
 
     factory.beginDictionary();
 
+    fillEncryptionDictionary(factory);
+
     factory.beginDictionaryItem("Filter");
     factory << WrapName("Standard");
     factory.endDictionaryItem();
@@ -1150,21 +1152,21 @@ PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
     factory.endDictionaryItem();
 
     factory.beginDictionaryItem("O");
-    factory << m_O;
+    factory << WrapString(m_O);
     factory.endDictionaryItem();
 
     factory.beginDictionaryItem("U");
-    factory << m_U;
+    factory << WrapString(m_U);
     factory.endDictionaryItem();
 
     if (m_R == 6)
     {
         factory.beginDictionaryItem("OE");
-        factory << m_OE;
+        factory << WrapString(m_OE);
         factory.endDictionaryItem();
 
         factory.beginDictionaryItem("UE");
-        factory << m_UE;
+        factory << WrapString(m_UE);
         factory.endDictionaryItem();
     }
 
@@ -1175,7 +1177,7 @@ PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
     if (m_R == 6)
     {
         factory.beginDictionaryItem("Perms");
-        factory << m_Perms;
+        factory << WrapString(m_Perms);
         factory.endDictionaryItem();
     }
 
@@ -1689,6 +1691,7 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
 
     // Jakub Melka: create standard security handler, with given settings
     PDFStandardSecurityHandler* handler = new PDFStandardSecurityHandler();
+    handler->m_ID = settings.id;
 
     const bool isEncryptingEmbeddedFilesOnly = settings.encryptContents == EncryptContents::EmbeddedFiles;
 
@@ -1820,7 +1823,8 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         }
     }
 
-    handler->authenticate([&settings](bool* b) { *b = false; return settings.ownerPassword; }, true);
+    bool firstTry = true;
+    handler->authenticate([&settings, &firstTry](bool* b) { *b = firstTry; firstTry = false; return settings.ownerPassword; }, true);
     Q_ASSERT(handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized);
     return PDFSecurityHandlerPointer(handler);
 }
@@ -1884,7 +1888,7 @@ int PDFSecurityHandlerFactory::getRevisionFromAlgorithm(Algorithm algorithm)
             return 0;
 
         case RC4:
-            return 3;
+            return 4;
 
         case AES_128:
             return 4;

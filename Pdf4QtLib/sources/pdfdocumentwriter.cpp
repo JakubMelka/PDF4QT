@@ -319,8 +319,18 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
 
     // Jakub Melka: Adjust trailer dictionary, to be really dictionary, not a stream
     PDFDictionary trailerDictionary = *document->getTrailerDictionary();
-    trailerDictionary.removeEntry("XRefStm");
-    PDFObject trailerDictionaryObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(trailerDictionary)));
+    PDFDictionary newTrailerDictionary;
+
+    for (const char* entry : { "Size", "Root", "Encrypt", "Info", "ID"})
+    {
+        PDFObject object = trailerDictionary.get(entry);
+        if (!object.isNull())
+        {
+            newTrailerDictionary.addEntry(PDFInplaceOrMemoryString(entry), qMove(object));
+        }
+    }
+
+    PDFObject trailerDictionaryObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(newTrailerDictionary)));
 
     device->write("trailer");
     writeCRLF(device);

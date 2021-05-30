@@ -1143,6 +1143,31 @@ void PDFDocumentBuilder::copyAnnotation(PDFObjectReference pageReference, PDFObj
 
 void PDFDocumentBuilder::setSecurityHandler(PDFSecurityHandlerPointer handler)
 {
+    if (!handler)
+    {
+        handler.reset(new PDFNoneSecurityHandler());
+    }
+
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Encrypt");
+
+    PDFObject encryptionDictionaryObject = handler->createEncryptionDictionaryObject();
+    Q_ASSERT(!encryptionDictionaryObject.isReference());
+
+    if (!encryptionDictionaryObject.isNull())
+    {
+        encryptionDictionaryObject = PDFObject::createReference(addObject(encryptionDictionaryObject));
+    }
+
+    objectBuilder << encryptionDictionaryObject;
+
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedTrailerDictionary = objectBuilder.takeObject();
+    m_storage.updateTrailerDictionary(qMove(updatedTrailerDictionary));
+
     m_storage.setSecurityHandler(qMove(handler));
 }
 
@@ -4297,13 +4322,7 @@ void PDFDocumentBuilder::removeEncryption()
 {
     PDFObjectFactory objectBuilder;
 
-    objectBuilder.beginDictionary();
-    objectBuilder.beginDictionaryItem("Encrypt");
-    objectBuilder << PDFObject();
-    objectBuilder.endDictionaryItem();
-    objectBuilder.endDictionary();
-    PDFObject updatedTrailerDictionary = objectBuilder.takeObject();
-    m_storage.updateTrailerDictionary(qMove(updatedTrailerDictionary));
+    setSecurityHandler(nullptr);
 }
 
 

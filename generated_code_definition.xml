@@ -8937,35 +8937,11 @@ return rootNodeReference;</property>
       <property name="items">
         <QObject class="codegen::GeneratedAction">
           <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedPDFObject">
-              <property name="objectName"></property>
-              <property name="items">
-                <QObject class="codegen::GeneratedPDFObject">
-                  <property name="objectName"></property>
-                  <property name="items"/>
-                  <property name="dictionaryItemName">Encrypt</property>
-                  <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">PDFObject()</property>
-                </QObject>
-              </property>
-              <property name="dictionaryItemName"></property>
-              <property name="objectType">Dictionary</property>
-              <property name="value"></property>
-            </QObject>
-          </property>
-          <property name="actionType">CreateObject</property>
-          <property name="variableName">updatedTrailerDictionary</property>
-          <property name="variableType">_PDFObject</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
           <property name="items"/>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">m_storage.updateTrailerDictionary(qMove(updatedTrailerDictionary));</property>
+          <property name="code">setSecurityHandler(nullptr);</property>
         </QObject>
       </property>
       <property name="functionType">Structure</property>

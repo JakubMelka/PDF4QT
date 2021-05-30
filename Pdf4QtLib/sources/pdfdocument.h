@@ -419,6 +419,10 @@ public:
     /// Returns info about the document (title, author, etc.)
     const PDFDocumentInfo* getInfo() const { return &m_info; }
 
+    /// Returns document id part with given index. If index is invalid,
+    /// then empty id is returned.
+    QByteArray getIdPart(size_t index) const;
+
     /// If object is reference, the dereference attempt is performed
     /// and object is returned. If it is not a reference, then self
     /// is returned. If dereference attempt fails, then null object

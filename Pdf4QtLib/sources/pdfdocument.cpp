@@ -43,6 +43,26 @@ bool PDFDocument::operator==(const PDFDocument& other) const
     return m_pdfObjectStorage == other.m_pdfObjectStorage;
 }
 
+QByteArray PDFDocument::getIdPart(size_t index) const
+{
+    QByteArray id;
+    const PDFObject& idArrayObject = getTrailerDictionary()->get("ID");
+    if (idArrayObject.isArray())
+    {
+        const PDFArray* idArray = idArrayObject.getArray();
+        if (idArray->getCount() > index)
+        {
+            const PDFObject& idArrayItem = idArray->getItem(index);
+            if (idArrayItem.isString())
+            {
+                id = idArrayItem.getString();
+            }
+        }
+    }
+
+    return id;
+}
+
 QByteArray PDFDocument::getDecodedStream(const PDFStream* stream) const
 {
     return m_pdfObjectStorage.getDecodedStream(stream);
