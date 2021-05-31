@@ -515,12 +515,9 @@ void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) con
     factory << PDFInteger(m_V);
     factory.endDictionaryItem();
 
-    if (m_V == 2 || m_V == 3 || m_V == 4)
-    {
-        factory.beginDictionaryItem("Length");
-        factory << PDFInteger(m_keyLength);
-        factory.endDictionaryItem();
-    }
+    factory.beginDictionaryItem("Length");
+    factory << PDFInteger(m_keyLength);
+    factory.endDictionaryItem();
 
     if (m_V == 4 || m_V == 5)
     {
@@ -747,8 +744,8 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                         m_authorizationData.fileEncryptionKey.resize(m_UE.size());
                         AES_cbc_encrypt(convertByteArrayToUcharPtr(m_UE), convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), m_UE.size(), &key, aesInitializationVector, AES_DECRYPT);
 
-                        // We have authorized owner access
-                        m_authorizationData.authorizationResult =  AuthorizationResult::UserAuthorized;
+                        // We have authorized user access
+                        m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
                     }
                 }
 
@@ -1817,7 +1814,81 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
             break;
         }
 
-            // TODO: Dodelat R6
+        case 6:
+        {
+            PDFStandardSecurityHandler::UserOwnerData_r6 userData;
+            PDFStandardSecurityHandler::UserOwnerData_r6 ownerData;
+
+            QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+
+            // Generate file encryption key
+            handler->m_authorizationData.fileEncryptionKey = generateRandomByteArray(randomNumberGenerator, 32);
+            handler->m_authorizationData.authorizationResult = PDFSecurityHandler::AuthorizationResult::OwnerAuthorized;
+
+            // Compute m_U entry
+            userData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
+            userData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
+            userData.hash = handler->createHash_r6(adjustedUserPassword + userData.validationSalt, adjustedUserPassword, false);
+            handler->m_U = userData.hash + userData.validationSalt + userData.keySalt;
+
+            // Compute m_UE entry
+            QByteArray userFileEncryptionKeyInputData = adjustedUserPassword + userData.keySalt;
+            QByteArray userFileEncryptionKey = handler->createHash_r6(userFileEncryptionKeyInputData, adjustedUserPassword, false);
+
+            Q_ASSERT(userFileEncryptionKey.size() == 32);
+            AES_KEY userKey = { };
+            AES_set_encrypt_key(convertByteArrayToUcharPtr(userFileEncryptionKey), userFileEncryptionKey.size() * 8, &userKey);
+            unsigned char aesUserInitializationVector[AES_BLOCK_SIZE] = { };
+            handler->m_UE.resize(handler->m_authorizationData.fileEncryptionKey.size());
+            unsigned char* userInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
+            unsigned char* userTargetBuffer = convertByteArrayToUcharPtr(handler->m_UE);
+            AES_cbc_encrypt(userInputBuffer, userTargetBuffer, handler->m_UE.size(), &userKey, aesUserInitializationVector, AES_ENCRYPT);
+
+            // Compute m_O entry
+            ownerData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
+            ownerData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
+            ownerData.hash = handler->createHash_r6(adjustedOwnerPassword + ownerData.validationSalt + handler->m_U, adjustedOwnerPassword, true);
+            handler->m_O = ownerData.hash + ownerData.validationSalt + ownerData.keySalt;
+
+            // Compute m_OE entry
+            QByteArray ownerFileEncryptionKeyInputData = adjustedOwnerPassword + ownerData.keySalt + handler->m_U;
+            QByteArray ownerFileEncryptionKey = handler->createHash_r6(ownerFileEncryptionKeyInputData, adjustedOwnerPassword, true);
+
+            AES_KEY ownerKey = { };
+            AES_set_encrypt_key(convertByteArrayToUcharPtr(ownerFileEncryptionKey), ownerFileEncryptionKey.size() * 8, &ownerKey);
+            unsigned char aesOwnerInitializationVector[AES_BLOCK_SIZE] = { };
+            handler->m_OE.resize(handler->m_authorizationData.fileEncryptionKey.size());
+            unsigned char* ownerInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
+            unsigned char* ownerTargetBuffer = convertByteArrayToUcharPtr(handler->m_OE);
+            AES_cbc_encrypt(ownerInputBuffer, ownerTargetBuffer, handler->m_OE.size(), &ownerKey, aesOwnerInitializationVector, AES_ENCRYPT);
+
+            // Perms entry
+            handler->m_Perms = QByteArray(AES_BLOCK_SIZE, char(0));
+            unsigned char* permsData = convertByteArrayToUcharPtr(handler->m_Perms);
+            permsData[0] = handler->m_permissions & 0xFF;
+            permsData[1] = (handler->m_permissions >> 8) & 0xFF;
+            permsData[2] = (handler->m_permissions >> 16) & 0xFF;
+            permsData[3] = (handler->m_permissions >> 24) & 0xFF;
+            permsData[4] = 0xFF;
+            permsData[5] = 0xFF;
+            permsData[6] = 0xFF;
+            permsData[7] = 0xFF;
+            permsData[8] = handler->m_encryptMetadata ? 'T' : 'F';
+            permsData[9] = 'a';
+            permsData[10] = 'd';
+            permsData[11] = 'b';
+            permsData[12] = randomNumberGenerator.generate() & 0xFF;
+            permsData[13] = randomNumberGenerator.generate() & 0xFF;
+            permsData[14] = randomNumberGenerator.generate() & 0xFF;
+            permsData[15] = randomNumberGenerator.generate() & 0xFF;
+
+            Q_ASSERT(handler->m_Perms.size() == AES_BLOCK_SIZE);
+            AES_KEY key = { };
+            AES_set_encrypt_key(convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey), handler->m_authorizationData.fileEncryptionKey.size() * 8, &key);
+            AES_ecb_encrypt(convertByteArrayToUcharPtr(handler->m_Perms), convertByteArrayToUcharPtr(handler->m_Perms), &key, AES_ENCRYPT);
+
+            break;
+        }
 
         default:
         {
@@ -1905,6 +1976,19 @@ int PDFSecurityHandlerFactory::getRevisionFromAlgorithm(Algorithm algorithm)
     }
 
     return 0;
+}
+
+QByteArray PDFSecurityHandlerFactory::generateRandomByteArray(QRandomGenerator& generator, int size)
+{
+    QByteArray ba;
+    ba.reserve(size);
+
+    for (int i = 0; i < size; ++i)
+    {
+        ba.push_back(static_cast<char>(generator.generate()));
+    }
+
+    return ba;
 }
 
 }   // namespace pdf

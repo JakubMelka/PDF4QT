@@ -33,7 +33,7 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
     ui->setupUi(this);
 
     ui->algorithmComboBox->addItem(tr("None"), int(pdf::PDFSecurityHandlerFactory::None));
-    ui->algorithmComboBox->addItem(tr("RC4 | R3"), int(pdf::PDFSecurityHandlerFactory::RC4));
+    ui->algorithmComboBox->addItem(tr("RC4 128-bit | R4"), int(pdf::PDFSecurityHandlerFactory::RC4));
     ui->algorithmComboBox->addItem(tr("AES 128-bit | R4"), int(pdf::PDFSecurityHandlerFactory::AES_128));
     ui->algorithmComboBox->addItem(tr("AES 256-bit | R6"), int(pdf::PDFSecurityHandlerFactory::AES_256));
 

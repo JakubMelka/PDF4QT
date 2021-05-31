@@ -427,6 +427,11 @@ public:
     /// algorithm. If algorithm is invalid or None, zero is returned.
     /// \param algorithm Algorithm
     static int getRevisionFromAlgorithm(Algorithm algorithm);
+
+    /// Generates array of random bytes with given size, using random number generator.
+    /// \param generator Random number generator
+    /// \param size Target size
+    static QByteArray generateRandomByteArray(QRandomGenerator& generator, int size);
 };
 
 }   // namespace pdf
