@@ -45,7 +45,8 @@ public:
     void finish();
 
 signals:
-    void progressStarted(ProgressStartupInfo info);
+    // Namespace pdf:: must be here, due to queued signals calling
+    void progressStarted(pdf::ProgressStartupInfo info);
     void progressStep(int percentage);
     void progressFinished();
 

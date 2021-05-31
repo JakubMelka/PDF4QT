@@ -1789,6 +1789,7 @@ void PDFProgramController::loadPlugins()
         if (!actions.empty())
         {
             QToolBar* toolBar = m_mainWindow->addToolBar(plugin.first.name);
+            toolBar->setObjectName(QString("Plugin_Toolbar_%1").arg(plugin.first.name));
             m_mainWindowInterface->adjustToolbar(toolBar);
             QMenu* menu = m_mainWindowInterface->addToolMenu(plugin.first.name);
             for (QAction* action : actions)
