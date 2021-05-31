@@ -515,7 +515,7 @@ void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) con
     factory << PDFInteger(m_V);
     factory.endDictionaryItem();
 
-    if (m_V == 2 || m_V == 3)
+    if (m_V == 2 || m_V == 3 || m_V == 4)
     {
         factory.beginDictionaryItem("Length");
         factory << PDFInteger(m_keyLength);
@@ -1171,7 +1171,7 @@ PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
     }
 
     factory.beginDictionaryItem("P");
-    factory << PDFInteger(m_permissions);
+    factory << PDFInteger(int32_t(m_permissions));
     factory.endDictionaryItem();
 
     if (m_R == 6)
@@ -1219,7 +1219,7 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
                 MD5_Update(&context, &value, sizeof(value));
             }
 
-            std::array<uint8_t, MD5_DIGEST_LENGTH> fileEncryptionKey;
+            std::array<uint8_t, MD5_DIGEST_LENGTH> fileEncryptionKey = { };
             MD5_Final(fileEncryptionKey.data(), &context);
 
             const int keyByteLength = m_keyLength / 8;
@@ -1280,7 +1280,7 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
         case 3:
         case 4:
         {
-            std::array<uint8_t, MD5_DIGEST_LENGTH> hash;
+            std::array<uint8_t, MD5_DIGEST_LENGTH> hash = { };
 
             MD5_CTX context = { };
             MD5_Init(&context);
@@ -1291,7 +1291,8 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
             RC4_KEY key = { };
             RC4_set_key(&key, fileEncryptionKey.size(), convertByteArrayToUcharPtr(fileEncryptionKey));
 
-            std::array<uint8_t, MD5_DIGEST_LENGTH> encryptedHash;
+            std::array<uint8_t, MD5_DIGEST_LENGTH> encryptedHash =  { };
+            std::array<uint8_t, MD5_DIGEST_LENGTH> targetBuffer =  { };
             RC4(&key, hash.size(), hash.data(), encryptedHash.data());
 
             QByteArray transformedKey = fileEncryptionKey;
@@ -1303,7 +1304,8 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
                 }
 
                 RC4_set_key(&key, transformedKey.size(), convertByteArrayToUcharPtr(transformedKey));
-                RC4(&key, encryptedHash.size(), encryptedHash.data(), encryptedHash.data());
+                RC4(&key, encryptedHash.size(), encryptedHash.data(), targetBuffer.data());
+                encryptedHash = targetBuffer;
             }
 
             // We do a hack here. In the PDF's specification, it is written, that arbitrary 16 bytes
@@ -1311,6 +1313,7 @@ QByteArray PDFStandardSecurityHandler::createEntryValueU_r234(const QByteArray& 
             // want to compare byte arrays entirely (otherwise we must compare only 16 bytes to authenticate
             // user password).
             result = m_U;
+            result.detach();
 
             if (result.size() != 32)
             {
@@ -1772,9 +1775,9 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
             break;
     }
 
-    handler->m_cryptFilters["DefaultCF"] = handler->m_filterDefault;
+    handler->m_cryptFilters["StdCF"] = handler->m_filterDefault;
     handler->m_R = getRevisionFromAlgorithm(settings.algorithm);
-    handler->m_permissions = settings.permissions;
+    handler->m_permissions = settings.permissions | 0xFFFFF000;
 
     QByteArray adjustedOwnerPassword = handler->adjustPassword(settings.ownerPassword, handler->m_R);
     QByteArray adjustedUserPassword = handler->adjustPassword(settings.userPassword, handler->m_R);
