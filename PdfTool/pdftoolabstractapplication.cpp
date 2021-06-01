@@ -324,6 +324,15 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     {
         parser->addPositionalArgument("certificate", "Certificate file");
     }
+
+    if (optionFlags.testFlag(Encrypt))
+    {
+        parser->addOption(QCommandLineOption("enc-algorithm", "Encryption algorithm (valid values: rc4|aes-128|aes-256).", "encryption algorithm", "aes-256"));
+        parser->addOption(QCommandLineOption("enc-contents", "Encryption scope (valid values: all|all-except-metadata|only-embedded-files).", "encryption contents", "all"));
+        parser->addOption(QCommandLineOption("enc-user-password", "User password (for document reading).", "user password"));
+        parser->addOption(QCommandLineOption("enc-owner-password", "Owner password.", "owner password"));
+        parser->addOption(QCommandLineOption("enc-permissions", "Document permissions (flags represented as a number).", "permissions"));
+    }
 }
 
 PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser) const
@@ -894,6 +903,59 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     if (optionFlags.testFlag(CertStoreInstall))
     {
         options.certificateStoreInstallCertificateFile = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
+    }
+
+    if (optionFlags.testFlag(Encrypt))
+    {
+        QString encryptionAlgorithm = parser->value("enc-algorithm");
+        if (encryptionAlgorithm == "rc4")
+        {
+            options.encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::RC4;
+        }
+        else if (encryptionAlgorithm == "aes-128")
+        {
+            options.encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_128;
+        }
+        else if (encryptionAlgorithm == "aes-256")
+        {
+            options.encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_256;
+        }
+        else
+        {
+            if (!encryptionAlgorithm.isEmpty())
+            {
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown encryption algorithm '%1'. Defaulting to AES-256 encryption.").arg(encryptionAlgorithm), options.outputCodec);
+            }
+
+            options.encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_256;
+        }
+
+        QString encryptionContents = parser->value("enc-contents");
+        if (encryptionContents == "all")
+        {
+            options.encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::All;
+        }
+        else if (encryptionContents == "all-except-metadata")
+        {
+            options.encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::AllExceptMetadata;
+        }
+        else if (encryptionContents == "only-embedded-files")
+        {
+            options.encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::EmbeddedFiles;
+        }
+        else
+        {
+            if (!encryptionContents.isEmpty())
+            {
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown encryption contents mode '%1'. Defaulting to encrypt all contents.").arg(encryptionContents), options.outputCodec);
+            }
+
+            options.encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::All;
+        }
+
+        options.encryptionUserPassword = parser->value("enc-user-password");
+        options.encryptionOwnerPassword = parser->value("enc-owner-password");
+        options.encryptionPermissions = parser->value("enc-permissions").toUInt();
     }
 
     return options;

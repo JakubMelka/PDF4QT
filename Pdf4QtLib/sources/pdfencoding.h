@@ -75,7 +75,8 @@ public:
     /// are also present in given encoding).
     /// \param string String to be tested
     /// \param encoding Encoding used in verification of conversion
-    static bool canConvertToEncoding(const QString& string, Encoding encoding);
+    /// \param[out] invalidCharacters Storage, where not convertible characters are inserted
+    static bool canConvertToEncoding(const QString& string, Encoding encoding, QString* invalidCharacters);
 
     /// Checks, if stream can be converted to string using encoding (i.e. all
     /// characters are defined). If all characters are valid, then true is
@@ -119,6 +120,11 @@ public:
     /// \param isBinary If specified, it is set to true if conversion failed
     /// \returns Unicode string or string converted to hexadecimal representation
     static QString convertSmartFromByteStringToUnicode(const QByteArray& stream, bool* isBinary);
+
+    /// Returns all characters of the given encoding
+    /// \param encoding Encoding
+    /// \returns All characters reprezentable by encoding.
+    static QString getEncodingCharacters(Encoding encoding);
 
 private:
     /// Returns true, if byte array has UTF-16BE/LE unicode marking bytes at the

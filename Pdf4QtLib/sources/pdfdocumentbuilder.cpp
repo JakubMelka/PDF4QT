@@ -495,7 +495,7 @@ PDFObjectFactory& PDFObjectFactory::operator<<(WrapEmptyArray)
 
 PDFObject PDFObjectFactory::createTextString(QString textString)
 {
-    if (!PDFEncoding::canConvertToEncoding(textString, PDFEncoding::Encoding::PDFDoc))
+    if (!PDFEncoding::canConvertToEncoding(textString, PDFEncoding::Encoding::PDFDoc, nullptr))
     {
         // Use unicode encoding
         QByteArray ba;

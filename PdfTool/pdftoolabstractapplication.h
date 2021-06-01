@@ -146,6 +146,13 @@ struct PDFToolOptions
     // For option 'CertStoreInstall'
     QString certificateStoreInstallCertificateFile;
 
+    // For option 'Encrypt'
+    pdf::PDFSecurityHandlerFactory::Algorithm encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_256;
+    pdf::PDFSecurityHandlerFactory::EncryptContents encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::All;
+    QString encryptionUserPassword;
+    QString encryptionOwnerPassword;
+    uint32_t encryptionPermissions = 0;
+
     /// Returns page range. If page range is invalid, then \p errorMessage is empty.
     /// \param pageCount Page count
     /// \param[out] errorMessage Error message
@@ -194,7 +201,8 @@ public:
         ErrorPermissions,
         ErrorNoText,
         ErrorCOM,
-        ErrorSAPI
+        ErrorSAPI,
+        ErrorEncryptionSettings
     };
 
     enum StandardString
@@ -229,6 +237,7 @@ public:
         Optimize                        = 0x00100000,       ///< Settings for Optimize tool
         CertStore                       = 0x00200000,       ///< Settings for certificate store tool
         CertStoreInstall                = 0x00400000,       ///< Settings for certificate store install certificate tool
+        Encrypt                         = 0x00800000,       ///< Encryption settings
     };
     Q_DECLARE_FLAGS(Options, Option)
 

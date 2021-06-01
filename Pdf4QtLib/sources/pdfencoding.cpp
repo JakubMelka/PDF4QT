@@ -2132,7 +2132,7 @@ QString PDFEncoding::convert(const QByteArray& stream, PDFEncoding::Encoding enc
     return result;
 }
 
-QByteArray PDFEncoding::convertToEncoding(const QString& string, PDFEncoding::Encoding encoding)
+QByteArray PDFEncoding::convertToEncoding(const QString& string, Encoding encoding)
 {
     QByteArray result;
 
@@ -2160,11 +2160,12 @@ QByteArray PDFEncoding::convertToEncoding(const QString& string, PDFEncoding::En
     return result;
 }
 
-bool PDFEncoding::canConvertToEncoding(const QString& string, PDFEncoding::Encoding encoding)
+bool PDFEncoding::canConvertToEncoding(const QString& string, Encoding encoding, QString* invalidCharacters)
 {
     const encoding::EncodingTable* table = getTableForEncoding(encoding);
     Q_ASSERT(table);
 
+    bool isConvertible = true;
     for (QChar character : string)
     {
         ushort unicode = character.unicode();
@@ -2181,14 +2182,23 @@ bool PDFEncoding::canConvertToEncoding(const QString& string, PDFEncoding::Encod
 
         if (!converted)
         {
-            return false;
+            isConvertible = false;
+
+            if (!invalidCharacters)
+            {
+                // We are not storing invalid characters - we can break on first not convertible
+                // character.
+                break;
+            }
+
+            *invalidCharacters += character;
         }
     }
 
-    return true;
+    return isConvertible;
 }
 
-bool PDFEncoding::canConvertFromEncoding(const QByteArray& stream, PDFEncoding::Encoding encoding)
+bool PDFEncoding::canConvertFromEncoding(const QByteArray& stream, Encoding encoding)
 {
     const encoding::EncodingTable* table = getTableForEncoding(encoding);
     for (const unsigned char index : stream)
@@ -2401,6 +2411,24 @@ QString PDFEncoding::convertSmartFromByteStringToUnicode(const QByteArray& strea
         *isBinary = true;
     }
     return QString::fromLatin1(stream.toHex()).toUpper();
+}
+
+QString PDFEncoding::getEncodingCharacters(Encoding encoding)
+{
+    QString string;
+
+    if (const encoding::EncodingTable* table = getTableForEncoding(encoding))
+    {
+        for (const QChar& character : *table)
+        {
+            if (character != QChar(0xFFFD))
+            {
+                string += character;
+            }
+        }
+    }
+
+    return string;
 }
 
 bool PDFEncoding::hasUnicodeLeadMarkings(const QByteArray& stream)

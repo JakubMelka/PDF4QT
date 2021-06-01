@@ -47,6 +47,7 @@ SOURCES += \
         pdftoolcertstore.cpp \
         pdftoolcolorprofiles.cpp \
         pdftooldecrypt.cpp \
+        pdftoolencrypt.cpp \
         pdftoolfetchimages.cpp \
         pdftoolfetchtext.cpp \
         pdftoolinfo.cpp \
@@ -80,6 +81,7 @@ HEADERS += \
     pdftoolcertstore.h \
     pdftoolcolorprofiles.h \
     pdftooldecrypt.h \
+    pdftoolencrypt.h \
     pdftoolfetchimages.h \
     pdftoolfetchtext.h \
     pdftoolinfo.h \

@@ -21,6 +21,8 @@
 #include "pdfutils.h"
 #include "pdfsecurityhandler.h"
 
+#include <QMessageBox>
+
 namespace pdfviewer
 {
 
@@ -189,6 +191,13 @@ void PDFEncryptionSettingsDialog::accept()
         {
             settings.permissions += uint32_t(item.second);
         }
+    }
+
+    QString errorMessage;
+    if (!pdf::PDFSecurityHandlerFactory::validate(settings, &errorMessage))
+    {
+        QMessageBox::critical(this, tr("Error"), errorMessage);
+        return;
     }
 
     m_updatedSecurityHandler = pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings);

@@ -191,19 +191,26 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
     QByteArray processedData;
     if (!processedDictionary.hasKey("Crypt"))
     {
+        // Is it an embedded file?
+        const PDFObject& object = processedDictionary.get("Type");
+        const bool isEmbeddedFile = object.isName() && object.getString() == "EmbeddedFile";
+        const PDFSecurityHandler::EncryptionScope scope = !isEmbeddedFile ? PDFSecurityHandler::EncryptionScope::Stream : PDFSecurityHandler::EncryptionScope::EmbeddedFile;
+
         switch (m_mode)
         {
             case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
-                processedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+                processedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, scope);
                 break;
             case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt:
-                processedData = m_securityHandler->encrypt(*stream->getContent(), m_reference, PDFSecurityHandler::EncryptionScope::Stream);
+                processedData = m_securityHandler->encrypt(*stream->getContent(), m_reference, scope);
                 break;
 
             default:
                 Q_ASSERT(false);
                 break;
         }
+
+        processedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(processedData.size()));
     }
     else
     {
@@ -212,8 +219,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
             case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
             {
                 processedData = *stream->getContent();
-                processedDictionary.removeEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
-                processedDictionary.addEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(m_reference));
+                processedDictionary.setEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(m_reference));
                 break;
             }
 
@@ -1989,6 +1995,50 @@ QByteArray PDFSecurityHandlerFactory::generateRandomByteArray(QRandomGenerator& 
     }
 
     return ba;
+}
+
+bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QString* errorMessage)
+{
+    switch (settings.algorithm)
+    {
+        case pdf::PDFSecurityHandlerFactory::RC4:
+        case pdf::PDFSecurityHandlerFactory::AES_128:
+        {
+            QString invalidCharacters;
+
+            if (!PDFEncoding::canConvertToEncoding(settings.userPassword, PDFEncoding::Encoding::PDFDoc, &invalidCharacters))
+            {
+                if (errorMessage)
+                {
+                    Q_ASSERT(!invalidCharacters.isEmpty());
+                    *errorMessage = tr("User password contains invalid characters: %1.").arg(invalidCharacters);
+                }
+                return false;
+            }
+
+            if (!PDFEncoding::canConvertToEncoding(settings.ownerPassword, PDFEncoding::Encoding::PDFDoc, &invalidCharacters))
+            {
+                if (errorMessage)
+                {
+                    Q_ASSERT(!invalidCharacters.isEmpty());
+                    *errorMessage = tr("Owner password contains invalid characters: %1.").arg(invalidCharacters);
+                }
+                return false;
+            }
+
+            break;
+        }
+
+        case pdf::PDFSecurityHandlerFactory::None:
+        case pdf::PDFSecurityHandlerFactory::AES_256:
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return true;
 }
 
 }   // namespace pdf

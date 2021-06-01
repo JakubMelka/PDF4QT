@@ -380,6 +380,8 @@ private:
 /// Factory, which creates security handler based on settings.
 class Pdf4QtLIBSHARED_EXPORT PDFSecurityHandlerFactory
 {
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFSecurityHandlerFactory)
+
 public:
 
     enum Algorithm
@@ -432,6 +434,11 @@ public:
     /// \param generator Random number generator
     /// \param size Target size
     static QByteArray generateRandomByteArray(QRandomGenerator& generator, int size);
+
+    /// Validates security settings
+    /// \param settings Settings
+    /// \param[out] errorMessage Error message
+    static bool validate(const SecuritySettings& settings, QString* errorMessage);
 };
 
 }   // namespace pdf
