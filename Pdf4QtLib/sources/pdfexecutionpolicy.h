@@ -63,24 +63,31 @@ public:
     class Runnable : public QRunnable
     {
     public:
-        explicit inline Runnable(ForwardIt it, UnaryFunction* function, QSemaphore* semaphore) :
+        explicit inline Runnable(ForwardIt it, ForwardIt itEnd, UnaryFunction* function, QSemaphore* semaphore) :
             m_forwardIt(qMove(it)),
+            m_forwardItEnd(qMove(itEnd)),
             m_function(function),
-            m_semaphore(semaphore)
+            m_semaphore(semaphore),
+            m_packSize(static_cast<int>(std::distance(m_forwardIt, m_forwardItEnd)))
         {
             setAutoDelete(true);
         }
 
         virtual void run() override
         {
-            QSemaphoreReleaser semaphoreReleaser(m_semaphore);
-            (*m_function)(*m_forwardIt);
+            QSemaphoreReleaser semaphoreReleaser(m_semaphore, m_packSize);
+            for (auto it = m_forwardIt; it != m_forwardItEnd; ++it)
+            {
+                (*m_function)(*it);
+            }
         }
 
     private:
         ForwardIt m_forwardIt;
+        ForwardIt m_forwardItEnd;
         UnaryFunction* m_function;
         QSemaphore* m_semaphore;
+        int m_packSize;
     };
 
     template<typename ForwardIt, typename UnaryFunction>
@@ -90,12 +97,37 @@ public:
         {
             QSemaphore semaphore(0);
             int count = static_cast<int>(std::distance(first, last));
+            int remainder = count;
+
+            int bucketSize = 1;
+
+            // For page scope, we do not divide the tasks into buckets, i.e.
+            // each bucket will have size 1. But if we are in a content scope,
+            // then we are processing smaller task, so we divide the work
+            // into buckets of appropriate size.
+            if (scope != Scope::Page)
+            {
+                const int buckets = 32 * QThread::idealThreadCount();
+                bucketSize = qMax(1, count / buckets);
+            }
 
             QThreadPool* pool = getThreadPool(scope);
-            for (auto it = first; it != last; ++it)
+
+            // Divide tasks into buckets with given bucket size
+            auto it = first;
+            while (remainder > 0)
             {
-                pool->start(new Runnable(it, &f, &semaphore));
+                const int currentSize = qMin(remainder, bucketSize);
+
+                auto itStart = it;
+                auto itEnd = std::next(it, currentSize);
+                pool->start(new Runnable(itStart, itEnd, &f, &semaphore));
+
+                remainder -= currentSize;
+                std::advance(it, currentSize);
             }
+
+            Q_ASSERT(it == last);
 
             semaphore.acquire(count);
         }
