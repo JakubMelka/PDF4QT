@@ -38,7 +38,7 @@ class PDFDocumentBuilder;
 
 /// Storage for objects. This class is not thread safe for writing (calling non-const functions). Caller must ensure
 /// locking, if this object is used from multiple threads. Calling const functions should be thread safe.
-class PDFObjectStorage
+class Pdf4QtLIBSHARED_EXPORT PDFObjectStorage
 {
 public:
     inline PDFObjectStorage() = default;

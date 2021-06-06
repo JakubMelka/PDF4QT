@@ -36,7 +36,7 @@ class PDFOptionalContentActivity;
 class PDFDrawWidgetProxy;
 
 /// Represents tree item in the GUI tree
-class PDFTreeItem
+class Pdf4QtLIBSHARED_EXPORT PDFTreeItem
 {
 public:
     inline explicit PDFTreeItem() = default;
@@ -60,6 +60,7 @@ public:
     int getRow() const { return m_parent->m_children.indexOf(const_cast<PDFTreeItem*>(this)); }
     int getChildCount() const { return m_children.size(); }
     const PDFTreeItem* getChild(int index) const { return m_children.at(index); }
+    PDFTreeItem* getChild(int index) { return m_children.at(index); }
     const PDFTreeItem* getParent() const { return m_parent; }
 
 private:

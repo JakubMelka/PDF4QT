@@ -1,0 +1,7 @@
+{
+    "Name" : "ObjectInspector",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "Explore internal structure of a document. View decompressed streams and images. Modify objects directly."
+}

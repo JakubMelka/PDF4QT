@@ -307,7 +307,7 @@ private:
 };
 
 /// Represents an array of objects in the PDF file.
-class PDFArray : public PDFObjectContent
+class Pdf4QtLIBSHARED_EXPORT PDFArray : public PDFObjectContent
 {
 public:
     inline PDFArray() = default;
@@ -460,7 +460,7 @@ private:
 
 /// Represents a stream object in the PDF file. Stream consists of dictionary
 /// and stream content - byte array.
-class PDFStream : public PDFObjectContent
+class Pdf4QtLIBSHARED_EXPORT PDFStream : public PDFObjectContent
 {
 public:
     inline explicit PDFStream() = default;
