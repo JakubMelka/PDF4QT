@@ -2413,6 +2413,28 @@ QString PDFEncoding::convertSmartFromByteStringToUnicode(const QByteArray& strea
     return QString::fromLatin1(stream.toHex()).toUpper();
 }
 
+QString PDFEncoding::convertSmartFromByteStringToRepresentableQString(const QByteArray& stream)
+{
+    if (stream.startsWith("D:"))
+    {
+        QDateTime dateTime = convertToDateTime(stream);
+        if (dateTime.isValid())
+        {
+            return dateTime.toString(Qt::TextDate);
+        }
+    }
+
+    bool isBinary = false;
+    QString text = convertSmartFromByteStringToUnicode(stream, &isBinary);
+
+    if (!isBinary)
+    {
+        return text;
+    }
+
+    return stream.toPercentEncoding(" ", QByteArray(), '%');
+}
+
 QString PDFEncoding::getEncodingCharacters(Encoding encoding)
 {
     QString string;

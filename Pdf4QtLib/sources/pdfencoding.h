@@ -117,9 +117,15 @@ public:
     /// Function checks if stream can be converted to unicode by heuristic
     /// way, it is not always reliable.
     /// \param stream Stream
-    /// \param isBinary If specified, it is set to true if conversion failed
+    /// \param[out] isBinary If specified, it is set to true if conversion failed
     /// \returns Unicode string or string converted to hexadecimal representation
     static QString convertSmartFromByteStringToUnicode(const QByteArray& stream, bool* isBinary);
+
+    /// Tries to convert stream to representable string. If it cannot be done,
+    /// percentage encoding is used.
+    /// \param stream Stream
+    /// \returns Unicode string or string converted to percentage representation
+    static QString convertSmartFromByteStringToRepresentableQString(const QByteArray& stream);
 
     /// Returns all characters of the given encoding
     /// \param encoding Encoding

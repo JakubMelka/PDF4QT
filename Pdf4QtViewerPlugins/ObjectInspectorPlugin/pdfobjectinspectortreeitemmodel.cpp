@@ -18,6 +18,7 @@
 #include "pdfobjectinspectortreeitemmodel.h"
 #include "pdfdocument.h"
 #include "pdfvisitor.h"
+#include "pdfencoding.h"
 
 #include <stack>
 
@@ -84,8 +85,9 @@ void PDFObjectInspectorTreeItem::setObject(const pdf::PDFObject& object)
     m_object = object;
 }
 
-PDFObjectInspectorTreeItemModel::PDFObjectInspectorTreeItemModel(QObject* parent) :
-    pdf::PDFTreeItemModel(parent)
+PDFObjectInspectorTreeItemModel::PDFObjectInspectorTreeItemModel(const pdf::PDFObjectClassifier* classifier, QObject* parent) :
+    pdf::PDFTreeItemModel(parent),
+    m_classifier(classifier)
 {
 }
 
@@ -100,6 +102,8 @@ QVariant PDFObjectInspectorTreeItemModel::headerData(int section, Qt::Orientatio
 
 int PDFObjectInspectorTreeItemModel::columnCount(const QModelIndex& parent) const
 {
+    Q_UNUSED(parent);
+
     return 1;
 }
 
@@ -119,7 +123,7 @@ QVariant PDFObjectInspectorTreeItemModel::data(const QModelIndex& index, int rol
     const PDFObjectInspectorTreeItem* parent = static_cast<const PDFObjectInspectorTreeItem*>(index.parent().internalPointer());
 
     QStringList data;
-    if (item->getReference().isValid() && parent && !parent->getReference().isValid())
+    if (item->getReference().isValid() && (!parent || (parent && !parent->getReference().isValid())))
     {
         data << QString("%1 %2 R").arg(item->getReference().objectNumber).arg(item->getReference().generation);
     }
@@ -152,7 +156,7 @@ QVariant PDFObjectInspectorTreeItemModel::data(const QModelIndex& index, int rol
             break;
 
         case pdf::PDFObject::Type::String:
-            data << QString("\"%1\"").arg(QString::fromLatin1(object.getString().toPercentEncoding()));
+            data << QString("\"%1\"").arg(pdf::PDFEncoding::convertSmartFromByteStringToRepresentableQString(object.getString()));
             break;
 
         case pdf::PDFObject::Type::Name:
@@ -168,7 +172,7 @@ QVariant PDFObjectInspectorTreeItemModel::data(const QModelIndex& index, int rol
             break;
 
         case pdf::PDFObject::Type::Stream:
-            data << tr("Stream [%1 items, %2 data bytes]").arg(locale.toString(object.getStream()->getDictionary()->getCount())).arg(locale.toString(object.getStream()->getContent()->size()));
+            data << tr("Stream [%1 items, %2 data bytes]").arg(locale.toString(object.getStream()->getDictionary()->getCount()), locale.toString(object.getStream()->getContent()->size()));
             break;
 
         case pdf::PDFObject::Type::Reference:
@@ -192,6 +196,17 @@ void PDFObjectInspectorTreeItemModel::update()
     if (m_document)
     {
         std::set<pdf::PDFObjectReference> usedReferences;
+
+        auto createObjectsFromClassifier = [this, &usedReferences](pdf::PDFObjectClassifier::Type type)
+        {
+            m_rootItem.reset(new PDFObjectInspectorTreeItem());
+
+            for (pdf::PDFObjectReference reference : m_classifier->getObjectsByType(type))
+            {
+                pdf::PDFObject object = m_document->getStorage().getObjectByReference(reference);
+                createObjectItem(getRootItem(), reference, object, true, usedReferences);
+            }
+        };
 
         switch (m_mode)
         {
@@ -221,7 +236,44 @@ void PDFObjectInspectorTreeItemModel::update()
                 break;
             }
 
-            case pdfplugin::PDFObjectInspectorTreeItemModel::Image:
+            case ContentStream:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::ContentStream);
+                break;
+
+            case GraphicState:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::GraphicState);
+                break;
+
+            case ColorSpace:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::ColorSpace);
+                break;
+
+            case Pattern:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Pattern);
+                break;
+
+            case Shading:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Shading);
+                break;
+
+            case Image:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Image);
+                break;
+
+            case Form:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Form);
+                break;
+
+            case Font:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Font);
+                break;
+
+            case Action:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Action);
+                break;
+
+            case Annotation:
+                createObjectsFromClassifier(pdf::PDFObjectClassifier::Annotation);
                 break;
 
             case pdfplugin::PDFObjectInspectorTreeItemModel::List:
@@ -392,7 +444,7 @@ void PDFCreateObjectInspectorTreeItemFromObjectVisitor::visitReference(const pdf
     {
         Q_ASSERT(m_usedReferences);
 
-        if (!m_usedReferences->count(reference))
+        if (m_usedReferences->count(reference))
         {
             // Reference already followed
             return;

@@ -15,7 +15,6 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt. If not, see <https://www.gnu.org/licenses/>.
 
-
 #include "pdfobjectutils.h"
 #include "pdfvisitor.h"
 
@@ -210,11 +209,179 @@ std::set<PDFObjectReference> PDFObjectUtils::getReferences(const std::vector<PDF
     return references;
 }
 
+std::set<PDFObjectReference> PDFObjectUtils::getDirectReferences(const PDFObject& object)
+{
+    std::set<PDFObjectReference> references;
+
+    PDFCollectReferencesVisitor collectReferencesVisitor(references);
+    object.accept(&collectReferencesVisitor);
+
+    return references;
+}
+
 PDFObject PDFObjectUtils::replaceReferences(const PDFObject& object, const std::map<PDFObjectReference, PDFObjectReference>& referenceMapping)
 {
     PDFReplaceReferencesVisitor replaceReferencesVisitor(referenceMapping);
     object.accept(&replaceReferencesVisitor);
     return replaceReferencesVisitor.getObject();
+}
+
+void PDFObjectClassifier::classify(const PDFDocument* document)
+{
+    // Clear old classification, if it exist
+    m_classification.clear();
+    m_allTypesUsed = None;
+
+    if (!document)
+    {
+        return;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(document);
+    const PDFObjectStorage& storage = document->getStorage();
+    const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+
+    m_classification.resize(objects.size(), Classification());
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        PDFObjectReference reference(i, objects[i].generation);
+        m_classification[i].reference = reference;
+    }
+
+    // First, iterate trough pages of the document
+    const PDFCatalog* catalog = document->getCatalog();
+    const size_t pageCount = catalog->getPageCount();
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        const PDFPage* page = catalog->getPage(i);
+
+        if (!page)
+        {
+            continue;
+        }
+
+        // Handle page itself
+        if (hasObject(page->getPageReference()))
+        {
+            mark(page->getPageReference(), Page);
+        }
+
+        // Handle annotations
+        for (const PDFObjectReference& reference : page->getAnnotations())
+        {
+            if (hasObject(reference))
+            {
+                mark(reference, Annotation);
+            }
+        }
+
+        // Handle contents
+        PDFObject pageObject = document->getObjectByReference(page->getPageReference());
+        Q_ASSERT(pageObject.isDictionary());
+
+        const PDFDictionary* dictionary = pageObject.getDictionary();
+        const PDFObject& contentsObject = dictionary->get("Contents");
+        if (contentsObject.isReference())
+        {
+            mark(contentsObject.getReference(), ContentStream);
+        }
+
+        // Handle resources
+        if (const PDFDictionary* resourcesDictionary = document->getDictionaryFromObject(dictionary->get("Resources")))
+        {
+            markDictionary(document, resourcesDictionary->get("ExtGState"), GraphicState);
+            markDictionary(document, resourcesDictionary->get("ColorSpace"), ColorSpace);
+            markDictionary(document, resourcesDictionary->get("Pattern"), Pattern);
+            markDictionary(document, resourcesDictionary->get("Shading"), Shading);
+            markDictionary(document, resourcesDictionary->get("Font"), Font);
+
+            if (const PDFDictionary* xobjectDictionary = document->getDictionaryFromObject(resourcesDictionary->get("XObject")))
+            {
+                const size_t count = xobjectDictionary->getCount();
+                for (size_t i = 0; i < count; ++i)
+                {
+                    const PDFObject& item = xobjectDictionary->getValue(i);
+                    if (item.isReference() && hasObject(item.getReference()))
+                    {
+                        if (const PDFDictionary* xobjectItemDictionary = document->getDictionaryFromObject(item))
+                        {
+                            QByteArray subtype = loader.readNameFromDictionary(xobjectItemDictionary, "Subtype");
+
+                            if (subtype == "Image")
+                            {
+                                mark(item.getReference(), Image);
+                            }
+                            else if (subtype == "Form")
+                            {
+                                mark(item.getReference(), Form);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (Classification& classification : m_classification)
+    {
+        if (const PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(classification.reference)))
+        {
+            QByteArray typeName = loader.readNameFromDictionary(dictionary, "Type");
+            if (typeName == "Action")
+            {
+                classification.types.setFlag(Action);
+            }
+        }
+    }
+
+    for (const Classification& classification : m_classification)
+    {
+        m_allTypesUsed |= classification.types;
+    }
+}
+
+bool PDFObjectClassifier::hasObject(PDFObjectReference reference) const
+{
+    return reference.isValid() &&
+           reference.objectNumber < PDFInteger(m_classification.size()) &&
+            m_classification[reference.objectNumber].reference == reference;
+}
+
+std::vector<PDFObjectReference> PDFObjectClassifier::getObjectsByType(Type type) const
+{
+    std::vector<PDFObjectReference> result;
+
+    for (const Classification& classification : m_classification)
+    {
+        if (classification.types.testFlag(type))
+        {
+            result.push_back(classification.reference);
+        }
+    }
+
+    return result;
+}
+
+void PDFObjectClassifier::mark(PDFObjectReference reference, Type type)
+{
+    Q_ASSERT(hasObject(reference));
+    m_classification[reference.objectNumber].types.setFlag(type, true);
+}
+
+void PDFObjectClassifier::markDictionary(const PDFDocument* document, PDFObject object, Type type)
+{
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    {
+        const size_t count = dictionary->getCount();
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFObject& item = dictionary->getValue(i);
+            if (item.isReference() && hasObject(item.getReference()))
+            {
+                mark(item.getReference(), type);
+            }
+        }
+    }
 }
 
 }   // namespace pdf

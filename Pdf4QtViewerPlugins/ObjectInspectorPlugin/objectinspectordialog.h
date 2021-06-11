@@ -19,6 +19,7 @@
 #define OBJECTINSPECTORDIALOG_H
 
 #include "pdfdocument.h"
+#include "pdfobjectutils.h"
 
 #include <QDialog>
 
@@ -44,6 +45,7 @@ private:
 
     Ui::ObjectInspectorDialog* ui;
     const pdf::PDFDocument* m_document;
+    pdf::PDFObjectClassifier m_objectClassifier;
     PDFObjectInspectorTreeItemModel* m_model;
 };
 

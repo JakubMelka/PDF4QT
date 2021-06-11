@@ -34,24 +34,69 @@ ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFDocument* document, Q
 {
     ui->setupUi(this);
 
+    m_objectClassifier.classify(document);
+
     ui->modeComboBox->addItem(tr("Document"), int(PDFObjectInspectorTreeItemModel::Document));
     ui->modeComboBox->addItem(tr("Pages"), int(PDFObjectInspectorTreeItemModel::Page));
-    ui->modeComboBox->addItem(tr("Images"), int(PDFObjectInspectorTreeItemModel::Image));
+
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::ContentStream))
+    {
+        ui->modeComboBox->addItem(tr("Content streams"), int(PDFObjectInspectorTreeItemModel::ContentStream));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::GraphicState))
+    {
+        ui->modeComboBox->addItem(tr("Graphic states"), int(PDFObjectInspectorTreeItemModel::GraphicState));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::ColorSpace))
+    {
+        ui->modeComboBox->addItem(tr("Color spaces"), int(PDFObjectInspectorTreeItemModel::ColorSpace));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Pattern))
+    {
+        ui->modeComboBox->addItem(tr("Patterns"), int(PDFObjectInspectorTreeItemModel::Pattern));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Shading))
+    {
+        ui->modeComboBox->addItem(tr("Shadings"), int(PDFObjectInspectorTreeItemModel::Shading));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Image))
+    {
+        ui->modeComboBox->addItem(tr("Images"), int(PDFObjectInspectorTreeItemModel::Image));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Form))
+    {
+        ui->modeComboBox->addItem(tr("Forms"), int(PDFObjectInspectorTreeItemModel::Form));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Font))
+    {
+        ui->modeComboBox->addItem(tr("Fonts"), int(PDFObjectInspectorTreeItemModel::Font));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Action))
+    {
+        ui->modeComboBox->addItem(tr("Actions"), int(PDFObjectInspectorTreeItemModel::Action));
+    }
+    if (m_objectClassifier.hasType(pdf::PDFObjectClassifier::Annotation))
+    {
+        ui->modeComboBox->addItem(tr("Annotations"), int(PDFObjectInspectorTreeItemModel::Annotation));
+    }
+
     ui->modeComboBox->addItem(tr("Object List"), int(PDFObjectInspectorTreeItemModel::List));
 
     ui->modeComboBox->setCurrentIndex(ui->modeComboBox->findData(int(PDFObjectInspectorTreeItemModel::Document)));
     connect(ui->modeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ObjectInspectorDialog::onModeChanged);
 
-    m_model = new PDFObjectInspectorTreeItemModel(this);
+    m_model = new PDFObjectInspectorTreeItemModel(&m_objectClassifier, this);
     onModeChanged();
     m_model->setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), nullptr, pdf::PDFModifiedDocument::Reset));
 
     ui->objectTreeView->setRootIsDecorated(true);
     ui->objectTreeView->setModel(m_model);
 
-    QSplitter* splitter = new QSplitter(this);
-    splitter->addWidget(ui->objectTreeView);
-    splitter->addWidget(ui->tabWidget);
+    ui->splitter->setStretchFactor(0, 0);
+    ui->splitter->setStretchFactor(1, 1);
+    ui->splitter->setCollapsible(0, true);
+    ui->splitter->setCollapsible(1, true);
+    ui->splitter->setSizes(QList<int>() << pdf::PDFWidgetUtils::scaleDPI_x(this, 300) << pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
 
     ui->objectTreeView->setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));

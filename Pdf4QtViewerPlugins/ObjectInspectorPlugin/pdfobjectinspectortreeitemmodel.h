@@ -19,6 +19,7 @@
 #define PDFOBJECTINSPECTORTREEITEMMODEL_H
 
 #include "pdfitemmodels.h"
+#include "pdfobjectutils.h"
 
 #include <set>
 
@@ -37,11 +38,20 @@ public:
     {
         Document,
         Page,
+        ContentStream,
+        GraphicState,
+        ColorSpace,
+        Pattern,
+        Shading,
         Image,
+        Form,
+        Font,
+        Action,
+        Annotation,
         List
     };
 
-    explicit PDFObjectInspectorTreeItemModel(QObject* parent);
+    explicit PDFObjectInspectorTreeItemModel(const pdf::PDFObjectClassifier* classifier, QObject* parent);
 
     virtual QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
     virtual int columnCount(const QModelIndex& parent) const override;
@@ -59,6 +69,7 @@ private:
 
     PDFObjectInspectorTreeItem* getRootItem();
 
+    const pdf::PDFObjectClassifier* m_classifier;
     Mode m_mode = List;
 };
 
