@@ -40,15 +40,15 @@
       <property name="currentIndex">
        <number>0</number>
       </property>
-      <widget class="QWidget" name="tab">
+      <widget class="QWidget" name="currentObjectTab">
        <attribute name="title">
-        <string>Tab 1</string>
+        <string>Current Object</string>
        </attribute>
-      </widget>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Tab 2</string>
-       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <item>
+         <widget class="pdfplugin::ObjectViewerWidget" name="currentObjectWidget" native="true"/>
+        </item>
+       </layout>
       </widget>
      </widget>
     </widget>
@@ -65,6 +65,14 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>pdfplugin::ObjectViewerWidget</class>
+   <extends>QWidget</extends>
+   <header>objectviewerwidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections>
   <connection>
