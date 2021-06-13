@@ -26,15 +26,19 @@
 namespace pdfplugin
 {
 
-ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFDocument* document, QWidget* parent) :
+ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFCMS* cms, const pdf::PDFDocument* document, QWidget* parent) :
     QDialog(parent, Qt::Dialog | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint),
     ui(new Ui::ObjectInspectorDialog),
+    m_cms(cms),
     m_document(document),
     m_model(nullptr)
 {
     ui->setupUi(this);
 
     m_objectClassifier.classify(document);
+
+    ui->currentObjectWidget->setCms(cms);
+    ui->currentObjectWidget->setDocument(document);
 
     ui->modeComboBox->addItem(tr("Document"), int(PDFObjectInspectorTreeItemModel::Document));
     ui->modeComboBox->addItem(tr("Pages"), int(PDFObjectInspectorTreeItemModel::Page));
@@ -98,6 +102,8 @@ ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFDocument* document, Q
     ui->splitter->setCollapsible(1, true);
     ui->splitter->setSizes(QList<int>() << pdf::PDFWidgetUtils::scaleDPI_x(this, 300) << pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
 
+    connect(ui->objectTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &ObjectInspectorDialog::onCurrentIndexChanged);
+
     ui->objectTreeView->setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 }
@@ -111,6 +117,24 @@ void ObjectInspectorDialog::onModeChanged()
 {
     const PDFObjectInspectorTreeItemModel::Mode mode = static_cast<const PDFObjectInspectorTreeItemModel::Mode>(ui->modeComboBox->currentData().toInt());
     m_model->setMode(mode);
+}
+
+void ObjectInspectorDialog::onCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous)
+{
+    Q_UNUSED(previous);
+
+    pdf::PDFObject object = m_model->getObjectFromIndex(current);
+    pdf::PDFObjectReference reference = m_model->getObjectReferenceFromIndex(current);
+    bool isRoot = m_model->isRootObject(current);
+
+    if (!isRoot && object.isReference())
+    {
+        reference = object.getReference();
+        object = m_document->getObjectByReference(reference);
+        isRoot = true;
+    }
+
+    ui->currentObjectWidget->setData(reference, qMove(object), isRoot);
 }
 
 }   // namespace pdfplugin

@@ -19,6 +19,7 @@
 #define OBJECTVIEWERWIDGET_H
 
 #include "pdfdocument.h"
+#include "pdfcms.h"
 
 #include <QWidget>
 
@@ -42,6 +43,12 @@ public:
     void setPinned(bool isPinned);
     void setData(pdf::PDFObjectReference currentReference, pdf::PDFObject currentObject, bool isRootObject);
 
+    const pdf::PDFDocument* getDocument() const;
+    void setDocument(const pdf::PDFDocument* document);
+
+    const pdf::PDFCMS* getCms() const;
+    void setCms(const pdf::PDFCMS* cms);
+
 signals:
     void pinRequest();
     void unpinRequest();
@@ -51,6 +58,8 @@ private:
     void updatePinnedUi();
 
     Ui::ObjectViewerWidget* ui;
+    const pdf::PDFCMS* m_cms;
+    const pdf::PDFDocument* m_document;
     bool m_isPinned;
 
     pdf::PDFObjectReference m_currentReference;

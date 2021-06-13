@@ -63,6 +63,10 @@ public:
     /// \param document Document
     static qint64 getDocumentFileSize(const PDFDocument* document);
 
+    /// Writes an object to byte array, without object header/footer
+    /// \param object Object to be written
+    static QByteArray getSerializedObject(const PDFObject& object);
+
 private:
     void writeCRLF(QIODevice* device);
     void writeObjectHeader(QIODevice* device, PDFObjectReference reference);

@@ -72,7 +72,8 @@ std::vector<QAction*> ObjectInspectorPlugin::getActions() const
 
 void ObjectInspectorPlugin::onObjectInspectorTriggered()
 {
-    ObjectInspectorDialog dialog(m_document, m_widget);
+    pdf::PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
+    ObjectInspectorDialog dialog(cms.data(), m_document, m_widget);
     dialog.exec();
 }
 

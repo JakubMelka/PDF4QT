@@ -318,6 +318,33 @@ void PDFObjectInspectorTreeItemModel::setMode(Mode mode)
     }
 }
 
+pdf::PDFObject PDFObjectInspectorTreeItemModel::getObjectFromIndex(const QModelIndex& index) const
+{
+    if (!index.isValid())
+    {
+        return pdf::PDFObject();
+    }
+
+    const PDFObjectInspectorTreeItem* item = static_cast<const PDFObjectInspectorTreeItem*>(index.internalPointer());
+    return item->getObject();
+}
+
+pdf::PDFObjectReference PDFObjectInspectorTreeItemModel::getObjectReferenceFromIndex(const QModelIndex& index) const
+{
+    if (!index.isValid())
+    {
+        return pdf::PDFObjectReference();
+    }
+
+    const PDFObjectInspectorTreeItem* item = static_cast<const PDFObjectInspectorTreeItem*>(index.internalPointer());
+    return item->getReference();
+}
+
+bool PDFObjectInspectorTreeItemModel::isRootObject(const QModelIndex& index) const
+{
+    return index.isValid() && !index.parent().isValid();
+}
+
 class PDFCreateObjectInspectorTreeItemFromObjectVisitor : public pdf::PDFAbstractVisitor
 {
 public:

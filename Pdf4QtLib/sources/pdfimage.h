@@ -54,7 +54,7 @@ private:
     bool m_defaultForPrinting = false;
 };
 
-class PDFImage
+class Pdf4QtLIBSHARED_EXPORT PDFImage
 {
 public:
 

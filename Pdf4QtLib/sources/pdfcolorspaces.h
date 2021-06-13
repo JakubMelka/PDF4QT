@@ -307,7 +307,7 @@ using PDFColorComponentMatrix_3x3 = PDFColorComponentMatrix<3, 3>;
 
 /// Represents PDF's color space (abstract class). Contains functions for parsing
 /// color spaces.
-class PDFAbstractColorSpace
+class Pdf4QtLIBSHARED_EXPORT PDFAbstractColorSpace
 {
 public:
     explicit PDFAbstractColorSpace() = default;

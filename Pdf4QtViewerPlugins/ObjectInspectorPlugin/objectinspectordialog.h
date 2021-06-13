@@ -20,6 +20,7 @@
 
 #include "pdfdocument.h"
 #include "pdfobjectutils.h"
+#include "pdfcms.h"
 
 #include <QDialog>
 
@@ -37,13 +38,15 @@ class ObjectInspectorDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit ObjectInspectorDialog(const pdf::PDFDocument* document, QWidget* parent);
+    explicit ObjectInspectorDialog(const pdf::PDFCMS* cms, const pdf::PDFDocument* document, QWidget* parent);
     virtual ~ObjectInspectorDialog() override;
 
 private:
     void onModeChanged();
+    void onCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
 
     Ui::ObjectInspectorDialog* ui;
+    const pdf::PDFCMS* m_cms;
     const pdf::PDFDocument* m_document;
     pdf::PDFObjectClassifier m_objectClassifier;
     PDFObjectInspectorTreeItemModel* m_model;

@@ -60,6 +60,10 @@ public:
 
     void setMode(Mode mode);
 
+    pdf::PDFObject getObjectFromIndex(const QModelIndex& index) const;
+    pdf::PDFObjectReference getObjectReferenceFromIndex(const QModelIndex& index) const;
+    bool isRootObject(const QModelIndex& index) const;
+
 private:
     void createObjectItem(PDFObjectInspectorTreeItem* parent,
                           pdf::PDFObjectReference reference,

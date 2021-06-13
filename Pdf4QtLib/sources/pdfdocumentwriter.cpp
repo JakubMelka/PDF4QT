@@ -519,4 +519,19 @@ qint64 PDFDocumentWriter::getDocumentFileSize(const PDFDocument* document)
     return -1;
 }
 
+QByteArray PDFDocumentWriter::getSerializedObject(const PDFObject& object)
+{
+    QBuffer buffer;
+
+    if (buffer.open(QBuffer::WriteOnly))
+    {
+        PDFWriteObjectVisitor visitor(&buffer);
+        object.accept(&visitor);
+
+        buffer.close();
+    }
+
+    return buffer.data();
+}
+
 }   // namespace pdf
