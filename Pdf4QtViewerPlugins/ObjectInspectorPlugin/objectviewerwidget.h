@@ -65,6 +65,7 @@ private:
     pdf::PDFObjectReference m_currentReference;
     pdf::PDFObject m_currentObject;
     bool m_isRootObject;
+    QByteArray m_printableCharacters;
 };
 
 }   // pdfplugin

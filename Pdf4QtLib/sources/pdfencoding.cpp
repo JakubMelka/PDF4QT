@@ -2453,6 +2453,23 @@ QString PDFEncoding::getEncodingCharacters(Encoding encoding)
     return string;
 }
 
+QByteArray PDFEncoding::getPrintableCharacters()
+{
+    QByteArray result;
+
+    const char min = std::numeric_limits<char>::min();
+    const char max = std::numeric_limits<char>::max();
+    for (char i = min; i < max; ++i)
+    {
+        if (std::isprint(static_cast<unsigned char>(i)))
+        {
+            result.push_back(i);
+        }
+    }
+
+    return result;
+}
+
 bool PDFEncoding::hasUnicodeLeadMarkings(const QByteArray& stream)
 {
     if (stream.size() >= 2)

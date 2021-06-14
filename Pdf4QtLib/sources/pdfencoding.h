@@ -132,6 +132,9 @@ public:
     /// \returns All characters reprezentable by encoding.
     static QString getEncodingCharacters(Encoding encoding);
 
+    /// Returns all printable characters
+    static QByteArray getPrintableCharacters();
+
 private:
     /// Returns true, if byte array has UTF-16BE/LE unicode marking bytes at the
     /// stream start. If they are present, then byte stream is probably encoded

@@ -42,6 +42,9 @@ ObjectViewerWidget::ObjectViewerWidget(bool isPinned, QWidget* parent) :
 {
     ui->setupUi(this);
 
+    m_printableCharacters = pdf::PDFEncoding::getPrintableCharacters();
+    m_printableCharacters.push_back('\n');
+
     connect(ui->pinButton, &QPushButton::clicked, this, &ObjectViewerWidget::pinRequest);
     connect(ui->unpinButton, &QPushButton::clicked, this, &ObjectViewerWidget::pinRequest);
 
@@ -160,7 +163,7 @@ void ObjectViewerWidget::updateUi()
             break;
 
         case pdf::PDFObject::Type::Name:
-            ui->descriptionEdit->setText(QString("/%1").arg(QString::fromLatin1(m_currentObject.getString().toPercentEncoding())));
+            ui->descriptionEdit->setText(QString("/%1").arg(QString::fromLatin1(m_currentObject.getString().toPercentEncoding(m_printableCharacters))));
             break;
 
         case pdf::PDFObject::Type::Array:
@@ -216,11 +219,23 @@ void ObjectViewerWidget::updateUi()
                 QImage image = pdfImage.getImage(m_cms, &dummyErrorReporter);
                 ui->stackedWidget->setCurrentWidget(ui->imageBrowserPage);
                 ui->imageBrowser->setPixmap(QPixmap::fromImage(image));
+
+                const int width = image.width();
+                const int height = image.height();
+                const int depth = loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
+
+                QString textDescription = tr("Image Stream [%1 items, %2 data bytes, %3 x %4 pixels, %5 bits per component]");
+                ui->descriptionEdit->setText(textDescription.arg(locale.toString(m_currentObject.getStream()->getDictionary()->getCount()),
+                                                                 locale.toString(m_currentObject.getStream()->getContent()->size()),
+                                                                 locale.toString(width),
+                                                                 locale.toString(height),
+                                                                 locale.toString(depth)));
             }
             else
             {
                 QByteArray data = m_document->getDecodedStream(stream);
-                QByteArray percentEncodedData = data.toPercentEncoding(" \n");
+                data.replace('\r', ' ');
+                QByteArray percentEncodedData = data.toPercentEncoding(m_printableCharacters);
                 ui->contentTextBrowser->setText(QString::fromLatin1(percentEncodedData));
                 ui->stackedWidget->setCurrentWidget(ui->contentTextBrowserPage);
             }
@@ -234,7 +249,7 @@ void ObjectViewerWidget::updateUi()
     else
     {
         QByteArray serializedObject = pdf::PDFDocumentWriter::getSerializedObject(m_currentObject);
-        QByteArray percentEncodedData = serializedObject.toPercentEncoding(" \n");
+        QByteArray percentEncodedData = serializedObject.toPercentEncoding(m_printableCharacters);
         ui->contentTextBrowser->setText(QString::fromLatin1(percentEncodedData));
         ui->stackedWidget->setCurrentWidget(ui->contentTextBrowserPage);
     }
