@@ -40,6 +40,9 @@
       <property name="currentIndex">
        <number>0</number>
       </property>
+      <property name="movable">
+       <bool>true</bool>
+      </property>
       <widget class="QWidget" name="currentObjectTab">
        <attribute name="title">
         <string>Current Object</string>

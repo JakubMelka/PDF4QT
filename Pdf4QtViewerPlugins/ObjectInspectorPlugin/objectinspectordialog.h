@@ -43,6 +43,8 @@ public:
 
 private:
     void onModeChanged();
+    void onPinRequest();
+    void onUnpinRequest();
     void onCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
 
     Ui::ObjectInspectorDialog* ui;

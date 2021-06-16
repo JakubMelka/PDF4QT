@@ -103,6 +103,8 @@ ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFCMS* cms, const pdf::
     ui->splitter->setSizes(QList<int>() << pdf::PDFWidgetUtils::scaleDPI_x(this, 300) << pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
 
     connect(ui->objectTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &ObjectInspectorDialog::onCurrentIndexChanged);
+    connect(ui->currentObjectWidget, &ObjectViewerWidget::pinRequest, this, &ObjectInspectorDialog::onPinRequest);
+    connect(ui->currentObjectWidget, &ObjectViewerWidget::unpinRequest, this, &ObjectInspectorDialog::onUnpinRequest);
 
     ui->objectTreeView->setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
@@ -117,6 +119,34 @@ void ObjectInspectorDialog::onModeChanged()
 {
     const PDFObjectInspectorTreeItemModel::Mode mode = static_cast<const PDFObjectInspectorTreeItemModel::Mode>(ui->modeComboBox->currentData().toInt());
     m_model->setMode(mode);
+}
+
+void ObjectInspectorDialog::onPinRequest()
+{
+    ObjectViewerWidget* source = qobject_cast<ObjectViewerWidget*>(sender());
+
+    if (!source || source != ui->currentObjectWidget)
+    {
+        return;
+    }
+
+    ObjectViewerWidget* cloned = ui->currentObjectWidget->clone(true, this);
+    connect(cloned, &ObjectViewerWidget::pinRequest, this, &ObjectInspectorDialog::onPinRequest);
+    connect(cloned, &ObjectViewerWidget::unpinRequest, this, &ObjectInspectorDialog::onUnpinRequest);
+    ui->tabWidget->addTab(cloned, cloned->getTitleText());
+}
+
+void ObjectInspectorDialog::onUnpinRequest()
+{
+    ObjectViewerWidget* source = qobject_cast<ObjectViewerWidget*>(sender());
+
+    if (!source || source == ui->currentObjectWidget)
+    {
+        return;
+    }
+
+    ui->tabWidget->removeTab(ui->tabWidget->indexOf(source));
+    source->deleteLater();
 }
 
 void ObjectInspectorDialog::onCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous)

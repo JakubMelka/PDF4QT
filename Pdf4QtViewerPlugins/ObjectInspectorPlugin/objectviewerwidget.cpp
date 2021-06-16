@@ -46,7 +46,7 @@ ObjectViewerWidget::ObjectViewerWidget(bool isPinned, QWidget* parent) :
     m_printableCharacters.push_back('\n');
 
     connect(ui->pinButton, &QPushButton::clicked, this, &ObjectViewerWidget::pinRequest);
-    connect(ui->unpinButton, &QPushButton::clicked, this, &ObjectViewerWidget::pinRequest);
+    connect(ui->unpinButton, &QPushButton::clicked, this, &ObjectViewerWidget::unpinRequest);
 
     updateUi();
     updatePinnedUi();
@@ -55,6 +55,18 @@ ObjectViewerWidget::ObjectViewerWidget(bool isPinned, QWidget* parent) :
 ObjectViewerWidget::~ObjectViewerWidget()
 {
     delete ui;
+}
+
+ObjectViewerWidget* ObjectViewerWidget::clone(bool isPinned, QWidget* parent)
+{
+    ObjectViewerWidget* cloned = new ObjectViewerWidget(isPinned, parent);
+
+    cloned->setDocument(m_document);
+    cloned->setCms(m_cms);
+    cloned->setData(m_currentReference, m_currentObject, m_isRootObject);
+
+
+    return cloned;
 }
 
 void ObjectViewerWidget::setPinned(bool isPinned)
@@ -269,6 +281,25 @@ const pdf::PDFCMS* ObjectViewerWidget::getCms() const
 void ObjectViewerWidget::setCms(const pdf::PDFCMS* cms)
 {
     m_cms = cms;
+}
+
+QString ObjectViewerWidget::getTitleText() const
+{
+    if (!m_currentReference.isValid())
+    {
+        return tr("[Unknown]");
+    }
+
+    QString referenceString = tr("%1 %2 R").arg(m_currentReference.objectNumber).arg(m_currentReference.generation);
+
+    if (m_isRootObject)
+    {
+        return referenceString;
+    }
+    else
+    {
+        return tr("%1 (part)").arg(referenceString);
+    }
 }
 
 const pdf::PDFDocument* ObjectViewerWidget::getDocument() const

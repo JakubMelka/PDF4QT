@@ -40,6 +40,8 @@ public:
     explicit ObjectViewerWidget(bool isPinned, QWidget* parent);
     virtual ~ObjectViewerWidget() override;
 
+    ObjectViewerWidget* clone(bool isPinned, QWidget* parent);
+
     void setPinned(bool isPinned);
     void setData(pdf::PDFObjectReference currentReference, pdf::PDFObject currentObject, bool isRootObject);
 
@@ -48,6 +50,8 @@ public:
 
     const pdf::PDFCMS* getCms() const;
     void setCms(const pdf::PDFCMS* cms);
+
+    QString getTitleText() const;
 
 signals:
     void pinRequest();
