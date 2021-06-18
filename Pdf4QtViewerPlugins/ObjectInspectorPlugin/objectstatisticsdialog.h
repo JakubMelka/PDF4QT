@@ -15,42 +15,42 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef OBJECTINSPECTORPLUGIN_H
-#define OBJECTINSPECTORPLUGIN_H
+#ifndef OBJECTSTATISTICSDIALOG_H
+#define OBJECTSTATISTICSDIALOG_H
 
-#include "pdfplugin.h"
+#include "pdfdocument.h"
+#include "pdfobjectutils.h"
 
-#include <QObject>
+#include <QDialog>
+
+namespace Ui
+{
+class ObjectStatisticsDialog;
+}
 
 namespace pdfplugin
 {
 
-class ObjectInspectorPlugin : public pdf::PDFPlugin
+class ObjectStatisticsDialog : public QDialog
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "Pdf4Qt.ObjectInspectorPlugin" FILE "ObjectInspectorPlugin.json")
-
-private:
-    using BaseClass = pdf::PDFPlugin;
 
 public:
-    ObjectInspectorPlugin();
-
-    virtual void setWidget(pdf::PDFWidget* widget) override;
-    virtual void setCMSManager(pdf::PDFCMSManager* manager) override;
-    virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
-    virtual std::vector<QAction*> getActions() const override;
+    explicit ObjectStatisticsDialog(const pdf::PDFDocument* document, QWidget* parent);
+    virtual ~ObjectStatisticsDialog() override;
 
 private:
-    void onObjectInspectorTriggered();
-    void onObjectStatisticsTriggered();
+    Ui::ObjectStatisticsDialog* ui;
 
-    void updateActions();
+    enum StatisticsType
+    {
 
-    QAction* m_objectInspectorAction;
-    QAction* m_objectStatisticsAction;
+    };
+
+    const pdf::PDFDocument* m_document;
+    pdf::PDFObjectClassifier::Statistics m_statistics;
 };
 
 }   // namespace pdfplugin
 
-#endif // OBJECTINSPECTORPLUGIN_H
+#endif // OBJECTSTATISTICSDIALOG_H

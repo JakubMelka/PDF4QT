@@ -63,14 +63,19 @@ public:
     /// \param document Document
     static qint64 getDocumentFileSize(const PDFDocument* document);
 
+    /// Calculates size estimate of an object. If object is null, then zero is returned.
+    /// \param document Document
+    /// \param reference Reference
+    static qint64 getObjectSize(const PDFDocument* document, PDFObjectReference reference);
+
     /// Writes an object to byte array, without object header/footer
     /// \param object Object to be written
     static QByteArray getSerializedObject(const PDFObject& object);
 
 private:
-    void writeCRLF(QIODevice* device);
-    void writeObjectHeader(QIODevice* device, PDFObjectReference reference);
-    void writeObjectFooter(QIODevice* device);
+    static void writeCRLF(QIODevice* device);
+    static void writeObjectHeader(QIODevice* device, PDFObjectReference reference);
+    static void writeObjectFooter(QIODevice* device);
 
     /// Progress indicator
     PDFProgress* m_progress;

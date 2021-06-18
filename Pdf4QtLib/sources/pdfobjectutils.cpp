@@ -17,6 +17,8 @@
 
 #include "pdfobjectutils.h"
 #include "pdfvisitor.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfdocumentwriter.h"
 
 namespace pdf
 {
@@ -357,6 +359,59 @@ std::vector<PDFObjectReference> PDFObjectClassifier::getObjectsByType(Type type)
         {
             result.push_back(classification.reference);
         }
+    }
+
+    return result;
+}
+
+PDFObjectClassifier::Statistics PDFObjectClassifier::calculateStatistics(const PDFDocument* document) const
+{
+    Statistics result;
+
+    // Jakub Melka: prepare statistics map
+    result.statistics[None];
+
+    for (uint i = 0; i < 32; ++i)
+    {
+        uint32_t mask = 1 << i;
+        if (m_allTypesUsed & mask)
+        {
+            result.statistics[Type(mask)];
+        }
+    }
+
+    auto processEntry = [document, &result](const Classification& entry)
+    {
+        const PDFObject& object = document->getObjectByReference(entry.reference);
+
+        if (object.isNull())
+        {
+            return;
+        }
+
+        Type type = Type(uint32_t(entry.types));
+        if (!result.statistics.count(type))
+        {
+            type = None;
+        }
+
+        Q_ASSERT(result.statistics.count(type));
+
+        const qint64 objectSize = PDFDocumentWriter::getObjectSize(document, entry.reference);
+
+        StatisticsItem& statisticsItem = result.statistics.at(type);
+        statisticsItem.count.fetch_add(1);
+        statisticsItem.bytes.fetch_add(objectSize);
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, m_classification.cbegin(), m_classification.cend(), processEntry);
+
+    PDFStatisticsCollector collector;
+    PDFApplyVisitor(*document, &collector);
+
+    for (PDFObject::Type objectType : PDFObject::getTypes())
+    {
+        result.objectCountByType[size_t(objectType)] = collector.getObjectCount(objectType);
     }
 
     return result;

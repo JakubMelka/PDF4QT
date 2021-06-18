@@ -22,6 +22,7 @@
 #include "pdfdrawwidget.h"
 
 #include "objectinspectordialog.h"
+#include "objectstatisticsdialog.h"
 
 #include <QAction>
 
@@ -30,7 +31,8 @@ namespace pdfplugin
 
 ObjectInspectorPlugin::ObjectInspectorPlugin() :
     pdf::PDFPlugin(nullptr),
-    m_objectInspectorAction(nullptr)
+    m_objectInspectorAction(nullptr),
+    m_objectStatisticsAction(nullptr)
 {
 
 }
@@ -46,6 +48,12 @@ void ObjectInspectorPlugin::setWidget(pdf::PDFWidget* widget)
     m_objectInspectorAction->setObjectName("actionObjectInspector_ObjectInspector");
 
     connect(m_objectInspectorAction, &QAction::triggered, this, &ObjectInspectorPlugin::onObjectInspectorTriggered);
+
+    m_objectStatisticsAction = new QAction(QIcon(":/pdfplugins/objectinspector/object-statistics.svg"), tr("Object Statistics"), this);
+    m_objectStatisticsAction->setCheckable(false);
+    m_objectStatisticsAction->setObjectName("actionObjectInspector_ObjectStatistics");
+
+    connect(m_objectStatisticsAction, &QAction::triggered, this, &ObjectInspectorPlugin::onObjectStatisticsTriggered);
 
     updateActions();
 }
@@ -67,7 +75,7 @@ void ObjectInspectorPlugin::setDocument(const pdf::PDFModifiedDocument& document
 
 std::vector<QAction*> ObjectInspectorPlugin::getActions() const
 {
-    return { m_objectInspectorAction };
+    return { m_objectInspectorAction, m_objectStatisticsAction };
 }
 
 void ObjectInspectorPlugin::onObjectInspectorTriggered()
@@ -77,9 +85,16 @@ void ObjectInspectorPlugin::onObjectInspectorTriggered()
     dialog.exec();
 }
 
+void ObjectInspectorPlugin::onObjectStatisticsTriggered()
+{
+    ObjectStatisticsDialog dialog(m_document, m_widget);
+    dialog.exec();
+}
+
 void ObjectInspectorPlugin::updateActions()
 {
     m_objectInspectorAction->setEnabled(m_widget && m_document);
+    m_objectStatisticsAction->setEnabled(m_widget && m_document);
 }
 
 }

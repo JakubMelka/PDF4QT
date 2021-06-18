@@ -519,6 +519,28 @@ qint64 PDFDocumentWriter::getDocumentFileSize(const PDFDocument* document)
     return -1;
 }
 
+qint64 PDFDocumentWriter::getObjectSize(const PDFDocument* document, PDFObjectReference reference)
+{
+    const PDFObject& object = document->getObjectByReference(reference);
+
+    if (object.isNull())
+    {
+        return 0;
+    }
+
+    PDFSizeCounterIODevice device(nullptr);
+
+    device.open(QIODevice::WriteOnly);
+
+    PDFWriteObjectVisitor visitor(&device);
+    writeObjectHeader(&device, reference);
+    object.accept(&visitor);
+    writeObjectFooter(&device);
+
+    device.close();
+    return device.pos();
+}
+
 QByteArray PDFDocumentWriter::getSerializedObject(const PDFObject& object)
 {
     QBuffer buffer;

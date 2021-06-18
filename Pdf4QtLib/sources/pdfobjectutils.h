@@ -24,6 +24,7 @@
 
 #include <set>
 #include <vector>
+#include <atomic>
 
 namespace pdf
 {
@@ -147,6 +148,31 @@ public:
     /// Returns a list of objects with a given type
     /// \param type Type
     std::vector<PDFObjectReference> getObjectsByType(Type type) const;
+
+    struct StatisticsItem
+    {
+        inline StatisticsItem() :
+            count(0),
+            bytes(0)
+        {
+
+        }
+
+        std::atomic<qint64> count;
+        std::atomic<qint64> bytes;
+    };
+
+    struct Statistics
+    {
+        std::array<qint64, size_t(PDFObject::Type::LastType)> objectCountByType = { };
+        std::map<Type, StatisticsItem> statistics;
+    };
+
+    /// Calculate document statistics. Document classification must be
+    /// performed before this function is called, otherwise result is undefined.
+    /// \param document Document
+    /// \returns Calculated statistics of each object type
+    Statistics calculateStatistics(const PDFDocument* document) const;
 
 private:
     struct Classification

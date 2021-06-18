@@ -174,10 +174,13 @@ public:
         Array,
         Dictionary,
         Stream,
-        Reference
+        Reference,
+
+        // Last type mark
+        LastType
     };
 
-    static std::vector<Type> getTypes() { return { Type::Null, Type::Bool, Type::Int, Type::Real, Type::String, Type::Name, Type::Array, Type::Dictionary, Type::Stream, Type::Reference }; }
+    static constexpr auto getTypes() { return std::array{ Type::Null, Type::Bool, Type::Int, Type::Real, Type::String, Type::Name, Type::Array, Type::Dictionary, Type::Stream, Type::Reference }; }
 
     typedef std::shared_ptr<PDFObjectContent> PDFObjectContentPointer;
 

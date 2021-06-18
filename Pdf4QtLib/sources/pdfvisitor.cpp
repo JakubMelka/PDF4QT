@@ -50,11 +50,7 @@ void PDFAbstractVisitor::acceptStream(const PDFStream* stream)
 
 PDFStatisticsCollector::PDFStatisticsCollector()
 {
-    // We must avoid to allocate map item
-    for (PDFObject::Type type : PDFObject::getTypes())
-    {
-        m_statistics.emplace(std::make_pair(type, Statistics()));
-    }
+
 }
 
 void PDFStatisticsCollector::visitNull()
@@ -82,7 +78,7 @@ void PDFStatisticsCollector::visitReal(PDFReal value)
 
 void PDFStatisticsCollector::visitString(PDFStringRef string)
 {
-    Statistics& statistics = m_statistics[PDFObject::Type::String];
+    Statistics& statistics = m_statistics[size_t(PDFObject::Type::String)];
     if (string.inplaceString)
     {
         collectStatisticsOfSimpleObject(PDFObject::Type::String);
@@ -95,7 +91,7 @@ void PDFStatisticsCollector::visitString(PDFStringRef string)
 
 void PDFStatisticsCollector::visitName(PDFStringRef name)
 {
-    Statistics& statistics = m_statistics[PDFObject::Type::Name];
+    Statistics& statistics = m_statistics[size_t(PDFObject::Type::Name)];
     if (name.inplaceString)
     {
         collectStatisticsOfSimpleObject(PDFObject::Type::Name);
@@ -108,7 +104,7 @@ void PDFStatisticsCollector::visitName(PDFStringRef name)
 
 void PDFStatisticsCollector::visitArray(const PDFArray* array)
 {
-    Statistics& statistics = m_statistics[PDFObject::Type::Array];
+    Statistics& statistics = m_statistics[size_t(PDFObject::Type::Array)];
     statistics.count += 1;
     statistics.memoryConsumptionEstimate += sizeof(PDFObject) + sizeof(PDFArray);
 
@@ -122,7 +118,7 @@ void PDFStatisticsCollector::visitArray(const PDFArray* array)
 
 void PDFStatisticsCollector::visitDictionary(const PDFDictionary* dictionary)
 {
-    Statistics& statistics = m_statistics[PDFObject::Type::Dictionary];
+    Statistics& statistics = m_statistics[size_t(PDFObject::Type::Dictionary)];
     collectStatisticsOfDictionary(statistics, dictionary);
 
     acceptDictionary(dictionary);
@@ -130,7 +126,7 @@ void PDFStatisticsCollector::visitDictionary(const PDFDictionary* dictionary)
 
 void PDFStatisticsCollector::visitStream(const PDFStream* stream)
 {
-    Statistics& statistics = m_statistics[PDFObject::Type::Stream];
+    Statistics& statistics = m_statistics[size_t(PDFObject::Type::Stream)];
     collectStatisticsOfDictionary(statistics, stream->getDictionary());
 
     const QByteArray& byteArray = *stream->getContent();
@@ -190,7 +186,7 @@ void PDFStatisticsCollector::collectStatisticsOfString(const PDFString* string, 
 
 void PDFStatisticsCollector::collectStatisticsOfSimpleObject(PDFObject::Type type)
 {
-    Statistics& statistics = m_statistics[type];
+    Statistics& statistics = m_statistics[size_t(type)];
     statistics.count += 1;
     statistics.memoryConsumptionEstimate += sizeof(PDFObject);
 }

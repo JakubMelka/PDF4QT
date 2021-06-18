@@ -35,14 +35,18 @@ CONFIG += c++11
 SOURCES += \
     objectinspectordialog.cpp \
     objectinspectorplugin.cpp \
+    objectstatisticsdialog.cpp \
     objectviewerwidget.cpp \
-    pdfobjectinspectortreeitemmodel.cpp
+    pdfobjectinspectortreeitemmodel.cpp \
+    statisticsgraphwidget.cpp
 
 HEADERS += \
     objectinspectordialog.h \
     objectinspectorplugin.h \
+    objectstatisticsdialog.h \
     objectviewerwidget.h \
-    pdfobjectinspectortreeitemmodel.h
+    pdfobjectinspectortreeitemmodel.h \
+    statisticsgraphwidget.h
 
 CONFIG += force_debug_info
 
@@ -54,4 +58,6 @@ RESOURCES += \
 
 FORMS += \
     objectinspectordialog.ui \
-    objectviewerwidget.ui
+    objectstatisticsdialog.ui \
+    objectviewerwidget.ui \
+    statisticsgraphwidget.ui

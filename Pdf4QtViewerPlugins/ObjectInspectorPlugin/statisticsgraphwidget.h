@@ -15,42 +15,31 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef OBJECTINSPECTORPLUGIN_H
-#define OBJECTINSPECTORPLUGIN_H
+#ifndef STATISTICSGRAPHWIDGET_H
+#define STATISTICSGRAPHWIDGET_H
 
-#include "pdfplugin.h"
+#include <QWidget>
 
-#include <QObject>
+namespace Ui
+{
+class StatisticsGraphWidget;
+}
 
 namespace pdfplugin
 {
 
-class ObjectInspectorPlugin : public pdf::PDFPlugin
+class StatisticsGraphWidget : public QWidget
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "Pdf4Qt.ObjectInspectorPlugin" FILE "ObjectInspectorPlugin.json")
-
-private:
-    using BaseClass = pdf::PDFPlugin;
 
 public:
-    ObjectInspectorPlugin();
-
-    virtual void setWidget(pdf::PDFWidget* widget) override;
-    virtual void setCMSManager(pdf::PDFCMSManager* manager) override;
-    virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
-    virtual std::vector<QAction*> getActions() const override;
+    explicit StatisticsGraphWidget(QWidget* parent);
+    virtual ~StatisticsGraphWidget() override;
 
 private:
-    void onObjectInspectorTriggered();
-    void onObjectStatisticsTriggered();
-
-    void updateActions();
-
-    QAction* m_objectInspectorAction;
-    QAction* m_objectStatisticsAction;
+    Ui::StatisticsGraphWidget* ui;
 };
 
 }   // namespace pdfplugin
 
-#endif // OBJECTINSPECTORPLUGIN_H
+#endif // STATISTICSGRAPHWIDGET_H

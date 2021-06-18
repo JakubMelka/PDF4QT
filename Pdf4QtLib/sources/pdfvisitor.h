@@ -92,7 +92,13 @@ public:
 
     struct Statistics
     {
-        explicit constexpr Statistics() = default;
+        inline constexpr Statistics() :
+            count(0),
+            memoryConsumptionEstimate(0),
+            memoryOverheadEstimate(0)
+        {
+
+        }
 
         /// This constructor must not be used while \p other is write-accessed from another thread.
         /// We use relaxed memory order, because we assume this constructor is used only while
@@ -106,9 +112,9 @@ public:
 
         }
 
-        std::atomic_uint64_t count = 0;
-        std::atomic_uint64_t memoryConsumptionEstimate = 0;
-        std::atomic_uint64_t memoryOverheadEstimate = 0;
+        std::atomic<qint64> count = 0;
+        std::atomic<qint64> memoryConsumptionEstimate = 0;
+        std::atomic<qint64> memoryOverheadEstimate = 0;
     };
 
     virtual void visitNull() override;
@@ -122,12 +128,14 @@ public:
     virtual void visitStream(const PDFStream* stream) override;
     virtual void visitReference(const PDFObjectReference reference) override;
 
+    qint64 getObjectCount(PDFObject::Type type) const { return m_statistics[size_t(type)].count; }
+
 private:
     void collectStatisticsOfSimpleObject(PDFObject::Type type);
     void collectStatisticsOfString(const PDFString* string, Statistics& statistics);
     void collectStatisticsOfDictionary(Statistics& statistics, const PDFDictionary* dictionary);
 
-    std::map<PDFObject::Type, Statistics> m_statistics;
+    std::array<Statistics, size_t(PDFObject::Type::LastType)> m_statistics = { };
 };
 
 template<typename Visitor, PDFAbstractVisitor::Strategy strategy>
