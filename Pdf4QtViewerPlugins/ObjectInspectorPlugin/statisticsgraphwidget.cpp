@@ -18,10 +18,12 @@
 #include "statisticsgraphwidget.h"
 #include "ui_statisticsgraphwidget.h"
 
+#include "pdfwidgetutils.h"
+
 namespace pdfplugin
 {
 
-StatisticsGraphWidget::StatisticsGraphWidget(QWidget *parent) :
+StatisticsGraphWidget::StatisticsGraphWidget(QWidget* parent) :
     QWidget(parent),
     ui(new Ui::StatisticsGraphWidget)
 {
@@ -31,6 +33,64 @@ StatisticsGraphWidget::StatisticsGraphWidget(QWidget *parent) :
 StatisticsGraphWidget::~StatisticsGraphWidget()
 {
     delete ui;
+}
+
+void StatisticsGraphWidget::setStatistics(Statistics statistics)
+{
+    if (m_statistics != statistics)
+    {
+        m_statistics = qMove(statistics);
+        updateGeometry();
+        update();
+    }
+}
+
+StatisticsGraphWidget::GeometryHint StatisticsGraphWidget::getGeometryHint() const
+{
+    GeometryHint hint;
+
+    int fivePixelsX = pdf::PDFWidgetUtils::scaleDPI_x(this, 5);
+    int fivePixelsY = pdf::PDFWidgetUtils::scaleDPI_y(this, 5);
+
+    hint.margins = QMargins(fivePixelsX, fivePixelsY, fivePixelsX, fivePixelsY);
+    hint.colorRectangleWidth = pdf::PDFWidgetUtils::scaleDPI_x(this, 40);
+    hint.linesWidthLeft = pdf::PDFWidgetUtils::scaleDPI_x(this, 15);
+    hint.linesWidthRight = pdf::PDFWidgetUtils::scaleDPI_x(this, 5);
+
+    QFontMetrics fontMetricsTitle(getTitleFont());
+    hint.titleWidth = fontMetricsTitle.horizontalAdvance(m_statistics.title);
+    hint.titleHeight = fontMetricsTitle.lineSpacing();
+
+    QFontMetrics fontMetricsHeader(getHeaderFont());
+    hint.textHeight = fontMetricsHeader.lineSpacing();
+
+    QFontMetrics fontMetricsText(getTextFont());
+    hint.textHeight += fontMetricsText.lineSpacing() * int(m_statistics.items.size());
+
+    // Determine text header width
+    s
+
+    return hint;
+}
+
+QFont StatisticsGraphWidget::getTitleFont() const
+{
+    QFont font = this->font();
+    font.setPointSize(font.pointSize() * 2);
+    font.setBold(true);
+    return font;
+}
+
+QFont StatisticsGraphWidget::getHeaderFont() const
+{
+    QFont font = this->font();
+    font.setBold(true);
+    return font;
+}
+
+QFont StatisticsGraphWidget::getTextFont() const
+{
+    return this->font();
 }
 
 }   // namespace pdfplugin

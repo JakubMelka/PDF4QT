@@ -228,6 +228,48 @@ PDFObject PDFObjectUtils::replaceReferences(const PDFObject& object, const std::
     return replaceReferencesVisitor.getObject();
 }
 
+QString PDFObjectUtils::getObjectTypeName(PDFObject::Type type)
+{
+    switch (type)
+    {
+        case pdf::PDFObject::Type::Null:
+            return PDFTranslationContext::tr("Null");
+
+        case pdf::PDFObject::Type::Bool:
+            return PDFTranslationContext::tr("Boolean");
+
+        case pdf::PDFObject::Type::Int:
+            return PDFTranslationContext::tr("Integer");
+
+        case pdf::PDFObject::Type::Real:
+            return PDFTranslationContext::tr("Real");
+
+        case pdf::PDFObject::Type::String:
+            return PDFTranslationContext::tr("String");
+
+        case pdf::PDFObject::Type::Name:
+            return PDFTranslationContext::tr("Name");
+
+        case pdf::PDFObject::Type::Array:
+            return PDFTranslationContext::tr("Array");
+
+        case pdf::PDFObject::Type::Dictionary:
+            return PDFTranslationContext::tr("Dictionary");
+
+        case pdf::PDFObject::Type::Stream:
+            return PDFTranslationContext::tr("Stream");
+
+        case pdf::PDFObject::Type::Reference:
+            return PDFTranslationContext::tr("Reference");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
 void PDFObjectClassifier::classify(const PDFDocument* document)
 {
     // Clear old classification, if it exist

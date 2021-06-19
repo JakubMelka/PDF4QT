@@ -32,7 +32,7 @@ class PDFObjectStorage;
 class PDFDocument;
 
 /// Utilities for manipulation with objects
-class PDFObjectUtils
+class Pdf4QtLIBSHARED_EXPORT PDFObjectUtils
 {
 public:
     /// Returns a list of references referenced by \p objects. So, all references, which are present
@@ -46,6 +46,10 @@ public:
     static std::set<PDFObjectReference> getDirectReferences(const PDFObject& object);
 
     static PDFObject replaceReferences(const PDFObject& object, const std::map<PDFObjectReference, PDFObjectReference>& referenceMapping);
+
+    /// Returns name for object type
+    /// \param type Type
+    static QString getObjectTypeName(PDFObject::Type type);
 
 private:
     PDFObjectUtils() = delete;

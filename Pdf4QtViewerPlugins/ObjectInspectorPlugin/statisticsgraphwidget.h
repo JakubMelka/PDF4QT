@@ -33,11 +33,56 @@ class StatisticsGraphWidget : public QWidget
     Q_OBJECT
 
 public:
+
+    struct StatisticsItem
+    {
+        bool operator==(const StatisticsItem&) const = default;
+
+        qreal portion;
+        QColor color;
+        QStringList texts;
+    };
+
+    struct Statistics
+    {
+        bool operator==(const Statistics&) const = default;
+
+        QString title;
+        QStringList headers;
+        std::vector<StatisticsItem> items;
+    };
+
     explicit StatisticsGraphWidget(QWidget* parent);
     virtual ~StatisticsGraphWidget() override;
 
+    void setStatistics(Statistics statistics);
+
 private:
     Ui::StatisticsGraphWidget* ui;
+
+    struct GeometryHint
+    {
+        QMargins margins;
+        int colorRectangleWidth = 0;
+        int linesWidthLeft = 0;
+        int linesWidthRight = 0;
+
+        int titleWidth = 0;
+        int titleHeight = 0;
+        int textHeight = 0;
+
+        std::vector<int> textWidths;
+
+        QSize minimalWidgetSize = 0;
+    };
+
+    GeometryHint getGeometryHint() const;
+
+    QFont getTitleFont() const;
+    QFont getHeaderFont() const;
+    QFont getTextFont() const;
+
+    Statistics m_statistics;
 };
 
 }   // namespace pdfplugin

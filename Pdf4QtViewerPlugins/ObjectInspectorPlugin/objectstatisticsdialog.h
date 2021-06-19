@@ -44,8 +44,11 @@ private:
 
     enum StatisticsType
     {
-
+        ByObjectClass,
+        ByObjectType
     };
+
+    void updateStatisticsWidget();
 
     const pdf::PDFDocument* m_document;
     pdf::PDFObjectClassifier::Statistics m_statistics;
