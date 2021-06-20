@@ -22,7 +22,7 @@ namespace pdfplugin
 {
 
 ObjectStatisticsDialog::ObjectStatisticsDialog(const pdf::PDFDocument* document, QWidget *parent) :
-    QDialog(parent),
+    QDialog(parent, Qt::Dialog | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint),
     ui(new Ui::ObjectStatisticsDialog),
     m_document(document)
 {

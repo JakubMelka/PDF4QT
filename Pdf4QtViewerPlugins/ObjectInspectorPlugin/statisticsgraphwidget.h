@@ -20,6 +20,8 @@
 
 #include <QWidget>
 
+#include <vector>
+
 namespace Ui
 {
 class StatisticsGraphWidget;
@@ -55,7 +57,13 @@ public:
     explicit StatisticsGraphWidget(QWidget* parent);
     virtual ~StatisticsGraphWidget() override;
 
+    virtual QSize sizeHint() const override;
+    virtual QSize minimumSizeHint() const override;
+
     void setStatistics(Statistics statistics);
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
 
 private:
     Ui::StatisticsGraphWidget* ui;
@@ -66,14 +74,20 @@ private:
         int colorRectangleWidth = 0;
         int linesWidthLeft = 0;
         int linesWidthRight = 0;
+        int markerSize = 0;
+        int normalLineWidth = 0;
+        int selectedLineWidth = 0;
+        int colorRectangeLeftMargin = 0;
 
         int titleWidth = 0;
         int titleHeight = 0;
         int textHeight = 0;
+        int textMargin = 0;
+        int textLineHeight = 0;
 
         std::vector<int> textWidths;
 
-        QSize minimalWidgetSize = 0;
+        QSize minimalWidgetSize;
     };
 
     GeometryHint getGeometryHint() const;
@@ -83,6 +97,8 @@ private:
     QFont getTextFont() const;
 
     Statistics m_statistics;
+    std::vector<QRect> m_colorBoxes;
+    size_t m_selectedColorBox = -1;
 };
 
 }   // namespace pdfplugin
