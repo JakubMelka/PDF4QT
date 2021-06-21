@@ -92,7 +92,7 @@ StatisticsGraphWidget::GeometryHint StatisticsGraphWidget::getGeometryHint() con
 
         for (int i = 0; i < item.texts.size(); ++i)
         {
-            hint.textWidths[i] = qMax(hint.textWidths[i], fontMetricsHeader.horizontalAdvance(m_statistics.headers[i]));
+            hint.textWidths[i] = qMax(hint.textWidths[i], fontMetricsHeader.horizontalAdvance(item.texts[i]));
         }
     }
 
@@ -152,6 +152,7 @@ void StatisticsGraphWidget::paintEvent(QPaintEvent* event)
         top = currentRect.bottom();
 
         QColor color = (m_selectedColorBox == i) ? selectedColor: item.color;
+        color.setAlphaF(0.8);
         painter.fillRect(currentRect, color);
         m_colorBoxes.push_back(currentRect);
     }
@@ -201,6 +202,9 @@ void StatisticsGraphWidget::paintEvent(QPaintEvent* event)
         textRect.setLeft(maxLinePoint.x() + geometryHint.textMargin);
         textRect.setHeight(geometryHint.textLineHeight);
 
+        std::vector<QLine> horizontalLines;
+        horizontalLines.reserve(m_statistics.items.size());
+
         auto drawTexts = [&](const QStringList& texts, bool isHeader)
         {
             pdf::PDFPainterStateGuard guard(&painter);
@@ -219,6 +223,15 @@ void StatisticsGraphWidget::paintEvent(QPaintEvent* event)
                 Qt::Alignment alignment = (i == 0) ? Qt::Alignment(Qt::AlignLeft | Qt::AlignVCenter) : Qt::Alignment(Qt::AlignRight | Qt::AlignVCenter);
                 painter.drawText(finalCellRect, alignment, text);
                 cellRect.translate(cellRect.width(), 0);
+            }
+
+            if (!isHeader)
+            {
+                QPoint startPoint = textRect.center();
+                startPoint.setX(textRect.left());
+
+                QPoint endPoint(maxLinePoint.x(), startPoint.y());
+                horizontalLines.emplace_back(startPoint, endPoint);
             }
 
             textRect.translate(0, textRect.height());
@@ -242,6 +255,22 @@ void StatisticsGraphWidget::paintEvent(QPaintEvent* event)
         painter.setPen(pen);
 
         painter.drawLine(minLinePoint, maxLinePoint);
+
+        for (const QLine& line : horizontalLines)
+        {
+            painter.drawLine(line);
+        }
+
+        pen = painter.pen();
+        pen.setColor(Qt::black);
+        pen.setWidth(geometryHint.markerSize);
+        pen.setCapStyle(Qt::RoundCap);
+        painter.setPen(pen);
+
+        for (const QLine& line : horizontalLines)
+        {
+            painter.drawPoint(line.p1());
+        }
     }
 }
 

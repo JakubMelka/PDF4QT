@@ -98,7 +98,7 @@ void ObjectStatisticsDialog::updateStatisticsWidget()
                 StatisticsGraphWidget::StatisticsItem item;
                 item.portion = percentage / qreal(100.0);
                 item.color = colors[colorId++ % colors.size()];
-                item.texts = QStringList() << classText << locale.toString(percentage) << locale.toString(statisticsItem.count) << locale.toString(statisticsItem.bytes);
+                item.texts = QStringList() << classText << locale.toString(percentage, 'f', 2) << locale.toString(statisticsItem.count) << locale.toString(statisticsItem.bytes);
                 statistics.items.emplace_back(qMove(item));
             };
 
@@ -147,7 +147,7 @@ void ObjectStatisticsDialog::updateStatisticsWidget()
                     StatisticsGraphWidget::StatisticsItem item;
                     item.portion = percentage / qreal(100.0);
                     item.color = colors[colorId++ % colors.size()];
-                    item.texts = QStringList() << pdf::PDFObjectUtils::getObjectTypeName(type) << locale.toString(percentage) << locale.toString(currentObjectCount);
+                    item.texts = QStringList() << pdf::PDFObjectUtils::getObjectTypeName(type) << locale.toString(percentage, 'f', 2) << locale.toString(currentObjectCount);
                     statistics.items.emplace_back(qMove(item));
                 }
             }
