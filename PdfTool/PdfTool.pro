@@ -60,6 +60,7 @@ SOURCES += \
         pdftooloptimize.cpp \
         pdftoolrender.cpp \
         pdftoolseparate.cpp \
+        pdftoolstatistics.cpp \
         pdftoolunite.cpp \
         pdftoolverifysignatures.cpp \
         pdftoolxml.cpp
@@ -94,6 +95,7 @@ HEADERS += \
     pdftooloptimize.h \
     pdftoolrender.h \
     pdftoolseparate.h \
+    pdftoolstatistics.h \
     pdftoolunite.h \
     pdftoolverifysignatures.h \
     pdftoolxml.h
