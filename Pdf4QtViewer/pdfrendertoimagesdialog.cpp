@@ -49,6 +49,7 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* documen
     ui->setupUi(this);
 
     qRegisterMetaType<pdf::PDFRenderError>("PDFRenderError");
+    qRegisterMetaType<pdf::PDFInteger>("PDFInteger");
 
     // Load image formats
     for (const QByteArray& format : m_imageWriterSettings.getFormats())
@@ -245,7 +246,17 @@ void PDFRenderToImagesDialog::onProgressiveScanWriteChanged(bool value)
 
 void PDFRenderToImagesDialog::onRenderError(pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
 {
-    ui->progressMessagesEdit->setPlainText(QString("%1\n%2").arg(ui->progressMessagesEdit->toPlainText()).arg(tr("Page %1: %2").arg(pageIndex + 1).arg(error.message)));
+    QString text;
+
+    if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
+    {
+        text = tr("%1\nPage %2: %3").arg(ui->progressMessagesEdit->toPlainText(), QString::number(pageIndex + 1), error.message);
+    }
+    else
+    {
+        text = QString("%1\n%2").arg(ui->progressMessagesEdit->toPlainText(), error.message);
+    }
+    ui->progressMessagesEdit->setPlainText(text);
 }
 
 void PDFRenderToImagesDialog::onRenderingFinished()

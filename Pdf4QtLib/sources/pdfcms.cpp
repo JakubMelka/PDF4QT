@@ -26,6 +26,7 @@
 #pragma warning(disable:5033)
 #define CMS_NO_REGISTER_KEYWORD
 #include <lcms2.h>
+#include <lcms2_plugin.h>
 #pragma warning(pop)
 
 #include <unordered_map>
@@ -55,6 +56,14 @@ public:
 
 private:
     void init();
+
+    static int installCmsPlugins();
+
+    static cmsBool optimizePipeline(cmsPipeline** Lut,
+                                    cmsUInt32Number  Intent,
+                                    cmsUInt32Number* InputFormat,
+                                    cmsUInt32Number* OutputFormat,
+                                    cmsUInt32Number* dwFlags);
 
     enum Profile
     {
@@ -415,6 +424,9 @@ PDFLittleCMS::PDFLittleCMS(const PDFCMSManager* manager, const PDFCMSSettings& s
     m_paperColor(Qt::white),
     m_profiles()
 {
+    static const int installed = installCmsPlugins();
+    Q_UNUSED(installed);
+
     init();
 }
 
@@ -698,6 +710,145 @@ void PDFLittleCMS::init()
     // and 4 rendering intents. We have 4 * 4 = 16 input tables, so 64 will suffice enough
     // (because we then have 25% load factor).
     m_transformationCache.reserve(64);
+}
+
+int PDFLittleCMS::installCmsPlugins()
+{
+    static cmsPluginOptimization optimizationPlugin = { };
+    optimizationPlugin.base.Magic = cmsPluginMagicNumber;
+    optimizationPlugin.base.Type = cmsPluginOptimizationSig;
+    optimizationPlugin.base.Next = nullptr;
+    optimizationPlugin.base.ExpectedVersion = LCMS_VERSION;
+    optimizationPlugin.OptimizePtr = &PDFLittleCMS::optimizePipeline;
+
+    cmsPlugin(&optimizationPlugin);
+
+    return 0;
+}
+
+cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent, cmsUInt32Number* InputFormat, cmsUInt32Number* OutputFormat, cmsUInt32Number* dwFlags)
+{
+    if (*dwFlags & cmsFLAGS_HIGHRESPRECALC)
+    {
+        // Do not optimize
+        return FALSE;
+    }
+
+    Q_UNUSED(Intent);
+
+    // We will find, if we can optimize...
+    bool shouldOptimize = false;
+    for (auto stage = cmsPipelineGetPtrToFirstStage(*Lut); stage; stage = cmsStageNext(stage))
+    {
+        if (cmsStageType(stage) == cmsSigCurveSetElemType)
+        {
+            _cmsStageToneCurvesData* data = reinterpret_cast<_cmsStageToneCurvesData*>(cmsStageData(stage));
+            for (cmsUInt32Number i = 0; i < data->nCurves; ++i)
+            {
+                const cmsToneCurve* curve = data->TheCurves[i];
+                const cmsInt32Number type = cmsGetToneCurveParametricType(curve);
+
+                if (type != 0 && !cmsIsToneCurveMultisegment(curve))
+                {
+                    shouldOptimize = true;
+                }
+            }
+        }
+    }
+
+    if (shouldOptimize)
+    {
+        cmsContext contextId = cmsGetPipelineContextID(*Lut);
+        cmsPipeline* pipeline = cmsPipelineAlloc(contextId, T_CHANNELS(*InputFormat), T_CHANNELS(*OutputFormat));
+        if (!pipeline)
+        {
+            return FALSE;
+        }
+
+        for (auto stage = cmsPipelineGetPtrToFirstStage(*Lut); stage; stage = cmsStageNext(stage))
+        {
+            if (cmsStageType(stage) == cmsSigCurveSetElemType)
+            {
+                _cmsStageToneCurvesData* data = reinterpret_cast<_cmsStageToneCurvesData*>(cmsStageData(stage));
+                std::vector<cmsToneCurve*> curves(data->nCurves, nullptr);
+
+                for (cmsUInt32Number i = 0; i < data->nCurves; ++i)
+                {
+                    const cmsToneCurve* curve = data->TheCurves[i];
+                    const cmsInt32Number type = cmsGetToneCurveParametricType(curve);
+
+                    if (type != 0 && !cmsIsToneCurveMultisegment(curve))
+                    {
+                        std::array<cmsCurveSegment, 3> segments = { };
+
+                        const cmsFloat64Number* params = cmsGetToneCurveParams(curve);
+
+                        cmsCurveSegment& s1 = segments[0];
+                        cmsCurveSegment& s2 = segments[1];
+                        cmsCurveSegment& s3 = segments[2];
+
+                        const cmsFloat32Number eps = cmsFloat32Number(1e-5);
+                        const cmsFloat32Number low = 0.0f - eps;
+                        const cmsFloat32Number high = 1.0f + eps;
+
+                        s1.Type = type;
+                        s1.nGridPoints = 0;
+                        s1.SampledPoints = nullptr;
+                        std::copy(params, params + (sizeof(s1.Params) / sizeof(*s1.Params)), s1.Params);
+                        s1.x0 = std::numeric_limits<cmsFloat32Number>::min();
+                        s1.x1 = low;
+
+                        const cmsUInt32Number gridPoints = 1024;
+                        const cmsFloat32Number factor = 1.0f / cmsFloat32Number(gridPoints - 1);
+
+                        s2.Type = 0;
+                        s2.nGridPoints = gridPoints;
+                        s2.SampledPoints = static_cast<cmsFloat32Number*>(_cmsCalloc(contextId, gridPoints, sizeof(*s2.SampledPoints)));
+                        std::copy(params, params + (sizeof(s2.Params) / sizeof(*s2.Params)), s2.Params);
+                        s2.x0 = low;
+                        s2.x1 = high;
+
+                        for (cmsUInt32Number i = 0; i < gridPoints; ++i)
+                        {
+                            const cmsFloat32Number x = i * factor;
+                            s2.SampledPoints[i] = cmsEvalToneCurveFloat(curve, x);
+                        }
+
+                        s3.Type = type;
+                        s3.nGridPoints = 0;
+                        s3.SampledPoints = nullptr;
+                        std::copy(params, params + (sizeof(s3.Params) / sizeof(*s3.Params)), s3.Params);
+                        s3.x0 = high;
+                        s3.x1 = std::numeric_limits<cmsFloat32Number>::max();
+
+                        curves[i] = cmsBuildSegmentedToneCurve(contextId, cmsUInt32Number(segments.size()), segments.data());
+
+                        _cmsFree(contextId, s2.SampledPoints);
+                    }
+                    else
+                    {
+                        curves[i] = cmsDupToneCurve(curve);
+                    }
+                }
+
+                cmsStageAllocToneCurves(contextId, cmsFloat32Number(curves.size()), curves.data());
+
+                for (cmsToneCurve* curve : curves)
+                {
+                    cmsFreeToneCurve(curve);
+                }
+            }
+            else
+            {
+                cmsPipelineInsertStage(pipeline, cmsAT_END, cmsStageDup(stage));
+            }
+        }
+
+        cmsPipelineFree(*Lut);
+        *Lut = pipeline;
+    }
+
+    return FALSE;
 }
 
 bool PDFLittleCMS::isSoftProofing() const
