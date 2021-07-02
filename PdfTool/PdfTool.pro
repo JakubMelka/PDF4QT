@@ -52,11 +52,13 @@ SOURCES += \
         pdftoolfetchtext.cpp \
         pdftoolinfo.cpp \
         pdftoolinfofonts.cpp \
+        pdftoolinfoinks.cpp \
         pdftoolinfojavascript.cpp \
         pdftoolinfometadata.cpp \
         pdftoolinfonameddestinations.cpp \
         pdftoolinfopageboxes.cpp \
         pdftoolinfostructuretree.cpp \
+        pdftoolinkcoverage.cpp \
         pdftooloptimize.cpp \
         pdftoolrender.cpp \
         pdftoolseparate.cpp \
@@ -87,11 +89,13 @@ HEADERS += \
     pdftoolfetchtext.h \
     pdftoolinfo.h \
     pdftoolinfofonts.h \
+    pdftoolinfoinks.h \
     pdftoolinfojavascript.h \
     pdftoolinfometadata.h \
     pdftoolinfonameddestinations.h \
     pdftoolinfopageboxes.h \
     pdftoolinfostructuretree.h \
+    pdftoolinkcoverage.h \
     pdftooloptimize.h \
     pdftoolrender.h \
     pdftoolseparate.h \
