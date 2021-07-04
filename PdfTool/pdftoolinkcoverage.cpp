@@ -93,8 +93,9 @@ int PDFToolInkCoverageApplication::execute(const PDFToolOptions& options)
 
     formatter.beginTable("ink-coverage-by-page", PDFToolTranslationContext::tr("Ink Coverage by Page"));
 
-    bool isHeaderProcessed = false;
+    QLocale locale;
     std::vector<pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo> headerCoverage;
+
     for (const pdf::PDFInteger pageIndex : pageIndices)
     {
         const std::vector<pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo>* coverage = calculator.getInkCoverage(pageIndex);
@@ -105,33 +106,70 @@ int PDFToolInkCoverageApplication::execute(const PDFToolOptions& options)
             continue;
         }
 
-        if (!isHeaderProcessed)
+        for (const auto& info : *coverage)
         {
-            formatter.beginTableHeaderRow("header");
-            formatter.writeTableHeaderColumn("page-no", PDFToolTranslationContext::tr("Page No."), Qt::AlignLeft);
-            for (const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo& info : *coverage)
+            if (!pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name))
             {
-                formatter.writeTableHeaderColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), PDFToolTranslationContext::tr("%1 Ratio [%]").arg(info.textName), Qt::AlignLeft);
-                formatter.writeTableHeaderColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), PDFToolTranslationContext::tr("%1 Covered [mm^2]").arg(info.textName), Qt::AlignLeft);
+                headerCoverage.push_back(info);
             }
-            headerCoverage = *coverage;
-            formatter.endTableHeaderRow();
-
-            isHeaderProcessed = true;
-        }
-
-        for (const auto& info : *headerCoverage)
-        {
-            pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(*coverage, info.name);
-            pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* sumChannelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name);
-
-            if (sumChannelInfo && channelInfo)
-            {
-                sumChannelInfo->coveredArea += channelInfo->coveredArea;
-            }
-
         }
     }
+
+    formatter.beginTableHeaderRow("header");
+    formatter.writeTableHeaderColumn("page-no", PDFToolTranslationContext::tr("Page No."), Qt::AlignLeft);
+    for (const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo& info : headerCoverage)
+    {
+        formatter.writeTableHeaderColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), PDFToolTranslationContext::tr("%1 Ratio [%]").arg(info.textName), Qt::AlignLeft);
+        formatter.writeTableHeaderColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), PDFToolTranslationContext::tr("%1 Covered [mm^2]").arg(info.textName), Qt::AlignLeft);
+    }
+    formatter.endTableHeaderRow();
+
+    for (const pdf::PDFInteger pageIndex : pageIndices)
+    {
+        const std::vector<pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo>* coverage = calculator.getInkCoverage(pageIndex);
+
+        if (!coverage)
+        {
+            // Jakub Melka: Something bad happened?
+            continue;
+        }
+
+        formatter.beginTableRow("page-coverage", pageIndex + 1);
+        formatter.writeTableColumn("page-no", locale.toString(pageIndex + 1), Qt::AlignRight);
+
+        for (const auto& info : headerCoverage)
+        {
+            const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(*coverage, info.name);
+            pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* sumChannelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name);
+
+            if (channelInfo)
+            {
+                formatter.writeTableColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), locale.toString(channelInfo->ratio * 100.0, 'f', 2), Qt::AlignRight);
+                formatter.writeTableColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), locale.toString(channelInfo->coveredArea, 'f', 2), Qt::AlignRight);
+                sumChannelInfo->coveredArea += channelInfo->coveredArea;
+            }
+            else
+            {
+                formatter.writeTableColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), QString(), Qt::AlignRight);
+                formatter.writeTableColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), QString(), Qt::AlignRight);
+            }
+        }
+
+        formatter.endTableRow();
+    }
+
+    // Summary
+    formatter.beginTableRow("sum-coverage");
+    formatter.writeTableColumn("sum", PDFToolTranslationContext::tr("Sum"), Qt::AlignRight);
+
+    for (const auto& info : headerCoverage)
+    {
+        const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name);
+        formatter.writeTableColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), QString(), Qt::AlignRight);
+        formatter.writeTableColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), locale.toString(channelInfo->coveredArea, 'f', 2), Qt::AlignRight);
+    }
+
+    formatter.endTableRow();
 
     formatter.endTable();
 

@@ -728,9 +728,9 @@ int PDFLittleCMS::installCmsPlugins()
 
 cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent, cmsUInt32Number* InputFormat, cmsUInt32Number* OutputFormat, cmsUInt32Number* dwFlags)
 {
-    if (*dwFlags & cmsFLAGS_HIGHRESPRECALC)
+    if (!(*dwFlags & cmsFLAGS_LOWRESPRECALC))
     {
-        // Do not optimize
+        // Optimize only on low resolution precalculation
         return FALSE;
     }
 
@@ -811,7 +811,7 @@ cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent
                         for (cmsUInt32Number i = 0; i < gridPoints; ++i)
                         {
                             const cmsFloat32Number x = i * factor;
-                            s2.SampledPoints[i] = cmsEvalToneCurveFloat(curve, x);
+                            s2.SampledPoints[i] = cmsEvalToneCurveFloat(curve, interpolate(x, 0.0, 1.0, low, high));
                         }
 
                         s3.Type = type;

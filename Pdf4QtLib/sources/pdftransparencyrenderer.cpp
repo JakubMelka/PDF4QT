@@ -3975,6 +3975,7 @@ void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>
             info.textName = colorInfo.textName;
             info.isSpot = colorInfo.isSpot;
             info.coveredArea = pageCoverage[i];
+            info.ratio = pageRatioCoverage[i];
             results.emplace_back(qMove(info));
         }
 
