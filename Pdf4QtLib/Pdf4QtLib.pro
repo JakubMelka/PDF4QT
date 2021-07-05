@@ -183,8 +183,8 @@ FORMS += \
 
 RESOURCES += cmaps.qrc
 
-Pdf4Qt_DEPENDENCIES_PATH = K:\Programming\PDF\PDF_For_Qt\PdfforQt-Dependencies
-Pdf4Qt_OPENSSL_PATH = K:\Programming\Qt\Tools\
+Pdf4Qt_DEPENDENCIES_PATH = $$absolute_path(../../PdfforQt-Dependencies, $$PWD)
+Pdf4Qt_OPENSSL_PATH = $$absolute_path(../../Tools, $$[QT_INSTALL_PREFIX])
 
 CONFIG(debug, debug|release) {
 SUFFIX = d
