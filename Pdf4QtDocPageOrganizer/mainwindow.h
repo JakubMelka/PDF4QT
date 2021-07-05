@@ -15,19 +15,31 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "mainwindow.h"
+#ifndef PDFDOCPAGEORGANIZER_MAINWINDOW_H
+#define PDFDOCPAGEORGANIZER_MAINWINDOW_H
 
-#include <QApplication>
+#include <QMainWindow>
 
-int main(int argc, char *argv[])
+namespace Ui
 {
-    QApplication a(argc, argv);
-
-    QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("JBIG2_image_viewer");
-    QCoreApplication::setApplicationVersion("1.0");
-
-    MainWindow w;
-    w.show();
-    return a.exec();
+class MainWindow;
 }
+
+namespace pdfdocpage
+{
+
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
+
+public:
+    explicit MainWindow(QWidget* parent);
+    virtual ~MainWindow() override;
+
+private:
+    Ui::MainWindow* ui;
+};
+
+}   // namespace pdfdocpage
+
+#endif // PDFDOCPAGEORGANIZER_MAINWINDOW_H

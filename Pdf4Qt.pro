@@ -27,7 +27,8 @@ SUBDIRS += \
     Pdf4QtViewer \
     Pdf4QtViewerPlugins \
     Pdf4QtViewerProfi \
-    Pdf4QtViewerLite
+    Pdf4QtViewerLite \
+    Pdf4QtDocPageOrganizer
 
 CodeGenerator.depends = Pdf4QtLib
 JBIG2_Viewer.depends = Pdf4QtLib
@@ -38,3 +39,4 @@ Pdf4QtViewer.depends = Pdf4QtLib
 Pdf4QtViewerPlugins.depends = Pdf4QtLib
 Pdf4QtViewerProfi.depends = Pdf4QtViewer
 Pdf4QtViewerLite.depends = Pdf4QtViewer
+Pdf4QtDocPageOrganizer.depends = Pdf4QtLib

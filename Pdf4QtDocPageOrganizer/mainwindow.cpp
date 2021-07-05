@@ -16,18 +16,21 @@
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "mainwindow.h"
+#include "ui_mainwindow.h"
 
-#include <QApplication>
-
-int main(int argc, char *argv[])
+namespace pdfdocpage
 {
-    QApplication a(argc, argv);
 
-    QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("JBIG2_image_viewer");
-    QCoreApplication::setApplicationVersion("1.0");
-
-    MainWindow w;
-    w.show();
-    return a.exec();
+MainWindow::MainWindow(QWidget *parent) :
+    QMainWindow(parent),
+    ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
 }
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+
+}   // namespace pdfdocpage

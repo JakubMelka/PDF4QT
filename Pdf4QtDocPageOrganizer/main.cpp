@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "pdfviewermainwindow.h"
 #include "pdfconstants.h"
+#include "mainwindow.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -29,9 +29,9 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("PDF4QT Viewer Profi");
+    QCoreApplication::setApplicationName("PDF4QT DocPage Organizer");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
-    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer Profi"));
+    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT DocPage Organizer"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
@@ -39,14 +39,8 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument("file", "The PDF file to open.");
     parser.process(application);
 
-    pdfviewer::PDFViewerMainWindow mainWindow;
+    pdfdocpage::MainWindow mainWindow(nullptr);
     mainWindow.show();
-
-    QStringList arguments = application.arguments();
-    if (arguments.size() > 1)
-    {
-        mainWindow.getProgramController()->openDocument(arguments[1]);
-    }
 
     return application.exec();
 }

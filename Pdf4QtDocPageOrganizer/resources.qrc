@@ -1,0 +1,33 @@
+<RCC>
+    <qresource prefix="/pdfdocpage">
+        <file>resources/about.svg</file>
+        <file>resources/clone-selection.svg</file>
+        <file>resources/close.svg</file>
+        <file>resources/copy.svg</file>
+        <file>resources/cut.svg</file>
+        <file>resources/get-source.svg</file>
+        <file>resources/group.svg</file>
+        <file>resources/insert-empty-page.svg</file>
+        <file>resources/insert-image.svg</file>
+        <file>resources/insert-page-from-pdf.svg</file>
+        <file>resources/make-separated-document.svg</file>
+        <file>resources/make-separated-document-from-groups.svg</file>
+        <file>resources/make-united-document.svg</file>
+        <file>resources/open.svg</file>
+        <file>resources/paste.svg</file>
+        <file>resources/remove-selection.svg</file>
+        <file>resources/replace-selection.svg</file>
+        <file>resources/restore-removed-items.svg</file>
+        <file>resources/rotate-left.svg</file>
+        <file>resources/rotate-right.svg</file>
+        <file>resources/select-all.svg</file>
+        <file>resources/select-even.svg</file>
+        <file>resources/select-landscape.svg</file>
+        <file>resources/select-none.svg</file>
+        <file>resources/select-odd.svg</file>
+        <file>resources/select-portrait.svg</file>
+        <file>resources/ungroup.svg</file>
+        <file>resources/zoom-in.svg</file>
+        <file>resources/zoom-out.svg</file>
+    </qresource>
+</RCC>
