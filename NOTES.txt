@@ -10,7 +10,6 @@ Section 6: OK
 
 Section 7: Issues
  - 7.4.7 JBIG2 decoder ammendments 1 and 2 not implemented
- - 7.6.4 saving document with password not implemented
  - 7.6.5 Public-key security handlers not implemented
  - 7.6.7 Unencrypted wrapper document not implemented
  - 7.10.2 Only linear interpolation for sampled function is performed
@@ -47,9 +46,10 @@ Section 10: Issues
  - 10.8 Separations are not produced
  - 10.8.3 Separation simulation is not performed
 
-Section 11: Not implemented
- - Transparency is not implemented, only a small fraction of pdf's 
-   transparency works
+Section 11: Implemented partially
+ - Transparency is not implemented in regular Qt's painter,
+   but separate transparency renderer exist, which can render
+   also spot colors
 
 Section 12: Issues
  - 12.3.2.2 Destinations are used only to leap on specified page,
