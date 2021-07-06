@@ -20,6 +20,8 @@
 
 #include <QMainWindow>
 
+#include "pageitemmodel.h"
+
 namespace Ui
 {
 class MainWindow;
@@ -38,6 +40,8 @@ public:
 
 private:
     Ui::MainWindow* ui;
+
+    PageItemModel* m_model;
 };
 
 }   // namespace pdfdocpage

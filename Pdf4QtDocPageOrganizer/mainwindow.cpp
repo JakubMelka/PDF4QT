@@ -18,14 +18,21 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include "pdfwidgetutils.h"
+
 namespace pdfdocpage
 {
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    ui(new Ui::MainWindow),
+    m_model(new PageItemModel(this))
 {
     ui->setupUi(this);
+
+    ui->documentItemsView->setModel(m_model);
+
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 }
 
 MainWindow::~MainWindow()

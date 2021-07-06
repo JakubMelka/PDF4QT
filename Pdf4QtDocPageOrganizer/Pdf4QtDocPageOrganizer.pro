@@ -42,13 +42,15 @@ INSTALLS += application
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    pageitemmodel.cpp
 
 FORMS += \
     mainwindow.ui
 
 HEADERS += \
-    mainwindow.h
+    mainwindow.h \
+    pageitemmodel.h
 
 RESOURCES += \
     resources.qrc
