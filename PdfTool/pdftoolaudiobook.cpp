@@ -289,7 +289,7 @@ QString PDFToolAudioBookVoices::getStandardString(PDFToolAbstractApplication::St
 
 int PDFToolAudioBookVoices::execute(const PDFToolOptions& options)
 {
-    if (!SUCCEEDED(::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)))
+    if (!SUCCEEDED(::CoInitialize(nullptr)))
     {
         return ErrorCOM;
     }
@@ -457,7 +457,8 @@ int PDFToolAudioBook::execute(const PDFToolOptions& options)
         return ErrorNoText;
     }
 
-    if (!SUCCEEDED(::CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)))
+    auto comResult = ::CoInitialize(nullptr);
+    if (!SUCCEEDED(comResult))
     {
         return ErrorCOM;
     }
