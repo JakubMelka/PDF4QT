@@ -55,7 +55,7 @@ QModelIndex PageItemModel::parent(const QModelIndex& index) const
 
 int PageItemModel::rowCount(const QModelIndex& parent) const
 {
-    if (!parent.isValid())
+    if (parent.isValid())
     {
         return 0;
     }
@@ -65,7 +65,7 @@ int PageItemModel::rowCount(const QModelIndex& parent) const
 
 int PageItemModel::columnCount(const QModelIndex& parent) const
 {
-    if (!parent.isValid())
+    if (parent.isValid())
     {
         return 0;
     }
@@ -112,6 +112,19 @@ int PageItemModel::addDocument(QString fileName, pdf::PDFDocument document)
     return newIndex;
 }
 
+const PageGroupItem* PageItemModel::getItem(const QModelIndex& index) const
+{
+    if (index.isValid())
+    {
+        if (index.row() < m_pageGroupItems.size())
+        {
+            return &m_pageGroupItems.at(index.row());
+        }
+    }
+
+    return nullptr;
+}
+
 void PageItemModel::createDocumentGroup(int index)
 {
     const DocumentItem& item = m_documents.at(index);
@@ -134,7 +147,7 @@ void PageItemModel::createDocumentGroup(int index)
         PageGroupItem::GroupItem groupItem;
         groupItem.documentIndex = index;
         groupItem.pageIndex = i;
-        groupItem.rotatedPageDimensionsMM = item.document.getCatalog()->getPage(i)->getRotatedMediaBoxMM().size();
+        groupItem.rotatedPageDimensionsMM = item.document.getCatalog()->getPage(i - 1)->getRotatedMediaBoxMM().size();
         newItem.groups.push_back(qMove(groupItem));
     }
 

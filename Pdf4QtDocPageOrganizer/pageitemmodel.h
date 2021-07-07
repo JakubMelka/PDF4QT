@@ -70,6 +70,11 @@ public:
     /// \returns Identifier of the document (internal index)
     int addDocument(QString fileName, pdf::PDFDocument document);
 
+    /// Returns item at a given index. If item doesn't exist,
+    /// then nullptr is returned.
+    /// \param index Index
+    const PageGroupItem* getItem(const QModelIndex& index) const;
+
 private:
     void createDocumentGroup(int index);
     QString getGroupNameFromDocument(int index) const;

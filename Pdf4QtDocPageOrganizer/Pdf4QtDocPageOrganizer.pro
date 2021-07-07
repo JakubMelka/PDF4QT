@@ -43,6 +43,7 @@ INSTALLS += application
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
+    pageitemdelegate.cpp \
     pageitemmodel.cpp
 
 FORMS += \
@@ -50,6 +51,7 @@ FORMS += \
 
 HEADERS += \
     mainwindow.h \
+    pageitemdelegate.h \
     pageitemmodel.h
 
 RESOURCES += \

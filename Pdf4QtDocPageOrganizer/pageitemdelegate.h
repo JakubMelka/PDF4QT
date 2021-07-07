@@ -15,56 +15,41 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef PDFDOCPAGEORGANIZER_MAINWINDOW_H
-#define PDFDOCPAGEORGANIZER_MAINWINDOW_H
+#ifndef PDFDOCPAGEORGANIZER_PAGEITEMDELEGATE_H
+#define PDFDOCPAGEORGANIZER_PAGEITEMDELEGATE_H
 
-#include <QMainWindow>
-
-#include "pageitemmodel.h"
-#include "pageitemdelegate.h"
-
-namespace Ui
-{
-class MainWindow;
-}
+#include <QAbstractItemDelegate>
 
 namespace pdfdocpage
 {
 
-class MainWindow : public QMainWindow
+class PageItemModel;
+
+class PageItemDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 
+private:
+    using BaseClass = QAbstractItemDelegate;
+
 public:
-    explicit MainWindow(QWidget* parent);
-    virtual ~MainWindow() override;
+    explicit PageItemDelegate(PageItemModel* model, QObject* parent);
+    virtual ~PageItemDelegate() override;
 
-    QSize getMinPageImageSize() const;
-    QSize getDefaultPageImageSize() const;
-    QSize getMaxPageImageSize() const;
+    virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+    virtual QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 
-private slots:
-    void on_actionClose_triggered();
-    void on_actionAddDocument_triggered();
-    void updateActions();
+    QSize getPageImageSize() const;
+    void setPageImageSize(const QSize& pageImageSize);
 
 private:
-    void loadSettings();
-    void saveSettings();
-    void addDocument(const QString& fileName);
-
-    struct Settings
-    {
-        QString directory;
-    };
-
-    Ui::MainWindow* ui;
+    static constexpr int getVerticalSpacing() { return 5; }
+    static constexpr int getHorizontalSpacing() { return 5; }
 
     PageItemModel* m_model;
-    PageItemDelegate* m_delegate;
-    Settings m_settings;
+    QSize m_pageImageSize;
 };
 
 }   // namespace pdfdocpage
 
-#endif // PDFDOCPAGEORGANIZER_MAINWINDOW_H
+#endif // PDFDOCPAGEORGANIZER_PAGEITEMDELEGATE_H
