@@ -80,9 +80,15 @@ public:
     ///  Returns true, if grouped item exists in the indices
     bool isGrouped(const QModelIndexList& indices) const;
 
+    QItemSelection getSelectionEven() const;
+    QItemSelection getSelectionOdd() const;
+    QItemSelection getSelectionPortrait() const;
+    QItemSelection getSelectionLandscape() const;
+
 private:
     void createDocumentGroup(int index);
     QString getGroupNameFromDocument(int index) const;
+    QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
 
     std::vector<PageGroupItem> m_pageGroupItems;
     std::map<int, DocumentItem> m_documents;

@@ -40,7 +40,7 @@ public:
     virtual QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 
     QSize getPageImageSize() const;
-    void setPageImageSize(const QSize& pageImageSize);
+    void setPageImageSize(QSize pageImageSize);
 
 private:
     static constexpr int getVerticalSpacing() { return 5; }

@@ -69,6 +69,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionSeparate_to_Multiple_Documents_Grouped->setData(int(Operation::SeparateGrouped));
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
+    mainToolbar->setObjectName("main_toolbar");
     mainToolbar->addAction(ui->actionAddDocument);
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionCloneSelection, ui->actionRemoveSelection });
@@ -77,16 +78,21 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
     QToolBar* insertToolbar = addToolBar(tr("Insert"));
+    insertToolbar->setObjectName("insert_toolbar");
     insertToolbar->addActions({ ui->actionInsert_Page_from_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
     QToolBar* selectToolbar = addToolBar(tr("Select"));
+    selectToolbar->setObjectName("select_toolbar");
     selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape });
     QToolBar* zoomToolbar = addToolBar(tr("Zoom"));
+    zoomToolbar->setObjectName("zoom_toolbar");
     zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
     QToolBar* makeToolbar = addToolBar(tr("Make"));
+    makeToolbar->setObjectName("make_toolbar");
     makeToolbar->addActions({ ui->actionUnited_Document, ui->actionSeparate_to_Multiple_Documents, ui->actionSeparate_to_Multiple_Documents_Grouped });
 
     QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
-    for (QToolBar* toolbar : findChildren<QToolBar*>())
+    auto toolbars = findChildren<QToolBar*>();
+    for (QToolBar* toolbar : toolbars)
     {
         toolbar->setIconSize(iconSize);
     }
@@ -306,7 +312,83 @@ bool MainWindow::canPerformOperation(Operation operation) const
 
 void MainWindow::performOperation(Operation operation)
 {
+    switch (operation)
+    {
+        case Operation::CloneSelection:
+        case Operation::RemoveSelection:
+        case Operation::ReplaceSelection:
+        case Operation::RestoreRemovedItems:
+        case Operation::Cut:
+        case Operation::Copy:
+        case Operation::Paste:
+        case Operation::RotateLeft:
+        case Operation::RotateRight:
+            break;
 
+        case Operation::Group:
+        case Operation::Ungroup:
+            break;
+
+        case Operation::SelectNone:
+            ui->documentItemsView->clearSelection();
+            break;
+
+        case Operation::SelectAll:
+            ui->documentItemsView->selectAll();
+            break;
+
+        case Operation::SelectEven:
+            ui->documentItemsView->selectionModel()->select(m_model->getSelectionEven(), QItemSelectionModel::ClearAndSelect);
+            break;
+
+        case Operation::SelectOdd:
+            ui->documentItemsView->selectionModel()->select(m_model->getSelectionOdd(), QItemSelectionModel::ClearAndSelect);
+            break;
+
+        case Operation::SelectPortrait:
+            ui->documentItemsView->selectionModel()->select(m_model->getSelectionPortrait(), QItemSelectionModel::ClearAndSelect);
+            break;
+
+        case Operation::SelectLandscape:
+            ui->documentItemsView->selectionModel()->select(m_model->getSelectionLandscape(), QItemSelectionModel::ClearAndSelect);
+            break;
+
+        case Operation::ZoomIn:
+        {
+            QSize pageImageSize = m_delegate->getPageImageSize();
+            pageImageSize *= 1.2;
+            pageImageSize = pageImageSize.boundedTo(getMaxPageImageSize());
+
+            if (pageImageSize != m_delegate->getPageImageSize())
+            {
+                m_delegate->setPageImageSize(pageImageSize);
+            }
+            break;
+        }
+
+        case Operation::ZoomOut:
+        {
+            QSize pageImageSize = m_delegate->getPageImageSize();
+            pageImageSize /= 1.2;
+            pageImageSize = pageImageSize.expandedTo(getMinPageImageSize());
+
+            if (pageImageSize != m_delegate->getPageImageSize())
+            {
+                m_delegate->setPageImageSize(pageImageSize);
+            }
+            break;
+        }
+
+        case Operation::Unite:
+        case Operation::Separate:
+        case Operation::SeparateGrouped:
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    updateActions();
 }
 
 }   // namespace pdfdocpage

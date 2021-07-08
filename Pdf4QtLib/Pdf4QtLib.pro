@@ -68,6 +68,7 @@ SOURCES += \
     sources/pdfoutline.cpp \
     sources/pdfpagenavigation.cpp \
     sources/pdfpagetransition.cpp \
+    sources/pdfpainterutils.cpp \
     sources/pdfparser.cpp \
     sources/pdfdocument.cpp \
     sources/pdfdocumentreader.cpp \

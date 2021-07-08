@@ -18,6 +18,7 @@
 #include "pageitemdelegate.h"
 #include "pageitemmodel.h"
 #include "pdfwidgetutils.h"
+#include "pdfpainterutils.h"
 
 #include <QPainter>
 
@@ -49,6 +50,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
 
     QSize scaledSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, m_pageImageSize);
     int verticalSpacing = pdf::PDFWidgetUtils::scaleDPI_y(option.widget, getVerticalSpacing());
+    int horizontalSpacing = pdf::PDFWidgetUtils::scaleDPI_x(option.widget, getHorizontalSpacing());
 
     QRect pageBoundingRect = QRect(QPoint(rect.left() + (rect.width() - scaledSize.width()) / 2, rect.top() + verticalSpacing), scaledSize);
 
@@ -78,6 +80,21 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         selectedColor.setAlphaF(0.3);
         painter->fillRect(rect, selectedColor);
     }
+
+    QPoint tagPoint = rect.topRight() + QPoint(-horizontalSpacing, verticalSpacing);
+    for (const QString& tag : item->tags)
+    {
+        QStringList splitted = tag.split('@', Qt::KeepEmptyParts);
+        if (splitted.size() != 2 || splitted.back().isEmpty())
+        {
+            continue;
+        }
+
+        QColor color;
+        color.setNamedColor(splitted.front());
+        QRect bubbleRect = pdf::PDFPainterHelper::drawBubble(painter, tagPoint, color, splitted.back(), Qt::AlignLeft | Qt::AlignBottom);
+        tagPoint.ry() += bubbleRect.height() + verticalSpacing;
+    }
 }
 
 QSize PageItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const
@@ -95,9 +112,13 @@ QSize PageItemDelegate::getPageImageSize() const
     return m_pageImageSize;
 }
 
-void PageItemDelegate::setPageImageSize(const QSize& pageImageSize)
+void PageItemDelegate::setPageImageSize(QSize pageImageSize)
 {
-    m_pageImageSize = pageImageSize;
+    if (m_pageImageSize != pageImageSize)
+    {
+        m_pageImageSize = pageImageSize;
+        emit sizeHintChanged(QModelIndex());
+    }
 }
 
 }   // namespace pdfdocpage

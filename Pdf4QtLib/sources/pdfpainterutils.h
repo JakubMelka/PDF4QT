@@ -18,6 +18,8 @@
 #ifndef PDFPAINTERUTILS_H
 #define PDFPAINTERUTILS_H
 
+#include "pdfglobal.h"
+
 #include <QPainter>
 
 namespace pdf
@@ -40,6 +42,19 @@ public:
 
 private:
     QPainter* m_painter;
+};
+
+class Pdf4QtLIBSHARED_EXPORT PDFPainterHelper
+{
+public:
+    /// Draws bubble using painter. Bubble is aligned to the point, colored with color
+    /// and inside bubble, text is being paint. Bubble bounding box is being returned.
+    /// \param painter Painter
+    /// \param point Position of the bubble
+    /// \param color Color of the bubble
+    /// \param text Text inside the bubble
+    /// \param alignment Bubble alignment relative to the bubble position point
+    static QRect drawBubble(QPainter* painter, QPoint point, QColor color, QString text, Qt::Alignment alignment);
 };
 
 }   // namespace pdf

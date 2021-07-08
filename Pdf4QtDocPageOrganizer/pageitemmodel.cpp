@@ -141,6 +141,55 @@ bool PageItemModel::isGrouped(const QModelIndexList& indices) const
     return false;
 }
 
+QItemSelection PageItemModel::getSelectionEven() const
+{
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.pageIndex % 2 == 1; });
+}
+
+QItemSelection PageItemModel::getSelectionOdd() const
+{
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.pageIndex % 2 == 0; });
+}
+
+QItemSelection PageItemModel::getSelectionPortrait() const
+{
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() <= groupItem.rotatedPageDimensionsMM.height(); });
+}
+
+QItemSelection PageItemModel::getSelectionLandscape() const
+{
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() >= groupItem.rotatedPageDimensionsMM.height(); });
+}
+
+QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGroupItem::GroupItem&)> filter) const
+{
+    QItemSelection result;
+
+    for (int i = 0; i < rowCount(QModelIndex()); ++i)
+    {
+        QModelIndex rowIndex = index(i, 0, QModelIndex());
+        if (const PageGroupItem* item = getItem(rowIndex))
+        {
+            bool isApplied = false;
+            for (const auto& groupItem : item->groups)
+            {
+                if (filter(groupItem))
+                {
+                    isApplied = true;
+                    break;
+                }
+            }
+
+            if (isApplied)
+            {
+                result.select(rowIndex, rowIndex);
+            }
+        }
+    }
+
+    return result;
+}
+
 void PageItemModel::createDocumentGroup(int index)
 {
     const DocumentItem& item = m_documents.at(index);
@@ -154,7 +203,7 @@ void PageItemModel::createDocumentGroup(int index)
 
     if (pageCount > 1)
     {
-        newItem.tags = QStringList() << QString("0x00FF00@+%1").arg(pageCount - 1);
+        newItem.tags = QStringList() << QString("#00CC00@+%1").arg(pageCount - 1);
     }
 
     newItem.groups.reserve(pageCount);
@@ -185,5 +234,6 @@ QString PageItemModel::getGroupNameFromDocument(int index) const
     QFileInfo fileInfo(item.fileName);
     return fileInfo.fileName();
 }
+
 
 }   // namespace pdfdocpage
