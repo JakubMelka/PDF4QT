@@ -2905,7 +2905,9 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                     // Middle row from right to left: 0100110
                     // Top row from right to left: 11001
                     //  => 0b1010 0100110 11001
-                    LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0xA4D9
+                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                    //LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0xA4D9
+                    LTPContext = 0b1001101100100101; // 16-bit context, hexadecimal value is 0x9B25
                     break;
                 }
 
@@ -2925,7 +2927,9 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                     // Middle row from right to left: 010011
                     // Top row from right to left: 1100
                     //  => 0b101 010011 1100
-                    LTPContext = 0b1010100111100; // 13-bit context, hexadecimal value is 0x153C
+                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                    //LTPContext = 0b1010100111100; // 13-bit context, hexadecimal value is 0x153C
+                    LTPContext = 0b0011110010101; // 13-bit context, hexadecimal value is 0x0795
                     break;
                 }
 
@@ -2945,7 +2949,9 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                     // Middle row from right to left: 10011
                     // Top row from right to left: 100
                     //  => 0b10 10011 100
-                    LTPContext = 0b1010011100; // 10-bit context, hexadecimal value is 0x029C
+                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                    //LTPContext = 0b1010011100; // 10-bit context, hexadecimal value is 0x029C
+                    LTPContext = 0b0011100101; // 10-bit context, hexadecimal value is 0x00E5
                     break;
                 }
 
@@ -2962,7 +2968,9 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                     // Bottom row from right to left: 1010
                     // Top row from right to left: 100110
                     //  => 0b1010100110
-                    LTPContext = 0b1010100110; // 10-bit context, hexadecimal value is 0x02A6
+                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                    //LTPContext = 0b1010100110; // 10-bit context, hexadecimal value is 0x02A6
+                    LTPContext = 0b0110010101; // 10-bit context, hexadecimal value is 0x0195
                     break;
                 }
 
