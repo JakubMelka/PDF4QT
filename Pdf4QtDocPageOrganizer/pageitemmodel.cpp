@@ -125,6 +125,22 @@ const PageGroupItem* PageItemModel::getItem(const QModelIndex& index) const
     return nullptr;
 }
 
+bool PageItemModel::isGrouped(const QModelIndexList& indices) const
+{
+    for (const QModelIndex& index : indices)
+    {
+        if (const PageGroupItem* item = getItem(index))
+        {
+            if (item->isGrouped())
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void PageItemModel::createDocumentGroup(int index)
 {
     const DocumentItem& item = m_documents.at(index);

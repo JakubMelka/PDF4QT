@@ -25,6 +25,8 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QDesktopWidget>
+#include <QClipboard>
+#include <QToolBar>
 
 namespace pdfdocpage
 {
@@ -43,7 +45,68 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->documentItemsView->setItemDelegate(m_delegate);
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 
+    ui->actionCloneSelection->setData(int(Operation::CloneSelection));
+    ui->actionRemoveSelection->setData(int(Operation::RemoveSelection));
+    ui->actionReplaceSelection->setData(int(Operation::ReplaceSelection));
+    ui->actionRestoreRemovedItems->setData(int(Operation::RestoreRemovedItems));
+    ui->actionCut->setData(int(Operation::Cut));
+    ui->actionCopy->setData(int(Operation::Copy));
+    ui->actionPaste->setData(int(Operation::Paste));
+    ui->actionRotate_Left->setData(int(Operation::RotateLeft));
+    ui->actionRotate_Right->setData(int(Operation::RotateRight));
+    ui->actionGroup->setData(int(Operation::Group));
+    ui->actionUngroup->setData(int(Operation::Ungroup));
+    ui->actionSelect_None->setData(int(Operation::SelectNone));
+    ui->actionSelect_All->setData(int(Operation::SelectAll));
+    ui->actionSelect_Even->setData(int(Operation::SelectEven));
+    ui->actionSelect_Odd->setData(int(Operation::SelectOdd));
+    ui->actionSelect_Portrait->setData(int(Operation::SelectPortrait));
+    ui->actionSelect_Landscape->setData(int(Operation::SelectLandscape));
+    ui->actionZoom_In->setData(int(Operation::ZoomIn));
+    ui->actionZoom_Out->setData(int(Operation::ZoomOut));
+    ui->actionUnited_Document->setData(int(Operation::Unite));
+    ui->actionSeparate_to_Multiple_Documents->setData(int(Operation::Separate));
+    ui->actionSeparate_to_Multiple_Documents_Grouped->setData(int(Operation::SeparateGrouped));
+
+    QToolBar* mainToolbar = addToolBar(tr("Main"));
+    mainToolbar->addAction(ui->actionAddDocument);
+    mainToolbar->addSeparator();
+    mainToolbar->addActions({ ui->actionCloneSelection, ui->actionRemoveSelection });
+    mainToolbar->addSeparator();
+    mainToolbar->addActions({ ui->actionCut, ui->actionCopy, ui->actionPaste });
+    mainToolbar->addSeparator();
+    mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
+    QToolBar* insertToolbar = addToolBar(tr("Insert"));
+    insertToolbar->addActions({ ui->actionInsert_Page_from_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
+    QToolBar* selectToolbar = addToolBar(tr("Select"));
+    selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape });
+    QToolBar* zoomToolbar = addToolBar(tr("Zoom"));
+    zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
+    QToolBar* makeToolbar = addToolBar(tr("Make"));
+    makeToolbar->addActions({ ui->actionUnited_Document, ui->actionSeparate_to_Multiple_Documents, ui->actionSeparate_to_Multiple_Documents_Grouped });
+
+    QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
+    for (QToolBar* toolbar : findChildren<QToolBar*>())
+    {
+        toolbar->setIconSize(iconSize);
+    }
+
+    connect(&m_mapper, QOverload<int>::of(&QSignalMapper::mapped), this, &MainWindow::onMappedActionTriggered);
+    connect(ui->documentItemsView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::updateActions);
+
+    QList<QAction*> actions = findChildren<QAction*>();
+    for (QAction* action : actions)
+    {
+        QVariant actionData = action->data();
+        if (actionData.isValid())
+        {
+            connect(action, &QAction::triggered, &m_mapper, QOverload<>::of(&QSignalMapper::map));
+            m_mapper.setMapping(action, actionData.toInt());
+        }
+    }
+
     loadSettings();
+    updateActions();
 }
 
 MainWindow::~MainWindow()
@@ -81,9 +144,22 @@ void MainWindow::on_actionAddDocument_triggered()
     }
 }
 
+void MainWindow::onMappedActionTriggered(int actionId)
+{
+    performOperation(static_cast<Operation>(actionId));
+}
+
 void MainWindow::updateActions()
 {
-
+    QList<QAction*> actions = findChildren<QAction*>();
+    for (QAction* action : actions)
+    {
+        QVariant actionData = action->data();
+        if (actionData.isValid())
+        {
+            action->setEnabled(canPerformOperation(static_cast<Operation>(actionData.toInt())));
+        }
+    }
 }
 
 void MainWindow::loadSettings()
@@ -165,6 +241,72 @@ void MainWindow::addDocument(const QString& fileName)
     }
 
     updateActions();
+}
+
+bool MainWindow::canPerformOperation(Operation operation) const
+{
+    QModelIndexList selection = ui->documentItemsView->selectionModel()->selection().indexes();
+    const bool isSelected = !selection.isEmpty();
+    const bool isModelEmpty = m_model->rowCount(QModelIndex()) == 0;
+
+    switch (operation)
+    {
+        case Operation::CloneSelection:
+        case Operation::RemoveSelection:
+        case Operation::ReplaceSelection:
+            return isSelected;
+
+        case Operation::RestoreRemovedItems:
+            return !m_trashBin.empty();
+
+        case Operation::Cut:
+        case Operation::Copy:
+            return isSelected;
+
+        case Operation::Paste:
+            return !QApplication::clipboard()->text().isEmpty();
+
+        case Operation::RotateLeft:
+        case Operation::RotateRight:
+            return isSelected;
+
+        case Operation::Group:
+            return isSelected;
+        case Operation::Ungroup:
+            return m_model->isGrouped(selection);
+
+        case Operation::SelectNone:
+            return isSelected;
+
+        case Operation::SelectAll:
+        case Operation::SelectEven:
+        case Operation::SelectOdd:
+        case Operation::SelectPortrait:
+        case Operation::SelectLandscape:
+            return !isModelEmpty;
+
+        case Operation::ZoomIn:
+            return m_delegate->getPageImageSize() != getMaxPageImageSize();
+
+        case Operation::ZoomOut:
+            return m_delegate->getPageImageSize() != getMinPageImageSize();
+
+        case Operation::Unite:
+        case Operation::Separate:
+        case Operation::SeparateGrouped:
+            return !isModelEmpty;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return false;
+}
+
+void MainWindow::performOperation(Operation operation)
+{
+
 }
 
 }   // namespace pdfdocpage

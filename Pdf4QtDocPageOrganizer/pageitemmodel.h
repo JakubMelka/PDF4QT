@@ -40,6 +40,8 @@ struct PageGroupItem
     };
 
     std::vector<GroupItem> groups;
+
+    bool isGrouped() const { return groups.size() > 1; }
 };
 
 struct DocumentItem
@@ -74,6 +76,9 @@ public:
     /// then nullptr is returned.
     /// \param index Index
     const PageGroupItem* getItem(const QModelIndex& index) const;
+
+    ///  Returns true, if grouped item exists in the indices
+    bool isGrouped(const QModelIndexList& indices) const;
 
 private:
     void createDocumentGroup(int index);

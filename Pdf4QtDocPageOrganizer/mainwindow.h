@@ -23,6 +23,8 @@
 #include "pageitemmodel.h"
 #include "pageitemdelegate.h"
 
+#include <QSignalMapper>
+
 namespace Ui
 {
 class MainWindow;
@@ -43,15 +45,51 @@ public:
     QSize getDefaultPageImageSize() const;
     QSize getMaxPageImageSize() const;
 
+    enum class Operation
+    {
+        CloneSelection,
+        RemoveSelection,
+        ReplaceSelection,
+        RestoreRemovedItems,
+
+        Cut,
+        Copy,
+        Paste,
+
+        RotateLeft,
+        RotateRight,
+
+        Group,
+        Ungroup,
+
+        SelectNone,
+        SelectAll,
+        SelectEven,
+        SelectOdd,
+        SelectPortrait,
+        SelectLandscape,
+
+        ZoomIn,
+        ZoomOut,
+
+        Unite,
+        Separate,
+        SeparateGrouped
+    };
+
 private slots:
     void on_actionClose_triggered();
     void on_actionAddDocument_triggered();
+    void onMappedActionTriggered(int actionId);
     void updateActions();
 
 private:
     void loadSettings();
     void saveSettings();
     void addDocument(const QString& fileName);
+
+    bool canPerformOperation(Operation operation) const;
+    void performOperation(Operation operation);
 
     struct Settings
     {
@@ -63,6 +101,8 @@ private:
     PageItemModel* m_model;
     PageItemDelegate* m_delegate;
     Settings m_settings;
+    QSignalMapper m_mapper;
+    std::vector<PageGroupItem> m_trashBin;
 };
 
 }   // namespace pdfdocpage

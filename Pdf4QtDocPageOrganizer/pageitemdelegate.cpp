@@ -87,7 +87,7 @@ QSize PageItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QMode
     QSize scaledSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, m_pageImageSize);
     int height = scaledSize.height() + option.fontMetrics.lineSpacing() * 2 + 2 * pdf::PDFWidgetUtils::scaleDPI_y(option.widget, getVerticalSpacing());
     int width = qMax(pdf::PDFWidgetUtils::scaleDPI_x(option.widget, 40), scaledSize.width() + 2 * pdf::PDFWidgetUtils::scaleDPI_x(option.widget, getHorizontalSpacing()));
-    return QSize(height, width);
+    return QSize(width, height);
 }
 
 QSize PageItemDelegate::getPageImageSize() const
