@@ -102,7 +102,6 @@ private:
     PageItemDelegate* m_delegate;
     Settings m_settings;
     QSignalMapper m_mapper;
-    std::vector<PageGroupItem> m_trashBin;
 };
 
 }   // namespace pdfdocpage

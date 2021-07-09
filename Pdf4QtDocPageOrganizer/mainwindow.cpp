@@ -253,6 +253,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
 {
     QModelIndexList selection = ui->documentItemsView->selectionModel()->selection().indexes();
     const bool isSelected = !selection.isEmpty();
+    const bool isMultiSelected = selection.size() > 1;
     const bool isModelEmpty = m_model->rowCount(QModelIndex()) == 0;
 
     switch (operation)
@@ -263,7 +264,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
             return isSelected;
 
         case Operation::RestoreRemovedItems:
-            return !m_trashBin.empty();
+            return !m_model->isTrashBinEmpty();
 
         case Operation::Cut:
         case Operation::Copy:
@@ -277,7 +278,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
             return isSelected;
 
         case Operation::Group:
-            return isSelected;
+            return isMultiSelected;
         case Operation::Ungroup:
             return m_model->isGrouped(selection);
 
@@ -323,10 +324,15 @@ void MainWindow::performOperation(Operation operation)
         case Operation::Paste:
         case Operation::RotateLeft:
         case Operation::RotateRight:
+            Q_ASSERT(false);
             break;
 
         case Operation::Group:
+            m_model->group(ui->documentItemsView->selectionModel()->selection().indexes());
+            break;
+
         case Operation::Ungroup:
+            m_model->ungroup(ui->documentItemsView->selectionModel()->selection().indexes());
             break;
 
         case Operation::SelectNone:

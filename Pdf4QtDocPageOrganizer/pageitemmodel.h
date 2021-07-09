@@ -34,6 +34,8 @@ struct PageGroupItem
 
     struct GroupItem
     {
+        auto operator<=>(const GroupItem&) const = default;
+
         int documentIndex = 0;
         pdf::PDFInteger pageIndex;
         QSizeF rotatedPageDimensionsMM;
@@ -41,7 +43,11 @@ struct PageGroupItem
 
     std::vector<GroupItem> groups;
 
+    auto operator<=>(const PageGroupItem&) const = default;
+
     bool isGrouped() const { return groups.size() > 1; }
+
+    std::set<int> getDocumentIndices() const;
 };
 
 struct DocumentItem
@@ -77,21 +83,35 @@ public:
     /// \param index Index
     const PageGroupItem* getItem(const QModelIndex& index) const;
 
+    /// Returns item at a given index. If item doesn't exist,
+    /// then nullptr is returned.
+    /// \param index Index
+    PageGroupItem* getItem(const QModelIndex& index);
+
     ///  Returns true, if grouped item exists in the indices
     bool isGrouped(const QModelIndexList& indices) const;
+
+    /// Returns true, if trash bin is empty
+    bool isTrashBinEmpty() const { return m_trashBin.empty(); }
 
     QItemSelection getSelectionEven() const;
     QItemSelection getSelectionOdd() const;
     QItemSelection getSelectionPortrait() const;
     QItemSelection getSelectionLandscape() const;
 
+    void group(const QModelIndexList& list);
+    void ungroup(const QModelIndexList& list);
+
 private:
     void createDocumentGroup(int index);
     QString getGroupNameFromDocument(int index) const;
+    void updateItemCaptionAndTags(PageGroupItem& item) const;
+
     QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
 
     std::vector<PageGroupItem> m_pageGroupItems;
     std::map<int, DocumentItem> m_documents;
+    std::vector<PageGroupItem> m_trashBin;
 };
 
 }   // namespace pdfdocpage

@@ -125,6 +125,19 @@ const PageGroupItem* PageItemModel::getItem(const QModelIndex& index) const
     return nullptr;
 }
 
+PageGroupItem* PageItemModel::getItem(const QModelIndex& index)
+{
+    if (index.isValid())
+    {
+        if (index.row() < m_pageGroupItems.size())
+        {
+            return &m_pageGroupItems.at(index.row());
+        }
+    }
+
+    return nullptr;
+}
+
 bool PageItemModel::isGrouped(const QModelIndexList& indices) const
 {
     for (const QModelIndex& index : indices)
@@ -159,6 +172,88 @@ QItemSelection PageItemModel::getSelectionPortrait() const
 QItemSelection PageItemModel::getSelectionLandscape() const
 {
     return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() >= groupItem.rotatedPageDimensionsMM.height(); });
+}
+
+void PageItemModel::group(const QModelIndexList& list)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    std::vector<size_t> groupedIndices;
+    groupedIndices.reserve(list.size());
+    std::transform(list.cbegin(), list.cend(), std::back_inserter(groupedIndices), [](const auto& index) { return index.row(); });
+    std::sort(groupedIndices.begin(), groupedIndices.end());
+
+    std::vector<PageGroupItem> newPageGroupItems;
+    std::vector<PageGroupItem::GroupItem> newGroups;
+    newPageGroupItems.reserve(m_pageGroupItems.size());
+    for (size_t i = 0; i < m_pageGroupItems.size(); ++i)
+    {
+        const PageGroupItem& item = m_pageGroupItems[i];
+        if (std::binary_search(groupedIndices.cbegin(), groupedIndices.cend(), i))
+        {
+            newGroups.insert(newGroups.end(), item.groups.begin(), item.groups.end());
+        }
+        else
+        {
+            newPageGroupItems.push_back(item);
+        }
+    }
+
+    PageGroupItem newItem;
+    newItem.groups = qMove(newGroups);
+    updateItemCaptionAndTags(newItem);
+    newPageGroupItems.insert(std::next(newPageGroupItems.begin(), groupedIndices.front()), qMove(newItem));
+
+    if (newPageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(newPageGroupItems);
+        endResetModel();
+    }
+}
+
+void PageItemModel::ungroup(const QModelIndexList& list)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    std::vector<size_t> ungroupedIndices;
+    ungroupedIndices.reserve(list.size());
+    std::transform(list.cbegin(), list.cend(), std::back_inserter(ungroupedIndices), [](const auto& index) { return index.row(); });
+    std::sort(ungroupedIndices.begin(), ungroupedIndices.end());
+
+    std::vector<PageGroupItem> newPageGroupItems;
+    newPageGroupItems.reserve(m_pageGroupItems.size());
+    for (size_t i = 0; i < m_pageGroupItems.size(); ++i)
+    {
+        const PageGroupItem& item = m_pageGroupItems[i];
+        if (item.isGrouped() && std::binary_search(ungroupedIndices.cbegin(), ungroupedIndices.cend(), i))
+        {
+            for (const PageGroupItem::GroupItem& groupItem : item.groups)
+            {
+                PageGroupItem newItem;
+                newItem.groups = { groupItem };
+                updateItemCaptionAndTags(newItem);
+                newPageGroupItems.push_back(qMove(newItem));
+            }
+        }
+        else
+        {
+            newPageGroupItems.push_back(item);
+        }
+    }
+
+    if (newPageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(newPageGroupItems);
+        endResetModel();
+    }
 }
 
 QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGroupItem::GroupItem&)> filter) const
@@ -233,6 +328,51 @@ QString PageItemModel::getGroupNameFromDocument(int index) const
 
     QFileInfo fileInfo(item.fileName);
     return fileInfo.fileName();
+}
+
+void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
+{
+    std::set<int> documentIndices = item.getDocumentIndices();
+    const size_t pageCount = item.groups.size();
+
+    if (documentIndices.size() == 1)
+    {
+        pdf::PDFClosedIntervalSet pageSet;
+        for (const auto& groupItem : item.groups)
+        {
+            pageSet.addInterval(groupItem.pageIndex, groupItem.pageIndex);
+        }
+
+        item.groupName = getGroupNameFromDocument(*documentIndices.begin());
+        item.pagesCaption = pageSet.toText(true);
+    }
+    else
+    {
+        item.groupName = tr("Document collection");
+        item.pagesCaption = tr("Page Count: %1").arg(item.groups.size());
+    }
+
+    item.tags.clear();
+    if (pageCount > 1)
+    {
+        item.tags << QString("#00CC00@+%1").arg(pageCount - 1);
+    }
+    if (documentIndices.size() > 1)
+    {
+        item.tags << QString("#BBBB00@Collection");
+    }
+}
+
+std::set<int> PageGroupItem::getDocumentIndices() const
+{
+    std::set<int> result;
+
+    for (const auto& groupItem : groups)
+    {
+        result.insert(groupItem.documentIndex);
+    }
+
+    return result;
 }
 
 
