@@ -375,5 +375,177 @@ std::set<int> PageGroupItem::getDocumentIndices() const
     return result;
 }
 
+QStringList PageItemModel::mimeTypes() const
+{
+    return { getMimeDataType() };
+}
+
+QMimeData* PageItemModel::mimeData(const QModelIndexList& indexes) const
+{
+    if (indexes.isEmpty())
+    {
+        return nullptr;
+    }
+
+    QMimeData* mimeData = new QMimeData;
+
+    QByteArray serializedData;
+    {
+        QDataStream stream(&serializedData, QIODevice::WriteOnly);
+        for (const QModelIndex& index : indexes)
+        {
+            stream << index.row();
+        }
+    }
+
+    mimeData->setData(getMimeDataType(), serializedData);
+    return mimeData;
+}
+
+bool PageItemModel::canDropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) const
+{
+    Q_UNUSED(row);
+    Q_UNUSED(column);
+    Q_UNUSED(parent);
+
+    switch (action)
+    {
+        case Qt::CopyAction:
+        case Qt::MoveAction:
+        case Qt::IgnoreAction:
+            break;
+
+        case Qt::LinkAction:
+        case Qt::TargetMoveAction:
+            return false;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return data && data->hasFormat(getMimeDataType());
+}
+
+bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent)
+{
+    if (action == Qt::IgnoreAction)
+    {
+        return true;
+    }
+
+    if (!data->hasFormat(getMimeDataType()))
+    {
+        return false;
+    }
+
+    if (column > 0)
+    {
+        return false;
+    }
+
+    int insertRow = rowCount(QModelIndex());
+    if (row > -1)
+    {
+        insertRow = row;
+    }
+    else if (parent.isValid())
+    {
+        insertRow = parent.row();
+    }
+
+    std::vector<int> rows;
+
+    QByteArray serializedData = data->data(getMimeDataType());
+    QDataStream stream(&serializedData, QIODevice::ReadOnly);
+    while (!stream.atEnd())
+    {
+        int row = -1;
+        stream >> row;
+        rows.push_back(row);
+    }
+
+    qSort(rows);
+
+    // Sanity checks on rows
+    if (rows.empty())
+    {
+        return false;
+    }
+    if (rows.front() < 0 || rows.back() >= rowCount(QModelIndex()))
+    {
+        return false;
+    }
+
+    std::vector<PageGroupItem> newItems = m_pageGroupItems;
+    std::vector<PageGroupItem> workItems;
+
+    // When moving, update insert row
+    if (action == Qt::MoveAction)
+    {
+        const int originalInsertRow = insertRow;
+        if (rows.front() < originalInsertRow)
+        {
+            ++insertRow;
+        }
+
+        for (int currentRow : rows)
+        {
+            if (currentRow < originalInsertRow)
+            {
+                --insertRow;
+            }
+        }
+    }
+
+    workItems.reserve(rows.size());
+    for (int currentRow : rows)
+    {
+        workItems.push_back(m_pageGroupItems[currentRow]);
+    }
+
+    // When move, delete old page items
+    if (action == Qt::MoveAction)
+    {
+        for (auto it = rows.rbegin(); it != rows.rend(); ++it)
+        {
+            newItems.erase(std::next(newItems.begin(), *it));
+        }
+    }
+
+    // Insert work items at a given position
+    newItems.insert(std::next(newItems.begin(), insertRow), workItems.begin(), workItems.end());
+
+    if (newItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(newItems);
+        endResetModel();
+    }
+
+    return true;
+}
+
+Qt::DropActions PageItemModel::supportedDropActions() const
+{
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+Qt::DropActions PageItemModel::supportedDragActions() const
+{
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+Qt::ItemFlags PageItemModel::flags(const QModelIndex& index) const
+{
+    Qt::ItemFlags flags = BaseClass::flags(index);
+
+    if (index.isValid())
+    {
+        flags |= Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
+    }
+
+    return flags;
+}
 
 }   // namespace pdfdocpage

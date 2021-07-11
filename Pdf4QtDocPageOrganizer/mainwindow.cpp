@@ -271,7 +271,10 @@ bool MainWindow::canPerformOperation(Operation operation) const
             return isSelected;
 
         case Operation::Paste:
-            return !QApplication::clipboard()->text().isEmpty();
+        {
+            const QMimeData* mimeData = QApplication::clipboard()->mimeData();
+            return mimeData && mimeData->hasFormat(PageItemModel::getMimeDataType());
+        }
 
         case Operation::RotateLeft:
         case Operation::RotateRight:

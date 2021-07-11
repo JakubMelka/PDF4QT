@@ -60,6 +60,9 @@ class PageItemModel : public QAbstractItemModel
 {
     Q_OBJECT
 
+private:
+    using BaseClass = QAbstractItemModel;
+
 public:
     explicit PageItemModel(QObject* parent);
 
@@ -69,6 +72,13 @@ public:
     virtual int rowCount(const QModelIndex& parent) const override;
     virtual int columnCount(const QModelIndex& parent) const override;
     virtual QVariant data(const QModelIndex& index, int role) const override;
+    virtual QStringList mimeTypes() const override;
+    virtual QMimeData* mimeData(const QModelIndexList& indexes) const override;
+    virtual bool canDropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) const override;
+    virtual bool dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) override;
+    virtual Qt::DropActions supportedDropActions() const override;
+    virtual Qt::DropActions supportedDragActions() const override;
+    virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
 
     /// Adds document to the model, inserts one single page group containing
     /// the whole document. Returns index of a newly added document. If document
@@ -101,6 +111,8 @@ public:
 
     void group(const QModelIndexList& list);
     void ungroup(const QModelIndexList& list);
+
+    static QString getMimeDataType() { return QLatin1String("application/pagemodel.PDF4QtDocPageOrganizer"); }
 
 private:
     void createDocumentGroup(int index);
