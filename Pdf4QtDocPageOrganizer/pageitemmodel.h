@@ -80,6 +80,9 @@ public:
     virtual Qt::DropActions supportedDragActions() const override;
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
 
+    /// Clear all data and undo/redo
+    void clear();
+
     /// Adds document to the model, inserts one single page group containing
     /// the whole document. Returns index of a newly added document. If document
     /// cannot be added (for example, it already exists), -1 is returned.

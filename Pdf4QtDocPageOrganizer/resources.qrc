@@ -29,5 +29,6 @@
         <file>resources/ungroup.svg</file>
         <file>resources/zoom-in.svg</file>
         <file>resources/zoom-out.svg</file>
+        <file>resources/clear.svg</file>
     </qresource>
 </RCC>

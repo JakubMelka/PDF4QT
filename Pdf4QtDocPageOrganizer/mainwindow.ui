@@ -56,6 +56,7 @@
      <string>File</string>
     </property>
     <addaction name="actionAddDocument"/>
+    <addaction name="actionClear"/>
     <addaction name="actionClose"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
@@ -143,7 +144,7 @@
     <string>Close</string>
    </property>
    <property name="shortcut">
-    <string>Ctrl+W</string>
+    <string>Alt+F4</string>
    </property>
   </action>
   <action name="actionCloneSelection">
@@ -465,6 +466,18 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+G</string>
+   </property>
+  </action>
+  <action name="actionClear">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocpage/resources/clear.svg</normaloff>:/pdfdocpage/resources/clear.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Clear</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+W</string>
    </property>
   </action>
  </widget>

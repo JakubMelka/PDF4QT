@@ -35,7 +35,8 @@ MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_model(new PageItemModel(this)),
-    m_delegate(new PageItemDelegate(m_model, this))
+    m_delegate(new PageItemDelegate(m_model, this)),
+    m_dropAction(Qt::IgnoreAction)
 {
     ui->setupUi(this);
 
@@ -45,6 +46,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->documentItemsView->setItemDelegate(m_delegate);
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 
+    ui->actionClear->setData(int(Operation::Clear));
     ui->actionCloneSelection->setData(int(Operation::CloneSelection));
     ui->actionRemoveSelection->setData(int(Operation::RemoveSelection));
     ui->actionReplaceSelection->setData(int(Operation::ReplaceSelection));
@@ -258,6 +260,9 @@ bool MainWindow::canPerformOperation(Operation operation) const
 
     switch (operation)
     {
+        case Operation::Clear:
+            return true;
+
         case Operation::CloneSelection:
         case Operation::RemoveSelection:
         case Operation::ReplaceSelection:
@@ -318,17 +323,58 @@ void MainWindow::performOperation(Operation operation)
 {
     switch (operation)
     {
+        case Operation::Clear:
+        {
+            m_model->clear();
+            break;
+        }
         case Operation::CloneSelection:
         case Operation::RemoveSelection:
         case Operation::ReplaceSelection:
         case Operation::RestoreRemovedItems:
-        case Operation::Cut:
-        case Operation::Copy:
-        case Operation::Paste:
         case Operation::RotateLeft:
         case Operation::RotateRight:
             Q_ASSERT(false);
             break;
+
+        case Operation::Cut:
+        case Operation::Copy:
+        {
+            QModelIndexList indices = ui->documentItemsView->selectionModel()->selection().indexes();
+
+            if (indices.isEmpty())
+            {
+                return;
+            }
+
+            if (QMimeData* mimeData = m_model->mimeData(indices))
+            {
+                QApplication::clipboard()->setMimeData(mimeData);
+            }
+
+            ui->documentItemsView->clearSelection();
+            m_dropAction = (operation == Operation::Cut) ? Qt::MoveAction : Qt::CopyAction;
+            break;
+        }
+
+        case Operation::Paste:
+        {
+            QModelIndexList indices = ui->documentItemsView->selectionModel()->selection().indexes();
+
+            int insertRow = m_model->rowCount(QModelIndex()) - 1;
+            if (!indices.isEmpty())
+            {
+                insertRow = indices.back().row();
+            }
+
+            QModelIndex insertIndex = m_model->index(insertRow, 0, QModelIndex());
+            const QMimeData* mimeData = QApplication::clipboard()->mimeData();
+            if (m_model->canDropMimeData(mimeData, m_dropAction, -1, -1, insertIndex))
+            {
+                m_model->dropMimeData(mimeData, m_dropAction, -1, -1, insertIndex);
+            }
+            break;
+        }
 
         case Operation::Group:
             m_model->group(ui->documentItemsView->selectionModel()->selection().indexes());

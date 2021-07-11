@@ -51,6 +51,7 @@ QRect PDFPainterHelper::drawBubble(QPainter* painter, QPoint point, QColor color
     }
 
     PDFPainterStateGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(Qt::NoPen);
     painter->setBrush(QBrush(color));
     painter->drawRoundedRect(rectangle, rectangle.height() / 2, rectangle.height() / 2, Qt::AbsoluteSize);

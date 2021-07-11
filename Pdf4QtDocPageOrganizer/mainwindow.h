@@ -47,6 +47,7 @@ public:
 
     enum class Operation
     {
+        Clear,
         CloneSelection,
         RemoveSelection,
         ReplaceSelection,
@@ -102,6 +103,7 @@ private:
     PageItemDelegate* m_delegate;
     Settings m_settings;
     QSignalMapper m_mapper;
+    Qt::DropAction m_dropAction;
 };
 
 }   // namespace pdfdocpage

@@ -548,4 +548,13 @@ Qt::ItemFlags PageItemModel::flags(const QModelIndex& index) const
     return flags;
 }
 
+void PageItemModel::clear()
+{
+    beginResetModel();
+    m_pageGroupItems.clear();
+    m_documents.clear();
+    m_trashBin.clear();
+    endResetModel();
+}
+
 }   // namespace pdfdocpage
