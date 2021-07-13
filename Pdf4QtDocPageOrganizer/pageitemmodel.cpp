@@ -19,6 +19,8 @@
 
 #include <QFileInfo>
 
+#include <iterator>
+
 namespace pdfdocpage
 {
 
@@ -254,6 +256,92 @@ void PageItemModel::ungroup(const QModelIndexList& list)
         m_pageGroupItems = std::move(newPageGroupItems);
         endResetModel();
     }
+}
+
+QModelIndexList PageItemModel::restoreRemovedItems()
+{
+    QModelIndexList result;
+
+    if (m_trashBin.empty())
+    {
+        // Jakub Melka: nothing to do
+        return result;
+    }
+
+    const int trashBinSize = int(m_trashBin.size());
+    const int rowCount = this->rowCount(QModelIndex());
+    beginInsertRows(QModelIndex(), rowCount, rowCount + trashBinSize - 1);
+    m_pageGroupItems.insert(m_pageGroupItems.end(), std::make_move_iterator(m_trashBin.begin()), std::make_move_iterator(m_trashBin.end()));
+    m_trashBin.clear();
+    endInsertRows();
+
+    result.reserve(trashBinSize);
+    for (int i = rowCount; i < rowCount + trashBinSize; ++i)
+    {
+        result << index(i, 0, QModelIndex());
+    }
+
+    return result;
+}
+
+QModelIndexList PageItemModel::cloneSelection(const QModelIndexList& list)
+{
+    QModelIndexList result;
+
+    if (list.empty())
+    {
+        // Jakub Melka: nothing to do
+        return result;
+    }
+
+    std::vector<int> rows;
+    rows.reserve(list.size());
+    std::transform(list.cbegin(), list.cend(), std::back_inserter(rows), [](const auto& index) { return index.row(); });
+
+    std::vector<PageGroupItem> clonedGroups;
+    clonedGroups.reserve(rows.size());
+
+    for (int row : rows)
+    {
+        clonedGroups.push_back(m_pageGroupItems[row]);
+    }
+
+    const int insertRow = rows.back() + 1;
+    const int lastRow = insertRow + int(rows.size());
+
+    beginResetModel();
+    m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), clonedGroups.begin(), clonedGroups.end());
+    endResetModel();
+
+    result.reserve(int(rows.size()));
+    for (int i = insertRow; i < lastRow; ++i)
+    {
+        result << index(i, 0, QModelIndex());
+    }
+
+    return result;
+}
+
+void PageItemModel::removeSelection(const QModelIndexList& list)
+{
+    if (list.empty())
+    {
+        // Jakub Melka: nothing to do
+        return;
+    }
+
+    std::vector<int> rows;
+    rows.reserve(list.size());
+    std::transform(list.cbegin(), list.cend(), std::back_inserter(rows), [](const auto& index) { return index.row(); });
+    std::sort(rows.begin(), rows.end(), std::greater<int>());
+
+    beginResetModel();
+    for (int row : rows)
+    {
+        m_trashBin.emplace_back(qMove(m_pageGroupItems[row]));
+        m_pageGroupItems.erase(std::next(m_pageGroupItems.begin(), row));
+    }
+    endResetModel();
 }
 
 QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGroupItem::GroupItem&)> filter) const

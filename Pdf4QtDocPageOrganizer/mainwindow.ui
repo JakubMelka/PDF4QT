@@ -115,11 +115,17 @@
     <addaction name="actionGet_Source"/>
     <addaction name="actionAbout"/>
    </widget>
+   <widget class="QMenu" name="menuWindow">
+    <property name="title">
+     <string>Window</string>
+    </property>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuInsert"/>
    <addaction name="menuView"/>
    <addaction name="menuMake"/>
+   <addaction name="menuWindow"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>

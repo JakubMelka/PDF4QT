@@ -97,6 +97,7 @@ MainWindow::MainWindow(QWidget* parent) :
     for (QToolBar* toolbar : toolbars)
     {
         toolbar->setIconSize(iconSize);
+        ui->menuWindow->addAction(toolbar->toggleViewAction());
     }
 
     connect(&m_mapper, QOverload<int>::of(&QSignalMapper::mapped), this, &MainWindow::onMappedActionTriggered);
@@ -329,13 +330,28 @@ void MainWindow::performOperation(Operation operation)
             break;
         }
         case Operation::CloneSelection:
-        case Operation::RemoveSelection:
-        case Operation::ReplaceSelection:
-        case Operation::RestoreRemovedItems:
-        case Operation::RotateLeft:
-        case Operation::RotateRight:
-            Q_ASSERT(false);
+        {
+            m_model->cloneSelection(ui->documentItemsView->selectionModel()->selection().indexes());
             break;
+        }
+
+        case Operation::RemoveSelection:
+        {
+            m_model->removeSelection(ui->documentItemsView->selectionModel()->selection().indexes());
+            break;
+        }
+
+        case Operation::RestoreRemovedItems:
+        {
+            QModelIndexList restoredItemIndices = m_model->restoreRemovedItems();
+            QItemSelection itemSelection;
+            for (const QModelIndex& index : restoredItemIndices)
+            {
+                itemSelection.select(index, index);
+            }
+            ui->documentItemsView->selectionModel()->select(itemSelection, QItemSelectionModel::ClearAndSelect);
+            break;
+        }
 
         case Operation::Cut:
         case Operation::Copy:
@@ -433,6 +449,12 @@ void MainWindow::performOperation(Operation operation)
             }
             break;
         }
+
+        case Operation::RotateLeft:
+        case Operation::RotateRight:
+        case Operation::ReplaceSelection:
+            Q_ASSERT(false);
+            break;
 
         case Operation::Unite:
         case Operation::Separate:

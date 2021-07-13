@@ -115,6 +115,10 @@ public:
     void group(const QModelIndexList& list);
     void ungroup(const QModelIndexList& list);
 
+    QModelIndexList restoreRemovedItems();
+    QModelIndexList cloneSelection(const QModelIndexList& list);
+    void removeSelection(const QModelIndexList& list);
+
     static QString getMimeDataType() { return QLatin1String("application/pagemodel.PDF4QtDocPageOrganizer"); }
 
 private:
