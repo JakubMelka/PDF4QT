@@ -344,6 +344,60 @@ void PageItemModel::removeSelection(const QModelIndexList& list)
     endResetModel();
 }
 
+void PageItemModel::rotateLeft(const QModelIndexList& list)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    int rowMin = list.front().row();
+    int rowMax = list.front().row();
+
+    for (const QModelIndex& index : list)
+    {
+        if (PageGroupItem* item = getItem(index))
+        {
+            item->rotateLeft();
+        }
+
+        rowMin = qMin(rowMin, index.row());
+        rowMax = qMax(rowMax, index.row());
+    }
+
+    rowMin = qMax(rowMin, 0);
+    rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
+
+    emit dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+}
+
+void PageItemModel::rotateRight(const QModelIndexList& list)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    int rowMin = list.front().row();
+    int rowMax = list.front().row();
+
+    for (const QModelIndex& index : list)
+    {
+        if (PageGroupItem* item = getItem(index))
+        {
+            item->rotateRight();
+        }
+
+        rowMin = qMin(rowMin, index.row());
+        rowMax = qMax(rowMax, index.row());
+    }
+
+    rowMin = qMax(rowMin, 0);
+    rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
+
+    emit dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+}
+
 QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGroupItem::GroupItem&)> filter) const
 {
     QItemSelection result;
@@ -461,6 +515,22 @@ std::set<int> PageGroupItem::getDocumentIndices() const
     }
 
     return result;
+}
+
+void PageGroupItem::rotateLeft()
+{
+    for (auto& groupItem : groups)
+    {
+        groupItem.pageAdditionalRotation = pdf::getPageRotationRotatedLeft(groupItem.pageAdditionalRotation);
+    }
+}
+
+void PageGroupItem::rotateRight()
+{
+    for (auto& groupItem : groups)
+    {
+        groupItem.pageAdditionalRotation = pdf::getPageRotationRotatedRight(groupItem.pageAdditionalRotation);
+    }
 }
 
 QStringList PageItemModel::mimeTypes() const

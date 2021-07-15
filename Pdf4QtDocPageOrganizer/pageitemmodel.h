@@ -39,6 +39,7 @@ struct PageGroupItem
         int documentIndex = 0;
         pdf::PDFInteger pageIndex;
         QSizeF rotatedPageDimensionsMM;
+        pdf::PageRotation pageAdditionalRotation = pdf::PageRotation::None;
     };
 
     std::vector<GroupItem> groups;
@@ -48,6 +49,9 @@ struct PageGroupItem
     bool isGrouped() const { return groups.size() > 1; }
 
     std::set<int> getDocumentIndices() const;
+
+    void rotateLeft();
+    void rotateRight();
 };
 
 struct DocumentItem
@@ -118,6 +122,9 @@ public:
     QModelIndexList restoreRemovedItems();
     QModelIndexList cloneSelection(const QModelIndexList& list);
     void removeSelection(const QModelIndexList& list);
+
+    void rotateLeft(const QModelIndexList& list);
+    void rotateRight(const QModelIndexList& list);
 
     static QString getMimeDataType() { return QLatin1String("application/pagemodel.PDF4QtDocPageOrganizer"); }
 

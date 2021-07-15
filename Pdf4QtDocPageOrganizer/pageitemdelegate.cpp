@@ -58,7 +58,8 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     if (!item->groups.empty())
     {
         const PageGroupItem::GroupItem& groupItem = item->groups.front();
-        QSize pageImageSize = groupItem.rotatedPageDimensionsMM.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
+        QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), groupItem.rotatedPageDimensionsMM), groupItem.pageAdditionalRotation).size();
+        QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
         QRect pageImageRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
 
         painter->setPen(QPen(Qt::black));

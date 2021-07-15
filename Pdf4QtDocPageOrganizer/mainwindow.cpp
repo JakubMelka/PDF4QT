@@ -451,7 +451,13 @@ void MainWindow::performOperation(Operation operation)
         }
 
         case Operation::RotateLeft:
+            m_model->rotateLeft(ui->documentItemsView->selectionModel()->selection().indexes());
+            break;
+
         case Operation::RotateRight:
+            m_model->rotateRight(ui->documentItemsView->selectionModel()->selection().indexes());
+            break;
+
         case Operation::ReplaceSelection:
             Q_ASSERT(false);
             break;
