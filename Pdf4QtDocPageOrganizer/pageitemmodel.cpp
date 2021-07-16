@@ -344,6 +344,46 @@ void PageItemModel::removeSelection(const QModelIndexList& list)
     endResetModel();
 }
 
+void PageItemModel::insertEmptyPage(const QModelIndexList& list)
+{
+    if (list.isEmpty())
+    {
+        insertEmptyPage(QModelIndex());
+    }
+    else
+    {
+        QModelIndexList listCopy = list;
+        std::sort(listCopy.begin(), listCopy.end());
+        std::reverse(listCopy.begin(), listCopy.end());
+
+        for (const QModelIndex& index: listCopy)
+        {
+            insertEmptyPage(index);
+        }
+    }
+}
+
+void PageItemModel::insertEmptyPage(const QModelIndex& index)
+{
+    int insertRow = index.isValid()? index.row() + 1 : int(m_pageGroupItems.size());
+
+    const int templateRow = index.isValid() ? index.row() : int(m_pageGroupItems.size()) - 1;
+    const bool isTemplateRowValid = templateRow > -1;
+
+    PageGroupItem::GroupItem groupItem;
+    groupItem.pageAdditionalRotation = isTemplateRowValid ? m_pageGroupItems[templateRow].groups.back().pageAdditionalRotation : pdf::PageRotation::None;
+    groupItem.pageType = PT_Empty;
+    groupItem.rotatedPageDimensionsMM = isTemplateRowValid ? m_pageGroupItems[templateRow].groups.back().rotatedPageDimensionsMM : QSizeF(210, 297);
+
+    PageGroupItem blankPageItem;
+    blankPageItem.groups.push_back(groupItem);
+    updateItemCaptionAndTags(blankPageItem);
+
+    beginInsertRows(QModelIndex(), insertRow, insertRow);
+    m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), std::move(blankPageItem));
+    endInsertRows();
+}
+
 void PageItemModel::rotateLeft(const QModelIndexList& list)
 {
     if (list.isEmpty())
@@ -460,6 +500,11 @@ void PageItemModel::createDocumentGroup(int index)
 
 QString PageItemModel::getGroupNameFromDocument(int index) const
 {
+    if (index == -1)
+    {
+        return tr("Page Group");
+    }
+
     const DocumentItem& item = m_documents.at(index);
 
     QString title = item.document.getInfo()->title;
@@ -482,7 +527,10 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
         pdf::PDFClosedIntervalSet pageSet;
         for (const auto& groupItem : item.groups)
         {
-            pageSet.addInterval(groupItem.pageIndex, groupItem.pageIndex);
+            if (groupItem.pageIndex != -1)
+            {
+                pageSet.addInterval(groupItem.pageIndex, groupItem.pageIndex);
+            }
         }
 
         item.groupName = getGroupNameFromDocument(*documentIndices.begin());
@@ -494,6 +542,41 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
         item.pagesCaption = tr("Page Count: %1").arg(item.groups.size());
     }
 
+    bool hasImages = false;
+    bool hasEmptyPage = false;
+
+    size_t imageCount = 0;
+    size_t emptyPageCount = 0;
+
+    for (const PageGroupItem::GroupItem& group : item.groups)
+    {
+        switch (group.pageType)
+        {
+            case pdfdocpage::PT_DocumentPage:
+                break;
+
+            case pdfdocpage::PT_Image:
+                hasImages = true;
+                ++imageCount;
+                break;
+
+            case pdfdocpage::PT_Empty:
+                hasEmptyPage = true;
+                ++emptyPageCount;
+                break;
+        }
+    }
+
+    if (imageCount == pageCount)
+    {
+        item.groupName = imageCount == 1 ? tr("Image") : tr("Images");
+    }
+
+    if (emptyPageCount == pageCount)
+    {
+        item.groupName = emptyPageCount == 1 ? tr("Blank Page") : tr("Blank Pages");
+    }
+
     item.tags.clear();
     if (pageCount > 1)
     {
@@ -501,7 +584,15 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
     }
     if (documentIndices.size() > 1)
     {
-        item.tags << QString("#BBBB00@Collection");
+        item.tags << tr("#BBBB00@Collection");
+    }
+    if (hasEmptyPage)
+    {
+        item.tags << tr("#D98335@Blank");
+    }
+    if (hasImages)
+    {
+        item.tags << tr("#24A5EA@Image");
     }
 }
 

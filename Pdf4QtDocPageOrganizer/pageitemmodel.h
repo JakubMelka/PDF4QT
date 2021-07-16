@@ -26,6 +26,13 @@
 namespace pdfdocpage
 {
 
+enum PageType
+{
+    PT_DocumentPage,
+    PT_Image,
+    PT_Empty
+};
+
 struct PageGroupItem
 {
     QString groupName;
@@ -36,10 +43,12 @@ struct PageGroupItem
     {
         auto operator<=>(const GroupItem&) const = default;
 
-        int documentIndex = 0;
-        pdf::PDFInteger pageIndex;
+        int documentIndex = -1;
+        pdf::PDFInteger pageIndex = -1;
+        pdf::PDFInteger imageIndex = -1;
         QSizeF rotatedPageDimensionsMM;
         pdf::PageRotation pageAdditionalRotation = pdf::PageRotation::None;
+        PageType pageType = PT_DocumentPage;
     };
 
     std::vector<GroupItem> groups;
@@ -122,6 +131,7 @@ public:
     QModelIndexList restoreRemovedItems();
     QModelIndexList cloneSelection(const QModelIndexList& list);
     void removeSelection(const QModelIndexList& list);
+    void insertEmptyPage(const QModelIndexList& list);
 
     void rotateLeft(const QModelIndexList& list);
     void rotateRight(const QModelIndexList& list);
@@ -132,6 +142,7 @@ private:
     void createDocumentGroup(int index);
     QString getGroupNameFromDocument(int index) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
+    void insertEmptyPage(const QModelIndex& index);
 
     QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
 

@@ -75,7 +75,14 @@ public:
 
         Unite,
         Separate,
-        SeparateGrouped
+        SeparateGrouped,
+
+        InsertImage,
+        InsertEmptyPage,
+        InsertPDF,
+
+        GetSource,
+        About
     };
 
 private slots:

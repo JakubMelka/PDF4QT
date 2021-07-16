@@ -27,6 +27,7 @@
 #include <QDesktopWidget>
 #include <QClipboard>
 #include <QToolBar>
+#include <QDesktopServices>
 
 namespace pdfdocpage
 {
@@ -69,6 +70,11 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionUnited_Document->setData(int(Operation::Unite));
     ui->actionSeparate_to_Multiple_Documents->setData(int(Operation::Separate));
     ui->actionSeparate_to_Multiple_Documents_Grouped->setData(int(Operation::SeparateGrouped));
+    ui->actionInsert_Image->setData(int(Operation::InsertImage));
+    ui->actionInsert_Empty_Page->setData(int(Operation::InsertEmptyPage));
+    ui->actionInsert_Page_from_PDF->setData(int(Operation::InsertPDF));
+    ui->actionGet_Source->setData(int(Operation::GetSource));
+    ui->actionAbout->setData(int(Operation::About));
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
     mainToolbar->setObjectName("main_toolbar");
@@ -312,6 +318,13 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::SeparateGrouped:
             return !isModelEmpty;
 
+        case Operation::InsertImage:
+        case Operation::InsertEmptyPage:
+        case Operation::InsertPDF:
+        case Operation::GetSource:
+        case Operation::About:
+            return true;
+
         default:
             Q_ASSERT(false);
             break;
@@ -461,6 +474,18 @@ void MainWindow::performOperation(Operation operation)
         case Operation::ReplaceSelection:
             Q_ASSERT(false);
             break;
+
+        case Operation::GetSource:
+            QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PdfForQt"));
+            break;
+
+        case Operation::InsertEmptyPage:
+            m_model->insertEmptyPage(ui->documentItemsView->selectionModel()->selection().indexes());
+            break;
+
+        case Operation::InsertImage:
+        case Operation::InsertPDF:
+        case Operation::About:
 
         case Operation::Unite:
         case Operation::Separate:
