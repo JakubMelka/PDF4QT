@@ -87,9 +87,9 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
                 return ErrorDocumentReading;
             }
 
-            if (!document.getStorage().getSecurityHandler()->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent))
+            if (!document.getStorage().getSecurityHandler()->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble))
             {
-                PDFConsole::writeError(PDFToolTranslationContext::tr("Document doesn't allow to copy content."), options.outputCodec);
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Document doesn't allow to assemble pages."), options.outputCodec);
                 return ErrorPermissions;
             }
 
@@ -120,19 +120,11 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
                 {
                     namesReference = namesObject.getReference();
                 }
-                else
-                {
-                    namesReference = temporaryBuilder.addObject(namesObject);
-                }
 
                 pdf::PDFObject ocPropertiesObject = catalogDictionary->get("OCProperties");
                 if (ocPropertiesObject.isReference())
                 {
                     ocPropertiesReference = ocPropertiesObject.getReference();
-                }
-                else
-                {
-                    ocPropertiesReference = temporaryBuilder.addObject(ocPropertiesObject);
                 }
             }
 
@@ -148,7 +140,7 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
 
             objectsToMerge.insert(objectsToMerge.end(), { acroFormReference, namesReference, ocPropertiesReference });
 
-            // Now, we are ready to merge objects into targed document builder
+            // Now, we are ready to merge objects into target document builder
             std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(documentBuilder.copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences(objectsToMerge), *temporaryBuilder.getStorage(), true));
 
             ocPropertiesReference = references.back();

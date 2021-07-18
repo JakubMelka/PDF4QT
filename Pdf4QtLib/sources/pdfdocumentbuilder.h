@@ -305,6 +305,10 @@ public:
     /// is edited at call of this function, then it is lost.
     void createDocument();
 
+    /// Sets a document to this builder. If some document
+    /// is edited at call of this function, then it is lost.
+    void setDocument(const PDFDocument* document);
+
     /// Builds a new document. This function can throw exceptions,
     /// if document being built was invalid.
     PDFDocument build();

@@ -679,6 +679,12 @@ void PDFDocumentBuilder::createDocument()
     m_storage.setSecurityHandler(PDFSecurityHandlerPointer(new PDFNoneSecurityHandler()));
 }
 
+void PDFDocumentBuilder::setDocument(const PDFDocument* document)
+{
+    m_storage = document->getStorage();
+    m_version = document->getInfo()->version;
+}
+
 PDFDocument PDFDocumentBuilder::build()
 {
     updateTrailerDictionary(m_storage.getObjects().size());
