@@ -2107,7 +2107,6 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
     // CoreLib package
     addStartMenuShortcut("pdf4qt_framework", "maintenancetool", tr("PDF4QT Maintenance Tool"));
     addComponentMeta("pdf4qt_framework", tr("Framework (Core libraries)"), tr("Framework libraries and other data files required to run all other programs."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_framework", true, true, true);
-    addDirectoryContent("pdf4qt_framework", "colorprofiles");
     addDirectoryContent("pdf4qt_framework", "iconengines");
     addDirectoryContent("pdf4qt_framework", "imageformats");
     addDirectoryContent("pdf4qt_framework", "platforms");

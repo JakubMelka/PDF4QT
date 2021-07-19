@@ -79,8 +79,22 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         // manipulating a single document).
         if (!m_flags.testFlag(SingleDocument))
         {
+            PDFInteger lastDocumentIndex = pages.front().documentIndex;
+            std::vector<size_t> documentPartPageCounts = { 0 };
 
-            std::vector<size_t> documentPartPageCounts;
+            for (const AssembledPage& page : pages)
+            {
+                if (page.documentIndex == lastDocumentIndex)
+                {
+                    ++documentPartPageCounts.back();
+                }
+                else
+                {
+                    documentPartPageCounts.push_back(1);
+                    lastDocumentIndex = page.documentIndex;
+                }
+            }
+
             documentBuilder.createDocumentParts(documentPartPageCounts);
         }
 

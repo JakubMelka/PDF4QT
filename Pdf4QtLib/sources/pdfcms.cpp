@@ -29,6 +29,14 @@
 #include <lcms2_plugin.h>
 #pragma warning(pop)
 
+
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <Windows.h>
+#include <Icm.h>
+#pragma comment(lib, "Mscms")
+#endif
+
 #include <unordered_map>
 
 namespace pdf
@@ -1723,11 +1731,19 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
     PDFColorProfileIdentifiers result;
 
     QStringList directories(m_settings.profileDirectory);
-    QDir applicationDirectory(QApplication::applicationDirPath());
-    if (applicationDirectory.cd("colorprofiles"))
+
+#ifdef Q_OS_WIN
+    std::array<WCHAR, _MAX_PATH> buffer = { };
+    DWORD bufferSize = DWORD(buffer.size() * sizeof(WCHAR));
+    if (GetColorDirectoryW(NULL, buffer.data(), &bufferSize))
     {
-        directories << applicationDirectory.absolutePath();
+        const DWORD charactersWithNull = bufferSize / sizeof(WCHAR);
+        const DWORD charactersWithoutNull = bufferSize > 0 ? charactersWithNull - 1 : 0;
+
+        QString directory = QString::fromWCharArray(buffer.data(), int(charactersWithoutNull));
+        directories << QDir::fromNativeSeparators(directory);
     }
+#endif
 
     for (const QString& directory : directories)
     {
