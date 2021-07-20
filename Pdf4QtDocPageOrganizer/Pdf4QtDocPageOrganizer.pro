@@ -41,15 +41,18 @@ application.path = $$DESTDIR/install
 INSTALLS += application
 
 SOURCES += \
+    aboutdialog.cpp \
     main.cpp \
     mainwindow.cpp \
     pageitemdelegate.cpp \
     pageitemmodel.cpp
 
 FORMS += \
+    aboutdialog.ui \
     mainwindow.ui
 
 HEADERS += \
+    aboutdialog.h \
     mainwindow.h \
     pageitemdelegate.h \
     pageitemmodel.h

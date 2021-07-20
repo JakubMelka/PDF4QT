@@ -18,6 +18,8 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include "aboutdialog.h"
+
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
 
@@ -483,9 +485,15 @@ void MainWindow::performOperation(Operation operation)
             m_model->insertEmptyPage(ui->documentItemsView->selectionModel()->selection().indexes());
             break;
 
+        case Operation::About:
+        {
+            PDFAboutDialog aboutDialog(this);
+            aboutDialog.exec();
+            break;
+        }
+
         case Operation::InsertImage:
         case Operation::InsertPDF:
-        case Operation::About:
 
         case Operation::Unite:
         case Operation::Separate:
