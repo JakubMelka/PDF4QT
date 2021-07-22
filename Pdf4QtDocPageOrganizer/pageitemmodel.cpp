@@ -18,6 +18,7 @@
 #include "pageitemmodel.h"
 
 #include <QFileInfo>
+#include <QImageReader>
 
 #include <iterator>
 
@@ -112,6 +113,56 @@ int PageItemModel::addDocument(QString fileName, pdf::PDFDocument document)
     m_documents[newIndex] = { qMove(fileName), qMove(document) };
     createDocumentGroup(newIndex);
     return newIndex;
+}
+
+int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
+{
+    QFile file(fileName);
+
+    if (file.open(QFile::ReadOnly))
+    {
+        ImageItem item;
+        item.imageData = file.readAll();
+
+        QImageReader reader(fileName);
+        item.image = reader.read();
+
+        file.close();
+
+        if (!item.image.isNull())
+        {
+            int newIndex = 1;
+
+            if (!m_images.empty())
+            {
+                newIndex = (m_images.rbegin()->first) + 1;
+            }
+
+            m_images[newIndex] = qMove(item);
+
+            // Insert image item
+            PageGroupItem newItem;
+
+            newItem.groups.reserve(1);
+
+            PageGroupItem::GroupItem groupItem;
+            groupItem.imageIndex = newIndex;
+            groupItem.rotatedPageDimensionsMM = m_images[newIndex].image.size() * 0.1;
+            groupItem.pageType = PT_Image;
+            newItem.groups.push_back(qMove(groupItem));
+
+            updateItemCaptionAndTags(newItem);
+            int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+
+            beginInsertRows(QModelIndex(), insertRow, insertRow);
+            m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
+            endInsertRows();
+
+            return newIndex;
+        }
+    }
+
+    return -1;
 }
 
 const PageGroupItem* PageItemModel::getItem(const QModelIndex& index) const

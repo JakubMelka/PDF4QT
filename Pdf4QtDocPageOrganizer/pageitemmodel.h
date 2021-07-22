@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 #include "pdfutils.h"
 
+#include <QImage>
 #include <QAbstractItemModel>
 
 namespace pdfdocpage
@@ -69,6 +70,12 @@ struct DocumentItem
     pdf::PDFDocument document;
 };
 
+struct ImageItem
+{
+    QImage image;
+    QByteArray imageData;
+};
+
 class PageItemModel : public QAbstractItemModel
 {
     Q_OBJECT
@@ -103,6 +110,14 @@ public:
     /// \param document Document
     /// \returns Identifier of the document (internal index)
     int addDocument(QString fileName, pdf::PDFDocument document);
+
+    /// Adds image to the model, inserts one single page containing
+    /// the image. Returns index of a newly added image. If image
+    /// cannot be read from the file, -1 is returned.
+    /// \param fileName Image file
+    /// \param index Index, where image is inserted
+    /// \returns Identifier of the image (internal index)
+    int insertImage(QString fileName, const QModelIndex& index);
 
     /// Returns item at a given index. If item doesn't exist,
     /// then nullptr is returned.
@@ -148,6 +163,7 @@ private:
 
     std::vector<PageGroupItem> m_pageGroupItems;
     std::map<int, DocumentItem> m_documents;
+    std::map<int, ImageItem> m_images;
     std::vector<PageGroupItem> m_trashBin;
 };
 

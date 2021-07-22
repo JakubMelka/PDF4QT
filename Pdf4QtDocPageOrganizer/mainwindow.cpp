@@ -30,6 +30,7 @@
 #include <QClipboard>
 #include <QToolBar>
 #include <QDesktopServices>
+#include <QImageReader>
 
 namespace pdfdocpage
 {
@@ -473,10 +474,6 @@ void MainWindow::performOperation(Operation operation)
             m_model->rotateRight(ui->documentItemsView->selectionModel()->selection().indexes());
             break;
 
-        case Operation::ReplaceSelection:
-            Q_ASSERT(false);
-            break;
-
         case Operation::GetSource:
             QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PdfForQt"));
             break;
@@ -492,7 +489,28 @@ void MainWindow::performOperation(Operation operation)
             break;
         }
 
+        case Operation::ReplaceSelection:
+            Q_ASSERT(false);
+            break;
+
         case Operation::InsertImage:
+        {
+            QStringList filters;
+            for (const QByteArray& imageFormat : QImageReader::supportedImageFormats())
+            {
+                filters << QString::fromLatin1(imageFormat).toLower();
+            }
+            QString filter = tr("Images (*.%1)").arg(filters.join(" *."));
+            QString fileName = QFileDialog::getOpenFileName(this, tr("Select Image"), m_settings.directory, filter, nullptr);
+
+            if (!fileName.isEmpty())
+            {
+                QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+                m_model->insertImage(fileName, !indexes.isEmpty() ? indexes.front() : QModelIndex());
+            }
+            break;
+        }
+
         case Operation::InsertPDF:
 
         case Operation::Unite:
