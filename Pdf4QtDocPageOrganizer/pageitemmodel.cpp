@@ -848,6 +848,97 @@ Qt::ItemFlags PageItemModel::flags(const QModelIndex& index) const
     return flags;
 }
 
+std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getAssembledPages(AssembleMode mode) const
+{
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
+
+    auto createAssembledPage = [this](const PageGroupItem::GroupItem& item)
+    {
+        pdf::PDFDocumentManipulator::AssembledPage assembledPage;
+
+        assembledPage.documentIndex = item.documentIndex;
+        assembledPage.imageIndex = item.imageIndex;
+        assembledPage.pageIndex = item.pageIndex;
+
+        if (assembledPage.pageIndex > 0)
+        {
+            --assembledPage.pageIndex;
+        }
+
+        pdf::PageRotation originalPageRotation = pdf::PageRotation::None;
+        if (item.pageType == PT_DocumentPage)
+        {
+            auto it = m_documents.find(item.documentIndex);
+            if (it != m_documents.cend())
+            {
+                const pdf::PDFPage* page = it->second.document.getCatalog()->getPage(item.pageIndex - 1);
+                originalPageRotation = page->getPageRotation();
+            }
+        }
+
+        assembledPage.pageRotation = pdf::getPageRotationCombined(originalPageRotation, item.pageAdditionalRotation);
+        assembledPage.pageSize = pdf::PDFPage::getRotatedSize(item.rotatedPageDimensionsMM, pdf::getPageRotationInversed(item.pageAdditionalRotation));
+
+        return assembledPage;
+    };
+
+    switch (mode)
+    {
+        case AssembleMode::Unite:
+        {
+            std::vector<pdf::PDFDocumentManipulator::AssembledPage> unitedDocument;
+
+            for (const auto& pageGroupItem : m_pageGroupItems)
+            {
+                for (const auto& groupItem : pageGroupItem.groups)
+                {
+                    unitedDocument.emplace_back(createAssembledPage(groupItem));
+                }
+            }
+
+            result.emplace_back(std::move(unitedDocument));
+            break;
+        }
+
+        case AssembleMode::Separate:
+        {
+            for (const auto& pageGroupItem : m_pageGroupItems)
+            {
+                for (const auto& groupItem : pageGroupItem.groups)
+                {
+                    result.emplace_back().emplace_back(createAssembledPage(groupItem));
+                }
+            }
+            break;
+        }
+
+        case AssembleMode::SeparateGrouped:
+        {
+            for (const auto& pageGroupItem : m_pageGroupItems)
+            {
+                std::vector<pdf::PDFDocumentManipulator::AssembledPage> groupDocument;
+                for (const auto& groupItem : pageGroupItem.groups)
+                {
+                    groupDocument.emplace_back(createAssembledPage(groupItem));
+                }
+                result.emplace_back(std::move(groupDocument));
+            }
+            break;
+        }
+
+        default:
+        {
+            Q_ASSERT(false);
+            break;
+        }
+    }
+
+    // Remove empty documents
+    result.erase(std::remove_if(result.begin(), result.end(), [](const auto& pages) { return pages.empty(); }), result.end());
+
+    return result;
+}
+
 void PageItemModel::clear()
 {
     beginResetModel();

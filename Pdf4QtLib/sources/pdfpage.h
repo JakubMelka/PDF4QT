@@ -84,6 +84,34 @@ constexpr PageRotation getPageRotationRotatedLeft(PageRotation rotation)
     return PageRotation::None;
 }
 
+constexpr PageRotation getPageRotationCombined(PageRotation r1, PageRotation r2)
+{
+    while (r1 != PageRotation::None)
+    {
+        r2 = getPageRotationRotatedRight(r2);
+        r1 = getPageRotationRotatedLeft(r1);
+    }
+
+    return r2;
+}
+
+constexpr PageRotation getPageRotationInversed(PageRotation rotation)
+{
+    switch (rotation)
+    {
+        case PageRotation::None:
+            return PageRotation::None;
+        case PageRotation::Rotate90:
+            return PageRotation::Rotate270;
+        case PageRotation::Rotate180:
+            return PageRotation::Rotate180;
+        case PageRotation::Rotate270:
+            return PageRotation::Rotate90;
+    }
+
+    return PageRotation::None;
+}
+
 /// This class represents attributes, which are inheritable. Also allows merging from
 /// parents.
 class PDFPageInheritableAttributes
@@ -241,6 +269,7 @@ public:
     /// of 1 / 72 inch. Default value is 1.0.
     inline PDFReal getUserUnit() const { return m_userUnit; }
 
+    static QSizeF getRotatedSize(const QSizeF& size, PageRotation rotation);
     static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);
 
 private:

@@ -29,6 +29,10 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         return tr("Empty page list.");
     }
 
+    m_flags = None;
+    m_mergedObjects = { };
+    m_assembledDocument = PDFDocument();
+
     try
     {
         classify(pages);

@@ -20,6 +20,7 @@
 
 #include "pdfdocument.h"
 #include "pdfutils.h"
+#include "pdfdocumentmanipulator.h"
 
 #include <QImage>
 #include <QAbstractItemModel>
@@ -100,6 +101,15 @@ public:
     virtual Qt::DropActions supportedDragActions() const override;
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
 
+    enum class AssembleMode
+    {
+        Unite,
+        Separate,
+        SeparateGrouped
+    };
+
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> getAssembledPages(AssembleMode mode) const;
+
     /// Clear all data and undo/redo
     void clear();
 
@@ -152,6 +162,9 @@ public:
     void rotateRight(const QModelIndexList& list);
 
     static QString getMimeDataType() { return QLatin1String("application/pagemodel.PDF4QtDocPageOrganizer"); }
+
+    const std::map<int, DocumentItem>& getDocuments() const { return m_documents; }
+    const std::map<int, ImageItem>& getImages() const { return m_images; }
 
 private:
     void createDocumentGroup(int index);

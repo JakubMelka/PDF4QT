@@ -42,6 +42,7 @@ INSTALLS += application
 
 SOURCES += \
     aboutdialog.cpp \
+    assembleoutputsettingsdialog.cpp \
     main.cpp \
     mainwindow.cpp \
     pageitemdelegate.cpp \
@@ -49,10 +50,12 @@ SOURCES += \
 
 FORMS += \
     aboutdialog.ui \
+    assembleoutputsettingsdialog.ui \
     mainwindow.ui
 
 HEADERS += \
     aboutdialog.h \
+    assembleoutputsettingsdialog.h \
     mainwindow.h \
     pageitemdelegate.h \
     pageitemmodel.h

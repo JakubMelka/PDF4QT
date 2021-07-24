@@ -15,31 +15,38 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef PDFDOCPAGEORGANIZER_PDFABOUTDIALOG_H
-#define PDFDOCPAGEORGANIZER_PDFABOUTDIALOG_H
+#ifndef PDFDOCPAGEORGANIZER_ASSEMBLEOUTPUTSETTINGSDIALOG_H
+#define PDFDOCPAGEORGANIZER_ASSEMBLEOUTPUTSETTINGSDIALOG_H
 
 #include <QDialog>
 
 namespace Ui
 {
-class PDFAboutDialog;
+class AssembleOutputSettingsDialog;
 }
 
 namespace pdfdocpage
 {
 
-class PDFAboutDialog : public QDialog
+class AssembleOutputSettingsDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit PDFAboutDialog(QWidget* parent);
-    virtual ~PDFAboutDialog() override;
+    explicit AssembleOutputSettingsDialog(QString directory, QWidget* parent);
+    virtual ~AssembleOutputSettingsDialog() override;
+
+    QString getDirectory() const;
+    QString getFileName() const;
+    bool isOverwriteFiles() const;
+
+private slots:
+    void on_selectDirectoryButton_clicked();
 
 private:
-    Ui::PDFAboutDialog* ui;
+    Ui::AssembleOutputSettingsDialog* ui;
 };
 
 }   // namespace pdfdocpage
 
-#endif // PDFDOCPAGEORGANIZER_PDFABOUTDIALOG_H
+#endif // PDFDOCPAGEORGANIZER_ASSEMBLEOUTPUTSETTINGSDIALOG_H

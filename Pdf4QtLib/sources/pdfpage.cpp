@@ -207,6 +207,23 @@ PDFObject PDFPage::getOutputIntents(const PDFObjectStorage* storage) const
     return getObjectFromPageDictionary(storage, "OutputIntents");
 }
 
+QSizeF PDFPage::getRotatedSize(const QSizeF& size, PageRotation rotation)
+{
+    switch (rotation)
+    {
+        case PageRotation::None:
+        case PageRotation::Rotate180:
+            // Preserve rotation
+            break;
+
+        case PageRotation::Rotate90:
+        case PageRotation::Rotate270:
+            return size.transposed();
+    }
+
+    return size;
+}
+
 QRectF PDFPage::getRotatedBox(const QRectF& rect, PageRotation rotation)
 {
     switch (rotation)

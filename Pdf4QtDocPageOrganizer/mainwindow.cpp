@@ -19,6 +19,7 @@
 #include "ui_mainwindow.h"
 
 #include "aboutdialog.h"
+#include "assembleoutputsettingsdialog.h"
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
@@ -489,9 +490,102 @@ void MainWindow::performOperation(Operation operation)
             break;
         }
 
-        case Operation::ReplaceSelection:
-            Q_ASSERT(false);
+        case Operation::Unite:
+        case Operation::Separate:
+        case Operation::SeparateGrouped:
+        {
+            PageItemModel::AssembleMode assembleMode = PageItemModel::AssembleMode::Unite;
+
+            switch (operation)
+            {
+                case Operation::Unite:
+                    assembleMode = PageItemModel::AssembleMode::Unite;
+                    break;
+
+                case Operation::Separate:
+                    assembleMode = PageItemModel::AssembleMode::Separate;
+                    break;
+
+                case Operation::SeparateGrouped:
+                    assembleMode = PageItemModel::AssembleMode::SeparateGrouped;
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+            }
+
+            std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments = m_model->getAssembledPages(assembleMode);
+
+            // Check we have something to process
+            if (assembledDocuments.empty())
+            {
+                QMessageBox::critical(this, tr("Error"), tr("No documents to assemble."));
+                break;
+            }
+
+            AssembleOutputSettingsDialog dialog(m_settings.directory, this);
+            if (dialog.exec() == QDialog::Accepted)
+            {
+                pdf::PDFDocumentManipulator manipulator;
+
+                // Add documents and images
+                for (const auto& documentItem : m_model->getDocuments())
+                {
+                    manipulator.addDocument(documentItem.first, &documentItem.second.document);
+                }
+                for (const auto& imageItem : m_model->getImages())
+                {
+                    manipulator.addImage(imageItem.first, imageItem.second.image);
+                }
+
+                // Jakub Melka: create assembled documents
+                pdf::PDFOperationResult result(true);
+                std::vector<std::pair<QString, pdf::PDFDocument>> assembledDocumentStorage;
+
+                int sourceDocumentIndex = 1;
+                int assembledDocumentIndex = 1;
+                int sourcePageIndex = 1;
+                int documentCount = int(m_model->getDocuments().size());
+
+                QString directory = dialog.getDirectory();
+                QString fileNameTemplate = dialog.getFileName();
+                const bool isOverwriteEnabled = dialog.isOverwriteFiles();
+
+                for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
+                {
+                    pdf::PDFOperationResult currentResult = manipulator.assemble(assembledPages);
+                    if (!currentResult && result)
+                    {
+                        result = currentResult;
+                        break;
+                    }
+
+                    pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
+                    sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
+                    sourcePageIndex = qMax(samplePage.pageIndex + 1, 1);
+
+                    QString fileName = fileNameTemplate;
+
+                    if (!fileName.endsWith(".pdf"))
+                    {
+                        fileName += ".pdf";
+                    }
+
+                    assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), manipulator.takeAssembledDocument()));
+                    ++assembledDocumentIndex;
+                }
+
+                if (!result)
+                {
+                    QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
+                    break;
+                }
+
+
+            }
+
             break;
+        }
 
         case Operation::InsertImage:
         {
@@ -512,10 +606,9 @@ void MainWindow::performOperation(Operation operation)
         }
 
         case Operation::InsertPDF:
-
-        case Operation::Unite:
-        case Operation::Separate:
-        case Operation::SeparateGrouped:
+        case Operation::ReplaceSelection:
+            Q_ASSERT(false);
+            break;
 
         default:
             Q_ASSERT(false);
