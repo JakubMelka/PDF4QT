@@ -19,8 +19,10 @@
 #include "pageitemmodel.h"
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
+#include "pdfrenderer.h"
 
 #include <QPainter>
+#include <QPixmapCache>
 
 namespace pdfdocpage
 {
@@ -62,8 +64,17 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
         QRect pageImageRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
 
-        painter->setPen(QPen(Qt::black));
         painter->setBrush(Qt::white);
+        painter->drawRect(pageImageRect);
+
+        QPixmap pageImagePixmap = getPageImagePixmap(item, pageImageRect);
+        if (!pageImagePixmap.isNull())
+        {
+            painter->drawPixmap(pageImageRect, pageImagePixmap);
+        }
+
+        painter->setPen(QPen(Qt::black));
+        painter->setBrush(Qt::NoBrush);
         painter->drawRect(pageImageRect);
     }
 
@@ -120,6 +131,75 @@ void PageItemDelegate::setPageImageSize(QSize pageImageSize)
         m_pageImageSize = pageImageSize;
         emit sizeHintChanged(QModelIndex());
     }
+}
+
+QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect rect) const
+{
+    QPixmap pixmap;
+
+    Q_ASSERT(item);
+    if (item->groups.empty())
+    {
+        return pixmap;
+    }
+
+    const PageGroupItem::GroupItem& groupItem = item->groups.front();
+    if (groupItem.pageType == PT_Empty)
+    {
+        return pixmap;
+    }
+
+    // Jakub Melka: generate key and see, if pixmap is not cached
+    QString key = QString("%1#%2#%3#%4#%5@%6x%7").arg(groupItem.documentIndex).arg(groupItem.imageIndex).arg(int(groupItem.pageAdditionalRotation)).arg(groupItem.pageIndex).arg(groupItem.pageType).arg(rect.width()).arg(rect.height());
+
+    if (!QPixmapCache::find(key, &pixmap))
+    {
+        // We must draw the pixmap
+        pixmap = QPixmap(rect.width(), rect.height());
+        pixmap.fill(Qt::transparent);
+
+        switch (groupItem.pageType)
+        {
+            case pdfdocpage::PT_DocumentPage:
+                break;
+
+            case pdfdocpage::PT_Image:
+            {
+                const auto& images = m_model->getImages();
+                auto it = images.find(groupItem.imageIndex);
+                if (it != images.cend())
+                {
+                    const QImage& image = it->second.image;
+                    if (!image.isNull())
+                    {
+                        QRect drawRect(QPoint(0, 0), rect.size());
+                        QRect mediaBox(QPoint(0, 0), image.size());
+                        QMatrix matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(mediaBox, drawRect, groupItem.pageAdditionalRotation);
+
+                        QPainter painter(&pixmap);
+                        painter.setWorldMatrixEnabled(true);
+                        painter.setWorldMatrix(matrix);
+                        painter.translate(0, mediaBox.height());
+                        painter.scale(1.0, -1.0);
+                        painter.drawImage(0, 0, image);
+                    }
+                }
+                break;
+            }
+
+            case pdfdocpage::PT_Empty:
+                Q_ASSERT(false);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        QPixmapCache::insert(key, pixmap);
+    }
+
+    return pixmap;
 }
 
 }   // namespace pdfdocpage

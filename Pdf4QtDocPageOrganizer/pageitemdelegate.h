@@ -24,6 +24,7 @@ namespace pdfdocpage
 {
 
 class PageItemModel;
+struct PageGroupItem;
 
 class PageItemDelegate : public QAbstractItemDelegate
 {
@@ -45,6 +46,8 @@ public:
 private:
     static constexpr int getVerticalSpacing() { return 5; }
     static constexpr int getHorizontalSpacing() { return 5; }
+
+    QPixmap getPageImagePixmap(const PageGroupItem* item, QRect rect) const;
 
     PageItemModel* m_model;
     QSize m_pageImageSize;

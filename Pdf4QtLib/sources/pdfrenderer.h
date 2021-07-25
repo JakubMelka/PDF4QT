@@ -97,7 +97,18 @@ public:
     /// from page's media box to the target rectangle.
     /// \param page Page, for which we want to create matrix
     /// \param rectangle Page rectangle, to which is page media box transformed
-    static QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle);
+    /// \param extraRotation Extra rotation applied to the page rotation
+    static QMatrix createPagePointToDevicePointMatrix(const PDFPage* page,
+                                                      const QRectF& rectangle,
+                                                      PageRotation extraRotation = PageRotation::None);
+
+    /// Creates media box to device point matrix for the given media box.
+    /// \param mediaBox Media box
+    /// \param rectangle Page rectangle, to which is page media box transformed
+    /// \param rotation Rotation
+    static QMatrix createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
+                                                     const QRectF& rectangle,
+                                                     PageRotation rotation);
 
     /// Returns default renderer features
     static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations); }

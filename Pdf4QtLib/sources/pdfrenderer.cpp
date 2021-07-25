@@ -48,12 +48,22 @@ PDFRenderer::PDFRenderer(const PDFDocument* document,
     Q_ASSERT(document);
 }
 
-QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle)
+QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page,
+                                                        const QRectF& rectangle,
+                                                        PageRotation extraRotation)
 {
-    QRectF mediaBox = page->getRotatedMediaBox();
+    PageRotation pageRotation = getPageRotationCombined(page->getPageRotation(), extraRotation);
+    QRectF mediaBox = page->getRotatedBox(page->getMediaBox(), pageRotation);
 
+    return createMediaBoxToDevicePointMatrix(mediaBox, rectangle, pageRotation);
+}
+
+QMatrix PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
+                                                       const QRectF& rectangle,
+                                                       PageRotation rotation)
+{
     QMatrix matrix;
-    switch (page->getPageRotation())
+    switch (rotation)
     {
         case PageRotation::None:
         {

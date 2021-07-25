@@ -33,6 +33,7 @@
 #include <QToolBar>
 #include <QDesktopServices>
 #include <QImageReader>
+#include <QPixmapCache>
 
 namespace pdfdocpage
 {
@@ -345,6 +346,7 @@ void MainWindow::performOperation(Operation operation)
         case Operation::Clear:
         {
             m_model->clear();
+            QPixmapCache::clear();
             break;
         }
         case Operation::CloneSelection:
