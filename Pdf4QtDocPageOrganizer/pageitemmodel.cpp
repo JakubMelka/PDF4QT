@@ -95,7 +95,7 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
     return QVariant();
 }
 
-int PageItemModel::addDocument(QString fileName, pdf::PDFDocument document)
+int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index)
 {
     auto it = std::find_if(m_documents.cbegin(), m_documents.cend(), [&](const auto& item) { return item.second.fileName == fileName; });
     if (it != m_documents.cend())
@@ -111,7 +111,7 @@ int PageItemModel::addDocument(QString fileName, pdf::PDFDocument document)
     }
 
     m_documents[newIndex] = { qMove(fileName), qMove(document) };
-    createDocumentGroup(newIndex);
+    createDocumentGroup(newIndex, index);
     return newIndex;
 }
 
@@ -518,7 +518,7 @@ QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGro
     return result;
 }
 
-void PageItemModel::createDocumentGroup(int index)
+void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertIndex)
 {
     const DocumentItem& item = m_documents.at(index);
     const pdf::PDFInteger pageCount = item.document.getCatalog()->getPageCount();
@@ -544,8 +544,14 @@ void PageItemModel::createDocumentGroup(int index)
         newItem.groups.push_back(qMove(groupItem));
     }
 
-    beginInsertRows(QModelIndex(), rowCount(QModelIndex()), rowCount(QModelIndex()));
-    m_pageGroupItems.push_back(qMove(newItem));
+    int insertRow = rowCount(QModelIndex());
+    if (insertIndex.isValid())
+    {
+        insertRow = insertIndex.row() + 1;
+    }
+
+    beginInsertRows(QModelIndex(), insertRow, insertRow);
+    m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
     endInsertRows();
 }
 

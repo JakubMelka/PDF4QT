@@ -82,7 +82,7 @@
     <property name="title">
      <string>Insert</string>
     </property>
-    <addaction name="actionInsert_Page_from_PDF"/>
+    <addaction name="actionInsert_PDF"/>
     <addaction name="actionInsert_Image"/>
     <addaction name="actionInsert_Empty_Page"/>
    </widget>
@@ -189,13 +189,16 @@
     <string>Ctrl+Shift+R</string>
    </property>
   </action>
-  <action name="actionInsert_Page_from_PDF">
+  <action name="actionInsert_PDF">
    <property name="icon">
     <iconset resource="resources.qrc">
      <normaloff>:/pdfdocpage/resources/insert-page-from-pdf.svg</normaloff>:/pdfdocpage/resources/insert-page-from-pdf.svg</iconset>
    </property>
    <property name="text">
-    <string>Insert Page from PDF</string>
+    <string>Insert PDF</string>
+   </property>
+   <property name="toolTip">
+    <string>Insert PDF</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+I</string>

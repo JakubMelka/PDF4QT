@@ -118,8 +118,9 @@ public:
     /// cannot be added (for example, it already exists), -1 is returned.
     /// \param fileName File name
     /// \param document Document
+    /// \param index Index, where image is inserted
     /// \returns Identifier of the document (internal index)
-    int addDocument(QString fileName, pdf::PDFDocument document);
+    int insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index);
 
     /// Adds image to the model, inserts one single page containing
     /// the image. Returns index of a newly added image. If image
@@ -167,7 +168,7 @@ public:
     const std::map<int, ImageItem>& getImages() const { return m_images; }
 
 private:
-    void createDocumentGroup(int index);
+    void createDocumentGroup(int index, const QModelIndex& insertIndex);
     QString getGroupNameFromDocument(int index) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);

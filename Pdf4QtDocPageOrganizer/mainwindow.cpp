@@ -77,7 +77,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionSeparate_to_Multiple_Documents_Grouped->setData(int(Operation::SeparateGrouped));
     ui->actionInsert_Image->setData(int(Operation::InsertImage));
     ui->actionInsert_Empty_Page->setData(int(Operation::InsertEmptyPage));
-    ui->actionInsert_Page_from_PDF->setData(int(Operation::InsertPDF));
+    ui->actionInsert_PDF->setData(int(Operation::InsertPDF));
     ui->actionGet_Source->setData(int(Operation::GetSource));
     ui->actionAbout->setData(int(Operation::About));
 
@@ -92,7 +92,7 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
     QToolBar* insertToolbar = addToolBar(tr("Insert"));
     insertToolbar->setObjectName("insert_toolbar");
-    insertToolbar->addActions({ ui->actionInsert_Page_from_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
+    insertToolbar->addActions({ ui->actionInsert_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
     QToolBar* selectToolbar = addToolBar(tr("Select"));
     selectToolbar->setObjectName("select_toolbar");
     selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape });
@@ -160,7 +160,7 @@ void MainWindow::on_actionAddDocument_triggered()
     QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings.directory, tr("PDF document (*.pdf)"));
     if (!fileName.isEmpty())
     {
-        addDocument(fileName);
+        insertDocument(fileName, QModelIndex());
     }
 }
 
@@ -224,7 +224,7 @@ void MainWindow::saveSettings()
     settings.endGroup();
 }
 
-void MainWindow::addDocument(const QString& fileName)
+void MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex)
 {
     auto queryPassword = [this](bool* ok)
     {
@@ -248,7 +248,7 @@ void MainWindow::addDocument(const QString& fileName)
         if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble) ||
             securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify))
         {
-            m_model->addDocument(fileName, qMove(document));
+            m_model->insertDocument(fileName, qMove(document), insertIndex);
         }
         else
         {
@@ -654,9 +654,34 @@ void MainWindow::performOperation(Operation operation)
         }
 
         case Operation::InsertPDF:
-        case Operation::ReplaceSelection:
-            Q_ASSERT(false);
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings.directory, tr("PDF document (*.pdf)"));
+            if (!fileName.isEmpty())
+            {
+                insertDocument(fileName, !indexes.isEmpty() ? indexes.back() : QModelIndex());
+            }
             break;
+        }
+
+        case Operation::ReplaceSelection:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+
+            if (indexes.isEmpty())
+            {
+                // Jakub Melka: we have nothing to do, selection is empty
+                return;
+            }
+
+            QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings.directory, tr("PDF document (*.pdf)"));
+            if (!fileName.isEmpty())
+            {
+                insertDocument(fileName, indexes.back());
+                m_model->removeSelection(indexes);
+            }
+            break;
+        }
 
         default:
             Q_ASSERT(false);

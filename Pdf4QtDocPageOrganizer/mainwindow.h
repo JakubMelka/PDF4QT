@@ -94,7 +94,7 @@ private slots:
 private:
     void loadSettings();
     void saveSettings();
-    void addDocument(const QString& fileName);
+    void insertDocument(const QString& fileName, const QModelIndex& insertIndex);
 
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);
