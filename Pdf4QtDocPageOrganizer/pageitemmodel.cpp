@@ -877,7 +877,7 @@ std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemMod
         }
 
         assembledPage.pageRotation = pdf::getPageRotationCombined(originalPageRotation, item.pageAdditionalRotation);
-        assembledPage.pageSize = pdf::PDFPage::getRotatedSize(item.rotatedPageDimensionsMM, pdf::getPageRotationInversed(item.pageAdditionalRotation));
+        assembledPage.pageSize = item.rotatedPageDimensionsMM;
 
         return assembledPage;
     };

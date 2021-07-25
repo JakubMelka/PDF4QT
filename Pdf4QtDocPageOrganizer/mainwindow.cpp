@@ -23,6 +23,7 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumentwriter.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -551,6 +552,27 @@ void MainWindow::performOperation(Operation operation)
                 QString fileNameTemplate = dialog.getFileName();
                 const bool isOverwriteEnabled = dialog.isOverwriteFiles();
 
+                if (!directory.endsWith('/'))
+                {
+                    directory += "/";
+                }
+
+                auto replaceInString = [](QString& templateString, QChar character, int number)
+                {
+                    int index = templateString.indexOf(character, 0, Qt::CaseSensitive);
+                    if (index != -1)
+                    {
+                        int lastIndex = templateString.lastIndexOf(character, -1, Qt::CaseSensitive);
+                        int count = lastIndex - index + 1;
+
+                        QString textNumber = QString::number(number);
+                        textNumber = textNumber.rightJustified(count, '0', false);
+
+                        templateString.remove(index, count);
+                        templateString.insert(index, textNumber);
+                    }
+                };
+
                 for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
                 {
                     pdf::PDFOperationResult currentResult = manipulator.assemble(assembledPages);
@@ -562,14 +584,19 @@ void MainWindow::performOperation(Operation operation)
 
                     pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
                     sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
-                    sourcePageIndex = qMax(samplePage.pageIndex + 1, 1);
+                    sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
 
                     QString fileName = fileNameTemplate;
+
+                    replaceInString(fileName, '#', assembledDocumentIndex);
+                    replaceInString(fileName, '@', sourcePageIndex);
+                    replaceInString(fileName, '%', sourceDocumentIndex);
 
                     if (!fileName.endsWith(".pdf"))
                     {
                         fileName += ".pdf";
                     }
+                    fileName.prepend(directory);
 
                     assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), manipulator.takeAssembledDocument()));
                     ++assembledDocumentIndex;
@@ -578,10 +605,31 @@ void MainWindow::performOperation(Operation operation)
                 if (!result)
                 {
                     QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
-                    break;
+                    return;
                 }
 
+                // Now, try to save files
+                for (const auto& assembledDocumentItem : assembledDocumentStorage)
+                {
+                    QString filename = assembledDocumentItem.first;
+                    const pdf::PDFDocument* document = &assembledDocumentItem.second;
 
+                    const bool isDocumentFileAlreadyExisting = QFile::exists(filename);
+                    if (!isOverwriteEnabled && isDocumentFileAlreadyExisting)
+                    {
+                        QMessageBox::critical(this, tr("Error"), tr("Document with given filename already exists."));
+                        return;
+                    }
+
+                    pdf::PDFDocumentWriter writer(nullptr);
+                    pdf::PDFOperationResult result = writer.write(filename, document, isDocumentFileAlreadyExisting);
+
+                    if (!result)
+                    {
+                        QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
+                        return;
+                    }
+                }
             }
 
             break;

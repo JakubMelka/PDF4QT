@@ -173,6 +173,14 @@ void PDFWriteObjectVisitor::visitReference(const PDFObjectReference reference)
 
 PDFOperationResult PDFDocumentWriter::write(const QString& fileName, const PDFDocument* document, bool safeWrite)
 {
+    Q_ASSERT(document);
+
+    const PDFObjectStorage& storage = document->getStorage();
+    if (!storage.getSecurityHandler()->isEncryptionAllowed())
+    {
+        return tr("Writing of encrypted documents is not supported.");
+    }
+
     if (safeWrite)
     {
         QSaveFile file(fileName);
@@ -204,6 +212,13 @@ PDFOperationResult PDFDocumentWriter::write(const QString& fileName, const PDFDo
         {
             PDFOperationResult result = write(&file, document);
             file.close();
+
+            if (!result)
+            {
+                // If some error occured, then remove invalid file
+                file.remove();
+            }
+
             return result;
         }
         else

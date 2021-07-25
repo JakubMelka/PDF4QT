@@ -48,8 +48,8 @@ struct PageGroupItem
         int documentIndex = -1;
         pdf::PDFInteger pageIndex = -1;
         pdf::PDFInteger imageIndex = -1;
-        QSizeF rotatedPageDimensionsMM;
-        pdf::PageRotation pageAdditionalRotation = pdf::PageRotation::None;
+        QSizeF rotatedPageDimensionsMM; ///< Rotated page dimensions, but without additional rotation
+        pdf::PageRotation pageAdditionalRotation = pdf::PageRotation::None; ///< Additional rotation applied to the page
         PageType pageType = PT_DocumentPage;
     };
 
