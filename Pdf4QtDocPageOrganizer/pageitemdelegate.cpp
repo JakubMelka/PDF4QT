@@ -174,12 +174,13 @@ QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect re
                     {
                         QRect drawRect(QPoint(0, 0), rect.size());
                         QRect mediaBox(QPoint(0, 0), image.size());
-                        QMatrix matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(mediaBox, drawRect, groupItem.pageAdditionalRotation);
+                        QRectF rotatedMediaBox = pdf::PDFPage::getRotatedBox(mediaBox, groupItem.pageAdditionalRotation);
+                        QMatrix matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, groupItem.pageAdditionalRotation);
 
                         QPainter painter(&pixmap);
                         painter.setWorldMatrixEnabled(true);
                         painter.setWorldMatrix(matrix);
-                        painter.translate(0, mediaBox.height());
+                        painter.translate(0, image.height());
                         painter.scale(1.0, -1.0);
                         painter.drawImage(0, 0, image);
                     }
