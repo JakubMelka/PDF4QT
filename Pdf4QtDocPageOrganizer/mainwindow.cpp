@@ -34,6 +34,8 @@
 #include <QDesktopServices>
 #include <QImageReader>
 #include <QPixmapCache>
+#include <QScreen>
+#include <QGuiApplication>
 
 namespace pdfdocpage
 {
@@ -125,6 +127,14 @@ MainWindow::MainWindow(QWidget* parent) :
             m_mapper.setMapping(action, actionData.toInt());
         }
     }
+
+    // Initialize pixmap cache size
+    const int depth = 4; // 4 bytes (ARGB)
+    const int reserveSize = 2; // Caching of two screens
+    QSize size = QGuiApplication::primaryScreen()->availableVirtualSize();
+    int bytes = size.width() * size.height() * depth * reserveSize;
+    int kBytes = bytes / 1024;
+    QPixmapCache::setCacheLimit(kBytes);
 
     loadSettings();
     updateActions();

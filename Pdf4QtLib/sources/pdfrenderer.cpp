@@ -209,11 +209,12 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
                              const PDFPrecompiledPage* compiledPage,
                              QSize size,
                              PDFRenderer::Features features,
-                             const PDFAnnotationManager* annotationManager)
+                             const PDFAnnotationManager* annotationManager,
+                             PageRotation extraRotation)
 {
     QImage image;
 
-    QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size));
+    QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
     if (m_features.testFlag(UseOpenGL) && m_features.testFlag(ValidOpenGL))
     {
         // We have valid OpenGL context, try to select it and possibly create framebuffer object
@@ -464,7 +465,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         pageTimer.restart();
         PDFRasterizer* rasterizer = acquire();
         qint64 pageWaitTime = pageTimer.restart();
-        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager);
+        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, PageRotation::None);
         qint64 pageRenderTime = pageTimer.elapsed();
         release(rasterizer);
 

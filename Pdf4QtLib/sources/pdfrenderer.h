@@ -126,7 +126,7 @@ private:
 /// if it is enabled, if this is the case, offscreen rendering to framebuffer
 /// is used.
 /// \note Construct this object only in main GUI thread
-class PDFRasterizer : public QObject
+class Pdf4QtLIBSHARED_EXPORT PDFRasterizer : public QObject
 {
     Q_OBJECT
 
@@ -163,12 +163,14 @@ public:
     /// \param size Size of the target image
     /// \param features Renderer features
     /// \param annotationManager Annotation manager (can be nullptr)
+    /// \param extraRotation Extra page rotation
     QImage render(PDFInteger pageIndex,
                   const PDFPage* page,
                   const PDFPrecompiledPage* compiledPage,
                   QSize size,
                   PDFRenderer::Features features,
-                  const PDFAnnotationManager* annotationManager);
+                  const PDFAnnotationManager* annotationManager,
+                  PageRotation extraRotation);
 
 private:
     void initializeOpenGL();

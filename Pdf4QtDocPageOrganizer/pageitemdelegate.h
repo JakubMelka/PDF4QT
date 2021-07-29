@@ -18,6 +18,9 @@
 #ifndef PDFDOCPAGEORGANIZER_PAGEITEMDELEGATE_H
 #define PDFDOCPAGEORGANIZER_PAGEITEMDELEGATE_H
 
+#include "pdfrenderer.h"
+#include "pdfcms.h"
+
 #include <QAbstractItemDelegate>
 
 namespace pdfdocpage
@@ -51,6 +54,7 @@ private:
 
     PageItemModel* m_model;
     QSize m_pageImageSize;
+    pdf::PDFRasterizer* m_rasterizer;
 };
 
 }   // namespace pdfdocpage

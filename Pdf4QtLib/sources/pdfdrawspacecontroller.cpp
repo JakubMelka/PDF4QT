@@ -845,7 +845,7 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
             if (compiledPage && compiledPage->isValid())
             {
                 // Rasterize the image.
-                image = m_rasterizer->render(pageIndex, page, compiledPage, imageSize, m_features, m_widget->getAnnotationManager());
+                image = m_rasterizer->render(pageIndex, page, compiledPage, imageSize, m_features, m_widget->getAnnotationManager(), PageRotation::None);
             }
 
             if (image.isNull())

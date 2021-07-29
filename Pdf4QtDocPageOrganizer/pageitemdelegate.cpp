@@ -20,6 +20,8 @@
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
 #include "pdfrenderer.h"
+#include "pdfcompiler.h"
+#include "pdfconstants.h"
 
 #include <QPainter>
 #include <QPixmapCache>
@@ -29,9 +31,13 @@ namespace pdfdocpage
 
 PageItemDelegate::PageItemDelegate(PageItemModel* model, QObject* parent) :
     BaseClass(parent),
-    m_model(model)
+    m_model(model),
+    m_rasterizer(nullptr)
 {
-
+    m_rasterizer = new pdf::PDFRasterizer(this);
+    QSurfaceFormat format;
+    format.setSamples(16);
+    m_rasterizer->reset(true, format);
 }
 
 PageItemDelegate::~PageItemDelegate()
@@ -161,7 +167,37 @@ QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect re
         switch (groupItem.pageType)
         {
             case pdfdocpage::PT_DocumentPage:
+            {
+                const auto& documents = m_model->getDocuments();
+                auto it = documents.find(groupItem.documentIndex);
+                if (it != documents.cend())
+                {
+                    const pdf::PDFDocument& document = it->second.document;
+                    const pdf::PDFInteger pageIndex = groupItem.pageIndex - 1;
+                    if (pageIndex >= 0 && pageIndex < pdf::PDFInteger(document.getCatalog()->getPageCount()))
+                    {
+                        const pdf::PDFPage* page = document.getCatalog()->getPage(pageIndex);
+                        Q_ASSERT(page);
+
+                        pdf::PDFPrecompiledPage compiledPage;
+                        pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+                        pdf::PDFCMSManager cmsManager(nullptr);
+                        pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::View, nullptr);
+
+                        fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(&document), &optionalContentActivity));
+                        cmsManager.setDocument(&document);
+
+                        pdf::PDFCMSPointer cms = cmsManager.getCurrentCMS();
+                        pdf::PDFRenderer renderer(&document, &fontCache, cms.data(), &optionalContentActivity, pdf::PDFRenderer::getDefaultFeatures(), pdf::PDFMeshQualitySettings());
+                        renderer.compile(&compiledPage, pageIndex);
+
+                        QSize imageSize = rect.size();
+                        QImage pageImage = m_rasterizer->render(pageIndex, page, &compiledPage, imageSize, pdf::PDFRenderer::getDefaultFeatures(), nullptr, groupItem.pageAdditionalRotation);
+                        pixmap = QPixmap::fromImage(qMove(pageImage));
+                    }
+                }
                 break;
+            }
 
             case pdfdocpage::PT_Image:
             {
