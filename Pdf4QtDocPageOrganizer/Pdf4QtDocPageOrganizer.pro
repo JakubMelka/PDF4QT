@@ -24,7 +24,7 @@ VERSION = 1.0.0
 
 RC_ICONS = $$PWD/app-icon.ico
 
-QMAKE_TARGET_DESCRIPTION = "PDF document page organizer"
+QMAKE_TARGET_DESCRIPTION = "PDF Document Page Organizer"
 QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"
 
 DEFINES += QT_DEPRECATED_WARNINGS

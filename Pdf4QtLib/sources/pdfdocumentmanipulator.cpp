@@ -343,7 +343,7 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
             auto referenceIt = references.begin();
             for (auto currentIt = it; currentIt != itEnd; ++currentIt, ++referenceIt)
             {
-                it->second = *referenceIt;
+                currentIt->second = *referenceIt;
             }
         }
 

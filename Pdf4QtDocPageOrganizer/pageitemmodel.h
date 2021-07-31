@@ -32,7 +32,8 @@ enum PageType
 {
     PT_DocumentPage,
     PT_Image,
-    PT_Empty
+    PT_Empty,
+    PT_Last
 };
 
 struct PageGroupItem
@@ -167,11 +168,31 @@ public:
     const std::map<int, DocumentItem>& getDocuments() const { return m_documents; }
     const std::map<int, ImageItem>& getImages() const { return m_images; }
 
+    struct SelectionInfo
+    {
+        int documentCount = 0;
+        int imageCount = 0;
+        int blankPageCount = 0;
+
+        bool isDocumentOnly() const { return documentCount > 0 && imageCount == 0 && blankPageCount == 0; }
+        bool isSingleDocument() const { return isDocumentOnly() && documentCount == 1; }
+        bool isTwoDocuments() const { return isDocumentOnly() && documentCount == 2; }
+    };
+
+    SelectionInfo getSelectionInfo(const QModelIndexList& list) const;
+
+    void regroupEvenOdd(const QModelIndexList& list);
+    void regroupPaired(const QModelIndexList& list);
+    void regroupBookmarks(const QModelIndexList& list);
+    void regroupAlternatingPages(const QModelIndexList& list, bool reversed);
+
 private:
     void createDocumentGroup(int index, const QModelIndex& insertIndex);
     QString getGroupNameFromDocument(int index) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);
+
+    std::vector<PageGroupItem::GroupItem> extractItems(std::vector<PageGroupItem>& items, const QModelIndexList& selection) const;
 
     QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
 

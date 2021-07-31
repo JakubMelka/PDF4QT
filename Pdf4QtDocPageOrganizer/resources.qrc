@@ -30,5 +30,11 @@
         <file>resources/zoom-in.svg</file>
         <file>resources/zoom-out.svg</file>
         <file>resources/clear.svg</file>
+        <file>resources/invert-selection.svg</file>
+        <file>resources/regroup-alternating.svg</file>
+        <file>resources/regroup-alternating-reversed.svg</file>
+        <file>resources/regroup-bookmarks.svg</file>
+        <file>resources/regroup-even-odd.svg</file>
+        <file>resources/regroup-pairs.svg</file>
     </qresource>
 </RCC>

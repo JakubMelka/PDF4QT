@@ -435,6 +435,25 @@ void PageItemModel::insertEmptyPage(const QModelIndex& index)
     endInsertRows();
 }
 
+std::vector<PageGroupItem::GroupItem> PageItemModel::extractItems(std::vector<PageGroupItem>& items,
+                                                                  const QModelIndexList& selection) const
+{
+    std::vector<PageGroupItem::GroupItem> extractedItems;
+
+    std::vector<int> rows;
+    rows.reserve(selection.size());
+    std::transform(selection.cbegin(), selection.cend(), std::back_inserter(rows), [](const auto& index) { return index.row(); });
+    std::sort(rows.begin(), rows.end(), std::greater<int>());
+
+    for (int row : rows)
+    {
+        extractedItems.insert(extractedItems.begin(), items[row].groups.cbegin(), items[row].groups.cend());
+        items.erase(std::next(items.begin(), row));
+    }
+
+    return extractedItems;
+}
+
 void PageItemModel::rotateLeft(const QModelIndexList& list)
 {
     if (list.isEmpty())
@@ -487,6 +506,176 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
     rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
 
     emit dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+}
+
+PageItemModel::SelectionInfo PageItemModel::getSelectionInfo(const QModelIndexList& list) const
+{
+    SelectionInfo info;
+
+    std::set<int> documents;
+    std::set<int> images;
+
+    for (const QModelIndex& index : list)
+    {
+        const PageGroupItem* item = getItem(index);
+
+        if (!item)
+        {
+            continue;
+        }
+
+        for (const PageGroupItem::GroupItem& groupItem : item->groups)
+        {
+            switch (groupItem.pageType)
+            {
+                case pdfdocpage::PT_DocumentPage:
+                    documents.insert(groupItem.documentIndex);
+                    break;
+
+                case pdfdocpage::PT_Image:
+                    images.insert(groupItem.imageIndex);
+                    break;
+
+                case pdfdocpage::PT_Empty:
+                    ++info.blankPageCount;
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+        }
+    }
+
+    info.documentCount = int(documents.size());
+    info.imageCount = int(images.size());
+
+    return info;
+}
+
+void PageItemModel::regroupEvenOdd(const QModelIndexList& list)
+{
+    if (list.empty())
+    {
+        return;
+    }
+
+    std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
+    std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
+
+    auto it = std::stable_partition(extractedItems.begin(), extractedItems.end(), [](const auto& item) { return item.pageIndex % 2 == 1; });
+    std::vector<PageGroupItem::GroupItem> oddItems(extractedItems.begin(), it);
+    std::vector<PageGroupItem::GroupItem> evenItems(it, extractedItems.end());
+
+    if (!oddItems.empty())
+    {
+        PageGroupItem item;
+        item.groups = std::move(oddItems);
+        updateItemCaptionAndTags(item);
+        pageGroupItems.emplace_back(std::move(item));
+    }
+
+    if (!evenItems.empty())
+    {
+        PageGroupItem item;
+        item.groups = std::move(evenItems);
+        updateItemCaptionAndTags(item);
+        pageGroupItems.emplace_back(std::move(item));
+    }
+
+    if (pageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(pageGroupItems);
+        endResetModel();
+    }
+}
+
+void PageItemModel::regroupPaired(const QModelIndexList& list)
+{
+    if (list.empty())
+    {
+        return;
+    }
+
+    std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
+    std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
+
+    auto it = extractedItems.begin();
+    while (it != extractedItems.cend())
+    {
+        PageGroupItem item;
+        item.groups = { *it++ };
+
+        if (it != extractedItems.cend())
+        {
+            item.groups.emplace_back(std::move(*it++));
+        }
+
+        updateItemCaptionAndTags(item);
+        pageGroupItems.emplace_back(std::move(item));
+    }
+
+    if (pageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(pageGroupItems);
+        endResetModel();
+    }
+}
+
+void PageItemModel::regroupBookmarks(const QModelIndexList& list)
+{
+    Q_ASSERT(false);
+}
+
+void PageItemModel::regroupAlternatingPages(const QModelIndexList& list, bool reversed)
+{
+    if (list.empty())
+    {
+        return;
+    }
+
+    std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
+    std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
+    const int documentIndex = extractedItems.front().documentIndex;
+
+    auto it = std::stable_partition(extractedItems.begin(), extractedItems.end(), [documentIndex](const auto& item) { return item.documentIndex == documentIndex; });
+    std::vector<PageGroupItem::GroupItem> firstDocItems(extractedItems.begin(), it);
+    std::vector<PageGroupItem::GroupItem> secondDocItems(it, extractedItems.end());
+
+    if (reversed)
+    {
+        std::reverse(secondDocItems.begin(), secondDocItems.end());
+    }
+
+    auto itF = firstDocItems.begin();
+    auto itS = secondDocItems.begin();
+
+    PageGroupItem item;
+
+    while (itF != firstDocItems.cend() || itS != secondDocItems.cend())
+    {
+        if (itF != firstDocItems.cend())
+        {
+            item.groups.emplace_back(std::move(*itF++));
+        }
+
+        if (itS != secondDocItems.cend())
+        {
+            item.groups.emplace_back(std::move(*itS++));
+        }
+    }
+
+    updateItemCaptionAndTags(item);
+    pageGroupItems.emplace_back(std::move(item));
+
+    if (pageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(pageGroupItems);
+        endResetModel();
+    }
 }
 
 QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGroupItem::GroupItem&)> filter) const

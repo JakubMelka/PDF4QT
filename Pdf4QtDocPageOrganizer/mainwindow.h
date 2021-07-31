@@ -69,6 +69,7 @@ public:
         SelectOdd,
         SelectPortrait,
         SelectLandscape,
+        InvertSelection,
 
         ZoomIn,
         ZoomOut,
@@ -80,6 +81,12 @@ public:
         InsertImage,
         InsertEmptyPage,
         InsertPDF,
+
+        RegroupEvenOdd,
+        RegroupPaired,
+        RegroupBookmarks,
+        RegroupAlternatingPages,
+        RegroupAlternatingPagesReversed,
 
         GetSource,
         About

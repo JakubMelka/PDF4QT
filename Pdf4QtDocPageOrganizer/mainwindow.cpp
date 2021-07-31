@@ -83,6 +83,12 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionInsert_PDF->setData(int(Operation::InsertPDF));
     ui->actionGet_Source->setData(int(Operation::GetSource));
     ui->actionAbout->setData(int(Operation::About));
+    ui->actionInvert_Selection->setData(int(Operation::InvertSelection));
+    ui->actionRegroup_Even_Odd->setData(int(Operation::RegroupEvenOdd));
+    ui->actionRegroup_by_Page_Pairs->setData(int(Operation::RegroupPaired));
+    ui->actionRegroup_by_Bookmarks->setData(int(Operation::RegroupBookmarks));
+    ui->actionRegroup_by_Alternating_Pages->setData(int(Operation::RegroupAlternatingPages));
+    ui->actionRegroup_by_Alternating_Pages_Reversed_Order->setData(int(Operation::RegroupAlternatingPagesReversed));
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
     mainToolbar->setObjectName("main_toolbar");
@@ -98,7 +104,10 @@ MainWindow::MainWindow(QWidget* parent) :
     insertToolbar->addActions({ ui->actionInsert_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
     QToolBar* selectToolbar = addToolBar(tr("Select"));
     selectToolbar->setObjectName("select_toolbar");
-    selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape });
+    selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape, ui->actionInvert_Selection });
+    QToolBar* regroupToolbar = addToolBar(tr("Regroup"));
+    regroupToolbar->setObjectName("regroup_toolbar");
+    regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Bookmarks, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order });
     QToolBar* zoomToolbar = addToolBar(tr("Zoom"));
     zoomToolbar->setObjectName("zoom_toolbar");
     zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
@@ -111,7 +120,7 @@ MainWindow::MainWindow(QWidget* parent) :
     for (QToolBar* toolbar : toolbars)
     {
         toolbar->setIconSize(iconSize);
-        ui->menuWindow->addAction(toolbar->toggleViewAction());
+        ui->menuToolbars->addAction(toolbar->toggleViewAction());
     }
 
     connect(&m_mapper, QOverload<int>::of(&QSignalMapper::mapped), this, &MainWindow::onMappedActionTriggered);
@@ -340,6 +349,31 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::GetSource:
         case Operation::About:
             return true;
+
+        case Operation::InvertSelection:
+            return !isModelEmpty;
+
+        case Operation::RegroupEvenOdd:
+        {
+            PageItemModel::SelectionInfo info = m_model->getSelectionInfo(selection);
+            return info.isDocumentOnly();
+        }
+
+        case Operation::RegroupPaired:
+            return !isModelEmpty && !selection.isEmpty();
+
+        case Operation::RegroupBookmarks:
+        {
+            PageItemModel::SelectionInfo info = m_model->getSelectionInfo(selection);
+            return info.isSingleDocument();
+        }
+
+        case Operation::RegroupAlternatingPages:
+        case Operation::RegroupAlternatingPagesReversed:
+        {
+            PageItemModel::SelectionInfo info = m_model->getSelectionInfo(selection);
+            return info.isTwoDocuments();
+        }
 
         default:
             Q_ASSERT(false);
@@ -695,9 +729,58 @@ void MainWindow::performOperation(Operation operation)
             break;
         }
 
+        case Operation::InvertSelection:
+        {
+            QModelIndex rootIndex = ui->documentItemsView->rootIndex();
+
+            QModelIndex firstIndex = rootIndex.child(0, 0);
+            QModelIndex lastIndex = rootIndex.child(rootIndex.model()->rowCount() - 1, 0);
+            QItemSelection selection(firstIndex, lastIndex);
+
+            ui->documentItemsView->selectionModel()->select(selection, QItemSelectionModel::Toggle);
+            break;
+        }
+
+        case Operation::RegroupEvenOdd:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            m_model->regroupEvenOdd(indexes);
+            break;
+        }
+
+        case Operation::RegroupPaired:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            m_model->regroupPaired(indexes);
+            break;
+        }
+
+        case Operation::RegroupBookmarks:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            m_model->regroupBookmarks(indexes);
+            break;
+        }
+
+        case Operation::RegroupAlternatingPages:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            m_model->regroupAlternatingPages(indexes, false);
+            break;
+        }
+
+        case Operation::RegroupAlternatingPagesReversed:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            m_model->regroupAlternatingPages(indexes, true);
+            break;
+        }
+
         default:
+        {
             Q_ASSERT(false);
             break;
+        }
     }
 
     updateActions();
