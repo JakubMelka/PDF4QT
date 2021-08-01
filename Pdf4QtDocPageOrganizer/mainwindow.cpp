@@ -60,6 +60,8 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionRemoveSelection->setData(int(Operation::RemoveSelection));
     ui->actionReplaceSelection->setData(int(Operation::ReplaceSelection));
     ui->actionRestoreRemovedItems->setData(int(Operation::RestoreRemovedItems));
+    ui->actionUndo->setData(int(Operation::Undo));
+    ui->actionRedo->setData(int(Operation::Redo));
     ui->actionCut->setData(int(Operation::Cut));
     ui->actionCopy->setData(int(Operation::Copy));
     ui->actionPaste->setData(int(Operation::Paste));
@@ -95,6 +97,8 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addAction(ui->actionAddDocument);
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionCloneSelection, ui->actionRemoveSelection });
+    mainToolbar->addSeparator();
+    mainToolbar->addActions({ ui->actionUndo, ui->actionRedo });
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionCut, ui->actionCopy, ui->actionPaste });
     mainToolbar->addSeparator();
@@ -303,6 +307,12 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::RestoreRemovedItems:
             return !m_model->isTrashBinEmpty();
 
+        case Operation::Undo:
+            return m_model->canUndo();
+
+        case Operation::Redo:
+            return m_model->canRedo();
+
         case Operation::Cut:
         case Operation::Copy:
             return isSelected;
@@ -414,6 +424,18 @@ void MainWindow::performOperation(Operation operation)
                 itemSelection.select(index, index);
             }
             ui->documentItemsView->selectionModel()->select(itemSelection, QItemSelectionModel::ClearAndSelect);
+            break;
+        }
+
+        case Operation::Undo:
+        {
+            m_model->undo();
+            break;
+        }
+
+        case Operation::Redo:
+        {
+            m_model->redo();
             break;
         }
 

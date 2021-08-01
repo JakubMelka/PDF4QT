@@ -36,5 +36,7 @@
         <file>resources/regroup-bookmarks.svg</file>
         <file>resources/regroup-even-odd.svg</file>
         <file>resources/regroup-pairs.svg</file>
+        <file>resources/undo.svg</file>
+        <file>resources/redo.svg</file>
     </qresource>
 </RCC>

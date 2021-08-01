@@ -63,6 +63,9 @@
     <property name="title">
      <string>Edit</string>
     </property>
+    <addaction name="actionUndo"/>
+    <addaction name="actionRedo"/>
+    <addaction name="separator"/>
     <addaction name="actionCloneSelection"/>
     <addaction name="actionRemoveSelection"/>
     <addaction name="actionReplaceSelection"/>
@@ -553,6 +556,30 @@
    </property>
    <property name="text">
     <string>Invert Selection</string>
+   </property>
+  </action>
+  <action name="actionUndo">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocpage/resources/undo.svg</normaloff>:/pdfdocpage/resources/undo.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Undo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Z</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocpage/resources/redo.svg</normaloff>:/pdfdocpage/resources/redo.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Redo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Y</string>
    </property>
   </action>
  </widget>

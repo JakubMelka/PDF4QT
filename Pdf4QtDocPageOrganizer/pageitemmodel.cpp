@@ -97,6 +97,7 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
 
 int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index)
 {
+    Modifier modifier(this);
     auto it = std::find_if(m_documents.cbegin(), m_documents.cend(), [&](const auto& item) { return item.second.fileName == fileName; });
     if (it != m_documents.cend())
     {
@@ -117,6 +118,7 @@ int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, c
 
 int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
 {
+    Modifier modifier(this);
     QFile file(fileName);
 
     if (file.open(QFile::ReadOnly))
@@ -234,6 +236,8 @@ void PageItemModel::group(const QModelIndexList& list)
         return;
     }
 
+    Modifier modifier(this);
+
     std::vector<size_t> groupedIndices;
     groupedIndices.reserve(list.size());
     std::transform(list.cbegin(), list.cend(), std::back_inserter(groupedIndices), [](const auto& index) { return index.row(); });
@@ -274,6 +278,8 @@ void PageItemModel::ungroup(const QModelIndexList& list)
     {
         return;
     }
+
+    Modifier modifier(this);
 
     std::vector<size_t> ungroupedIndices;
     ungroupedIndices.reserve(list.size());
@@ -319,6 +325,8 @@ QModelIndexList PageItemModel::restoreRemovedItems()
         return result;
     }
 
+    Modifier modifier(this);
+
     const int trashBinSize = int(m_trashBin.size());
     const int rowCount = this->rowCount(QModelIndex());
     beginInsertRows(QModelIndex(), rowCount, rowCount + trashBinSize - 1);
@@ -344,6 +352,8 @@ QModelIndexList PageItemModel::cloneSelection(const QModelIndexList& list)
         // Jakub Melka: nothing to do
         return result;
     }
+
+    Modifier modifier(this);
 
     std::vector<int> rows;
     rows.reserve(list.size());
@@ -381,6 +391,8 @@ void PageItemModel::removeSelection(const QModelIndexList& list)
         return;
     }
 
+    Modifier modifier(this);
+
     std::vector<int> rows;
     rows.reserve(list.size());
     std::transform(list.cbegin(), list.cend(), std::back_inserter(rows), [](const auto& index) { return index.row(); });
@@ -397,6 +409,8 @@ void PageItemModel::removeSelection(const QModelIndexList& list)
 
 void PageItemModel::insertEmptyPage(const QModelIndexList& list)
 {
+    Modifier modifier(this);
+
     if (list.isEmpty())
     {
         insertEmptyPage(QModelIndex());
@@ -461,6 +475,8 @@ void PageItemModel::rotateLeft(const QModelIndexList& list)
         return;
     }
 
+    Modifier modifier(this);
+
     int rowMin = list.front().row();
     int rowMax = list.front().row();
 
@@ -487,6 +503,8 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
     {
         return;
     }
+
+    Modifier modifier(this);
 
     int rowMin = list.front().row();
     int rowMax = list.front().row();
@@ -560,6 +578,8 @@ void PageItemModel::regroupEvenOdd(const QModelIndexList& list)
         return;
     }
 
+    Modifier modifier(this);
+
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
 
@@ -598,6 +618,8 @@ void PageItemModel::regroupPaired(const QModelIndexList& list)
         return;
     }
 
+    Modifier modifier(this);
+
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
 
@@ -627,6 +649,8 @@ void PageItemModel::regroupPaired(const QModelIndexList& list)
 void PageItemModel::regroupBookmarks(const QModelIndexList& list)
 {
     Q_ASSERT(false);
+
+    Modifier modifier(this);
 }
 
 void PageItemModel::regroupAlternatingPages(const QModelIndexList& list, bool reversed)
@@ -635,6 +659,8 @@ void PageItemModel::regroupAlternatingPages(const QModelIndexList& list, bool re
     {
         return;
     }
+
+    Modifier modifier(this);
 
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
@@ -678,6 +704,35 @@ void PageItemModel::regroupAlternatingPages(const QModelIndexList& list, bool re
     }
 }
 
+void PageItemModel::undo()
+{
+    performUndoRedo(m_undoSteps, m_redoSteps);
+}
+
+void PageItemModel::performUndoRedo(std::vector<PageItemModel::UndoRedoStep>& load,
+                                    std::vector<PageItemModel::UndoRedoStep>& save)
+{
+    if (load.empty())
+    {
+        return;
+    }
+
+    save.emplace_back(getCurrentStep());
+    UndoRedoStep step = std::move(load.back());
+    load.pop_back();
+    updateUndoRedoSteps();
+
+    beginResetModel();
+    m_pageGroupItems = std::move(step.pageGroupItems);
+    m_trashBin = std::move(step.trashBin);
+    endResetModel();
+}
+
+void PageItemModel::redo()
+{
+    performUndoRedo(m_redoSteps, m_undoSteps);
+}
+
 QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGroupItem::GroupItem&)> filter) const
 {
     QItemSelection result;
@@ -705,6 +760,25 @@ QItemSelection PageItemModel::getSelectionImpl(std::function<bool (const PageGro
     }
 
     return result;
+}
+
+void PageItemModel::updateUndoRedoSteps()
+{
+    while (m_undoSteps.size() > MAX_UNDO_REDO_STEPS)
+    {
+        m_undoSteps.erase(m_undoSteps.begin());
+    }
+
+    while (m_redoSteps.size() > MAX_UNDO_REDO_STEPS)
+    {
+        m_redoSteps.erase(m_redoSteps.begin());
+    }
+}
+
+void PageItemModel::clearUndoRedo()
+{
+    m_undoSteps.clear();
+    m_redoSteps.clear();
 }
 
 void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertIndex)
@@ -939,6 +1013,8 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
         return false;
     }
 
+    Modifier modifier(this);
+
     int insertRow = rowCount(QModelIndex());
     if (row > -1)
     {
@@ -1140,7 +1216,28 @@ void PageItemModel::clear()
     m_pageGroupItems.clear();
     m_documents.clear();
     m_trashBin.clear();
+    clearUndoRedo();
     endResetModel();
+}
+
+PageItemModel::Modifier::Modifier(PageItemModel* model) :
+    m_model(model)
+{
+    Q_ASSERT(model);
+
+    m_stateBeforeModification = m_model->getCurrentStep();
+}
+
+PageItemModel::Modifier::~Modifier()
+{
+    UndoRedoStep stateAfterModification = m_model->getCurrentStep();
+
+    if (m_stateBeforeModification != stateAfterModification)
+    {
+        m_model->m_undoSteps.emplace_back(std::move(m_stateBeforeModification));
+        m_model->m_redoSteps.clear();
+        m_model->updateUndoRedoSteps();
+    }
 }
 
 }   // namespace pdfdocpage

@@ -186,20 +186,56 @@ public:
     void regroupBookmarks(const QModelIndexList& list);
     void regroupAlternatingPages(const QModelIndexList& list, bool reversed);
 
+    bool canUndo() const { return !m_undoSteps.empty(); }
+    bool canRedo() const { return !m_redoSteps.empty(); }
+
+    void undo();
+    void redo();
+
 private:
+    static const int MAX_UNDO_REDO_STEPS = 10;
+
     void createDocumentGroup(int index, const QModelIndex& insertIndex);
     QString getGroupNameFromDocument(int index) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);
 
+    struct UndoRedoStep
+    {
+        auto operator<=>(const UndoRedoStep&) const = default;
+
+        std::vector<PageGroupItem> pageGroupItems;
+        std::vector<PageGroupItem> trashBin;
+    };
+
+    class Modifier
+    {
+    public:
+        explicit Modifier(PageItemModel* model);
+        ~Modifier();
+
+    private:
+        PageItemModel* m_model;
+        UndoRedoStep m_stateBeforeModification;
+    };
+
     std::vector<PageGroupItem::GroupItem> extractItems(std::vector<PageGroupItem>& items, const QModelIndexList& selection) const;
 
     QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
+
+    UndoRedoStep getCurrentStep() const { return UndoRedoStep{ m_pageGroupItems, m_trashBin }; }
+    void updateUndoRedoSteps();
+    void clearUndoRedo();
+
+    void performUndoRedo(std::vector<UndoRedoStep>& load, std::vector<UndoRedoStep>& save);
 
     std::vector<PageGroupItem> m_pageGroupItems;
     std::map<int, DocumentItem> m_documents;
     std::map<int, ImageItem> m_images;
     std::vector<PageGroupItem> m_trashBin;
+
+    std::vector<UndoRedoStep> m_undoSteps; // Oldest step is first, newest step is last
+    std::vector<UndoRedoStep> m_redoSteps;
 };
 
 }   // namespace pdfdocpage

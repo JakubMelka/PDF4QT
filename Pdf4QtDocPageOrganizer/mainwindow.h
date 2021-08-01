@@ -53,6 +53,9 @@ public:
         ReplaceSelection,
         RestoreRemovedItems,
 
+        Undo,
+        Redo,
+
         Cut,
         Copy,
         Paste,
