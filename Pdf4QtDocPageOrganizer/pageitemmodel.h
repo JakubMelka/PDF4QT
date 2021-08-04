@@ -173,6 +173,7 @@ public:
         int documentCount = 0;
         int imageCount = 0;
         int blankPageCount = 0;
+        int firstDocumentIndex = 0;
 
         bool isDocumentOnly() const { return documentCount > 0 && imageCount == 0 && blankPageCount == 0; }
         bool isSingleDocument() const { return isDocumentOnly() && documentCount == 1; }
@@ -183,7 +184,7 @@ public:
 
     void regroupEvenOdd(const QModelIndexList& list);
     void regroupPaired(const QModelIndexList& list);
-    void regroupBookmarks(const QModelIndexList& list);
+    void regroupBookmarks(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& indices);
     void regroupAlternatingPages(const QModelIndexList& list, bool reversed);
 
     bool canUndo() const { return !m_undoSteps.empty(); }

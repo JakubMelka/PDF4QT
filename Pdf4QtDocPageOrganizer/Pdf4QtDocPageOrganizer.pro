@@ -46,19 +46,22 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     pageitemdelegate.cpp \
-    pageitemmodel.cpp
+    pageitemmodel.cpp \
+    selectbookmarkstoregroupdialog.cpp
 
 FORMS += \
     aboutdialog.ui \
     assembleoutputsettingsdialog.ui \
-    mainwindow.ui
+    mainwindow.ui \
+    selectbookmarkstoregroupdialog.ui
 
 HEADERS += \
     aboutdialog.h \
     assembleoutputsettingsdialog.h \
     mainwindow.h \
     pageitemdelegate.h \
-    pageitemmodel.h
+    pageitemmodel.h \
+    selectbookmarkstoregroupdialog.h
 
 RESOURCES += \
     resources.qrc

@@ -25,6 +25,8 @@
 #include <QPixmapCache>
 #include <QAbstractItemModel>
 
+#include <set>
+
 namespace pdf
 {
 class PDFAction;
@@ -171,6 +173,31 @@ public:
 
 private:
     QIcon m_icon;
+};
+
+class Pdf4QtLIBSHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFOutlineTreeItemModel;
+
+public:
+    PDFSelectableOutlineTreeItemModel(QIcon icon, QObject* parent) :
+        BaseClass(qMove(icon), parent)
+    {
+
+    }
+
+    virtual QVariant data(const QModelIndex& index, int role) const override;
+    virtual void update() override;
+    virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
+    virtual bool setData(const QModelIndex& index, const QVariant& value, int role) override;
+
+    std::vector<const PDFOutlineItem*> getSelectedItems() const;
+
+private:
+    std::set<const PDFOutlineItem*> m_selectedItems;
 };
 
 class PDFAttachmentsTreeItem : public PDFTreeItem

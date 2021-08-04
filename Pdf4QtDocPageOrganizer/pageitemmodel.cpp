@@ -567,6 +567,7 @@ PageItemModel::SelectionInfo PageItemModel::getSelectionInfo(const QModelIndexLi
 
     info.documentCount = int(documents.size());
     info.imageCount = int(images.size());
+    info.firstDocumentIndex = !documents.empty() ? *documents.begin() : 0;
 
     return info;
 }
@@ -646,11 +647,49 @@ void PageItemModel::regroupPaired(const QModelIndexList& list)
     }
 }
 
-void PageItemModel::regroupBookmarks(const QModelIndexList& list)
+void PageItemModel::regroupBookmarks(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& indices)
 {
-    Q_ASSERT(false);
+    if (list.empty())
+    {
+        return;
+    }
 
     Modifier modifier(this);
+
+    std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
+    std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
+    std::sort(extractedItems.begin(), extractedItems.end(), [](const auto& l, const auto& r) { return l.pageIndex < r.pageIndex; });
+
+    PageGroupItem item;
+
+    for (auto it = extractedItems.begin(); it != extractedItems.cend(); ++it)
+    {
+        PageGroupItem::GroupItem groupItem = *it;
+
+        if (std::binary_search(indices.cbegin(), indices.cend(), groupItem.pageIndex) &&
+            !item.groups.empty())
+        {
+            updateItemCaptionAndTags(item);
+            pageGroupItems.emplace_back(std::move(item));
+            item = PageGroupItem();
+        }
+
+        item.groups.push_back(groupItem);
+    }
+
+    if (!item.groups.empty())
+    {
+        updateItemCaptionAndTags(item);
+        pageGroupItems.emplace_back(std::move(item));
+        item = PageGroupItem();
+    }
+
+    if (pageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(pageGroupItems);
+        endResetModel();
+    }
 }
 
 void PageItemModel::regroupAlternatingPages(const QModelIndexList& list, bool reversed)

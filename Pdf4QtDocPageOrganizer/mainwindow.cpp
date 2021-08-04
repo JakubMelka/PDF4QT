@@ -20,7 +20,9 @@
 
 #include "aboutdialog.h"
 #include "assembleoutputsettingsdialog.h"
+#include "selectbookmarkstoregroupdialog.h"
 
+#include "pdfaction.h"
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
@@ -780,7 +782,64 @@ void MainWindow::performOperation(Operation operation)
         case Operation::RegroupBookmarks:
         {
             QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
-            m_model->regroupBookmarks(indexes);
+
+            if (!indexes.isEmpty())
+            {
+                PageItemModel::SelectionInfo selectionInfo = m_model->getSelectionInfo(indexes);
+                const std::map<int, DocumentItem>& documents = m_model->getDocuments();
+
+                auto it = documents.find(selectionInfo.firstDocumentIndex);
+                if (it != documents.end())
+                {
+                    const pdf::PDFDocument* document = &it->second.document;
+                    SelectBookmarksToRegroupDialog dialog(document, this);
+
+                    if (dialog.exec() == SelectBookmarksToRegroupDialog::Accepted)
+                    {
+                        std::vector<pdf::PDFInteger> breakPageIndices;
+                        std::vector<const pdf::PDFOutlineItem*> outlineItems = dialog.getSelectedOutlineItems();
+
+                        // Jakub Melka: Resolve outline items. Try to find an index
+                        // of page of each outline item.
+                        for (const pdf::PDFOutlineItem* item : outlineItems)
+                        {
+                            const pdf::PDFAction* action = item->getAction();
+                            const pdf::PDFActionGoTo* actionGoto = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+                            if (actionGoto)
+                            {
+                                pdf::PDFDestination destination = actionGoto->getDestination();
+
+                                if (destination.getDestinationType() == pdf::DestinationType::Named)
+                                {
+                                    if (const pdf::PDFDestination* targetDestination = document->getCatalog()->getNamedDestination(destination.getName()))
+                                    {
+                                        destination = *targetDestination;
+                                    }
+                                    else
+                                    {
+                                        destination = pdf::PDFDestination();
+                                    }
+                                }
+
+                                if (destination.isValid())
+                                {
+                                    const size_t pageIndex = document->getCatalog()->getPageIndexFromPageReference(destination.getPageReference());
+                                    if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
+                                    {
+                                        breakPageIndices.push_back(pageIndex + 1);
+                                    }
+                                }
+                            }
+                        }
+
+                        std::sort(breakPageIndices.begin(), breakPageIndices.end());
+                        breakPageIndices.erase(std::unique(breakPageIndices.begin(), breakPageIndices.end()), breakPageIndices.end());
+
+                        m_model->regroupBookmarks(indexes, breakPageIndices);
+                    }
+                }
+            }
+
             break;
         }
 

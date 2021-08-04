@@ -811,4 +811,72 @@ PDFAttachmentsTreeItem::~PDFAttachmentsTreeItem()
 
 }
 
+QVariant PDFSelectableOutlineTreeItemModel::data(const QModelIndex& index, int role) const
+{
+    if (role == Qt::CheckStateRole)
+    {
+        if (!index.isValid())
+        {
+            return QVariant();
+        }
+
+        const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+        const PDFOutlineItem* outlineItem = item->getOutlineItem();
+        const bool isChecked = m_selectedItems.count(outlineItem);
+        return isChecked ? Qt::Checked : Qt::Unchecked;
+    }
+
+    return BaseClass::data(index, role);
+}
+
+void PDFSelectableOutlineTreeItemModel::update()
+{
+    BaseClass::update();
+    m_selectedItems.clear();
+}
+
+Qt::ItemFlags PDFSelectableOutlineTreeItemModel::flags(const QModelIndex& index) const
+{
+    Qt::ItemFlags flags = BaseClass::flags(index);
+
+    if (index.isValid())
+    {
+        flags |= Qt::ItemIsUserCheckable;
+    }
+
+    return flags;
+}
+
+bool PDFSelectableOutlineTreeItemModel::setData(const QModelIndex& index, const QVariant& value, int role)
+{
+    if (role != Qt::CheckStateRole || !index.isValid())
+    {
+        return false;
+    }
+
+    const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+    const PDFOutlineItem* outlineItem = item->getOutlineItem();
+
+    if (outlineItem)
+    {
+        if (value.toInt() == Qt::Checked)
+        {
+            m_selectedItems.insert(outlineItem);
+        }
+        else
+        {
+            m_selectedItems.erase(outlineItem);
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+std::vector<const PDFOutlineItem*> PDFSelectableOutlineTreeItemModel::getSelectedItems() const
+{
+    return std::vector<const PDFOutlineItem*>(m_selectedItems.cbegin(), m_selectedItems.cend());
+}
+
 }   // namespace pdf
