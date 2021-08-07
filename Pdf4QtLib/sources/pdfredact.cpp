@@ -135,7 +135,7 @@ PDFDocument PDFRedact::perform(Options options)
         {
             if (catalogDictionary->hasKey("Outlines"))
             {
-                QSharedPointer<PDFOutlineItem> outlineRoot = PDFOutlineItem::parse(m_document, catalogDictionary->get("Outlines"));
+                QSharedPointer<PDFOutlineItem> outlineRoot = PDFOutlineItem::parse(&m_document->getStorage(), catalogDictionary->get("Outlines"));
 
                 if (outlineRoot)
                 {

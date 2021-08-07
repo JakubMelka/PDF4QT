@@ -18,6 +18,8 @@
 #ifndef PDFDOCPAGEORGANIZER_ASSEMBLEOUTPUTSETTINGSDIALOG_H
 #define PDFDOCPAGEORGANIZER_ASSEMBLEOUTPUTSETTINGSDIALOG_H
 
+#include "pdfdocumentmanipulator.h"
+
 #include <QDialog>
 
 namespace Ui
@@ -39,6 +41,7 @@ public:
     QString getDirectory() const;
     QString getFileName() const;
     bool isOverwriteFiles() const;
+    pdf::PDFDocumentManipulator::OutlineMode getOutlineMode() const;
 
 private slots:
     void on_selectDirectoryButton_clicked();

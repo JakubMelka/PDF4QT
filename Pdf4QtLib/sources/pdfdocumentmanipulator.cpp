@@ -84,22 +84,130 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         if (!m_flags.testFlag(SingleDocument))
         {
             PDFInteger lastDocumentIndex = pages.front().documentIndex;
-            std::vector<size_t> documentPartPageCounts = { 0 };
+
+            struct DocumentPartInfo
+            {
+                size_t pageCount = 0;
+                PDFInteger documentIndex = 0;
+                bool isWholeDocument = false;
+                QString caption;
+            };
+            std::vector<DocumentPartInfo> documentParts = { DocumentPartInfo() };
+
+            PDFClosedIntervalSet pageNumbers;
+            PDFInteger imageCount = 0;
+            PDFInteger blankPageCount = 0;
+
+            auto addDocumentPartCaption = [&](PDFInteger documentIndex)
+            {
+                DocumentPartInfo& info = documentParts.back();
+
+                QString documentTitle;
+                if (documentIndex != -1 && m_documents.count(documentIndex))
+                {
+                    const PDFDocument* document = m_documents.at(documentIndex);
+                    documentTitle = document->getInfo()->title;
+                    if (documentTitle.isEmpty())
+                    {
+                        documentTitle = tr("Document %1").arg(documentIndex);
+                    }
+
+                    if (pageNumbers.getTotalLength() < PDFInteger(document->getCatalog()->getPageCount()))
+                    {
+                        documentTitle = tr("%1, p. %2").arg(documentTitle, pageNumbers.toText(true));
+                    }
+                    else
+                    {
+                        info.isWholeDocument = true;
+                    }
+                }
+                else if (imageCount > 0 && blankPageCount == 0)
+                {
+                    documentTitle = tr("%1 Images").arg(imageCount);
+                }
+                else
+                {
+                    documentTitle = tr("%1 Pages").arg(imageCount + blankPageCount);
+                }
+
+                info.caption = documentTitle;
+                info.documentIndex = documentIndex;
+
+                pageNumbers = PDFClosedIntervalSet();
+                imageCount = 0;
+                blankPageCount = 0;
+            };
 
             for (const AssembledPage& page : pages)
             {
                 if (page.documentIndex == lastDocumentIndex)
                 {
-                    ++documentPartPageCounts.back();
+                    ++documentParts.back().pageCount;
                 }
                 else
                 {
-                    documentPartPageCounts.push_back(1);
+                    addDocumentPartCaption(lastDocumentIndex);
+                    documentParts.push_back(DocumentPartInfo());
+                    ++documentParts.back().pageCount;
                     lastDocumentIndex = page.documentIndex;
                 }
-            }
 
-            documentBuilder.createDocumentParts(documentPartPageCounts);
+                if (page.isDocumentPage())
+                {
+                    pageNumbers.addValue(page.pageIndex + 1);
+                }
+
+                if (page.isImagePage())
+                {
+                    ++imageCount;
+                }
+
+                if (page.isBlankPage())
+                {
+                    ++blankPageCount;
+                }
+            }
+            addDocumentPartCaption(lastDocumentIndex);
+
+            std::vector<size_t> documentPartPageCounts;
+            std::transform(documentParts.cbegin(), documentParts.cend(), std::back_inserter(documentPartPageCounts), [](const auto& part) { return part.pageCount; });
+
+            std::vector<PDFObjectReference> parts = documentBuilder.createDocumentParts(documentPartPageCounts);
+
+            if (m_outlineMode != OutlineMode::NoOutline)
+            {
+                QSharedPointer<PDFOutlineItem> rootItem(new PDFOutlineItem());
+
+                int partIndex = 0;
+                for (const PDFObjectReference& documentPartReference : parts)
+                {
+                    const DocumentPartInfo& info = documentParts[partIndex++];
+                    QSharedPointer<PDFOutlineItem> documentPartItem(new PDFOutlineItem);
+                    PDFObjectReference actionGoToPart = documentBuilder.createActionGoToDocumentPart(documentPartReference);
+                    auto action = PDFAction::parse(documentBuilder.getStorage(), documentBuilder.getObjectByReference(actionGoToPart));
+                    documentPartItem->setAction(std::move(action));
+                    documentPartItem->setTitle(info.caption);
+                    documentPartItem->setFontBold(true);
+
+                    if (m_outlineMode == OutlineMode::Join && info.isWholeDocument)
+                    {
+                        const PDFInteger documentIndex = info.documentIndex;
+                        QSharedPointer<PDFOutlineItem> outline = PDFOutlineItem::parse(documentBuilder.getStorage(), PDFObject::createReference(m_outlines.at(documentIndex)));
+                        if (outline)
+                        {
+                            for (size_t i = 0; i < outline->getChildCount(); ++i)
+                            {
+                                documentPartItem->addChild(outline->getChildPtr(i));
+                            }
+                        }
+                    }
+
+                    rootItem->addChild(std::move(documentPartItem));
+
+                }
+
+                documentBuilder.setOutline(rootItem.data());
+            }
         }
 
         pdf::PDFDocument mergedDocument = documentBuilder.build();
@@ -286,6 +394,7 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
             pdf::PDFObjectReference acroFormReference;
             pdf::PDFObjectReference namesReference;
             pdf::PDFObjectReference ocPropertiesReference;
+            pdf::PDFObjectReference outlineReference;
 
             pdf::PDFObject formObject = document->getCatalog()->getFormObject();
             if (formObject.isReference())
@@ -310,6 +419,12 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
                 {
                     ocPropertiesReference = ocPropertiesObject.getReference();
                 }
+
+                pdf::PDFObject outlineObject = catalogDictionary->get("Outlines");
+                if (outlineObject.isReference())
+                {
+                    outlineReference = outlineObject.getReference();
+                }
             }
 
             if (!namesReference.isValid())
@@ -322,11 +437,18 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
                 ocPropertiesReference = temporaryBuilder.addObject(pdf::PDFObject());
             }
 
-            objectsToMerge.insert(objectsToMerge.end(), { acroFormReference, namesReference, ocPropertiesReference });
+            if (!outlineReference.isValid())
+            {
+                outlineReference = temporaryBuilder.addObject(pdf::PDFObject());
+            }
+
+            objectsToMerge.insert(objectsToMerge.end(), { acroFormReference, namesReference, ocPropertiesReference, outlineReference });
 
             // Now, we are ready to merge objects into target document builder
             std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(documentBuilder.copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences(objectsToMerge), *temporaryBuilder.getStorage(), true));
 
+            outlineReference = references.back();
+            references.pop_back();
             ocPropertiesReference = references.back();
             references.pop_back();
             namesReference = references.back();
@@ -337,6 +459,7 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
             documentBuilder.appendTo(m_mergedObjects[MOT_OCProperties], documentBuilder.getObjectByReference(ocPropertiesReference));
             documentBuilder.appendTo(m_mergedObjects[MOT_Form], documentBuilder.getObjectByReference(acroFormReference));
             documentBuilder.mergeNames(m_mergedObjects[MOT_Names], namesReference);
+            m_outlines[documentIndex] = outlineReference;
 
             Q_ASSERT(references.size() == std::distance(it, itEnd));
 
@@ -460,6 +583,16 @@ void PDFDocumentManipulator::finalizeDocument(PDFDocument* document)
         }
     }
     m_assembledDocument = finalBuilder.build();
+}
+
+PDFDocumentManipulator::OutlineMode PDFDocumentManipulator::getOutlineMode() const
+{
+    return m_outlineMode;
+}
+
+void PDFDocumentManipulator::setOutlineMode(OutlineMode outlineMode)
+{
+    m_outlineMode = outlineMode;
 }
 
 }   // namespace pdf

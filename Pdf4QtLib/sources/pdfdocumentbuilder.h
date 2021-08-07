@@ -409,7 +409,8 @@ public:
     /// by function \p flattenPageTree. \sa flattenPageTree. Each document
     /// part has certain page size, sum of \p parts must equal to page count.
     /// \param parts Parts (page count of each document part)
-    void createDocumentParts(const std::vector<size_t>& parts);
+    /// \returns List of references to created document parts
+    std::vector<PDFObjectReference> createDocumentParts(const std::vector<size_t>& parts);
 
     /// Merges two independent 'Names' entry in catalog dictionary. It is used,
     /// for example, when documents are being merged.

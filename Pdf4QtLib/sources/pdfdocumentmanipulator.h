@@ -37,6 +37,16 @@ class Pdf4QtLIBSHARED_EXPORT PDFDocumentManipulator
 public:
     explicit PDFDocumentManipulator() = default;
 
+    /// Selects outline creation mode, when multiple documents
+    /// are merged into one. For single document manipulation,
+    /// this has no meaning.
+    enum class OutlineMode
+    {
+        NoOutline,
+        Join,
+        DocumentParts
+    };
+
     struct AssembledPage
     {
         PDFInteger documentIndex = -1; ///< Source document index. If page is not from a document, value is -1.
@@ -84,6 +94,9 @@ public:
     static constexpr AssembledPage createDocumentPage(int documentIndex, int pageIndex, QSizeF pageSize, PageRotation pageRotation) { return AssembledPage{ documentIndex, -1, pageIndex, pageSize, pageRotation}; }
     static constexpr AssembledPage createImagePage(int imageIndex, QSizeF pageSize, PageRotation pageRotation) { return AssembledPage{ -1, imageIndex, -1, pageSize, pageRotation}; }
     static constexpr AssembledPage createBlankPage(QSizeF pageSize, PageRotation pageRotation) { return AssembledPage{ -1, -1, -1, pageSize, pageRotation}; }
+
+    OutlineMode getOutlineMode() const;
+    void setOutlineMode(OutlineMode outlineMode);
 
 private:
 
@@ -133,6 +146,8 @@ private:
     AssembleFlags m_flags = None;
     std::array<PDFObjectReference, MOT_Last> m_mergedObjects = { };
     PDFDocument m_assembledDocument;
+    OutlineMode m_outlineMode = OutlineMode::DocumentParts;
+    std::map<PDFInteger, PDFObjectReference> m_outlines;
 };
 
 }   // namespace pdf

@@ -35,9 +35,9 @@ size_t PDFOutlineItem::getTotalCount() const
     return count;
 }
 
-QSharedPointer<PDFOutlineItem> PDFOutlineItem::parse(const PDFDocument* document, const PDFObject& root)
+QSharedPointer<PDFOutlineItem> PDFOutlineItem::parse(const PDFObjectStorage* storage, const PDFObject& root)
 {
-    const PDFObject& rootDereferenced = document->getObject(root);
+    const PDFObject& rootDereferenced = storage->getObject(root);
     if (rootDereferenced.isDictionary())
     {
         const PDFDictionary* dictionary = rootDereferenced.getDictionary();
@@ -47,7 +47,7 @@ QSharedPointer<PDFOutlineItem> PDFOutlineItem::parse(const PDFDocument* document
         {
             QSharedPointer<PDFOutlineItem> result(new PDFOutlineItem());
             std::set<PDFObjectReference> visitedOutlineItems;
-            parseImpl(document, result.get(), first.getReference(), visitedOutlineItems);
+            parseImpl(storage, result.get(), first.getReference(), visitedOutlineItems);
             return result;
         }
     }
@@ -55,7 +55,7 @@ QSharedPointer<PDFOutlineItem> PDFOutlineItem::parse(const PDFDocument* document
     return QSharedPointer<PDFOutlineItem>();
 }
 
-void PDFOutlineItem::parseImpl(const PDFDocument* document,
+void PDFOutlineItem::parseImpl(const PDFObjectStorage* storage,
                                PDFOutlineItem* parent,
                                PDFObjectReference currentItem,
                                std::set<PDFObjectReference>& visitedOutlineItems)
@@ -71,24 +71,24 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
     };
     checkCyclicDependence(currentItem);
 
-    PDFObject dereferencedItem = document->getObjectByReference(currentItem);
+    PDFObject dereferencedItem = storage->getObjectByReference(currentItem);
     while (dereferencedItem.isDictionary())
     {
         const PDFDictionary* dictionary = dereferencedItem.getDictionary();
 
         QSharedPointer<PDFOutlineItem> currentOutlineItem(new PDFOutlineItem());
-        const PDFObject& titleObject = document->getObject(dictionary->get("Title"));
+        const PDFObject& titleObject = storage->getObject(dictionary->get("Title"));
         if (titleObject.isString())
         {
             currentOutlineItem->setTitle(PDFEncoding::convertTextString(titleObject.getString()));
         }
-        currentOutlineItem->setAction(PDFAction::parse(&document->getStorage(), dictionary->get("A")));
+        currentOutlineItem->setAction(PDFAction::parse(storage, dictionary->get("A")));
         if (!currentOutlineItem->getAction() && dictionary->hasKey("Dest"))
         {
-            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(&document->getStorage(), dictionary->get("Dest")), PDFDestination())));
+            currentOutlineItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::parse(storage, dictionary->get("Dest")), PDFDestination())));
         }
 
-        PDFDocumentDataLoaderDecorator loader(document);
+        PDFDocumentDataLoaderDecorator loader(storage);
         std::vector<PDFReal> colors = loader.readNumberArrayFromDictionary(dictionary, "C", { 0.0, 0.0, 0.0 });
         colors.resize(3, 0.0);
         currentOutlineItem->setTextColor(QColor::fromRgbF(colors[0], colors[1], colors[2]));
@@ -105,7 +105,7 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
         const PDFObject& firstItem = dictionary->get("First");
         if (firstItem.isReference())
         {
-            parseImpl(document, currentOutlineItem.get(), firstItem.getReference(), visitedOutlineItems);
+            parseImpl(storage, currentOutlineItem.get(), firstItem.getReference(), visitedOutlineItems);
         }
 
         // Add new child to the parent
@@ -116,7 +116,7 @@ void PDFOutlineItem::parseImpl(const PDFDocument* document,
         if (nextItem.isReference())
         {
             checkCyclicDependence(nextItem.getReference());
-            dereferencedItem = document->getObject(nextItem);
+            dereferencedItem = storage->getObject(nextItem);
         }
         else
         {

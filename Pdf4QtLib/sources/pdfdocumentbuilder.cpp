@@ -940,8 +940,10 @@ void PDFDocumentBuilder::setObject(PDFObjectReference reference, PDFObject objec
     m_storage.setObject(reference, qMove(object));
 }
 
-void PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
+std::vector<PDFObjectReference> PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
 {
+    std::vector<PDFObjectReference> documentParts;
+
     PDFObjectReference root = createDocumentPartRoot();
     std::vector<PDFObjectReference> pages = getPages();
 
@@ -949,6 +951,8 @@ void PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
     objectFactory.beginDictionary();
     objectFactory.beginDictionaryItem("DParts");
     objectFactory.beginArray();
+
+    documentParts.reserve(parts.size());
 
     size_t start = 0;
     for (std::size_t count : parts)
@@ -967,6 +971,8 @@ void PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
             setPageDocumentPart(*it, item);
         }
 
+        documentParts.push_back(item);
+
         objectFactory.beginArray();
         objectFactory << item;
         objectFactory.endArray();
@@ -979,6 +985,7 @@ void PDFDocumentBuilder::createDocumentParts(const std::vector<size_t>& parts)
     objectFactory.endDictionary();
 
     mergeTo(root, objectFactory.takeObject());
+    return documentParts;
 }
 
 void PDFDocumentBuilder::mergeNames(PDFObjectReference a, PDFObjectReference b)
@@ -1280,11 +1287,27 @@ PDFObjectReference PDFDocumentBuilder::createOutlineItem(const PDFOutlineItem* r
         objectBuilder.endDictionaryItem();
 
         // Destination
-        const PDFActionGoTo* action = dynamic_cast<const PDFActionGoTo*>(root->getAction());
-        if (action)
+        const PDFActionGoTo* actionGoTo = dynamic_cast<const PDFActionGoTo*>(root->getAction());
+        if (actionGoTo)
         {
             objectBuilder.beginDictionaryItem("Dest");
-            objectBuilder << action->getDestination();
+            objectBuilder << actionGoTo->getDestination();
+            objectBuilder.endDictionaryItem();
+        }
+        const PDFActionGoToDp* actionGoToDp = dynamic_cast<const PDFActionGoToDp*>(root->getAction());
+        if (actionGoToDp)
+        {
+            objectBuilder.beginDictionaryItem("A");
+
+            objectBuilder.beginDictionary();
+            objectBuilder.beginDictionaryItem("S");
+            objectBuilder << WrapName("GoToDp");
+            objectBuilder.endDictionaryItem();
+            objectBuilder.beginDictionaryItem("Dp");
+            objectBuilder << actionGoToDp->getDocumentPart();
+            objectBuilder.endDictionaryItem();
+            objectBuilder.endDictionary();
+
             objectBuilder.endDictionaryItem();
         }
 

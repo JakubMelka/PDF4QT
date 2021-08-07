@@ -621,6 +621,8 @@ void MainWindow::performOperation(Operation operation)
                 QString directory = dialog.getDirectory();
                 QString fileNameTemplate = dialog.getFileName();
                 const bool isOverwriteEnabled = dialog.isOverwriteFiles();
+                pdf::PDFDocumentManipulator::OutlineMode outlineMode = dialog.getOutlineMode();
+                manipulator.setOutlineMode(outlineMode);
 
                 if (!directory.endsWith('/'))
                 {

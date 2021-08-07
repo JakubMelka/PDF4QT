@@ -32,6 +32,11 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
     ui->setupUi(this);
     ui->directoryEdit->setText(directory);
 
+    ui->outlineModeComboBox->addItem(tr("No Outline"), int(pdf::PDFDocumentManipulator::OutlineMode::NoOutline));
+    ui->outlineModeComboBox->addItem(tr("Join Outlines"), int(pdf::PDFDocumentManipulator::OutlineMode::Join));
+    ui->outlineModeComboBox->addItem(tr("Document Parts"), int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts));
+    ui->outlineModeComboBox->setCurrentIndex(ui->outlineModeComboBox->findData(int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts)));
+
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(450, 150));
 }
 
@@ -53,6 +58,11 @@ QString AssembleOutputSettingsDialog::getFileName() const
 bool AssembleOutputSettingsDialog::isOverwriteFiles() const
 {
     return ui->overwriteFilesCheckBox->isChecked();
+}
+
+pdf::PDFDocumentManipulator::OutlineMode AssembleOutputSettingsDialog::getOutlineMode() const
+{
+    return pdf::PDFDocumentManipulator::OutlineMode(ui->outlineModeComboBox->currentData().toInt());
 }
 
 void AssembleOutputSettingsDialog::on_selectDirectoryButton_clicked()

@@ -20,13 +20,6 @@
       <string>Assemble Documents</string>
      </property>
      <layout class="QGridLayout" name="assembleDocumentsGroupBoxLayout">
-      <item row="1" column="0">
-       <widget class="QLabel" name="fileTemplateLabel">
-        <property name="text">
-         <string>File template</string>
-        </property>
-       </widget>
-      </item>
       <item row="0" column="3">
        <widget class="QToolButton" name="selectDirectoryButton">
         <property name="text">
@@ -34,13 +27,30 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0" colspan="3">
+      <item row="0" column="1" colspan="2">
+       <widget class="QLineEdit" name="directoryEdit"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="fileTemplateLabel">
+        <property name="text">
+         <string>File template</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="3">
        <widget class="QLabel" name="infoLabel">
         <property name="text">
          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In a template file name, you can use symbols '#' for output document number (means output document index, not input document) or '@' for page number of input document (if document contains more pages, it is a page number of a original document), or '%' for index of input document. Use more '#' or '@' or '%' for setting minimal number of digits (if number has less digits, the they are padded with zero).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QCheckBox" name="overwriteFilesCheckBox">
+        <property name="text">
+         <string>Overwrite existing files</string>
         </property>
        </widget>
       </item>
@@ -58,15 +68,15 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="1" colspan="2">
-       <widget class="QLineEdit" name="directoryEdit"/>
-      </item>
-      <item row="2" column="1">
-       <widget class="QCheckBox" name="overwriteFilesCheckBox">
+      <item row="2" column="0">
+       <widget class="QLabel" name="outlineModeLabel">
         <property name="text">
-         <string>Overwrite existing files</string>
+         <string>Outline Mode</string>
         </property>
        </widget>
+      </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="QComboBox" name="outlineModeComboBox"/>
       </item>
      </layout>
     </widget>

@@ -190,7 +190,7 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
 
     if (catalogDictionary->hasKey("Outlines"))
     {
-        catalogObject.m_outlineRoot = PDFOutlineItem::parse(document, catalogDictionary->get("Outlines"));
+        catalogObject.m_outlineRoot = PDFOutlineItem::parse(&document->getStorage(), catalogDictionary->get("Outlines"));
     }
 
     if (catalogDictionary->hasKey("OpenAction"))

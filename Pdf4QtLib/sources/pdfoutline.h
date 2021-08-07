@@ -45,7 +45,7 @@ public:
     void addChild(QSharedPointer<PDFOutlineItem> child) { m_children.emplace_back(qMove(child)); }
     QSharedPointer<PDFOutlineItem> getChildPtr(size_t index) const { return m_children[index]; }
 
-    static QSharedPointer<PDFOutlineItem> parse(const PDFDocument* document, const PDFObject& root);
+    static QSharedPointer<PDFOutlineItem> parse(const PDFObjectStorage* storage, const PDFObject& root);
 
     const PDFAction* getAction() const;
     PDFAction* getAction();
@@ -66,7 +66,7 @@ public:
     void apply(const std::function<void(PDFOutlineItem*)>& functor);
 
 private:
-    static void parseImpl(const PDFDocument* document,
+    static void parseImpl(const PDFObjectStorage* storage,
                           PDFOutlineItem* parent,
                           PDFObjectReference currentItem,
                           std::set<PDFObjectReference>& visitedOutlineItems);
