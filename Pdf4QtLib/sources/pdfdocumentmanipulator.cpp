@@ -91,12 +91,14 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
                 PDFInteger documentIndex = 0;
                 bool isWholeDocument = false;
                 QString caption;
+                PDFObjectReference firstPageReference;
             };
             std::vector<DocumentPartInfo> documentParts = { DocumentPartInfo() };
 
             PDFClosedIntervalSet pageNumbers;
             PDFInteger imageCount = 0;
             PDFInteger blankPageCount = 0;
+            PDFInteger totalPageCount = 0;
 
             auto addDocumentPartCaption = [&](PDFInteger documentIndex)
             {
@@ -132,10 +134,12 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
 
                 info.caption = documentTitle;
                 info.documentIndex = documentIndex;
+                info.firstPageReference = (totalPageCount < PDFInteger(adjustedPages.size())) ? adjustedPages[totalPageCount] : PDFObjectReference();
 
                 pageNumbers = PDFClosedIntervalSet();
                 imageCount = 0;
                 blankPageCount = 0;
+                totalPageCount += info.pageCount;
             };
 
             for (const AssembledPage& page : pages)
@@ -171,21 +175,16 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
 
             std::vector<size_t> documentPartPageCounts;
             std::transform(documentParts.cbegin(), documentParts.cend(), std::back_inserter(documentPartPageCounts), [](const auto& part) { return part.pageCount; });
-
-            std::vector<PDFObjectReference> parts = documentBuilder.createDocumentParts(documentPartPageCounts);
+            documentBuilder.createDocumentParts(documentPartPageCounts);
 
             if (m_outlineMode != OutlineMode::NoOutline)
             {
                 QSharedPointer<PDFOutlineItem> rootItem(new PDFOutlineItem());
 
-                int partIndex = 0;
-                for (const PDFObjectReference& documentPartReference : parts)
+                for (const DocumentPartInfo& info : documentParts)
                 {
-                    const DocumentPartInfo& info = documentParts[partIndex++];
                     QSharedPointer<PDFOutlineItem> documentPartItem(new PDFOutlineItem);
-                    PDFObjectReference actionGoToPart = documentBuilder.createActionGoToDocumentPart(documentPartReference);
-                    auto action = PDFAction::parse(documentBuilder.getStorage(), documentBuilder.getObjectByReference(actionGoToPart));
-                    documentPartItem->setAction(std::move(action));
+                    documentPartItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::createFit(info.firstPageReference), PDFDestination())));
                     documentPartItem->setTitle(info.caption);
                     documentPartItem->setFontBold(true);
 
@@ -203,7 +202,6 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
                     }
 
                     rootItem->addChild(std::move(documentPartItem));
-
                 }
 
                 documentBuilder.setOutline(rootItem.data());
