@@ -2123,6 +2123,10 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
     addComponentMeta("pdf4qt_v_profi", tr("Viewer (Profi)"), tr("Advanced PDF viewer with many functions, such as annotation editing, form filling, signature verification, and many optional plugins."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_v_profi", false, true, false);
     addFileContent("pdf4qt_v_profi", "Pdf4QtViewerProfi.exe");
 
+    addStartMenuShortcut("pdf4qt_dpo", "Pdf4QtDocPageOrganizer", tr("PDF4QT DocPage Organizer"));
+    addComponentMeta("pdf4qt_dpo", tr("DocPage Organizer"), tr("Document page organizer (split/merge documents, insert/remove/move/clone pages, insert blank pages and images to create a new document)."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_dpo", false, true, false);
+    addFileContent("pdf4qt_dpo", "Pdf4QtDocPageOrganizer.exe");
+
     addStartMenuShortcut("pdf4qt_tool", "PdfTool", tr("PDF4QT Command Line Tool"));
     addComponentMeta("pdf4qt_tool", tr("PdfTool"), tr("Command line tool for manipulation of PDF files with many functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_tool", false, false, false);
     addFileContent("pdf4qt_tool", "PdfTool.exe");

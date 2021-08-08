@@ -83,129 +83,7 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         // manipulating a single document).
         if (!m_flags.testFlag(SingleDocument))
         {
-            PDFInteger lastDocumentIndex = pages.front().documentIndex;
-
-            struct DocumentPartInfo
-            {
-                size_t pageCount = 0;
-                PDFInteger documentIndex = 0;
-                bool isWholeDocument = false;
-                QString caption;
-                PDFObjectReference firstPageReference;
-            };
-            std::vector<DocumentPartInfo> documentParts = { DocumentPartInfo() };
-
-            PDFClosedIntervalSet pageNumbers;
-            PDFInteger imageCount = 0;
-            PDFInteger blankPageCount = 0;
-            PDFInteger totalPageCount = 0;
-
-            auto addDocumentPartCaption = [&](PDFInteger documentIndex)
-            {
-                DocumentPartInfo& info = documentParts.back();
-
-                QString documentTitle;
-                if (documentIndex != -1 && m_documents.count(documentIndex))
-                {
-                    const PDFDocument* document = m_documents.at(documentIndex);
-                    documentTitle = document->getInfo()->title;
-                    if (documentTitle.isEmpty())
-                    {
-                        documentTitle = tr("Document %1").arg(documentIndex);
-                    }
-
-                    if (pageNumbers.getTotalLength() < PDFInteger(document->getCatalog()->getPageCount()))
-                    {
-                        documentTitle = tr("%1, p. %2").arg(documentTitle, pageNumbers.toText(true));
-                    }
-                    else
-                    {
-                        info.isWholeDocument = true;
-                    }
-                }
-                else if (imageCount > 0 && blankPageCount == 0)
-                {
-                    documentTitle = tr("%1 Images").arg(imageCount);
-                }
-                else
-                {
-                    documentTitle = tr("%1 Pages").arg(imageCount + blankPageCount);
-                }
-
-                info.caption = documentTitle;
-                info.documentIndex = documentIndex;
-                info.firstPageReference = (totalPageCount < PDFInteger(adjustedPages.size())) ? adjustedPages[totalPageCount] : PDFObjectReference();
-
-                pageNumbers = PDFClosedIntervalSet();
-                imageCount = 0;
-                blankPageCount = 0;
-                totalPageCount += info.pageCount;
-            };
-
-            for (const AssembledPage& page : pages)
-            {
-                if (page.documentIndex == lastDocumentIndex)
-                {
-                    ++documentParts.back().pageCount;
-                }
-                else
-                {
-                    addDocumentPartCaption(lastDocumentIndex);
-                    documentParts.push_back(DocumentPartInfo());
-                    ++documentParts.back().pageCount;
-                    lastDocumentIndex = page.documentIndex;
-                }
-
-                if (page.isDocumentPage())
-                {
-                    pageNumbers.addValue(page.pageIndex + 1);
-                }
-
-                if (page.isImagePage())
-                {
-                    ++imageCount;
-                }
-
-                if (page.isBlankPage())
-                {
-                    ++blankPageCount;
-                }
-            }
-            addDocumentPartCaption(lastDocumentIndex);
-
-            std::vector<size_t> documentPartPageCounts;
-            std::transform(documentParts.cbegin(), documentParts.cend(), std::back_inserter(documentPartPageCounts), [](const auto& part) { return part.pageCount; });
-            documentBuilder.createDocumentParts(documentPartPageCounts);
-
-            if (m_outlineMode != OutlineMode::NoOutline)
-            {
-                QSharedPointer<PDFOutlineItem> rootItem(new PDFOutlineItem());
-
-                for (const DocumentPartInfo& info : documentParts)
-                {
-                    QSharedPointer<PDFOutlineItem> documentPartItem(new PDFOutlineItem);
-                    documentPartItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::createFit(info.firstPageReference), PDFDestination())));
-                    documentPartItem->setTitle(info.caption);
-                    documentPartItem->setFontBold(true);
-
-                    if (m_outlineMode == OutlineMode::Join && info.isWholeDocument)
-                    {
-                        const PDFInteger documentIndex = info.documentIndex;
-                        QSharedPointer<PDFOutlineItem> outline = PDFOutlineItem::parse(documentBuilder.getStorage(), PDFObject::createReference(m_outlines.at(documentIndex)));
-                        if (outline)
-                        {
-                            for (size_t i = 0; i < outline->getChildCount(); ++i)
-                            {
-                                documentPartItem->addChild(outline->getChildPtr(i));
-                            }
-                        }
-                    }
-
-                    rootItem->addChild(std::move(documentPartItem));
-                }
-
-                documentBuilder.setOutline(rootItem.data());
-            }
+            addOutlineAndDocumentParts(documentBuilder, pages, adjustedPages);
         }
 
         pdf::PDFDocument mergedDocument = documentBuilder.build();
@@ -581,6 +459,135 @@ void PDFDocumentManipulator::finalizeDocument(PDFDocument* document)
         }
     }
     m_assembledDocument = finalBuilder.build();
+}
+
+void PDFDocumentManipulator::addOutlineAndDocumentParts(PDFDocumentBuilder& documentBuilder,
+                                                        const AssembledPages& pages,
+                                                        const std::vector<PDFObjectReference>& adjustedPages)
+{
+    PDFInteger lastDocumentIndex = pages.front().documentIndex;
+
+    struct DocumentPartInfo
+    {
+        size_t pageCount = 0;
+        PDFInteger documentIndex = 0;
+        bool isWholeDocument = false;
+        QString caption;
+        PDFObjectReference firstPageReference;
+    };
+    std::vector<DocumentPartInfo> documentParts = { DocumentPartInfo() };
+
+    PDFClosedIntervalSet pageNumbers;
+    PDFInteger imageCount = 0;
+    PDFInteger blankPageCount = 0;
+    PDFInteger totalPageCount = 0;
+
+    auto addDocumentPartCaption = [&](PDFInteger documentIndex)
+    {
+        DocumentPartInfo& info = documentParts.back();
+
+        QString documentTitle;
+        if (documentIndex != -1 && m_documents.count(documentIndex))
+        {
+            const PDFDocument* document = m_documents.at(documentIndex);
+            documentTitle = document->getInfo()->title;
+            if (documentTitle.isEmpty())
+            {
+                documentTitle = tr("Document %1").arg(documentIndex);
+            }
+
+            if (pageNumbers.getTotalLength() < PDFInteger(document->getCatalog()->getPageCount()))
+            {
+                documentTitle = tr("%1, p. %2").arg(documentTitle, pageNumbers.toText(true));
+            }
+            else
+            {
+                info.isWholeDocument = true;
+            }
+        }
+        else if (imageCount > 0 && blankPageCount == 0)
+        {
+            documentTitle = tr("%1 Images").arg(imageCount);
+        }
+        else
+        {
+            documentTitle = tr("%1 Pages").arg(imageCount + blankPageCount);
+        }
+
+        info.caption = documentTitle;
+        info.documentIndex = documentIndex;
+        info.firstPageReference = (totalPageCount < PDFInteger(adjustedPages.size())) ? adjustedPages[totalPageCount] : PDFObjectReference();
+
+        pageNumbers = PDFClosedIntervalSet();
+        imageCount = 0;
+        blankPageCount = 0;
+        totalPageCount += info.pageCount;
+    };
+
+    for (const AssembledPage& page : pages)
+    {
+        if (page.documentIndex == lastDocumentIndex)
+        {
+            ++documentParts.back().pageCount;
+        }
+        else
+        {
+            addDocumentPartCaption(lastDocumentIndex);
+            documentParts.push_back(DocumentPartInfo());
+            ++documentParts.back().pageCount;
+            lastDocumentIndex = page.documentIndex;
+        }
+
+        if (page.isDocumentPage())
+        {
+            pageNumbers.addValue(page.pageIndex + 1);
+        }
+
+        if (page.isImagePage())
+        {
+            ++imageCount;
+        }
+
+        if (page.isBlankPage())
+        {
+            ++blankPageCount;
+        }
+    }
+    addDocumentPartCaption(lastDocumentIndex);
+
+    std::vector<size_t> documentPartPageCounts;
+    std::transform(documentParts.cbegin(), documentParts.cend(), std::back_inserter(documentPartPageCounts), [](const auto& part) { return part.pageCount; });
+    documentBuilder.createDocumentParts(documentPartPageCounts);
+
+    if (m_outlineMode != OutlineMode::NoOutline)
+    {
+        QSharedPointer<PDFOutlineItem> rootItem(new PDFOutlineItem());
+
+        for (const DocumentPartInfo& info : documentParts)
+        {
+            QSharedPointer<PDFOutlineItem> documentPartItem(new PDFOutlineItem);
+            documentPartItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::createFit(info.firstPageReference), PDFDestination())));
+            documentPartItem->setTitle(info.caption);
+            documentPartItem->setFontBold(true);
+
+            if (m_outlineMode == OutlineMode::Join && info.isWholeDocument)
+            {
+                const PDFInteger documentIndex = info.documentIndex;
+                QSharedPointer<PDFOutlineItem> outline = PDFOutlineItem::parse(documentBuilder.getStorage(), PDFObject::createReference(m_outlines.at(documentIndex)));
+                if (outline)
+                {
+                    for (size_t i = 0; i < outline->getChildCount(); ++i)
+                    {
+                        documentPartItem->addChild(outline->getChildPtr(i));
+                    }
+                }
+            }
+
+            rootItem->addChild(std::move(documentPartItem));
+        }
+
+        documentBuilder.setOutline(rootItem.data());
+    }
 }
 
 PDFDocumentManipulator::OutlineMode PDFDocumentManipulator::getOutlineMode() const

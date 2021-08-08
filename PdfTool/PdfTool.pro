@@ -67,13 +67,9 @@ SOURCES += \
         pdftoolverifysignatures.cpp \
         pdftoolxml.cpp
 
-# Default rules for deployment.
-qnx: target.path = /tmp/$${TARGET}/bin
-else: unix:!android: target.path = /opt/$${TARGET}/bin
-!isEmpty(target.path): INSTALLS += target
-
 application.files = $$DESTDIR/PdfTool.exe
 application.path = $$DESTDIR/install
+application.CONFIG += no_check_exist
 INSTALLS += application
 
 HEADERS += \

@@ -237,6 +237,7 @@ QMAKE_RESOURCE_FLAGS += -threshold 0 -compress 9
 
 PdfforQt_library.files = $$DESTDIR/Pdf4QtLib.dll
 PdfforQt_library.path = $$DESTDIR/install
+PdfforQt_library.CONFIG += no_check_exist
 
 INSTALLS += PdfforQt_library
 

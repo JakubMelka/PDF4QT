@@ -92,10 +92,17 @@ CONFIG += force_debug_info
 
 viewer_library.files = $$DESTDIR/Pdf4QtViewer.dll
 viewer_library.path = $$DESTDIR/install
+viewer_library.CONFIG += no_check_exist
 INSTALLS += viewer_library
 
-plugins.files = $$files($$DESTDIR/pdfplugins/*.dll)
+plugins.files = $$DESTDIR/pdfplugins/ObjectInspectorPlugin.dll \
+                $$DESTDIR/pdfplugins/OutputPreviewPlugin.dll \
+                $$DESTDIR/pdfplugins/DimensionsPlugin.dll \
+                $$DESTDIR/pdfplugins/SoftProofingPlugin.dll \
+                $$DESTDIR/pdfplugins/RedactPlugin.dll
+
 plugins.path = $$DESTDIR/install/pdfplugins
+plugins.CONFIG += no_check_exist
 INSTALLS += plugins
 
 RESOURCES += \

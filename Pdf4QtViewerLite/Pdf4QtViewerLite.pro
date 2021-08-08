@@ -38,6 +38,7 @@ CONFIG += force_debug_info
 
 application.files = $$DESTDIR/Pdf4QtViewerLite.exe
 application.path = $$DESTDIR/install
+application.CONFIG += no_check_exist
 INSTALLS += application
 
 SOURCES += \

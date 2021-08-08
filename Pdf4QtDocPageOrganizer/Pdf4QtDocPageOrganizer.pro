@@ -34,10 +34,11 @@ INCLUDEPATH += $$PWD/../PDF4QtLib/Sources
 DESTDIR = $$OUT_PWD/..
 LIBS += -L$$OUT_PWD/..
 LIBS += -lPDF4QtLib
-CONFIG += force_debug_info
+CONFIG += force_debug_info no_check_exist
 
 application.files = $$DESTDIR/Pdf4QtDocPageOrganizer.exe
 application.path = $$DESTDIR/install
+application.CONFIG += no_check_exist
 INSTALLS += application
 
 SOURCES += \
