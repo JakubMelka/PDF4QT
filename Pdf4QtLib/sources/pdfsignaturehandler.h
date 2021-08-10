@@ -1,19 +1,19 @@
 //    Copyright (C) 2020-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFSIGNATUREHANDLER_H
 #define PDFSIGNATUREHANDLER_H
@@ -153,7 +153,7 @@ private:
 };
 
 /// Info about certificate, various details etc.
-class Pdf4QtLIBSHARED_EXPORT PDFCertificateInfo
+class PDF4QTLIBSHARED_EXPORT PDFCertificateInfo
 {
 public:
     explicit inline PDFCertificateInfo() = default;
@@ -270,7 +270,7 @@ private:
 
 using PDFCertificateInfos = std::vector<PDFCertificateInfo>;
 
-class Pdf4QtLIBSHARED_EXPORT PDFSignatureVerificationResult
+class PDF4QTLIBSHARED_EXPORT PDFSignatureVerificationResult
 {
 public:
     explicit PDFSignatureVerificationResult() = default;
@@ -426,7 +426,7 @@ private:
 };
 
 /// Signature handler. Can verify both certificate and signature validity.
-class Pdf4QtLIBSHARED_EXPORT PDFSignatureHandler
+class PDF4QTLIBSHARED_EXPORT PDFSignatureHandler
 {
 public:
     explicit PDFSignatureHandler() = default;
@@ -463,7 +463,7 @@ private:
 /// Trusted certificate store. Contains list of trusted certificates. Store
 /// can be persisted to the persistent storage trough serialization/deserialization.
 /// Persisting method is versioned.
-class Pdf4QtLIBSHARED_EXPORT PDFCertificateStore
+class PDF4QTLIBSHARED_EXPORT PDFCertificateStore
 {
 public:
     explicit inline PDFCertificateStore() = default;

@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFSTRUCTURETREE_H
 #define PDFSTRUCTURETREE_H
@@ -35,7 +35,7 @@ class PDFStructureElement;
 class PDFStructureMarkedContentReference;
 class PDFStructureObjectReference;
 
-class Pdf4QtLIBSHARED_EXPORT PDFStructureTreeAbstractVisitor
+class PDF4QTLIBSHARED_EXPORT PDFStructureTreeAbstractVisitor
 {
 public:
     inline PDFStructureTreeAbstractVisitor() = default;
@@ -50,7 +50,7 @@ protected:
     void acceptChildren(const PDFStructureItem* item);
 };
 
-class  Pdf4QtLIBSHARED_EXPORT PDFStructureTreeAttribute
+class  PDF4QTLIBSHARED_EXPORT PDFStructureTreeAttribute
 {
 public:
 
@@ -251,7 +251,7 @@ class PDFStructureMarkedContentReference;
 using PDFStructureItemPointer = QSharedPointer<PDFStructureItem>;
 
 /// Root class for all structure tree items
-class Pdf4QtLIBSHARED_EXPORT PDFStructureItem
+class PDF4QTLIBSHARED_EXPORT PDFStructureItem
 {
 public:
     explicit inline PDFStructureItem(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -345,7 +345,7 @@ protected:
 };
 
 /// Structure tree namespace
-class Pdf4QtLIBSHARED_EXPORT PDFStructureTreeNamespace
+class PDF4QTLIBSHARED_EXPORT PDFStructureTreeNamespace
 {
 public:
     explicit inline PDFStructureTreeNamespace() = default;
@@ -367,7 +367,7 @@ private:
 using PDFStructureTreeNamespaces = std::vector<PDFStructureTreeNamespace>;
 
 /// Structure tree, contains structure element hierarchy
-class Pdf4QtLIBSHARED_EXPORT PDFStructureTree : public PDFStructureItem
+class PDF4QTLIBSHARED_EXPORT PDFStructureTree : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureTree() : PDFStructureItem(nullptr, this) { }
@@ -447,7 +447,7 @@ private:
 };
 
 /// Structure element
-class Pdf4QtLIBSHARED_EXPORT PDFStructureElement : public PDFStructureItem
+class PDF4QTLIBSHARED_EXPORT PDFStructureElement : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureElement(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -539,7 +539,7 @@ private:
 };
 
 /// Structure marked content reference
-class Pdf4QtLIBSHARED_EXPORT PDFStructureMarkedContentReference : public PDFStructureItem
+class PDF4QTLIBSHARED_EXPORT PDFStructureMarkedContentReference : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureMarkedContentReference(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -577,7 +577,7 @@ private:
 };
 
 /// Structure object reference
-class Pdf4QtLIBSHARED_EXPORT PDFStructureObjectReference : public PDFStructureItem
+class PDF4QTLIBSHARED_EXPORT PDFStructureObjectReference : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureObjectReference(PDFStructureItem* parent, PDFStructureTree* root) :

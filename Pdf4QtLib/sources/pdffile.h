@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFFILE_H
 #define PDFFILE_H
@@ -31,7 +31,7 @@ class PDFObjectStorage;
 /// Each identifier consists of two parts - permanent identifier, which
 /// is unique identifier based on original document, and changing identifier,
 /// which is updated when document is being modified.
-class Pdf4QtLIBSHARED_EXPORT PDFFileIdentifier
+class PDF4QTLIBSHARED_EXPORT PDFFileIdentifier
 {
 public:
     explicit inline PDFFileIdentifier() = default;
@@ -49,7 +49,7 @@ private:
 /// Provides description of collection item property field. It describes it's
 /// kind, data type, if content of the property should be presented to the user,
 /// and ordering, visibility and editability.
-class Pdf4QtLIBSHARED_EXPORT PDFCollectionField
+class PDF4QTLIBSHARED_EXPORT PDFCollectionField
 {
 public:
     explicit inline PDFCollectionField() = default;
@@ -96,7 +96,7 @@ private:
 
 /// Collection schema. Contains a list of defined fields.
 /// Schema can be queried for field definition.
-class Pdf4QtLIBSHARED_EXPORT PDFCollectionSchema
+class PDF4QTLIBSHARED_EXPORT PDFCollectionSchema
 {
 public:
     explicit inline PDFCollectionSchema() = default;
@@ -123,7 +123,7 @@ private:
 
 /// Collection of file attachments. In the PDF file, attached files
 /// can be grouped in collection (if they are related to each other).
-class Pdf4QtLIBSHARED_EXPORT PDFCollection
+class PDF4QTLIBSHARED_EXPORT PDFCollection
 {
 public:
     explicit inline PDFCollection() = default;
@@ -242,7 +242,7 @@ private:
 };
 
 /// Collection folder. Can contain subfolders and files.
-class Pdf4QtLIBSHARED_EXPORT PDFCollectionFolder
+class PDF4QTLIBSHARED_EXPORT PDFCollectionFolder
 {
 public:
     explicit inline PDFCollectionFolder() = default;
@@ -277,7 +277,7 @@ private:
 
 /// Collection item. Contains properties of the collection item,
 /// for example, embedded file.
-class Pdf4QtLIBSHARED_EXPORT PDFCollectionItem
+class PDF4QTLIBSHARED_EXPORT PDFCollectionItem
 {
 public:
     explicit inline PDFCollectionItem() = default;
@@ -316,7 +316,7 @@ private:
 
 /// Collection navigator. It contains modes of display. Interactive
 /// PDF processor should display first layout it is capable of.
-class Pdf4QtLIBSHARED_EXPORT PDFCollectionNavigator
+class PDF4QTLIBSHARED_EXPORT PDFCollectionNavigator
 {
 public:
     explicit inline PDFCollectionNavigator() = default;
@@ -347,7 +347,7 @@ private:
     Layouts m_layouts = None;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFEmbeddedFile
+class PDF4QTLIBSHARED_EXPORT PDFEmbeddedFile
 {
 public:
     explicit PDFEmbeddedFile() = default;
@@ -372,7 +372,7 @@ private:
 };
 
 /// File specification
-class Pdf4QtLIBSHARED_EXPORT PDFFileSpecification
+class PDF4QTLIBSHARED_EXPORT PDFFileSpecification
 {
 public:
     explicit PDFFileSpecification() = default;

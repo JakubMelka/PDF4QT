@@ -1,19 +1,19 @@
 ﻿//    Copyright (C) 2020-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt. If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFFORM_H
 #define PDFFORM_H
@@ -412,7 +412,7 @@ private:
 /// Fields forms tree-like structure, where leafs are usually widgets. Fields include
 /// ordinary widgets, such as buttons, check boxes, combo boxes and text fields, and one
 /// special - signature field, which represents digital signature.
-class Pdf4QtLIBSHARED_EXPORT PDFForm
+class PDF4QTLIBSHARED_EXPORT PDFForm
 {
 public:
     explicit inline PDFForm() = default;
@@ -533,7 +533,7 @@ protected:
 /// Form manager. Manages all form widgets functionality - triggers actions,
 /// edits fields, updates annotation appearances, etc. Valid pointer to annotation
 /// manager is requirement.
-class Pdf4QtLIBSHARED_EXPORT PDFFormManager : public QObject, public IDrawWidgetInputInterface
+class PDF4QTLIBSHARED_EXPORT PDFFormManager : public QObject, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 

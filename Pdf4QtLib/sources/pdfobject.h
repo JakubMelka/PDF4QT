@@ -1,19 +1,19 @@
 //    Copyright (C) 2018-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 
 #ifndef PDFOBJECT_H
@@ -111,7 +111,7 @@ struct PDFInplaceString
 };
 
 /// Reference to the string implementations
-struct Pdf4QtLIBSHARED_EXPORT PDFStringRef
+struct PDF4QTLIBSHARED_EXPORT PDFStringRef
 {
     const PDFInplaceString* inplaceString = nullptr;
     const PDFString* memoryString = nullptr;
@@ -121,7 +121,7 @@ struct Pdf4QtLIBSHARED_EXPORT PDFStringRef
 
 /// This class represents string, which can be inplace string (no memory allocation),
 /// or classic byte array string, if not enough space for embedded string.
-class Pdf4QtLIBSHARED_EXPORT PDFInplaceOrMemoryString
+class PDF4QTLIBSHARED_EXPORT PDFInplaceOrMemoryString
 {
 public:
     constexpr PDFInplaceOrMemoryString() = default;
@@ -157,7 +157,7 @@ private:
     std::variant<typename std::monostate, PDFInplaceString, QByteArray> m_value;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFObject
+class PDF4QTLIBSHARED_EXPORT PDFObject
 {
 public:
     enum class Type : uint8_t
@@ -310,7 +310,7 @@ private:
 };
 
 /// Represents an array of objects in the PDF file.
-class Pdf4QtLIBSHARED_EXPORT PDFArray : public PDFObjectContent
+class PDF4QTLIBSHARED_EXPORT PDFArray : public PDFObjectContent
 {
 public:
     inline PDFArray() = default;
@@ -352,7 +352,7 @@ private:
 /// an array of pairs key-value, where key is name object and value is any
 /// PDF object. For this reason, we use QByteArray for key. We do not use
 /// map, because dictionaries are usually small.
-class Pdf4QtLIBSHARED_EXPORT PDFDictionary : public PDFObjectContent
+class PDF4QTLIBSHARED_EXPORT PDFDictionary : public PDFObjectContent
 {
 public:
     using DictionaryEntry = std::pair<PDFInplaceOrMemoryString, PDFObject>;
@@ -463,7 +463,7 @@ private:
 
 /// Represents a stream object in the PDF file. Stream consists of dictionary
 /// and stream content - byte array.
-class Pdf4QtLIBSHARED_EXPORT PDFStream : public PDFObjectContent
+class PDF4QTLIBSHARED_EXPORT PDFStream : public PDFObjectContent
 {
 public:
     inline explicit PDFStream() = default;
@@ -492,7 +492,7 @@ private:
     QByteArray m_content;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFObjectManipulator
+class PDF4QTLIBSHARED_EXPORT PDFObjectManipulator
 {
 public:
     explicit PDFObjectManipulator() = delete;

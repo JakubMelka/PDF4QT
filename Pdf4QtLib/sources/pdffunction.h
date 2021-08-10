@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 
 #ifndef PDFFUNCTION_H
@@ -46,7 +46,7 @@ using PDFFunctionPtr = std::shared_ptr<PDFFunction>;
 /// Function has domain and range, values outside of domain and range are clamped
 /// to the nearest values. This class is fully thread safe (if constant functions
 /// are called).
-class Pdf4QtLIBSHARED_EXPORT PDFFunction
+class PDF4QTLIBSHARED_EXPORT PDFFunction
 {
 public:
 
@@ -131,7 +131,7 @@ protected:
 };
 
 /// Identity function
-class Pdf4QtLIBSHARED_EXPORT PDFIdentityFunction : public PDFFunction
+class PDF4QTLIBSHARED_EXPORT PDFIdentityFunction : public PDFFunction
 {
 public:
     explicit PDFIdentityFunction();
@@ -148,7 +148,7 @@ public:
 /// Sampled function (Type 0 function).
 /// \note Order is ignored, linear interpolation is always performed. No cubic spline
 /// interpolation occurs.
-class Pdf4QtLIBSHARED_EXPORT PDFSampledFunction : public PDFFunction
+class PDF4QTLIBSHARED_EXPORT PDFSampledFunction : public PDFFunction
 {
 public:
 
@@ -217,7 +217,7 @@ private:
 /// is defined as f(x) = c0 + x^exponent * (c1 - c0). If exponent is 1.0, then linear interpolation
 /// is performed as f(x) = c0 * (1 - x) + x * c1. To be more precise, if exponent is nearly 1.0,
 /// then linear interpolation is used instead.
-class Pdf4QtLIBSHARED_EXPORT PDFExponentialFunction : public PDFFunction
+class PDF4QTLIBSHARED_EXPORT PDFExponentialFunction : public PDFFunction
 {
 public:
     /// Construct new exponential function.
@@ -254,7 +254,7 @@ private:
 /// Stitching function (Type 3 function)
 /// This type of function has always exactly one input. Transformation of this function
 /// is defined via k subfunctions which are used in defined intervals of the input value.
-class Pdf4QtLIBSHARED_EXPORT PDFStitchingFunction : public PDFFunction
+class PDF4QTLIBSHARED_EXPORT PDFStitchingFunction : public PDFFunction
 {
 public:
     struct PartialFunction
@@ -313,7 +313,7 @@ private:
 
 /// Postscript function (Type 4 function)
 /// Implements subset of postscript language
-class Pdf4QtLIBSHARED_EXPORT PDFPostScriptFunction : public PDFFunction
+class PDF4QTLIBSHARED_EXPORT PDFPostScriptFunction : public PDFFunction
 {
 public:
 

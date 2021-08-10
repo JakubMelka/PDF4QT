@@ -1,19 +1,19 @@
 //    Copyright (C) 2020-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFWIDGETTOOL_H
 #define PDFWIDGETTOOL_H
@@ -34,7 +34,7 @@ namespace pdf
 /// Base class for various widget tools (for example, searching, text selection,
 /// screenshots, zoom tool etc.). Each tool can have subtools (for example,
 /// screenshot tool is picking screenshot rectangle).
-class Pdf4QtLIBSHARED_EXPORT PDFWidgetTool : public QObject, public IDocumentDrawInterface
+class PDF4QTLIBSHARED_EXPORT PDFWidgetTool : public QObject, public IDocumentDrawInterface
 {
     Q_OBJECT
 
@@ -256,7 +256,7 @@ private:
 };
 
 /// Tool to magnify specific area in the drawing widget
-class Pdf4QtLIBSHARED_EXPORT PDFMagnifierTool : public PDFWidgetTool
+class PDF4QTLIBSHARED_EXPORT PDFMagnifierTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -291,7 +291,7 @@ private:
 };
 
 /// Tools for picking various items on page - points, rectangles, images etc.
-class Pdf4QtLIBSHARED_EXPORT PDFPickTool : public PDFWidgetTool
+class PDF4QTLIBSHARED_EXPORT PDFPickTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -365,7 +365,7 @@ private:
 
 /// Tool that makes screenshot of page area and copies it to the clipboard,
 /// using current client area to determine image size.
-class Pdf4QtLIBSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
+class PDF4QTLIBSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -387,7 +387,7 @@ private:
 
 /// Tool that extracts image from page and copies it to the clipboard,
 /// using image original size (not zoomed size from widget area)
-class Pdf4QtLIBSHARED_EXPORT PDFExtractImageTool : public PDFWidgetTool
+class PDF4QTLIBSHARED_EXPORT PDFExtractImageTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -413,7 +413,7 @@ private:
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
-class Pdf4QtLIBSHARED_EXPORT PDFToolManager : public QObject, public IDrawWidgetInputInterface
+class PDF4QTLIBSHARED_EXPORT PDFToolManager : public QObject, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 

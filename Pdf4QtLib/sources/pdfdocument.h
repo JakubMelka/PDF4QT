@@ -1,19 +1,19 @@
 //    Copyright (C) 2018-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFDOCUMENT_H
 #define PDFDOCUMENT_H
@@ -37,7 +37,7 @@ class PDFDocumentBuilder;
 
 /// Storage for objects. This class is not thread safe for writing (calling non-const functions). Caller must ensure
 /// locking, if this object is used from multiple threads. Calling const functions should be thread safe.
-class Pdf4QtLIBSHARED_EXPORT PDFObjectStorage
+class PDF4QTLIBSHARED_EXPORT PDFObjectStorage
 {
 public:
     inline PDFObjectStorage() = default;
@@ -146,7 +146,7 @@ private:
 /// then if object with valid data is not found, default value is used, and second one,
 /// without default value, if valid data are not found, then exception is thrown.
 /// This class uses Decorator design pattern.
-class Pdf4QtLIBSHARED_EXPORT PDFDocumentDataLoaderDecorator
+class PDF4QTLIBSHARED_EXPORT PDFDocumentDataLoaderDecorator
 {
 public:
     explicit PDFDocumentDataLoaderDecorator(const PDFDocument* document);
@@ -402,7 +402,7 @@ private:
 };
 
 /// PDF document main class.
-class Pdf4QtLIBSHARED_EXPORT PDFDocument
+class PDF4QTLIBSHARED_EXPORT PDFDocument
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocument)
 

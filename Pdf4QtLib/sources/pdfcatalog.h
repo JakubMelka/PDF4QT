@@ -1,19 +1,19 @@
 //    Copyright (C) 2018-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFCATALOG_H
 #define PDFCATALOG_H
@@ -235,7 +235,7 @@ private:
 
 /// Document security store. Contains certificates, CRLs, OCSPs, and
 /// other data for signature validation.
-class Pdf4QtLIBSHARED_EXPORT PDFDocumentSecurityStore
+class PDF4QTLIBSHARED_EXPORT PDFDocumentSecurityStore
 {
 public:
     explicit inline PDFDocumentSecurityStore() = default;
@@ -300,7 +300,7 @@ private:
 
 /// Document extensions. Contains information about developer's extensions
 /// used in document.
-class Pdf4QtLIBSHARED_EXPORT PDFDeveloperExtensions
+class PDF4QTLIBSHARED_EXPORT PDFDeveloperExtensions
 {
 public:
     explicit PDFDeveloperExtensions() = default;
@@ -329,7 +329,7 @@ private:
 };
 
 /// Web capture info
-class Pdf4QtLIBSHARED_EXPORT PDFWebCaptureInfo
+class PDF4QTLIBSHARED_EXPORT PDFWebCaptureInfo
 {
 public:
     explicit PDFWebCaptureInfo() = default;
@@ -348,7 +348,7 @@ private:
     std::vector<PDFObjectReference> m_commands;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFOutputIntentICCProfileInfo
+class PDF4QTLIBSHARED_EXPORT PDFOutputIntentICCProfileInfo
 {
 public:
     explicit PDFOutputIntentICCProfileInfo() = default;
@@ -376,7 +376,7 @@ private:
 };
 
 /// Output intent
-class Pdf4QtLIBSHARED_EXPORT PDFOutputIntent
+class PDF4QTLIBSHARED_EXPORT PDFOutputIntent
 {
 public:
     explicit PDFOutputIntent() = default;
@@ -410,7 +410,7 @@ private:
 };
 
 /// Legal attestations
-class Pdf4QtLIBSHARED_EXPORT PDFLegalAttestation
+class PDF4QTLIBSHARED_EXPORT PDFLegalAttestation
 {
 public:
     explicit inline PDFLegalAttestation() = default;
@@ -458,7 +458,7 @@ private:
 /// Document can contain requirements for viewer application. This class
 /// verifies, if this library and viewer application satisfies these requirements
 /// and returns result.
-class Pdf4QtLIBSHARED_EXPORT PDFDocumentRequirements
+class PDF4QTLIBSHARED_EXPORT PDFDocumentRequirements
 {
 public:
 
@@ -563,7 +563,7 @@ private:
     std::array<PDFActionPtr, End> m_actions;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFCatalog
+class PDF4QTLIBSHARED_EXPORT PDFCatalog
 {
 public:
     inline PDFCatalog() = default;

@@ -1,19 +1,19 @@
 ﻿//    Copyright (C) 2020-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt. If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFANNOTATION_H
 #define PDFANNOTATION_H
@@ -782,7 +782,7 @@ enum class TextAnnotationIcon
 /// as if flag NoZoom and NoRotate were set). When this annotation is opened,
 /// it displays popup window containing the text of the note, font and size
 /// is implementation dependent by viewer application.
-class Pdf4QtLIBSHARED_EXPORT PDFTextAnnotation : public PDFMarkupAnnotation
+class PDF4QTLIBSHARED_EXPORT PDFTextAnnotation : public PDFMarkupAnnotation
 {
 public:
     inline explicit PDFTextAnnotation() = default;
@@ -1103,7 +1103,7 @@ enum class StampIntent
 
 /// Annotation for stamps. Displays text or graphics intended to look
 /// as if they were stamped on the paper.
-class Pdf4QtLIBSHARED_EXPORT PDFStampAnnotation : public PDFMarkupAnnotation
+class PDF4QTLIBSHARED_EXPORT PDFStampAnnotation : public PDFMarkupAnnotation
 {
 public:
     inline explicit PDFStampAnnotation() = default;
@@ -1432,7 +1432,7 @@ private:
 /// this object builds annotation's appearance streams, if necessary. This
 /// manager is intended to non-gui rendering. If widget annotation manager is used,
 /// then this object is not thread safe.
-class Pdf4QtLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
+class PDF4QTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
 {
     Q_OBJECT
 
@@ -1624,7 +1624,7 @@ protected:
 
 /// Annotation manager for GUI rendering, it also manages annotations widgets
 /// for parent widget.
-class Pdf4QtLIBSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager, public IDrawWidgetInputInterface
+class PDF4QTLIBSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 

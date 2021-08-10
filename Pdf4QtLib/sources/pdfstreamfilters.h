@@ -1,19 +1,19 @@
 //    Copyright (C) 2018-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFSTREAMFILTERS_H
 #define PDFSTREAMFILTERS_H
@@ -137,7 +137,7 @@ private:
     int m_stride = 0;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFStreamFilter
 {
 public:
     explicit PDFStreamFilter() = default;
@@ -164,7 +164,7 @@ public:
     virtual PDFInteger getStreamDataLength(const QByteArray& data, PDFInteger offset) const;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFAsciiHexDecodeFilter() = default;
@@ -176,7 +176,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFAscii85DecodeFilter() = default;
@@ -188,7 +188,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFLzwDecodeFilter() = default;
@@ -200,7 +200,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFFlateDecodeFilter() = default;
@@ -222,7 +222,7 @@ private:
     static QByteArray uncompress(const QByteArray& data);
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFRunLengthDecodeFilter() = default;
@@ -234,7 +234,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFCryptFilter : public PDFStreamFilter
+class PDF4QTLIBSHARED_EXPORT PDFCryptFilter : public PDFStreamFilter
 {
 public:
     explicit PDFCryptFilter() = default;

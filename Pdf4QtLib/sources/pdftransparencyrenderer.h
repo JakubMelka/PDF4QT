@@ -1,19 +1,19 @@
 //    Copyright (C) 2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFTRANSPARENCYRENDERER_H
 #define PDFTRANSPARENCYRENDERER_H
@@ -137,7 +137,7 @@ private:
 
 /// Represents float bitmap with arbitrary color channel count. Bitmap can also
 /// have auxiliary channels, such as shape and opacity channels.
-class Pdf4QtLIBSHARED_EXPORT PDFFloatBitmap
+class PDF4QTLIBSHARED_EXPORT PDFFloatBitmap
 {
 public:
     explicit PDFFloatBitmap();
@@ -319,7 +319,7 @@ private:
 };
 
 /// Float bitmap with color space
-class Pdf4QtLIBSHARED_EXPORT PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
+class PDF4QTLIBSHARED_EXPORT PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
 {
 public:
     explicit PDFFloatBitmapWithColorSpace();
@@ -365,7 +365,7 @@ struct PDFInkMapping
 };
 
 /// Ink mapper for mapping device inks (device colors) and spot inks (spot colors).
-class Pdf4QtLIBSHARED_EXPORT PDFInkMapper
+class PDF4QTLIBSHARED_EXPORT PDFInkMapper
 {
 public:
     explicit PDFInkMapper(const PDFCMSManager* manager, const PDFDocument* document);
@@ -633,7 +633,7 @@ struct PDFTransparencyRendererSettings
 /// page blending space and device blending space. So, painted graphics is being
 /// blended to the page blending space, and then converted to the device blending
 /// space.
-class Pdf4QtLIBSHARED_EXPORT PDFTransparencyRenderer : public PDFPageContentProcessor
+class PDF4QTLIBSHARED_EXPORT PDFTransparencyRenderer : public PDFPageContentProcessor
 {
 private:
     using BaseClass = PDFPageContentProcessor;
@@ -927,7 +927,7 @@ private:
 
 /// Ink coverage calculator. Calculates ink coverage for a given
 /// page range. Calculates ink coverage of both cmyk colors and spot colors.
-class Pdf4QtLIBSHARED_EXPORT PDFInkCoverageCalculator
+class PDF4QTLIBSHARED_EXPORT PDFInkCoverageCalculator
 {
 public:
     PDFInkCoverageCalculator(const PDFDocument* document,

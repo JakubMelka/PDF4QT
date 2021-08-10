@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFTEXTLAYOUT_H
 #define PDFTEXTLAYOUT_H
@@ -213,7 +213,7 @@ using PDFTextSelectionColoredItems = std::vector<PDFTextSelectionColoredItem>;
 
 /// Text selection, can be used across multiple pages. Also defines color
 /// for each text selection.
-class Pdf4QtLIBSHARED_EXPORT PDFTextSelection
+class PDF4QTLIBSHARED_EXPORT PDFTextSelection
 {
 public:
     explicit PDFTextSelection() = default;
@@ -272,7 +272,7 @@ using PDFTextFlows = std::vector<PDFTextFlow>;
 
 /// This class represents a portion of continuous text on the page. It can
 /// consists of multiple blocks (which follow reading order).
-class Pdf4QtLIBSHARED_EXPORT PDFTextFlow
+class PDF4QTLIBSHARED_EXPORT PDFTextFlow
 {
 public:
 
@@ -330,7 +330,7 @@ private:
 
 /// Text layout of single page. Can handle various fonts, various angles of lines
 /// and vertically oriented text. It performs the "docstrum" algorithm.
-class Pdf4QtLIBSHARED_EXPORT PDFTextLayout
+class PDF4QTLIBSHARED_EXPORT PDFTextLayout
 {
 public:
     explicit PDFTextLayout();
@@ -397,7 +397,7 @@ private:
 };
 
 /// Cache for storing single text layout
-class Pdf4QtLIBSHARED_EXPORT PDFTextLayoutCache
+class PDF4QTLIBSHARED_EXPORT PDFTextLayoutCache
 {
 public:
     explicit PDFTextLayoutCache(std::function<PDFTextLayout(PDFInteger)> textLayoutGetter);
@@ -417,7 +417,7 @@ private:
     PDFTextLayout m_layout;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFTextLayoutGetter
+class PDF4QTLIBSHARED_EXPORT PDFTextLayoutGetter
 {
 public:
     explicit inline PDFTextLayoutGetter(PDFTextLayoutCache* cache, PDFInteger pageIndex) :
@@ -466,7 +466,7 @@ private:
 };
 
 /// Paints text selection on various pages using page to device point matrix
-class Pdf4QtLIBSHARED_EXPORT PDFTextSelectionPainter
+class PDF4QTLIBSHARED_EXPORT PDFTextSelectionPainter
 {
 public:
     explicit inline PDFTextSelectionPainter(const PDFTextSelection* selection) :
@@ -501,7 +501,7 @@ private:
 /// For writing, mutex is used to synchronize asynchronous writes, for reading
 /// no mutex is used at all. For this reason, both reading/writing at the same time
 /// is prohibited, it is not thread safe.
-class Pdf4QtLIBSHARED_EXPORT PDFTextLayoutStorage
+class PDF4QTLIBSHARED_EXPORT PDFTextLayoutStorage
 {
 public:
     explicit inline PDFTextLayoutStorage() = default;

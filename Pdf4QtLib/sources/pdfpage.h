@@ -1,19 +1,19 @@
 //    Copyright (C) 2018-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFPAGE_H
 #define PDFPAGE_H
@@ -139,7 +139,7 @@ private:
 
 /// Object representing page in PDF document. Contains different page properties, such as
 /// media box, crop box, rotation, etc. and also page content, resources.
-class Pdf4QtLIBSHARED_EXPORT PDFPage
+class PDF4QTLIBSHARED_EXPORT PDFPage
 {
 public:
     explicit PDFPage() = default;

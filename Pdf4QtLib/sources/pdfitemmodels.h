@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFITEMMODELS_H
 #define PDFITEMMODELS_H
@@ -38,7 +38,7 @@ class PDFOptionalContentActivity;
 class PDFDrawWidgetProxy;
 
 /// Represents tree item in the GUI tree
-class Pdf4QtLIBSHARED_EXPORT PDFTreeItem
+class PDF4QTLIBSHARED_EXPORT PDFTreeItem
 {
 public:
     inline explicit PDFTreeItem() = default;
@@ -73,7 +73,7 @@ private:
 /// Root of all tree item models. Reimplementations of this model
 /// must handle "soft" document updates, such as only annotations changed etc.
 /// Model should be rebuilded only, if it is neccessary.
-class Pdf4QtLIBSHARED_EXPORT PDFTreeItemModel : public QAbstractItemModel
+class PDF4QTLIBSHARED_EXPORT PDFTreeItemModel : public QAbstractItemModel
 {
 public:
     explicit PDFTreeItemModel(QObject* parent);
@@ -116,7 +116,7 @@ private:
     bool m_locked; ///< Node is locked (user can't change it)
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFOptionalContentTreeItemModel : public PDFTreeItemModel
+class PDF4QTLIBSHARED_EXPORT PDFOptionalContentTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
@@ -150,7 +150,7 @@ private:
     QSharedPointer<PDFOutlineItem> m_outlineItem;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFOutlineTreeItemModel : public PDFTreeItemModel
+class PDF4QTLIBSHARED_EXPORT PDFOutlineTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
@@ -175,7 +175,7 @@ private:
     QIcon m_icon;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel
+class PDF4QTLIBSHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel
 {
     Q_OBJECT
 
@@ -218,7 +218,7 @@ private:
     std::unique_ptr<PDFFileSpecification> m_fileSpecification;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFAttachmentsTreeItemModel : public PDFTreeItemModel
+class PDF4QTLIBSHARED_EXPORT PDFAttachmentsTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
@@ -243,7 +243,7 @@ public:
     const PDFFileSpecification* getFileSpecification(const QModelIndex& index) const;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFThumbnailsItemModel : public QAbstractItemModel
+class PDF4QTLIBSHARED_EXPORT PDFThumbnailsItemModel : public QAbstractItemModel
 {
     Q_OBJECT
 

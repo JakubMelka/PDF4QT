@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFUTILS_H
 #define PDFUTILS_H
@@ -109,7 +109,7 @@ private:
 
 /// Bit-reader, which can read n-bit unsigned integers from the stream.
 /// Number of bits can be set in the constructor and is constant.
-class Pdf4QtLIBSHARED_EXPORT PDFBitReader
+class PDF4QTLIBSHARED_EXPORT PDFBitReader
 {
 public:
     using Value = uint64_t;
@@ -380,7 +380,7 @@ inline constexpr uint8_t log2ceil(uint32_t value)
     return logarithm;
 }
 
-struct Pdf4QtLIBSHARED_EXPORT PDFDependentLibraryInfo
+struct PDF4QTLIBSHARED_EXPORT PDFDependentLibraryInfo
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDependentLibraryInfo)
 
@@ -646,7 +646,7 @@ private:
 };
 
 /// Get system information
-class Pdf4QtLIBSHARED_EXPORT PDFSysUtils
+class PDF4QTLIBSHARED_EXPORT PDFSysUtils
 {
 public:
 
@@ -654,7 +654,7 @@ public:
 };
 
 /// Set of closed intervals
-class Pdf4QtLIBSHARED_EXPORT PDFClosedIntervalSet
+class PDF4QTLIBSHARED_EXPORT PDFClosedIntervalSet
 {
 public:
     explicit inline PDFClosedIntervalSet() = default;
@@ -808,7 +808,7 @@ QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
 
 /// Color scale represents hot-to-cold color scale. It maps value
 /// to the color from blue trough green to red.
-class Pdf4QtLIBSHARED_EXPORT PDFColorScale
+class PDF4QTLIBSHARED_EXPORT PDFColorScale
 {
 public:
     explicit PDFColorScale();

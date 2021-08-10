@@ -1,19 +1,19 @@
 ﻿//    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFRENDERER_H
 #define PDFRENDERER_H
@@ -44,7 +44,7 @@ class PDFAnnotationManager;
 class PDFOptionalContentActivity;
 
 /// Renders the PDF page on the painter, or onto an image.
-class Pdf4QtLIBSHARED_EXPORT PDFRenderer
+class PDF4QTLIBSHARED_EXPORT PDFRenderer
 {
 public:
 
@@ -126,7 +126,7 @@ private:
 /// if it is enabled, if this is the case, offscreen rendering to framebuffer
 /// is used.
 /// \note Construct this object only in main GUI thread
-class Pdf4QtLIBSHARED_EXPORT PDFRasterizer : public QObject
+class PDF4QTLIBSHARED_EXPORT PDFRasterizer : public QObject
 {
     Q_OBJECT
 
@@ -198,7 +198,7 @@ struct PDFRenderedPageImage
 /// render page images asynchronously. You can use this object in two ways -
 /// first one is as standard object pool, second one is to directly render
 /// page images asynchronously.
-class Pdf4QtLIBSHARED_EXPORT PDFRasterizerPool : public QObject
+class PDF4QTLIBSHARED_EXPORT PDFRasterizerPool : public QObject
 {
     Q_OBJECT
 
@@ -280,7 +280,7 @@ private:
 };
 
 /// Settings object for image writer
-class Pdf4QtLIBSHARED_EXPORT PDFImageWriterSettings
+class PDF4QTLIBSHARED_EXPORT PDFImageWriterSettings
 {
 public:
     explicit PDFImageWriterSettings();
@@ -332,7 +332,7 @@ private:
 };
 
 /// This class is for setup of page image exporter
-class Pdf4QtLIBSHARED_EXPORT PDFPageImageExportSettings
+class PDF4QTLIBSHARED_EXPORT PDFPageImageExportSettings
 {
 public:
     explicit PDFPageImageExportSettings() : PDFPageImageExportSettings(nullptr) { }

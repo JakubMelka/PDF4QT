@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFFONT_H
 #define PDFFONT_H
@@ -171,7 +171,7 @@ static constexpr PDFEncoding::Encoding getEncodingForStandardFont(StandardFontTy
     }
 }
 
-struct Pdf4QtLIBSHARED_EXPORT FontDescriptor
+struct PDF4QTLIBSHARED_EXPORT FontDescriptor
 {
     bool isEmbedded() const { return !fontFile.isEmpty() || !fontFile2.isEmpty() || !fontFile3.isEmpty(); }
 
@@ -228,7 +228,7 @@ using CharacterInfos = std::vector<CharacterInfo>;
 
 /// Font, which has fixed pixel size. It is programmed as PIMPL, because we need
 /// to remove FreeType types from the interface (so we do not include FreeType in the interface).
-class Pdf4QtLIBSHARED_EXPORT PDFRealizedFont
+class PDF4QTLIBSHARED_EXPORT PDFRealizedFont
 {
 public:
     ~PDFRealizedFont();
@@ -264,7 +264,7 @@ private:
 };
 
 /// Base  class representing font in the PDF file
-class Pdf4QtLIBSHARED_EXPORT PDFFont
+class PDF4QTLIBSHARED_EXPORT PDFFont
 {
 public:
     explicit PDFFont(FontDescriptor fontDescriptor);
@@ -374,7 +374,7 @@ public:
 
 /// Font cache which caches both fonts, and realized fonts. Cache has individual limit
 /// for fonts, and realized fonts.
-class Pdf4QtLIBSHARED_EXPORT PDFFontCache
+class PDF4QTLIBSHARED_EXPORT PDFFontCache
 {
 public:
     inline explicit PDFFontCache(size_t fontCacheLimit, size_t realizedFontCacheLimit) :
@@ -481,7 +481,7 @@ private:
 };
 
 /// Represents a font CMAP (mapping of CIDs)
-class Pdf4QtLIBSHARED_EXPORT PDFFontCMap
+class PDF4QTLIBSHARED_EXPORT PDFFontCMap
 {
 public:
     explicit PDFFontCMap() = default;
@@ -630,7 +630,7 @@ private:
 };
 
 /// Repository with predefined CMaps
-class Pdf4QtLIBSHARED_EXPORT PDFFontCMapRepository
+class PDF4QTLIBSHARED_EXPORT PDFFontCMapRepository
 {
 public:
     /// Returns instance of CMAP repository

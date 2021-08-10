@@ -1,19 +1,19 @@
 //    Copyright (C) 2019-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFJBIG2DECODER_H
 #define PDFJBIG2DECODER_H
@@ -73,7 +73,7 @@ struct PDFJBIG2HuffmanTableEntry
 /// state is stored as 8-bit value, where only 7 bits are used. 6 bits are used
 /// to store Qe value index (current row in the table, number 0-46), and lowest 1 bit
 /// is used to store current MPS value (most probable symbol - 0/1).
-class Pdf4QtLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoderState
+class PDF4QTLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoderState
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoderState() = default;
@@ -139,7 +139,7 @@ private:
 /// of decoder described in document ISO/IEC 14492:2001, T.88, annex G (arithmetic decoding
 /// procedure). It uses 32-bit fixed point arithmetic instead of 16-bit fixed point
 /// arithmetic described in the specification (it is much faster).
-class Pdf4QtLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoder
+class PDF4QTLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoder
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoder(PDFBitReader* reader) :
@@ -323,7 +323,7 @@ private:
     std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
 };
 
-class Pdf4QtLIBSHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
+class PDF4QTLIBSHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2Bitmap();
@@ -427,7 +427,7 @@ using PDFJBIG2ATPositions = std::array<PDFJBIG2ATPosition, 4>;
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
 /// Handles also global segments. Decoder decodes data using the specification
 /// ISO/IEC 14492:2001, T.88.
-class Pdf4QtLIBSHARED_EXPORT PDFJBIG2Decoder
+class PDF4QTLIBSHARED_EXPORT PDFJBIG2Decoder
 {
 public:
     explicit inline PDFJBIG2Decoder(QByteArray data, QByteArray globalData, PDFRenderErrorReporter* errorReporter) :

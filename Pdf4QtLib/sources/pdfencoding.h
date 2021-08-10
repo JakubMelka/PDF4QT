@@ -1,19 +1,19 @@
 //    Copyright (C) 2018-2021 Jakub Melka
 //
-//    This file is part of Pdf4Qt.
+//    This file is part of PDF4QT.
 //
-//    Pdf4Qt is free software: you can redistribute it and/or modify
+//    PDF4QT is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
 //    with the written consent of the copyright owner, any later version.
 //
-//    Pdf4Qt is distributed in the hope that it will be useful,
+//    PDF4QT is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #ifndef PDFENCODING_H
 #define PDFENCODING_H
@@ -35,7 +35,7 @@ using EncodingTable = std::array<QChar, 256>;
 
 /// This class can convert byte stream to the QString in unicode encoding.
 /// PDF has several encodings, see PDF Reference 1.7, Appendix D.
-class Pdf4QtLIBSHARED_EXPORT PDFEncoding
+class PDF4QTLIBSHARED_EXPORT PDFEncoding
 {
 public:
     explicit PDFEncoding() = delete;
