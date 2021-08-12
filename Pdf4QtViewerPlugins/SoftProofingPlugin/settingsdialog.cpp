@@ -43,6 +43,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, const pdf::PDFCMSSettings& setti
     ui->outOfGamutColorEdit->setText(m_settings.outOfGamutColor.name(QColor::HexRgb));
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 160)));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 SettingsDialog::~SettingsDialog()

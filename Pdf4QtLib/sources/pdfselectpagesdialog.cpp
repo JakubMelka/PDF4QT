@@ -64,6 +64,7 @@ PDFSelectPagesDialog::PDFSelectPagesDialog(QString windowTitle,
 
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 400));
     updateUi();
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFSelectPagesDialog::~PDFSelectPagesDialog()

@@ -65,6 +65,7 @@ PDFOptimizeDocumentDialog::PDFOptimizeDocumentDialog(const pdf::PDFDocument* doc
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(640, 380));
     updateUi();
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFOptimizeDocumentDialog::~PDFOptimizeDocumentDialog()

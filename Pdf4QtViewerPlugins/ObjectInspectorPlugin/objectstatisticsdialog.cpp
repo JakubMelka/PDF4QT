@@ -18,6 +18,8 @@
 #include "objectstatisticsdialog.h"
 #include "ui_objectstatisticsdialog.h"
 
+#include "pdfwidgetutils.h"
+
 namespace pdfplugin
 {
 
@@ -38,6 +40,7 @@ ObjectStatisticsDialog::ObjectStatisticsDialog(const pdf::PDFDocument* document,
     m_statistics = classifier.calculateStatistics(document);
 
     updateStatisticsWidget();
+    pdf::PDFWidgetUtils::style(this);
 }
 
 ObjectStatisticsDialog::~ObjectStatisticsDialog()

@@ -82,6 +82,7 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     onDisplayModeChanged();
     onInkCoverageLimitChanged(ui->inkCoverageLimitEdit->value());
     onRichBlackLimtiChanged(ui->richBlackLimitEdit->value());
+    pdf::PDFWidgetUtils::style(this);
 }
 
 OutputPreviewDialog::~OutputPreviewDialog()

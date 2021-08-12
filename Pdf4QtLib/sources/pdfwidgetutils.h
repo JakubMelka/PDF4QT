@@ -54,6 +54,9 @@ public:
     /// \param device Paint device to obtain logical DPI for scaling
     /// \param unscaledSize Unscaled size
     static QSize scaleDPI(const QPaintDevice* widget, QSize unscaledSize);
+
+    /// Apply style to the widget
+    static void style(QWidget* widget);
 };
 
 } // namespace pdf

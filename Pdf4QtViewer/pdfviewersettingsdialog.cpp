@@ -193,6 +193,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     connect(ui->pluginsTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updatePluginInformation);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(1000, 700)));
+    pdf::PDFWidgetUtils::style(this);
 
     ui->optionsPagesWidget->setCurrentRow(0);
     adjustSize();

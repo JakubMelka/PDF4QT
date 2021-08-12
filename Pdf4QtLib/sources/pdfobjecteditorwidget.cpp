@@ -998,6 +998,7 @@ PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &PDFEditObjectDialog::reject);
 
     setMinimumSize(PDFWidgetUtils::scaleDPI(this, QSize(480, 320)));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 void PDFEditObjectDialog::setObject(PDFObject object)

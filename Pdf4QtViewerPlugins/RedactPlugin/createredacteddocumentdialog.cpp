@@ -38,6 +38,7 @@ CreateRedactedDocumentDialog::CreateRedactedDocumentDialog(QString fileName, QCo
 
     updateUi();
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 300));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 CreateRedactedDocumentDialog::~CreateRedactedDocumentDialog()

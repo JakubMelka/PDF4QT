@@ -82,6 +82,7 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* documen
     loadImageExportSettings();
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(1000, 600));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFRenderToImagesDialog::~PDFRenderToImagesDialog()

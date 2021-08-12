@@ -46,6 +46,7 @@ InkCoverageDialog::InkCoverageDialog(const pdf::PDFDocument* document, pdf::PDFW
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
     updateInkCoverage();
+    pdf::PDFWidgetUtils::style(this);
 }
 
 InkCoverageDialog::~InkCoverageDialog()

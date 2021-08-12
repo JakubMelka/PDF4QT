@@ -108,6 +108,7 @@ ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFCMS* cms, const pdf::
 
     ui->objectTreeView->setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 ObjectInspectorDialog::~ObjectInspectorDialog()

@@ -38,6 +38,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, DimensionUnit& lengthUnit, Dimen
     initComboBox(m_angleUnits, m_angleUnit, ui->anglesComboBox);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 160)));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 SettingsDialog::~SettingsDialog()

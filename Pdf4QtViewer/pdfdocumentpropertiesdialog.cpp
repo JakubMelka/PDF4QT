@@ -55,6 +55,7 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
     }
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFDocumentPropertiesDialog::~PDFDocumentPropertiesDialog()

@@ -38,6 +38,7 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
     ui->outlineModeComboBox->setCurrentIndex(ui->outlineModeComboBox->findData(int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts)));
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(450, 150));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 AssembleOutputSettingsDialog::~AssembleOutputSettingsDialog()

@@ -53,6 +53,7 @@ PDFAboutDialog::PDFAboutDialog(QWidget* parent) :
     }
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(750, 600));
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFAboutDialog::~PDFAboutDialog()

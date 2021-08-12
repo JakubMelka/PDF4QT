@@ -547,7 +547,7 @@ void MainWindow::performOperation(Operation operation)
             break;
 
         case Operation::GetSource:
-            QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PdfForQt"));
+            QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PDF4QT"));
             break;
 
         case Operation::InsertEmptyPage:

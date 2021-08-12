@@ -17,6 +17,10 @@
 
 #include "pdfwidgetutils.h"
 
+#include <QDialog>
+#include <QLayout>
+#include <QGroupBox>
+
 #ifdef Q_OS_MAC
 int qt_default_dpi_x() { return 72; }
 int qt_default_dpi_y() { return 72; }
@@ -88,6 +92,34 @@ QSize PDFWidgetUtils::scaleDPI(const QPaintDevice* widget, QSize unscaledSize)
     const int height = (logicalDPI_y / defaultDPI_y) * unscaledSize.height();
 
     return QSize(width, height);
+}
+
+void PDFWidgetUtils::style(QWidget* widget)
+{
+    const int dialogMarginX = scaleDPI_x(widget, 12);
+    const int dialogMarginY = scaleDPI_y(widget, 12);
+    const int dialogSpacing = scaleDPI_y(widget, 12);
+
+    const int groupBoxMarginX = scaleDPI_x(widget, 20);
+    const int groupBoxMarginY = scaleDPI_y(widget, 20);
+    const int groupBoxSpacing = scaleDPI_y(widget, 12);
+
+    QList<QWidget*> childWidgets = widget->findChildren<QWidget*>();
+    childWidgets.append(widget);
+
+    for (QWidget* childWidget : childWidgets)
+    {
+        if (qobject_cast<QGroupBox*>(childWidget))
+        {
+            childWidget->layout()->setContentsMargins(groupBoxMarginX, groupBoxMarginY, groupBoxMarginX, groupBoxMarginY);
+            childWidget->layout()->setSpacing(groupBoxSpacing);
+        }
+        else if (qobject_cast<QDialog*>(childWidget))
+        {
+            childWidget->layout()->setContentsMargins(dialogMarginX, dialogMarginY, dialogMarginX, dialogMarginY);
+            childWidget->layout()->setSpacing(dialogSpacing);
+        }
+    }
 }
 
 } // namespace pdf

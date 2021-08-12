@@ -46,6 +46,7 @@ SelectBookmarksToRegroupDialog::SelectBookmarksToRegroupDialog(const pdf::PDFDoc
 
     QSize size = pdf::PDFWidgetUtils::scaleDPI(this, QSize(400, 600));
     setMinimumSize(size);
+    pdf::PDFWidgetUtils::style(this);
 }
 
 SelectBookmarksToRegroupDialog::~SelectBookmarksToRegroupDialog()

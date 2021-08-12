@@ -19,6 +19,8 @@
 #include "pdfdrawwidget.h"
 #include "ui_pdfrenderingerrorswidget.h"
 
+#include "pdfwidgetutils.h"
+
 namespace pdf
 {
 
@@ -96,6 +98,8 @@ PDFRenderingErrorsWidget::PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* p
     {
         ui->renderErrorsTreeWidget->scrollToItem(scrollToItem, QAbstractItemView::EnsureVisible);
     }
+
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFRenderingErrorsWidget::~PDFRenderingErrorsWidget()

@@ -19,6 +19,7 @@
 #include "ui_pdfencryptionsettingsdialog.h"
 
 #include "pdfutils.h"
+#include "pdfwidgetutils.h"
 #include "pdfsecurityhandler.h"
 
 #include <QMessageBox>
@@ -73,6 +74,8 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
 
     updateUi();
     updatePasswordScore();
+
+    pdf::PDFWidgetUtils::style(this);
 }
 
 PDFEncryptionSettingsDialog::~PDFEncryptionSettingsDialog()

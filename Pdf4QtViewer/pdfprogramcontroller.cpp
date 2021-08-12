@@ -2149,7 +2149,7 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
 
 void PDFProgramController::onActionGetSource()
 {
-    QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PdfForQt"));
+    QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PDF4QT"));
 }
 
 void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)
