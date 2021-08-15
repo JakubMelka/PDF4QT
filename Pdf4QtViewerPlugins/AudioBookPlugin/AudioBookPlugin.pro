@@ -1,4 +1,4 @@
-#    Copyright (C) 2020-2021 Jakub Melka
+#    Copyright (C) 2021 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -15,15 +15,34 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
+TEMPLATE = lib
+DEFINES += AUDIOBOOKPLUGIN_LIBRARY
 
-TEMPLATE = subdirs
+QT += gui widgets
 
-SUBDIRS += \
-    DimensionsPlugin \
-    SoftProofingPlugin \
-    RedactPlugin \
-    OutputPreviewPlugin \
-    ObjectInspectorPlugin \
-    AudioBookPlugin
+LIBS += -L$$OUT_PWD/../..
 
+LIBS += -lPdf4QtLib
+
+QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+INCLUDEPATH += $$PWD/../../Pdf4QtLib/Sources
+
+DESTDIR = $$OUT_PWD/../../pdfplugins
+
+CONFIG += c++11
+
+SOURCES += \
+    audiobookplugin.cpp
+
+HEADERS += \
+    audiobookplugin.h
+
+CONFIG += force_debug_info
+
+DISTFILES += \
+    AudioBookPlugin.json
+
+RESOURCES += \
+    icons.qrc
 

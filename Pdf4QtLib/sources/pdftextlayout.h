@@ -305,6 +305,9 @@ public:
     /// Merge data from \p next flow (i.e. connect two consecutive flows)
     void merge(const PDFTextFlow& next);
 
+    /// Returns bounding box of a text flow on the page
+    QRectF getBoundingBox() const { return m_boundingBox; }
+
     /// Creates text flows from text layout, according to creation flags.
     /// \param layout Layout, from which is text flow created
     /// \param flags Flow creation flags
@@ -325,6 +328,7 @@ private:
     QString getContext(size_t index, size_t length) const;
 
     QString m_text;
+    QRectF m_boundingBox;
     std::vector<PDFCharacterPointer> m_characterPointers;
 };
 

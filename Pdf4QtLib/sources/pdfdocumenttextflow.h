@@ -51,9 +51,10 @@ public:
 
     struct Item
     {
-        Flags flags = None;
+        QRectF boundingRect; ///< Bounding rect in page coordinates
         PDFInteger pageIndex = 0;
         QString text;
+        Flags flags = None;
     };
     using Items = std::vector<Item>;
 
@@ -65,6 +66,13 @@ public:
     }
 
     const Items& getItems() const { return m_items; }
+
+    /// Returns item at a given index
+    /// \param index Index
+    const Item* getItem(size_t index) const { return &m_items.at(index); }
+
+    /// Returns text flow item count
+    size_t getSize() const { return m_items.size(); }
 
     /// Returns true, if text flow is empty
     bool isEmpty() const { return m_items.empty(); }
@@ -96,14 +104,93 @@ public:
                                const std::vector<PDFInteger>& pageIndices,
                                Algorithm algorithm);
 
+    /// Performs document text flow analysis using given algorithm. Text flow
+    /// is created for all pages.
+    /// \param document Document
+    /// \param algorithm Algorithm
+    PDFDocumentTextFlow create(const PDFDocument* document, Algorithm algorithm);
+
     /// Has some error/warning occured during text layout creation?
     bool hasError() const { return !m_errors.isEmpty(); }
 
     /// Returns a list of errors/warnings
     const QList<PDFRenderError>& getErrors() const { return m_errors; }
 
+    /// Sets if bounding boxes for text blocks should be calculated
+    /// \param calculateBoundingBoxes Perform bounding box calculation?
+    void setCalculateBoundingBoxes(bool calculateBoundingBoxes);
+
 private:
     QList<PDFRenderError> m_errors;
+    bool m_calculateBoundingBoxes = false;
+};
+
+/// Editor which can edit document text flow, modify user text,
+/// change order of text items, restore original state of a text flow,
+/// and many other features.
+class PDF4QTLIBSHARED_EXPORT PDFDocumentTextFlowEditor
+{
+public:
+    inline PDFDocumentTextFlowEditor() = default;
+
+    /// Sets a text flow and initializes edited text flow
+    /// \param textFlow Text flow
+    void setTextFlow(PDFDocumentTextFlow textFlow);
+
+    void removeItem(size_t index);
+    void addItem(size_t index);
+
+    void clear();
+
+    enum EditedItemFlag
+    {
+        None        = 0x0000,
+        Removed     = 0x0001,
+        Modified    = 0x0002
+    };
+    Q_DECLARE_FLAGS(EditedItemFlags, EditedItemFlag)
+
+    struct EditedItem : public PDFDocumentTextFlow::Item
+    {
+        size_t originalIndex = 0; ///< Index of original item
+        EditedItemFlags editedItemFlags = None;
+    };
+
+    using EditedItems = std::vector<EditedItem>;
+
+    /// Returns true, if item is active
+    /// \param index Index
+    bool isActive(size_t index) const { return !getEditedItem(index)->editedItemFlags.testFlag(Removed); }
+
+    /// Returns true, if item is removed
+    /// \param index Index
+    bool isRemoved(size_t index) const { return !isActive(index); }
+
+    /// Returns true, if item is modified
+    /// \param index Index
+    bool isModified(size_t index) const { return getEditedItem(index)->editedItemFlags.testFlag(Modified); }
+
+    /// Returns edited text (or original, if edited text is not modified)
+    /// for a given index.
+    /// \param index Index
+    const QString& getText(size_t index) const { return getEditedItem(index)->text; }
+
+    /// Sets edited text for a given index
+    void setText(const QString& text, size_t index);
+
+    /// Returns true, if text flow is empty
+    bool isEmpty() const { return m_originalTextFlow.isEmpty(); }
+
+private:
+    void createEditedFromOriginalTextFlow();
+    void updateModifiedFlag(size_t index);
+
+    const PDFDocumentTextFlow::Item* getOriginalItem(size_t index) const { return m_originalTextFlow.getItem(index); }
+    EditedItem* getEditedItem(size_t index) { return &m_editedTextFlow.at(index); }
+    const EditedItem* getEditedItem(size_t index) const { return &m_editedTextFlow.at(index); }
+
+    PDFDocumentTextFlow m_originalTextFlow;
+    EditedItems m_editedTextFlow;
 };
 
 }   // namespace pdf

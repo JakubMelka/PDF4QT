@@ -1174,6 +1174,7 @@ QString PDFTextFlow::getText(const PDFCharacterPointer& begin, const PDFCharacte
 void PDFTextFlow::merge(const PDFTextFlow& next)
 {
     m_text += next.m_text;
+    m_boundingBox = m_boundingBox.united(next.m_boundingBox);
     m_characterPointers.insert(m_characterPointers.end(), next.m_characterPointers.cbegin(), next.m_characterPointers.cend());
 }
 
@@ -1204,6 +1205,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
     for (const PDFTextBlock& textBlock : layout.getTextBlocks())
     {
         PDFTextFlow currentFlow;
+        currentFlow.m_boundingBox = textBlock.getBoundingBox().controlPointRect();
 
         size_t textLineIndex = 0;
         for (const PDFTextLine& textLine : textBlock.getLines())

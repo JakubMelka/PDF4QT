@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/pdfplugins/audiobook">
+        <file>create-text-stream.svg</file>
+    </qresource>
+</RCC>

@@ -43,6 +43,8 @@ Software have following features (the list is not complete):
  - file attachments
  - optimalization (compressing documents)
  - command line tool
+ - audio book conversion
+ - internal structure inspector
 
 4. THIRD PARTY LIBRARIES
 
