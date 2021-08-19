@@ -69,6 +69,7 @@ void AudioBookPlugin::onCreateTextStreamTriggered()
     }
 
     pdf::PDFDocumentTextFlowFactory factory;
+    factory.setCalculateBoundingBoxes(true);
     pdf::PDFDocumentTextFlow textFlow = factory.create(m_document, pdf::PDFDocumentTextFlowFactory::Algorithm::Auto);
     m_textFlowEditor.setTextFlow(std::move(textFlow));
 }
