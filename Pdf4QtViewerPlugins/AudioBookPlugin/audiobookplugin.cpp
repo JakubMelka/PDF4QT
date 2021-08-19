@@ -18,13 +18,16 @@
 #include "audiobookplugin.h"
 
 #include <QAction>
+#include <QMainWindow>
 
 namespace pdfplugin
 {
 
 AudioBookPlugin::AudioBookPlugin() :
     pdf::PDFPlugin(nullptr),
-    m_createTextStreamAction(nullptr)
+    m_createTextStreamAction(nullptr),
+    m_audioTextStreamDockWidget(nullptr),
+    m_audioTextStreamEditorModel(nullptr)
 {
 
 }
@@ -63,6 +66,21 @@ void AudioBookPlugin::onCreateTextStreamTriggered()
 {
     Q_ASSERT(m_document);
 
+    if (!m_audioTextStreamDockWidget)
+    {
+        m_audioTextStreamDockWidget = new AudioTextStreamEditorDockWidget(m_dataExchangeInterface->getMainWindow());
+        m_audioTextStreamDockWidget->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
+        m_dataExchangeInterface->getMainWindow()->addDockWidget(Qt::BottomDockWidgetArea, m_audioTextStreamDockWidget, Qt::Horizontal);
+        m_audioTextStreamDockWidget->setFloating(false);
+
+        Q_ASSERT(!m_audioTextStreamEditorModel);
+        m_audioTextStreamEditorModel = new pdf::PDFDocumentTextFlowEditorModel(m_audioTextStreamDockWidget);
+        m_audioTextStreamEditorModel->setEditor(&m_textFlowEditor);
+        m_audioTextStreamDockWidget->setModel(m_audioTextStreamEditorModel);
+    }
+
+    m_audioTextStreamDockWidget->show();
+
     if (!m_textFlowEditor.isEmpty())
     {
         return;
@@ -71,7 +89,10 @@ void AudioBookPlugin::onCreateTextStreamTriggered()
     pdf::PDFDocumentTextFlowFactory factory;
     factory.setCalculateBoundingBoxes(true);
     pdf::PDFDocumentTextFlow textFlow = factory.create(m_document, pdf::PDFDocumentTextFlowFactory::Algorithm::Auto);
+
+    m_audioTextStreamEditorModel->beginFlowChange();
     m_textFlowEditor.setTextFlow(std::move(textFlow));
+    m_audioTextStreamEditorModel->endFlowChange();
 }
 
 void AudioBookPlugin::updateActions()

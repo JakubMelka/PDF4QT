@@ -55,6 +55,11 @@ public:
         PDFInteger pageIndex = 0;
         QString text;
         Flags flags = None;
+
+        bool isText() const { return flags.testFlag(Text); }
+        bool isSpecial() const { return !isText(); }
+        bool isTitle() const { return flags.testFlag(StructureTitle); }
+        bool isLanguage() const { return flags.testFlag(StructureLanguage); }
     };
     using Items = std::vector<Item>;
 
@@ -180,6 +185,18 @@ public:
 
     /// Returns true, if text flow is empty
     bool isEmpty() const { return m_originalTextFlow.isEmpty(); }
+
+    /// Returns item count in edited text flow
+    size_t getItemCount() const { return m_editedTextFlow.size(); }
+
+    /// Returns page index for given item
+    /// \param index Index
+    PDFInteger getPageIndex(size_t index) const { return getEditedItem(index)->pageIndex; }
+
+    bool isItemTypeText(size_t index) const { return getEditedItem(index)->isText(); }
+    bool isItemTypeSpecial(size_t index) const { return getEditedItem(index)->isSpecial(); }
+    bool isItemTypeTitle(size_t index) const { return getEditedItem(index)->isTitle(); }
+    bool isItemTypeLanguage(size_t index) const { return getEditedItem(index)->isLanguage(); }
 
 private:
     void createEditedFromOriginalTextFlow();

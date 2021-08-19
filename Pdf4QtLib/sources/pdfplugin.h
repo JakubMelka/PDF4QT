@@ -27,6 +27,7 @@
 #include <vector>
 
 class QAction;
+class QMainWindow;
 
 namespace pdf
 {
@@ -55,6 +56,7 @@ public:
 
     virtual QString getOriginalFileName() const = 0;
     virtual pdf::PDFTextSelection getSelectedText() const = 0;
+    virtual QMainWindow* getMainWindow() const = 0;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFPlugin : public QObject

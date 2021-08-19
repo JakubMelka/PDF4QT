@@ -285,6 +285,7 @@ public:
 
     virtual QString getOriginalFileName() const override;
     virtual pdf::PDFTextSelection getSelectedText() const override;
+    virtual QMainWindow* getMainWindow() const override;
 
 signals:
     void queryPasswordRequest(QString* password, bool* ok);

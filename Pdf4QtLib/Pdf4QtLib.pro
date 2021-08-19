@@ -52,6 +52,7 @@ SOURCES += \
     sources/pdfdocumentbuilder.cpp \
     sources/pdfdocumentmanipulator.cpp \
     sources/pdfdocumenttextflow.cpp \
+    sources/pdfdocumenttextfloweditormodel.cpp \
     sources/pdfdocumentwriter.cpp \
     sources/pdfexecutionpolicy.cpp \
     sources/pdffile.cpp \
@@ -117,6 +118,7 @@ HEADERS += \
     sources/pdfdocumentdrawinterface.h \
     sources/pdfdocumentmanipulator.h \
     sources/pdfdocumenttextflow.h \
+    sources/pdfdocumenttextfloweditormodel.h \
     sources/pdfdocumentwriter.h \
     sources/pdfexecutionpolicy.h \
     sources/pdffile.h \

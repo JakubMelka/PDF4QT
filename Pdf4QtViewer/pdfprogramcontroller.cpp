@@ -1073,6 +1073,11 @@ pdf::PDFTextSelection PDFProgramController::getSelectedText() const
     return m_mainWindowInterface->getSelectedText();
 }
 
+QMainWindow* PDFProgramController::getMainWindow() const
+{
+    return m_mainWindow;
+}
+
 void PDFProgramController::onActionRotateRightTriggered()
 {
     m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateRight);

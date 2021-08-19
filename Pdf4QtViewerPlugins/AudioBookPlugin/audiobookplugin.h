@@ -20,6 +20,8 @@
 
 #include "pdfplugin.h"
 #include "pdfdocumenttextflow.h"
+#include "pdfdocumenttextfloweditormodel.h"
+#include "audiotextstreameditordockwidget.h"
 
 #include <QObject>
 
@@ -49,6 +51,8 @@ private:
     QAction* m_createTextStreamAction;
 
     pdf::PDFDocumentTextFlowEditor m_textFlowEditor;
+    AudioTextStreamEditorDockWidget* m_audioTextStreamDockWidget;
+    pdf::PDFDocumentTextFlowEditorModel* m_audioTextStreamEditorModel;
 };
 
 }   // namespace pdfplugin
