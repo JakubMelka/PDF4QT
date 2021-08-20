@@ -45,10 +45,27 @@ public:
 
 private:
     void onCreateTextStreamTriggered();
+    void onActivateSelection();
+    void onDeactivateSelection();
+    void onSelectByRectangle();
+
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle);
 
     void updateActions();
 
-    QAction* m_createTextStreamAction;
+    QAction* m_actionCreateTextStream;
+    QAction* m_actionSynchronizeFromTableToGraphics;
+    QAction* m_actionSynchronizeFromGraphicsToTable;
+    QAction* m_actionActivateSelection;
+    QAction* m_actionDeactivateSelection;
+    QAction* m_actionSelectByRectangle;
+    QAction* m_actionSelectByContainedText;
+    QAction* m_actionSelectByRegularExpression;
+    QAction* m_actionSelectByPageList;
+    QAction* m_actionRestoreOriginalText;
+    QAction* m_actionMoveSelectionUp;
+    QAction* m_actionMoveSelectionDown;
+    QAction* m_actionCreateAudioBook;
 
     pdf::PDFDocumentTextFlowEditor m_textFlowEditor;
     AudioTextStreamEditorDockWidget* m_audioTextStreamDockWidget;

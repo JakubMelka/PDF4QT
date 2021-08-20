@@ -447,6 +447,7 @@ public:
 
     enum PredefinedTools
     {
+        PickRectangleTool,
         FindTextTool,
         SelectTextTool,
         MagnifierTool,
@@ -460,6 +461,11 @@ public:
 
     /// Adds a new tool to tool manager
     void addTool(PDFWidgetTool* tool);
+
+    /// Picks rectangle, if rectangle is successfully picked,
+    /// then callback is called.
+    /// \param callback Callback function
+    void pickRectangle(std::function<void(PDFInteger, QRectF)> callback);
 
     /// Returns first active tool from tool set. If no tool is active,
     /// then nullptr is returned.
@@ -526,15 +532,17 @@ signals:
 
     /// This signal is emitted, when tool changes the document by some way
     /// \param documet Modified document
-    void documentModified(PDFModifiedDocument document);
+    void documentModified(pdf::PDFModifiedDocument document);
 
 private:
     void onToolActivityChanged(bool active);
     void onToolActionTriggered(bool checked);
+    void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
 
     std::set<PDFWidgetTool*> m_tools;
     std::array<PDFWidgetTool*, ToolEnd> m_predefinedTools;
     std::map<QAction*, PDFWidgetTool*> m_actionsToTools;
+    std::function<void(PDFInteger, QRectF)> m_pickRectangleCallback;
 };
 
 }   // namespace pdf

@@ -1,5 +1,17 @@
 <RCC>
     <qresource prefix="/pdfplugins/audiobook">
         <file>create-text-stream.svg</file>
+        <file>activate-selection.svg</file>
+        <file>create-audio-book.svg</file>
+        <file>deactivate-selection.svg</file>
+        <file>move-selection-down.svg</file>
+        <file>move-selection-up.svg</file>
+        <file>restore-original-text.svg</file>
+        <file>select-by-contained-text.svg</file>
+        <file>select-by-page-list.svg</file>
+        <file>select-by-rectangle.svg</file>
+        <file>select-by-regular-expression.svg</file>
+        <file>synchronize-from-graphics-to-table.svg</file>
+        <file>synchronize-from-table-to-graphics.svg</file>
     </qresource>
 </RCC>

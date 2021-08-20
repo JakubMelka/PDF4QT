@@ -722,6 +722,8 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     BaseClass(parent),
     m_predefinedTools()
 {
+    auto pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_predefinedTools[PickRectangleTool] = pickTool;
     m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
     m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
@@ -732,6 +734,8 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     {
         addTool(tool);
     }
+
+    connect(pickTool, &PDFPickTool::rectanglePicked, this, &PDFToolManager::onRectanglePicked);
 }
 
 void PDFToolManager::addTool(PDFWidgetTool* tool)
@@ -746,6 +750,13 @@ void PDFToolManager::addTool(PDFWidgetTool* tool)
     }
 
     connect(tool, &PDFWidgetTool::toolActivityChanged, this, &PDFToolManager::onToolActivityChanged);
+}
+
+void PDFToolManager::pickRectangle(std::function<void (PDFInteger, QRectF)> callback)
+{
+    setActiveTool(nullptr);
+    m_pickRectangleCallback = callback;
+    setActiveTool(m_predefinedTools[PickRectangleTool]);
 }
 
 void PDFToolManager::setDocument(const PDFModifiedDocument& document)
@@ -889,16 +900,25 @@ const std::optional<QCursor>& PDFToolManager::getCursor() const
 
 void PDFToolManager::onToolActivityChanged(bool active)
 {
+    PDFWidgetTool* tool = qobject_cast<PDFWidgetTool*>(sender());
+
     if (active)
     {
         // When tool is activated outside, we must deactivate old active tool
-        PDFWidgetTool* tool = qobject_cast<PDFWidgetTool*>(sender());
         for (PDFWidgetTool* currentTool : m_tools)
         {
             if (currentTool->isActive() && currentTool != tool)
             {
                 currentTool->setActive(false);
             }
+        }
+    }
+    else
+    {
+        // Clear callback, if we are deactivating a tool
+        if (tool == m_predefinedTools[PickRectangleTool])
+        {
+            m_pickRectangleCallback = nullptr;
         }
     }
 }
@@ -914,6 +934,16 @@ void PDFToolManager::onToolActionTriggered(bool checked)
     {
         tool->setActive(false);
     }
+}
+
+void PDFToolManager::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (m_pickRectangleCallback)
+    {
+        m_pickRectangleCallback(pageIndex, pageRectangle);
+    }
+
+    setActiveTool(nullptr);
 }
 
 PDFMagnifierTool::PDFMagnifierTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
@@ -1127,7 +1157,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                 }
 
                 buildSnapData();
-                getProxy()->repaintNeeded();
+                emit getProxy()->repaintNeeded();
             }
         }
         else
@@ -1161,7 +1191,7 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     {
         m_mousePosition = mousePos;
         m_snapper.updateSnappedPoint(m_mousePosition);
-        getProxy()->repaintNeeded();
+        emit getProxy()->repaintNeeded();
     }
 }
 

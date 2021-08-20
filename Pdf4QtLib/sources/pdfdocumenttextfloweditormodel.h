@@ -61,6 +61,9 @@ public:
     void beginFlowChange();
     void endFlowChange();
 
+    void setSelectionActivated(bool activate);
+    void selectByRectangle(QRectF rectangle);
+
 private:
     PDFDocumentTextFlowEditor* m_editor;
 };

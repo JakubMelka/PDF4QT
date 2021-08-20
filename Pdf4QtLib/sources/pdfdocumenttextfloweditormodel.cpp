@@ -18,6 +18,9 @@
 #include "pdfdocumenttextfloweditormodel.h"
 #include "pdfdocumenttextflow.h"
 
+#include <QColor>
+#include <QBrush>
+
 namespace pdf
 {
 
@@ -95,6 +98,14 @@ QVariant PDFDocumentTextFlowEditorModel::data(const QModelIndex& index, int role
     if (!index.isValid() || !m_editor)
     {
         return QVariant();
+    }
+
+    if (role == Qt::BackgroundRole)
+    {
+        if (m_editor->isSelected(index.row()))
+        {
+            return QBrush(QColor(255, 255, 200));
+        }
     }
 
     if (role == Qt::DisplayRole || role == Qt::EditRole)
@@ -216,6 +227,29 @@ void PDFDocumentTextFlowEditorModel::beginFlowChange()
 void PDFDocumentTextFlowEditorModel::endFlowChange()
 {
     endResetModel();
+}
+
+void PDFDocumentTextFlowEditorModel::setSelectionActivated(bool activate)
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->setSelectionActive(activate);
+    m_editor->deselect();
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+}
+
+void PDFDocumentTextFlowEditorModel::selectByRectangle(QRectF rectangle)
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->selectByRectangle(rectangle);
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 }   // namespace pdf

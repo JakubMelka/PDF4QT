@@ -787,6 +787,25 @@ void PDFDocumentTextFlowEditor::setTextFlow(PDFDocumentTextFlow textFlow)
     createEditedFromOriginalTextFlow();
 }
 
+void PDFDocumentTextFlowEditor::setSelectionActive(bool active)
+{
+    for (auto& item : m_editedTextFlow)
+    {
+        if (item.editedItemFlags.testFlag(Selected))
+        {
+            item.editedItemFlags.setFlag(Removed, !active);
+        }
+    }
+}
+
+void PDFDocumentTextFlowEditor::deselect()
+{
+    for (auto& item : m_editedTextFlow)
+    {
+        item.editedItemFlags.setFlag(Selected, false);
+    }
+}
+
 void PDFDocumentTextFlowEditor::removeItem(size_t index)
 {
     getEditedItem(index)->editedItemFlags.setFlag(Removed, true);
@@ -808,6 +827,23 @@ void PDFDocumentTextFlowEditor::setText(const QString& text, size_t index)
     EditedItem* item = getEditedItem(index);
     item->text = text;
     updateModifiedFlag(index);
+}
+
+void PDFDocumentTextFlowEditor::selectByRectangle(QRectF rectangle)
+{
+    for (auto& item : m_editedTextFlow)
+    {
+        const QRectF& boundingRectangle = item.boundingRect;
+
+        if (boundingRectangle.isEmpty())
+        {
+            item.editedItemFlags.setFlag(Selected, false);
+            continue;
+        }
+
+        const bool isContained = rectangle.contains(boundingRectangle);
+        item.editedItemFlags.setFlag(Selected, isContained);
+    }
 }
 
 void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()

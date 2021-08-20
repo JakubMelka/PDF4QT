@@ -22,6 +22,9 @@
 
 #include <QDockWidget>
 
+class QToolBar;
+class QLineEdit;
+
 namespace Ui
 {
 class AudioTextStreamEditorDockWidget;
@@ -30,20 +33,41 @@ class AudioTextStreamEditorDockWidget;
 namespace pdfplugin
 {
 
+struct AudioTextStreamActions
+{
+    QAction* actionCreateTextStream = nullptr;
+    QAction* actionSynchronizeFromTableToGraphics = nullptr;
+    QAction* actionSynchronizeFromGraphicsToTable = nullptr;
+    QAction* actionActivateSelection = nullptr;
+    QAction* actionDeactivateSelection = nullptr;
+    QAction* actionSelectByRectangle = nullptr;
+    QAction* actionSelectByContainedText = nullptr;
+    QAction* actionSelectByRegularExpression = nullptr;
+    QAction* actionSelectByPageList = nullptr;
+    QAction* actionRestoreOriginalText = nullptr;
+    QAction* actionMoveSelectionUp = nullptr;
+    QAction* actionMoveSelectionDown = nullptr;
+    QAction* actionCreateAudioBook = nullptr;
+};
+
 class AudioTextStreamEditorDockWidget : public QDockWidget
 {
     Q_OBJECT
 
 public:
-    explicit AudioTextStreamEditorDockWidget(QWidget* parent);
+    explicit AudioTextStreamEditorDockWidget(AudioTextStreamActions actions, QWidget* parent);
     virtual ~AudioTextStreamEditorDockWidget() override;
 
     pdf::PDFDocumentTextFlowEditorModel* getModel() const;
     void setModel(pdf::PDFDocumentTextFlowEditorModel* model);
 
+    QToolBar* getToolBar() const { return m_toolBar; }
+
 private:
     Ui::AudioTextStreamEditorDockWidget* ui;
     pdf::PDFDocumentTextFlowEditorModel* m_model;
+    QToolBar* m_toolBar;
+    QLineEdit* m_selectionTextEdit;
 };
 
 } // namespace pdfplugin

@@ -142,6 +142,13 @@ public:
     /// \param textFlow Text flow
     void setTextFlow(PDFDocumentTextFlow textFlow);
 
+    /// Marks selected item as active or inactive
+    /// \param active Active
+    void setSelectionActive(bool active);
+
+    /// Deselects all selected items
+    void deselect();
+
     void removeItem(size_t index);
     void addItem(size_t index);
 
@@ -151,7 +158,8 @@ public:
     {
         None        = 0x0000,
         Removed     = 0x0001,
-        Modified    = 0x0002
+        Modified    = 0x0002,
+        Selected    = 0x0004
     };
     Q_DECLARE_FLAGS(EditedItemFlags, EditedItemFlag)
 
@@ -175,6 +183,10 @@ public:
     /// \param index Index
     bool isModified(size_t index) const { return getEditedItem(index)->editedItemFlags.testFlag(Modified); }
 
+    /// Returns true, if item is selected
+    /// \param index Index
+    bool isSelected(size_t index) const { return getEditedItem(index)->editedItemFlags.testFlag(Selected); }
+
     /// Returns edited text (or original, if edited text is not modified)
     /// for a given index.
     /// \param index Index
@@ -197,6 +209,10 @@ public:
     bool isItemTypeSpecial(size_t index) const { return getEditedItem(index)->isSpecial(); }
     bool isItemTypeTitle(size_t index) const { return getEditedItem(index)->isTitle(); }
     bool isItemTypeLanguage(size_t index) const { return getEditedItem(index)->isLanguage(); }
+
+    /// Selects items contained in a rectangle
+    /// \param rectangle Selection rectangle
+    void selectByRectangle(QRectF rectangle);
 
 private:
     void createEditedFromOriginalTextFlow();
