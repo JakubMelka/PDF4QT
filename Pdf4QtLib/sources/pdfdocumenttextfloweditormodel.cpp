@@ -252,4 +252,37 @@ void PDFDocumentTextFlowEditorModel::selectByRectangle(QRectF rectangle)
     emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
+void PDFDocumentTextFlowEditorModel::selectByContainedText(QString text)
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->selectByContainedText(text);
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+}
+
+void PDFDocumentTextFlowEditorModel::selectByRegularExpression(const QRegularExpression& expression)
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->selectByRegularExpression(expression);
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+}
+
+void PDFDocumentTextFlowEditorModel::selectByPageIndices(const PDFClosedIntervalSet& indices)
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->selectByPageIndices(indices);
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+}
+
 }   // namespace pdf

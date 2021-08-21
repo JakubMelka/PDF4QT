@@ -19,6 +19,7 @@
 #define PDFDOCUMENTTEXTFLOWEDITORMODEL_H
 
 #include "pdfglobal.h"
+#include "pdfutils.h"
 
 #include <QAbstractTableModel>
 
@@ -63,6 +64,9 @@ public:
 
     void setSelectionActivated(bool activate);
     void selectByRectangle(QRectF rectangle);
+    void selectByContainedText(QString text);
+    void selectByRegularExpression(const QRegularExpression& expression);
+    void selectByPageIndices(const pdf::PDFClosedIntervalSet& indices);
 
 private:
     PDFDocumentTextFlowEditor* m_editor;

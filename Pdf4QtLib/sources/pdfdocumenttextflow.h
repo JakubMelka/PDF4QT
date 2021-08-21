@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfexception.h"
+#include "pdfutils.h"
 
 namespace pdf
 {
@@ -198,6 +199,9 @@ public:
     /// Returns true, if text flow is empty
     bool isEmpty() const { return m_originalTextFlow.isEmpty(); }
 
+    /// Returns true, if text selection is empty
+    bool isSelectionEmpty() const;
+
     /// Returns item count in edited text flow
     size_t getItemCount() const { return m_editedTextFlow.size(); }
 
@@ -213,6 +217,18 @@ public:
     /// Selects items contained in a rectangle
     /// \param rectangle Selection rectangle
     void selectByRectangle(QRectF rectangle);
+
+    /// Select items which contains text
+    /// \param text Text
+    void selectByContainedText(QString text);
+
+    /// Select items which matches regular expression
+    /// \param expression Regular expression
+    void selectByRegularExpression(const QRegularExpression& expression);
+
+    /// Select all items on a given page indices
+    /// \param indices Indices
+    void selectByPageIndices(const PDFClosedIntervalSet& indices);
 
 private:
     void createEditedFromOriginalTextFlow();

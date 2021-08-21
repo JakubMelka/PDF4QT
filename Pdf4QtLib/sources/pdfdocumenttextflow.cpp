@@ -829,6 +829,11 @@ void PDFDocumentTextFlowEditor::setText(const QString& text, size_t index)
     updateModifiedFlag(index);
 }
 
+bool PDFDocumentTextFlowEditor::isSelectionEmpty() const
+{
+    return std::all_of(m_editedTextFlow.cbegin(), m_editedTextFlow.cend(), [](const auto& item) { return !item.editedItemFlags.testFlag(Selected); });
+}
+
 void PDFDocumentTextFlowEditor::selectByRectangle(QRectF rectangle)
 {
     for (auto& item : m_editedTextFlow)
@@ -843,6 +848,37 @@ void PDFDocumentTextFlowEditor::selectByRectangle(QRectF rectangle)
 
         const bool isContained = rectangle.contains(boundingRectangle);
         item.editedItemFlags.setFlag(Selected, isContained);
+    }
+}
+
+void PDFDocumentTextFlowEditor::selectByContainedText(QString text)
+{
+    for (auto& item : m_editedTextFlow)
+    {
+        const bool isContained = item.text.contains(text, Qt::CaseSensitive);
+        item.editedItemFlags.setFlag(Selected, isContained);
+    }
+}
+
+void PDFDocumentTextFlowEditor::selectByRegularExpression(const QRegularExpression& expression)
+{
+    for (auto& item : m_editedTextFlow)
+    {
+        QRegularExpressionMatch match = expression.match(item.text, 0, QRegularExpression::NormalMatch, QRegularExpression::NoMatchOption);
+        const bool hasMatch = match.hasMatch();
+        item.editedItemFlags.setFlag(Selected, hasMatch);
+    }
+}
+
+void PDFDocumentTextFlowEditor::selectByPageIndices(const pdf::PDFClosedIntervalSet& indices)
+{
+    std::vector<PDFInteger> pageIndices = indices.unfold();
+    std::sort(pageIndices.begin(), pageIndices.end());
+
+    for (auto& item : m_editedTextFlow)
+    {
+        const bool isPageValid = std::binary_search(pageIndices.begin(), pageIndices.end(), item.pageIndex + 1);
+        item.editedItemFlags.setFlag(Selected, isPageValid);
     }
 }
 

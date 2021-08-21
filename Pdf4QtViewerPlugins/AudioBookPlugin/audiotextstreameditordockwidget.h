@@ -63,6 +63,9 @@ public:
 
     QToolBar* getToolBar() const { return m_toolBar; }
 
+    QString getSelectionText() const;
+    void clearSelectionText();
+
 private:
     Ui::AudioTextStreamEditorDockWidget* ui;
     pdf::PDFDocumentTextFlowEditorModel* m_model;

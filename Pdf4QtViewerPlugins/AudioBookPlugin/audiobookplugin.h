@@ -48,6 +48,9 @@ private:
     void onActivateSelection();
     void onDeactivateSelection();
     void onSelectByRectangle();
+    void onSelectByContainedText();
+    void onSelectByRegularExpression();
+    void onSelectByPageList();
 
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle);
 

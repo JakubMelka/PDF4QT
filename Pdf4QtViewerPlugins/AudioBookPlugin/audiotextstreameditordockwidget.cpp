@@ -85,4 +85,14 @@ void AudioTextStreamEditorDockWidget::setModel(pdf::PDFDocumentTextFlowEditorMod
     ui->textStreamTableView->setModel(m_model);
 }
 
+QString AudioTextStreamEditorDockWidget::getSelectionText() const
+{
+    return m_selectionTextEdit->text();
+}
+
+void AudioTextStreamEditorDockWidget::clearSelectionText()
+{
+    m_selectionTextEdit->clear();
+}
+
 } // namespace pdfplugin
