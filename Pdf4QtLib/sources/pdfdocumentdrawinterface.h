@@ -71,7 +71,8 @@ public:
     {
         ToolPriority = 10,
         FormPriority = 20,
-        AnnotationPriority = 30
+        AnnotationPriority = 30,
+        UserPriority = 40
     };
 
     /// Handles shortcut override event. Accept this event, when you want given

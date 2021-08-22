@@ -19,10 +19,13 @@
 #include "pdfdrawwidget.h"
 #include "pdfwidgettool.h"
 #include "pdfutils.h"
+#include "pdfwidgetutils.h"
 
 #include <QAction>
+#include <QPainter>
 #include <QMainWindow>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QRegularExpression>
 
 namespace pdfplugin
@@ -44,7 +47,13 @@ AudioBookPlugin::AudioBookPlugin() :
     m_actionMoveSelectionDown(nullptr),
     m_actionCreateAudioBook(nullptr),
     m_audioTextStreamDockWidget(nullptr),
-    m_audioTextStreamEditorModel(nullptr)
+    m_audioTextStreamEditorModel(nullptr),
+    m_actionClear(nullptr)
+{
+
+}
+
+AudioBookPlugin::~AudioBookPlugin()
 {
 
 }
@@ -62,10 +71,12 @@ void AudioBookPlugin::setWidget(pdf::PDFWidget* widget)
     m_actionSynchronizeFromTableToGraphics = new QAction(QIcon(":/pdfplugins/audiobook/synchronize-from-table-to-graphics.svg"), tr("Synchronize Selection from Table to Graphics"), this);
     m_actionSynchronizeFromTableToGraphics->setObjectName("actionAudioBook_SynchronizeFromTableToGraphics");
     m_actionSynchronizeFromTableToGraphics->setCheckable(true);
+    m_actionSynchronizeFromTableToGraphics->setChecked(true);
 
     m_actionSynchronizeFromGraphicsToTable = new QAction(QIcon(":/pdfplugins/audiobook/synchronize-from-graphics-to-table.svg"), tr("Synchronize Selection from Graphics to Table"), this);
     m_actionSynchronizeFromGraphicsToTable->setObjectName("actionAudioBook_SynchronizeFromGraphicsToTable");
     m_actionSynchronizeFromGraphicsToTable->setCheckable(true);
+    m_actionSynchronizeFromGraphicsToTable->setChecked(true);
 
     m_actionActivateSelection = new QAction(QIcon(":/pdfplugins/audiobook/activate-selection.svg"), tr("Activate Selection"), this);
     m_actionActivateSelection->setObjectName("actionAudioBook_ActivateSelection");
@@ -93,6 +104,7 @@ void AudioBookPlugin::setWidget(pdf::PDFWidget* widget)
 
     m_actionRestoreOriginalText = new QAction(QIcon(":/pdfplugins/audiobook/restore-original-text.svg"), tr("Restore Original Text"), this);
     m_actionRestoreOriginalText->setObjectName("actionAudioBook_RestoreOriginalText");
+    connect(m_actionRestoreOriginalText, &QAction::triggered, this, &AudioBookPlugin::onRestoreOriginalText);
 
     m_actionMoveSelectionUp = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-up.svg"), tr("Move Selection Up"), this);
     m_actionMoveSelectionUp->setObjectName("actionAudioBook_MoveSelectionUp");
@@ -102,6 +114,13 @@ void AudioBookPlugin::setWidget(pdf::PDFWidget* widget)
 
     m_actionCreateAudioBook = new QAction(QIcon(":/pdfplugins/audiobook/create-audio-book.svg"), tr("Create Audio Book"), this);
     m_actionCreateAudioBook->setObjectName("actionAudioBook_CreateAudioBook");
+
+    m_actionClear = new QAction(QIcon(":/pdfplugins/audiobook/clear.svg"), tr("Clear Text Stream"), this);
+    m_actionClear->setObjectName("actionAudioBook_Clear");
+    connect(m_actionClear, &QAction::triggered, this, &AudioBookPlugin::onClear);
+
+    m_widget->getDrawWidgetProxy()->registerDrawInterface(this);
+    m_widget->addInputInterface(this);
 
     updateActions();
 }
@@ -131,7 +150,62 @@ std::vector<QAction*> AudioBookPlugin::getActions() const
     return { m_actionCreateTextStream,
              m_actionSynchronizeFromTableToGraphics,
              m_actionSynchronizeFromGraphicsToTable,
-             m_actionCreateAudioBook };
+             m_actionCreateAudioBook,
+             m_actionClear };
+}
+
+void AudioBookPlugin::drawPage(QPainter* painter,
+                               pdf::PDFInteger pageIndex,
+                               const pdf::PDFPrecompiledPage* compiledPage,
+                               pdf::PDFTextLayoutGetter& layoutGetter,
+                               const QMatrix& pagePointToDevicePointMatrix,
+                               QList<pdf::PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    const qreal width = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 1.0);
+
+    QPen pen;
+    pen.setWidthF(width);
+
+    auto range = m_textFlowEditor.getItemsForPageIndex(pageIndex);
+    for (auto it = range.first; it != range.second; ++it)
+    {
+        const size_t itemIndex = it->second;
+        const pdf::PDFDocumentTextFlowEditor::EditedItem* item = m_textFlowEditor.getEditedItem(itemIndex);
+
+        QRectF boundingRect = item->boundingRect;
+
+        QColor color(Qt::green);
+        if (m_textFlowEditor.isSelected(itemIndex))
+        {
+            color = Qt::yellow;
+        }
+        else if (m_textFlowEditor.isRemoved(itemIndex))
+        {
+            color = Qt::red;
+        }
+        else if (m_textFlowEditor.isModified(itemIndex))
+        {
+            color = QColor::fromRgb(0xFF, 0xA5, 0, 255);
+        }
+
+        QColor strokeColor = color;
+        QColor fillColor = color;
+        fillColor.setAlphaF(0.2);
+
+        pen.setColor(strokeColor);
+        painter->setPen(pen);
+        painter->setBrush(QBrush(fillColor));
+
+        QPainterPath path;
+        path.addRect(boundingRect);
+        path = pagePointToDevicePointMatrix.map(path);
+
+        painter->drawPath(path);
+    }
 }
 
 void AudioBookPlugin::onCreateTextStreamTriggered()
@@ -154,6 +228,7 @@ void AudioBookPlugin::onCreateTextStreamTriggered()
         actions.actionMoveSelectionUp = m_actionMoveSelectionUp;
         actions.actionMoveSelectionDown = m_actionMoveSelectionDown;
         actions.actionCreateAudioBook = m_actionCreateAudioBook;
+        actions.actionClear = m_actionClear;
 
         m_audioTextStreamDockWidget = new AudioTextStreamEditorDockWidget(actions, m_dataExchangeInterface->getMainWindow());
         m_audioTextStreamDockWidget->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
@@ -164,8 +239,8 @@ void AudioBookPlugin::onCreateTextStreamTriggered()
         m_audioTextStreamEditorModel = new pdf::PDFDocumentTextFlowEditorModel(m_audioTextStreamDockWidget);
         m_audioTextStreamEditorModel->setEditor(&m_textFlowEditor);
         m_audioTextStreamDockWidget->setModel(m_audioTextStreamEditorModel);
-        connect(m_audioTextStreamEditorModel, &pdf::PDFDocumentTextFlowEditorModel::modelReset, this, &AudioBookPlugin::updateActions);
-        connect(m_audioTextStreamEditorModel, &pdf::PDFDocumentTextFlowEditorModel::dataChanged, this, &AudioBookPlugin::updateActions);
+        connect(m_audioTextStreamEditorModel, &pdf::PDFDocumentTextFlowEditorModel::modelReset, this, &AudioBookPlugin::onEditedTextFlowChanged);
+        connect(m_audioTextStreamEditorModel, &pdf::PDFDocumentTextFlowEditorModel::dataChanged, this, &AudioBookPlugin::onEditedTextFlowChanged);
     }
 
     m_audioTextStreamDockWidget->show();
@@ -202,10 +277,10 @@ void AudioBookPlugin::onSelectByRectangle()
 void AudioBookPlugin::onSelectByContainedText()
 {
     QString text = m_audioTextStreamDockWidget->getSelectionText();
-    m_audioTextStreamDockWidget->clearSelectionText();
 
     if (!text.isEmpty())
     {
+        m_audioTextStreamDockWidget->clearSelectionText();
         m_audioTextStreamEditorModel->selectByContainedText(text);
     }
     else
@@ -217,7 +292,6 @@ void AudioBookPlugin::onSelectByContainedText()
 void AudioBookPlugin::onSelectByRegularExpression()
 {
     QString pattern = m_audioTextStreamDockWidget->getSelectionText();
-    m_audioTextStreamDockWidget->clearSelectionText();
 
     if (!pattern.isEmpty())
     {
@@ -225,6 +299,7 @@ void AudioBookPlugin::onSelectByRegularExpression()
 
         if (expression.isValid())
         {
+            m_audioTextStreamDockWidget->clearSelectionText();
             m_audioTextStreamEditorModel->selectByRegularExpression(expression);
         }
         else
@@ -241,7 +316,6 @@ void AudioBookPlugin::onSelectByRegularExpression()
 void AudioBookPlugin::onSelectByPageList()
 {
     QString pageIndicesText = m_audioTextStreamDockWidget->getSelectionText();
-    m_audioTextStreamDockWidget->clearSelectionText();
 
     if (!pageIndicesText.isEmpty())
     {
@@ -250,6 +324,7 @@ void AudioBookPlugin::onSelectByPageList()
 
         if (errorMessage.isEmpty())
         {
+            m_audioTextStreamDockWidget->clearSelectionText();
             m_audioTextStreamEditorModel->selectByPageIndices(pageIndices);
         }
         else
@@ -260,6 +335,38 @@ void AudioBookPlugin::onSelectByPageList()
     else
     {
         QMessageBox::critical(m_audioTextStreamDockWidget, tr("Error"), tr("Cannot select items by page indices, because page indices are empty."));
+    }
+}
+
+void AudioBookPlugin::onRestoreOriginalText()
+{
+    if (!m_textFlowEditor.isSelectionModified())
+    {
+        // Nothing to restore
+        return;
+    }
+
+    if (QMessageBox::question(m_audioTextStreamDockWidget, tr("Question"), tr("Restore original texts in selected items? All changes will be lost."), QMessageBox::No, QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+    {
+        m_audioTextStreamEditorModel->restoreOriginalTexts();
+    }
+}
+
+void AudioBookPlugin::onEditedTextFlowChanged()
+{
+    if (m_widget)
+    {
+        m_widget->getDrawWidget()->getWidget()->update();
+    }
+
+    updateActions();
+}
+
+void AudioBookPlugin::onClear()
+{
+    if (m_audioTextStreamEditorModel)
+    {
+        m_audioTextStreamEditorModel->clear();
     }
 }
 
@@ -284,6 +391,138 @@ void AudioBookPlugin::updateActions()
     m_actionMoveSelectionUp->setEnabled(!m_textFlowEditor.isEmpty());
     m_actionMoveSelectionDown->setEnabled(!m_textFlowEditor.isEmpty());
     m_actionCreateAudioBook->setEnabled(!m_textFlowEditor.isEmpty());
+    m_actionClear->setEnabled(!m_textFlowEditor.isEmpty());
+}
+
+std::optional<size_t> AudioBookPlugin::getItemIndexForPagePoint(QPoint pos) const
+{
+    QPointF pagePoint;
+    pdf::PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(pos, &pagePoint);
+    pdf::PDFDocumentTextFlowEditor::PageIndicesMappingRange itemRange = m_textFlowEditor.getItemsForPageIndex(pageIndex);
+
+    for (auto it = itemRange.first; it != itemRange.second; ++it)
+    {
+        const pdf::PDFDocumentTextFlowEditor::EditedItem* item = m_textFlowEditor.getEditedItem(it->second);
+        if (item->boundingRect.contains(pagePoint))
+        {
+            return it->second;
+        }
+    }
+
+    return std::nullopt;
+}
+
+void AudioBookPlugin::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void AudioBookPlugin::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void AudioBookPlugin::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void AudioBookPlugin::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (m_textFlowEditor.isEmpty())
+    {
+        // Jakub Melka: do nothing, editor is empty
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton)
+    {
+        std::optional<size_t> index = getItemIndexForPagePoint(event->pos());
+        if (index)
+        {
+            // Scroll to index, if we are synchronizing
+            if (m_actionSynchronizeFromGraphicsToTable->isChecked() && m_audioTextStreamDockWidget)
+            {
+                m_audioTextStreamDockWidget->goToIndex(*index);
+            }
+
+            // Handle selection
+            const bool add = event->modifiers() & Qt::ControlModifier;
+            const bool remove = event->modifiers() & Qt::ShiftModifier;
+            const bool deselect = !add && !remove;
+
+            if (deselect)
+            {
+                m_textFlowEditor.deselect();
+            }
+
+            m_textFlowEditor.select(*index, !remove);
+
+            if (m_audioTextStreamEditorModel)
+            {
+                m_audioTextStreamEditorModel->notifyDataChanged();
+            }
+        }
+    }
+}
+
+void AudioBookPlugin::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void AudioBookPlugin::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+void AudioBookPlugin::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (m_textFlowEditor.isEmpty())
+    {
+        // Jakub Melka: do nothing, editor is empty
+        return;
+    }
+
+    std::optional<size_t> index = getItemIndexForPagePoint(event->pos());
+    if (index)
+    {
+        m_toolTip = m_textFlowEditor.getText(*index);
+    }
+    else
+    {
+        m_toolTip = QString();
+    }
+}
+
+void AudioBookPlugin::wheelEvent(QWidget* widget, QWheelEvent* event)
+{
+    Q_UNUSED(widget);
+    Q_UNUSED(event);
+}
+
+QString AudioBookPlugin::getTooltip() const
+{
+    return m_toolTip;
+}
+
+const std::optional<QCursor>& AudioBookPlugin::getCursor() const
+{
+    return m_cursor;
+}
+
+int AudioBookPlugin::getInputPriority() const
+{
+    return UserPriority;
 }
 
 }   // namespace pdfplugin

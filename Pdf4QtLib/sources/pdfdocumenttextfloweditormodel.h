@@ -62,11 +62,14 @@ public:
     void beginFlowChange();
     void endFlowChange();
 
+    void clear();
     void setSelectionActivated(bool activate);
     void selectByRectangle(QRectF rectangle);
     void selectByContainedText(QString text);
     void selectByRegularExpression(const QRegularExpression& expression);
     void selectByPageIndices(const pdf::PDFClosedIntervalSet& indices);
+    void restoreOriginalTexts();
+    void notifyDataChanged();
 
 private:
     PDFDocumentTextFlowEditor* m_editor;

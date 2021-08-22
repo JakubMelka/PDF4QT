@@ -99,6 +99,9 @@ public:
     PDFFormManager* getFormManager() const;
     void setFormManager(PDFFormManager* formManager);
 
+    void removeInputInterface(IDrawWidgetInputInterface* inputInterface);
+    void addInputInterface(IDrawWidgetInputInterface* inputInterface);
+
 signals:
     void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
 
@@ -108,9 +111,6 @@ private:
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
 
     IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
-
-    void removeInputInterface(IDrawWidgetInputInterface* inputInterface);
-    void addInputInterface(IDrawWidgetInputInterface* inputInterface);
 
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;

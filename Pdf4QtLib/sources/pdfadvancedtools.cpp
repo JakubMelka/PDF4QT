@@ -704,7 +704,7 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
         resetTool();
     }
 
-    getProxy()->repaintNeeded();
+    emit getProxy()->repaintNeeded();
 }
 
 void PDFCreateFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)

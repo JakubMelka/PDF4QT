@@ -21,6 +21,7 @@
 #include "pdfplugin.h"
 #include "pdfdocumenttextflow.h"
 #include "pdfdocumenttextfloweditormodel.h"
+#include "pdfdocumentdrawinterface.h"
 #include "audiotextstreameditordockwidget.h"
 
 #include <QObject>
@@ -28,7 +29,9 @@
 namespace pdfplugin
 {
 
-class AudioBookPlugin : public pdf::PDFPlugin
+class AudioBookPlugin : public pdf::PDFPlugin,
+                        public pdf::IDocumentDrawInterface,
+                        public pdf::IDrawWidgetInputInterface
 {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID "PDF4QT.AudioBookPlugin" FILE "AudioBookPlugin.json")
@@ -38,10 +41,32 @@ private:
 
 public:
     AudioBookPlugin();
+    virtual ~AudioBookPlugin() override;
 
     virtual void setWidget(pdf::PDFWidget* widget) override;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual std::vector<QAction*> getActions() const override;
+
+    virtual void drawPage(QPainter* painter,
+                          pdf::PDFInteger pageIndex,
+                          const pdf::PDFPrecompiledPage* compiledPage,
+                          pdf::PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<pdf::PDFRenderError>& errors) const override;
+
+    // IDrawWidgetInputInterface interface
+public:
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
+    virtual QString getTooltip() const override;
+    virtual const std::optional<QCursor>& getCursor() const override;
+    virtual int getInputPriority() const override;
 
 private:
     void onCreateTextStreamTriggered();
@@ -51,10 +76,15 @@ private:
     void onSelectByContainedText();
     void onSelectByRegularExpression();
     void onSelectByPageList();
+    void onRestoreOriginalText();
+    void onEditedTextFlowChanged();
+    void onClear();
 
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle);
 
     void updateActions();
+
+    std::optional<size_t> getItemIndexForPagePoint(QPoint pos) const;
 
     QAction* m_actionCreateTextStream;
     QAction* m_actionSynchronizeFromTableToGraphics;
@@ -69,10 +99,14 @@ private:
     QAction* m_actionMoveSelectionUp;
     QAction* m_actionMoveSelectionDown;
     QAction* m_actionCreateAudioBook;
+    QAction* m_actionClear;
 
     pdf::PDFDocumentTextFlowEditor m_textFlowEditor;
     AudioTextStreamEditorDockWidget* m_audioTextStreamDockWidget;
     pdf::PDFDocumentTextFlowEditorModel* m_audioTextStreamEditorModel;
+
+    QString m_toolTip;
+    std::optional<QCursor> m_cursor;
 };
 
 }   // namespace pdfplugin

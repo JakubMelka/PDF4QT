@@ -798,6 +798,11 @@ void PDFDocumentTextFlowEditor::setSelectionActive(bool active)
     }
 }
 
+void PDFDocumentTextFlowEditor::select(size_t index, bool select)
+{
+    getEditedItem(index)->editedItemFlags.setFlag(Selected, select);
+}
+
 void PDFDocumentTextFlowEditor::deselect()
 {
     for (auto& item : m_editedTextFlow)
@@ -820,6 +825,7 @@ void PDFDocumentTextFlowEditor::clear()
 {
     m_originalTextFlow = PDFDocumentTextFlow();
     m_editedTextFlow.clear();
+    m_pageIndicesMapping.clear();
 }
 
 void PDFDocumentTextFlowEditor::setText(const QString& text, size_t index)
@@ -832,6 +838,11 @@ void PDFDocumentTextFlowEditor::setText(const QString& text, size_t index)
 bool PDFDocumentTextFlowEditor::isSelectionEmpty() const
 {
     return std::all_of(m_editedTextFlow.cbegin(), m_editedTextFlow.cend(), [](const auto& item) { return !item.editedItemFlags.testFlag(Selected); });
+}
+
+bool PDFDocumentTextFlowEditor::isSelectionModified() const
+{
+    return std::any_of(m_editedTextFlow.cbegin(), m_editedTextFlow.cend(), [](const auto& item) { return item.editedItemFlags.testFlag(Selected) && item.editedItemFlags.testFlag(Modified); });
 }
 
 void PDFDocumentTextFlowEditor::selectByRectangle(QRectF rectangle)
@@ -882,6 +893,40 @@ void PDFDocumentTextFlowEditor::selectByPageIndices(const pdf::PDFClosedInterval
     }
 }
 
+void PDFDocumentTextFlowEditor::restoreOriginalTexts()
+{
+    for (auto& item : m_editedTextFlow)
+    {
+        if (item.editedItemFlags.testFlag(Selected))
+        {
+            item.text = m_originalTextFlow.getItem(item.originalIndex)->text;
+            item.editedItemFlags.setFlag(Modified, false);
+        }
+    }
+}
+
+PDFDocumentTextFlowEditor::PageIndicesMappingRange PDFDocumentTextFlowEditor::getItemsForPageIndex(PDFInteger pageIndex) const
+{
+    auto comparator = [](const auto& l, const auto& r)
+    {
+        return l.first < r.first;
+    };
+    return std::equal_range(m_pageIndicesMapping.cbegin(), m_pageIndicesMapping.cend(), std::make_pair(pageIndex, size_t(0)), comparator);
+}
+
+void PDFDocumentTextFlowEditor::createPageMapping()
+{
+    m_pageIndicesMapping.clear();
+    m_pageIndicesMapping.reserve(m_editedTextFlow.size());
+
+    for (size_t i = 0; i < m_editedTextFlow.size(); ++i)
+    {
+        m_pageIndicesMapping.emplace_back(m_editedTextFlow[i].pageIndex, i);
+    }
+
+    std::sort(m_pageIndicesMapping.begin(), m_pageIndicesMapping.end());
+}
+
 void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()
 {
     const size_t count = m_originalTextFlow.getSize();
@@ -902,6 +947,8 @@ void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()
         editedItem.editedItemFlags = None;
         m_editedTextFlow.emplace_back(std::move(editedItem));
     }
+
+    createPageMapping();
 }
 
 void PDFDocumentTextFlowEditor::updateModifiedFlag(size_t index)

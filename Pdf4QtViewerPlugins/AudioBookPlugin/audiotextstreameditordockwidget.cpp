@@ -65,6 +65,7 @@ AudioTextStreamEditorDockWidget::AudioTextStreamEditorDockWidget(AudioTextStream
                             actions.actionMoveSelectionDown });
     m_toolBar->addSeparator();
     m_toolBar->addAction(actions.actionCreateAudioBook);
+    m_toolBar->addAction(actions.actionClear);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(300, 150)));
 }
@@ -93,6 +94,12 @@ QString AudioTextStreamEditorDockWidget::getSelectionText() const
 void AudioTextStreamEditorDockWidget::clearSelectionText()
 {
     m_selectionTextEdit->clear();
+}
+
+void AudioTextStreamEditorDockWidget::goToIndex(size_t index)
+{
+    QModelIndex modelIndex = ui->textStreamTableView->model()->index(int(index), 0);
+    ui->textStreamTableView->scrollTo(modelIndex);
 }
 
 } // namespace pdfplugin

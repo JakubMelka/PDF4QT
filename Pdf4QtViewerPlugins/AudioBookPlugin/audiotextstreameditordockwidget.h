@@ -48,6 +48,7 @@ struct AudioTextStreamActions
     QAction* actionMoveSelectionUp = nullptr;
     QAction* actionMoveSelectionDown = nullptr;
     QAction* actionCreateAudioBook = nullptr;
+    QAction* actionClear = nullptr;
 };
 
 class AudioTextStreamEditorDockWidget : public QDockWidget
@@ -65,6 +66,8 @@ public:
 
     QString getSelectionText() const;
     void clearSelectionText();
+
+    void goToIndex(size_t index);
 
 private:
     Ui::AudioTextStreamEditorDockWidget* ui;

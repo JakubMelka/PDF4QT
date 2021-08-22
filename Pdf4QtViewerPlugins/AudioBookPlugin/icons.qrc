@@ -13,5 +13,6 @@
         <file>select-by-regular-expression.svg</file>
         <file>synchronize-from-graphics-to-table.svg</file>
         <file>synchronize-from-table-to-graphics.svg</file>
+        <file>clear.svg</file>
     </qresource>
 </RCC>

@@ -147,6 +147,11 @@ public:
     /// \param active Active
     void setSelectionActive(bool active);
 
+    /// Selects or deselects item
+    /// \param index Index
+    /// \param select Select (true) or deselect (false)
+    void select(size_t index, bool select);
+
     /// Deselects all selected items
     void deselect();
 
@@ -171,6 +176,9 @@ public:
     };
 
     using EditedItems = std::vector<EditedItem>;
+    using PageIndicesMapping = std::vector<std::pair<PDFInteger, size_t>>;
+    using PageIndicesMappingIterator = PageIndicesMapping::const_iterator;
+    using PageIndicesMappingRange = std::pair<PageIndicesMappingIterator, PageIndicesMappingIterator>;
 
     /// Returns true, if item is active
     /// \param index Index
@@ -202,6 +210,9 @@ public:
     /// Returns true, if text selection is empty
     bool isSelectionEmpty() const;
 
+    /// Returns true, if selection contains modified items
+    bool isSelectionModified() const;
+
     /// Returns item count in edited text flow
     size_t getItemCount() const { return m_editedTextFlow.size(); }
 
@@ -230,16 +241,27 @@ public:
     /// \param indices Indices
     void selectByPageIndices(const PDFClosedIntervalSet& indices);
 
+    /// Restores original texts in selected items
+    void restoreOriginalTexts();
+
+    /// Returns item indices for a given page index, i.e.
+    /// index of items which are lying on a page.
+    /// \param pageIndex Page index
+    PageIndicesMappingRange getItemsForPageIndex(PDFInteger pageIndex) const;
+
+    const EditedItem* getEditedItem(size_t index) const { return &m_editedTextFlow.at(index); }
+
 private:
+    void createPageMapping();
     void createEditedFromOriginalTextFlow();
     void updateModifiedFlag(size_t index);
 
     const PDFDocumentTextFlow::Item* getOriginalItem(size_t index) const { return m_originalTextFlow.getItem(index); }
     EditedItem* getEditedItem(size_t index) { return &m_editedTextFlow.at(index); }
-    const EditedItem* getEditedItem(size_t index) const { return &m_editedTextFlow.at(index); }
 
     PDFDocumentTextFlow m_originalTextFlow;
     EditedItems m_editedTextFlow;
+    PageIndicesMapping m_pageIndicesMapping;
 };
 
 }   // namespace pdf

@@ -229,6 +229,18 @@ void PDFDocumentTextFlowEditorModel::endFlowChange()
     endResetModel();
 }
 
+void PDFDocumentTextFlowEditorModel::clear()
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    beginFlowChange();
+    m_editor->clear();
+    endFlowChange();
+}
+
 void PDFDocumentTextFlowEditorModel::setSelectionActivated(bool activate)
 {
     if (!m_editor || m_editor->isEmpty())
@@ -282,6 +294,28 @@ void PDFDocumentTextFlowEditorModel::selectByPageIndices(const PDFClosedInterval
     }
 
     m_editor->selectByPageIndices(indices);
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+}
+
+void PDFDocumentTextFlowEditorModel::restoreOriginalTexts()
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->restoreOriginalTexts();
+    m_editor->deselect();
+    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+}
+
+void PDFDocumentTextFlowEditorModel::notifyDataChanged()
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
     emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
