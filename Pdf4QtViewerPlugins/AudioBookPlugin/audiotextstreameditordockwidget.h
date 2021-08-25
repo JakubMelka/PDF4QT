@@ -24,6 +24,7 @@
 
 class QToolBar;
 class QLineEdit;
+class QTableView;
 
 namespace Ui
 {
@@ -63,6 +64,7 @@ public:
     void setModel(pdf::PDFDocumentTextFlowEditorModel* model);
 
     QToolBar* getToolBar() const { return m_toolBar; }
+    QTableView* getTextStreamView() const;
 
     QString getSelectionText() const;
     void clearSelectionText();

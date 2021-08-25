@@ -86,6 +86,11 @@ void AudioTextStreamEditorDockWidget::setModel(pdf::PDFDocumentTextFlowEditorMod
     ui->textStreamTableView->setModel(m_model);
 }
 
+QTableView* AudioTextStreamEditorDockWidget::getTextStreamView() const
+{
+    return ui->textStreamTableView;
+}
+
 QString AudioTextStreamEditorDockWidget::getSelectionText() const
 {
     return m_selectionTextEdit->text();

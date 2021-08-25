@@ -26,6 +26,7 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QTableView>
 #include <QRegularExpression>
 
 namespace pdfplugin
@@ -239,6 +240,7 @@ void AudioBookPlugin::onCreateTextStreamTriggered()
         m_audioTextStreamEditorModel = new pdf::PDFDocumentTextFlowEditorModel(m_audioTextStreamDockWidget);
         m_audioTextStreamEditorModel->setEditor(&m_textFlowEditor);
         m_audioTextStreamDockWidget->setModel(m_audioTextStreamEditorModel);
+        connect(m_audioTextStreamDockWidget->getTextStreamView()->selectionModel(), &QItemSelectionModel::selectionChanged, this, &AudioBookPlugin::onTextStreamTableSelectionChanged);
         connect(m_audioTextStreamEditorModel, &pdf::PDFDocumentTextFlowEditorModel::modelReset, this, &AudioBookPlugin::onEditedTextFlowChanged);
         connect(m_audioTextStreamEditorModel, &pdf::PDFDocumentTextFlowEditorModel::dataChanged, this, &AudioBookPlugin::onEditedTextFlowChanged);
     }
@@ -346,7 +348,7 @@ void AudioBookPlugin::onRestoreOriginalText()
         return;
     }
 
-    if (QMessageBox::question(m_audioTextStreamDockWidget, tr("Question"), tr("Restore original texts in selected items? All changes will be lost."), QMessageBox::No, QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+    if (QMessageBox::question(m_audioTextStreamDockWidget, tr("Question"), tr("Restore original texts in selected items? All changes will be lost."), QMessageBox::No, QMessageBox::Yes) == QMessageBox::Yes)
     {
         m_audioTextStreamEditorModel->restoreOriginalTexts();
     }
@@ -360,6 +362,36 @@ void AudioBookPlugin::onEditedTextFlowChanged()
     }
 
     updateActions();
+}
+
+void AudioBookPlugin::onTextStreamTableSelectionChanged()
+{
+    QTableView* tableView = m_audioTextStreamDockWidget->getTextStreamView();
+    QModelIndexList indices = tableView->selectionModel()->selectedIndexes();
+
+    if (m_actionSynchronizeFromTableToGraphics->isChecked() && !indices.empty())
+    {
+        // Jakub Melka: we will find first index, which has valid page number
+        for (const QModelIndex& index : indices)
+        {
+            pdf::PDFInteger pageIndex = m_textFlowEditor.getPageIndex(index.row());
+
+            if (pageIndex >= 0)
+            {
+                m_widget->getDrawWidgetProxy()->goToPage(pageIndex);
+                break;
+            }
+        }
+    }
+
+    m_textFlowEditor.deselect();
+
+    for (const QModelIndex& index : indices)
+    {
+        m_textFlowEditor.select(index.row(), true);
+    }
+
+    m_audioTextStreamEditorModel->notifyDataChanged();
 }
 
 void AudioBookPlugin::onClear()
@@ -421,7 +453,18 @@ void AudioBookPlugin::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
 void AudioBookPlugin::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
-    Q_UNUSED(event);
+
+    if (m_textFlowEditor.isEmpty())
+    {
+        // Jakub Melka: do nothing, editor is empty
+        return;
+    }
+
+    if (event->key() == Qt::Key_Delete)
+    {
+        m_audioTextStreamEditorModel->setSelectionActivated(event->modifiers().testFlag(Qt::ShiftModifier));
+        event->accept();
+    }
 }
 
 void AudioBookPlugin::keyReleaseEvent(QWidget* widget, QKeyEvent* event)

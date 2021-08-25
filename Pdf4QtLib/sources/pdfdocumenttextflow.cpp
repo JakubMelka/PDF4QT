@@ -936,7 +936,7 @@ void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()
     {
         const PDFDocumentTextFlow::Item* originalItem = getOriginalItem(i);
 
-        if (originalItem->text.isEmpty())
+        if (originalItem->text.trimmed().isEmpty())
         {
             continue;
         }
@@ -944,7 +944,7 @@ void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()
         EditedItem editedItem;
         static_cast<PDFDocumentTextFlow::Item&>(editedItem) = *originalItem;
         editedItem.originalIndex = i;
-        editedItem.editedItemFlags = None;
+        editedItem.editedItemFlags = originalItem->isText() ? None : Removed;
         m_editedTextFlow.emplace_back(std::move(editedItem));
     }
 

@@ -78,6 +78,7 @@ private:
     void onSelectByPageList();
     void onRestoreOriginalText();
     void onEditedTextFlowChanged();
+    void onTextStreamTableSelectionChanged();
     void onClear();
 
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle);
