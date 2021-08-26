@@ -80,6 +80,9 @@ private:
     void onEditedTextFlowChanged();
     void onTextStreamTableSelectionChanged();
     void onClear();
+    void onMoveSelectionUp();
+    void onMoveSelectionDown();
+    void onCreateAudioBook();
 
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle);
 

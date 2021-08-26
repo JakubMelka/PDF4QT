@@ -69,6 +69,8 @@ public:
     void selectByRegularExpression(const QRegularExpression& expression);
     void selectByPageIndices(const pdf::PDFClosedIntervalSet& indices);
     void restoreOriginalTexts();
+    void moveSelectionUp();
+    void moveSelectionDown();
     void notifyDataChanged();
 
 private:

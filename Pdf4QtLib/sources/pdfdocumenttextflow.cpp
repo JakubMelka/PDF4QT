@@ -905,6 +905,66 @@ void PDFDocumentTextFlowEditor::restoreOriginalTexts()
     }
 }
 
+void PDFDocumentTextFlowEditor::moveSelectionUp()
+{
+    size_t originalSize = m_editedTextFlow.size();
+    size_t firstSelectedIndex = originalSize;
+
+    EditedItems selectedItems;
+    for (auto it = m_editedTextFlow.begin(); it != m_editedTextFlow.end();)
+    {
+        if (it->editedItemFlags.testFlag(Selected))
+        {
+            if (firstSelectedIndex == originalSize)
+            {
+                firstSelectedIndex = std::distance(m_editedTextFlow.begin(), it);
+            }
+
+            selectedItems.emplace_back(std::move(*it));
+            it = m_editedTextFlow.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (firstSelectedIndex > 0)
+    {
+        --firstSelectedIndex;
+    }
+
+    m_editedTextFlow.insert(std::next(m_editedTextFlow.begin(), firstSelectedIndex), std::make_move_iterator(selectedItems.begin()), std::make_move_iterator(selectedItems.end()));
+}
+
+void PDFDocumentTextFlowEditor::moveSelectionDown()
+{
+    size_t originalSize = m_editedTextFlow.size();
+    size_t lastSelectedIndex = originalSize;
+
+    EditedItems selectedItems;
+    for (auto it = m_editedTextFlow.begin(); it != m_editedTextFlow.end();)
+    {
+        if (it->editedItemFlags.testFlag(Selected))
+        {
+            lastSelectedIndex = std::distance(m_editedTextFlow.begin(), it);
+            selectedItems.emplace_back(std::move(*it));
+            it = m_editedTextFlow.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (lastSelectedIndex < m_editedTextFlow.size())
+    {
+        ++lastSelectedIndex;
+    }
+
+    m_editedTextFlow.insert(std::next(m_editedTextFlow.begin(), lastSelectedIndex), std::make_move_iterator(selectedItems.begin()), std::make_move_iterator(selectedItems.end()));
+}
+
 PDFDocumentTextFlowEditor::PageIndicesMappingRange PDFDocumentTextFlowEditor::getItemsForPageIndex(PDFInteger pageIndex) const
 {
     auto comparator = [](const auto& l, const auto& r)

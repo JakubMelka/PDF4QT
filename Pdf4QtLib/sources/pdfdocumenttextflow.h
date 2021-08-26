@@ -244,6 +244,16 @@ public:
     /// Restores original texts in selected items
     void restoreOriginalTexts();
 
+    /// Move all selected items one position up. If multiple non-consecutive
+    /// items are selected, they are grouped into one group and move one item
+    /// up above first selected item.
+    void moveSelectionUp();
+
+    /// Move all selected items one position down. If multiple non-consecutive
+    /// items are selected, they are grouped into one group and move one item
+    /// down above first selected item.
+    void moveSelectionDown();
+
     /// Returns item indices for a given page index, i.e.
     /// index of items which are lying on a page.
     /// \param pageIndex Page index

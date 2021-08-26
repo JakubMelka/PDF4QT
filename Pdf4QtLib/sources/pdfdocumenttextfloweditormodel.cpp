@@ -309,6 +309,28 @@ void PDFDocumentTextFlowEditorModel::restoreOriginalTexts()
     emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
+void PDFDocumentTextFlowEditorModel::moveSelectionUp()
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->moveSelectionUp();
+    notifyDataChanged();
+}
+
+void PDFDocumentTextFlowEditorModel::moveSelectionDown()
+{
+    if (!m_editor || m_editor->isEmpty())
+    {
+        return;
+    }
+
+    m_editor->moveSelectionDown();
+    notifyDataChanged();
+}
+
 void PDFDocumentTextFlowEditorModel::notifyDataChanged()
 {
     if (!m_editor || m_editor->isEmpty())

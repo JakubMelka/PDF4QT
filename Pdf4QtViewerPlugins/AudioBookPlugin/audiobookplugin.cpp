@@ -109,12 +109,15 @@ void AudioBookPlugin::setWidget(pdf::PDFWidget* widget)
 
     m_actionMoveSelectionUp = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-up.svg"), tr("Move Selection Up"), this);
     m_actionMoveSelectionUp->setObjectName("actionAudioBook_MoveSelectionUp");
+    connect(m_actionMoveSelectionUp, &QAction::triggered, this, &AudioBookPlugin::onMoveSelectionUp);
 
     m_actionMoveSelectionDown = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-down.svg"), tr("Move Selection Down"), this);
     m_actionMoveSelectionDown->setObjectName("actionAudioBook_MoveSelectionDown");
+    connect(m_actionMoveSelectionDown, &QAction::triggered, this, &AudioBookPlugin::onMoveSelectionDown);
 
     m_actionCreateAudioBook = new QAction(QIcon(":/pdfplugins/audiobook/create-audio-book.svg"), tr("Create Audio Book"), this);
     m_actionCreateAudioBook->setObjectName("actionAudioBook_CreateAudioBook");
+    connect(m_actionRestoreOriginalText, &QAction::triggered, this, &AudioBookPlugin::onCreateAudioBook);
 
     m_actionClear = new QAction(QIcon(":/pdfplugins/audiobook/clear.svg"), tr("Clear Text Stream"), this);
     m_actionClear->setObjectName("actionAudioBook_Clear");
@@ -400,6 +403,29 @@ void AudioBookPlugin::onClear()
     {
         m_audioTextStreamEditorModel->clear();
     }
+}
+
+void AudioBookPlugin::onMoveSelectionUp()
+{
+    if (m_audioTextStreamEditorModel)
+    {
+        m_audioTextStreamEditorModel->moveSelectionUp();
+        m_audioTextStreamDockWidget->getTextStreamView()->clearSelection();
+    }
+}
+
+void AudioBookPlugin::onMoveSelectionDown()
+{
+    if (m_audioTextStreamEditorModel)
+    {
+        m_audioTextStreamEditorModel->moveSelectionDown();
+        m_audioTextStreamDockWidget->getTextStreamView()->clearSelection();
+    }
+}
+
+void AudioBookPlugin::onCreateAudioBook()
+{
+
 }
 
 void AudioBookPlugin::onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle)
