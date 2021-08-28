@@ -54,9 +54,19 @@ public:
     explicit IPluginDataExchange() = default;
     virtual ~IPluginDataExchange() = default;
 
+    struct VoiceSettings
+    {
+        QString directory;
+        QString voiceName;
+        double volume = 1.0;
+        double rate = 0.0;
+        double pitch = 0.0;
+    };
+
     virtual QString getOriginalFileName() const = 0;
     virtual pdf::PDFTextSelection getSelectedText() const = 0;
     virtual QMainWindow* getMainWindow() const = 0;
+    virtual VoiceSettings getVoiceSettings() const = 0;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFPlugin : public QObject

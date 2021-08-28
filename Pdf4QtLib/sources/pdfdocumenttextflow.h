@@ -261,6 +261,11 @@ public:
 
     const EditedItem* getEditedItem(size_t index) const { return &m_editedTextFlow.at(index); }
 
+    /// Creates text flow from active edited items. If item is removed,
+    /// then it is not added into this text flow. User text modification
+    /// is applied to a text flow.
+    PDFDocumentTextFlow createEditedTextFlow() const;
+
 private:
     void createPageMapping();
     void createEditedFromOriginalTextFlow();

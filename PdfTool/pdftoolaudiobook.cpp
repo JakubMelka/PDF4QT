@@ -132,6 +132,7 @@ int PDFToolAudioBookBase::fillVoices(const PDFToolOptions& options, PDFVoiceInfo
     if (!SUCCEEDED(category->SetId(SPCAT_VOICES, FALSE)))
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("SAPI Error: Cannot enumerate SAPI voices."), options.outputCodec);
+        category->Release();
         return ErrorSAPI;
     }
 

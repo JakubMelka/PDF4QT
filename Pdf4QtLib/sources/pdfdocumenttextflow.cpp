@@ -974,6 +974,27 @@ PDFDocumentTextFlowEditor::PageIndicesMappingRange PDFDocumentTextFlowEditor::ge
     return std::equal_range(m_pageIndicesMapping.cbegin(), m_pageIndicesMapping.cend(), std::make_pair(pageIndex, size_t(0)), comparator);
 }
 
+PDFDocumentTextFlow PDFDocumentTextFlowEditor::createEditedTextFlow() const
+{
+    PDFDocumentTextFlow::Items items;
+    items.reserve(getItemCount());
+
+    const size_t size = getItemCount();
+    for (size_t i = 0; i < size; ++i)
+    {
+        if (isRemoved(i))
+        {
+            continue;
+        }
+
+        PDFDocumentTextFlow::Item item = *getOriginalItem(i);
+        item.text = getText(i);
+        items.emplace_back(std::move(item));
+    }
+
+    return PDFDocumentTextFlow(std::move(items));
+}
+
 void PDFDocumentTextFlowEditor::createPageMapping()
 {
     m_pageIndicesMapping.clear();

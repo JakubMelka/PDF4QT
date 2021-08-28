@@ -33,10 +33,12 @@ DESTDIR = $$OUT_PWD/../../pdfplugins
 CONFIG += c++11
 
 SOURCES += \
+    audiobookcreator.cpp \
     audiobookplugin.cpp \
     audiotextstreameditordockwidget.cpp
 
 HEADERS += \
+    audiobookcreator.h \
     audiobookplugin.h \
     audiotextstreameditordockwidget.h
 

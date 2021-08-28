@@ -20,6 +20,7 @@
 #include "pdfwidgettool.h"
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
+#include "audiobookcreator.h"
 
 #include <QAction>
 #include <QPainter>
@@ -27,6 +28,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QTableView>
+#include <QFileDialog>
 #include <QRegularExpression>
 
 namespace pdfplugin
@@ -117,7 +119,7 @@ void AudioBookPlugin::setWidget(pdf::PDFWidget* widget)
 
     m_actionCreateAudioBook = new QAction(QIcon(":/pdfplugins/audiobook/create-audio-book.svg"), tr("Create Audio Book"), this);
     m_actionCreateAudioBook->setObjectName("actionAudioBook_CreateAudioBook");
-    connect(m_actionRestoreOriginalText, &QAction::triggered, this, &AudioBookPlugin::onCreateAudioBook);
+    connect(m_actionCreateAudioBook, &QAction::triggered, this, &AudioBookPlugin::onCreateAudioBook);
 
     m_actionClear = new QAction(QIcon(":/pdfplugins/audiobook/clear.svg"), tr("Clear Text Stream"), this);
     m_actionClear->setObjectName("actionAudioBook_Clear");
@@ -425,7 +427,35 @@ void AudioBookPlugin::onMoveSelectionDown()
 
 void AudioBookPlugin::onCreateAudioBook()
 {
+    pdf::IPluginDataExchange::VoiceSettings voiceSettings = m_dataExchangeInterface->getVoiceSettings();
 
+    QString fileName = QFileDialog::getSaveFileName(m_widget, tr("Select Audio File"), voiceSettings.directory, tr("Audio stream (*.mp3)"));
+    if (fileName.isEmpty())
+    {
+        return;
+    }
+
+    pdf::PDFOperationResult result = true;
+    AudioBookCreator audioBookCreator;
+    if (audioBookCreator.isInitialized())
+    {
+        AudioBookCreator::Settings settings;
+        settings.audioFileName = fileName;
+        settings.voiceName = voiceSettings.voiceName;
+        settings.rate = voiceSettings.rate;
+        settings.volume = voiceSettings.volume;
+        pdf::PDFDocumentTextFlow textFlow = m_textFlowEditor.createEditedTextFlow();
+        result = audioBookCreator.createAudioBook(settings, textFlow);
+    }
+    else
+    {
+        result = tr("Audio book creator cannot be initialized.");
+    }
+
+    if (!result)
+    {
+        QMessageBox::critical(m_widget, tr("Error"), result.getErrorMessage());
+    }
 }
 
 void AudioBookPlugin::onRectanglePicked(pdf::PDFInteger pageIndex, QRectF rectangle)

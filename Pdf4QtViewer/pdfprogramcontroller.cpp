@@ -1078,6 +1078,20 @@ QMainWindow* PDFProgramController::getMainWindow() const
     return m_mainWindow;
 }
 
+pdf::IPluginDataExchange::VoiceSettings PDFProgramController::getVoiceSettings() const
+{
+    VoiceSettings voiceSettings;
+
+    const PDFViewerSettings::Settings& settings = m_settings->getSettings();
+    voiceSettings.directory = m_settings->getDirectory();
+    voiceSettings.voiceName = settings.m_speechVoice;
+    voiceSettings.pitch = settings.m_speechPitch;
+    voiceSettings.rate = settings.m_speechRate;
+    voiceSettings.volume = settings.m_speechVolume;
+
+    return voiceSettings;
+}
+
 void PDFProgramController::onActionRotateRightTriggered()
 {
     m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::RotateRight);

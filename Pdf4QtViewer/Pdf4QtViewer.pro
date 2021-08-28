@@ -99,7 +99,8 @@ plugins.files = $$DESTDIR/pdfplugins/ObjectInspectorPlugin.dll \
                 $$DESTDIR/pdfplugins/OutputPreviewPlugin.dll \
                 $$DESTDIR/pdfplugins/DimensionsPlugin.dll \
                 $$DESTDIR/pdfplugins/SoftProofingPlugin.dll \
-                $$DESTDIR/pdfplugins/RedactPlugin.dll
+                $$DESTDIR/pdfplugins/RedactPlugin.dll \
+                $$DESTDIR/pdfplugins/AudioBookPlugin.dll
 
 plugins.path = $$DESTDIR/install/pdfplugins
 plugins.CONFIG += no_check_exist
