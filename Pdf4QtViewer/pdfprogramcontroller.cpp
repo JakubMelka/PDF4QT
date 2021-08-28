@@ -573,6 +573,11 @@ void PDFProgramController::finishInitialization()
 {
     readSettings(ActionSettings);
 
+    if (m_textToSpeech)
+    {
+        m_textToSpeech->setSettings(m_settings);
+    }
+
     updatePageLayoutActions();
     m_mainWindowInterface->updateUI(true);
     onViewerSettingsChanged();
