@@ -49,6 +49,7 @@ SOURCES += \
     sources/pdfccittfaxdecoder.cpp \
     sources/pdfcms.cpp \
     sources/pdfcompiler.cpp \
+    sources/pdfdiff.cpp \
     sources/pdfdocumentbuilder.cpp \
     sources/pdfdocumentmanipulator.cpp \
     sources/pdfdocumenttextflow.cpp \
@@ -114,6 +115,7 @@ HEADERS += \
     sources/pdfccittfaxdecoder.h \
     sources/pdfcms.h \
     sources/pdfcompiler.h \
+    sources/pdfdiff.h \
     sources/pdfdocumentbuilder.h \
     sources/pdfdocumentdrawinterface.h \
     sources/pdfdocumentmanipulator.h \
