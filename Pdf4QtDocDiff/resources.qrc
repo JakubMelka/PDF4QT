@@ -1,5 +1,10 @@
 <RCC>
     <qresource prefix="/pdfdocdiff">
         <file>resources/about.svg</file>
+        <file>resources/close.svg</file>
+        <file>resources/compare.svg</file>
+        <file>resources/get-source.svg</file>
+        <file>resources/open-left.svg</file>
+        <file>resources/open-right.svg</file>
     </qresource>
 </RCC>

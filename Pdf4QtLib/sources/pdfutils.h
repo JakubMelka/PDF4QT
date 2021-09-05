@@ -694,6 +694,10 @@ public:
     /// Returns true, if interval set is empty
     bool isEmpty() const { return m_intervals.empty(); }
 
+    /// Translates interval set by a given offset
+    /// \param offset Offset
+    void translate(PDFInteger offset);
+
     /// Parses text into closed interval set, text should be in form "1,3,4,7,-11,12-,52-53,-",
     /// where 1,3,4,7 means single pages, -11 means range from \p first to 11, 12- means range
     /// from 12 to \p last, and 52-53 means closed interval [52, 53]. If text is not in this form,

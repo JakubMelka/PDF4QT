@@ -19,14 +19,32 @@
 #define PDFDIFF_H
 
 #include "pdfdocument.h"
+#include "pdfprogress.h"
+#include "pdfutils.h"
 
 #include <QObject>
+#include <QFuture>
+#include <QFutureWatcher>
+
+#include <atomic>
 
 namespace pdf
 {
 
+class PDFDiffResult
+{
+public:
+    explicit PDFDiffResult();
+
+    void setResult(PDFOperationResult result) { m_result = std::move(result); }
+    const PDFOperationResult& getResult() const { return m_result; }
+
+private:
+    PDFOperationResult m_result;
+};
+
 /// Diff engine for comparing two pdf documents.
-class PDFDiff : public QObject
+class PDF4QTLIBSHARED_EXPORT PDFDiff : public QObject
 {
     Q_OBJECT
 
@@ -35,19 +53,84 @@ private:
 
 public:
     explicit PDFDiff(QObject* parent);
+    virtual ~PDFDiff() override;
 
+    enum Option
+    {
+        None            = 0x0000,
+        Asynchronous    = 0x0001,   ///< Compare document asynchronously
+    };
+    Q_DECLARE_FLAGS(Options, Option)
+
+    /// Source document (left)
+    /// \param leftDocument Document
     void setLeftDocument(const PDFDocument* leftDocument);
+
+    /// Source document (right)(
+    /// \param rightDocument Document
     void setRightDocument(const PDFDocument* rightDocument);
 
-    /// Clears data (but not source document pointers,
-    /// for them, use setters), also stops comparing engine.
-    void clear();
+    /// Source pages to be compared (left document)
+    /// \param pagesForLeftDocument Page indices
+    void setPagesForLeftDocument(PDFClosedIntervalSet pagesForLeftDocument);
+
+    /// Source pages to be compared (right document)
+    /// \param pagesForRightDocument Page indices
+    void setPagesForRightDocument(PDFClosedIntervalSet pagesForRightDocument);
+
+    /// Sets progress object
+    /// \param progress Progress object
+    void setProgress(PDFProgress* progress) { m_progress = progress; }
+
+    /// Enables or disables comparator engine option
+    /// \param option Option
+    /// \param enable Enable or disable option?
+    void setOption(Option option, bool enable) { m_options.setFlag(option, enable); }
+
+    /// Starts comparator engine. If asynchronous engine option
+    /// is enabled, then separate thread is started, in which two
+    /// document is compared, and then signal \p comparationFinished,
+    /// otherwise this function is blocking until comparation process
+    /// is finished.
+    void start();
+
+    /// Stops comparator engine. Result data are cleared.
+    void stop();
+
+    /// Returns result of a comparation process
+    const PDFDiffResult& getResult() const { return m_result; }
+
+signals:
+    void comparationFinished();
 
 private:
-    void stopEngine();
 
+    enum Steps
+    {
+        StepExtractContentLeftDocument,
+        StepExtractContentRightDocument,
+        StepExtractTextLeftDocument,
+        StepExtractTextRightDocument,
+        StepCompare,
+        StepLast
+    };
+
+    PDFDiffResult perform();
+    void stepProgress();
+
+    void onComparationPerformed();
+
+    PDFProgress* m_progress;
     const PDFDocument* m_leftDocument;
     const PDFDocument* m_rightDocument;
+    PDFClosedIntervalSet m_pagesForLeftDocument;
+    PDFClosedIntervalSet m_pagesForRightDocument;
+    Options m_options;
+    std::atomic_bool m_cancelled;
+    PDFDiffResult m_result;
+
+    QFuture<PDFDiffResult> m_future;
+    std::optional<QFutureWatcher<PDFDiffResult>> m_futureWatcher;
 };
 
 }   // namespace pdf

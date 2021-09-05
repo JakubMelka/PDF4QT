@@ -23,6 +23,8 @@
 
 #include <QMainWindow>
 #include <QSignalMapper>
+#include <QWinTaskbarButton>
+#include <QWinTaskbarProgress>
 
 namespace Ui
 {
@@ -36,27 +38,44 @@ class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
+private:
+    using BaseClass = QMainWindow;
+
 public:
     explicit MainWindow(QWidget* parent);
     virtual ~MainWindow() override;
 
     enum class Operation
     {
+        OpenLeft,
+        OpenRight,
+        Compare,
+        Close,
         GetSource,
         About
     };
+
+    virtual void showEvent(QShowEvent* event) override;
+    virtual void closeEvent(QCloseEvent* event) override;
 
 private slots:
     void updateActions();
 
 private:
     void onMappedActionTriggered(int actionId);
+    void onComparationFinished();
+
+    void onProgressStarted(pdf::ProgressStartupInfo info);
+    void onProgressStep(int percentage);
+    void onProgressFinished();
 
     void loadSettings();
     void saveSettings();
 
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);
+
+    std::optional<pdf::PDFDocument> openDocument();
 
     struct Settings
     {
@@ -65,9 +84,15 @@ private:
 
     Ui::MainWindow* ui;
 
+    pdf::PDFProgress* m_progress;
+    QWinTaskbarButton* m_taskbarButton;
+    QWinTaskbarProgress* m_progressTaskbarIndicator;
+
     Settings m_settings;
     QSignalMapper m_mapper;
     pdf::PDFDiff m_diff;
+    bool m_isChangingProgressStep;
+    bool m_dontDisplayErrorMessage;
 
     pdf::PDFDocument m_leftDocument;
     pdf::PDFDocument m_rightDocument;
