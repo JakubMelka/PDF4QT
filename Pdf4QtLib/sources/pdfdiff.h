@@ -117,8 +117,16 @@ private:
 
     PDFDiffResult perform();
     void stepProgress();
+    void performSteps(const std::vector<PDFInteger>& leftPages,
+                      const std::vector<PDFInteger>& rightPages);
 
     void onComparationPerformed();
+
+    /// Calculates real epsilon for a page. Epsilon is used in page
+    /// comparation process, where points closer that epsilon
+    /// are recognized as equal.
+    /// \param page Page
+    PDFReal calculateEpsilonForPage(const PDFPage* page) const;
 
     PDFProgress* m_progress;
     const PDFDocument* m_leftDocument;
@@ -126,6 +134,7 @@ private:
     PDFClosedIntervalSet m_pagesForLeftDocument;
     PDFClosedIntervalSet m_pagesForRightDocument;
     Options m_options;
+    PDFReal m_epsilon;
     std::atomic_bool m_cancelled;
     PDFDiffResult m_result;
 

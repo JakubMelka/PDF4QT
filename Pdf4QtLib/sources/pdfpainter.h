@@ -234,6 +234,30 @@ public:
     PDFSnapInfo* getSnapInfo() { return &m_snapInfo; }
     const PDFSnapInfo* getSnapInfo() const { return &m_snapInfo; }
 
+    struct GraphicPieceInfo
+    {
+        enum class Type
+        {
+            Unknown,
+            Text,
+            VectorGraphics,
+            Image
+        };
+
+        Type type = Type::Unknown;
+        QRectF boundingRect;
+        std::array<uint8_t, 64> hash = { };
+    };
+
+    using GraphicPieceInfos = std::vector<GraphicPieceInfo>;
+
+    /// Creates information about piece of graphic in this page,
+    /// for example, for comparation reasons. Parameter \p epsilon
+    /// is for numerical precision - values under epsilon are considered
+    /// as equal.
+    /// \param epsilon Epsilon
+    GraphicPieceInfos calculateGraphicPieceInfos(PDFReal epsilon) const;
+
 private:
     struct PathPaintData
     {

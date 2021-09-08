@@ -16,7 +16,13 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfdiff.h"
+#include "pdfrenderer.h"
 #include "pdfdocumenttextflow.h"
+#include "pdfexecutionpolicy.h"
+#include "pdffont.h"
+#include "pdfcms.h"
+#include "pdfcompiler.h"
+#include "pdfconstants.h"
 
 #include <QtConcurrent/QtConcurrent>
 
@@ -29,6 +35,7 @@ PDFDiff::PDFDiff(QObject* parent) :
     m_leftDocument(nullptr),
     m_rightDocument(nullptr),
     m_options(Asynchronous),
+    m_epsilon(0.0001),
     m_cancelled(false)
 {
 
@@ -141,30 +148,11 @@ PDFDiffResult PDFDiff::perform()
     {
         ProgressStartupInfo info;
         info.showDialog = false;
-        info.text = tr("");
+        info.text = tr("Comparing documents.");
         m_progress->start(StepLast, std::move(info));
     }
 
-    // StepExtractContentLeftDocument
-    stepProgress();
-
-    // StepExtractContentRightDocument
-    stepProgress();
-
-    // StepExtractTextLeftDocument
-    pdf::PDFDocumentTextFlowFactory factoryLeftDocumentTextFlow;
-    factoryLeftDocumentTextFlow.setCalculateBoundingBoxes(true);
-    PDFDocumentTextFlow leftTextFlow = factoryLeftDocumentTextFlow.create(m_leftDocument, leftPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
-    stepProgress();
-
-    // StepExtractTextRightDocument
-    pdf::PDFDocumentTextFlowFactory factoryRightDocumentTextFlow;
-    factoryRightDocumentTextFlow.setCalculateBoundingBoxes(true);
-    PDFDocumentTextFlow rightTextFlow = factoryRightDocumentTextFlow.create(m_rightDocument, rightPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
-    stepProgress();
-
-    // StepCompare
-    stepProgress();
+    performSteps(leftPages, rightPages);
 
     if (m_progress)
     {
@@ -182,11 +170,120 @@ void PDFDiff::stepProgress()
     }
 }
 
+struct PDFDiffPageContext
+{
+    PDFInteger pageIndex = 0;
+    PDFPrecompiledPage::GraphicPieceInfos graphicPieces;
+};
+
+void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::vector<PDFInteger>& rightPages)
+{
+    std::vector<PDFDiffPageContext> leftPreparedPages;
+    std::vector<PDFDiffPageContext> rightPreparedPages;
+
+    auto createDiffPageContext = [](auto pageIndex)
+    {
+       PDFDiffPageContext context;
+       context.pageIndex = pageIndex;
+       return context;
+    };
+    std::transform(leftPages.cbegin(), leftPages.cend(), std::back_inserter(leftPreparedPages), createDiffPageContext);
+    std::transform(rightPages.cbegin(), rightPages.cend(), std::back_inserter(rightPreparedPages), createDiffPageContext);
+
+    // StepExtractContentLeftDocument
+    if (!m_cancelled)
+    {
+        PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+        PDFOptionalContentActivity optionalContentActivity(m_leftDocument, pdf::OCUsage::View, nullptr);
+        fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_leftDocument), &optionalContentActivity));
+
+        PDFCMSManager cmsManager(nullptr);
+        cmsManager.setDocument(m_leftDocument);
+        PDFCMSPointer cms = cmsManager.getCurrentCMS();
+
+        auto fillPageContext = [&, this](PDFDiffPageContext& context)
+        {
+            PDFPrecompiledPage compiledPage;
+            constexpr PDFRenderer::Features features = PDFRenderer::IgnoreOptionalContent;
+            PDFRenderer renderer(m_leftDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
+            renderer.compile(&compiledPage, context.pageIndex);
+
+            PDFReal epsilon = calculateEpsilonForPage(m_leftDocument->getCatalog()->getPage(context.pageIndex));
+            context.graphicPieces = compiledPage.calculateGraphicPieceInfos(epsilon);
+        };
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, leftPreparedPages.begin(), leftPreparedPages.end(), fillPageContext);
+        stepProgress();
+    }
+
+    // StepExtractContentRightDocument
+    if (!m_cancelled)
+    {
+        PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+        PDFOptionalContentActivity optionalContentActivity(m_rightDocument, pdf::OCUsage::View, nullptr);
+        fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_rightDocument), &optionalContentActivity));
+
+        PDFCMSManager cmsManager(nullptr);
+        cmsManager.setDocument(m_rightDocument);
+        PDFCMSPointer cms = cmsManager.getCurrentCMS();
+
+        auto fillPageContext = [&, this](PDFDiffPageContext& context)
+        {
+            PDFPrecompiledPage compiledPage;
+            constexpr PDFRenderer::Features features = PDFRenderer::IgnoreOptionalContent;
+            PDFRenderer renderer(m_rightDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
+            renderer.compile(&compiledPage, context.pageIndex);
+
+            PDFReal epsilon = calculateEpsilonForPage(m_leftDocument->getCatalog()->getPage(context.pageIndex));
+            context.graphicPieces = compiledPage.calculateGraphicPieceInfos(epsilon);
+        };
+
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, rightPreparedPages.begin(), rightPreparedPages.end(), fillPageContext);
+        stepProgress();
+    }
+
+    // StepExtractTextLeftDocument
+    if (!m_cancelled)
+    {
+        pdf::PDFDocumentTextFlowFactory factoryLeftDocumentTextFlow;
+        factoryLeftDocumentTextFlow.setCalculateBoundingBoxes(true);
+        PDFDocumentTextFlow leftTextFlow = factoryLeftDocumentTextFlow.create(m_leftDocument, leftPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
+        stepProgress();
+    }
+
+    // StepExtractTextRightDocument
+    if (!m_cancelled)
+    {
+        pdf::PDFDocumentTextFlowFactory factoryRightDocumentTextFlow;
+        factoryRightDocumentTextFlow.setCalculateBoundingBoxes(true);
+        PDFDocumentTextFlow rightTextFlow = factoryRightDocumentTextFlow.create(m_rightDocument, rightPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
+        stepProgress();
+    }
+
+    // StepCompare
+    if (!m_cancelled)
+    {
+        stepProgress();
+    }
+}
+
 void PDFDiff::onComparationPerformed()
 {
     m_cancelled = false;
     m_result = m_future.result();
     emit comparationFinished();
+}
+
+PDFReal PDFDiff::calculateEpsilonForPage(const PDFPage* page) const
+{
+    Q_ASSERT(page);
+
+    QRectF mediaBox = page->getMediaBox();
+
+    PDFReal width = mediaBox.width();
+    PDFReal height = mediaBox.height();
+    PDFReal factor = qMax(width, height);
+
+    return factor * m_epsilon;
 }
 
 PDFDiffResult::PDFDiffResult() :

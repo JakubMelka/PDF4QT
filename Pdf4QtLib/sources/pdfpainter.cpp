@@ -20,6 +20,7 @@
 #include "pdfcms.h"
 
 #include <QPainter>
+#include <QCryptographicHash>
 
 namespace pdf
 {
@@ -829,6 +830,148 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     {
         m_memoryConsumptionEstimate += data.mesh.getMemoryConsumptionEstimate();
     }
+}
+
+PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceInfos(PDFReal epsilon) const
+{
+    GraphicPieceInfos infos;
+
+    struct State
+    {
+        QMatrix matrix;
+    };
+    std::stack<State> stateStack;
+    stateStack.emplace();
+
+    // Check, if epsilon is not too small
+    if (qFuzzyIsNull(epsilon))
+    {
+        epsilon = 0.000001;
+    }
+    PDFReal factor = 1.0 / epsilon;
+
+    // Process all instructions
+    for (const Instruction& instruction : m_instructions)
+    {
+        switch (instruction.type)
+        {
+            case InstructionType::DrawPath:
+            {
+                const PathPaintData& data = m_paths[instruction.dataIndex];
+
+                GraphicPieceInfo info;
+                QByteArray serializedPath;
+
+                // Serialize data
+                if (true)
+                {
+                    QDataStream stream(&serializedPath, QIODevice::WriteOnly);
+
+                    stream << data.isText;
+                    stream << data.pen;
+                    stream << data.brush;
+
+                    // Translate map to page coordinates
+                    QPainterPath pagePath = stateStack.top().matrix.map(data.path);
+
+                    info.type = data.isText ? GraphicPieceInfo::Type::Text : GraphicPieceInfo::Type::VectorGraphics;
+                    info.boundingRect = pagePath.controlPointRect();
+
+                    const int elementCount = pagePath.elementCount();
+                    for (int i = 0; i < elementCount; ++i)
+                    {
+                        QPainterPath::Element element = pagePath.elementAt(i);
+
+                        PDFReal roundedX = qRound(element.x * factor);
+                        PDFReal roundedY = qRound(element.y * factor);
+
+                        stream << roundedX;
+                        stream << roundedY;
+                        stream << element.type;
+                    }
+                }
+
+                QByteArray hash = QCryptographicHash::hash(serializedPath, QCryptographicHash::Sha512);
+                Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+                size_t size = qMin<size_t>(hash.length(), info.hash.size());
+                std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                infos.emplace_back(std::move(info));
+                break;
+            }
+
+            case InstructionType::DrawImage:
+            {
+                /*const ImageData& data = m_images[instruction.dataIndex];
+                const QImage& image = data.image;
+
+                painter->save();
+
+                QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+                QMatrix worldMatrix = imageTransform * painter->worldMatrix();
+
+                // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
+                // to the opposite (so the image is then unchanged)
+                worldMatrix.translate(0, image.height());
+                worldMatrix.scale(1, -1);
+
+                painter->setWorldMatrix(worldMatrix);
+                painter->drawImage(0, 0, image);
+                painter->restore();*/
+                break;
+            }
+
+            case InstructionType::DrawMesh:
+            {
+                /*const MeshPaintData& data = m_meshes[instruction.dataIndex];
+
+                painter->save();
+                painter->setWorldMatrix(pagePointToDevicePointMatrix);
+                data.mesh.paint(painter, data.alpha);
+                painter->restore();*/
+                break;
+            }
+
+            case InstructionType::Clip:
+            {
+                // Do nothing, we are just collecting information
+                break;
+            }
+
+            case InstructionType::SaveGraphicState:
+            {
+                stateStack.push(stateStack.top());
+                break;
+            }
+
+            case InstructionType::RestoreGraphicState:
+            {
+                stateStack.pop();
+                break;
+            }
+
+            case InstructionType::SetWorldMatrix:
+            {
+                stateStack.top().matrix = m_matrices[instruction.dataIndex];
+                break;
+            }
+
+            case InstructionType::SetCompositionMode:
+            {
+                // Do nothing, we are just collecting information
+                break;
+            }
+
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
+        }
+    }
+
+    return infos;
 }
 
 }   // namespace pdf
