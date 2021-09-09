@@ -241,8 +241,19 @@ public:
             Unknown,
             Text,
             VectorGraphics,
-            Image
+            Image,
+            Shading
         };
+
+        bool operator<(const GraphicPieceInfo& other) const
+        {
+            return std::tie(type, hash) < std::tie(other.type, other.hash);
+        }
+
+        bool isText() const { return type == Type::Text; }
+        bool isVectorGraphics() const { return type == Type::VectorGraphics; }
+        bool isImage() const { return type == Type::Image; }
+        bool isShading() const { return type == Type::Shading; }
 
         Type type = Type::Unknown;
         QRectF boundingRect;
@@ -255,8 +266,10 @@ public:
     /// for example, for comparation reasons. Parameter \p epsilon
     /// is for numerical precision - values under epsilon are considered
     /// as equal.
+    /// \param mediaBox Page's media box
     /// \param epsilon Epsilon
-    GraphicPieceInfos calculateGraphicPieceInfos(PDFReal epsilon) const;
+    GraphicPieceInfos calculateGraphicPieceInfos(QRectF mediaBox,
+                                                 PDFReal epsilon) const;
 
 private:
     struct PathPaintData

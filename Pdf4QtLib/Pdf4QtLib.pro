@@ -110,6 +110,7 @@ SOURCES += \
 HEADERS += \
     sources/pdfaction.h \
     sources/pdfadvancedtools.h \
+    sources/pdfalgorithmlcs.h \
     sources/pdfannotation.h \
     sources/pdfblendfunction.h \
     sources/pdfccittfaxdecoder.h \

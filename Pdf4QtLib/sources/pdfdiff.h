@@ -31,6 +31,8 @@
 namespace pdf
 {
 
+struct PDFDiffPageContext;
+
 class PDFDiffResult
 {
 public:
@@ -57,8 +59,12 @@ public:
 
     enum Option
     {
-        None            = 0x0000,
-        Asynchronous    = 0x0001,   ///< Compare document asynchronously
+        None                = 0x0000,
+        Asynchronous        = 0x0001,   ///< Compare document asynchronously
+        PC_Text             = 0x0002,   ///< Use text to compare pages (determine, which pages correspond to each other)
+        PC_VectorGraphics   = 0x0004,   ///< Use vector graphics to compare pages (determine, which pages correspond to each other)
+        PC_Images           = 0x0008,   ///< Use images to compare pages (determine, which pages correspond to each other)
+        PC_Mesh             = 0x0010,   ///< Use mesh to compare pages (determine, which pages correspond to each other)
     };
     Q_DECLARE_FLAGS(Options, Option)
 
@@ -109,6 +115,7 @@ private:
     {
         StepExtractContentLeftDocument,
         StepExtractContentRightDocument,
+        StepMatchPages,
         StepExtractTextLeftDocument,
         StepExtractTextRightDocument,
         StepCompare,
@@ -119,6 +126,7 @@ private:
     void stepProgress();
     void performSteps(const std::vector<PDFInteger>& leftPages,
                       const std::vector<PDFInteger>& rightPages);
+    void finalizeGraphicsPieces(PDFDiffPageContext& context);
 
     void onComparationPerformed();
 

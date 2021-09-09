@@ -832,7 +832,8 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     }
 }
 
-PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceInfos(PDFReal epsilon) const
+PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceInfos(QRectF mediaBox,
+                                                                                     PDFReal epsilon) const
 {
     GraphicPieceInfos infos;
 
@@ -849,6 +850,8 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
         epsilon = 0.000001;
     }
     PDFReal factor = 1.0 / epsilon;
+
+    QImage shadingTestImage;
 
     // Process all instructions
     for (const Instruction& instruction : m_instructions)
@@ -903,33 +906,98 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
             case InstructionType::DrawImage:
             {
-                /*const ImageData& data = m_images[instruction.dataIndex];
+                const ImageData& data = m_images[instruction.dataIndex];
                 const QImage& image = data.image;
 
-                painter->save();
+                GraphicPieceInfo info;
+                QByteArray serializedPath;
 
-                QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
-                QMatrix worldMatrix = imageTransform * painter->worldMatrix();
+                // Serialize data
+                if (true)
+                {
+                    QDataStream stream(&serializedPath, QIODevice::WriteOnly);
 
-                // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
-                // to the opposite (so the image is then unchanged)
-                worldMatrix.translate(0, image.height());
-                worldMatrix.scale(1, -1);
+                    // Jakub Melka: serialize image position
+                    QMatrix worldMatrix = stateStack.top().matrix;
 
-                painter->setWorldMatrix(worldMatrix);
-                painter->drawImage(0, 0, image);
-                painter->restore();*/
+                    QPainterPath pagePath;
+                    pagePath.addRect(0, 0, 1, 1);
+                    pagePath = worldMatrix.map(pagePath);
+
+                    info.type = GraphicPieceInfo::Type::Image;
+                    info.boundingRect = pagePath.controlPointRect();
+
+                    const int elementCount = pagePath.elementCount();
+                    for (int i = 0; i < elementCount; ++i)
+                    {
+                        QPainterPath::Element element = pagePath.elementAt(i);
+
+                        PDFReal roundedX = qRound(element.x * factor);
+                        PDFReal roundedY = qRound(element.y * factor);
+
+                        stream << roundedX;
+                        stream << roundedY;
+                        stream << element.type;
+                    }
+
+                    // serialize image data
+                    stream.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
+                }
+
+                QByteArray hash = QCryptographicHash::hash(serializedPath, QCryptographicHash::Sha512);
+                Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+                size_t size = qMin<size_t>(hash.length(), info.hash.size());
+                std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                infos.emplace_back(std::move(info));
                 break;
             }
 
             case InstructionType::DrawMesh:
             {
-                /*const MeshPaintData& data = m_meshes[instruction.dataIndex];
+                const MeshPaintData& data = m_meshes[instruction.dataIndex];
 
-                painter->save();
-                painter->setWorldMatrix(pagePointToDevicePointMatrix);
-                data.mesh.paint(painter, data.alpha);
-                painter->restore();*/
+                if (shadingTestImage.isNull())
+                {
+                    QSizeF mediaBoxSize = mediaBox.size();
+                    mediaBoxSize = mediaBoxSize.scaled(256, 256, Qt::KeepAspectRatio);
+                    QSize imageSize = mediaBoxSize.toSize();
+                    shadingTestImage = QImage(imageSize, QImage::Format_ARGB32);
+                }
+
+                shadingTestImage.fill(Qt::transparent);
+
+                QMatrix pagePointToDevicePointMatrix;
+                pagePointToDevicePointMatrix.scale(shadingTestImage.width() / mediaBox.width(), -shadingTestImage.height() / mediaBox.height());
+
+                {
+                    QPainter painter(&shadingTestImage);
+                    painter.setWorldMatrix(pagePointToDevicePointMatrix);
+                    data.mesh.paint(&painter, data.alpha);
+                }
+
+                GraphicPieceInfo info;
+                QByteArray serializedMesh;
+
+                // Serialize data
+                if (true)
+                {
+                    QDataStream stream(&serializedMesh, QIODevice::WriteOnly);
+
+                    // serialize image data
+                    stream.writeBytes(reinterpret_cast<const char*>(shadingTestImage.bits()), shadingTestImage.sizeInBytes());
+                }
+
+                QByteArray hash = QCryptographicHash::hash(serializedMesh, QCryptographicHash::Sha512);
+                Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+                size_t size = qMin<size_t>(hash.length(), info.hash.size());
+                std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                info.boundingRect = QRectF();
+                info.type = GraphicPieceInfo::Type::Shading;
+                infos.emplace_back(std::move(info));
                 break;
             }
 

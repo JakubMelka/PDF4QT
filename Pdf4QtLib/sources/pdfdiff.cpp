@@ -23,6 +23,7 @@
 #include "pdfcms.h"
 #include "pdfcompiler.h"
 #include "pdfconstants.h"
+#include "pdfalgorithmlcs.h"
 
 #include <QtConcurrent/QtConcurrent>
 
@@ -34,7 +35,7 @@ PDFDiff::PDFDiff(QObject* parent) :
     m_progress(nullptr),
     m_leftDocument(nullptr),
     m_rightDocument(nullptr),
-    m_options(Asynchronous),
+    m_options(Asynchronous | PC_Text | PC_VectorGraphics | PC_Images),
     m_epsilon(0.0001),
     m_cancelled(false)
 {
@@ -173,6 +174,7 @@ void PDFDiff::stepProgress()
 struct PDFDiffPageContext
 {
     PDFInteger pageIndex = 0;
+    std::array<uint8_t, 64> pageHash = { };
     PDFPrecompiledPage::GraphicPieceInfos graphicPieces;
 };
 
@@ -208,8 +210,11 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
             PDFRenderer renderer(m_leftDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
             renderer.compile(&compiledPage, context.pageIndex);
 
-            PDFReal epsilon = calculateEpsilonForPage(m_leftDocument->getCatalog()->getPage(context.pageIndex));
-            context.graphicPieces = compiledPage.calculateGraphicPieceInfos(epsilon);
+            auto page = m_leftDocument->getCatalog()->getPage(context.pageIndex);
+            PDFReal epsilon = calculateEpsilonForPage(page);
+            context.graphicPieces = compiledPage.calculateGraphicPieceInfos(page->getMediaBox(), epsilon);
+
+            finalizeGraphicsPieces(context);
         };
         PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, leftPreparedPages.begin(), leftPreparedPages.end(), fillPageContext);
         stepProgress();
@@ -233,11 +238,30 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
             PDFRenderer renderer(m_rightDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
             renderer.compile(&compiledPage, context.pageIndex);
 
-            PDFReal epsilon = calculateEpsilonForPage(m_leftDocument->getCatalog()->getPage(context.pageIndex));
-            context.graphicPieces = compiledPage.calculateGraphicPieceInfos(epsilon);
+            const PDFPage* page = m_leftDocument->getCatalog()->getPage(context.pageIndex);
+            PDFReal epsilon = calculateEpsilonForPage(page);
+            context.graphicPieces = compiledPage.calculateGraphicPieceInfos(page->getMediaBox(), epsilon);
+
+            finalizeGraphicsPieces(context);
         };
 
         PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, rightPreparedPages.begin(), rightPreparedPages.end(), fillPageContext);
+        stepProgress();
+    }
+
+    // StepMatchPages
+    if (!m_cancelled)
+    {
+        // Match pages
+        auto comparePages = [](const PDFDiffPageContext& left, const PDFDiffPageContext& right)
+        {
+            return left.pageHash == right.pageHash;
+        };
+        PDFAlgorithmLongestCommonSubsequence algorithm(leftPreparedPages.cbegin(), leftPreparedPages.cend(),
+                                                       rightPreparedPages.cbegin(), rightPreparedPages.cend(),
+                                                       comparePages);
+        algorithm.perform();
+
         stepProgress();
     }
 
@@ -264,6 +288,43 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
     {
         stepProgress();
     }
+}
+
+void PDFDiff::finalizeGraphicsPieces(PDFDiffPageContext& context)
+{
+    std::sort(context.graphicPieces.begin(), context.graphicPieces.end());
+
+    // Compute page hash using active settings
+    QCryptographicHash hasher(QCryptographicHash::Sha512);
+    hasher.reset();
+
+    for (const PDFPrecompiledPage::GraphicPieceInfo& info : context.graphicPieces)
+    {
+        if (info.isText() && !m_options.testFlag(PC_Text))
+        {
+            continue;
+        }
+        if (info.isVectorGraphics() && !m_options.testFlag(PC_VectorGraphics))
+        {
+            continue;
+        }
+        if (info.isImage() && !m_options.testFlag(PC_Images))
+        {
+            continue;
+        }
+        if (info.isShading() && !m_options.testFlag(PC_Mesh))
+        {
+            continue;
+        }
+
+        hasher.addData(reinterpret_cast<const char*>(info.hash.data()), int(info.hash.size()));
+    }
+
+    QByteArray hash = hasher.result();
+    Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+    size_t size = qMin<size_t>(hash.length(), context.pageHash.size());
+    std::copy(hash.data(), hash.data() + size, context.pageHash.data());
 }
 
 void PDFDiff::onComparationPerformed()
