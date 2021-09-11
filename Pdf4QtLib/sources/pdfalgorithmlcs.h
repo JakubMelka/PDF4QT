@@ -37,7 +37,20 @@ public:
                                          Iterator it2End,
                                          Comparator comparator);
 
+    struct SequenceItem
+    {
+        size_t index1 = std::numeric_limits<size_t>::max();
+        size_t index2 = std::numeric_limits<size_t>::max();
+
+        bool isLeftValid() const { return index1 == std::numeric_limits<size_t>::max(); }
+        bool isRightValid() const { return index2 == std::numeric_limits<size_t>::max(); }
+        bool isMatch() const { return isLeftValid() && isRightValid(); }
+    };
+    using Sequence = std::vector<SequenceItem>;
+
     void perform();
+
+    const Sequence& getSequence() const { return m_sequence; }
 
 private:
     Iterator m_it1;
@@ -52,6 +65,7 @@ private:
     Comparator m_comparator;
 
     std::vector<bool> m_backtrackData;
+    Sequence m_sequence;
 };
 
 template<typename Iterator, typename Comparator>
@@ -119,6 +133,68 @@ void PDFAlgorithmLongestCommonSubsequence<Iterator, Comparator>::perform()
         // Bottom row will become top row
         std::swap(rowTop, rowBottom);
     }
+
+    size_t i1 = m_size1 - 1;
+    size_t i2 = m_size2 - 1;
+
+    while (i1 > 0 && i2 > 0)
+    {
+        SequenceItem item;
+
+        const size_t index1 = i1 - 1;
+        const size_t index2 = i2 - 1;
+
+        auto it1 = std::next(m_it1, index1);
+        auto it2 = std::next(m_it2, index2);
+
+        if (m_comparator(*it1, *it2))
+        {
+            item.index1 = index1;
+            item.index2 = index2;
+
+            --i1;
+            --i2;
+        }
+        else
+        {
+            if (m_backtrackData[i2 * m_size1 + i1])
+            {
+                item.index1 = index1;
+                --i1;
+            }
+            else
+            {
+                item.index2 = index2;
+                --i2;
+            }
+        }
+
+        m_sequence.push_back(item);
+    }
+
+    while (i1 > 0)
+    {
+        SequenceItem item;
+
+        const size_t index1 = i1 - 1;
+        item.index1 = index1;
+        --i1;
+
+        m_sequence.push_back(item);
+    }
+
+    while (i2 > 0)
+    {
+        SequenceItem item;
+
+        const size_t index2 = i2 - 1;
+        item.index2 = index2;
+        --i2;
+
+        m_sequence.push_back(item);
+    }
+
+    std::reverse(m_sequence.begin(), m_sequence.end());
 }
 
 }   // namespace pdf
