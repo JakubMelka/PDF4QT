@@ -30,13 +30,35 @@
 namespace pdf
 {
 
+class PDFDiffHelper
+{
+public:
+    using GraphicPieceInfo = PDFPrecompiledPage::GraphicPieceInfo;
+    using GraphicPieceInfos = PDFPrecompiledPage::GraphicPieceInfos;
+    using PageSequence = PDFAlgorithmLongestCommonSubsequenceBase::Sequence;
+
+
+    struct Differences
+    {
+        GraphicPieceInfos left;
+        GraphicPieceInfos right;
+
+        bool isEmpty() const { return left.empty() && right.empty(); }
+    };
+
+    static Differences calculateDifferences(const GraphicPieceInfos& left, const GraphicPieceInfos& right, PDFReal epsilon);
+    static std::vector<size_t> getLeftUnmatched(const PageSequence& sequence);
+    static std::vector<size_t> getRightUnmatched(const PageSequence& sequence);
+    static void matchPage(PageSequence& sequence, size_t leftPage, size_t rightPage);
+};
+
 PDFDiff::PDFDiff(QObject* parent) :
     BaseClass(parent),
     m_progress(nullptr),
     m_leftDocument(nullptr),
     m_rightDocument(nullptr),
     m_options(Asynchronous | PC_Text | PC_VectorGraphics | PC_Images),
-    m_epsilon(0.0001),
+    m_epsilon(0.001),
     m_cancelled(false)
 {
 
@@ -178,10 +200,106 @@ struct PDFDiffPageContext
     PDFPrecompiledPage::GraphicPieceInfos graphicPieces;
 };
 
+void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPreparedPages,
+                                  const std::vector<PDFDiffPageContext>& rightPreparedPages,
+                                  PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence)
+{
+    // Match pages. We will use following algorithm: exact solution can fail, because
+    // we are using hashes and due to numerical instability, hashes can be different
+    // even for exactly the same page. But if hashes are the same, the page must be the same.
+    // So, we use longest common subsequence algorithm to detect same page ranges,
+    // and then we match the rest. We assume the number of failing pages is relatively small.
+
+    std::map<size_t, size_t> pageMatches;
+    auto comparePages = [&](const PDFDiffPageContext& left, const PDFDiffPageContext& right)
+    {
+        if (left.pageHash == right.pageHash)
+        {
+            return true;
+        }
+
+        auto it = pageMatches.find(left.pageIndex);
+        if (it != pageMatches.cend())
+        {
+            return it->second == right.pageIndex;
+        }
+
+        return false;
+    };
+    PDFAlgorithmLongestCommonSubsequence algorithm(leftPreparedPages.cbegin(), leftPreparedPages.cend(),
+                                                   rightPreparedPages.cbegin(), rightPreparedPages.cend(),
+                                                   comparePages);
+    algorithm.perform();
+    pageSequence = algorithm.getSequence();
+
+    std::vector<size_t> leftUnmatched = PDFDiffHelper::getLeftUnmatched(pageSequence);
+    std::vector<size_t> rightUnmatched = PDFDiffHelper::getRightUnmatched(pageSequence);
+
+    // We are matching left pages to the right ones
+    std::map<size_t, std::vector<size_t>> matchedPages;
+
+    for (const size_t index : leftUnmatched)
+    {
+        matchedPages[index] = std::vector<size_t>();
+    }
+
+    auto matchLeftPage = [&, this](size_t leftIndex)
+    {
+        const PDFDiffPageContext& leftPageContext = leftPreparedPages[leftIndex];
+
+        auto page = m_leftDocument->getCatalog()->getPage(leftPageContext.pageIndex);
+        PDFReal epsilon = calculateEpsilonForPage(page);
+
+        for (const size_t rightIndex : rightUnmatched)
+        {
+            const PDFDiffPageContext& rightPageContext = rightPreparedPages[rightIndex];
+            if (leftPageContext.graphicPieces.size() != rightPageContext.graphicPieces.size())
+            {
+                // Match cannot exist, graphic pieces have different size
+                continue;
+            }
+
+            PDFDiffHelper::Differences differences = PDFDiffHelper::calculateDifferences(leftPageContext.graphicPieces, rightPageContext.graphicPieces, epsilon);
+
+            if (differences.isEmpty())
+            {
+                // Jakub Melka: we have a match
+                matchedPages[leftIndex].push_back(rightIndex);
+            }
+        }
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, leftUnmatched.begin(), leftUnmatched.end(), matchLeftPage);
+
+    std::set<size_t> matchedRightPages;
+    for (const auto& matchedPage : matchedPages)
+    {
+        for (size_t rightContextIndex : matchedPage.second)
+        {
+            if (!matchedRightPages.count(rightContextIndex))
+            {
+                matchedRightPages.insert(rightContextIndex);
+                const PDFDiffPageContext& leftPageContext = leftPreparedPages[matchedPage.first];
+                const PDFDiffPageContext& rightPageContext = rightPreparedPages[rightContextIndex];
+
+                pageMatches[leftPageContext.pageIndex] = rightPageContext.pageIndex;
+            }
+        }
+    }
+
+    if (!pageMatches.empty())
+    {
+        algorithm.perform();
+        pageSequence = algorithm.getSequence();
+    }
+}
+
 void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::vector<PDFInteger>& rightPages)
 {
     std::vector<PDFDiffPageContext> leftPreparedPages;
     std::vector<PDFDiffPageContext> rightPreparedPages;
+
+    PDFDiffHelper::PageSequence pageSequence;
 
     auto createDiffPageContext = [](auto pageIndex)
     {
@@ -252,16 +370,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
     // StepMatchPages
     if (!m_cancelled)
     {
-        // Match pages
-        auto comparePages = [](const PDFDiffPageContext& left, const PDFDiffPageContext& right)
-        {
-            return left.pageHash == right.pageHash;
-        };
-        PDFAlgorithmLongestCommonSubsequence algorithm(leftPreparedPages.cbegin(), leftPreparedPages.cend(),
-                                                       rightPreparedPages.cbegin(), rightPreparedPages.cend(),
-                                                       comparePages);
-        algorithm.perform();
-
+        performPageMatching(leftPreparedPages, rightPreparedPages, pageSequence);
         stepProgress();
     }
 
@@ -351,6 +460,152 @@ PDFDiffResult::PDFDiffResult() :
     m_result(true)
 {
 
+}
+
+PDFDiffHelper::Differences PDFDiffHelper::calculateDifferences(const GraphicPieceInfos& left,
+                                                               const GraphicPieceInfos& right,
+                                                               PDFReal epsilon)
+{
+    Differences differences;
+
+    Q_ASSERT(std::is_sorted(left.cbegin(), left.cend()));
+    Q_ASSERT(std::is_sorted(right.cbegin(), right.cend()));
+
+    for (const GraphicPieceInfo& info : left)
+    {
+        if (!std::binary_search(right.cbegin(), right.cend(), info))
+        {
+            differences.left.push_back(info);
+        }
+    }
+
+    for (const GraphicPieceInfo& info : right)
+    {
+        if (!std::binary_search(left.cbegin(), left.cend(), info))
+        {
+            differences.right.push_back(info);
+        }
+    }
+
+    const PDFReal epsilonSquared = epsilon * epsilon;
+
+    // If exact match fails, then try to use match with epsilon. For each
+    // item in left, we try to find matching item in right.
+    for (auto it = differences.left.begin(); it != differences.left.end();)
+    {
+        bool hasMatch = false;
+
+        const GraphicPieceInfo& leftInfo = *it;
+        for (auto it2 = differences.right.begin(); it2 != differences.right.end();)
+        {
+            // Heuristically compare these items
+
+            const GraphicPieceInfo& rightInfo = *it2;
+            if (leftInfo.type != rightInfo.type || !leftInfo.boundingRect.intersects(rightInfo.boundingRect))
+            {
+                ++it2;
+                continue;
+            }
+
+            const int elementCountPath1 = leftInfo.pagePath.elementCount();
+            const int elementCountPath2 = rightInfo.pagePath.elementCount();
+
+            if (elementCountPath1 != elementCountPath2)
+            {
+                ++it2;
+                continue;
+            }
+
+            hasMatch = (leftInfo.type != GraphicPieceInfo::Type::Image) || (leftInfo.imageHash == rightInfo.imageHash);
+            const int elementCount = leftInfo.pagePath.elementCount();
+            for (int i = 0; i < elementCount && hasMatch; ++i)
+            {
+                QPainterPath::Element leftElement = leftInfo.pagePath.elementAt(i);
+                QPainterPath::Element rightElement = rightInfo.pagePath.elementAt(i);
+
+                PDFReal diffX = leftElement.x - rightElement.x;
+                PDFReal diffY = leftElement.y - rightElement.y;
+                PDFReal squaredDistance = diffX * diffX + diffY * diffY;
+
+                hasMatch = (leftElement.type == rightElement.type) &&
+                           (squaredDistance < epsilonSquared);
+            }
+
+            if (hasMatch)
+            {
+                it2 = differences.right.erase(it2);
+            }
+            else
+            {
+                ++it2;
+            }
+        }
+
+        if (hasMatch)
+        {
+            it = differences.left.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    return differences;
+}
+
+std::vector<size_t> PDFDiffHelper::getLeftUnmatched(const PageSequence& sequence)
+{
+    std::vector<size_t> result;
+
+    for (const auto& item : sequence)
+    {
+        if (item.isLeft())
+        {
+            result.push_back(item.index1);
+        }
+    }
+
+    return result;
+}
+
+std::vector<size_t> PDFDiffHelper::getRightUnmatched(const PageSequence& sequence)
+{
+    std::vector<size_t> result;
+
+    for (const auto& item : sequence)
+    {
+        if (item.isRight())
+        {
+            result.push_back(item.index2);
+        }
+    }
+
+    return result;
+}
+
+void PDFDiffHelper::matchPage(PageSequence& sequence,
+                              size_t leftPage,
+                              size_t rightPage)
+{
+    for (auto it = sequence.begin(); it != sequence.end();)
+    {
+        auto& item = *it;
+
+        if (item.isLeft() && item.index1 == leftPage)
+        {
+            item.index2 = rightPage;
+        }
+
+        if (item.isRight() && item.index2 == rightPage)
+        {
+            it = sequence.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
 
 }   // namespace pdf

@@ -257,7 +257,9 @@ public:
 
         Type type = Type::Unknown;
         QRectF boundingRect;
-        std::array<uint8_t, 64> hash = { };
+        std::array<uint8_t, 64> hash = { }; ///< Hash of all data
+        std::array<uint8_t, 64> imageHash = { }; ///< Hash of the image only
+        QPainterPath pagePath;
     };
 
     using GraphicPieceInfos = std::vector<GraphicPieceInfo>;

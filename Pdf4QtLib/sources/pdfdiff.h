@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 #include "pdfprogress.h"
 #include "pdfutils.h"
+#include "pdfalgorithmlcs.h"
 
 #include <QObject>
 #include <QFuture>
@@ -126,6 +127,9 @@ private:
     void stepProgress();
     void performSteps(const std::vector<PDFInteger>& leftPages,
                       const std::vector<PDFInteger>& rightPages);
+    void performPageMatching(const std::vector<PDFDiffPageContext>& leftPreparedPages,
+                             const std::vector<PDFDiffPageContext>& rightPreparedPages,
+                             PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence);
     void finalizeGraphicsPieces(PDFDiffPageContext& context);
 
     void onComparationPerformed();

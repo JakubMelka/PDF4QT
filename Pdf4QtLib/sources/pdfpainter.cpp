@@ -879,14 +879,15 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
                     info.type = data.isText ? GraphicPieceInfo::Type::Text : GraphicPieceInfo::Type::VectorGraphics;
                     info.boundingRect = pagePath.controlPointRect();
+                    info.pagePath = pagePath;
 
                     const int elementCount = pagePath.elementCount();
                     for (int i = 0; i < elementCount; ++i)
                     {
                         QPainterPath::Element element = pagePath.elementAt(i);
 
-                        PDFReal roundedX = qRound(element.x * factor);
-                        PDFReal roundedY = qRound(element.y * factor);
+                        PDFReal roundedX = qFloor(element.x * factor);
+                        PDFReal roundedY = qFloor(element.y * factor);
 
                         stream << roundedX;
                         stream << roundedY;
@@ -911,11 +912,13 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
                 GraphicPieceInfo info;
                 QByteArray serializedPath;
+                QByteArray serializedImage;
 
                 // Serialize data
                 if (true)
                 {
                     QDataStream stream(&serializedPath, QIODevice::WriteOnly);
+                    QDataStream streamImage(&serializedImage, QIODevice::WriteOnly);
 
                     // Jakub Melka: serialize image position
                     QMatrix worldMatrix = stateStack.top().matrix;
@@ -926,6 +929,7 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
                     info.type = GraphicPieceInfo::Type::Image;
                     info.boundingRect = pagePath.controlPointRect();
+                    info.pagePath = pagePath;
 
                     const int elementCount = pagePath.elementCount();
                     for (int i = 0; i < elementCount; ++i)
@@ -942,13 +946,19 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
                     // serialize image data
                     stream.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
+                    streamImage.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
                 }
 
                 QByteArray hash = QCryptographicHash::hash(serializedPath, QCryptographicHash::Sha512);
                 Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
 
+                QByteArray imageHash = QCryptographicHash::hash(serializedImage, QCryptographicHash::Sha512);
+
                 size_t size = qMin<size_t>(hash.length(), info.hash.size());
                 std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                size_t sizeImage = qMin<size_t>(imageHash.length(), info.imageHash.size());
+                std::copy(imageHash.data(), imageHash.data() + sizeImage, info.imageHash.data());
 
                 infos.emplace_back(std::move(info));
                 break;

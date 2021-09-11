@@ -23,12 +23,29 @@
 namespace pdf
 {
 
+class PDFAlgorithmLongestCommonSubsequenceBase
+{
+public:
+    struct SequenceItem
+    {
+        size_t index1 = std::numeric_limits<size_t>::max();
+        size_t index2 = std::numeric_limits<size_t>::max();
+
+        bool isLeftValid() const { return index1 != std::numeric_limits<size_t>::max(); }
+        bool isRightValid() const { return index2 != std::numeric_limits<size_t>::max(); }
+        bool isLeft() const { return isLeftValid() && !isRightValid(); }
+        bool isRight() const { return isRightValid() && !isLeftValid(); }
+        bool isMatch() const { return isLeftValid() && isRightValid(); }
+    };
+    using Sequence = std::vector<SequenceItem>;
+};
+
 /// Algorithm for computing longest common subsequence, on two sequences
 /// of objects, which are implementing operator "==" (equal operator).
 /// Constructor takes bidirectional iterators to the sequence. So, iterators
 /// are requred to be bidirectional.
 template<typename Iterator, typename Comparator>
-class PDFAlgorithmLongestCommonSubsequence
+class PDFAlgorithmLongestCommonSubsequence : public PDFAlgorithmLongestCommonSubsequenceBase
 {
 public:
     PDFAlgorithmLongestCommonSubsequence(Iterator it1,
@@ -37,16 +54,6 @@ public:
                                          Iterator it2End,
                                          Comparator comparator);
 
-    struct SequenceItem
-    {
-        size_t index1 = std::numeric_limits<size_t>::max();
-        size_t index2 = std::numeric_limits<size_t>::max();
-
-        bool isLeftValid() const { return index1 == std::numeric_limits<size_t>::max(); }
-        bool isRightValid() const { return index2 == std::numeric_limits<size_t>::max(); }
-        bool isMatch() const { return isLeftValid() && isRightValid(); }
-    };
-    using Sequence = std::vector<SequenceItem>;
 
     void perform();
 
@@ -92,6 +99,7 @@ template<typename Iterator, typename Comparator>
 void PDFAlgorithmLongestCommonSubsequence<Iterator, Comparator>::perform()
 {
     m_backtrackData.resize(m_matrixSize);
+    m_sequence.clear();
 
     std::vector<size_t> rowTop(m_size1, size_t());
     std::vector<size_t> rowBottom(m_size1, size_t());
