@@ -26,18 +26,54 @@ namespace pdf
 class PDFAlgorithmLongestCommonSubsequenceBase
 {
 public:
+
+    enum SequenceItemFlag
+    {
+        None            = 0x0000,
+        MovedLeft       = 0x0001,   ///< Item has been moved from this position (is present in sequence no. 1)
+        MovedRight      = 0x0002,   ///< Item has been moved to this position (is present in a sequence no. 2)
+        Moved           = 0x0004,   ///< Index of item has been changed
+        Added           = 0x0008,   ///< Item has been added to a sequence no. 2
+        Removed         = 0x0010,   ///< Item has been removed from a sequence no. 1
+        Replaced        = 0x0020,   ///< Item has been replaced (or sequence of items has been replaced)
+    };
+    Q_DECLARE_FLAGS(SequenceItemFlags, SequenceItemFlag)
+
     struct SequenceItem
     {
         size_t index1 = std::numeric_limits<size_t>::max();
         size_t index2 = std::numeric_limits<size_t>::max();
+        SequenceItemFlags flags = None;
 
         bool isLeftValid() const { return index1 != std::numeric_limits<size_t>::max(); }
         bool isRightValid() const { return index2 != std::numeric_limits<size_t>::max(); }
         bool isLeft() const { return isLeftValid() && !isRightValid(); }
         bool isRight() const { return isRightValid() && !isLeftValid(); }
         bool isMatch() const { return isLeftValid() && isRightValid(); }
+        bool isMovedLeft() const { return flags.testFlag(MovedLeft); }
+        bool isMovedRight() const { return flags.testFlag(MovedRight); }
+        bool isMoved() const { return flags.testFlag(Moved); }
+        bool isAdded() const { return flags.testFlag(Added); }
+        bool isRemoved() const { return flags.testFlag(Removed); }
+        bool isReplaced() const { return flags.testFlag(Replaced); }
+
+        void markMovedLeft() { flags.setFlag(MovedLeft); }
+        void markMovedRight() { flags.setFlag(MovedRight); }
+        void markMoved() { flags.setFlag(Moved); }
+        void markAdded() { flags.setFlag(Added); }
+        void markRemoved() { flags.setFlag(Removed); }
+        void markReplaced() { flags.setFlag(Replaced); }
     };
     using Sequence = std::vector<SequenceItem>;
+
+    /// Marks a sequence with set of flags representing added/removed/replaced/moved
+    /// items. Moved items sequences must be sorted.
+    /// \param sequence Sequence to be marked
+    /// \param movedItemsLeft Sorted sequence of left indices, which have been moved
+    /// \param movedItemsRight sorted sequence of right indices, which have been moved
+    static void markSequence(Sequence& sequence,
+                             const std::vector<size_t>& movedItemsLeft,
+                             const std::vector<size_t>& movedItemsRight);
 };
 
 /// Algorithm for computing longest common subsequence, on two sequences

@@ -271,6 +271,9 @@ void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPre
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, leftUnmatched.begin(), leftUnmatched.end(), matchLeftPage);
 
+    std::vector<size_t> leftPagesMoved;
+    std::vector<size_t> rightPagesMoved;
+
     std::set<size_t> matchedRightPages;
     for (const auto& matchedPage : matchedPages)
     {
@@ -282,6 +285,9 @@ void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPre
                 const PDFDiffPageContext& leftPageContext = leftPreparedPages[matchedPage.first];
                 const PDFDiffPageContext& rightPageContext = rightPreparedPages[rightContextIndex];
 
+                leftPagesMoved.push_back(leftPageContext.pageIndex);
+                rightPagesMoved.push_back(rightPageContext.pageIndex);
+
                 pageMatches[leftPageContext.pageIndex] = rightPageContext.pageIndex;
             }
         }
@@ -292,6 +298,11 @@ void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPre
         algorithm.perform();
         pageSequence = algorithm.getSequence();
     }
+
+    std::sort(leftPagesMoved.begin(), leftPagesMoved.end());
+    std::sort(rightPagesMoved.begin(), rightPagesMoved.end());
+
+    PDFAlgorithmLongestCommonSubsequenceBase::markSequence(pageSequence, leftPagesMoved, rightPagesMoved);
 }
 
 void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::vector<PDFInteger>& rightPages)
@@ -356,7 +367,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
             PDFRenderer renderer(m_rightDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
             renderer.compile(&compiledPage, context.pageIndex);
 
-            const PDFPage* page = m_leftDocument->getCatalog()->getPage(context.pageIndex);
+            const PDFPage* page = m_rightDocument->getCatalog()->getPage(context.pageIndex);
             PDFReal epsilon = calculateEpsilonForPage(page);
             context.graphicPieces = compiledPage.calculateGraphicPieceInfos(page->getMediaBox(), epsilon);
 
