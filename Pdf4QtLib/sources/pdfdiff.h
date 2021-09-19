@@ -39,10 +39,29 @@ class PDFDiffResult
 public:
     explicit PDFDiffResult();
 
+    enum class Type
+    {
+        Invalid,
+        PageMoved
+    };
+
+    struct Difference
+    {
+        Type type = Type::Invalid;
+        PDFInteger pageIndex1 = -1;
+        PDFInteger pageIndex2 = -1;
+        QString message;
+    };
+
+    using Differences = std::vector<Difference>;
+
     void setResult(PDFOperationResult result) { m_result = std::move(result); }
     const PDFOperationResult& getResult() const { return m_result; }
 
+    void addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2);
+
 private:
+    Differences m_differences;
     PDFOperationResult m_result;
 };
 
@@ -129,7 +148,12 @@ private:
                       const std::vector<PDFInteger>& rightPages);
     void performPageMatching(const std::vector<PDFDiffPageContext>& leftPreparedPages,
                              const std::vector<PDFDiffPageContext>& rightPreparedPages,
-                             PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence);
+                             PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
+                             std::map<size_t, size_t>& pageMatches);
+    void performCompare(const std::vector<PDFDiffPageContext>& leftPreparedPages,
+                        const std::vector<PDFDiffPageContext>& rightPreparedPages,
+                        PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
+                        const std::map<size_t, size_t>& pageMatches);
     void finalizeGraphicsPieces(PDFDiffPageContext& context);
 
     void onComparationPerformed();

@@ -30,7 +30,7 @@ public:
     enum SequenceItemFlag
     {
         None            = 0x0000,
-        MovedLeft       = 0x0001,   ///< Item has been moved from this position (is present in sequence no. 1)
+        MovedLeft       = 0x0001,   ///< Item has been moved from this position (is present in a sequence no. 1)
         MovedRight      = 0x0002,   ///< Item has been moved to this position (is present in a sequence no. 2)
         Moved           = 0x0004,   ///< Index of item has been changed
         Added           = 0x0008,   ///< Item has been added to a sequence no. 2
@@ -56,6 +56,7 @@ public:
         bool isAdded() const { return flags.testFlag(Added); }
         bool isRemoved() const { return flags.testFlag(Removed); }
         bool isReplaced() const { return flags.testFlag(Replaced); }
+        bool isModified() const { return isAdded() || isRemoved() || isReplaced(); }
 
         void markMovedLeft() { flags.setFlag(MovedLeft); }
         void markMovedRight() { flags.setFlag(MovedRight); }
@@ -64,7 +65,11 @@ public:
         void markRemoved() { flags.setFlag(Removed); }
         void markReplaced() { flags.setFlag(Replaced); }
     };
-    using Sequence = std::vector<SequenceItem>;
+
+    using Sequence = typename std::vector<SequenceItem>;
+    using SequenceIterator = typename Sequence::iterator;
+    using SequenceItemRange = typename std::pair<SequenceIterator, SequenceIterator>;
+    using SequenceItemRanges = typename std::vector<SequenceItemRange>;
 
     /// Marks a sequence with set of flags representing added/removed/replaced/moved
     /// items. Moved items sequences must be sorted.
@@ -74,6 +79,15 @@ public:
     static void markSequence(Sequence& sequence,
                              const std::vector<size_t>& movedItemsLeft,
                              const std::vector<size_t>& movedItemsRight);
+
+    /// Returns item ranges, which should be checked - for example,
+    /// for text modification.
+    /// \param sequence Sequence
+    static SequenceItemRanges getModifiedRanges(Sequence& sequence);
+
+    /// Collect flags from given item range
+    /// \param range Range
+    static SequenceItemFlags collectFlags(const SequenceItemRange& range);
 };
 
 /// Algorithm for computing longest common subsequence, on two sequences

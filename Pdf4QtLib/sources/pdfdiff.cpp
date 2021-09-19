@@ -198,11 +198,13 @@ struct PDFDiffPageContext
     PDFInteger pageIndex = 0;
     std::array<uint8_t, 64> pageHash = { };
     PDFPrecompiledPage::GraphicPieceInfos graphicPieces;
+    PDFDocumentTextFlow text;
 };
 
 void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPreparedPages,
                                   const std::vector<PDFDiffPageContext>& rightPreparedPages,
-                                  PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence)
+                                  PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
+                                  std::map<size_t, size_t>& pageMatches)
 {
     // Match pages. We will use following algorithm: exact solution can fail, because
     // we are using hashes and due to numerical instability, hashes can be different
@@ -210,7 +212,6 @@ void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPre
     // So, we use longest common subsequence algorithm to detect same page ranges,
     // and then we match the rest. We assume the number of failing pages is relatively small.
 
-    std::map<size_t, size_t> pageMatches;
     auto comparePages = [&](const PDFDiffPageContext& left, const PDFDiffPageContext& right)
     {
         if (left.pageHash == right.pageHash)
@@ -311,6 +312,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
     std::vector<PDFDiffPageContext> rightPreparedPages;
 
     PDFDiffHelper::PageSequence pageSequence;
+    std::map<size_t, size_t> pageMatches; // Indices are real page indices, not indices to page contexts
 
     auto createDiffPageContext = [](auto pageIndex)
     {
@@ -381,7 +383,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
     // StepMatchPages
     if (!m_cancelled)
     {
-        performPageMatching(leftPreparedPages, rightPreparedPages, pageSequence);
+        performPageMatching(leftPreparedPages, rightPreparedPages, pageSequence, pageMatches);
         stepProgress();
     }
 
@@ -391,6 +393,16 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
         pdf::PDFDocumentTextFlowFactory factoryLeftDocumentTextFlow;
         factoryLeftDocumentTextFlow.setCalculateBoundingBoxes(true);
         PDFDocumentTextFlow leftTextFlow = factoryLeftDocumentTextFlow.create(m_leftDocument, leftPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
+        std::map<PDFInteger, PDFDocumentTextFlow> splittedText = leftTextFlow.split(PDFDocumentTextFlow::Text);
+        for (PDFDiffPageContext& leftContext : leftPreparedPages)
+        {
+            auto it = splittedText.find(leftContext.pageIndex);
+            if (it != splittedText.cend())
+            {
+                leftContext.text = std::move(it->second);
+                splittedText.erase(it);
+            }
+        }
         stepProgress();
     }
 
@@ -400,13 +412,58 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
         pdf::PDFDocumentTextFlowFactory factoryRightDocumentTextFlow;
         factoryRightDocumentTextFlow.setCalculateBoundingBoxes(true);
         PDFDocumentTextFlow rightTextFlow = factoryRightDocumentTextFlow.create(m_rightDocument, rightPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
+        std::map<PDFInteger, PDFDocumentTextFlow> splittedText = rightTextFlow.split(PDFDocumentTextFlow::Text);
+        for (PDFDiffPageContext& rightContext : rightPreparedPages)
+        {
+            auto it = splittedText.find(rightContext.pageIndex);
+            if (it != splittedText.cend())
+            {
+                rightContext.text = std::move(it->second);
+                splittedText.erase(it);
+            }
+        }
         stepProgress();
     }
 
     // StepCompare
     if (!m_cancelled)
     {
+        performCompare(leftPreparedPages, rightPreparedPages, pageSequence, pageMatches);
         stepProgress();
+    }
+}
+
+void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPreparedPages,
+                             const std::vector<PDFDiffPageContext>& rightPreparedPages,
+                             PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
+                             const std::map<size_t, size_t>& pageMatches)
+{
+    using AlgorithmLCS = PDFAlgorithmLongestCommonSubsequenceBase;
+
+    auto modifiedRanges = AlgorithmLCS::getModifiedRanges(pageSequence);
+
+    // First find all moved pages
+    for (const AlgorithmLCS::SequenceItem& item : pageSequence)
+    {
+        if (item.isMovedLeft())
+        {
+            Q_ASSERT(pageMatches.contains(leftPreparedPages.at(item.index1).pageIndex));
+            const PDFInteger leftIndex = leftPreparedPages[item.index1].pageIndex;
+            const PDFInteger rightIndex = pageMatches.at(leftIndex);
+            m_result.addPageMoved(leftIndex, rightIndex);
+        }
+        if (item.isMoved())
+        {
+            m_result.addPageMoved(leftPreparedPages[item.index1].pageIndex, rightPreparedPages[item.index2].pageIndex);
+        }
+    }
+
+    for (const auto& range : modifiedRanges)
+    {
+        AlgorithmLCS::SequenceItemFlags flags = AlgorithmLCS::collectFlags(range);
+
+        const bool isAdded = flags.testFlag(AlgorithmLCS::Added);
+        const bool isRemoved = flags.testFlag(AlgorithmLCS::Removed);
     }
 }
 
@@ -471,6 +528,18 @@ PDFDiffResult::PDFDiffResult() :
     m_result(true)
 {
 
+}
+
+void PDFDiffResult::addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2)
+{
+    Difference difference;
+
+    difference.type = Type::PageMoved;
+    difference.pageIndex1 = pageIndex1;
+    difference.pageIndex2 = pageIndex2;
+    difference.message = PDFDiff::tr("Page no. %1 from old document has been moved to a new document at page no. %2.").arg(pageIndex1 + 1).arg(pageIndex2 + 1);
+
+    m_differences.emplace_back(std::move(difference));
 }
 
 PDFDiffHelper::Differences PDFDiffHelper::calculateDifferences(const GraphicPieceInfos& left,

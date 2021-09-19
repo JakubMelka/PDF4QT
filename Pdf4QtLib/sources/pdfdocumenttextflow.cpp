@@ -1040,4 +1040,19 @@ void PDFDocumentTextFlowEditor::updateModifiedFlag(size_t index)
     item->editedItemFlags.setFlag(Modified, isModified);
 }
 
+std::map<PDFInteger, PDFDocumentTextFlow> PDFDocumentTextFlow::split(Flags mask) const
+{
+    std::map<PDFInteger, PDFDocumentTextFlow> result;
+
+    for (const Item& item : m_items)
+    {
+        if (item.flags & mask)
+        {
+            result[item.pageIndex].addItem(item);
+        }
+    }
+
+    return result;
+}
+
 }   // namespace pdf

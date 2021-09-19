@@ -121,7 +121,57 @@ void PDFAlgorithmLongestCommonSubsequenceBase::markSequence(Sequence& sequence,
         }
     }
 
+    for (SequenceItem& item : updatedSequence)
+    {
+        if (item.isMatch() && !item.isRemoved() && !item.isReplaced() && !item.isAdded() && item.index1 != item.index2)
+        {
+            item.markMoved();
+        }
+    }
+
     sequence = qMove(updatedSequence);
+}
+
+PDFAlgorithmLongestCommonSubsequenceBase::SequenceItemRanges PDFAlgorithmLongestCommonSubsequenceBase::getModifiedRanges(Sequence& sequence)
+{
+    SequenceItemRanges result;
+
+    for (auto it = sequence.begin(); it != sequence.end();)
+    {
+        const SequenceItem& item = *it;
+        if (!item.isModified())
+        {
+            ++it;
+            continue;
+        }
+
+        // Jakub Melka: now, we have iterator pointing on item,
+        // which has been modified. We will search for modification
+        // range.
+
+        auto itEnd = it;
+        while (itEnd != sequence.end() && itEnd->isModified())
+        {
+            ++itEnd;
+        }
+
+        result.emplace_back(it, itEnd);
+        it = itEnd;
+    }
+
+    return result;
+}
+
+PDFAlgorithmLongestCommonSubsequenceBase::SequenceItemFlags PDFAlgorithmLongestCommonSubsequenceBase::collectFlags(const SequenceItemRange& range)
+{
+    SequenceItemFlags flags = 0;
+
+    for (auto it = range.first; it != range.second; ++it)
+    {
+        flags |= it->flags;
+    }
+
+    return flags;
 }
 
 }   // namespace pdf
