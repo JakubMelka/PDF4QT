@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+﻿//    Copyright (C) 2021 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -464,6 +464,68 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
 
         const bool isAdded = flags.testFlag(AlgorithmLCS::Added);
         const bool isRemoved = flags.testFlag(AlgorithmLCS::Removed);
+        const bool isReplaced = flags.testFlag(AlgorithmLCS::Replaced);
+
+        Q_ASSERT(isAdded || isRemoved || isReplaced);
+
+        // There are two cases. Some page content was replaced, or either
+        // page range was added, or page range was removed.
+        if (isReplaced)
+        {
+            for (auto it = range.first; it != range.second; ++i)
+            {
+                const AlgorithmLCS::SequenceItem& item = *it;
+                if (item.isReplaced())
+                {
+                    const bool isTextComparedAsVectorGraphics = m_options.testFlag(CompareTextsAsVector);
+                    const PDFDiffPageContext& leftPageContext = leftPreparedPages[item.index1];
+                    const PDFDiffPageContext& rightPageContext = rightPreparedPages[item.index2];
+
+                    auto pageLeft = m_leftDocument->getCatalog()->getPage(leftPageContext.pageIndex);
+                    auto pageRight = m_rightDocument->getCatalog()->getPage(rightPageContext.pageIndex);
+                    PDFReal epsilon = (calculateEpsilonForPage(pageLeft) + calculateEpsilonForPage(pageRight)) * 0.5;
+
+                    PDFDiffHelper::Differences differences = PDFDiffHelper::calculateDifferences(leftPageContext.graphicPieces, rightPageContext.graphicPieces, epsilon);
+
+                    for (const PDFDiffHelper::GraphicPieceInfo& info : differences.left)
+                    {
+                        /*
+                        switch (info.type)
+                        {
+
+                        }*/
+                    }
+                }
+
+                if (item.isAdded())
+                {
+                    const PDFDiffPageContext& rightPageContext = rightPreparedPages[item.index2];
+                    m_result.addPageAdded(rightPageContext.pageIndex);
+                }
+                if (item.isRemoved())
+                {
+                    const PDFDiffPageContext& leftPageContext = leftPreparedPages[item.index1];
+                    m_result.addPageRemoved(leftPageContext.pageIndex);
+                }
+            }
+        }
+        else
+        {
+            for (auto it = range.first; it != range.second; ++i)
+            {
+                const AlgorithmLCS::SequenceItem& item = *it;
+                Q_ASSERT(item.isAdded() || item.isRemoved());
+
+                if (item.isAdded())
+                {
+                    m_result.addPageAdded(rightPreparedPages[item.index2].pageIndex);
+                }
+                if (item.isRemoved())
+                {
+                    m_result.addPageRemoved(leftPreparedPages[item.index1].pageIndex);
+                }
+            }
+        }
     }
 }
 
@@ -538,6 +600,28 @@ void PDFDiffResult::addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2)
     difference.pageIndex1 = pageIndex1;
     difference.pageIndex2 = pageIndex2;
     difference.message = PDFDiff::tr("Page no. %1 from old document has been moved to a new document at page no. %2.").arg(pageIndex1 + 1).arg(pageIndex2 + 1);
+
+    m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addPageAdded(PDFInteger pageIndex)
+{
+    Difference difference;
+
+    difference.type = Type::PageAdded;
+    difference.pageIndex2 = pageIndex;
+    difference.message = PDFDiff::tr("Page no. %1 was added.").arg(pageIndex + 1);
+
+    m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addPageRemoved(PDFInteger pageIndex)
+{
+    Difference difference;
+
+    difference.type = Type::PageMoved;
+    difference.pageIndex1 = pageIndex;
+    difference.message = PDFDiff::tr("Page no. %1 was removed.").arg(pageIndex + 1);
 
     m_differences.emplace_back(std::move(difference));
 }

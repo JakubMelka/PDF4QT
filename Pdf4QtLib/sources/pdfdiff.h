@@ -42,7 +42,9 @@ public:
     enum class Type
     {
         Invalid,
-        PageMoved
+        PageMoved,
+        PageAdded,
+        PageRemoved
     };
 
     struct Difference
@@ -59,6 +61,8 @@ public:
     const PDFOperationResult& getResult() const { return m_result; }
 
     void addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2);
+    void addPageAdded(PDFInteger pageIndex);
+    void addPageRemoved(PDFInteger pageIndex);
 
 private:
     Differences m_differences;
@@ -79,12 +83,13 @@ public:
 
     enum Option
     {
-        None                = 0x0000,
-        Asynchronous        = 0x0001,   ///< Compare document asynchronously
-        PC_Text             = 0x0002,   ///< Use text to compare pages (determine, which pages correspond to each other)
-        PC_VectorGraphics   = 0x0004,   ///< Use vector graphics to compare pages (determine, which pages correspond to each other)
-        PC_Images           = 0x0008,   ///< Use images to compare pages (determine, which pages correspond to each other)
-        PC_Mesh             = 0x0010,   ///< Use mesh to compare pages (determine, which pages correspond to each other)
+        None                    = 0x0000,
+        Asynchronous            = 0x0001,   ///< Compare document asynchronously
+        PC_Text                 = 0x0002,   ///< Use text to compare pages (determine, which pages correspond to each other)
+        PC_VectorGraphics       = 0x0004,   ///< Use vector graphics to compare pages (determine, which pages correspond to each other)
+        PC_Images               = 0x0008,   ///< Use images to compare pages (determine, which pages correspond to each other)
+        PC_Mesh                 = 0x0010,   ///< Use mesh to compare pages (determine, which pages correspond to each other)
+        CompareTextsAsVector    = 0x0020,   ///< Compare texts as vector graphics
     };
     Q_DECLARE_FLAGS(Options, Option)
 
