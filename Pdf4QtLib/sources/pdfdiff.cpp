@@ -472,7 +472,7 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         // page range was added, or page range was removed.
         if (isReplaced)
         {
-            for (auto it = range.first; it != range.second; ++i)
+            for (auto it = range.first; it != range.second; ++it)
             {
                 const AlgorithmLCS::SequenceItem& item = *it;
                 if (item.isReplaced())
@@ -489,11 +489,60 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
 
                     for (const PDFDiffHelper::GraphicPieceInfo& info : differences.left)
                     {
-                        /*
                         switch (info.type)
                         {
+                            case PDFDiffHelper::GraphicPieceInfo::Type::Text:
+                                if (isTextComparedAsVectorGraphics)
+                                {
+                                    m_result.addRemovedTextCharContent(leftPageContext.pageIndex, info.boundingRect);
+                                }
+                                break;
 
-                        }*/
+                            case PDFDiffHelper::GraphicPieceInfo::Type::VectorGraphics:
+                                m_result.addRemovedVectorGraphicContent(leftPageContext.pageIndex, info.boundingRect);
+                                break;
+
+                            case PDFDiffHelper::GraphicPieceInfo::Type::Image:
+                                m_result.addRemovedImageContent(leftPageContext.pageIndex, info.boundingRect);
+                                break;
+
+                            case PDFDiffHelper::GraphicPieceInfo::Type::Shading:
+                                m_result.addRemovedShadingContent(leftPageContext.pageIndex, info.boundingRect);
+                                break;
+
+                            default:
+                                Q_ASSERT(false);
+                                break;
+                        }
+                    }
+
+                    for (const PDFDiffHelper::GraphicPieceInfo& info : differences.right)
+                    {
+                        switch (info.type)
+                        {
+                            case PDFDiffHelper::GraphicPieceInfo::Type::Text:
+                                if (isTextComparedAsVectorGraphics)
+                                {
+                                    m_result.addAddedTextCharContent(rightPageContext.pageIndex, info.boundingRect);
+                                }
+                                break;
+
+                            case PDFDiffHelper::GraphicPieceInfo::Type::VectorGraphics:
+                                m_result.addAddedVectorGraphicContent(rightPageContext.pageIndex, info.boundingRect);
+                                break;
+
+                            case PDFDiffHelper::GraphicPieceInfo::Type::Image:
+                                m_result.addAddedImageContent(rightPageContext.pageIndex, info.boundingRect);
+                                break;
+
+                            case PDFDiffHelper::GraphicPieceInfo::Type::Shading:
+                                m_result.addAddedShadingContent(rightPageContext.pageIndex, info.boundingRect);
+                                break;
+
+                            default:
+                                Q_ASSERT(false);
+                                break;
+                        }
                     }
                 }
 
@@ -511,7 +560,7 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         }
         else
         {
-            for (auto it = range.first; it != range.second; ++i)
+            for (auto it = range.first; it != range.second; ++it)
             {
                 const AlgorithmLCS::SequenceItem& item = *it;
                 Q_ASSERT(item.isAdded() || item.isRemoved());
@@ -599,7 +648,6 @@ void PDFDiffResult::addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2)
     difference.type = Type::PageMoved;
     difference.pageIndex1 = pageIndex1;
     difference.pageIndex2 = pageIndex2;
-    difference.message = PDFDiff::tr("Page no. %1 from old document has been moved to a new document at page no. %2.").arg(pageIndex1 + 1).arg(pageIndex2 + 1);
 
     m_differences.emplace_back(std::move(difference));
 }
@@ -610,7 +658,6 @@ void PDFDiffResult::addPageAdded(PDFInteger pageIndex)
 
     difference.type = Type::PageAdded;
     difference.pageIndex2 = pageIndex;
-    difference.message = PDFDiff::tr("Page no. %1 was added.").arg(pageIndex + 1);
 
     m_differences.emplace_back(std::move(difference));
 }
@@ -619,11 +666,137 @@ void PDFDiffResult::addPageRemoved(PDFInteger pageIndex)
 {
     Difference difference;
 
-    difference.type = Type::PageMoved;
+    difference.type = Type::PageRemoved;
     difference.pageIndex1 = pageIndex;
-    difference.message = PDFDiff::tr("Page no. %1 was removed.").arg(pageIndex + 1);
 
     m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addLeftItem(Type type, PDFInteger pageIndex, QRectF rect)
+{
+    Difference difference;
+
+    difference.type = type;
+    difference.pageIndex1 = pageIndex;
+    addRectLeft(difference, rect);
+
+    m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addRightItem(Type type, PDFInteger pageIndex, QRectF rect)
+{
+    Difference difference;
+
+    difference.type = type;
+    difference.pageIndex2 = pageIndex;
+    addRectRight(difference, rect);
+
+    m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addRemovedTextCharContent(PDFInteger pageIndex, QRectF rect)
+{
+    addLeftItem(Type::RemovedTextCharContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addRemovedVectorGraphicContent(PDFInteger pageIndex, QRectF rect)
+{
+    addLeftItem(Type::RemovedVectorGraphicContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addRemovedImageContent(PDFInteger pageIndex, QRectF rect)
+{
+    addLeftItem(Type::RemovedImageContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addRemovedShadingContent(PDFInteger pageIndex, QRectF rect)
+{
+    addLeftItem(Type::RemovedShadingContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addAddedTextCharContent(PDFInteger pageIndex, QRectF rect)
+{
+    addRightItem(Type::AddedTextCharContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addAddedVectorGraphicContent(PDFInteger pageIndex, QRectF rect)
+{
+    addRightItem(Type::AddedVectorGraphicContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addAddedImageContent(PDFInteger pageIndex, QRectF rect)
+{
+    addRightItem(Type::AddedImageContent, pageIndex, rect);
+}
+
+void PDFDiffResult::addAddedShadingContent(PDFInteger pageIndex, QRectF rect)
+{
+    addRightItem(Type::AddedShadingContent, pageIndex, rect);
+}
+
+QString PDFDiffResult::getMessage(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return QString();
+    }
+
+    const Difference& difference = m_differences[index];
+    switch (difference.type)
+    {
+        case Type::PageMoved:
+            return PDFDiff::tr("Page no. %1 from old document has been moved to a new document at page no. %2.").arg(difference.pageIndex1 + 1).arg(difference.pageIndex2 + 1);
+
+        case Type::PageAdded:
+            return PDFDiff::tr("Page no. %1 was added.").arg(difference.pageIndex2 + 1);
+
+        case Type::PageRemoved:
+            return PDFDiff::tr("Page no. %1 was removed.").arg(difference.pageIndex1 + 1);
+
+        case Type::RemovedTextCharContent:
+            return PDFDiff::tr("Removed text character from page %1.").arg(difference.pageIndex1 + 1);
+
+        case Type::RemovedVectorGraphicContent:
+            return PDFDiff::tr("Removed vector graphics from page %1.").arg(difference.pageIndex1 + 1);
+
+        case Type::RemovedImageContent:
+            return PDFDiff::tr("Removed image from page %1.").arg(difference.pageIndex1 + 1);
+
+        case Type::RemovedShadingContent:
+            return PDFDiff::tr("Removed shading from page %1.").arg(difference.pageIndex1 + 1);
+
+        case Type::AddedTextCharContent:
+            return PDFDiff::tr("Added text character from page %1.").arg(difference.pageIndex2 + 1);
+
+        case Type::AddedVectorGraphicContent:
+            return PDFDiff::tr("Added vector graphics from page %1.").arg(difference.pageIndex2 + 1);
+
+        case Type::AddedImageContent:
+            return PDFDiff::tr("Added image from page %1.").arg(difference.pageIndex2 + 1);
+
+        case Type::AddedShadingContent:
+            return PDFDiff::tr("Added shading from page %1.").arg(difference.pageIndex2 + 1);
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+void PDFDiffResult::addRectLeft(Difference& difference, QRectF rect)
+{
+    difference.leftRectIndex = m_rects.size();
+    difference.leftRectCount = 1;
+    m_rects.emplace_back(rect);
+}
+
+void PDFDiffResult::addRectRight(Difference& difference, QRectF rect)
+{
+    difference.rightRectIndex = m_rects.size();
+    difference.rightRectCount = 1;
+    m_rects.emplace_back(rect);
 }
 
 PDFDiffHelper::Differences PDFDiffHelper::calculateDifferences(const GraphicPieceInfos& left,

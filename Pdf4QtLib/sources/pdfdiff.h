@@ -44,7 +44,15 @@ public:
         Invalid,
         PageMoved,
         PageAdded,
-        PageRemoved
+        PageRemoved,
+        RemovedTextCharContent,
+        RemovedVectorGraphicContent,
+        RemovedImageContent,
+        RemovedShadingContent,
+        AddedTextCharContent,
+        AddedVectorGraphicContent,
+        AddedImageContent,
+        AddedShadingContent,
     };
 
     struct Difference
@@ -52,7 +60,10 @@ public:
         Type type = Type::Invalid;
         PDFInteger pageIndex1 = -1;
         PDFInteger pageIndex2 = -1;
-        QString message;
+        size_t leftRectIndex = 0;
+        size_t leftRectCount = 0;
+        size_t rightRectIndex = 0;
+        size_t rightRectCount = 0;
     };
 
     using Differences = std::vector<Difference>;
@@ -64,8 +75,26 @@ public:
     void addPageAdded(PDFInteger pageIndex);
     void addPageRemoved(PDFInteger pageIndex);
 
+    void addRemovedTextCharContent(PDFInteger pageIndex, QRectF rect);
+    void addRemovedVectorGraphicContent(PDFInteger pageIndex, QRectF rect);
+    void addRemovedImageContent(PDFInteger pageIndex, QRectF rect);
+    void addRemovedShadingContent(PDFInteger pageIndex, QRectF rect);
+    void addAddedTextCharContent(PDFInteger pageIndex, QRectF rect);
+    void addAddedVectorGraphicContent(PDFInteger pageIndex, QRectF rect);
+    void addAddedImageContent(PDFInteger pageIndex, QRectF rect);
+    void addAddedShadingContent(PDFInteger pageIndex, QRectF rect);
+
+    QString getMessage(size_t index) const;
+
 private:
+    void addLeftItem(Type type, PDFInteger pageIndex, QRectF rect);
+    void addRightItem(Type type, PDFInteger pageIndex, QRectF rect);
+
+    void addRectLeft(Difference& difference, QRectF rect);
+    void addRectRight(Difference& difference, QRectF rect);
+
     Differences m_differences;
+    std::vector<QRectF> m_rects;
     PDFOperationResult m_result;
 };
 
