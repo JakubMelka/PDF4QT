@@ -46,6 +46,14 @@ public:
         bool isEmpty() const { return left.empty() && right.empty(); }
     };
 
+    struct TextFlowDifferences
+    {
+        PDFDocumentTextFlow leftTextFlow;
+        PDFDocumentTextFlow rightTextFlow;
+        QString leftText;
+        QString rightText;
+    };
+
     static Differences calculateDifferences(const GraphicPieceInfos& left, const GraphicPieceInfos& right, PDFReal epsilon);
     static std::vector<size_t> getLeftUnmatched(const PageSequence& sequence);
     static std::vector<size_t> getRightUnmatched(const PageSequence& sequence);
@@ -59,7 +67,8 @@ PDFDiff::PDFDiff(QObject* parent) :
     m_rightDocument(nullptr),
     m_options(Asynchronous | PC_Text | PC_VectorGraphics | PC_Images),
     m_epsilon(0.001),
-    m_cancelled(false)
+    m_cancelled(false),
+    m_textAnalysisAlgorithm(PDFDocumentTextFlowFactory::Algorithm::Layout)
 {
 
 }
@@ -392,7 +401,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
     {
         pdf::PDFDocumentTextFlowFactory factoryLeftDocumentTextFlow;
         factoryLeftDocumentTextFlow.setCalculateBoundingBoxes(true);
-        PDFDocumentTextFlow leftTextFlow = factoryLeftDocumentTextFlow.create(m_leftDocument, leftPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
+        PDFDocumentTextFlow leftTextFlow = factoryLeftDocumentTextFlow.create(m_leftDocument, leftPages, m_textAnalysisAlgorithm);
         std::map<PDFInteger, PDFDocumentTextFlow> splittedText = leftTextFlow.split(PDFDocumentTextFlow::Text);
         for (PDFDiffPageContext& leftContext : leftPreparedPages)
         {
@@ -411,7 +420,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages, const std::
     {
         pdf::PDFDocumentTextFlowFactory factoryRightDocumentTextFlow;
         factoryRightDocumentTextFlow.setCalculateBoundingBoxes(true);
-        PDFDocumentTextFlow rightTextFlow = factoryRightDocumentTextFlow.create(m_rightDocument, rightPages, PDFDocumentTextFlowFactory::Algorithm::Auto);
+        PDFDocumentTextFlow rightTextFlow = factoryRightDocumentTextFlow.create(m_rightDocument, rightPages, m_textAnalysisAlgorithm);
         std::map<PDFInteger, PDFDocumentTextFlow> splittedText = rightTextFlow.split(PDFDocumentTextFlow::Text);
         for (PDFDiffPageContext& rightContext : rightPreparedPages)
         {
@@ -458,6 +467,8 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         }
     }
 
+    std::vector<PDFDiffHelper::TextFlowDifferences> textFlowDifferences;
+
     for (const auto& range : modifiedRanges)
     {
         AlgorithmLCS::SequenceItemFlags flags = AlgorithmLCS::collectFlags(range);
@@ -472,14 +483,24 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         // page range was added, or page range was removed.
         if (isReplaced)
         {
+            PDFDocumentTextFlow leftTextFlow;
+            PDFDocumentTextFlow rightTextFlow;
+
+            const bool isTextComparedAsVectorGraphics = m_options.testFlag(CompareTextsAsVector);
+
             for (auto it = range.first; it != range.second; ++it)
             {
                 const AlgorithmLCS::SequenceItem& item = *it;
                 if (item.isReplaced())
                 {
-                    const bool isTextComparedAsVectorGraphics = m_options.testFlag(CompareTextsAsVector);
                     const PDFDiffPageContext& leftPageContext = leftPreparedPages[item.index1];
                     const PDFDiffPageContext& rightPageContext = rightPreparedPages[item.index2];
+
+                    if (!isTextComparedAsVectorGraphics)
+                    {
+                        leftTextFlow.append(leftPageContext.text);
+                        rightTextFlow.append(rightPageContext.text);
+                    }
 
                     auto pageLeft = m_leftDocument->getCatalog()->getPage(leftPageContext.pageIndex);
                     auto pageRight = m_rightDocument->getCatalog()->getPage(rightPageContext.pageIndex);
@@ -549,13 +570,41 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                 if (item.isAdded())
                 {
                     const PDFDiffPageContext& rightPageContext = rightPreparedPages[item.index2];
+
+                    if (!isTextComparedAsVectorGraphics)
+                    {
+                        rightTextFlow.append(rightPageContext.text);
+                    }
+
                     m_result.addPageAdded(rightPageContext.pageIndex);
                 }
                 if (item.isRemoved())
                 {
                     const PDFDiffPageContext& leftPageContext = leftPreparedPages[item.index1];
+
+                    if (!isTextComparedAsVectorGraphics)
+                    {
+                        leftTextFlow.append(leftPageContext.text);
+                    }
+
                     m_result.addPageRemoved(leftPageContext.pageIndex);
                 }
+            }
+
+            textFlowDifferences.emplace_back();
+            PDFDiffHelper::TextFlowDifferences& addedDifferences = textFlowDifferences.back();
+            addedDifferences.leftText = leftTextFlow.getText();
+            addedDifferences.rightText = rightTextFlow.getText();
+
+            if (addedDifferences.leftText == addedDifferences.rightText)
+            {
+                // Text is the same, no difference is found
+                textFlowDifferences.pop_back();
+            }
+            else
+            {
+                addedDifferences.leftTextFlow = std::move(leftTextFlow);
+                addedDifferences.rightTextFlow = std::move(rightTextFlow);
             }
         }
         else
@@ -576,6 +625,77 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
             }
         }
     }
+
+    // Jakub Melka: try to compare text differences
+    auto compareTexts = [this](PDFDiffHelper::TextFlowDifferences& context)
+    {
+        struct CompareItem
+        {
+            size_t index = 0;
+            int charIndex = 0;
+            bool left = false;
+        };
+
+        std::vector<CompareItem> leftItems;
+        std::vector<CompareItem> rightItems;
+
+        const size_t leftCount = context.leftTextFlow.getSize();
+        for (size_t i = 0; i < leftCount; ++i)
+        {
+            CompareItem item;
+            item.index = i;
+            item.left = true;
+
+            const PDFDocumentTextFlow::Item* textFlowItem = context.leftTextFlow.getItem(i);
+            for (int j = 0; j < textFlowItem->text.size(); ++j)
+            {
+                item.charIndex = j;
+                leftItems.push_back(item);
+            }
+        }
+
+        const size_t rightCount = context.rightTextFlow.getSize();
+        for (size_t i = 0; i < rightCount; ++i)
+        {
+            CompareItem item;
+            item.index = i;
+            item.left = false;
+
+            const PDFDocumentTextFlow::Item* textFlowItem = context.rightTextFlow.getItem(i);
+            for (int j = 0; j < textFlowItem->text.size(); ++j)
+            {
+                item.charIndex = j;
+                rightItems.push_back(item);
+            }
+        }
+
+        auto compareCharacters = [&](const CompareItem& a, const CompareItem& b)
+        {
+
+
+            const auto& aItem = a.left ? context.leftTextFlow : context.rightTextFlow;
+            const auto& bItem = b.left ? context.leftTextFlow : context.rightTextFlow;
+
+            QChar aChar = aItem.getItem(a.index)->text[a.charIndex];
+            QChar bChar = bItem.getItem(b.index)->text[b.charIndex];
+
+            return aChar == bChar;
+        };
+        PDFAlgorithmLongestCommonSubsequence algorithm(leftItems.cbegin(), leftItems.cend(),
+                                                       rightItems.cbegin(), rightItems.cend(),
+                                                       compareCharacters);
+        algorithm.perform();
+        PDFAlgorithmLongestCommonSubsequenceBase::Sequence sequence = algorithm.getSequence();
+        PDFAlgorithmLongestCommonSubsequenceBase::markSequence(sequence, { }, { });
+        PDFAlgorithmLongestCommonSubsequenceBase::SequenceItemRanges modifiedRanges = PDFAlgorithmLongestCommonSubsequenceBase::getModifiedRanges(sequence);
+
+        for (const auto& range : modifiedRanges)
+        {
+
+        }
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, textFlowDifferences.begin(), textFlowDifferences.end(), compareTexts);
 }
 
 void PDFDiff::finalizeGraphicsPieces(PDFDiffPageContext& context)
@@ -633,6 +753,16 @@ PDFReal PDFDiff::calculateEpsilonForPage(const PDFPage* page) const
     PDFReal factor = qMax(width, height);
 
     return factor * m_epsilon;
+}
+
+PDFDocumentTextFlowFactory::Algorithm PDFDiff::getTextAnalysisAlgorithm() const
+{
+    return m_textAnalysisAlgorithm;
+}
+
+void PDFDiff::setTextAnalysisAlgorithm(PDFDocumentTextFlowFactory::Algorithm textAnalysisAlgorithm)
+{
+    m_textAnalysisAlgorithm = textAnalysisAlgorithm;
 }
 
 PDFDiffResult::PDFDiffResult() :

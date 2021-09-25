@@ -91,6 +91,13 @@ public:
     /// \param mask Mask
     std::map<PDFInteger, PDFDocumentTextFlow> split(Flags mask) const;
 
+    /// Appends document text flow to this one
+    /// \param textFlow Text flow
+    void append(const PDFDocumentTextFlow& textFlow);
+
+    /// Returns text concantecated from all items
+    QString getText() const;
+
 private:
     Items m_items;
 };

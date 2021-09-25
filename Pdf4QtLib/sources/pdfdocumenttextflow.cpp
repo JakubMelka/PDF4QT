@@ -1055,4 +1055,21 @@ std::map<PDFInteger, PDFDocumentTextFlow> PDFDocumentTextFlow::split(Flags mask)
     return result;
 }
 
+void PDFDocumentTextFlow::append(const PDFDocumentTextFlow& textFlow)
+{
+    m_items.insert(m_items.end(), textFlow.m_items.cbegin(), textFlow.m_items.cend());
+}
+
+QString PDFDocumentTextFlow::getText() const
+{
+    QStringList texts;
+
+    for (const auto& item : m_items)
+    {
+        texts << item.text.trimmed();
+    }
+
+    return texts.join(" ");
+}
+
 }   // namespace pdf

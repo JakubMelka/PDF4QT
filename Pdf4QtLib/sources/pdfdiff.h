@@ -22,6 +22,7 @@
 #include "pdfprogress.h"
 #include "pdfutils.h"
 #include "pdfalgorithmlcs.h"
+#include "pdfdocumenttextflow.h"
 
 #include <QObject>
 #include <QFuture>
@@ -160,6 +161,9 @@ public:
     /// Returns result of a comparation process
     const PDFDiffResult& getResult() const { return m_result; }
 
+    PDFDocumentTextFlowFactory::Algorithm getTextAnalysisAlgorithm() const;
+    void setTextAnalysisAlgorithm(PDFDocumentTextFlowFactory::Algorithm textAnalysisAlgorithm);
+
 signals:
     void comparationFinished();
 
@@ -207,6 +211,7 @@ private:
     PDFReal m_epsilon;
     std::atomic_bool m_cancelled;
     PDFDiffResult m_result;
+    PDFDocumentTextFlowFactory::Algorithm m_textAnalysisAlgorithm;
 
     QFuture<PDFDiffResult> m_future;
     std::optional<QFutureWatcher<PDFDiffResult>> m_futureWatcher;
