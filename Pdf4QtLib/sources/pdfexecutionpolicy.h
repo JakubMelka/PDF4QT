@@ -107,7 +107,7 @@ public:
             // into buckets of appropriate size.
             if (scope != Scope::Page)
             {
-                const int buckets = 32 * QThread::idealThreadCount();
+                const int buckets = 8 * QThread::idealThreadCount();
                 bucketSize = qMax(1, count / buckets);
             }
 

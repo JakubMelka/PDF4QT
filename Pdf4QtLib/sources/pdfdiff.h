@@ -120,6 +120,7 @@ public:
         PC_Images               = 0x0008,   ///< Use images to compare pages (determine, which pages correspond to each other)
         PC_Mesh                 = 0x0010,   ///< Use mesh to compare pages (determine, which pages correspond to each other)
         CompareTextsAsVector    = 0x0020,   ///< Compare texts as vector graphics
+        CompareWords            = 0x0040,   ///< Compare words, not just characters
     };
     Q_DECLARE_FLAGS(Options, Option)
 

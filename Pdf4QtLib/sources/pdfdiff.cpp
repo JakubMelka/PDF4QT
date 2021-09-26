@@ -54,10 +54,21 @@ public:
         QString rightText;
     };
 
+    struct TextCompareItem
+    {
+        size_t index = 0;
+        int charIndex = 0;
+        int charCount = 0;
+        bool left = false;
+    };
+
     static Differences calculateDifferences(const GraphicPieceInfos& left, const GraphicPieceInfos& right, PDFReal epsilon);
     static std::vector<size_t> getLeftUnmatched(const PageSequence& sequence);
     static std::vector<size_t> getRightUnmatched(const PageSequence& sequence);
     static void matchPage(PageSequence& sequence, size_t leftPage, size_t rightPage);
+    static std::vector<TextCompareItem> prepareTextCompareItems(const PDFDocumentTextFlow& textFlow,
+                                                                bool isWordsComparingMode,
+                                                                bool isLeft);
 };
 
 PDFDiff::PDFDiff(QObject* parent) :
@@ -65,7 +76,7 @@ PDFDiff::PDFDiff(QObject* parent) :
     m_progress(nullptr),
     m_leftDocument(nullptr),
     m_rightDocument(nullptr),
-    m_options(Asynchronous | PC_Text | PC_VectorGraphics | PC_Images),
+    m_options(Asynchronous | PC_Text | PC_VectorGraphics | PC_Images | CompareWords),
     m_epsilon(0.001),
     m_cancelled(false),
     m_textAnalysisAlgorithm(PDFDocumentTextFlowFactory::Algorithm::Layout)
@@ -629,57 +640,24 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
     // Jakub Melka: try to compare text differences
     auto compareTexts = [this](PDFDiffHelper::TextFlowDifferences& context)
     {
-        struct CompareItem
+        using TextCompareItem = PDFDiffHelper::TextCompareItem;
+        const bool isWordsComparingMode = m_options.testFlag(CompareWords);
+
+        std::vector<TextCompareItem> leftItems;
+        std::vector<TextCompareItem> rightItems;
+
+        leftItems = PDFDiffHelper::prepareTextCompareItems(context.leftTextFlow, isWordsComparingMode, true);
+        rightItems = PDFDiffHelper::prepareTextCompareItems(context.rightTextFlow, isWordsComparingMode, false);
+
+        auto compareCharacters = [&](const TextCompareItem& a, const TextCompareItem& b)
         {
-            size_t index = 0;
-            int charIndex = 0;
-            bool left = false;
-        };
-
-        std::vector<CompareItem> leftItems;
-        std::vector<CompareItem> rightItems;
-
-        const size_t leftCount = context.leftTextFlow.getSize();
-        for (size_t i = 0; i < leftCount; ++i)
-        {
-            CompareItem item;
-            item.index = i;
-            item.left = true;
-
-            const PDFDocumentTextFlow::Item* textFlowItem = context.leftTextFlow.getItem(i);
-            for (int j = 0; j < textFlowItem->text.size(); ++j)
-            {
-                item.charIndex = j;
-                leftItems.push_back(item);
-            }
-        }
-
-        const size_t rightCount = context.rightTextFlow.getSize();
-        for (size_t i = 0; i < rightCount; ++i)
-        {
-            CompareItem item;
-            item.index = i;
-            item.left = false;
-
-            const PDFDocumentTextFlow::Item* textFlowItem = context.rightTextFlow.getItem(i);
-            for (int j = 0; j < textFlowItem->text.size(); ++j)
-            {
-                item.charIndex = j;
-                rightItems.push_back(item);
-            }
-        }
-
-        auto compareCharacters = [&](const CompareItem& a, const CompareItem& b)
-        {
-
-
             const auto& aItem = a.left ? context.leftTextFlow : context.rightTextFlow;
             const auto& bItem = b.left ? context.leftTextFlow : context.rightTextFlow;
 
-            QChar aChar = aItem.getItem(a.index)->text[a.charIndex];
-            QChar bChar = bItem.getItem(b.index)->text[b.charIndex];
+            QStringRef aText(&aItem.getItem(a.index)->text, a.charIndex, a.charCount);
+            QStringRef bText(&bItem.getItem(b.index)->text, b.charIndex, b.charCount);
 
-            return aChar == bChar;
+            return aText == bText;
         };
         PDFAlgorithmLongestCommonSubsequence algorithm(leftItems.cbegin(), leftItems.cend(),
                                                        rightItems.cbegin(), rightItems.cend(),
@@ -689,13 +667,100 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         PDFAlgorithmLongestCommonSubsequenceBase::markSequence(sequence, { }, { });
         PDFAlgorithmLongestCommonSubsequenceBase::SequenceItemRanges modifiedRanges = PDFAlgorithmLongestCommonSubsequenceBase::getModifiedRanges(sequence);
 
+        // Merge modified sequences separated by just space
+        if (!isWordsComparingMode && !modifiedRanges.empty())
+        {
+            auto itPrev = sequence.end();
+            for (const auto& range : modifiedRanges)
+            {
+                if (itPrev != sequence.end())
+                {
+                    auto itNext = range.first;
+
+                    bool isReplaced = true;
+                    for (auto it = itPrev; it != itNext && isReplaced; ++it)
+                    {
+                        const PDFAlgorithmLongestCommonSubsequenceBase::SequenceItem& item = *it;
+
+                        // If we doesn't have a match, then it is not a whitespace
+                        if (!item.isMatch())
+                        {
+                            isReplaced = false;
+                            break;
+                        }
+
+                        const TextCompareItem& compareItem = leftItems[item.index1];
+                        const auto& flowItem = compareItem.left ? context.leftTextFlow : context.rightTextFlow;
+                        QChar character = flowItem.getItem(compareItem.index)->text.at(compareItem.charIndex);
+
+                        isReplaced = !character.isSpace();
+                    }
+
+                    if (isReplaced)
+                    {
+                        for (auto it = itPrev; it != itNext; ++it)
+                        {
+                            PDFAlgorithmLongestCommonSubsequenceBase::SequenceItem& item = *it;
+                            item.markReplaced();
+                        }
+                    }
+                }
+
+                itPrev = range.second;
+            }
+
+            modifiedRanges = PDFAlgorithmLongestCommonSubsequenceBase::getModifiedRanges(sequence);
+        }
+
         for (const auto& range : modifiedRanges)
         {
+            auto it = range.first;
+            auto itEnd = range.second;
+
+            QStringList leftStrings;
+            QStringList rightStrings;
+
+            for (; it != itEnd; ++it)
+            {
+                const PDFAlgorithmLongestCommonSubsequenceBase::SequenceItem& item = *it;
+
+                if (item.isLeftValid())
+                {
+                    const TextCompareItem& textCompareItem = leftItems[item.index1];
+                    const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
+                    QStringRef text(&textFlow.getItem(textCompareItem.index)->text, textCompareItem.charIndex, textCompareItem.charCount);
+                    leftStrings << text.toString();
+                }
+
+                if (item.isRightValid())
+                {
+                    const TextCompareItem& textCompareItem = rightItems[item.index2];
+                    const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
+                    QStringRef text(&textFlow.getItem(textCompareItem.index)->text, textCompareItem.charIndex, textCompareItem.charCount);
+                    rightStrings << text.toString();
+                }
+            }
+
+            QString leftString;
+            QString rightString;
+
+            if (isWordsComparingMode)
+            {
+                leftString = leftStrings.join(QChar::Space);
+                rightString = rightStrings.join(QChar::Space);
+            }
+            else
+            {
+                leftString = leftStrings.join(QString());
+                rightString = rightStrings.join(QString());
+            }
+
 
         }
     };
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, textFlowDifferences.begin(), textFlowDifferences.end(), compareTexts);
+    //std::for_each(textFlowDifferences.begin(), textFlowDifferences.end(), compareTexts);
 }
 
 void PDFDiff::finalizeGraphicsPieces(PDFDiffPageContext& context)
@@ -1073,6 +1138,61 @@ void PDFDiffHelper::matchPage(PageSequence& sequence,
             ++it;
         }
     }
+}
+
+std::vector<PDFDiffHelper::TextCompareItem> PDFDiffHelper::prepareTextCompareItems(const PDFDocumentTextFlow& textFlow,
+                                                                                   bool isWordsComparingMode,
+                                                                                   bool isLeft)
+{
+    std::vector<TextCompareItem> items;
+
+    const size_t leftCount = textFlow.getSize();
+    for (size_t i = 0; i < leftCount; ++i)
+    {
+        PDFDiffHelper::TextCompareItem item;
+        item.index = i;
+        item.left = isLeft;
+        item.charCount = 0;
+
+        const PDFDocumentTextFlow::Item* textFlowItem = textFlow.getItem(i);
+        for (int j = 0; j < textFlowItem->text.size(); ++j)
+        {
+            if (isWordsComparingMode)
+            {
+                if (textFlowItem->text[j].isSpace())
+                {
+                    // Flush buffer
+                    if (item.charCount > 0)
+                    {
+                        items.push_back(item);
+                        item.charCount = 0;
+                    }
+                }
+                else
+                {
+                    if (item.charCount == 0)
+                    {
+                        item.charIndex = j;
+                    }
+                    ++item.charCount;
+                }
+            }
+            else
+            {
+                item.charIndex = j;
+                item.charCount = 1;
+                items.push_back(item);
+            }
+        }
+
+        if (isWordsComparingMode && item.charCount > 0)
+        {
+            items.push_back(item);
+            item.charCount = 0;
+        }
+    }
+
+    return items;
 }
 
 }   // namespace pdf
