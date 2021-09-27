@@ -163,7 +163,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                 real = -real;
             }
 
-            return !treatAsReal ? Token(TokenType::Integer, integer) : Token(TokenType::Real, real);
+            return !treatAsReal ? Token(TokenType::Integer, QVariant(static_cast<qint64>(integer))) : Token(TokenType::Real, real);
         }
 
         case CHAR_LEFT_BRACKET:

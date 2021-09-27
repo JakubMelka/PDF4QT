@@ -19,6 +19,8 @@
 #ifndef PDFCONSTANTS_H
 #define PDFCONSTANTS_H
 
+#include <cstddef>
+
 namespace pdf
 {
 

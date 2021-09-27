@@ -28,6 +28,7 @@
 #include <variant>
 #include <array>
 #include <initializer_list>
+#include <cstring>
 
 namespace pdf
 {

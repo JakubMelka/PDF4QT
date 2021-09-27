@@ -567,6 +567,12 @@ PDFObjectFactory& PDFObjectFactory::operator<<(int value)
     return *this;
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(PDFFormSubmitFlags flags)
+{
+    *this << PDFInteger(flags);
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(WrapName wrapName)
 {
     addObject(PDFObject::createName(qMove(wrapName.name)));

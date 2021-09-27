@@ -731,7 +731,7 @@ bool PDFAbstractColorSpace::transform(const PDFAbstractColorSpace* source,
             for (PDFColorComponent gray : input)
             {
                 const PDFColorComponent A = clip01(gray);
-                const PDFColorComponent xyzColor = std::powf(A, gamma);
+                const PDFColorComponent xyzColor = std::pow(A, gamma);
 
                 Q_ASSERT(it != transformedInputColorsVector.end());
                 *it++ = xyzColor;
@@ -981,7 +981,7 @@ bool PDFAbstractColorSpace::transform(const PDFAbstractColorSpace* source,
                 XYZ[2] = *std::next(transformedOutputIt, 2);
 
                 const PDFColorComponent gray = (XYZ[0] + XYZ[1] + XYZ[2]) * 0.333333333333333;
-                const PDFColorComponent grayWithGamma = std::powf(gray, gamma);
+                const PDFColorComponent grayWithGamma = std::pow(gray, gamma);
                 Q_ASSERT(outputIt != output.cend());
                 *outputIt++ = grayWithGamma;
             }
@@ -1271,7 +1271,7 @@ QColor PDFCalGrayColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, 
     Q_UNUSED(isRange01);
 
     const PDFColorComponent A = clip01(color[0]);
-    const PDFColorComponent xyzColor = std::powf(A, m_gamma);
+    const PDFColorComponent xyzColor = std::pow(A, m_gamma);
 
     PDFColor3 xyzColorCMS = { xyzColor, xyzColor, xyzColor };
     QColor cmsColor = cms->getColorFromXYZ(m_whitePoint, xyzColorCMS, intent, reporter);
@@ -1297,7 +1297,7 @@ void PDFCalGrayColorSpace::fillRGBBuffer(const std::vector<float>& colors, unsig
     auto it = xyzColors.begin();
     for (float gray : colors)
     {
-        const PDFColorComponent xyzColor = std::powf(clip01(gray), m_gamma);
+        const PDFColorComponent xyzColor = std::pow(clip01(gray), m_gamma);
         *it++ = xyzColor;
         *it++ = xyzColor;
         *it++ = xyzColor;

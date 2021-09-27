@@ -133,7 +133,7 @@ public:
         }
         else
         {
-            std::for_each(std::execution::sequenced_policy(), first, last, f);
+            std::for_each(std::execution::seq, first, last, f);
         }
     }
 
@@ -143,7 +143,7 @@ public:
         Q_UNUSED(scope);
 
         // We always sort by single thread
-        std::sort(std::execution::sequenced_policy(), first, last, f);
+        std::sort(std::execution::seq, first, last, f);
     }
 
     /// Returns number of active threads for given scope

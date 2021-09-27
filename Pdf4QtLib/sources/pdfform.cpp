@@ -523,7 +523,7 @@ PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
 
         form.m_formType = FormType::AcroForm;
         form.m_needAppearances = loader.readBooleanFromDictionary(formDictionary, "NeedAppearances", false);
-        form.m_signatureFlags = static_cast<SignatureFlags>(loader.readIntegerFromDictionary(formDictionary, "SigFlags", 0));
+        form.m_signatureFlags = static_cast<SignatureFlags>(static_cast<int32_t>(loader.readIntegerFromDictionary(formDictionary, "SigFlags", 0)));
         form.m_calculationOrder = loader.readReferenceArrayFromDictionary(formDictionary, "CO");
         form.m_resources = formDictionary->get("DR");
         form.m_defaultAppearance = loader.readOptionalStringFromDictionary(formDictionary, "DA");
@@ -761,7 +761,7 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
         formField->m_fieldNames[Partial] = loader.readTextStringFromDictionary(fieldDictionary, "T", QString());
         formField->m_fieldNames[UserCaption] = loader.readTextStringFromDictionary(fieldDictionary, "TU", QString());
         formField->m_fieldNames[Export] = loader.readTextStringFromDictionary(fieldDictionary, "TM", QString());
-        formField->m_fieldFlags = fieldDictionary->hasKey("Ff") ? static_cast<FieldFlags>(loader.readIntegerFromDictionary(fieldDictionary, "Ff", 0)) : parentFlags;
+        formField->m_fieldFlags = fieldDictionary->hasKey("Ff") ? static_cast<FieldFlags>(static_cast<int32_t>(loader.readIntegerFromDictionary(fieldDictionary, "Ff", 0))) : parentFlags;
         formField->m_value = fieldDictionary->hasKey("V") ? fieldDictionary->get("V") : parentV;
         formField->m_defaultValue = fieldDictionary->hasKey("DV") ? fieldDictionary->get("DV") : parentDV;
         formField->m_additionalActions = PDFAnnotationAdditionalActions::parse(storage, fieldDictionary->get("AA"), fieldDictionary->get("A"));

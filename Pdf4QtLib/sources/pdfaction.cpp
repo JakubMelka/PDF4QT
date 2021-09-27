@@ -322,7 +322,7 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
         PDFFormAction::FieldScope fieldScope = PDFFormAction::FieldScope::All;
         PDFFileSpecification url = PDFFileSpecification::parse(storage, dictionary->get("F"));
         PDFFormAction::FieldList fieldList = PDFFormAction::parseFieldList(storage, dictionary->get("Fields"), fieldScope);
-        PDFActionSubmitForm::SubmitFlags flags = static_cast<PDFActionSubmitForm::SubmitFlags>(loader.readIntegerFromDictionary(dictionary, "Flags", 0));
+        PDFActionSubmitForm::SubmitFlags flags = static_cast<PDFActionSubmitForm::SubmitFlag>(loader.readIntegerFromDictionary(dictionary, "Flags", 0));
         QByteArray charset = loader.readStringFromDictionary(dictionary, "CharSet");
 
         if (fieldScope == PDFFormAction::FieldScope::Include &&
@@ -337,7 +337,7 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
     {
         PDFFormAction::FieldScope fieldScope = PDFFormAction::FieldScope::All;
         PDFFormAction::FieldList fieldList = PDFFormAction::parseFieldList(storage, dictionary->get("Fields"), fieldScope);
-        PDFActionResetForm::ResetFlags flags = static_cast<PDFActionResetForm::ResetFlags>(loader.readIntegerFromDictionary(dictionary, "Flags", 0));
+        PDFActionResetForm::ResetFlags flags = static_cast<PDFActionResetForm::ResetFlag>(loader.readIntegerFromDictionary(dictionary, "Flags", 0));
 
         if (fieldScope == PDFFormAction::FieldScope::Include &&
             flags.testFlag(PDFActionResetForm::IncludeExclude))

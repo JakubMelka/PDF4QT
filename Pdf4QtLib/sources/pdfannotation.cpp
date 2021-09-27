@@ -848,7 +848,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         result->m_lastModifiedString = loader.readTextStringFromDictionary(dictionary, "M", QString());
     }
 
-    result->m_flags = Flags(loader.readIntegerFromDictionary(dictionary, "F", 0));
+    result->m_flags = Flags(static_cast<Flag>(loader.readIntegerFromDictionary(dictionary, "F", 0)));
     result->m_appearanceStreams = PDFAppeareanceStreams::parse(storage, dictionary->get("AP"));
     result->m_appearanceState = loader.readNameFromDictionary(dictionary, "AS");
 

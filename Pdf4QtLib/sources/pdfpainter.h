@@ -312,7 +312,7 @@ class PDF4QTLIBSHARED_EXPORT PDFPrecompiledPageGenerator : public PDFPainterBase
     using BaseClass = PDFPainterBase;
 
 public:
-    explicit inline PDFPrecompiledPageGenerator(PDFPrecompiledPage* precompiledPage,
+    explicit PDFPrecompiledPageGenerator(PDFPrecompiledPage* precompiledPage,
                                                 PDFRenderer::Features features,
                                                 const PDFPage* page,
                                                 const PDFDocument* document,

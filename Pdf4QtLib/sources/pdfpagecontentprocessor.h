@@ -812,18 +812,6 @@ private:
     template<typename T>
     T readOperand(size_t index) const;
 
-    template<>
-    PDFReal readOperand<PDFReal>(size_t index) const;
-
-    template<>
-    PDFInteger readOperand<PDFInteger>(size_t index) const;
-
-    template<>
-    PDFOperandName readOperand<PDFOperandName>(size_t index) const;
-
-    template<>
-    PDFOperandString readOperand<PDFOperandString>(size_t index) const;
-
     template<size_t index, typename T>
     inline T readOperand() const { return readOperand<T>(index); }
 
@@ -1092,6 +1080,18 @@ private:
     /// Active structural parent key
     PDFInteger m_structuralParentKey;
 };
+
+template<>
+PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const;
+
+template<>
+PDFInteger PDFPageContentProcessor::readOperand<PDFInteger>(size_t index) const;
+
+template<>
+PDFPageContentProcessor::PDFOperandName PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFOperandName>(size_t index) const;
+
+template<>
+PDFPageContentProcessor::PDFOperandString PDFPageContentProcessor::readOperand<PDFPageContentProcessor::PDFOperandString>(size_t index) const;
 
 }   // namespace pdf
 
