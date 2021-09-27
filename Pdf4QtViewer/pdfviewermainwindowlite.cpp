@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "PDFViewerMainWindowLite.h"
-#include "ui_PDFViewerMainWindowLite.h"
+#include "pdfviewermainwindowlite.h"
+#include "ui_pdfviewermainwindowlite.h"
 
 #include "pdfaboutdialog.h"
 #include "pdfsidebarwidget.h"
@@ -88,8 +88,10 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     m_pageZoomSpinBox(nullptr),
     m_isLoadingUI(false),
     m_progress(new pdf::PDFProgress(this)),
+#ifdef Q_OS_WIN
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
+#endif
     m_progressDialog(nullptr),
     m_isChangingProgressStep(false)
 {
@@ -101,7 +103,9 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     adjustToolbar(ui->mainToolBar);
 
     // Initialize task bar progress
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator = m_taskbarButton->progress();
+#endif
 
     // Initialize actions
     m_actionManager->setAction(PDFActionManager::Open, ui->actionOpen);
@@ -271,9 +275,11 @@ void PDFViewerMainWindowLite::onProgressStarted(pdf::ProgressStartupInfo info)
         m_progressDialog->setCancelButton(nullptr);
     }
 
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
+#endif
 
     m_programController->setIsBusy(true);
     m_programController->updateActionsAvailability();
@@ -293,7 +299,9 @@ void PDFViewerMainWindowLite::onProgressStep(int percentage)
         m_progressDialog->setValue(percentage);
     }
 
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator->setValue(percentage);
+#endif
 }
 
 void PDFViewerMainWindowLite::onProgressFinished()
@@ -304,7 +312,9 @@ void PDFViewerMainWindowLite::onProgressFinished()
         m_progressDialog->deleteLater();
         m_progressDialog = nullptr;
     }
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator->hide();
+#endif
 
     m_programController->setIsBusy(false);
     m_programController->updateActionsAvailability();
@@ -410,7 +420,9 @@ void PDFViewerMainWindowLite::closeEvent(QCloseEvent* event)
 void PDFViewerMainWindowLite::showEvent(QShowEvent* event)
 {
     Q_UNUSED(event);
+#ifdef Q_OS_WIN
     m_taskbarButton->setWindow(windowHandle());
+#endif
 }
 
 void PDFViewerMainWindowLite::dragEnterEvent(QDragEnterEvent* event)

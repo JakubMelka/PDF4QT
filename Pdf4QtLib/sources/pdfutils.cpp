@@ -243,7 +243,11 @@ std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
     libjpegInfo.library = tr("libjpeg");
     libjpegInfo.license = tr("permissive + ack.");
     libjpegInfo.url = tr("https://www.ijg.org/");
+#if defined(Q_OS_UNIX)
+    libjpegInfo.version = tr("%1").arg(JPEG_LIB_VERSION);
+#else
     libjpegInfo.version = tr("%1.%2").arg(JPEG_LIB_VERSION_MAJOR).arg(JPEG_LIB_VERSION_MINOR);
+#endif
     result.emplace_back(qMove(libjpegInfo));
 
     // FreeType
@@ -571,6 +575,18 @@ QColor PDFColorScale::map(PDFReal value) const
     qreal b = (1.0 - fractionValue) * leftValue.blueF() + fractionValue * rightValue.blueF();
 
     return QColor::fromRgbF(r, g, b);
+}
+
+QDataStream& operator<<(QDataStream& stream, long unsigned int i)
+{
+    stream << quint64(i);
+    return stream;
+}
+
+QDataStream& operator>>(QDataStream& stream, long unsigned int &i)
+{
+    stream >> reinterpret_cast<quint64&>(i);
+    return stream;
 }
 
 }   // namespace pdf

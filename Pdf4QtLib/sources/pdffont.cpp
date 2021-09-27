@@ -20,6 +20,7 @@
 #include "pdfparser.h"
 #include "pdfnametounicode.h"
 #include "pdfexception.h"
+#include "pdfutils.h"
 
 #include <ft2build.h>
 #include <freetype/freetype.h>
@@ -96,14 +97,13 @@ const PDFSystemFontInfoStorage* PDFSystemFontInfoStorage::getInstance()
 QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType, PDFRenderErrorReporter* reporter) const
 {
     QByteArray result;
-
+    QString fontName;
 #ifdef Q_OS_WIN
     HDC hdc = GetDC(NULL);
 
     const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
 
     // Exact match font face name
-    QString fontName;
     switch (standardFontType)
     {
         case StandardFontType::TimesRoman:

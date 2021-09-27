@@ -38,8 +38,10 @@
 #include <QFuture>
 #include <QTreeView>
 #include <QMainWindow>
+#ifdef Q_OS_WIN
 #include <QWinTaskbarButton>
 #include <QWinTaskbarProgress>
+#endif
 #include <QFutureWatcher>
 #include <QProgressDialog>
 
@@ -118,8 +120,10 @@ private:
     QDoubleSpinBox* m_pageZoomSpinBox;
     bool m_isLoadingUI;
     pdf::PDFProgress* m_progress;
+#ifdef Q_OS_WIN
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
+#endif
 
     QProgressDialog* m_progressDialog;
     bool m_isChangingProgressStep;

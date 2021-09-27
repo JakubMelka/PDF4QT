@@ -533,7 +533,7 @@ protected:
         PDFColor3 result = { };
         for (size_t i = 0; i < color.size(); ++i)
         {
-            result[i] = std::powf(color[i], factors[i]);
+            result[i] = std::pow(color[i], factors[i]);
         }
         return result;
     }

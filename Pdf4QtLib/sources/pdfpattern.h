@@ -24,6 +24,7 @@
 #include "pdfmeshqualitysettings.h"
 
 #include <QMatrix>
+#include <QPainterPath>
 
 #include <memory>
 

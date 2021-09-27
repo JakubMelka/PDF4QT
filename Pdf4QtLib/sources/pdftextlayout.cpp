@@ -1194,7 +1194,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
 #if defined(Q_OS_WIN)
         lineBreak = QString("\r\n");
 #elif defined(Q_OS_UNIX)
-        linebreak = QString("\n");
+        lineBreak = QString("\n");
 #elif defined(Q_OS_MAC)
         lineBreak = QString("\r");
 #else

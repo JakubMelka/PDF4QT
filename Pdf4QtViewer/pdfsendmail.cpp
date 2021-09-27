@@ -85,6 +85,9 @@ bool PDFSendMail::sendMail(QWidget* parent, QString subject, QString fileName)
     }
 
     return false;
+#elif defined(Q_OS_UNIX)
+    // TODO
+    return false;
 #else
     static_assert(false, "Implement this for another OS!");
     return false;

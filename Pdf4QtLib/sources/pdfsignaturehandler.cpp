@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+ //    Copyright (C) 2020-2021 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -35,6 +35,9 @@
 #include <QFileInfo>
 
 #include <array>
+#ifdef Q_OS_UNIX
+#include <time.h>
+#endif
 
 namespace pdf
 {
@@ -1833,7 +1836,13 @@ QDateTime PDFPublicKeySignatureHandler::getDateTimeFromASN(const ASN1_TIME* time
         tm internalTime = { };
         if (ASN1_TIME_to_tm(time, &internalTime) > 0)
         {
+#if defined(Q_OS_WIN)
             time_t localTime = _mkgmtime(&internalTime);
+#elif defined(Q_OS_UNIX)
+            time_t localTime = timegm(&internalTime);
+#else
+            static_assert(false, "Implement this for another OS!");
+#endif
             result = QDateTime::fromSecsSinceEpoch(localTime, Qt::UTC);
         }
     }

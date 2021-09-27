@@ -248,7 +248,7 @@ class PDF4QTLIBSHARED_EXPORT PDFThumbnailsItemModel : public QAbstractItemModel
     Q_OBJECT
 
 public:
-    explicit inline PDFThumbnailsItemModel(const PDFDrawWidgetProxy* proxy, QObject* parent);
+    explicit PDFThumbnailsItemModel(const PDFDrawWidgetProxy* proxy, QObject* parent);
 
     bool isEmpty() const;
 
