@@ -206,7 +206,6 @@ protected:
     virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
     virtual void performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties) override;
     virtual void performMarkedContentEnd() override;
-    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
 
 private:
     const PDFStructureItem* getStructureTreeItemFromMCID(PDFInteger mcid) const;
@@ -237,32 +236,22 @@ private:
     std::vector<QRectF> m_characterBoundingRects;
 };
 
-void PDFStructureTreeTextContentProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
-{
-    if (!text)
-    {
-        // Jakub Melka: This should not occur
-        return;
-    }
-
-    if (!m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::BoundingBoxes))
-    {
-        return;
-    }
-
-    Q_UNUSED(stroke);
-    Q_UNUSED(fill);
-    Q_UNUSED(fillRule);
-
-    QMatrix matrix = getCurrentWorldMatrix();
-    QPainterPath worldPath = matrix.map(path);
-    m_currentBoundingBox = m_currentBoundingBox.united(worldPath.controlPointRect());
-    m_characterBoundingRects.push_back(worldPath.controlPointRect());
-}
-
 void PDFStructureTreeTextContentProcessor::finishText()
 {
-    m_currentText = m_currentText.trimmed();
+    QString trimmedText = m_currentText.trimmed();
+    const int index = m_currentText.indexOf(trimmedText);
+    Q_ASSERT(index != -1);
+    if (trimmedText.size() < m_currentText.size())
+    {
+        // Fix character bounding boxes...
+        if (m_characterBoundingRects.size() == m_currentText.size())
+        {
+            std::vector<QRectF> boundingRects(std::next(m_characterBoundingRects.cbegin(), index), std::next(m_characterBoundingRects.cbegin(), index + trimmedText.length()));
+            m_characterBoundingRects = std::move(boundingRects);
+        }
+        m_currentText = std::move(trimmedText);
+    }
+
     if (!m_currentText.isEmpty() && (!m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::SkipArtifact) || !isArtifact()))
     {
         if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::AdjustReversedText) && isReversedText())
@@ -276,6 +265,7 @@ void PDFStructureTreeTextContentProcessor::finishText()
             m_currentText = qMove(reversed);
             std::reverse(m_characterBoundingRects.begin(), m_characterBoundingRects.end());
         }
+        Q_ASSERT(m_currentText.size() == m_characterBoundingRects.size() || m_characterBoundingRects.empty());
         m_textSequence.emplace_back(PDFStructureTreeTextItem::createText(std::move(m_currentText), m_pageIndex, m_currentBoundingBox, std::move(m_characterBoundingRects)));
     }
     m_currentText = QString();
@@ -381,8 +371,6 @@ bool PDFStructureTreeTextContentProcessor::isContentKindSuppressed(ContentKind k
     switch (kind)
     {
         case ContentKind::Text:
-            return !m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::BoundingBoxes);
-
         case ContentKind::Shapes:
         case ContentKind::Images:
         case ContentKind::Shading:
@@ -408,6 +396,18 @@ void PDFStructureTreeTextContentProcessor::performOutputCharacter(const PDFTextC
         if (!info.character.isNull() && info.character != QChar(QChar::SoftHyphen))
         {
             m_currentText.push_back(info.character);
+
+            QPainterPath worldPath = info.matrix.map(info.outline);
+            if (!worldPath.isEmpty())
+            {
+                QRectF boundingRect = worldPath.controlPointRect();
+                m_currentBoundingBox = m_currentBoundingBox.united(boundingRect);
+                m_characterBoundingRects.push_back(boundingRect);
+            }
+            else
+            {
+                m_characterBoundingRects.push_back(QRectF());
+            }
         }
     }
 }

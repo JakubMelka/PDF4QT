@@ -54,23 +54,31 @@ public:
         AddedVectorGraphicContent,
         AddedImageContent,
         AddedShadingContent,
+        TextReplaced,
+        TextAdded,
+        TextRemoved,
     };
 
-    struct Difference
-    {
-        Type type = Type::Invalid;
-        PDFInteger pageIndex1 = -1;
-        PDFInteger pageIndex2 = -1;
-        size_t leftRectIndex = 0;
-        size_t leftRectCount = 0;
-        size_t rightRectIndex = 0;
-        size_t rightRectCount = 0;
-    };
-
-    using Differences = std::vector<Difference>;
+    using RectInfos = std::vector<std::pair<PDFInteger, QRectF>>;
 
     void setResult(PDFOperationResult result) { m_result = std::move(result); }
     const PDFOperationResult& getResult() const { return m_result; }
+
+    /// Returns true, if some difference was found
+    bool isChanged() const { return getDifferencesCount() > 0; }
+
+    /// Returns true, if no difference was found
+    bool isSame() const { return !isChanged(); }
+
+    /// Returns number of detected changes
+    size_t getDifferencesCount() const { return m_differences.size(); }
+
+    /// Returns message describing difference in a page content
+    /// \param index Index
+    QString getMessage(size_t index) const;
+
+private:
+    friend class PDFDiff;
 
     void addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2);
     void addPageAdded(PDFInteger pageIndex);
@@ -85,9 +93,34 @@ public:
     void addAddedImageContent(PDFInteger pageIndex, QRectF rect);
     void addAddedShadingContent(PDFInteger pageIndex, QRectF rect);
 
-    QString getMessage(size_t index) const;
+    void addTextAdded(PDFInteger pageIndex, QString text, const RectInfos& rectInfos);
+    void addTextRemoved(PDFInteger pageIndex, QString text, const RectInfos& rectInfos);
 
-private:
+    void addTextReplaced(PDFInteger pageIndex1,
+                         PDFInteger pageIndex2,
+                         QString textRemoved,
+                         QString textAdded,
+                         const RectInfos& rectInfos1,
+                         const RectInfos& rectInfos2);
+
+    /// Single content difference descriptor. It describes type
+    /// of difference (such as graphics, image, text change) on a page
+    /// or on a list of multiple pages.
+    struct Difference
+    {
+        Type type = Type::Invalid;
+        PDFInteger pageIndex1 = -1;
+        PDFInteger pageIndex2 = -1;
+        size_t leftRectIndex = 0;
+        size_t leftRectCount = 0;
+        size_t rightRectIndex = 0;
+        size_t rightRectCount = 0;
+        int textAddedIndex = -1;
+        int textRemovedIndex = -1;
+    };
+
+    using Differences = std::vector<Difference>;
+
     void addLeftItem(Type type, PDFInteger pageIndex, QRectF rect);
     void addRightItem(Type type, PDFInteger pageIndex, QRectF rect);
 
@@ -95,8 +128,9 @@ private:
     void addRectRight(Difference& difference, QRectF rect);
 
     Differences m_differences;
-    std::vector<QRectF> m_rects;
+    RectInfos m_rects; ///< Rectangles with page indices
     PDFOperationResult m_result;
+    QStringList m_strings;
 };
 
 /// Diff engine for comparing two pdf documents.

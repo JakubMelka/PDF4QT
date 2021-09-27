@@ -69,6 +69,7 @@ public:
     static std::vector<TextCompareItem> prepareTextCompareItems(const PDFDocumentTextFlow& textFlow,
                                                                 bool isWordsComparingMode,
                                                                 bool isLeft);
+    static void refineTextRectangles(PDFDiffResult::RectInfos& items);
 };
 
 PDFDiff::PDFDiff(QObject* parent) :
@@ -637,8 +638,10 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         }
     }
 
+    QMutex mutex;
+
     // Jakub Melka: try to compare text differences
-    auto compareTexts = [this](PDFDiffHelper::TextFlowDifferences& context)
+    auto compareTexts = [this, &mutex](PDFDiffHelper::TextFlowDifferences& context)
     {
         using TextCompareItem = PDFDiffHelper::TextCompareItem;
         const bool isWordsComparingMode = m_options.testFlag(CompareWords);
@@ -720,6 +723,12 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
             QStringList leftStrings;
             QStringList rightStrings;
 
+            PDFDiffResult::RectInfos leftRectInfos;
+            PDFDiffResult::RectInfos rightRectInfos;
+
+            PDFInteger pageIndex1 = -1;
+            PDFInteger pageIndex2 = -1;
+
             for (; it != itEnd; ++it)
             {
                 const PDFAlgorithmLongestCommonSubsequenceBase::SequenceItem& item = *it;
@@ -728,16 +737,50 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                 {
                     const TextCompareItem& textCompareItem = leftItems[item.index1];
                     const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
-                    QStringRef text(&textFlow.getItem(textCompareItem.index)->text, textCompareItem.charIndex, textCompareItem.charCount);
+                    const PDFDocumentTextFlow::Item* textItem = textFlow.getItem(textCompareItem.index);
+                    QStringRef text(&textItem->text, textCompareItem.charIndex, textCompareItem.charCount);
                     leftStrings << text.toString();
+
+                    if (pageIndex1 == -1)
+                    {
+                        pageIndex1 = textItem->pageIndex;
+                    }
+
+                    if (textCompareItem.charIndex + textCompareItem.charCount <= textItem->characterBoundingRects.size())
+                    {
+                        const size_t startIndex =  textCompareItem.charIndex;
+                        const size_t endIndex = startIndex + textCompareItem.charCount;
+
+                        for (size_t i = startIndex; i < endIndex; ++i)
+                        {
+                            leftRectInfos.emplace_back(textItem->pageIndex, textItem->characterBoundingRects[i]);
+                        }
+                    }
                 }
 
                 if (item.isRightValid())
                 {
                     const TextCompareItem& textCompareItem = rightItems[item.index2];
                     const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
-                    QStringRef text(&textFlow.getItem(textCompareItem.index)->text, textCompareItem.charIndex, textCompareItem.charCount);
+                    const PDFDocumentTextFlow::Item* textItem = textFlow.getItem(textCompareItem.index);
+                    QStringRef text(&textItem->text, textCompareItem.charIndex, textCompareItem.charCount);
                     rightStrings << text.toString();
+
+                    if (pageIndex2 == -1)
+                    {
+                        pageIndex2 = textItem->pageIndex;
+                    }
+
+                    if (textCompareItem.charIndex + textCompareItem.charCount <= textItem->characterBoundingRects.size())
+                    {
+                        const size_t startIndex =  textCompareItem.charIndex;
+                        const size_t endIndex = startIndex + textCompareItem.charCount;
+
+                        for (size_t i = startIndex; i < endIndex; ++i)
+                        {
+                            rightRectInfos.emplace_back(textItem->pageIndex, textItem->characterBoundingRects[i]);
+                        }
+                    }
                 }
             }
 
@@ -755,7 +798,26 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                 rightString = rightStrings.join(QString());
             }
 
+            PDFDiffHelper::refineTextRectangles(leftRectInfos);
+            PDFDiffHelper::refineTextRectangles(rightRectInfos);
 
+            QMutexLocker locker(&mutex);
+            if (!leftString.isEmpty() && !rightString.isEmpty())
+            {
+                m_result.addTextReplaced(pageIndex1, pageIndex2, leftString, rightString, leftRectInfos, rightRectInfos);
+            }
+            else
+            {
+                if (!leftString.isEmpty())
+                {
+                    m_result.addTextRemoved(pageIndex1, leftString, leftRectInfos);
+                }
+
+                if (!rightString.isEmpty())
+                {
+                    m_result.addTextAdded(pageIndex2, rightString, rightRectInfos);
+                }
+            }
         }
     };
 
@@ -929,6 +991,68 @@ void PDFDiffResult::addAddedShadingContent(PDFInteger pageIndex, QRectF rect)
     addRightItem(Type::AddedShadingContent, pageIndex, rect);
 }
 
+void PDFDiffResult::addTextAdded(PDFInteger pageIndex,
+                                 QString text,
+                                 const RectInfos& rectInfos)
+{
+    Difference difference;
+
+    difference.type = Type::TextAdded;
+    difference.pageIndex2 = pageIndex;
+    difference.textAddedIndex = m_strings.size();
+    m_strings << text;
+    difference.rightRectIndex = m_rects.size();
+    difference.rightRectCount = rectInfos.size();
+    m_rects.insert(m_rects.end(), rectInfos.cbegin(), rectInfos.cend());
+
+    m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addTextRemoved(PDFInteger pageIndex,
+                                   QString text,
+                                   const RectInfos& rectInfos)
+{
+    Difference difference;
+
+    difference.type = Type::TextRemoved;
+    difference.pageIndex1 = pageIndex;
+    difference.textRemovedIndex = m_strings.size();
+    m_strings << text;
+    difference.leftRectIndex = m_rects.size();
+    difference.leftRectCount = rectInfos.size();
+    m_rects.insert(m_rects.end(), rectInfos.cbegin(), rectInfos.cend());
+
+    m_differences.emplace_back(std::move(difference));
+}
+
+void PDFDiffResult::addTextReplaced(PDFInteger pageIndex1,
+                                    PDFInteger pageIndex2,
+                                    QString textRemoved,
+                                    QString textAdded,
+                                    const RectInfos& rectInfos1,
+                                    const RectInfos& rectInfos2)
+{
+    Difference difference;
+
+    difference.type = Type::TextReplaced;
+    difference.pageIndex1 = pageIndex1;
+    difference.pageIndex2 = pageIndex2;
+    difference.textRemovedIndex = m_strings.size();
+    m_strings << textRemoved;
+    difference.textAddedIndex = m_strings.size();
+    m_strings << textAdded;
+
+    difference.leftRectIndex = m_rects.size();
+    difference.leftRectCount = rectInfos1.size();
+    m_rects.insert(m_rects.end(), rectInfos1.cbegin(), rectInfos1.cend());
+
+    difference.rightRectIndex = m_rects.size();
+    difference.rightRectCount = rectInfos2.size();
+    m_rects.insert(m_rects.end(), rectInfos2.cbegin(), rectInfos2.cend());
+
+    m_differences.emplace_back(std::move(difference));
+}
+
 QString PDFDiffResult::getMessage(size_t index) const
 {
     if (index >= m_differences.size())
@@ -972,6 +1096,15 @@ QString PDFDiffResult::getMessage(size_t index) const
         case Type::AddedShadingContent:
             return PDFDiff::tr("Added shading from page %1.").arg(difference.pageIndex2 + 1);
 
+        case Type::TextAdded:
+            return PDFDiff::tr("Text '%1' has been added to page %2.").arg(m_strings[difference.textAddedIndex]).arg(difference.pageIndex2 + 1);
+
+        case Type::TextRemoved:
+            return PDFDiff::tr("Text '%1' has been removed from page %2.").arg(m_strings[difference.textRemovedIndex]).arg(difference.pageIndex1 + 1);
+
+        case Type::TextReplaced:
+            return PDFDiff::tr("Text '%1' on page %2 has been replaced by text '%3' on page %4.").arg(m_strings[difference.textRemovedIndex]).arg(difference.pageIndex1 + 1).arg(m_strings[difference.textAddedIndex]).arg(difference.pageIndex2 + 1);
+
         default:
             Q_ASSERT(false);
             break;
@@ -984,14 +1117,14 @@ void PDFDiffResult::addRectLeft(Difference& difference, QRectF rect)
 {
     difference.leftRectIndex = m_rects.size();
     difference.leftRectCount = 1;
-    m_rects.emplace_back(rect);
+    m_rects.emplace_back(difference.pageIndex1, rect);
 }
 
 void PDFDiffResult::addRectRight(Difference& difference, QRectF rect)
 {
     difference.rightRectIndex = m_rects.size();
     difference.rightRectCount = 1;
-    m_rects.emplace_back(rect);
+    m_rects.emplace_back(difference.pageIndex2, rect);
 }
 
 PDFDiffHelper::Differences PDFDiffHelper::calculateDifferences(const GraphicPieceInfos& left,
@@ -1193,6 +1326,54 @@ std::vector<PDFDiffHelper::TextCompareItem> PDFDiffHelper::prepareTextCompareIte
     }
 
     return items;
+}
+
+void PDFDiffHelper::refineTextRectangles(PDFDiffResult::RectInfos& items)
+{
+    PDFDiffResult::RectInfos refinedItems;
+
+    auto it = items.cbegin();
+    auto itEnd = items.cend();
+    while (it != itEnd)
+    {
+        // Jakub Melka: find range which can be merged into one
+        // rectangle (it must be on a single page and rectangles must go
+        // in right direction).
+
+        auto itNext = std::next(it);
+        while (itNext != itEnd)
+        {
+            const std::pair<PDFInteger, QRectF>& currentItem = *std::prev(itNext);
+            const std::pair<PDFInteger, QRectF>& nextItem = *itNext;
+            if (nextItem.first != currentItem.first)
+            {
+                // Page index has changed...
+                break;
+            }
+
+            const QRectF& left = currentItem.second;
+            const QRectF& right = nextItem.second;
+
+            if (left.center().x() >= right.center().x())
+            {
+                break;
+            }
+
+            ++itNext;
+        }
+
+        // Merge range [it, itNext) into one new sequence
+        QRectF unifiedRect;
+        for (auto cit = it; cit != itNext; ++cit)
+        {
+            unifiedRect = unifiedRect.united((*cit).second);
+        }
+        refinedItems.emplace_back((*it).first, unifiedRect);
+
+        it = itNext;
+    }
+
+    items = std::move(refinedItems);
 }
 
 }   // namespace pdf
