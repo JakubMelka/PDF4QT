@@ -89,21 +89,22 @@ struct PDFStructureTreeTextItem
     };
 
     PDFStructureTreeTextItem() = default;
-    PDFStructureTreeTextItem(Type type, const PDFStructureItem* item, QString text, PDFInteger pageIndex, QRectF boundingRect) :
-        type(type), item(item), text(qMove(text)), pageIndex(pageIndex), boundingRect(boundingRect)
+    PDFStructureTreeTextItem(Type type, const PDFStructureItem* item, QString text, PDFInteger pageIndex, QRectF boundingRect, std::vector<QRectF> characterBoundingRects) :
+        type(type), item(item), text(qMove(text)), pageIndex(pageIndex), boundingRect(boundingRect), characterBoundingRects(std::move(characterBoundingRects))
     {
 
     }
 
-    static PDFStructureTreeTextItem createText(QString text, PDFInteger pageIndex, QRectF boundingRect) { return PDFStructureTreeTextItem(Type::Text, nullptr, qMove(text), pageIndex, boundingRect); }
-    static PDFStructureTreeTextItem createStartTag(const PDFStructureItem* item) { return PDFStructureTreeTextItem(Type::StartTag, item, QString(), -1, QRectF()); }
-    static PDFStructureTreeTextItem createEndTag(const PDFStructureItem* item) { return PDFStructureTreeTextItem(Type::EndTag, item, QString(), -1, QRectF()); }
+    static PDFStructureTreeTextItem createText(QString text, PDFInteger pageIndex, QRectF boundingRect, std::vector<QRectF> characterBoundingRects) { return PDFStructureTreeTextItem(Type::Text, nullptr, qMove(text), pageIndex, boundingRect, std::move(characterBoundingRects)); }
+    static PDFStructureTreeTextItem createStartTag(const PDFStructureItem* item) { return PDFStructureTreeTextItem(Type::StartTag, item, QString(), -1, QRectF(), { }); }
+    static PDFStructureTreeTextItem createEndTag(const PDFStructureItem* item) { return PDFStructureTreeTextItem(Type::EndTag, item, QString(), -1, QRectF(), { }); }
 
     Type type = Type::Text;
     const PDFStructureItem* item = nullptr;
     QString text;
     PDFInteger pageIndex = -1;
     QRectF boundingRect;
+    std::vector<QRectF> characterBoundingRects;
 };
 
 using PDFStructureTreeTextSequence = std::vector<PDFStructureTreeTextItem>;
@@ -147,6 +148,7 @@ public:
         QRectF boundingRect;
         PDFInteger pageIndex = -1;
         QString text;
+        std::vector<QRectF> characterBoundingRects;
     };
 
     using TextItems = std::vector<TextItem>;
@@ -232,6 +234,7 @@ private:
     QStringList m_unmatchedText;
     PDFStructureTreeTextExtractor::Options m_extractorOptions;
     PDFInteger m_pageIndex;
+    std::vector<QRectF> m_characterBoundingRects;
 };
 
 void PDFStructureTreeTextContentProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
@@ -254,6 +257,7 @@ void PDFStructureTreeTextContentProcessor::performPathPainting(const QPainterPat
     QMatrix matrix = getCurrentWorldMatrix();
     QPainterPath worldPath = matrix.map(path);
     m_currentBoundingBox = m_currentBoundingBox.united(worldPath.controlPointRect());
+    m_characterBoundingRects.push_back(worldPath.controlPointRect());
 }
 
 void PDFStructureTreeTextContentProcessor::finishText()
@@ -270,11 +274,13 @@ void PDFStructureTreeTextContentProcessor::finishText()
                 reversed.push_back(*it);
             }
             m_currentText = qMove(reversed);
+            std::reverse(m_characterBoundingRects.begin(), m_characterBoundingRects.end());
         }
-        m_textSequence.emplace_back(PDFStructureTreeTextItem::createText(qMove(m_currentText), m_pageIndex, m_currentBoundingBox));
+        m_textSequence.emplace_back(PDFStructureTreeTextItem::createText(std::move(m_currentText), m_pageIndex, m_currentBoundingBox, std::move(m_characterBoundingRects)));
     }
     m_currentText = QString();
     m_currentBoundingBox = QRectF();
+    m_characterBoundingRects.clear();
 }
 
 bool PDFStructureTreeTextContentProcessor::isArtifact() const
@@ -346,6 +352,7 @@ void PDFStructureTreeTextContentProcessor::performMarkedContentEnd()
             m_unmatchedText << qMove(m_currentText);
         }
         m_currentBoundingBox = QRectF();
+        m_characterBoundingRects.clear();
     }
 }
 
@@ -464,16 +471,25 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
                 switch (sequenceItem.type)
                 {
                     case PDFStructureTreeTextItem::Type::StartTag:
+                    {
                         stack.push(sequenceItem.item);
                         break;
+                    }
                     case PDFStructureTreeTextItem::Type::EndTag:
+                    {
                         stack.pop();
                         break;
+                    }
                     case PDFStructureTreeTextItem::Type::Text:
+                    {
                         if (!stack.empty())
                         {
-                            m_textForItems[stack.top()].emplace_back(TextItem{ sequenceItem.boundingRect, sequenceItem.pageIndex, sequenceItem.text });
+                            m_textForItems[stack.top()].emplace_back(TextItem{ sequenceItem.boundingRect, sequenceItem.pageIndex, sequenceItem.text, sequenceItem.characterBoundingRects });
                         }
+                        break;
+                    }
+
+                    default:
                         break;
                 }
             }
@@ -598,7 +614,7 @@ void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructure
     for (const auto& textItem : m_extractor->getText(structureElement))
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ textItem.boundingRect, textItem.pageIndex, textItem.text, PDFDocumentTextFlow::Text });
+        m_items->push_back(PDFDocumentTextFlow::Item{ textItem.boundingRect, textItem.pageIndex, textItem.text, PDFDocumentTextFlow::Text, textItem.characterBoundingRects });
     }
 
     acceptChildren(structureElement);
@@ -688,7 +704,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart });
                 for (const PDFTextFlow& textFlow : textFlows)
                 {
-                    flowItems.emplace_back(PDFDocumentTextFlow::Item{ textFlow.getBoundingBox(), pageIndex, textFlow.getText(), PDFDocumentTextFlow::Text });
+                    flowItems.emplace_back(PDFDocumentTextFlow::Item{ textFlow.getBoundingBox(), pageIndex, textFlow.getText(), PDFDocumentTextFlow::Text, textFlow.getBoundingBoxes() });
                 }
                 flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd });
 
@@ -748,7 +764,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 {
                     if (sequenceItem.type == PDFStructureTreeTextItem::Type::Text)
                     {
-                        flowItems.emplace_back(PDFDocumentTextFlow::Item{ sequenceItem.boundingRect, pageIndex, sequenceItem.text, PDFDocumentTextFlow::Text });
+                        flowItems.emplace_back(PDFDocumentTextFlow::Item{ sequenceItem.boundingRect, pageIndex, sequenceItem.text, PDFDocumentTextFlow::Text, sequenceItem.characterBoundingRects });
                     }
                 }
                 flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd });

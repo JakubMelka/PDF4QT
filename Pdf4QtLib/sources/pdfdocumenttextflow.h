@@ -56,6 +56,7 @@ public:
         PDFInteger pageIndex = 0;
         QString text;
         Flags flags = None;
+        std::vector<QRectF> characterBoundingRects;
 
         bool isText() const { return flags.testFlag(Text); }
         bool isSpecial() const { return !isText(); }

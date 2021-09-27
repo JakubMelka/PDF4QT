@@ -297,6 +297,9 @@ public:
     /// Returns whole text for this text flow
     QString getText() const { return m_text; }
 
+    /// Returns character bounding boxes
+    std::vector<QRectF> getBoundingBoxes() const { return m_characterBoundingBoxes; }
+
     /// Returns text form character pointers
     /// \param begin Begin character
     /// \param end End character
@@ -330,6 +333,7 @@ private:
     QString m_text;
     QRectF m_boundingBox;
     std::vector<PDFCharacterPointer> m_characterPointers;
+    std::vector<QRectF> m_characterBoundingBoxes;
 };
 
 /// Text layout of single page. Can handle various fonts, various angles of lines

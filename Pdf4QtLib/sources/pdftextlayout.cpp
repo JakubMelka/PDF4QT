@@ -1176,6 +1176,7 @@ void PDFTextFlow::merge(const PDFTextFlow& next)
     m_text += next.m_text;
     m_boundingBox = m_boundingBox.united(next.m_boundingBox);
     m_characterPointers.insert(m_characterPointers.end(), next.m_characterPointers.cbegin(), next.m_characterPointers.cend());
+    m_characterBoundingBoxes.insert(m_characterBoundingBoxes.end(), next.m_characterBoundingBoxes.cbegin(), next.m_characterBoundingBoxes.cend());
 }
 
 PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags flags, PDFInteger pageIndex)
@@ -1222,6 +1223,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
                     {
                         currentFlow.m_text += QChar(' ');
                         currentFlow.m_characterPointers.emplace_back();
+                        currentFlow.m_characterBoundingBoxes.emplace_back();
                     }
                 }
 
@@ -1233,6 +1235,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
                 pointer.lineIndex = textLineIndex;
                 pointer.characterIndex = i;
                 currentFlow.m_characterPointers.emplace_back(qMove(pointer));
+                currentFlow.m_characterBoundingBoxes.emplace_back(currentCharacter.boundingBox.controlPointRect());
             }
 
             // Remove soft hyphen, if it is enabled
@@ -1240,6 +1243,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
             {
                 currentFlow.m_text.chop(1);
                 currentFlow.m_characterPointers.pop_back();
+                currentFlow.m_characterBoundingBoxes.pop_back();
 
                 if (!flags.testFlag(AddLineBreaks))
                 {
@@ -1252,6 +1256,7 @@ PDFTextFlows PDFTextFlow::createTextFlows(const PDFTextLayout& layout, FlowFlags
             // Add line break
             currentFlow.m_text += lineBreak;
             currentFlow.m_characterPointers.insert(currentFlow.m_characterPointers.end(), lineBreak.length(), PDFCharacterPointer());
+            currentFlow.m_characterBoundingBoxes.insert(currentFlow.m_characterBoundingBoxes.end(), lineBreak.length(), QRectF());
 
             ++textLineIndex;
         }
