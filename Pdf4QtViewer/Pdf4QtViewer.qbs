@@ -1,7 +1,5 @@
-DynamicLibrary {
+Pdf4QtLibrary {
     name: "Pdf4QtViewer"
-    Depends { name: "cpp" }
-    cpp.cxxLanguageVersion: "c++2a"
     files: [
         "pdfaboutdialog.h",
         "pdfadvancedfindwidget.h",
@@ -52,7 +50,7 @@ DynamicLibrary {
     ]
     cpp.includePaths: ["."]
     cpp.defines: ['QT_INSTALL_DIRECTORY=""']
-    Depends { name: "Qt"; submodules: ["widgets", "printsupport", "texttospeech", "network", "xml"] }
+    Depends { name: "Qt"; submodules: ["printsupport", "texttospeech", "network", "xml"] }
     Depends { name: "Pdf4QtLib" }
     Export {
         Depends { name: "cpp" }
