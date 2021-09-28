@@ -585,7 +585,9 @@ QDataStream& operator<<(QDataStream& stream, long unsigned int i)
 
 QDataStream& operator>>(QDataStream& stream, long unsigned int &i)
 {
-    stream >> reinterpret_cast<quint64&>(i);
+    quint64 value = 0;
+    stream >> value;
+    i = value;
     return stream;
 }
 
