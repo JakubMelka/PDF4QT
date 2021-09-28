@@ -8,12 +8,14 @@ Pdf4QtLibrary {
     Depends { name: "libjpeg" }
     Depends { name: "libopenjp2" }
     Depends { name: "lcms2" }
-    Depends { name: "tbb" }
+    Depends {
+        condition: qbs.toolchain.contains("gcc")
+        name: "tbb"
+    }
     files: [
         "sources/*.cpp",
         "sources/*.h",
-        "sources/pdfrenderingerrorswidget.ui",
-        "sources/pdfselectpagesdialog.ui",
+        "sources/*.ui",
         "cmaps.qrc",
     ]
     Export {
@@ -25,6 +27,9 @@ Pdf4QtLibrary {
         Depends { name: "libjpeg" }
         Depends { name: "libopenjp2" }
         Depends { name: "lcms2" }
-        Depends { name: "tbb" }
+        Depends {
+            condition: qbs.toolchain.contains("gcc")
+            name: "tbb"
+        }
     }
 }
