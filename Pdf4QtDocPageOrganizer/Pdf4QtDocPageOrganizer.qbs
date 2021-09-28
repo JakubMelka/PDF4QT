@@ -1,7 +1,5 @@
-QtGuiApplication {
+Pdf4QtApp {
     name: "Pdf4QtDocPageOrganizer"
-    Depends { name: "cpp" }
-    cpp.cxxLanguageVersion: "c++2a"
     files: [
         "aboutdialog.cpp",
         "assembleoutputsettingsdialog.cpp",
@@ -22,6 +20,6 @@ QtGuiApplication {
         "selectbookmarkstoregroupdialog.ui",
         "resources.qrc",
     ]
+    cpp.includePaths: ["."]
     Depends { name: "Qt"; submodules: ["widgets"] }
-    Depends { name: "Pdf4QtLib" }
 }

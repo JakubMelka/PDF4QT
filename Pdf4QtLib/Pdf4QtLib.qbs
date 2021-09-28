@@ -1,9 +1,7 @@
 import qbs
 
-DynamicLibrary {
+Pdf4QtLibrary {
     name: "Pdf4QtLib"
-    Depends { name: "cpp" }
-    cpp.cxxLanguageVersion: "c++2a"
     Depends { name: "Qt"; submodules: ["core", "gui", "widgets"] }
     Depends { name: "openssl" }
     Depends { name: "freetype2" }
@@ -20,6 +18,7 @@ DynamicLibrary {
     ]
     Export {
         Depends { name: "cpp" }
+        Depends { name: "Qt"; submodules: ["core", "gui", "widgets"] }
         cpp.includePaths: ["sources"]
         Depends { name: "openssl" }
         Depends { name: "freetype2" }

@@ -1,7 +1,5 @@
-QtGuiApplication {
+Pdf4QtApp {
     name: "CodeGenerator"
-    Depends { name: "cpp" }
-    cpp.cxxLanguageVersion: "c++2a"
     files: [
         "main.cpp",
         "codegenerator.h",
@@ -10,6 +8,5 @@ QtGuiApplication {
         "generatormainwindow.cpp",
         "generatormainwindow.ui",
     ]
-    Depends { name: "Qt"; submodules: ["widgets", "xml"] }
-    Depends { name: "Pdf4QtLib" }
+    Depends { name: "Qt"; submodules: ["xml"] }
 }

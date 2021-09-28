@@ -1,9 +1,7 @@
 import qbs
 
-DynamicLibrary {
+Pdf4QtPlugin {
     name: "AudioBookPlugin"
-    Depends { name: "cpp" }
-    cpp.cxxLanguageVersion: "c++2a"
     files: [
         "audiobookcreator.h",
         "audiobookcreator.cpp",
@@ -14,6 +12,4 @@ DynamicLibrary {
         "audiotextstreameditordockwidget.ui",
         "icons.qrc",
     ]
-    Depends { name: "Qt"; submodules: ["core", "gui", "widgets"] }
-    Depends { name: "Pdf4QtLib" }
 }
