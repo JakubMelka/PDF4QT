@@ -1,6 +1,10 @@
+import qbs.FileInfo
+
 Pdf4QtProduct {
     Depends { name: "cpp" }
     type: "application"
+    cpp.rpaths: FileInfo.joinPaths(cpp.rpathOrigin, "..", "lib")
+
     Depends { name: "Pdf4QtLib" }
     Group {
         fileTagsFilter: product.type

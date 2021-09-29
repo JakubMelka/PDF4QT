@@ -2,6 +2,8 @@ Pdf4QtProduct {
     Depends { name: "cpp" }
     property stringList libType: "dynamiclibrary"
     type: libType
+    cpp.sonamePrefix: qbs.targetOS.contains("macos") ? "@rpath" : undefined
+    cpp.rpaths: cpp.rpathOrigin
 
     Group {
         fileTagsFilter: "dynamiclibrary"
