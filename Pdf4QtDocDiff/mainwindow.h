@@ -52,7 +52,21 @@ public:
         Compare,
         Close,
         GetSource,
-        About
+        About,
+        PreviousDifference,
+        NextDifference,
+        CreateCompareReport,
+        FilterText,
+        FilterVectorGraphics,
+        FilterImages,
+        FilterShading,
+        FilterPageMovement,
+        ViewDifferences,
+        ViewLeft,
+        ViewRight,
+        ViewOverlay,
+        ShowPageswithDifferences,
+        SaveDifferencesToXML
     };
 
     virtual void showEvent(QShowEvent* event) override;
@@ -75,6 +89,9 @@ private:
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);
 
+    void updateAll(bool resetFilters);
+    void updateFilteredResult();
+
     std::optional<pdf::PDFDocument> openDocument();
 
     struct Settings
@@ -96,6 +113,10 @@ private:
 
     pdf::PDFDocument m_leftDocument;
     pdf::PDFDocument m_rightDocument;
+
+    pdf::PDFDiffResult m_diffResult;
+    pdf::PDFDiffResult m_filteredDiffResult; ///< Difference result with filters applied
+    pdf::PDFDiffResultNavigator m_diffNavigator; ///< Difference navigator
 };
 
 }   // namespace pdfdocdiff

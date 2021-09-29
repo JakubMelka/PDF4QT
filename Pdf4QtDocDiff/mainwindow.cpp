@@ -41,7 +41,8 @@ MainWindow::MainWindow(QWidget* parent) :
     m_progressTaskbarIndicator(nullptr),
     m_diff(nullptr),
     m_isChangingProgressStep(false),
-    m_dontDisplayErrorMessage(false)
+    m_dontDisplayErrorMessage(false),
+    m_diffNavigator(nullptr)
 {
     ui->setupUi(this);
 
@@ -56,12 +57,40 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionOpen_Right->setData(int(Operation::OpenRight));
     ui->actionCompare->setData(int(Operation::Compare));
     ui->actionClose->setData(int(Operation::Close));
+    ui->actionPrevious_Difference->setData(int(Operation::PreviousDifference));
+    ui->actionNext_Difference->setData(int(Operation::NextDifference));
+    ui->actionCreate_Compare_Report->setData(int(Operation::CreateCompareReport));
+    ui->actionFilter_Text->setData(int(Operation::FilterText));
+    ui->actionFilter_Vector_Graphics->setData(int(Operation::FilterVectorGraphics));
+    ui->actionFilter_Images->setData(int(Operation::FilterImages));
+    ui->actionFilter_Shading->setData(int(Operation::FilterShading));
+    ui->actionFilter_Page_Movement->setData(int(Operation::FilterPageMovement));
+    ui->actionView_Differences->setData(int(Operation::ViewDifferences));
+    ui->actionView_Left->setData(int(Operation::ViewLeft));
+    ui->actionView_Right->setData(int(Operation::ViewRight));
+    ui->actionView_Overlay->setData(int(Operation::ViewOverlay));
+    ui->actionShow_Pages_with_Differences->setData(int(Operation::ShowPageswithDifferences));
+    ui->actionSave_Differences_to_XML->setData(int(Operation::SaveDifferencesToXML));
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
     mainToolbar->setObjectName("main_toolbar");
     mainToolbar->addActions({ ui->actionOpen_Left, ui->actionOpen_Right });
     mainToolbar->addSeparator();
     mainToolbar->addAction(ui->actionCompare);
+    mainToolbar->addAction(ui->actionCreate_Compare_Report);
+    mainToolbar->addAction(ui->actionSave_Differences_to_XML);
+
+    QToolBar* differencesToolbar = addToolBar(tr("Differences"));
+    differencesToolbar->setObjectName("differences_toolbar");
+    differencesToolbar->addActions({ ui->actionPrevious_Difference, ui->actionNext_Difference });
+
+    QToolBar* viewToolbar = addToolBar(tr("View"));
+    viewToolbar->setObjectName("view_toolbar");
+    viewToolbar->addActions({ ui->actionView_Differences, ui->actionView_Left, ui->actionView_Right, ui->actionView_Overlay });
+    viewToolbar->addSeparator();
+    viewToolbar->addAction(ui->actionShow_Pages_with_Differences);
+    viewToolbar->addSeparator();
+    viewToolbar->addActions({ ui->actionFilter_Text, ui->actionFilter_Vector_Graphics, ui->actionFilter_Images, ui->actionFilter_Shading, ui->actionFilter_Page_Movement });
 
     QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24));
     auto toolbars = findChildren<QToolBar*>();
@@ -95,8 +124,10 @@ MainWindow::MainWindow(QWidget* parent) :
     m_diff.setLeftDocument(&m_leftDocument);
     m_diff.setRightDocument(&m_rightDocument);
 
+    m_diffNavigator.setResult(&m_filteredDiffResult);
+
     loadSettings();
-    updateActions();
+    updateAll(false);
 }
 
 MainWindow::~MainWindow()
@@ -124,11 +155,21 @@ void MainWindow::onMappedActionTriggered(int actionId)
 
 void MainWindow::onComparationFinished()
 {
-    auto result = m_diff.getResult().getResult();
-    if (!result && !m_dontDisplayErrorMessage)
+    m_diffResult = m_diff.getResult();
+
+    if (!m_dontDisplayErrorMessage)
     {
-        QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
+        if (!m_diffResult.getResult())
+        {
+            QMessageBox::critical(this, tr("Error"), m_diffResult.getResult().getErrorMessage());
+        }
+        if (m_diffResult.isSame())
+        {
+            QMessageBox::information(this, tr("Info"), tr("No differences found between the compared documents."), QMessageBox::Ok);
+        }
     }
+
+    updateAll(true);
 }
 
 void MainWindow::updateActions()
@@ -139,7 +180,13 @@ void MainWindow::updateActions()
         QVariant actionData = action->data();
         if (actionData.isValid())
         {
-            action->setEnabled(canPerformOperation(static_cast<Operation>(actionData.toInt())));
+            bool canPerformAction = canPerformOperation(static_cast<Operation>(actionData.toInt()));
+            action->setEnabled(canPerformAction);
+
+            if (!canPerformAction && action->isCheckable())
+            {
+                action->setChecked(false);
+            }
         }
     }
 }
@@ -198,6 +245,38 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::About:
             return true;
 
+        case Operation::ViewDifferences:
+        case Operation::ViewLeft:
+        case Operation::ViewRight:
+        case Operation::ViewOverlay:
+            return true; // Allow always to change a view
+
+        case Operation::FilterText:
+            return m_diffResult.hasTextDifferences();
+
+        case Operation::FilterVectorGraphics:
+            return m_diffResult.hasVectorGraphicsDifferences();
+
+        case Operation::FilterImages:
+            return m_diffResult.hasImageDifferences();
+
+        case Operation::FilterShading:
+            return m_diffResult.hasShadingDifferences();
+
+        case Operation::FilterPageMovement:
+            return m_diffResult.hasPageMoveDifferences();
+
+        case Operation::PreviousDifference:
+            return m_diffNavigator.canGoPrevious();
+
+        case Operation::NextDifference:
+            return m_diffNavigator.canGoNext();
+
+        case Operation::CreateCompareReport:
+        case Operation::ShowPageswithDifferences:
+        case Operation::SaveDifferencesToXML:
+            return m_diffResult.isChanged();
+
         default:
             Q_ASSERT(false);
             break;
@@ -234,6 +313,10 @@ void MainWindow::performOperation(Operation operation)
                     ui->leftPageSelectionEdit->clear();
                 }
             }
+            else
+            {
+                ui->leftPageSelectionEdit->clear();
+            }
             break;
         }
 
@@ -260,6 +343,10 @@ void MainWindow::performOperation(Operation operation)
                 {
                     ui->rightPageSelectionEdit->clear();
                 }
+            }
+            else
+            {
+                ui->rightPageSelectionEdit->clear();
             }
             break;
         }
@@ -314,12 +401,65 @@ void MainWindow::performOperation(Operation operation)
             aboutDialog.exec();
             break;
         }
+
+        case Operation::PreviousDifference:
+            m_diffNavigator.goPrevious();
+            break;
+
+        case Operation::NextDifference:
+            m_diffNavigator.goNext();
+            break;
+
+        case Operation::FilterText:
+        case Operation::FilterVectorGraphics:
+        case Operation::FilterImages:
+        case Operation::FilterShading:
+        case Operation::FilterPageMovement:
+            updateFilteredResult();
+            break;
+
+        case Operation::ViewDifferences:
+        case Operation::ViewLeft:
+        case Operation::ViewRight:
+        case Operation::ViewOverlay:
+        case Operation::ShowPageswithDifferences:
+        case Operation::SaveDifferencesToXML:
+        case Operation::CreateCompareReport:
+            Q_ASSERT(false);
+            break;
+
         default:
         {
             Q_ASSERT(false);
             break;
         }
     }
+
+    updateActions();
+}
+
+void MainWindow::updateAll(bool resetFilters)
+{
+    if (resetFilters)
+    {
+        ui->actionFilter_Page_Movement->setChecked(m_diffResult.hasPageMoveDifferences());
+        ui->actionFilter_Text->setChecked(m_diffResult.hasTextDifferences());
+        ui->actionFilter_Vector_Graphics->setChecked(m_diffResult.hasVectorGraphicsDifferences());
+        ui->actionFilter_Images->setChecked(m_diffResult.hasImageDifferences());
+        ui->actionFilter_Shading->setChecked(m_diffResult.hasShadingDifferences());
+    }
+
+    updateFilteredResult();
+}
+
+void MainWindow::updateFilteredResult()
+{
+    m_filteredDiffResult = m_diffResult.filter(ui->actionFilter_Page_Movement->isChecked(),
+                                               ui->actionFilter_Text->isChecked(),
+                                               ui->actionFilter_Vector_Graphics->isChecked(),
+                                               ui->actionFilter_Images->isChecked(),
+                                               ui->actionFilter_Shading->isChecked());
+    m_diffNavigator.update();
 
     updateActions();
 }

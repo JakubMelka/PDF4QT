@@ -35,28 +35,28 @@ namespace pdf
 
 struct PDFDiffPageContext;
 
-class PDFDiffResult
+class PDF4QTLIBSHARED_EXPORT PDFDiffResult
 {
 public:
     explicit PDFDiffResult();
 
-    enum class Type
+    enum class Type : uint32_t
     {
-        Invalid,
-        PageMoved,
-        PageAdded,
-        PageRemoved,
-        RemovedTextCharContent,
-        RemovedVectorGraphicContent,
-        RemovedImageContent,
-        RemovedShadingContent,
-        AddedTextCharContent,
-        AddedVectorGraphicContent,
-        AddedImageContent,
-        AddedShadingContent,
-        TextReplaced,
-        TextAdded,
-        TextRemoved,
+        Invalid                         = 0x0000,
+        PageMoved                       = 0x0001,
+        PageAdded                       = 0x0002,
+        PageRemoved                     = 0x0004,
+        RemovedTextCharContent          = 0x0008,
+        RemovedVectorGraphicContent     = 0x0010,
+        RemovedImageContent             = 0x0020,
+        RemovedShadingContent           = 0x0040,
+        AddedTextCharContent            = 0x0080,
+        AddedVectorGraphicContent       = 0x0100,
+        AddedImageContent               = 0x0200,
+        AddedShadingContent             = 0x0400,
+        TextReplaced                    = 0x0800,
+        TextAdded                       = 0x1000,
+        TextRemoved                     = 0x2000,
     };
 
     using RectInfos = std::vector<std::pair<PDFInteger, QRectF>>;
@@ -77,8 +77,32 @@ public:
     /// \param index Index
     QString getMessage(size_t index) const;
 
+    bool hasPageMoveDifferences() const { return m_typeFlags & FLAGS_PAGE_MOVE; }
+    bool hasTextDifferences() const { return m_typeFlags & FLAGS_TEXT; }
+    bool hasVectorGraphicsDifferences() const { return m_typeFlags & FLAGS_VECTOR_GRAPHICS; }
+    bool hasImageDifferences() const { return m_typeFlags & FLAGS_IMAGE; }
+    bool hasShadingDifferences() const { return m_typeFlags & FLAGS_SHADING; }
+
+    /// Filters results using given critera
+    /// \param filterPageMoveDifferences Filter page move differences?
+    /// \param filterTextDifferences Filter text diffferences?
+    /// \param filterVectorGraphicsDifferences Filter vector graphics differences?
+    /// \param filterImageDifferences Filter image differences?
+    /// \param filterShadingDifferences Filter shading differences?
+    PDFDiffResult filter(bool filterPageMoveDifferences,
+                         bool filterTextDifferences,
+                         bool filterVectorGraphicsDifferences,
+                         bool filterImageDifferences,
+                         bool filterShadingDifferences);
+
 private:
     friend class PDFDiff;
+
+    static constexpr uint32_t FLAGS_PAGE_MOVE = uint32_t(Type::PageMoved) | uint32_t(Type::PageAdded) | uint32_t(Type::PageRemoved);
+    static constexpr uint32_t FLAGS_TEXT = uint32_t(Type::RemovedTextCharContent) | uint32_t(Type::AddedTextCharContent) | uint32_t(Type::TextReplaced) | uint32_t(Type::TextAdded) | uint32_t(Type::TextRemoved);
+    static constexpr uint32_t FLAGS_VECTOR_GRAPHICS = uint32_t(Type::RemovedVectorGraphicContent) | uint32_t(Type::AddedVectorGraphicContent);
+    static constexpr uint32_t FLAGS_IMAGE = uint32_t(Type::RemovedImageContent) | uint32_t(Type::AddedImageContent);
+    static constexpr uint32_t FLAGS_SHADING = uint32_t(Type::RemovedShadingContent) | uint32_t(Type::AddedShadingContent);
 
     void addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2);
     void addPageAdded(PDFInteger pageIndex);
@@ -102,6 +126,8 @@ private:
                          QString textAdded,
                          const RectInfos& rectInfos1,
                          const RectInfos& rectInfos2);
+
+    void finalize();
 
     /// Single content difference descriptor. It describes type
     /// of difference (such as graphics, image, text change) on a page
@@ -131,6 +157,50 @@ private:
     RectInfos m_rects; ///< Rectangles with page indices
     PDFOperationResult m_result;
     QStringList m_strings;
+    uint32_t m_typeFlags = 0;
+};
+
+/// Class for result navigation, can go to next, or previous result.
+class PDF4QTLIBSHARED_EXPORT PDFDiffResultNavigator : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit PDFDiffResultNavigator(QObject* parent);
+    virtual ~PDFDiffResultNavigator() override;
+
+    void setResult(const PDFDiffResult* diffResult);
+
+    /// Returns true, if valid result is selected
+    bool isSelected() const;
+
+    /// Returns true if action go to next result can be performed,
+    /// otherwise false is returned.
+    bool canGoNext() const;
+
+    /// Returns true if action go to previous result can be performed,
+    /// otherwise false is returned.
+    bool canGoPrevious() const;
+
+    /// Goes to next result. If action cannot be performed,
+    /// nothing happens and signal is not emitted.
+    void goNext();
+
+    /// Goes to previous result. If action cannot be performed,
+    /// nothing happens and signal is not emitted.
+    void goPrevious();
+
+    /// Updates selection, if difference result was changed
+    void update();
+
+signals:
+    void selectionChanged(size_t currentIndex);
+
+private:
+    size_t getLimit() const { return m_diffResult ? m_diffResult->getDifferencesCount() : 0; }
+
+    const PDFDiffResult* m_diffResult;
+    size_t m_currentIndex;
 };
 
 /// Diff engine for comparing two pdf documents.
@@ -218,7 +288,8 @@ private:
     PDFDiffResult perform();
     void stepProgress();
     void performSteps(const std::vector<PDFInteger>& leftPages,
-                      const std::vector<PDFInteger>& rightPages);
+                      const std::vector<PDFInteger>& rightPages,
+                      PDFDiffResult& result);
     void performPageMatching(const std::vector<PDFDiffPageContext>& leftPreparedPages,
                              const std::vector<PDFDiffPageContext>& rightPreparedPages,
                              PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
@@ -226,7 +297,8 @@ private:
     void performCompare(const std::vector<PDFDiffPageContext>& leftPreparedPages,
                         const std::vector<PDFDiffPageContext>& rightPreparedPages,
                         PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
-                        const std::map<size_t, size_t>& pageMatches);
+                        const std::map<size_t, size_t>& pageMatches,
+                        PDFDiffResult& result);
     void finalizeGraphicsPieces(PDFDiffPageContext& context);
 
     void onComparationPerformed();
