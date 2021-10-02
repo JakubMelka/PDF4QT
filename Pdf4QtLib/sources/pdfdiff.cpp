@@ -1085,7 +1085,7 @@ QString PDFDiffResult::getMessage(size_t index) const
     switch (difference.type)
     {
         case Type::PageMoved:
-            return PDFDiff::tr("Page no. %1 from old document has been moved to a new document at page no. %2.").arg(difference.pageIndex1 + 1).arg(difference.pageIndex2 + 1);
+            return PDFDiff::tr("Page no. %1 was moved to a page no. %2.").arg(difference.pageIndex1 + 1).arg(difference.pageIndex2 + 1);
 
         case Type::PageAdded:
             return PDFDiff::tr("Page no. %1 was added.").arg(difference.pageIndex2 + 1);
@@ -1106,16 +1106,16 @@ QString PDFDiffResult::getMessage(size_t index) const
             return PDFDiff::tr("Removed shading from page %1.").arg(difference.pageIndex1 + 1);
 
         case Type::AddedTextCharContent:
-            return PDFDiff::tr("Added text character from page %1.").arg(difference.pageIndex2 + 1);
+            return PDFDiff::tr("Added text character to page %1.").arg(difference.pageIndex2 + 1);
 
         case Type::AddedVectorGraphicContent:
-            return PDFDiff::tr("Added vector graphics from page %1.").arg(difference.pageIndex2 + 1);
+            return PDFDiff::tr("Added vector graphics to page %1.").arg(difference.pageIndex2 + 1);
 
         case Type::AddedImageContent:
-            return PDFDiff::tr("Added image from page %1.").arg(difference.pageIndex2 + 1);
+            return PDFDiff::tr("Added image to page %1.").arg(difference.pageIndex2 + 1);
 
         case Type::AddedShadingContent:
-            return PDFDiff::tr("Added shading from page %1.").arg(difference.pageIndex2 + 1);
+            return PDFDiff::tr("Added shading to page %1.").arg(difference.pageIndex2 + 1);
 
         case Type::TextAdded:
             return PDFDiff::tr("Text '%1' has been added to page %2.").arg(m_strings[difference.textAddedIndex]).arg(difference.pageIndex2 + 1);
@@ -1132,6 +1132,26 @@ QString PDFDiffResult::getMessage(size_t index) const
     }
 
     return QString();
+}
+
+PDFInteger PDFDiffResult::getLeftPage(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return -1;
+    }
+
+    return m_differences[index].pageIndex1;
+}
+
+PDFInteger PDFDiffResult::getRightPage(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return -1;
+    }
+
+    return m_differences[index].pageIndex2;
 }
 
 PDFDiffResult PDFDiffResult::filter(bool filterPageMoveDifferences,

@@ -77,6 +77,16 @@ public:
     /// \param index Index
     QString getMessage(size_t index) const;
 
+    /// Returns index of left page (or -1, if difference occured
+    /// only on a right page)
+    /// \param index Index
+    PDFInteger getLeftPage(size_t index) const;
+
+    /// Returns index of right page (or -1, if difference occured
+    /// only on a left page)
+    /// \param index Index
+    PDFInteger getRightPage(size_t index) const;
+
     bool hasPageMoveDifferences() const { return m_typeFlags & FLAGS_PAGE_MOVE; }
     bool hasTextDifferences() const { return m_typeFlags & FLAGS_TEXT; }
     bool hasVectorGraphicsDifferences() const { return m_typeFlags & FLAGS_VECTOR_GRAPHICS; }

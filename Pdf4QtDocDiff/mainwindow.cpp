@@ -19,6 +19,8 @@
 #include "ui_mainwindow.h"
 
 #include "aboutdialog.h"
+#include "differencesdockwidget.h"
+#include "settingsdockwidget.h"
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
@@ -39,6 +41,8 @@ MainWindow::MainWindow(QWidget* parent) :
     m_progress(new pdf::PDFProgress(this)),
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
+    m_settingsDockWidget(nullptr),
+    m_differencesDockWidget(nullptr),
     m_diff(nullptr),
     m_isChangingProgressStep(false),
     m_dontDisplayErrorMessage(false),
@@ -50,6 +54,18 @@ MainWindow::MainWindow(QWidget* parent) :
 
     // Initialize task bar progress
     m_progressTaskbarIndicator = m_taskbarButton->progress();
+
+    m_settingsDockWidget = new SettingsDockWidget(this);
+    addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
+
+    m_differencesDockWidget = new DifferencesDockWidget(this);
+    m_differencesDockWidget->setDiffResult(&m_filteredDiffResult);
+    m_differencesDockWidget->setDiffNavigator(&m_diffNavigator);
+    addDockWidget(Qt::LeftDockWidgetArea, m_differencesDockWidget);
+
+    ui->menuView->addSeparator();
+    ui->menuView->addAction(m_settingsDockWidget->toggleViewAction());
+    ui->menuView->addAction(m_differencesDockWidget->toggleViewAction());
 
     ui->actionGet_Source->setData(int(Operation::GetSource));
     ui->actionAbout->setData(int(Operation::About));
@@ -217,6 +233,10 @@ void MainWindow::loadSettings()
 
     settings.beginGroup("Settings");
     m_settings.directory = settings.value("directory").toString();
+    m_settings.colorPageMove = settings.value("colorPageMove").value<QColor>();
+    m_settings.colorAdded = settings.value("colorAdded").value<QColor>();
+    m_settings.colorRemoved = settings.value("colorRemoved").value<QColor>();
+    m_settings.colorReplaced = settings.value("colorReplaced").value<QColor>();
     settings.endGroup();
 }
 
@@ -230,6 +250,10 @@ void MainWindow::saveSettings()
 
     settings.beginGroup("Settings");
     settings.setValue("directory", m_settings.directory);
+    settings.setValue("colorPageMove", m_settings.colorPageMove);
+    settings.setValue("colorAdded", m_settings.colorAdded);
+    settings.setValue("colorRemoved", m_settings.colorRemoved);
+    settings.setValue("colorReplaced", m_settings.colorReplaced);
     settings.endGroup();
 }
 
@@ -460,6 +484,11 @@ void MainWindow::updateFilteredResult()
                                                ui->actionFilter_Images->isChecked(),
                                                ui->actionFilter_Shading->isChecked());
     m_diffNavigator.update();
+
+    if (m_differencesDockWidget)
+    {
+        m_differencesDockWidget->update();
+    }
 
     updateActions();
 }

@@ -18,6 +18,8 @@
 #ifndef PDFDOCDIFF_MAINWINDOW_H
 #define PDFDOCDIFF_MAINWINDOW_H
 
+#include "settings.h"
+
 #include "pdfdocument.h"
 #include "pdfdiff.h"
 
@@ -33,6 +35,9 @@ class MainWindow;
 
 namespace pdfdocdiff
 {
+
+class SettingsDockWidget;
+class DifferencesDockWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -94,16 +99,13 @@ private:
 
     std::optional<pdf::PDFDocument> openDocument();
 
-    struct Settings
-    {
-        QString directory;
-    };
-
     Ui::MainWindow* ui;
 
     pdf::PDFProgress* m_progress;
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
+    SettingsDockWidget* m_settingsDockWidget;
+    DifferencesDockWidget* m_differencesDockWidget;
 
     Settings m_settings;
     QSignalMapper m_mapper;

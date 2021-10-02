@@ -43,16 +43,23 @@ INSTALLS += application
 
 SOURCES += \
     aboutdialog.cpp \
+    differencesdockwidget.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    settingsdockwidget.cpp
 
 FORMS += \
     aboutdialog.ui \
-    mainwindow.ui
+    differencesdockwidget.ui \
+    mainwindow.ui \
+    settingsdockwidget.ui
 
 HEADERS += \
     aboutdialog.h \
-    mainwindow.h
+    differencesdockwidget.h \
+    mainwindow.h \
+    settings.h \
+    settingsdockwidget.h
 
 RESOURCES += \
     resources.qrc
