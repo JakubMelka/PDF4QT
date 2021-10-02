@@ -58,9 +58,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_settingsDockWidget = new SettingsDockWidget(this);
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
 
-    m_differencesDockWidget = new DifferencesDockWidget(this);
-    m_differencesDockWidget->setDiffResult(&m_filteredDiffResult);
-    m_differencesDockWidget->setDiffNavigator(&m_diffNavigator);
+    m_differencesDockWidget = new DifferencesDockWidget(this, &m_filteredDiffResult, &m_diffNavigator, &m_settings);
     addDockWidget(Qt::LeftDockWidgetArea, m_differencesDockWidget);
 
     ui->menuView->addSeparator();
@@ -233,10 +231,10 @@ void MainWindow::loadSettings()
 
     settings.beginGroup("Settings");
     m_settings.directory = settings.value("directory").toString();
-    m_settings.colorPageMove = settings.value("colorPageMove").value<QColor>();
-    m_settings.colorAdded = settings.value("colorAdded").value<QColor>();
-    m_settings.colorRemoved = settings.value("colorRemoved").value<QColor>();
-    m_settings.colorReplaced = settings.value("colorReplaced").value<QColor>();
+    m_settings.colorPageMove = settings.value("colorPageMove", m_settings.colorPageMove).value<QColor>();
+    m_settings.colorAdded = settings.value("colorAdded", m_settings.colorAdded).value<QColor>();
+    m_settings.colorRemoved = settings.value("colorRemoved", m_settings.colorRemoved).value<QColor>();
+    m_settings.colorReplaced = settings.value("colorReplaced", m_settings.colorReplaced).value<QColor>();
     settings.endGroup();
 }
 

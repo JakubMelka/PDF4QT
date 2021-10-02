@@ -1074,6 +1074,16 @@ void PDFDiffResult::finalize()
     }
 }
 
+uint32_t PDFDiffResult::getTypeFlags(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return 0;
+    }
+
+    return uint32_t(m_differences[index].type);
+}
+
 QString PDFDiffResult::getMessage(size_t index) const
 {
     if (index >= m_differences.size())
@@ -1152,6 +1162,26 @@ PDFInteger PDFDiffResult::getRightPage(size_t index) const
     }
 
     return m_differences[index].pageIndex2;
+}
+
+bool PDFDiffResult::isPageMoveDifference(size_t index) const
+{
+    return getTypeFlags(index) & FLAGS_TYPE_PAGE_MOVE;
+}
+
+bool PDFDiffResult::isAddDifference(size_t index) const
+{
+    return getTypeFlags(index) & FLAGS_TYPE_ADD;
+}
+
+bool PDFDiffResult::isRemoveDifference(size_t index) const
+{
+    return getTypeFlags(index) & FLAGS_TYPE_REMOVE;
+}
+
+bool PDFDiffResult::isReplaceDifference(size_t index) const
+{
+    return getTypeFlags(index) & FLAGS_TYPE_REPLACE;
 }
 
 PDFDiffResult PDFDiffResult::filter(bool filterPageMoveDifferences,

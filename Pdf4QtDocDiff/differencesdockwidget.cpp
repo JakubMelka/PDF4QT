@@ -21,6 +21,7 @@
 #include "pdfdiff.h"
 #include "pdfwidgetutils.h"
 
+#include <QPixmap>
 #include <QTreeWidgetItem>
 
 namespace pdfdocdiff
@@ -42,6 +43,8 @@ void DifferenceItemDelegate::paint(QPainter* painter,
 QSize DifferenceItemDelegate::sizeHint(const QStyleOptionViewItem& option,
                                        const QModelIndex& index) const
 {
+    QStyleOptionViewItem adjustedOption = option;
+
     if (!option.rect.isValid())
     {
         // Jakub Melka: Why this? We need to use text wrapping. Unfortunately,
@@ -49,7 +52,7 @@ QSize DifferenceItemDelegate::sizeHint(const QStyleOptionViewItem& option,
         // for word wrap calculation. So we must manually calculate rectangle width.
         // Of course, we cant use visualRect of the tree widget, because of cyclical
         // dependence.
-        QStyleOptionViewItem adjustedOption = option;
+
         const QTreeWidget* treeWidget = qobject_cast<const QTreeWidget*>(option.widget);
         int xOffset = treeWidget->columnViewportPosition(index.column());
         int height = option.fontMetrics.lineSpacing();
@@ -66,21 +69,25 @@ QSize DifferenceItemDelegate::sizeHint(const QStyleOptionViewItem& option,
 
         xOffset += level * treeWidget->indentation();
         adjustedOption.rect = QRect(xOffset, yOffset, width - xOffset, height);
-        return BaseClass::sizeHint(adjustedOption, index);
     }
 
-    return BaseClass::sizeHint(option, index);
+    return BaseClass::sizeHint(adjustedOption, index);
 }
 
-DifferencesDockWidget::DifferencesDockWidget(QWidget *parent) :
+DifferencesDockWidget::DifferencesDockWidget(QWidget* parent,
+                                             pdf::PDFDiffResult* diffResult,
+                                             pdf::PDFDiffResultNavigator* diffNavigator,
+                                             Settings* settings) :
     QDockWidget(parent),
     ui(new Ui::DifferencesDockWidget),
-    m_diffResult(nullptr),
-    m_diffNavigator(nullptr)
+    m_diffResult(diffResult),
+    m_diffNavigator(diffNavigator),
+    m_settings(settings)
 {
     ui->setupUi(this);
 
     ui->differencesTreeWidget->setItemDelegate(new DifferenceItemDelegate(this));
+    ui->differencesTreeWidget->setIconSize(pdf::PDFWidgetUtils::scaleDPI(ui->differencesTreeWidget, QSize(16, 16)));
 
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 120));
 }
@@ -88,6 +95,32 @@ DifferencesDockWidget::DifferencesDockWidget(QWidget *parent) :
 DifferencesDockWidget::~DifferencesDockWidget()
 {
     delete ui;
+}
+
+QColor DifferencesDockWidget::getColorForIndex(size_t index) const
+{
+    QColor color;
+
+    const size_t resultIndex = index;
+
+    if (m_diffResult->isReplaceDifference(resultIndex))
+    {
+        color = m_settings->colorReplaced;
+    }
+    else if (m_diffResult->isRemoveDifference(resultIndex))
+    {
+        color = m_settings->colorRemoved;
+    }
+    else if (m_diffResult->isAddDifference(resultIndex))
+    {
+        color = m_settings->colorAdded;
+    }
+    else if (m_diffResult->isPageMoveDifference(resultIndex))
+    {
+        color = m_settings->colorPageMove;
+    }
+
+    return color;
 }
 
 void DifferencesDockWidget::update()
@@ -147,21 +180,22 @@ void DifferencesDockWidget::update()
 
             QTreeWidgetItem* item = new QTreeWidgetItem(parent, QStringList() << m_diffResult->getMessage(i));
             item->setData(0, Qt::UserRole, i);
+
+            QColor color = getColorForIndex(i);
+
+            if (color.isValid())
+            {
+                QPixmap pixmap(ui->differencesTreeWidget->iconSize());
+                pixmap.fill(color);
+                QIcon icon(pixmap);
+
+                item->setData(0, Qt::DecorationRole, icon);
+            }
         }
     }
 
     ui->differencesTreeWidget->addTopLevelItems(topItems);
     ui->differencesTreeWidget->expandAll();
-}
-
-void DifferencesDockWidget::setDiffResult(pdf::PDFDiffResult* diffResult)
-{
-    m_diffResult = diffResult;
-}
-
-void DifferencesDockWidget::setDiffNavigator(pdf::PDFDiffResultNavigator* diffNavigator)
-{
-    m_diffNavigator = diffNavigator;
 }
 
 }   // namespace pdfdocdiff

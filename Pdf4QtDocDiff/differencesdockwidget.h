@@ -18,6 +18,8 @@
 #ifndef DIFFERENCESDOCKWIDGET_H
 #define DIFFERENCESDOCKWIDGET_H
 
+#include "settings.h"
+
 #include <QDockWidget>
 #include <QItemDelegate>
 
@@ -54,19 +56,22 @@ class DifferencesDockWidget : public QDockWidget
     Q_OBJECT
 
 public:
-    explicit DifferencesDockWidget(QWidget* parent);
+    explicit DifferencesDockWidget(QWidget* parent,
+                                   pdf::PDFDiffResult* diffResult,
+                                   pdf::PDFDiffResultNavigator* diffNavigator,
+                                   Settings* settings);
     virtual ~DifferencesDockWidget() override;
 
     void update();
 
-    void setDiffResult(pdf::PDFDiffResult* diffResult);
-    void setDiffNavigator(pdf::PDFDiffResultNavigator* diffNavigator);
-
 private:
     Ui::DifferencesDockWidget* ui;
 
+    QColor getColorForIndex(size_t index) const;
+
     pdf::PDFDiffResult* m_diffResult;
     pdf::PDFDiffResultNavigator* m_diffNavigator;
+    Settings* m_settings;
 };
 
 }   // namespace pdfdocdiff

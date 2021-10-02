@@ -87,6 +87,11 @@ public:
     /// \param index Index
     PDFInteger getRightPage(size_t index) const;
 
+    bool isPageMoveDifference(size_t index) const;
+    bool isAddDifference(size_t index) const;
+    bool isRemoveDifference(size_t index) const;
+    bool isReplaceDifference(size_t index) const;
+
     bool hasPageMoveDifferences() const { return m_typeFlags & FLAGS_PAGE_MOVE; }
     bool hasTextDifferences() const { return m_typeFlags & FLAGS_TEXT; }
     bool hasVectorGraphicsDifferences() const { return m_typeFlags & FLAGS_VECTOR_GRAPHICS; }
@@ -114,6 +119,11 @@ private:
     static constexpr uint32_t FLAGS_IMAGE = uint32_t(Type::RemovedImageContent) | uint32_t(Type::AddedImageContent);
     static constexpr uint32_t FLAGS_SHADING = uint32_t(Type::RemovedShadingContent) | uint32_t(Type::AddedShadingContent);
 
+    static constexpr uint32_t FLAGS_TYPE_PAGE_MOVE = uint32_t(Type::PageMoved);
+    static constexpr uint32_t FLAGS_TYPE_ADD = uint32_t(Type::PageAdded) | uint32_t(Type::AddedTextCharContent) | uint32_t(Type::AddedVectorGraphicContent) | uint32_t(Type::AddedImageContent) | uint32_t(Type::AddedShadingContent) | uint32_t(Type::TextAdded);
+    static constexpr uint32_t FLAGS_TYPE_REMOVE = uint32_t(Type::PageRemoved) | uint32_t(Type::RemovedTextCharContent) | uint32_t(Type::RemovedVectorGraphicContent) | uint32_t(Type::RemovedImageContent) | uint32_t(Type::RemovedShadingContent) | uint32_t(Type::TextRemoved);
+    static constexpr uint32_t FLAGS_TYPE_REPLACE = uint32_t(Type::TextReplaced);
+
     void addPageMoved(PDFInteger pageIndex1, PDFInteger pageIndex2);
     void addPageAdded(PDFInteger pageIndex);
     void addPageRemoved(PDFInteger pageIndex);
@@ -138,6 +148,8 @@ private:
                          const RectInfos& rectInfos2);
 
     void finalize();
+
+    uint32_t getTypeFlags(size_t index) const;
 
     /// Single content difference descriptor. It describes type
     /// of difference (such as graphics, image, text change) on a page
