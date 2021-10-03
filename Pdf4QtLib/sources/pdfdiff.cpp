@@ -1571,4 +1571,13 @@ void PDFDiffResultNavigator::update()
     }
 }
 
+void PDFDiffResultNavigator::select(size_t currentIndex)
+{
+    if (currentIndex < getLimit() && m_currentIndex != currentIndex)
+    {
+        m_currentIndex = currentIndex;
+        emit selectionChanged(m_currentIndex);
+    }
+}
+
 }   // namespace pdf

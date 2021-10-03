@@ -22,6 +22,7 @@
 #include "pdfwidgetutils.h"
 
 #include <QPixmap>
+#include <QPainter>
 #include <QTreeWidgetItem>
 
 namespace pdfdocdiff
@@ -82,12 +83,15 @@ DifferencesDockWidget::DifferencesDockWidget(QWidget* parent,
     ui(new Ui::DifferencesDockWidget),
     m_diffResult(diffResult),
     m_diffNavigator(diffNavigator),
-    m_settings(settings)
+    m_settings(settings),
+    m_disableChangeSelectedResultIndex(false)
 {
     ui->setupUi(this);
 
     ui->differencesTreeWidget->setItemDelegate(new DifferenceItemDelegate(this));
     ui->differencesTreeWidget->setIconSize(pdf::PDFWidgetUtils::scaleDPI(ui->differencesTreeWidget, QSize(16, 16)));
+    connect(diffNavigator, &pdf::PDFDiffResultNavigator::selectionChanged, this, &DifferencesDockWidget::onSelectionChanged);
+    connect(ui->differencesTreeWidget, &QTreeWidget::currentItemChanged, this, &DifferencesDockWidget::onCurrentItemChanged);
 
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 120));
 }
@@ -123,6 +127,35 @@ QColor DifferencesDockWidget::getColorForIndex(size_t index) const
     return color;
 }
 
+QModelIndex DifferencesDockWidget::findResultIndex(size_t index) const
+{
+    QAbstractItemModel* model = ui->differencesTreeWidget->model();
+    const int count = ui->differencesTreeWidget->topLevelItemCount();
+
+    for (int i = 0; i < count; ++i)
+    {
+        QModelIndex parentIndex = model->index(i, 0);
+        if (parentIndex.isValid())
+        {
+            const int childCount = model->rowCount(parentIndex);
+            for (int j = 0; j < childCount; ++j)
+            {
+                QModelIndex childIndex = parentIndex.child(j, 0);
+                QVariant data = childIndex.data(Qt::UserRole);
+                if (data.isValid())
+                {
+                    if (data.toULongLong() == index)
+                    {
+                        return childIndex;
+                    }
+                }
+            }
+        }
+    }
+
+    return QModelIndex();
+}
+
 void DifferencesDockWidget::update()
 {
     ui->differencesTreeWidget->clear();
@@ -133,7 +166,31 @@ void DifferencesDockWidget::update()
 
     if (m_diffResult && !m_diffResult->isSame())
     {
+        std::map<QRgb, QIcon> icons;
+        auto getIcon = [this, &icons](QColor color)
+        {
+            auto it = icons.find(color.rgb());
+            if (it == icons.end())
+            {
+                QPixmap pixmap(ui->differencesTreeWidget->iconSize());
+                pixmap.fill(Qt::transparent);
+
+                QPainter painter(&pixmap);
+                painter.setPen(Qt::NoPen);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setBrush(QBrush(color));
+                painter.drawEllipse(0, 0, pixmap.width(), pixmap.height());
+                painter.end();
+
+                QIcon icon(pixmap);
+                it = icons.insert(std::make_pair(color.rgb(), std::move(icon))).first;
+            }
+
+            return it->second;
+        };
+
         const size_t differenceCount = m_diffResult->getDifferencesCount();
+        ui->infoTextLabel->setText(tr("%1 Differences").arg(differenceCount));
 
         pdf::PDFInteger lastLeftPageIndex = -1;
         pdf::PDFInteger lastRightPageIndex = -1;
@@ -185,17 +242,52 @@ void DifferencesDockWidget::update()
 
             if (color.isValid())
             {
-                QPixmap pixmap(ui->differencesTreeWidget->iconSize());
-                pixmap.fill(color);
-                QIcon icon(pixmap);
-
-                item->setData(0, Qt::DecorationRole, icon);
+                item->setData(0, Qt::DecorationRole, getIcon(color));
             }
         }
+    }
+    else
+    {
+        ui->infoTextLabel->setText(tr("No Differences Found!"));
     }
 
     ui->differencesTreeWidget->addTopLevelItems(topItems);
     ui->differencesTreeWidget->expandAll();
+}
+
+void DifferencesDockWidget::onSelectionChanged(size_t currentIndex)
+{
+    if (m_disableChangeSelectedResultIndex)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange guard(&m_disableChangeSelectedResultIndex, true);
+
+    QModelIndex index = findResultIndex(currentIndex);
+    if (index.isValid())
+    {
+        ui->differencesTreeWidget->scrollTo(index);
+        ui->differencesTreeWidget->setCurrentIndex(index);
+    }
+}
+
+void DifferencesDockWidget::onCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous)
+{
+    Q_UNUSED(previous);
+
+    if (m_disableChangeSelectedResultIndex || !current)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange guard(&m_disableChangeSelectedResultIndex, true);
+    QVariant data = current->data(0, Qt::UserRole);
+
+    if (data.isValid())
+    {
+        m_diffNavigator->select(data.toULongLong());
+    }
 }
 
 }   // namespace pdfdocdiff

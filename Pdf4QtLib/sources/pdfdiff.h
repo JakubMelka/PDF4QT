@@ -215,6 +215,10 @@ public:
     /// Updates selection, if difference result was changed
     void update();
 
+    /// Selects current index
+    /// \param currentIndex
+    void select(size_t currentIndex);
+
 signals:
     void selectionChanged(size_t currentIndex);
 

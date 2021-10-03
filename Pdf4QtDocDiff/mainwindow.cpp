@@ -139,6 +139,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_diff.setRightDocument(&m_rightDocument);
 
     m_diffNavigator.setResult(&m_filteredDiffResult);
+    connect(&m_diffNavigator, &pdf::PDFDiffResultNavigator::selectionChanged, this, &MainWindow::onSelectionChanged);
 
     loadSettings();
     updateAll(false);
@@ -203,6 +204,12 @@ void MainWindow::updateActions()
             }
         }
     }
+}
+
+void MainWindow::onSelectionChanged(size_t currentIndex)
+{
+    Q_UNUSED(currentIndex);
+    updateActions();
 }
 
 void MainWindow::loadSettings()

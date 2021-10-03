@@ -28,6 +28,8 @@ namespace Ui
 class DifferencesDockWidget;
 }
 
+class QTreeWidgetItem;
+
 namespace pdf
 {
 class PDFDiffResult;
@@ -64,14 +66,20 @@ public:
 
     void update();
 
+private slots:
+    void onSelectionChanged(size_t currentIndex);
+    void onCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous);
+
 private:
     Ui::DifferencesDockWidget* ui;
 
     QColor getColorForIndex(size_t index) const;
+    QModelIndex findResultIndex(size_t index) const;
 
     pdf::PDFDiffResult* m_diffResult;
     pdf::PDFDiffResultNavigator* m_diffNavigator;
     Settings* m_settings;
+    bool m_disableChangeSelectedResultIndex;
 };
 
 }   // namespace pdfdocdiff

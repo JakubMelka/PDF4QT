@@ -79,6 +79,7 @@ public:
 
 private slots:
     void updateActions();
+    void onSelectionChanged(size_t currentIndex);
 
 private:
     void onMappedActionTriggered(int actionId);
