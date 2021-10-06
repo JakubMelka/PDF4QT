@@ -93,6 +93,50 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionRegroup_by_Bookmarks->setData(int(Operation::RegroupBookmarks));
     ui->actionRegroup_by_Alternating_Pages->setData(int(Operation::RegroupAlternatingPages));
     ui->actionRegroup_by_Alternating_Pages_Reversed_Order->setData(int(Operation::RegroupAlternatingPagesReversed));
+    ui->actionPrepare_Icon_Theme->setData(int(Operation::PrepareIconTheme));
+
+    m_iconTheme.registerAction(ui->actionAddDocument, ":/pdfdocpage/resources/open.svg");
+    m_iconTheme.registerAction(ui->actionClose, ":/pdfdocpage/resources/close.svg");
+    m_iconTheme.registerAction(ui->actionCloneSelection, ":/pdfdocpage/resources/clone-selection.svg");
+    m_iconTheme.registerAction(ui->actionRemoveSelection, ":/pdfdocpage/resources/remove-selection.svg");
+    m_iconTheme.registerAction(ui->actionRestoreRemovedItems, ":/pdfdocpage/resources/restore-removed-items.svg");
+    m_iconTheme.registerAction(ui->actionInsert_PDF, ":/pdfdocpage/resources/insert-page-from-pdf.svg");
+    m_iconTheme.registerAction(ui->actionInsert_Image, ":/pdfdocpage/resources/insert-image.svg");
+    m_iconTheme.registerAction(ui->actionInsert_Empty_Page, ":/pdfdocpage/resources/insert-empty-page.svg");
+    m_iconTheme.registerAction(ui->actionCut, ":/pdfdocpage/resources/cut.svg");
+    m_iconTheme.registerAction(ui->actionCopy, ":/pdfdocpage/resources/copy.svg");
+    m_iconTheme.registerAction(ui->actionPaste, ":/pdfdocpage/resources/paste.svg");
+    m_iconTheme.registerAction(ui->actionReplaceSelection, ":/pdfdocpage/resources/replace-selection.svg");
+    m_iconTheme.registerAction(ui->actionSelect_None, ":/pdfdocpage/resources/select-none.svg");
+    m_iconTheme.registerAction(ui->actionSelect_All, ":/pdfdocpage/resources/select-all.svg");
+    m_iconTheme.registerAction(ui->actionSelect_Even, ":/pdfdocpage/resources/select-even.svg");
+    m_iconTheme.registerAction(ui->actionSelect_Odd, ":/pdfdocpage/resources/select-odd.svg");
+    m_iconTheme.registerAction(ui->actionSelect_Portrait, ":/pdfdocpage/resources/select-portrait.svg");
+    m_iconTheme.registerAction(ui->actionSelect_Landscape, ":/pdfdocpage/resources/select-landscape.svg");
+    m_iconTheme.registerAction(ui->actionRotate_Right, ":/pdfdocpage/resources/rotate-right.svg");
+    m_iconTheme.registerAction(ui->actionRotate_Left, ":/pdfdocpage/resources/rotate-left.svg");
+    m_iconTheme.registerAction(ui->actionZoom_In, ":/pdfdocpage/resources/zoom-in.svg");
+    m_iconTheme.registerAction(ui->actionZoom_Out, ":/pdfdocpage/resources/zoom-out.svg");
+    m_iconTheme.registerAction(ui->actionGet_Source, ":/pdfdocpage/resources/get-source.svg");
+    m_iconTheme.registerAction(ui->actionAbout, ":/pdfdocpage/resources/about.svg");
+    m_iconTheme.registerAction(ui->actionUnited_Document, ":/pdfdocpage/resources/make-united-document.svg");
+    m_iconTheme.registerAction(ui->actionSeparate_to_Multiple_Documents, ":/pdfdocpage/resources/make-separated-document.svg");
+    m_iconTheme.registerAction(ui->actionSeparate_to_Multiple_Documents_Grouped, ":/pdfdocpage/resources/make-separated-document-from-groups.svg");
+    m_iconTheme.registerAction(ui->actionGroup, ":/pdfdocpage/resources/group.svg");
+    m_iconTheme.registerAction(ui->actionUngroup, ":/pdfdocpage/resources/ungroup.svg");
+    m_iconTheme.registerAction(ui->actionClear, ":/pdfdocpage/resources/clear.svg");
+    m_iconTheme.registerAction(ui->actionRegroup_Even_Odd, ":/pdfdocpage/resources/regroup-even-odd.svg");
+    m_iconTheme.registerAction(ui->actionRegroup_by_Page_Pairs, ":/pdfdocpage/resources/regroup-pairs.svg");
+    m_iconTheme.registerAction(ui->actionRegroup_by_Bookmarks, ":/pdfdocpage/resources/regroup-bookmarks.svg");
+    m_iconTheme.registerAction(ui->actionRegroup_by_Alternating_Pages, ":/pdfdocpage/resources/regroup-alternating.svg");
+    m_iconTheme.registerAction(ui->actionRegroup_by_Alternating_Pages_Reversed_Order, ":/pdfdocpage/resources/regroup-alternating-reversed.svg");
+    m_iconTheme.registerAction(ui->actionInvert_Selection, ":/pdfdocpage/resources/invert-selection.svg");
+    m_iconTheme.registerAction(ui->actionUndo, ":/pdfdocpage/resources/undo.svg");
+    m_iconTheme.registerAction(ui->actionRedo, ":/pdfdocpage/resources/redo.svg");
+
+    m_iconTheme.setDirectory("pdfdocpage_theme");
+    m_iconTheme.setPrefix(":/pdfdocpage/resources/");
+    m_iconTheme.loadTheme();
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
     mainToolbar->setObjectName("main_toolbar");
@@ -360,6 +404,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::InsertPDF:
         case Operation::GetSource:
         case Operation::About:
+        case Operation::PrepareIconTheme:
             return true;
 
         case Operation::InvertSelection:
@@ -560,6 +605,10 @@ void MainWindow::performOperation(Operation operation)
             aboutDialog.exec();
             break;
         }
+
+        case Operation::PrepareIconTheme:
+            m_iconTheme.prepareTheme();
+            break;
 
         case Operation::Unite:
         case Operation::Separate:

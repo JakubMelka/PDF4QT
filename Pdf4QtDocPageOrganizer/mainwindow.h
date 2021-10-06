@@ -18,11 +18,12 @@
 #ifndef PDFDOCPAGEORGANIZER_MAINWINDOW_H
 #define PDFDOCPAGEORGANIZER_MAINWINDOW_H
 
-#include <QMainWindow>
+#include "pdficontheme.h"
 
 #include "pageitemmodel.h"
 #include "pageitemdelegate.h"
 
+#include <QMainWindow>
 #include <QSignalMapper>
 
 namespace Ui
@@ -92,7 +93,8 @@ public:
         RegroupAlternatingPagesReversed,
 
         GetSource,
-        About
+        About,
+        PrepareIconTheme
     };
 
 private slots:
@@ -116,6 +118,7 @@ private:
 
     Ui::MainWindow* ui;
 
+    pdf::PDFIconTheme m_iconTheme;
     PageItemModel* m_model;
     PageItemDelegate* m_delegate;
     Settings m_settings;

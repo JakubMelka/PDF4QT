@@ -57,6 +57,7 @@ SOURCES += \
     sources/pdfexecutionpolicy.cpp \
     sources/pdffile.cpp \
     sources/pdfform.cpp \
+    sources/pdficontheme.cpp \
     sources/pdfitemmodels.cpp \
     sources/pdfjavascriptscanner.cpp \
     sources/pdfjbig2decoder.cpp \
@@ -123,6 +124,7 @@ HEADERS += \
     sources/pdfexecutionpolicy.h \
     sources/pdffile.h \
     sources/pdfform.h \
+    sources/pdficontheme.h \
     sources/pdfitemmodels.h \
     sources/pdfjavascriptscanner.h \
     sources/pdfjbig2decoder.h \

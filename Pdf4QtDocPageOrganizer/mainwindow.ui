@@ -118,6 +118,7 @@
     </property>
     <addaction name="actionGet_Source"/>
     <addaction name="actionAbout"/>
+    <addaction name="actionPrepare_Icon_Theme"/>
    </widget>
    <widget class="QMenu" name="menuToolbars">
     <property name="title">
@@ -580,6 +581,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Y</string>
+   </property>
+  </action>
+  <action name="actionPrepare_Icon_Theme">
+   <property name="text">
+    <string>Prepare Icon Theme</string>
    </property>
   </action>
  </widget>
