@@ -59,6 +59,7 @@ class DifferencesDockWidget : public QDockWidget
 
 public:
     explicit DifferencesDockWidget(QWidget* parent,
+                                   pdf::PDFDiffResult* unfilteredDiffResult,
                                    pdf::PDFDiffResult* diffResult,
                                    pdf::PDFDiffResultNavigator* diffNavigator,
                                    Settings* settings);
@@ -76,6 +77,7 @@ private:
     QColor getColorForIndex(size_t index) const;
     QModelIndex findResultIndex(size_t index) const;
 
+    pdf::PDFDiffResult* m_unfilteredDiffResult;
     pdf::PDFDiffResult* m_diffResult;
     pdf::PDFDiffResultNavigator* m_diffNavigator;
     Settings* m_settings;

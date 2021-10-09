@@ -24,6 +24,7 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QToolBar>
 #include <QDesktopWidget>
@@ -31,6 +32,7 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
+#include <QVBoxLayout>
 
 namespace pdfdocdiff
 {
@@ -41,8 +43,11 @@ MainWindow::MainWindow(QWidget* parent) :
     m_progress(new pdf::PDFProgress(this)),
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
+    m_cmsManager(nullptr),
+    m_pdfWidget(nullptr),
     m_settingsDockWidget(nullptr),
     m_differencesDockWidget(nullptr),
+    m_optionalContentActivity(nullptr),
     m_diff(nullptr),
     m_isChangingProgressStep(false),
     m_dontDisplayErrorMessage(false),
@@ -58,8 +63,15 @@ MainWindow::MainWindow(QWidget* parent) :
     m_settingsDockWidget = new SettingsDockWidget(this);
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
 
-    m_differencesDockWidget = new DifferencesDockWidget(this, &m_filteredDiffResult, &m_diffNavigator, &m_settings);
+    m_differencesDockWidget = new DifferencesDockWidget(this, &m_diffResult, &m_filteredDiffResult, &m_diffNavigator, &m_settings);
     addDockWidget(Qt::LeftDockWidgetArea, m_differencesDockWidget);
+
+    ui->documentFrame->setLayout(new QVBoxLayout);
+
+    m_cmsManager = new pdf::PDFCMSManager(this);
+    m_pdfWidget = new pdf::PDFWidget(m_cmsManager, pdf::RendererEngine::Software, 1, ui->documentFrame);
+    m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
+    ui->documentFrame->layout()->addWidget(m_pdfWidget);
 
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_settingsDockWidget->toggleViewAction());
@@ -85,6 +97,14 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionView_Overlay->setData(int(Operation::ViewOverlay));
     ui->actionShow_Pages_with_Differences->setData(int(Operation::ShowPageswithDifferences));
     ui->actionSave_Differences_to_XML->setData(int(Operation::SaveDifferencesToXML));
+
+    QActionGroup* actionGroup = new QActionGroup(this);
+    actionGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::Exclusive);
+    actionGroup->addAction(ui->actionView_Differences);
+    actionGroup->addAction(ui->actionView_Left);
+    actionGroup->addAction(ui->actionView_Right);
+    actionGroup->addAction(ui->actionView_Overlay);
+    ui->actionView_Differences->setChecked(true);
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
     mainToolbar->setObjectName("main_toolbar");
@@ -170,6 +190,8 @@ void MainWindow::onMappedActionTriggered(int actionId)
 
 void MainWindow::onComparationFinished()
 {
+    clear(false, false);
+
     m_diffResult = m_diff.getResult();
 
     if (!m_dontDisplayErrorMessage)
@@ -326,6 +348,7 @@ void MainWindow::performOperation(Operation operation)
             std::optional<pdf::PDFDocument> document = openDocument();
             if (document)
             {
+                clear(true, false);
                 m_leftDocument = std::move(*document);
 
                 const size_t pageCount = m_leftDocument.getCatalog()->getPageCount();
@@ -341,11 +364,10 @@ void MainWindow::performOperation(Operation operation)
                 {
                     ui->leftPageSelectionEdit->clear();
                 }
+
+                updateViewDocument();
             }
-            else
-            {
-                ui->leftPageSelectionEdit->clear();
-            }
+
             break;
         }
 
@@ -357,6 +379,7 @@ void MainWindow::performOperation(Operation operation)
             std::optional<pdf::PDFDocument> document = openDocument();
             if (document)
             {
+                clear(false, true);
                 m_rightDocument = std::move(*document);
 
                 const size_t pageCount = m_rightDocument.getCatalog()->getPageCount();
@@ -372,11 +395,10 @@ void MainWindow::performOperation(Operation operation)
                 {
                     ui->rightPageSelectionEdit->clear();
                 }
+
+                updateViewDocument();
             }
-            else
-            {
-                ui->rightPageSelectionEdit->clear();
-            }
+
             break;
         }
 
@@ -451,6 +473,9 @@ void MainWindow::performOperation(Operation operation)
         case Operation::ViewLeft:
         case Operation::ViewRight:
         case Operation::ViewOverlay:
+            updateViewDocument();
+            break;
+
         case Operation::ShowPageswithDifferences:
         case Operation::SaveDifferencesToXML:
         case Operation::CreateCompareReport:
@@ -467,6 +492,53 @@ void MainWindow::performOperation(Operation operation)
     updateActions();
 }
 
+void MainWindow::setViewDocument(pdf::PDFDocument* document)
+{
+    if (document != m_pdfWidget->getDrawWidgetProxy()->getDocument())
+    {
+        m_optionalContentActivity->deleteLater();
+        m_optionalContentActivity = nullptr;
+
+        if (document)
+        {
+            m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
+        }
+
+        if (document)
+        {
+            pdf::PDFModifiedDocument modifiedDocument(document, m_optionalContentActivity);
+            m_pdfWidget->setDocument(modifiedDocument);
+        }
+        else
+        {
+            m_pdfWidget->setDocument(pdf::PDFModifiedDocument());
+        }
+    }
+}
+
+void MainWindow::clear(bool clearLeftDocument, bool clearRightDocument)
+{
+    setViewDocument(nullptr);
+
+    if (clearLeftDocument)
+    {
+        m_leftDocument = pdf::PDFDocument();
+        ui->leftPageSelectionEdit->clear();
+    }
+
+    if (clearRightDocument)
+    {
+        m_rightDocument = pdf::PDFDocument();
+        ui->rightPageSelectionEdit->clear();
+    }
+
+    m_diffResult = pdf::PDFDiffResult();
+    m_filteredDiffResult = pdf::PDFDiffResult();
+    m_diffNavigator.update();
+
+    updateAll(false);
+}
+
 void MainWindow::updateAll(bool resetFilters)
 {
     if (resetFilters)
@@ -479,6 +551,7 @@ void MainWindow::updateAll(bool resetFilters)
     }
 
     updateFilteredResult();
+    updateViewDocument();
 }
 
 void MainWindow::updateFilteredResult()
@@ -496,6 +569,28 @@ void MainWindow::updateFilteredResult()
     }
 
     updateActions();
+}
+
+void MainWindow::updateViewDocument()
+{
+    pdf::PDFDocument* document = nullptr;
+
+    if (ui->actionView_Left->isChecked())
+    {
+        document = &m_leftDocument;
+    }
+
+    if (ui->actionView_Right->isChecked())
+    {
+        document = &m_rightDocument;
+    }
+
+    if (ui->actionView_Differences->isChecked() || ui->actionView_Overlay->isChecked())
+    {
+        document = &m_combinedDocument;
+    }
+
+    setViewDocument(document);
 }
 
 std::optional<pdf::PDFDocument> MainWindow::openDocument()

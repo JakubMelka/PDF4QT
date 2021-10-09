@@ -59,6 +59,14 @@ public:
         TextRemoved                     = 0x2000,
     };
 
+    struct PageSequenceItem
+    {
+        PDFInteger leftPage = -1;
+        PDFInteger rightPage = -1;
+    };
+
+    using PageSequence = std::vector<PageSequenceItem>;
+
     using RectInfos = std::vector<std::pair<PDFInteger, QRectF>>;
 
     void setResult(PDFOperationResult result) { m_result = std::move(result); }
@@ -109,6 +117,9 @@ public:
                          bool filterVectorGraphicsDifferences,
                          bool filterImageDifferences,
                          bool filterShadingDifferences);
+
+    const PageSequence& getPageSequence() const;
+    void setPageSequence(PageSequence pageSequence);
 
 private:
     friend class PDFDiff;
@@ -180,6 +191,7 @@ private:
     PDFOperationResult m_result;
     QStringList m_strings;
     uint32_t m_typeFlags = 0;
+    PageSequence m_pageSequence;
 };
 
 /// Class for result navigation, can go to next, or previous result.

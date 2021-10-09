@@ -76,11 +76,13 @@ QSize DifferenceItemDelegate::sizeHint(const QStyleOptionViewItem& option,
 }
 
 DifferencesDockWidget::DifferencesDockWidget(QWidget* parent,
+                                             pdf::PDFDiffResult* unfilteredDiffResult,
                                              pdf::PDFDiffResult* diffResult,
                                              pdf::PDFDiffResultNavigator* diffNavigator,
                                              Settings* settings) :
     QDockWidget(parent),
     ui(new Ui::DifferencesDockWidget),
+    m_unfilteredDiffResult(unfilteredDiffResult),
     m_diffResult(diffResult),
     m_diffNavigator(diffNavigator),
     m_settings(settings),
@@ -190,7 +192,17 @@ void DifferencesDockWidget::update()
         };
 
         const size_t differenceCount = m_diffResult->getDifferencesCount();
-        ui->infoTextLabel->setText(tr("%1 Differences").arg(differenceCount));
+        const size_t unfilteredDifferenceCount = m_unfilteredDiffResult->getDifferencesCount();
+        const size_t hiddenDifferences = unfilteredDifferenceCount - differenceCount;
+
+        if (hiddenDifferences > 0)
+        {
+            ui->infoTextLabel->setText(tr("%1 Differences (+%2 hidden)").arg(differenceCount).arg(hiddenDifferences));
+        }
+        else
+        {
+            ui->infoTextLabel->setText(tr("%1 Differences").arg(differenceCount));
+        }
 
         pdf::PDFInteger lastLeftPageIndex = -1;
         pdf::PDFInteger lastRightPageIndex = -1;

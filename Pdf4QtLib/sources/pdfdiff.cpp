@@ -465,6 +465,8 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
     using AlgorithmLCS = PDFAlgorithmLongestCommonSubsequenceBase;
 
     auto modifiedRanges = AlgorithmLCS::getModifiedRanges(pageSequence);
+    PDFDiffResult::PageSequence resultPageSequence;
+    resultPageSequence.reserve(pageSequence.size());
 
     // First find all moved pages
     for (const AlgorithmLCS::SequenceItem& item : pageSequence)
@@ -480,7 +482,21 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
         {
             result.addPageMoved(leftPreparedPages[item.index1].pageIndex, rightPreparedPages[item.index2].pageIndex);
         }
+
+        PDFDiffResult::PageSequenceItem pageSequenceItem;
+        if (item.isLeftValid())
+        {
+            const PDFInteger leftIndex = leftPreparedPages[item.index1].pageIndex;
+            pageSequenceItem.leftPage = leftIndex;
+        }
+        if (item.isRightValid())
+        {
+            const PDFInteger rightIndex = rightPreparedPages[item.index2].pageIndex;
+            pageSequenceItem.rightPage = rightIndex;
+        }
+        resultPageSequence.emplace_back(pageSequenceItem);
     }
+    result.setPageSequence(std::move(resultPageSequence));
 
     std::vector<PDFDiffHelper::TextFlowDifferences> textFlowDifferences;
 
@@ -1240,6 +1256,16 @@ void PDFDiffResult::addRectRight(Difference& difference, QRectF rect)
     difference.rightRectIndex = m_rects.size();
     difference.rightRectCount = 1;
     m_rects.emplace_back(difference.pageIndex2, rect);
+}
+
+const PDFDiffResult::PageSequence& PDFDiffResult::getPageSequence() const
+{
+    return m_pageSequence;
+}
+
+void PDFDiffResult::setPageSequence(PageSequence pageSequence)
+{
+    m_pageSequence = pageSequence;
 }
 
 PDFDiffHelper::Differences PDFDiffHelper::calculateDifferences(const GraphicPieceInfos& left,
