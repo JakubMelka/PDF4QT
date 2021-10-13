@@ -106,6 +106,12 @@ public:
     bool hasImageDifferences() const { return m_typeFlags & FLAGS_IMAGE; }
     bool hasShadingDifferences() const { return m_typeFlags & FLAGS_SHADING; }
 
+    /// Returns sorted changed page indices from left document
+    std::vector<PDFInteger> getChangedLeftPageIndices() const;
+
+    /// Returns sorted changed page indices from right document
+    std::vector<PDFInteger> getChangedRightPageIndices() const;
+
     /// Filters results using given critera
     /// \param filterPageMoveDifferences Filter page move differences?
     /// \param filterTextDifferences Filter text diffferences?

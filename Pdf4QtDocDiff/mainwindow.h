@@ -25,6 +25,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfcms.h"
 #include "pdfoptionalcontent.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QMainWindow>
 #include <QSignalMapper>
@@ -41,6 +42,33 @@ namespace pdfdocdiff
 
 class SettingsDockWidget;
 class DifferencesDockWidget;
+
+class ComparedDocumentMapper
+{
+public:
+
+    enum class Mode
+    {
+        Left,
+        Right,
+        Combined,
+        Overlay
+    };
+
+    void update(Mode mode,
+                bool filterDifferences,
+                const pdf::PDFDiffResult& diff,
+                const pdf::PDFDocument* leftDocument,
+                const pdf::PDFDocument* rightDocument,
+                const pdf::PDFDocument* currentDocument);
+
+    const pdf::PDFDrawSpaceController::LayoutItems& getLayout() const { return m_layout; }
+    void setPageSequence(const pdf::PDFDiffResult::PageSequence& sequence) { m_pageSequence = sequence; }
+
+private:
+    pdf::PDFDrawSpaceController::LayoutItems m_layout;
+    pdf::PDFDiffResult::PageSequence m_pageSequence;
+};
 
 class MainWindow : public QMainWindow
 {
@@ -98,7 +126,9 @@ private:
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);
 
-    void setViewDocument(pdf::PDFDocument* document);
+    void setViewDocument(pdf::PDFDocument* document, bool updateCustomPageLayout);
+
+    ComparedDocumentMapper::Mode getDocumentViewMode() const;
 
     /// Clears all data, and possibly documents also.
     /// View document is set to nullptr.
@@ -109,6 +139,7 @@ private:
     void updateAll(bool resetFilters);
     void updateFilteredResult();
     void updateViewDocument();
+    void updateCustomPageLayout();
 
     std::optional<pdf::PDFDocument> openDocument();
 
@@ -136,6 +167,7 @@ private:
     pdf::PDFDiffResult m_diffResult;
     pdf::PDFDiffResult m_filteredDiffResult; ///< Difference result with filters applied
     pdf::PDFDiffResultNavigator m_diffNavigator; ///< Difference navigator
+    ComparedDocumentMapper m_documentMapper;
 };
 
 }   // namespace pdfdocdiff

@@ -99,6 +99,31 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
     return true;
 }
 
+PDFDocumentManipulator::AssembledPages PDFDocumentManipulator::createAllDocumentPages(int documentIndex, const PDFDocument* document)
+{
+    AssembledPages assembledPages;
+    size_t pageCount = document->getCatalog()->getPageCount();
+
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        pdf::PDFDocumentManipulator::AssembledPage assembledPage;
+
+        assembledPage.documentIndex = documentIndex;
+        assembledPage.imageIndex = -1;
+        assembledPage.pageIndex = i;
+
+        const pdf::PDFPage* page = document->getCatalog()->getPage(i);
+        const pdf::PageRotation originalPageRotation = page->getPageRotation();
+
+        assembledPage.pageRotation = originalPageRotation;
+        assembledPage.pageSize = page->getMediaBox().size();
+
+        assembledPages.emplace_back(assembledPage);
+    }
+
+    return assembledPages;
+}
+
 PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::processPages(PDFDocumentBuilder& documentBuilder, const AssembledPages& pages)
 {
     ProcessedPages processedPages;

@@ -25,6 +25,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfdocumentmanipulator.h"
 
 #include <QToolBar>
 #include <QDesktopWidget>
@@ -204,6 +205,25 @@ void MainWindow::onComparationFinished()
         {
             QMessageBox::information(this, tr("Info"), tr("No differences found between the compared documents."), QMessageBox::Ok);
         }
+    }
+
+    // Create merged document
+    pdf::PDFDocumentManipulator manipulator;
+    manipulator.setOutlineMode(pdf::PDFDocumentManipulator::OutlineMode::NoOutline);
+    manipulator.addDocument(1, &m_leftDocument);
+    manipulator.addDocument(2, &m_rightDocument);
+
+    pdf::PDFDocumentManipulator::AssembledPages assembledPages1 = pdf::PDFDocumentManipulator::createAllDocumentPages(1, &m_leftDocument);
+    pdf::PDFDocumentManipulator::AssembledPages assembledPages2 = pdf::PDFDocumentManipulator::createAllDocumentPages(2, &m_rightDocument);
+    assembledPages1.insert(assembledPages1.end(), std::make_move_iterator(assembledPages2.begin()), std::make_move_iterator(assembledPages2.end()));
+
+    if (manipulator.assemble(assembledPages1))
+    {
+        m_combinedDocument = manipulator.takeAssembledDocument();
+    }
+    else
+    {
+        m_combinedDocument = pdf::PDFDocument();
     }
 
     updateAll(true);
@@ -466,8 +486,16 @@ void MainWindow::performOperation(Operation operation)
         case Operation::FilterImages:
         case Operation::FilterShading:
         case Operation::FilterPageMovement:
+        {
             updateFilteredResult();
+
+            if (ui->actionShow_Pages_with_Differences->isChecked())
+            {
+                updateCustomPageLayout();
+            }
+
             break;
+        }
 
         case Operation::ViewDifferences:
         case Operation::ViewLeft:
@@ -477,6 +505,9 @@ void MainWindow::performOperation(Operation operation)
             break;
 
         case Operation::ShowPageswithDifferences:
+            updateCustomPageLayout();
+            break;
+
         case Operation::SaveDifferencesToXML:
         case Operation::CreateCompareReport:
             Q_ASSERT(false);
@@ -492,7 +523,7 @@ void MainWindow::performOperation(Operation operation)
     updateActions();
 }
 
-void MainWindow::setViewDocument(pdf::PDFDocument* document)
+void MainWindow::setViewDocument(pdf::PDFDocument* document, bool updateCustomPageLayout)
 {
     if (document != m_pdfWidget->getDrawWidgetProxy()->getDocument())
     {
@@ -514,11 +545,36 @@ void MainWindow::setViewDocument(pdf::PDFDocument* document)
             m_pdfWidget->setDocument(pdf::PDFModifiedDocument());
         }
     }
+
+    if (updateCustomPageLayout)
+    {
+        this->updateCustomPageLayout();
+    }
+}
+
+ComparedDocumentMapper::Mode MainWindow::getDocumentViewMode() const
+{
+    if (ui->actionView_Left->isChecked())
+    {
+        return ComparedDocumentMapper::Mode::Left;
+    }
+
+    if (ui->actionView_Right->isChecked())
+    {
+        return ComparedDocumentMapper::Mode::Right;
+    }
+
+    if (ui->actionView_Overlay->isChecked())
+    {
+        return ComparedDocumentMapper::Mode::Overlay;
+    }
+
+    return ComparedDocumentMapper::Mode::Combined;
 }
 
 void MainWindow::clear(bool clearLeftDocument, bool clearRightDocument)
 {
-    setViewDocument(nullptr);
+    setViewDocument(nullptr, true);
 
     if (clearLeftDocument)
     {
@@ -575,22 +631,37 @@ void MainWindow::updateViewDocument()
 {
     pdf::PDFDocument* document = nullptr;
 
-    if (ui->actionView_Left->isChecked())
+    switch (getDocumentViewMode())
     {
-        document = &m_leftDocument;
+        case ComparedDocumentMapper::Mode::Left:
+            document = &m_leftDocument;
+            break;
+
+        case ComparedDocumentMapper::Mode::Right:
+            document = &m_rightDocument;
+            break;
+
+        case ComparedDocumentMapper::Mode::Combined:
+        case ComparedDocumentMapper::Mode::Overlay:
+            document = &m_combinedDocument;
+            break;
     }
 
-    if (ui->actionView_Right->isChecked())
-    {
-        document = &m_rightDocument;
-    }
+    setViewDocument(document, true);
+}
 
-    if (ui->actionView_Differences->isChecked() || ui->actionView_Overlay->isChecked())
-    {
-        document = &m_combinedDocument;
-    }
+void MainWindow::updateCustomPageLayout()
+{
+    m_documentMapper.update(getDocumentViewMode(),
+                            ui->actionShow_Pages_with_Differences->isChecked(),
+                            m_filteredDiffResult,
+                            &m_leftDocument,
+                            &m_rightDocument,
+                            m_pdfWidget->getDrawWidgetProxy()->getDocument());
 
-    setViewDocument(document);
+
+    m_pdfWidget->getDrawWidgetProxy()->setCustomPageLayout(m_documentMapper.getLayout());
+    m_pdfWidget->getDrawWidgetProxy()->setPageLayout(pdf::PageLayout::Custom);
 }
 
 std::optional<pdf::PDFDocument> MainWindow::openDocument()
@@ -650,6 +721,133 @@ void MainWindow::onProgressStep(int percentage)
 void MainWindow::onProgressFinished()
 {
     m_progressTaskbarIndicator->hide();
+}
+
+void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
+                                    bool filterDifferences,
+                                    const pdf::PDFDiffResult& diff,
+                                    const pdf::PDFDocument* leftDocument,
+                                    const pdf::PDFDocument* rightDocument,
+                                    const pdf::PDFDocument* currentDocument)
+{
+    m_layout.clear();
+
+    if (!leftDocument || !rightDocument || !currentDocument)
+    {
+        return;
+    }
+
+    // Jakub Melka
+    pdf::PDFDiffResult::PageSequence pageSequence = diff.getPageSequence();
+    const bool isEmpty = pageSequence.empty();
+
+    if (filterDifferences)
+    {
+        pdf::PDFDiffResult::PageSequence filteredPageSequence;
+
+        std::vector<pdf::PDFInteger> leftPageIndices = diff.getChangedLeftPageIndices();
+        std::vector<pdf::PDFInteger> rightPageIndices = diff.getChangedRightPageIndices();
+
+        for (const pdf::PDFDiffResult::PageSequenceItem& item : pageSequence)
+        {
+            const bool isLeftModified = std::binary_search(leftPageIndices.cbegin(), leftPageIndices.cend(), item.leftPage);
+            const bool isRightModified = std::binary_search(rightPageIndices.cbegin(), rightPageIndices.cend(), item.rightPage);
+
+            if (isLeftModified || isRightModified)
+            {
+                filteredPageSequence.push_back(item);
+            }
+        }
+
+        pageSequence = std::move(filteredPageSequence);
+    }
+
+    switch (mode)
+    {
+        case ComparedDocumentMapper::Mode::Left:
+        {
+            Q_ASSERT(leftDocument == currentDocument);
+
+            double yPos = 0.0;
+            const pdf::PDFCatalog* catalog = leftDocument->getCatalog();
+
+            if (isEmpty)
+            {
+                // Just copy all pages
+                const size_t pageCount = catalog->getPageCount();
+                for (size_t i = 0; i < pageCount; ++i)
+                {
+                    QSizeF pageSize = catalog->getPage(i)->getRotatedMediaBoxMM().size();
+                    QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
+                    m_layout.emplace_back(0, i, rect);
+                    yPos += pageSize.height() + 5;
+                }
+            }
+            else
+            {
+                for (const pdf::PDFDiffResult::PageSequenceItem& item : pageSequence)
+                {
+                    if (item.leftPage == -1)
+                    {
+                        continue;
+                    }
+
+                    QSizeF pageSize = catalog->getPage(item.leftPage)->getRotatedMediaBoxMM().size();
+                    QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
+                    m_layout.emplace_back(0, item.leftPage, rect);
+                    yPos += pageSize.height() + 5;
+                }
+            }
+
+            break;
+        }
+
+        case ComparedDocumentMapper::Mode::Right:
+        {
+            Q_ASSERT(rightDocument == currentDocument);
+
+            double yPos = 0.0;
+            const pdf::PDFCatalog* catalog = rightDocument->getCatalog();
+
+            if (isEmpty)
+            {
+                // Just copy all pages
+                const size_t pageCount = catalog->getPageCount();
+                for (size_t i = 0; i < pageCount; ++i)
+                {
+                    QSizeF pageSize = catalog->getPage(i)->getRotatedMediaBoxMM().size();
+                    QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
+                    m_layout.emplace_back(0, i, rect);
+                    yPos += pageSize.height() + 5;
+                }
+            }
+            else
+            {
+                for (const pdf::PDFDiffResult::PageSequenceItem& item : pageSequence)
+                {
+                    if (item.rightPage == -1)
+                    {
+                        continue;
+                    }
+
+                    QSizeF pageSize = catalog->getPage(item.rightPage)->getRotatedMediaBoxMM().size();
+                    QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
+                    m_layout.emplace_back(0, item.rightPage, rect);
+                    yPos += pageSize.height() + 5;
+                }
+            }
+
+            break;
+        }
+
+        case ComparedDocumentMapper::Mode::Combined:
+        case ComparedDocumentMapper::Mode::Overlay:
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 }
 
 }   // namespace pdfdocdiff

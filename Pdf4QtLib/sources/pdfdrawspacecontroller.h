@@ -81,6 +81,8 @@ public:
         constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, const QRectF& pageRectMM) :
             blockIndex(blockIndex), pageIndex(pageIndex), pageRectMM(pageRectMM) { }
 
+        bool operator ==(const LayoutItem&) const = default;
+
         bool isValid() const { return pageIndex != -1; }
 
         PDFInteger blockIndex;
@@ -123,6 +125,15 @@ public:
     /// Sets page rotation
     void setPageRotation(PageRotation pageRotation);
 
+    /// Set custom layout. Custom layout provides a way how to define
+    /// custom page layout, including blocks. Block indices must be properly defined,
+    /// that means block index must start by zero and must be continuous. If this
+    /// criteria are not fulfilled, behaviour is undefined.
+    void setCustomLayout(LayoutItems customLayoutItems);
+
+    /// Returns custom layout
+    const LayoutItems& getCustomLayout() const { return m_customLayoutItems; }
+
 signals:
     void drawSpaceChanged();
     void repaintNeeded();
@@ -155,6 +166,7 @@ private:
     PDFReal m_verticalSpacingMM;
     PDFReal m_horizontalSpacingMM;
     PageRotation m_pageRotation;
+    LayoutItems m_customLayoutItems;
 
     /// Font cache
     PDFFontCache m_fontCache;
@@ -282,6 +294,11 @@ public:
     /// \param pageLayout Page layout
     void setPageLayout(PageLayout pageLayout);
 
+    /// Sets custom page layout. If this function is used, page layout mode
+    /// must be set to 'Custom'.
+    /// \param layoutItems Layout items
+    void setCustomPageLayout(PDFDrawSpaceController::LayoutItems layoutItems);
+
     /// Returns the page layout
     PageLayout getPageLayout() const { return m_controller->getPageLayout(); }
 
@@ -360,7 +377,7 @@ public:
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
-    void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+    void renderingError(pdf::PDFInteger pageIndex, const QList<pdf::PDFRenderError>& errors);
     void repaintNeeded();
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
     void textLayoutChanged();

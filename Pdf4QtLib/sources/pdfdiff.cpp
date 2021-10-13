@@ -1200,6 +1200,32 @@ bool PDFDiffResult::isReplaceDifference(size_t index) const
     return getTypeFlags(index) & FLAGS_TYPE_REPLACE;
 }
 
+std::vector<PDFInteger> PDFDiffResult::getChangedLeftPageIndices() const
+{
+    std::set<PDFInteger> changedPageIndices;
+
+    for (size_t i = 0; i < m_differences.size(); ++i)
+    {
+        changedPageIndices.insert(getLeftPage(i));
+    }
+    changedPageIndices.erase(-1);
+
+    return std::vector<PDFInteger>(changedPageIndices.cbegin(), changedPageIndices.cend());
+}
+
+std::vector<PDFInteger> PDFDiffResult::getChangedRightPageIndices() const
+{
+    std::set<PDFInteger> changedPageIndices;
+
+    for (size_t i = 0; i < m_differences.size(); ++i)
+    {
+        changedPageIndices.insert(getRightPage(i));
+    }
+    changedPageIndices.erase(-1);
+
+    return std::vector<PDFInteger>(changedPageIndices.cbegin(), changedPageIndices.cend());
+}
+
 PDFDiffResult PDFDiffResult::filter(bool filterPageMoveDifferences,
                                     bool filterTextDifferences,
                                     bool filterVectorGraphicsDifferences,

@@ -154,6 +154,20 @@ void PDFDrawSpaceController::setPageRotation(PageRotation pageRotation)
     }
 }
 
+void PDFDrawSpaceController::setCustomLayout(LayoutItems customLayoutItems)
+{
+    if (m_customLayoutItems != customLayoutItems)
+    {
+        m_customLayoutItems = std::move(customLayoutItems);
+
+        if (m_pageLayoutMode == PageLayout::Custom)
+        {
+            // Recalculate only, if custom layout is active
+            recalculate();
+        }
+    }
+}
+
 void PDFDrawSpaceController::recalculate()
 {
     if (!m_document)
@@ -358,6 +372,54 @@ void PDFDrawSpaceController::recalculate()
             }
 
             placePagesLeftRightByIndices(pageIndices, true);
+            break;
+        }
+
+        case PageLayout::Custom:
+        {
+            m_layoutItems = m_customLayoutItems;
+
+            // We do not support page rotation for custom layout
+            Q_ASSERT(m_pageRotation == PageRotation::None);
+
+            // Assure, that layout items are sorted by block
+            auto comparator = [](const LayoutItem& l, const LayoutItem& r)
+            {
+                return l.blockIndex < r.blockIndex;
+            };
+            std::stable_sort(m_layoutItems.begin(), m_layoutItems.end(), comparator);
+
+            // Now, compute blocks
+            if (!m_layoutItems.empty())
+            {
+                m_blockItems.reserve(m_layoutItems.back().blockIndex + 1);
+
+                QRectF currentBoundingRect;
+                PDFInteger blockIndex = -1;
+
+                for (const LayoutItem& layoutItem : m_layoutItems)
+                {
+                    if (blockIndex != layoutItem.blockIndex)
+                    {
+                        blockIndex = layoutItem.blockIndex;
+
+                        if (currentBoundingRect.isValid())
+                        {
+                            m_blockItems.push_back(LayoutBlock(currentBoundingRect));
+                            currentBoundingRect = QRectF();
+                        }
+                    }
+
+                    currentBoundingRect = currentBoundingRect.united(layoutItem.pageRectMM);
+                }
+
+                if (currentBoundingRect.isValid())
+                {
+                    m_blockItems.push_back(LayoutBlock(currentBoundingRect));
+                    currentBoundingRect = QRectF();
+                }
+            }
+
             break;
         }
 
@@ -1156,6 +1218,15 @@ void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
     }
 }
 
+void PDFDrawWidgetProxy::setCustomPageLayout(PDFDrawSpaceController::LayoutItems layoutItems)
+{
+    if (m_controller->getCustomLayout() != layoutItems)
+    {
+        m_controller->setCustomLayout(std::move(layoutItems));
+        emit pageLayoutChanged();
+    }
+}
+
 QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
 {
     Q_ASSERT(rect.isValid());
@@ -1185,6 +1256,9 @@ bool PDFDrawWidgetProxy::isBlockMode() const
         case PageLayout::TwoPagesLeft:
         case PageLayout::TwoPagesRight:
             return true;
+
+        case PageLayout::Custom:
+            return m_controller->getBlockCount() > 1;
     }
 
     Q_ASSERT(false);
@@ -1215,6 +1289,10 @@ void PDFDrawWidgetProxy::prefetchPages(PDFInteger pageIndex)
         case PageLayout::TwoColumnLeft:
         case PageLayout::TwoColumnRight:
             prefetchCount = 2;
+            break;
+
+        case PageLayout::Custom:
+            prefetchCount = 0;
             break;
 
         default:

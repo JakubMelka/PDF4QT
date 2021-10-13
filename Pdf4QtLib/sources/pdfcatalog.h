@@ -39,12 +39,13 @@ class PDFDocument;
 /// to be used in viewer application.
 enum class PageLayout
 {
-    SinglePage,     ///< Display one page at time (single page on screen)
-    OneColumn,      ///< Displays pages in one column (continuous mode)
-    TwoColumnLeft,  ///< Display pages in two continuous columns, odd numbered pages are on the left
-    TwoColumnRight, ///< Display pages in two continuous columns, even numbered pages are on the left
-    TwoPagesLeft,   ///< Display two pages on the screen, odd numbered pages are on the left
-    TwoPagesRight   ///< Display two pages on the screen, even numbered pages are on the left
+    SinglePage,         ///< Display one page at time (single page on screen)
+    OneColumn,          ///< Displays pages in one column (continuous mode)
+    TwoColumnLeft,      ///< Display pages in two continuous columns, odd numbered pages are on the left
+    TwoColumnRight,     ///< Display pages in two continuous columns, even numbered pages are on the left
+    TwoPagesLeft,       ///< Display two pages on the screen, odd numbered pages are on the left
+    TwoPagesRight,      ///< Display two pages on the screen, even numbered pages are on the left
+    Custom              ///< Custom layout, multiple columns can be used, -1 as page index means page is omitted
 };
 
 /// Specifies, how the document should be displayed in the viewer application.
