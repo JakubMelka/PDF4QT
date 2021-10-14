@@ -99,6 +99,8 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionShow_Pages_with_Differences->setData(int(Operation::ShowPageswithDifferences));
     ui->actionSave_Differences_to_XML->setData(int(Operation::SaveDifferencesToXML));
 
+    ui->actionSynchronize_View_with_Differences->setChecked(true);
+
     QActionGroup* actionGroup = new QActionGroup(this);
     actionGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::Exclusive);
     actionGroup->addAction(ui->actionView_Differences);
@@ -123,7 +125,7 @@ MainWindow::MainWindow(QWidget* parent) :
     viewToolbar->setObjectName("view_toolbar");
     viewToolbar->addActions({ ui->actionView_Differences, ui->actionView_Left, ui->actionView_Right, ui->actionView_Overlay });
     viewToolbar->addSeparator();
-    viewToolbar->addAction(ui->actionShow_Pages_with_Differences);
+    viewToolbar->addActions({ ui->actionShow_Pages_with_Differences, ui->actionSynchronize_View_with_Differences });
     viewToolbar->addSeparator();
     viewToolbar->addActions({ ui->actionFilter_Text, ui->actionFilter_Vector_Graphics, ui->actionFilter_Images, ui->actionFilter_Shading, ui->actionFilter_Page_Movement });
 
@@ -250,7 +252,34 @@ void MainWindow::updateActions()
 
 void MainWindow::onSelectionChanged(size_t currentIndex)
 {
-    Q_UNUSED(currentIndex);
+    if (ui->actionSynchronize_View_with_Differences->isChecked())
+    {
+        pdf::PDFInteger destinationPage = -1;
+
+        if (destinationPage == -1)
+        {
+            pdf::PDFInteger leftPageIndex = m_filteredDiffResult.getLeftPage(currentIndex);
+            if (leftPageIndex != -1)
+            {
+                destinationPage = m_documentMapper.getPageIndexFromLeftPageIndex(leftPageIndex);
+            }
+        }
+
+        if (destinationPage == -1)
+        {
+            pdf::PDFInteger rightPageIndex = m_filteredDiffResult.getRightPage(currentIndex);
+            if (rightPageIndex != -1)
+            {
+                destinationPage = m_documentMapper.getPageIndexFromRightPageIndex(rightPageIndex);
+            }
+        }
+
+        if (destinationPage != -1)
+        {
+            m_pdfWidget->getDrawWidgetProxy()->goToPage(destinationPage);
+        }
+    }
+
     updateActions();
 }
 
@@ -732,6 +761,12 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
 {
     m_layout.clear();
 
+    m_leftPageIndices.clear();
+    m_rightPageIndices.clear();
+
+    m_allLeft = false;
+    m_allRight = false;
+
     if (!leftDocument || !rightDocument || !currentDocument)
     {
         return;
@@ -768,6 +803,7 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
         {
             Q_ASSERT(leftDocument == currentDocument);
 
+            m_allLeft = true;
             double yPos = 0.0;
             const pdf::PDFCatalog* catalog = leftDocument->getCatalog();
 
@@ -806,6 +842,7 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
         {
             Q_ASSERT(rightDocument == currentDocument);
 
+            m_allRight = true;
             double yPos = 0.0;
             const pdf::PDFCatalog* catalog = rightDocument->getCatalog();
 
@@ -842,12 +879,128 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
 
         case ComparedDocumentMapper::Mode::Combined:
         case ComparedDocumentMapper::Mode::Overlay:
+        {
+            double yPos = 0.0;
+            const pdf::PDFCatalog* catalog = currentDocument->getCatalog();
+            pdf::PDFInteger offset = leftDocument->getCatalog()->getPageCount();
+
+            for (const pdf::PDFDiffResult::PageSequenceItem& item : pageSequence)
+            {
+                double yAdvance = 0.0;
+
+                if (item.leftPage != -1)
+                {
+                    QSizeF pageSize = catalog->getPage(item.leftPage)->getRotatedMediaBoxMM().size();
+                    QRectF rect;
+                    if (mode == ComparedDocumentMapper::Mode::Combined)
+                    {
+                        rect = QRectF(-pageSize.width() - 5, yPos, pageSize.width(), pageSize.height());
+                    }
+                    else
+                    {
+                        rect = QRectF(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
+                    }
+                    m_layout.emplace_back(0, item.leftPage, rect);
+                    yAdvance = pageSize.height() + 5;
+                    m_leftPageIndices[item.leftPage] = item.leftPage;
+                }
+
+                if (item.rightPage != -1)
+                {
+                    pdf::PDFInteger rightPageIndex = item.rightPage + offset;
+                    QSizeF pageSize = catalog->getPage(rightPageIndex)->getRotatedMediaBoxMM().size();
+                    QRectF rect;
+                    if (mode == ComparedDocumentMapper::Mode::Combined)
+                    {
+                        rect = QRectF(5, yPos, pageSize.width(), pageSize.height());
+                    }
+                    else
+                    {
+                        rect = QRectF(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
+                    }
+                    m_layout.emplace_back(0, rightPageIndex, rect);
+                    yAdvance = qMax(yAdvance, pageSize.height() + 5);
+                    m_rightPageIndices[rightPageIndex] = item.rightPage;
+                }
+
+                yPos += yAdvance;
+            }
+
             break;
+        }
 
         default:
             Q_ASSERT(false);
             break;
     }
+}
+
+pdf::PDFInteger ComparedDocumentMapper::getLeftPageIndex(pdf::PDFInteger pageIndex) const
+{
+    if (m_allLeft)
+    {
+        return pageIndex;
+    }
+
+    auto it = m_leftPageIndices.find(pageIndex);
+    if (it != m_leftPageIndices.cend())
+    {
+        return it->second;
+    }
+
+    return -1;
+}
+
+pdf::PDFInteger ComparedDocumentMapper::getRightPageIndex(pdf::PDFInteger pageIndex) const
+{
+    if (m_allRight)
+    {
+        return pageIndex;
+    }
+
+    auto it = m_rightPageIndices.find(pageIndex);
+    if (it != m_rightPageIndices.cend())
+    {
+        return it->second;
+    }
+
+    return -1;
+}
+
+pdf::PDFInteger ComparedDocumentMapper::getPageIndexFromLeftPageIndex(pdf::PDFInteger leftPageIndex) const
+{
+    if (m_allLeft)
+    {
+        return leftPageIndex;
+    }
+
+    for (const auto& indexItem : m_leftPageIndices)
+    {
+        if (indexItem.second == leftPageIndex)
+        {
+            return indexItem.first;
+        }
+    }
+
+    return -1;
+}
+
+pdf::PDFInteger ComparedDocumentMapper::getPageIndexFromRightPageIndex(pdf::PDFInteger rightPageIndex) const
+{
+    if (m_allRight)
+    {
+        return rightPageIndex;
+    }
+
+    for (const auto& indexItem : m_rightPageIndices)
+    {
+        if (indexItem.second == rightPageIndex)
+        {
+            return indexItem.first;
+        }
+    }
+
+    return -1;
 }
 
 }   // namespace pdfdocdiff

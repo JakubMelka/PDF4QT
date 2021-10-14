@@ -65,8 +65,30 @@ public:
     const pdf::PDFDrawSpaceController::LayoutItems& getLayout() const { return m_layout; }
     void setPageSequence(const pdf::PDFDiffResult::PageSequence& sequence) { m_pageSequence = sequence; }
 
+    /// Returns left page index (that means page index in left document),
+    /// if it doesn't exist, -1 is returned.
+    /// \param pageIndex Actual page index
+    pdf::PDFInteger getLeftPageIndex(pdf::PDFInteger pageIndex) const;
+
+    /// Returns right page index (that means page index in right document),
+    /// if it doesn't exist, -1 is returned.
+    /// \param pageIndex Actual page index
+    pdf::PDFInteger getRightPageIndex(pdf::PDFInteger pageIndex) const;
+
+    /// Returns actual page index from left page index, or -1.
+    /// \param leftPageIndex Left page index
+    pdf::PDFInteger getPageIndexFromLeftPageIndex(pdf::PDFInteger leftPageIndex) const;
+
+    /// Returns actual page index from right page index, or -1.
+    /// \param rightPageIndex Right page index
+    pdf::PDFInteger getPageIndexFromRightPageIndex(pdf::PDFInteger rightPageIndex) const;
+
 private:
     pdf::PDFDrawSpaceController::LayoutItems m_layout;
+    bool m_allLeft = false;
+    bool m_allRight = false;
+    std::map<pdf::PDFInteger, pdf::PDFInteger> m_leftPageIndices;
+    std::map<pdf::PDFInteger, pdf::PDFInteger> m_rightPageIndices;
     pdf::PDFDiffResult::PageSequence m_pageSequence;
 };
 

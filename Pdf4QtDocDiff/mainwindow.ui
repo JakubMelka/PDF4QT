@@ -131,6 +131,7 @@
     <addaction name="menuView_2"/>
     <addaction name="menuFilter"/>
     <addaction name="actionShow_Pages_with_Differences"/>
+    <addaction name="actionSynchronize_View_with_Differences"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
@@ -309,6 +310,14 @@
   <action name="actionSave_Differences_to_XML">
    <property name="text">
     <string>Save Differences to XML</string>
+   </property>
+  </action>
+  <action name="actionSynchronize_View_with_Differences">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Synchronize View with Differences</string>
    </property>
   </action>
  </widget>
