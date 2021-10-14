@@ -68,6 +68,7 @@ public:
     using PageSequence = std::vector<PageSequenceItem>;
 
     using RectInfos = std::vector<std::pair<PDFInteger, QRectF>>;
+    using RectInfosIt = typename RectInfos::const_iterator;
 
     void setResult(PDFOperationResult result) { m_result = std::move(result); }
     const PDFOperationResult& getResult() const { return m_result; }
@@ -94,6 +95,12 @@ public:
     /// only on a left page)
     /// \param index Index
     PDFInteger getRightPage(size_t index) const;
+
+    /// Returns iterator range for rectangles of "left" pages of an item
+    std::pair<RectInfosIt, RectInfosIt> getLeftRectangles(size_t index) const;
+
+    /// Returns iterator range for rectangles of "right" pages of an item
+    std::pair<RectInfosIt, RectInfosIt> getRightRectangles(size_t index) const;
 
     bool isPageMoveDifference(size_t index) const;
     bool isAddDifference(size_t index) const;

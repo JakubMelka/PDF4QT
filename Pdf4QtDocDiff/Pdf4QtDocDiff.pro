@@ -46,7 +46,8 @@ SOURCES += \
     differencesdockwidget.cpp \
     main.cpp \
     mainwindow.cpp \
-    settingsdockwidget.cpp
+    settingsdockwidget.cpp \
+    utils.cpp
 
 FORMS += \
     aboutdialog.ui \
@@ -59,7 +60,8 @@ HEADERS += \
     differencesdockwidget.h \
     mainwindow.h \
     settings.h \
-    settingsdockwidget.h
+    settingsdockwidget.h \
+    utils.h
 
 RESOURCES += \
     resources.qrc

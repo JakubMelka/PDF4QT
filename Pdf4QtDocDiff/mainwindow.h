@@ -18,14 +18,12 @@
 #ifndef PDFDOCDIFF_MAINWINDOW_H
 #define PDFDOCDIFF_MAINWINDOW_H
 
-#include "settings.h"
+#include "utils.h"
 
 #include "pdfdocument.h"
-#include "pdfdiff.h"
 #include "pdfdrawwidget.h"
 #include "pdfcms.h"
 #include "pdfoptionalcontent.h"
-#include "pdfdrawspacecontroller.h"
 
 #include <QMainWindow>
 #include <QSignalMapper>
@@ -42,55 +40,6 @@ namespace pdfdocdiff
 
 class SettingsDockWidget;
 class DifferencesDockWidget;
-
-class ComparedDocumentMapper
-{
-public:
-
-    enum class Mode
-    {
-        Left,
-        Right,
-        Combined,
-        Overlay
-    };
-
-    void update(Mode mode,
-                bool filterDifferences,
-                const pdf::PDFDiffResult& diff,
-                const pdf::PDFDocument* leftDocument,
-                const pdf::PDFDocument* rightDocument,
-                const pdf::PDFDocument* currentDocument);
-
-    const pdf::PDFDrawSpaceController::LayoutItems& getLayout() const { return m_layout; }
-    void setPageSequence(const pdf::PDFDiffResult::PageSequence& sequence) { m_pageSequence = sequence; }
-
-    /// Returns left page index (that means page index in left document),
-    /// if it doesn't exist, -1 is returned.
-    /// \param pageIndex Actual page index
-    pdf::PDFInteger getLeftPageIndex(pdf::PDFInteger pageIndex) const;
-
-    /// Returns right page index (that means page index in right document),
-    /// if it doesn't exist, -1 is returned.
-    /// \param pageIndex Actual page index
-    pdf::PDFInteger getRightPageIndex(pdf::PDFInteger pageIndex) const;
-
-    /// Returns actual page index from left page index, or -1.
-    /// \param leftPageIndex Left page index
-    pdf::PDFInteger getPageIndexFromLeftPageIndex(pdf::PDFInteger leftPageIndex) const;
-
-    /// Returns actual page index from right page index, or -1.
-    /// \param rightPageIndex Right page index
-    pdf::PDFInteger getPageIndexFromRightPageIndex(pdf::PDFInteger rightPageIndex) const;
-
-private:
-    pdf::PDFDrawSpaceController::LayoutItems m_layout;
-    bool m_allLeft = false;
-    bool m_allRight = false;
-    std::map<pdf::PDFInteger, pdf::PDFInteger> m_leftPageIndices;
-    std::map<pdf::PDFInteger, pdf::PDFInteger> m_rightPageIndices;
-    pdf::PDFDiffResult::PageSequence m_pageSequence;
-};
 
 class MainWindow : public QMainWindow
 {
@@ -190,6 +139,7 @@ private:
     pdf::PDFDiffResult m_filteredDiffResult; ///< Difference result with filters applied
     pdf::PDFDiffResultNavigator m_diffNavigator; ///< Difference navigator
     ComparedDocumentMapper m_documentMapper;
+    DifferencesDrawInterface m_drawInterface;
 };
 
 }   // namespace pdfdocdiff

@@ -1180,6 +1180,42 @@ PDFInteger PDFDiffResult::getRightPage(size_t index) const
     return m_differences[index].pageIndex2;
 }
 
+std::pair<PDFDiffResult::RectInfosIt, PDFDiffResult::RectInfosIt> PDFDiffResult::getLeftRectangles(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return std::make_pair(m_rects.cend(), m_rects.cend());
+    }
+
+    const Difference& difference = m_differences[index];
+    if (difference.leftRectCount > 0)
+    {
+        auto it = std::next(m_rects.cbegin(), difference.leftRectIndex);
+        auto itEnd = std::next(it, difference.leftRectCount);
+        return std::make_pair(it, itEnd);
+    }
+
+    return std::make_pair(m_rects.cend(), m_rects.cend());
+}
+
+std::pair<PDFDiffResult::RectInfosIt, PDFDiffResult::RectInfosIt> PDFDiffResult::getRightRectangles(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return std::make_pair(m_rects.cend(), m_rects.cend());
+    }
+
+    const Difference& difference = m_differences[index];
+    if (difference.rightRectCount > 0)
+    {
+        auto it = std::next(m_rects.cbegin(), difference.rightRectIndex);
+        auto itEnd = std::next(it, difference.rightRectCount);
+        return std::make_pair(it, itEnd);
+    }
+
+    return std::make_pair(m_rects.cend(), m_rects.cend());
+}
+
 bool PDFDiffResult::isPageMoveDifference(size_t index) const
 {
     return getTypeFlags(index) & FLAGS_TYPE_PAGE_MOVE;
