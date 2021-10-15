@@ -100,6 +100,8 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionView_Overlay->setData(int(Operation::ViewOverlay));
     ui->actionShow_Pages_with_Differences->setData(int(Operation::ShowPageswithDifferences));
     ui->actionSave_Differences_to_XML->setData(int(Operation::SaveDifferencesToXML));
+    ui->actionDisplay_Differences->setData(int(Operation::DisplayDifferences));
+    ui->actionDisplay_Markers->setData(int(Operation::DisplayMarkers));
 
     ui->actionSynchronize_View_with_Differences->setChecked(true);
 
@@ -315,7 +317,12 @@ void MainWindow::loadSettings()
     m_settings.colorAdded = settings.value("colorAdded", m_settings.colorAdded).value<QColor>();
     m_settings.colorRemoved = settings.value("colorRemoved", m_settings.colorRemoved).value<QColor>();
     m_settings.colorReplaced = settings.value("colorReplaced", m_settings.colorReplaced).value<QColor>();
+    m_settings.displayDifferences = settings.value("displayDifferences", m_settings.displayDifferences).toBool();
+    m_settings.displayMarkers = settings.value("displayMarkers", m_settings.displayDifferences).toBool();
     settings.endGroup();
+
+    ui->actionDisplay_Differences->setChecked(m_settings.displayDifferences);
+    ui->actionDisplay_Markers->setChecked(m_settings.displayMarkers);
 }
 
 void MainWindow::saveSettings()
@@ -332,6 +339,8 @@ void MainWindow::saveSettings()
     settings.setValue("colorAdded", m_settings.colorAdded);
     settings.setValue("colorRemoved", m_settings.colorRemoved);
     settings.setValue("colorReplaced", m_settings.colorReplaced);
+    settings.setValue("displayDifferences", m_settings.displayDifferences);
+    settings.setValue("displayMarkers", m_settings.displayDifferences);
     settings.endGroup();
 }
 
@@ -378,6 +387,10 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::ShowPageswithDifferences:
         case Operation::SaveDifferencesToXML:
             return m_diffResult.isChanged();
+
+        case Operation::DisplayDifferences:
+        case Operation::DisplayMarkers:
+            return true;
 
         default:
             Q_ASSERT(false);
@@ -537,6 +550,16 @@ void MainWindow::performOperation(Operation operation)
 
         case Operation::ShowPageswithDifferences:
             updateCustomPageLayout();
+            break;
+
+        case Operation::DisplayDifferences:
+            m_settings.displayDifferences = ui->actionDisplay_Differences->isChecked();
+            m_pdfWidget->update();
+            break;
+
+        case Operation::DisplayMarkers:
+            m_settings.displayMarkers = ui->actionDisplay_Markers->isChecked();
+            m_pdfWidget->update();
             break;
 
         case Operation::SaveDifferencesToXML:

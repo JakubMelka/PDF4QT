@@ -132,6 +132,9 @@
     <addaction name="menuFilter"/>
     <addaction name="actionShow_Pages_with_Differences"/>
     <addaction name="actionSynchronize_View_with_Differences"/>
+    <addaction name="separator"/>
+    <addaction name="actionDisplay_Differences"/>
+    <addaction name="actionDisplay_Markers"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
@@ -318,6 +321,22 @@
    </property>
    <property name="text">
     <string>Synchronize View with Differences</string>
+   </property>
+  </action>
+  <action name="actionDisplay_Differences">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Display Differences</string>
+   </property>
+  </action>
+  <action name="actionDisplay_Markers">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Display Markers</string>
    </property>
   </action>
  </widget>

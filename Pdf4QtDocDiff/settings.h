@@ -30,6 +30,8 @@ struct Settings
     QColor colorAdded = QColor(125, 250, 0);
     QColor colorRemoved = QColor(255, 50, 50);
     QColor colorReplaced = QColor(255, 120, 30);
+    bool displayDifferences = true;
+    bool displayMarkers = true;
 };
 
 }   // namespace pdfdocdiff

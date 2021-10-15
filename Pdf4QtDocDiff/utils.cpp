@@ -16,6 +16,8 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "utils.h"
+#include "pdfwidgetutils.h"
+#include "pdfpainterutils.h"
 
 #include <QPainter>
 
@@ -294,6 +296,11 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
 
+    if (!m_settings->displayDifferences)
+    {
+        return;
+    }
+
     const size_t differencesCount = m_diffResult->getDifferencesCount();
     const pdf::PDFInteger leftPageIndex = m_mapper->getLeftPageIndex(pageIndex);
     const pdf::PDFInteger rightPageIndex = m_mapper->getRightPageIndex(pageIndex);
@@ -308,7 +315,9 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                 const auto& item = *it;
                 if (item.first == leftPageIndex)
                 {
-                    drawRectangle(painter, pagePointToDevicePointMatrix, item.second, i);
+                    QColor color = getColorForIndex(i);
+                    drawRectangle(painter, pagePointToDevicePointMatrix, item.second, color);
+                    drawMarker(painter, pagePointToDevicePointMatrix, item.second, color, true);
                 }
             }
         }
@@ -324,7 +333,9 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                 const auto& item = *it;
                 if (item.first == rightPageIndex)
                 {
-                    drawRectangle(painter, pagePointToDevicePointMatrix, item.second, i);
+                    QColor color = getColorForIndex(i);
+                    drawRectangle(painter, pagePointToDevicePointMatrix, item.second, color);
+                    drawMarker(painter, pagePointToDevicePointMatrix, item.second, color, false);
                 }
             }
         }
@@ -366,13 +377,72 @@ void DifferencesDrawInterface::drawPostRendering(QPainter* painter, QRect rect) 
 void DifferencesDrawInterface::drawRectangle(QPainter* painter,
                                              const QMatrix& pagePointToDevicePointMatrix,
                                              const QRectF& rect,
-                                             size_t resultIndex) const
+                                             QColor color) const
 {
-    QColor color = getColorForIndex(resultIndex);
-    color.setAlphaF(0.3);
+    color.setAlphaF(0.5);
 
     QRectF resultRect = pagePointToDevicePointMatrix.mapRect(rect);
     painter->fillRect(resultRect, color);
+}
+
+void DifferencesDrawInterface::drawMarker(QPainter* painter,
+                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QRectF& rect,
+                                          QColor color,
+                                          bool isLeft) const
+{
+    if (!m_settings->displayMarkers)
+    {
+        return;
+    }
+
+    pdf::PDFPainterStateGuard guard(painter);
+    QRectF deviceRect = pagePointToDevicePointMatrix.mapRect(rect);
+
+    QPointF snapPoint;
+    QPointF markPoint;
+
+    if (isLeft)
+    {
+        snapPoint.ry() = deviceRect.center().y();
+        snapPoint.rx() = deviceRect.left();
+        markPoint = snapPoint;
+        markPoint.rx() = 0;
+    }
+    else
+    {
+        snapPoint.ry() = deviceRect.center().y();
+        snapPoint.rx() = deviceRect.right();
+        markPoint = snapPoint;
+        markPoint.rx() = painter->device()->width();
+    }
+
+    const qreal lineWidthF = pdf::PDFWidgetUtils::scaleDPI_y(painter->device(), 2);
+
+    QPen pen(Qt::DotLine);
+    pen.setColor(color);
+    pen.setWidthF(lineWidthF);
+
+    painter->setBrush(Qt::NoBrush);
+    painter->setPen(pen);
+    painter->drawLine(snapPoint, markPoint);
+
+    const qreal markSizeX = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 10);
+    const qreal markSizeY = pdf::PDFWidgetUtils::scaleDPI_y(painter->device(), 10);
+
+    QPointF ptc = markPoint;
+    QPointF ptTop = ptc;
+    QPointF ptBottom = ptc;
+
+    ptTop.ry() -= markSizeY;
+    ptBottom.ry() += markSizeY;
+    ptc.rx() += isLeft ? markSizeX : -markSizeX;
+
+    std::array points = { ptTop, ptc, ptBottom };
+
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(QBrush(color));
+    painter->drawConvexPolygon(points.data(), int(points.size()));
 }
 
 }   // namespace pdfdocdiff

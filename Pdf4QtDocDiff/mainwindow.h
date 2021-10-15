@@ -73,7 +73,9 @@ public:
         ViewRight,
         ViewOverlay,
         ShowPageswithDifferences,
-        SaveDifferencesToXML
+        SaveDifferencesToXML,
+        DisplayDifferences,
+        DisplayMarkers
     };
 
     virtual void showEvent(QShowEvent* event) override;

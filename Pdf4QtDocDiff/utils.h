@@ -93,7 +93,13 @@ private:
     void drawRectangle(QPainter* painter,
                        const QMatrix& pagePointToDevicePointMatrix,
                        const QRectF& rect,
-                       size_t resultIndex) const;
+                       QColor color) const;
+
+    void drawMarker(QPainter* painter,
+                    const QMatrix& pagePointToDevicePointMatrix,
+                    const QRectF& rect,
+                    QColor color,
+                    bool isLeft) const;
 
     QColor getColorForIndex(size_t index) const;
 
