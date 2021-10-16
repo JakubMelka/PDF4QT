@@ -305,6 +305,8 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
     const pdf::PDFInteger leftPageIndex = m_mapper->getLeftPageIndex(pageIndex);
     const pdf::PDFInteger rightPageIndex = m_mapper->getRightPageIndex(pageIndex);
 
+    std::optional<size_t> pageMoveIndex;
+
     if (leftPageIndex != -1)
     {
         for (size_t i = 0; i < differencesCount; ++i)
@@ -319,6 +321,11 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                     drawRectangle(painter, pagePointToDevicePointMatrix, item.second, color);
                     drawMarker(painter, pagePointToDevicePointMatrix, item.second, color, true);
                 }
+            }
+
+            if (m_diffResult->isPageMoveAddRemoveDifference(i) && m_diffResult->getLeftPage(i) == leftPageIndex)
+            {
+                pageMoveIndex = i;
             }
         }
     }
@@ -338,7 +345,40 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                     drawMarker(painter, pagePointToDevicePointMatrix, item.second, color, false);
                 }
             }
+
+            if (m_diffResult->isPageMoveAddRemoveDifference(i) && m_diffResult->getRightPage(i) == rightPageIndex)
+            {
+                pageMoveIndex = i;
+            }
         }
+    }
+
+    if (pageMoveIndex)
+    {
+        QString text;
+
+        switch (m_diffResult->getType(*pageMoveIndex))
+        {
+            case pdf::PDFDiffResult::Type::PageAdded:
+                text = " + ";
+                break;
+
+            case pdf::PDFDiffResult::Type::PageRemoved:
+                text = " - ";
+                break;
+
+            case pdf::PDFDiffResult::Type::PageMoved:
+                text = QString("%1🠖%2").arg(m_diffResult->getLeftPage(*pageMoveIndex) + 1).arg(m_diffResult->getRightPage(*pageMoveIndex) + 1);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        QColor color = getColorForIndex(*pageMoveIndex);
+        QPointF targetPoint = pagePointToDevicePointMatrix.map(QPointF(5, 5));
+        pdf::PDFPainterHelper::drawBubble(painter, targetPoint.toPoint(), color, text, Qt::AlignRight | Qt::AlignTop);
     }
 }
 

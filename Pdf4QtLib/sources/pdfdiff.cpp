@@ -1180,6 +1180,16 @@ PDFInteger PDFDiffResult::getRightPage(size_t index) const
     return m_differences[index].pageIndex2;
 }
 
+PDFDiffResult::Type PDFDiffResult::getType(size_t index) const
+{
+    if (index >= m_differences.size())
+    {
+        return Type::Invalid;
+    }
+
+    return m_differences[index].type;
+}
+
 std::pair<PDFDiffResult::RectInfosIt, PDFDiffResult::RectInfosIt> PDFDiffResult::getLeftRectangles(size_t index) const
 {
     if (index >= m_differences.size())
@@ -1214,6 +1224,11 @@ std::pair<PDFDiffResult::RectInfosIt, PDFDiffResult::RectInfosIt> PDFDiffResult:
     }
 
     return std::make_pair(m_rects.cend(), m_rects.cend());
+}
+
+bool PDFDiffResult::isPageMoveAddRemoveDifference(size_t index) const
+{
+    return getTypeFlags(index) & FLAGS_TYPE_PAGE_MOVE_ADD_REMOVE;
 }
 
 bool PDFDiffResult::isPageMoveDifference(size_t index) const
