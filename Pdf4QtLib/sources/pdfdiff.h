@@ -30,6 +30,9 @@
 
 #include <atomic>
 
+class QIODevice;
+class QXmlStreamWriter;
+
 namespace pdf
 {
 
@@ -139,6 +142,19 @@ public:
     const PageSequence& getPageSequence() const;
     void setPageSequence(PageSequence pageSequence);
 
+    /// Saves all differences to a XML stream
+    /// represented by device
+    /// \param device Output device
+    void saveToXML(QIODevice* device) const;
+
+    /// Saves all differences to a byte array
+    /// \param byteArray Output byte array
+    void saveToXML(QByteArray* byteArray) const;
+
+    /// Saves all differences to a string
+    /// \param string Output string
+    void saveToXML(QString* string) const;
+
 private:
     friend class PDFDiff;
 
@@ -176,6 +192,8 @@ private:
                          QString textAdded,
                          const RectInfos& rectInfos1,
                          const RectInfos& rectInfos2);
+
+    void saveToStream(QXmlStreamWriter* stream) const;
 
     void finalize();
 

@@ -563,6 +563,31 @@ void MainWindow::performOperation(Operation operation)
             break;
 
         case Operation::SaveDifferencesToXML:
+        {
+            if (!m_filteredDiffResult.isSame())
+            {
+                QString fileName = QFileDialog::getSaveFileName(this, tr("Select PDF document"), m_settings.directory, tr("XML file (*.xml)"));
+                if (!fileName.isEmpty())
+                {
+                    QFile file(fileName);
+                    if (file.open(QFile::WriteOnly | QFile::Truncate))
+                    {
+                        m_filteredDiffResult.saveToXML(&file);
+                        file.close();
+                    }
+                    else
+                    {
+                        QMessageBox::critical(this, tr("Error"), tr("File '%1' cannot be opened. %2").arg(fileName, file.errorString()));
+                    }
+                }
+            }
+            else
+            {
+                QMessageBox::information(this, tr("Save results to XML"), tr("Displayed results are empty. Cannot save empty results."));
+            }
+
+            break;
+        }
         case Operation::CreateCompareReport:
             Q_ASSERT(false);
             break;

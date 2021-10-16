@@ -1074,6 +1074,128 @@ void PDFDiffResult::addTextReplaced(PDFInteger pageIndex1,
     m_differences.emplace_back(std::move(difference));
 }
 
+void PDFDiffResult::saveToStream(QXmlStreamWriter* stream) const
+{
+    stream->setAutoFormatting(true);
+    stream->setAutoFormattingIndent(2);
+    stream->writeStartDocument();
+    stream->writeNamespace("https://github.com/JakubMelka/PDF4QT", "pdf4qt");
+    stream->writeStartElement("difference-report");
+
+    // Jakub Melka: write all differences
+    stream->writeStartElement("differences");
+    for (const Difference& difference : m_differences)
+    {
+        stream->writeStartElement("difference");
+
+        QString type;
+        switch (difference.type)
+        {
+            case Type::PageMoved:
+                type = "page-moved";
+                break;
+
+            case Type::PageAdded:
+                type = "page-added";
+                break;
+
+            case Type::PageRemoved:
+                type = "page-removed";
+                break;
+
+            case Type::RemovedTextCharContent:
+                type = "removed-text-char";
+                break;
+
+            case Type::RemovedVectorGraphicContent:
+                type = "removed-vector-graphics";
+                break;
+
+            case Type::RemovedImageContent:
+                type = "removed-image";
+                break;
+
+            case Type::RemovedShadingContent:
+                type = "removed-shading";
+                break;
+
+            case Type::AddedTextCharContent:
+                type = "added-text-char";
+                break;
+
+            case Type::AddedVectorGraphicContent:
+                type = "added-vector-graphics";
+                break;
+
+            case Type::AddedImageContent:
+                type = "added-image";
+                break;
+
+            case Type::AddedShadingContent:
+                type = "added-shading";
+                break;
+
+            case Type::TextAdded:
+                type = "text-added";
+                break;
+
+            case Type::TextRemoved:
+                type = "text-removed";
+                break;
+
+            case Type::TextReplaced:
+                type = "text-replaced";
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+        stream->writeAttribute("type", type);
+
+        if (difference.pageIndex1 != -1)
+        {
+            stream->writeAttribute("left", QString::number(difference.pageIndex1 + 1));
+        }
+
+        if (difference.pageIndex2 != -1)
+        {
+            stream->writeAttribute("right", QString::number(difference.pageIndex2 + 1));
+        }
+
+        if (difference.textAddedIndex != -1)
+        {
+            stream->writeTextElement("text-added", m_strings[difference.textAddedIndex]);
+        }
+
+        if (difference.textRemovedIndex != -1)
+        {
+            stream->writeTextElement("text-removed", m_strings[difference.textRemovedIndex]);
+        }
+
+        stream->writeEndElement();
+    }
+    stream->writeEndElement();
+
+    stream->writeStartElement("page-sequence");
+    for (const PageSequenceItem& item : m_pageSequence)
+    {
+        stream->writeStartElement("item");
+
+        QString left = item.leftPage != -1 ? QString::number(item.leftPage + 1) : QString("none");
+        QString right = item.rightPage != -1 ? QString::number(item.rightPage + 1) : QString("none");
+
+        stream->writeAttribute("left", left);
+        stream->writeAttribute("right", right);
+
+        stream->writeEndElement();
+    }
+    stream->writeEndElement();
+
+    stream->writeEndElement();
+    stream->writeEndDocument();
+}
+
 void PDFDiffResult::finalize()
 {
     auto predicate = [](const Difference& l, const Difference& r)
@@ -1343,6 +1465,24 @@ const PDFDiffResult::PageSequence& PDFDiffResult::getPageSequence() const
 void PDFDiffResult::setPageSequence(PageSequence pageSequence)
 {
     m_pageSequence = pageSequence;
+}
+
+void PDFDiffResult::saveToXML(QIODevice* device) const
+{
+    QXmlStreamWriter stream(device);
+    saveToStream(&stream);
+}
+
+void PDFDiffResult::saveToXML(QByteArray* byteArray) const
+{
+    QXmlStreamWriter stream(byteArray);
+    saveToStream(&stream);
+}
+
+void PDFDiffResult::saveToXML(QString* string) const
+{
+    QXmlStreamWriter stream(string);
+    saveToStream(&stream);
 }
 
 PDFDiffHelper::Differences PDFDiffHelper::calculateDifferences(const GraphicPieceInfos& left,
