@@ -18,12 +18,16 @@
 #ifndef SETTINGSDOCKWIDGET_H
 #define SETTINGSDOCKWIDGET_H
 
+#include "settings.h"
+
 #include <QDockWidget>
 
 namespace Ui
 {
 class SettingsDockWidget;
 }
+
+class QLineEdit;
 
 namespace pdfdocdiff
 {
@@ -33,11 +37,32 @@ class SettingsDockWidget : public QDockWidget
     Q_OBJECT
 
 public:
-    explicit SettingsDockWidget(QWidget* parent);
+    explicit SettingsDockWidget(Settings* settings, QWidget* parent);
     virtual ~SettingsDockWidget() override;
 
+    void setCompareTextsAsVectorGraphics(bool enabled);
+    bool isCompareTextAsVectorGraphics() const;
+
+    void setCompareTextCharactersInsteadOfWords(bool enabled);
+    bool isCompareTextCharactersInsteadOfWords() const;
+
+    QLineEdit* getLeftPageSelectionEdit() const;
+    QLineEdit* getRightPageSelectionEdit() const;
+
+    void loadColors();
+    void saveColors();
+
+signals:
+    void colorsChanged();
+
 private:
+    QIcon getIconForColor(QColor color) const;
+
+    void onEditColorChanged();
+
     Ui::SettingsDockWidget* ui;
+    Settings* m_settings;
+    bool m_loadingColors;
 };
 
 }   // namespace pdfdocdiff

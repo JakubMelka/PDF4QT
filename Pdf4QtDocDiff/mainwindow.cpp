@@ -62,8 +62,9 @@ MainWindow::MainWindow(QWidget* parent) :
     // Initialize task bar progress
     m_progressTaskbarIndicator = m_taskbarButton->progress();
 
-    m_settingsDockWidget = new SettingsDockWidget(this);
+    m_settingsDockWidget = new SettingsDockWidget(&m_settings, this);
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
+    connect(m_settingsDockWidget, &SettingsDockWidget::colorsChanged, this, &MainWindow::onColorsChanged);
 
     m_differencesDockWidget = new DifferencesDockWidget(this, &m_diffResult, &m_filteredDiffResult, &m_diffNavigator, &m_settings);
     addDockWidget(Qt::LeftDockWidgetArea, m_differencesDockWidget);
@@ -235,6 +236,12 @@ void MainWindow::onComparationFinished()
     updateAll(true);
 }
 
+void MainWindow::onColorsChanged()
+{
+    updateFilteredResult();
+    m_pdfWidget->update();
+}
+
 void MainWindow::updateActions()
 {
     QList<QAction*> actions = findChildren<QAction*>();
@@ -321,8 +328,15 @@ void MainWindow::loadSettings()
     m_settings.displayMarkers = settings.value("displayMarkers", m_settings.displayDifferences).toBool();
     settings.endGroup();
 
+    settings.beginGroup("Compare");
+    m_settingsDockWidget->setCompareTextsAsVectorGraphics(settings.value("compareTextsAsVectorGraphics", false).toBool());
+    m_settingsDockWidget->setCompareTextCharactersInsteadOfWords(settings.value("compareTextCharactersInsteadOfWords", false).toBool());
+    settings.endGroup();
+
     ui->actionDisplay_Differences->setChecked(m_settings.displayDifferences);
     ui->actionDisplay_Markers->setChecked(m_settings.displayMarkers);
+
+    m_settingsDockWidget->loadColors();
 }
 
 void MainWindow::saveSettings()
@@ -340,7 +354,12 @@ void MainWindow::saveSettings()
     settings.setValue("colorRemoved", m_settings.colorRemoved);
     settings.setValue("colorReplaced", m_settings.colorReplaced);
     settings.setValue("displayDifferences", m_settings.displayDifferences);
-    settings.setValue("displayMarkers", m_settings.displayDifferences);
+    settings.setValue("displayMarkers", m_settings.displayMarkers);
+    settings.endGroup();
+
+    settings.beginGroup("Compare");
+    settings.setValue("compareTextsAsVectorGraphics", m_settingsDockWidget->isCompareTextAsVectorGraphics());
+    settings.setValue("compareTextCharactersInsteadOfWords", m_settingsDockWidget->isCompareTextCharactersInsteadOfWords());
     settings.endGroup();
 }
 
@@ -418,15 +437,15 @@ void MainWindow::performOperation(Operation operation)
                 const size_t pageCount = m_leftDocument.getCatalog()->getPageCount();
                 if (pageCount > 1)
                 {
-                    ui->leftPageSelectionEdit->setText(QString("1-%2").arg(pageCount));
+                    m_settingsDockWidget->getLeftPageSelectionEdit()->setText(QString("1-%2").arg(pageCount));
                 }
                 else if (pageCount == 1)
                 {
-                    ui->leftPageSelectionEdit->setText("1");
+                    m_settingsDockWidget->getLeftPageSelectionEdit()->setText("1");
                 }
                 else
                 {
-                    ui->leftPageSelectionEdit->clear();
+                    m_settingsDockWidget->getLeftPageSelectionEdit()->clear();
                 }
 
                 updateViewDocument();
@@ -449,15 +468,15 @@ void MainWindow::performOperation(Operation operation)
                 const size_t pageCount = m_rightDocument.getCatalog()->getPageCount();
                 if (pageCount > 1)
                 {
-                    ui->rightPageSelectionEdit->setText(QString("1-%2").arg(pageCount));
+                    m_settingsDockWidget->getRightPageSelectionEdit()->setText(QString("1-%2").arg(pageCount));
                 }
                 else if (pageCount == 1)
                 {
-                    ui->rightPageSelectionEdit->setText("1");
+                    m_settingsDockWidget->getRightPageSelectionEdit()->setText("1");
                 }
                 else
                 {
-                    ui->rightPageSelectionEdit->clear();
+                    m_settingsDockWidget->getRightPageSelectionEdit()->clear();
                 }
 
                 updateViewDocument();
@@ -471,14 +490,17 @@ void MainWindow::performOperation(Operation operation)
             pdf::PDFTemporaryValueChange guard(&m_dontDisplayErrorMessage, true);
             m_diff.stop();
 
+            m_diff.setOption(pdf::PDFDiff::CompareTextsAsVector, m_settingsDockWidget->isCompareTextAsVectorGraphics());
+            m_diff.setOption(pdf::PDFDiff::CompareWords, !m_settingsDockWidget->isCompareTextCharactersInsteadOfWords());
+
             QString errorMessage;
 
             pdf::PDFClosedIntervalSet rightPageIndices;
-            pdf::PDFClosedIntervalSet leftPageIndices = pdf::PDFClosedIntervalSet::parse(1, qMax<pdf::PDFInteger>(1, m_leftDocument.getCatalog()->getPageCount()), ui->leftPageSelectionEdit->text(), &errorMessage);
+            pdf::PDFClosedIntervalSet leftPageIndices = pdf::PDFClosedIntervalSet::parse(1, qMax<pdf::PDFInteger>(1, m_leftDocument.getCatalog()->getPageCount()), m_settingsDockWidget->getLeftPageSelectionEdit()->text(), &errorMessage);
 
             if (errorMessage.isEmpty())
             {
-                rightPageIndices = pdf::PDFClosedIntervalSet::parse(1, qMax<pdf::PDFInteger>(1, m_rightDocument.getCatalog()->getPageCount()), ui->rightPageSelectionEdit->text(), &errorMessage);
+                rightPageIndices = pdf::PDFClosedIntervalSet::parse(1, qMax<pdf::PDFInteger>(1, m_rightDocument.getCatalog()->getPageCount()), m_settingsDockWidget->getRightPageSelectionEdit()->text(), &errorMessage);
             }
 
             // Check if pages are succesfully parsed
@@ -658,13 +680,13 @@ void MainWindow::clear(bool clearLeftDocument, bool clearRightDocument)
     if (clearLeftDocument)
     {
         m_leftDocument = pdf::PDFDocument();
-        ui->leftPageSelectionEdit->clear();
+        m_settingsDockWidget->getLeftPageSelectionEdit()->clear();
     }
 
     if (clearRightDocument)
     {
         m_rightDocument = pdf::PDFDocument();
-        ui->rightPageSelectionEdit->clear();
+        m_settingsDockWidget->getRightPageSelectionEdit()->clear();
     }
 
     m_diffResult = pdf::PDFDiffResult();

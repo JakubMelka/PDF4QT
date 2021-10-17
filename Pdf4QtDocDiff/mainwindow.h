@@ -88,6 +88,7 @@ private slots:
 private:
     void onMappedActionTriggered(int actionId);
     void onComparationFinished();
+    void onColorsChanged();
 
     void onProgressStarted(pdf::ProgressStartupInfo info);
     void onProgressStep(int percentage);
