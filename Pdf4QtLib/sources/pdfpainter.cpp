@@ -20,6 +20,7 @@
 #include "pdfcms.h"
 
 #include <QPainter>
+#include <QCryptographicHash>
 
 namespace pdf
 {
@@ -500,13 +501,18 @@ void PDFPrecompiledPageGenerator::setCompositionMode(QPainter::CompositionMode m
     m_precompiledPage->addSetCompositionMode(mode);
 }
 
-void PDFPrecompiledPage::draw(QPainter* painter, const QRectF& cropBox, const QMatrix& pagePointToDevicePointMatrix, PDFRenderer::Features features) const
+void PDFPrecompiledPage::draw(QPainter* painter,
+                              const QRectF& cropBox,
+                              const QMatrix& pagePointToDevicePointMatrix,
+                              PDFRenderer::Features features,
+                              PDFReal opacity) const
 {
     Q_ASSERT(painter);
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
 
     painter->save();
     painter->setWorldMatrix(QMatrix());
+    painter->setOpacity(opacity);
 
     if (features.testFlag(PDFRenderer::ClipToCropBox))
     {
@@ -829,6 +835,226 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     {
         m_memoryConsumptionEstimate += data.mesh.getMemoryConsumptionEstimate();
     }
+}
+
+PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceInfos(QRectF mediaBox,
+                                                                                     PDFReal epsilon) const
+{
+    GraphicPieceInfos infos;
+
+    struct State
+    {
+        QMatrix matrix;
+    };
+    std::stack<State> stateStack;
+    stateStack.emplace();
+
+    // Check, if epsilon is not too small
+    if (qFuzzyIsNull(epsilon))
+    {
+        epsilon = 0.000001;
+    }
+    PDFReal factor = 1.0 / epsilon;
+
+    QImage shadingTestImage;
+
+    // Process all instructions
+    for (const Instruction& instruction : m_instructions)
+    {
+        switch (instruction.type)
+        {
+            case InstructionType::DrawPath:
+            {
+                const PathPaintData& data = m_paths[instruction.dataIndex];
+
+                GraphicPieceInfo info;
+                QByteArray serializedPath;
+
+                // Serialize data
+                if (true)
+                {
+                    QDataStream stream(&serializedPath, QIODevice::WriteOnly);
+
+                    stream << data.isText;
+                    stream << data.pen;
+                    stream << data.brush;
+
+                    // Translate map to page coordinates
+                    QPainterPath pagePath = stateStack.top().matrix.map(data.path);
+
+                    info.type = data.isText ? GraphicPieceInfo::Type::Text : GraphicPieceInfo::Type::VectorGraphics;
+                    info.boundingRect = pagePath.controlPointRect();
+                    info.pagePath = pagePath;
+
+                    const int elementCount = pagePath.elementCount();
+                    for (int i = 0; i < elementCount; ++i)
+                    {
+                        QPainterPath::Element element = pagePath.elementAt(i);
+
+                        PDFReal roundedX = qFloor(element.x * factor);
+                        PDFReal roundedY = qFloor(element.y * factor);
+
+                        stream << roundedX;
+                        stream << roundedY;
+                        stream << element.type;
+                    }
+                }
+
+                QByteArray hash = QCryptographicHash::hash(serializedPath, QCryptographicHash::Sha512);
+                Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+                size_t size = qMin<size_t>(hash.length(), info.hash.size());
+                std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                infos.emplace_back(std::move(info));
+                break;
+            }
+
+            case InstructionType::DrawImage:
+            {
+                const ImageData& data = m_images[instruction.dataIndex];
+                const QImage& image = data.image;
+
+                GraphicPieceInfo info;
+                QByteArray serializedPath;
+                QByteArray serializedImage;
+
+                // Serialize data
+                if (true)
+                {
+                    QDataStream stream(&serializedPath, QIODevice::WriteOnly);
+                    QDataStream streamImage(&serializedImage, QIODevice::WriteOnly);
+
+                    // Jakub Melka: serialize image position
+                    QMatrix worldMatrix = stateStack.top().matrix;
+
+                    QPainterPath pagePath;
+                    pagePath.addRect(0, 0, 1, 1);
+                    pagePath = worldMatrix.map(pagePath);
+
+                    info.type = GraphicPieceInfo::Type::Image;
+                    info.boundingRect = pagePath.controlPointRect();
+                    info.pagePath = pagePath;
+
+                    const int elementCount = pagePath.elementCount();
+                    for (int i = 0; i < elementCount; ++i)
+                    {
+                        QPainterPath::Element element = pagePath.elementAt(i);
+
+                        PDFReal roundedX = qRound(element.x * factor);
+                        PDFReal roundedY = qRound(element.y * factor);
+
+                        stream << roundedX;
+                        stream << roundedY;
+                        stream << element.type;
+                    }
+
+                    // serialize image data
+                    stream.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
+                    streamImage.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
+                }
+
+                QByteArray hash = QCryptographicHash::hash(serializedPath, QCryptographicHash::Sha512);
+                Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+                QByteArray imageHash = QCryptographicHash::hash(serializedImage, QCryptographicHash::Sha512);
+
+                size_t size = qMin<size_t>(hash.length(), info.hash.size());
+                std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                size_t sizeImage = qMin<size_t>(imageHash.length(), info.imageHash.size());
+                std::copy(imageHash.data(), imageHash.data() + sizeImage, info.imageHash.data());
+
+                infos.emplace_back(std::move(info));
+                break;
+            }
+
+            case InstructionType::DrawMesh:
+            {
+                const MeshPaintData& data = m_meshes[instruction.dataIndex];
+
+                if (shadingTestImage.isNull())
+                {
+                    QSizeF mediaBoxSize = mediaBox.size();
+                    mediaBoxSize = mediaBoxSize.scaled(256, 256, Qt::KeepAspectRatio);
+                    QSize imageSize = mediaBoxSize.toSize();
+                    shadingTestImage = QImage(imageSize, QImage::Format_ARGB32);
+                }
+
+                shadingTestImage.fill(Qt::transparent);
+
+                QMatrix pagePointToDevicePointMatrix;
+                pagePointToDevicePointMatrix.scale(shadingTestImage.width() / mediaBox.width(), -shadingTestImage.height() / mediaBox.height());
+
+                {
+                    QPainter painter(&shadingTestImage);
+                    painter.setWorldMatrix(pagePointToDevicePointMatrix);
+                    data.mesh.paint(&painter, data.alpha);
+                }
+
+                GraphicPieceInfo info;
+                QByteArray serializedMesh;
+
+                // Serialize data
+                if (true)
+                {
+                    QDataStream stream(&serializedMesh, QIODevice::WriteOnly);
+
+                    // serialize image data
+                    stream.writeBytes(reinterpret_cast<const char*>(shadingTestImage.bits()), shadingTestImage.sizeInBytes());
+                }
+
+                QByteArray hash = QCryptographicHash::hash(serializedMesh, QCryptographicHash::Sha512);
+                Q_ASSERT(QCryptographicHash::hashLength(QCryptographicHash::Sha512) == 64);
+
+                size_t size = qMin<size_t>(hash.length(), info.hash.size());
+                std::copy(hash.data(), hash.data() + size, info.hash.data());
+
+                info.boundingRect = QRectF();
+                info.type = GraphicPieceInfo::Type::Shading;
+                infos.emplace_back(std::move(info));
+                break;
+            }
+
+            case InstructionType::Clip:
+            {
+                // Do nothing, we are just collecting information
+                break;
+            }
+
+            case InstructionType::SaveGraphicState:
+            {
+                stateStack.push(stateStack.top());
+                break;
+            }
+
+            case InstructionType::RestoreGraphicState:
+            {
+                stateStack.pop();
+                break;
+            }
+
+            case InstructionType::SetWorldMatrix:
+            {
+                stateStack.top().matrix = m_matrices[instruction.dataIndex];
+                break;
+            }
+
+            case InstructionType::SetCompositionMode:
+            {
+                // Do nothing, we are just collecting information
+                break;
+            }
+
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
+        }
+    }
+
+    return infos;
 }
 
 }   // namespace pdf

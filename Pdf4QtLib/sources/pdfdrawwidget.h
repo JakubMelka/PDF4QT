@@ -103,7 +103,7 @@ public:
     void addInputInterface(IDrawWidgetInputInterface* inputInterface);
 
 signals:
-    void pageRenderingErrorsChanged(PDFInteger pageIndex, int errorsCount);
+    void pageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
 
 private:
     void updateRendererImpl();

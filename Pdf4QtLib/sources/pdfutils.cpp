@@ -367,6 +367,15 @@ std::vector<PDFInteger> PDFClosedIntervalSet::unfold() const
     return result;
 }
 
+void PDFClosedIntervalSet::translate(PDFInteger offset)
+{
+    for (auto& interval : m_intervals)
+    {
+        interval.first += offset;
+        interval.second += offset;
+    }
+}
+
 PDFClosedIntervalSet PDFClosedIntervalSet::parse(PDFInteger first, PDFInteger last, const QString& text, QString* errorMessage)
 {
     PDFClosedIntervalSet result;

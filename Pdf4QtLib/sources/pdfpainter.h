@@ -187,7 +187,12 @@ public:
     /// \param cropBox Page's crop box
     /// \param pagePointToDevicePointMatrix Page point to device point transformation matrix
     /// \param features Renderer features
-    void draw(QPainter* painter, const QRectF& cropBox, const QMatrix& pagePointToDevicePointMatrix, PDFRenderer::Features features) const;
+    /// \param opacity Opacity of page graphics
+    void draw(QPainter* painter,
+              const QRectF& cropBox,
+              const QMatrix& pagePointToDevicePointMatrix,
+              PDFRenderer::Features features,
+              PDFReal opacity) const;
 
     /// Redact path - remove all content intersecting given path,
     /// and fill redact path with given color.
@@ -233,6 +238,45 @@ public:
 
     PDFSnapInfo* getSnapInfo() { return &m_snapInfo; }
     const PDFSnapInfo* getSnapInfo() const { return &m_snapInfo; }
+
+    struct GraphicPieceInfo
+    {
+        enum class Type
+        {
+            Unknown,
+            Text,
+            VectorGraphics,
+            Image,
+            Shading
+        };
+
+        bool operator<(const GraphicPieceInfo& other) const
+        {
+            return std::tie(type, hash) < std::tie(other.type, other.hash);
+        }
+
+        bool isText() const { return type == Type::Text; }
+        bool isVectorGraphics() const { return type == Type::VectorGraphics; }
+        bool isImage() const { return type == Type::Image; }
+        bool isShading() const { return type == Type::Shading; }
+
+        Type type = Type::Unknown;
+        QRectF boundingRect;
+        std::array<uint8_t, 64> hash = { }; ///< Hash of all data
+        std::array<uint8_t, 64> imageHash = { }; ///< Hash of the image only
+        QPainterPath pagePath;
+    };
+
+    using GraphicPieceInfos = std::vector<GraphicPieceInfo>;
+
+    /// Creates information about piece of graphic in this page,
+    /// for example, for comparation reasons. Parameter \p epsilon
+    /// is for numerical precision - values under epsilon are considered
+    /// as equal.
+    /// \param mediaBox Page's media box
+    /// \param epsilon Epsilon
+    GraphicPieceInfos calculateGraphicPieceInfos(QRectF mediaBox,
+                                                 PDFReal epsilon) const;
 
 private:
     struct PathPaintData

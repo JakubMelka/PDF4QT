@@ -56,6 +56,7 @@ public:
         PDFInteger pageIndex = 0;
         QString text;
         Flags flags = None;
+        std::vector<QRectF> characterBoundingRects;
 
         bool isText() const { return flags.testFlag(Text); }
         bool isSpecial() const { return !isText(); }
@@ -71,6 +72,9 @@ public:
 
     }
 
+    /// Add text item
+    void addItem(Item item) { m_items.emplace_back(std::move(item)); }
+
     const Items& getItems() const { return m_items; }
 
     /// Returns item at a given index
@@ -82,6 +86,18 @@ public:
 
     /// Returns true, if text flow is empty
     bool isEmpty() const { return m_items.empty(); }
+
+    /// Split text flow to pages using given mask. Items, which
+    /// are masked out, are not added.
+    /// \param mask Mask
+    std::map<PDFInteger, PDFDocumentTextFlow> split(Flags mask) const;
+
+    /// Appends document text flow to this one
+    /// \param textFlow Text flow
+    void append(const PDFDocumentTextFlow& textFlow);
+
+    /// Returns text concantecated from all items
+    QString getText() const;
 
 private:
     Items m_items;

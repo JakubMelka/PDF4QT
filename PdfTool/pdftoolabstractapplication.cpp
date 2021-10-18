@@ -175,6 +175,12 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addPositionalArgument("target", "Merged document filename.");
     }
 
+    if (optionFlags.testFlag(Diff))
+    {
+        parser->addPositionalArgument("left", "Left (old) document to be compared.");
+        parser->addPositionalArgument("right", "Right (new) document to be compared.");
+    }
+
     if (optionFlags.testFlag(SignatureVerification))
     {
         parser->addOption(QCommandLineOption("ver-no-user-cert", "Disable user certificate store."));
@@ -880,6 +886,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     if (optionFlags.testFlag(Unite))
     {
         options.uniteFiles = positionalArguments;
+    }
+
+    if (optionFlags.testFlag(Diff))
+    {
+        options.diffFiles = positionalArguments;
     }
 
     if (optionFlags.testFlag(Optimize))

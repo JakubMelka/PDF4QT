@@ -91,6 +91,8 @@ public:
     /// \returns Assembled document
     PDFDocument&& takeAssembledDocument() { return std::move(m_assembledDocument); }
 
+    static AssembledPages createAllDocumentPages(int documentIndex, const PDFDocument* document);
+
     static constexpr AssembledPage createDocumentPage(int documentIndex, int pageIndex, QSizeF pageSize, PageRotation pageRotation) { return AssembledPage{ documentIndex, -1, pageIndex, pageSize, pageRotation}; }
     static constexpr AssembledPage createImagePage(int imageIndex, QSizeF pageSize, PageRotation pageRotation) { return AssembledPage{ -1, imageIndex, -1, pageSize, pageRotation}; }
     static constexpr AssembledPage createBlankPage(QSizeF pageSize, PageRotation pageRotation) { return AssembledPage{ -1, -1, -1, pageSize, pageRotation}; }

@@ -154,6 +154,20 @@ void PDFDrawSpaceController::setPageRotation(PageRotation pageRotation)
     }
 }
 
+void PDFDrawSpaceController::setCustomLayout(LayoutItems customLayoutItems)
+{
+    if (m_customLayoutItems != customLayoutItems)
+    {
+        m_customLayoutItems = std::move(customLayoutItems);
+
+        if (m_pageLayoutMode == PageLayout::Custom)
+        {
+            // Recalculate only, if custom layout is active
+            recalculate();
+        }
+    }
+}
+
 void PDFDrawSpaceController::recalculate()
 {
     if (!m_document)
@@ -181,7 +195,7 @@ void PDFDrawSpaceController::recalculate()
             QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(leftIndex)->getRotatedMediaBoxMM(), m_pageRotation).size();
             PDFReal xPos = -pageSize.width() - m_horizontalSpacingMM * 0.5;
             QRectF rect(xPos, yPos, pageSize.width(), pageSize.height());
-            m_layoutItems.emplace_back(blockIndex, leftIndex, rect);
+            m_layoutItems.emplace_back(blockIndex, leftIndex, -1, rect);
             yPosAdvance = qMax(yPosAdvance, pageSize.height());
             boundingRect = boundingRect.united(rect);
         }
@@ -191,7 +205,7 @@ void PDFDrawSpaceController::recalculate()
             QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(rightIndex)->getRotatedMediaBoxMM(), m_pageRotation).size();
             PDFReal xPos = m_horizontalSpacingMM * 0.5;
             QRectF rect(xPos, yPos, pageSize.width(), pageSize.height());
-            m_layoutItems.emplace_back(blockIndex, rightIndex, rect);
+            m_layoutItems.emplace_back(blockIndex, rightIndex, -1, rect);
             yPosAdvance = qMax(yPosAdvance, pageSize.height());
             boundingRect = boundingRect.united(rect);
         }
@@ -253,7 +267,7 @@ void PDFDrawSpaceController::recalculate()
             {
                 QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(i)->getRotatedMediaBoxMM(), m_pageRotation).size();
                 QRectF rect(-pageSize.width() * 0.5, -pageSize.height() * 0.5, pageSize.width(), pageSize.height());
-                m_layoutItems.emplace_back(i, i, rect);
+                m_layoutItems.emplace_back(i, i, -1, rect);
                 m_blockItems.emplace_back(rect);
             }
 
@@ -274,7 +288,7 @@ void PDFDrawSpaceController::recalculate()
                 // Top of current page is at yPos.
                 QSizeF pageSize = PDFPage::getRotatedBox(catalog->getPage(i)->getRotatedMediaBoxMM(), m_pageRotation).size();
                 QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
-                m_layoutItems.emplace_back(0, i, rect);
+                m_layoutItems.emplace_back(0, i, -1, rect);
                 yPos += pageSize.height() + m_verticalSpacingMM;
                 boundingRectangle = boundingRectangle.united(rect);
             }
@@ -358,6 +372,54 @@ void PDFDrawSpaceController::recalculate()
             }
 
             placePagesLeftRightByIndices(pageIndices, true);
+            break;
+        }
+
+        case PageLayout::Custom:
+        {
+            m_layoutItems = m_customLayoutItems;
+
+            // We do not support page rotation for custom layout
+            Q_ASSERT(m_pageRotation == PageRotation::None);
+
+            // Assure, that layout items are sorted by block and page group
+            auto comparator = [](const LayoutItem& l, const LayoutItem& r)
+            {
+                return std::tie(l.blockIndex, l.groupIndex) < std::tie(r.blockIndex, r.groupIndex);
+            };
+            std::stable_sort(m_layoutItems.begin(), m_layoutItems.end(), comparator);
+
+            // Now, compute blocks
+            if (!m_layoutItems.empty())
+            {
+                m_blockItems.reserve(m_layoutItems.back().blockIndex + 1);
+
+                QRectF currentBoundingRect;
+                PDFInteger blockIndex = -1;
+
+                for (const LayoutItem& layoutItem : m_layoutItems)
+                {
+                    if (blockIndex != layoutItem.blockIndex)
+                    {
+                        blockIndex = layoutItem.blockIndex;
+
+                        if (currentBoundingRect.isValid())
+                        {
+                            m_blockItems.push_back(LayoutBlock(currentBoundingRect));
+                            currentBoundingRect = QRectF();
+                        }
+                    }
+
+                    currentBoundingRect = currentBoundingRect.united(layoutItem.pageRectMM);
+                }
+
+                if (currentBoundingRect.isValid())
+                {
+                    m_blockItems.push_back(LayoutBlock(currentBoundingRect));
+                    currentBoundingRect = QRectF();
+                }
+            }
+
             break;
         }
 
@@ -504,7 +566,7 @@ void PDFDrawWidgetProxy::update()
         m_layout.items.reserve(items.size());
         for (const PDFDrawSpaceController::LayoutItem& item : items)
         {
-            m_layout.items.emplace_back(item.pageIndex, fromDeviceSpace(item.pageRectMM).toRect());
+            m_layout.items.emplace_back(item.pageIndex, item.groupIndex, fromDeviceSpace(item.pageRectMM).toRect());
         }
 
         m_layout.blockRect = fromDeviceSpace(rectangle).toRect();
@@ -700,8 +762,13 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
         QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
         if (placedRect.intersects(rect))
         {
+            GroupInfo groupInfo = getGroupInfo(item.groupIndex);
+
             // Clear the page space by paper color
-            painter->fillRect(placedRect, paperColor);
+            if (groupInfo.drawPaper)
+            {
+                painter->fillRect(placedRect, paperColor);
+            }
 
             const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, true);
             if (compiledPage && compiledPage->isValid())
@@ -711,7 +778,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix, features);
+                compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 // Draw text blocks/text lines, if it is enabled
@@ -939,6 +1006,22 @@ PDFWidgetSnapshot PDFDrawWidgetProxy::getSnapshot() const
     return snapshot;
 }
 
+void PDFDrawWidgetProxy::setGroupTransparency(PDFInteger groupIndex, bool drawPaper, PDFReal transparency)
+{
+    GroupInfo groupInfo;
+    groupInfo.drawPaper = drawPaper;
+    groupInfo.transparency = transparency;
+
+    if (groupInfo == GroupInfo())
+    {
+        m_groupInfos.erase(groupIndex);
+    }
+    else
+    {
+        m_groupInfos[groupIndex] = std::move(groupInfo);
+    }
+}
+
 QRect PDFDrawWidgetProxy::getPagesIntersectingRectBoundingBox(QRect rect) const
 {
     QRect resultRect;
@@ -1156,6 +1239,15 @@ void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
     }
 }
 
+void PDFDrawWidgetProxy::setCustomPageLayout(PDFDrawSpaceController::LayoutItems layoutItems)
+{
+    if (m_controller->getCustomLayout() != layoutItems)
+    {
+        m_controller->setCustomLayout(std::move(layoutItems));
+        emit pageLayoutChanged();
+    }
+}
+
 QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
 {
     Q_ASSERT(rect.isValid());
@@ -1185,6 +1277,9 @@ bool PDFDrawWidgetProxy::isBlockMode() const
         case PageLayout::TwoPagesLeft:
         case PageLayout::TwoPagesRight:
             return true;
+
+        case PageLayout::Custom:
+            return m_controller->getBlockCount() > 1;
     }
 
     Q_ASSERT(false);
@@ -1215,6 +1310,10 @@ void PDFDrawWidgetProxy::prefetchPages(PDFInteger pageIndex)
         case PageLayout::TwoColumnLeft:
         case PageLayout::TwoColumnRight:
             prefetchCount = 2;
+            break;
+
+        case PageLayout::Custom:
+            prefetchCount = 0;
             break;
 
         default:
@@ -1305,6 +1404,17 @@ void PDFDrawWidgetProxy::updateVerticalScrollbarFromOffset()
         PDFBoolGuard guard(m_updateDisabled);
         m_verticalScrollbar->setValue(-m_verticalOffset);
     }
+}
+
+PDFDrawWidgetProxy::GroupInfo PDFDrawWidgetProxy::getGroupInfo(int groupIndex) const
+{
+    auto it = m_groupInfos.find(groupIndex);
+    if (it != m_groupInfos.cend())
+    {
+        return it->second;
+    }
+
+    return GroupInfo();
 }
 
 PDFWidgetAnnotationManager* PDFDrawWidgetProxy::getAnnotationManager() const

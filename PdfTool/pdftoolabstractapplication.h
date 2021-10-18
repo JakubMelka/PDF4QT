@@ -136,6 +136,9 @@ struct PDFToolOptions
     // For option 'Unite'
     QStringList uniteFiles;
 
+    // For option 'Diff'
+    QStringList diffFiles;
+
     // For option 'Optimize'
     pdf::PDFOptimizer::OptimizationFlags optimizeFlags = pdf::PDFOptimizer::None;
 
@@ -238,6 +241,7 @@ public:
         CertStore                       = 0x00200000,       ///< Settings for certificate store tool
         CertStoreInstall                = 0x00400000,       ///< Settings for certificate store install certificate tool
         Encrypt                         = 0x00800000,       ///< Encryption settings
+        Diff                            = 0x01000000,       ///< Diff settings (compare documents)
     };
     Q_DECLARE_FLAGS(Options, Option)
 

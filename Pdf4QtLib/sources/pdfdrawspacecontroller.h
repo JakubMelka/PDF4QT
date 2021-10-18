@@ -77,14 +77,17 @@ public:
     /// page and page rectangle, in which the page is contained.
     struct LayoutItem
     {
-        constexpr inline explicit LayoutItem() : blockIndex(-1), pageIndex(-1) { }
-        constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, const QRectF& pageRectMM) :
-            blockIndex(blockIndex), pageIndex(pageIndex), pageRectMM(pageRectMM) { }
+        constexpr inline explicit LayoutItem() : blockIndex(-1), pageIndex(-1), groupIndex(-1) { }
+        constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, PDFInteger groupIndex, const QRectF& pageRectMM) :
+            blockIndex(blockIndex), pageIndex(pageIndex), groupIndex(groupIndex), pageRectMM(pageRectMM) { }
+
+        bool operator ==(const LayoutItem&) const = default;
 
         bool isValid() const { return pageIndex != -1; }
 
         PDFInteger blockIndex;
         PDFInteger pageIndex;
+        PDFInteger groupIndex; ///< Page group index
         QRectF pageRectMM;
     };
 
@@ -123,6 +126,15 @@ public:
     /// Sets page rotation
     void setPageRotation(PageRotation pageRotation);
 
+    /// Set custom layout. Custom layout provides a way how to define
+    /// custom page layout, including blocks. Block indices must be properly defined,
+    /// that means block index must start by zero and must be continuous. If this
+    /// criteria are not fulfilled, behaviour is undefined.
+    void setCustomLayout(LayoutItems customLayoutItems);
+
+    /// Returns custom layout
+    const LayoutItems& getCustomLayout() const { return m_customLayoutItems; }
+
 signals:
     void drawSpaceChanged();
     void repaintNeeded();
@@ -155,6 +167,7 @@ private:
     PDFReal m_verticalSpacingMM;
     PDFReal m_horizontalSpacingMM;
     PageRotation m_pageRotation;
+    LayoutItems m_customLayoutItems;
 
     /// Font cache
     PDFFontCache m_fontCache;
@@ -282,6 +295,11 @@ public:
     /// \param pageLayout Page layout
     void setPageLayout(PageLayout pageLayout);
 
+    /// Sets custom page layout. If this function is used, page layout mode
+    /// must be set to 'Custom'.
+    /// \param layoutItems Layout items
+    void setCustomPageLayout(PDFDrawSpaceController::LayoutItems layoutItems);
+
     /// Returns the page layout
     PageLayout getPageLayout() const { return m_controller->getPageLayout(); }
 
@@ -354,13 +372,20 @@ public:
 
     /// Returns snapshot of current view area
     PDFWidgetSnapshot getSnapshot() const;
+
+    /// Sets page group transparency settings. All pages with a given group index
+    /// will be displayed with this transparency settings.
+    /// \param groupIndex Group index
+    /// \param drawPaper Draw background paper
+    /// \param transparency Page graphics transparency
+    void setGroupTransparency(PDFInteger groupIndex, bool drawPaper = true, PDFReal transparency = 1.0);
     
     PDFWidgetAnnotationManager* getAnnotationManager() const;
 
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
-    void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+    void renderingError(pdf::PDFInteger pageIndex, const QList<pdf::PDFRenderError>& errors);
     void repaintNeeded();
     void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
     void textLayoutChanged();
@@ -368,12 +393,13 @@ signals:
 private:
     struct LayoutItem
     {
-        constexpr inline explicit LayoutItem() : pageIndex(-1) { }
-        constexpr inline explicit LayoutItem(PDFInteger pageIndex, const QRect& pageRect) :
-            pageIndex(pageIndex), pageRect(pageRect) { }
+        constexpr inline explicit LayoutItem() : pageIndex(-1), groupIndex(-1) { }
+        constexpr inline explicit LayoutItem(PDFInteger pageIndex, PDFInteger groupIndex, const QRect& pageRect) :
+            pageIndex(pageIndex), groupIndex(groupIndex), pageRect(pageRect) { }
 
 
         PDFInteger pageIndex;
+        PDFInteger groupIndex; ///< Used to create group of pages (for transparency and overlay)
         QRect pageRect;
     };
 
@@ -387,6 +413,14 @@ private:
 
         std::vector<LayoutItem> items;
         QRect blockRect;
+    };
+
+    struct GroupInfo
+    {
+        bool operator==(const GroupInfo&) const = default;
+
+        bool drawPaper = true;
+        PDFReal transparency = 1.0;
     };
 
     static constexpr size_t INVALID_BLOCK_INDEX = std::numeric_limits<size_t>::max();
@@ -412,6 +446,8 @@ private:
 
     void updateHorizontalScrollbarFromOffset();
     void updateVerticalScrollbarFromOffset();
+
+    GroupInfo getGroupInfo(int groupIndex) const;
 
     template<typename T>
     struct Range
@@ -501,6 +537,11 @@ private:
 
     /// Surface format for OpenGL
     QSurfaceFormat m_surfaceFormat;
+
+    /// Page group info for rendering. Group of pages
+    /// can be rendered with transparency or without paper
+    /// as overlay.
+    std::map<PDFInteger, GroupInfo> m_groupInfos;
 };
 
 }   // namespace pdf
