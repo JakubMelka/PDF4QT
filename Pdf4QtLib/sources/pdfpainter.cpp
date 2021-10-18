@@ -501,13 +501,18 @@ void PDFPrecompiledPageGenerator::setCompositionMode(QPainter::CompositionMode m
     m_precompiledPage->addSetCompositionMode(mode);
 }
 
-void PDFPrecompiledPage::draw(QPainter* painter, const QRectF& cropBox, const QMatrix& pagePointToDevicePointMatrix, PDFRenderer::Features features) const
+void PDFPrecompiledPage::draw(QPainter* painter,
+                              const QRectF& cropBox,
+                              const QMatrix& pagePointToDevicePointMatrix,
+                              PDFRenderer::Features features,
+                              PDFReal opacity) const
 {
     Q_ASSERT(painter);
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
 
     painter->save();
     painter->setWorldMatrix(QMatrix());
+    painter->setOpacity(opacity);
 
     if (features.testFlag(PDFRenderer::ClipToCropBox))
     {

@@ -23,6 +23,13 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfdocumentdrawinterface.h"
 
+#include <QtCore>
+
+namespace pdf
+{
+class PDFDocumentBuilder;
+}   // namespace pdf
+
 namespace pdfdocdiff
 {
 
@@ -77,6 +84,8 @@ private:
 
 class DifferencesDrawInterface : public pdf::IDocumentDrawInterface
 {
+    Q_DECLARE_TR_FUNCTIONS(pdfdocdiff::DifferencesDrawInterface)
+
 public:
     explicit DifferencesDrawInterface(const Settings* settings,
                                       const ComparedDocumentMapper* mapper,
@@ -87,7 +96,13 @@ public:
                           pdf::PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<pdf::PDFRenderError>& errors) const override;
+
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
+
+    /// Draw annotations for differences
+    /// \param document Document
+    /// \param builder Builder
+    void drawAnnotations(const pdf::PDFDocument* document, pdf::PDFDocumentBuilder* builder);
 
 private:
     void drawRectangle(QPainter* painter,

@@ -244,7 +244,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
                     QOpenGLPaintDevice device(size);
                     QPainter painter(&device);
                     painter.fillRect(QRect(QPoint(0, 0), size), compiledPage->getPaperColor());
-                    compiledPage->draw(&painter, page->getCropBox(), matrix, features);
+                    compiledPage->draw(&painter, page->getCropBox(), matrix, features, 1.0);
 
                     if (annotationManager)
                     {
@@ -276,7 +276,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
         image.fill(Qt::white);
 
         QPainter painter(&image);
-        compiledPage->draw(&painter, page->getCropBox(), matrix, features);
+        compiledPage->draw(&painter, page->getCropBox(), matrix, features, 1.0);
 
         if (annotationManager)
         {

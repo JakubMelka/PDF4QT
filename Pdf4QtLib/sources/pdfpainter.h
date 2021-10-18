@@ -187,7 +187,12 @@ public:
     /// \param cropBox Page's crop box
     /// \param pagePointToDevicePointMatrix Page point to device point transformation matrix
     /// \param features Renderer features
-    void draw(QPainter* painter, const QRectF& cropBox, const QMatrix& pagePointToDevicePointMatrix, PDFRenderer::Features features) const;
+    /// \param opacity Opacity of page graphics
+    void draw(QPainter* painter,
+              const QRectF& cropBox,
+              const QMatrix& pagePointToDevicePointMatrix,
+              PDFRenderer::Features features,
+              PDFReal opacity) const;
 
     /// Redact path - remove all content intersecting given path,
     /// and fill redact path with given color.

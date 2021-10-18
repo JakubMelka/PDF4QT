@@ -43,6 +43,8 @@ SettingsDockWidget::SettingsDockWidget(Settings* settings, QWidget* parent) :
 
         connect(comboBox, &QComboBox::editTextChanged, this, &SettingsDockWidget::onEditColorChanged);
     }
+
+    connect(ui->transparencySlider, &QSlider::valueChanged, this, &SettingsDockWidget::transparencySliderChanged);
 }
 
 SettingsDockWidget::~SettingsDockWidget()
@@ -99,6 +101,11 @@ void SettingsDockWidget::loadColors()
     loadColor(ui->addColorCombo, m_settings->colorAdded);
     loadColor(ui->replaceColorCombo, m_settings->colorReplaced);
     loadColor(ui->moveColorCombo, m_settings->colorPageMove);
+}
+
+int SettingsDockWidget::getTransparencySliderValue() const
+{
+    return ui->transparencySlider->value();
 }
 
 QIcon SettingsDockWidget::getIconForColor(QColor color) const

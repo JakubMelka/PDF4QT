@@ -26,6 +26,8 @@
 #include "pdfdocumentreader.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdocumentmanipulator.h"
+#include "pdfdocumentbuilder.h"
+#include "pdfdocumentwriter.h"
 
 #include <QToolBar>
 #include <QDesktopWidget>
@@ -65,6 +67,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_settingsDockWidget = new SettingsDockWidget(&m_settings, this);
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
     connect(m_settingsDockWidget, &SettingsDockWidget::colorsChanged, this, &MainWindow::onColorsChanged);
+    connect(m_settingsDockWidget, &SettingsDockWidget::transparencySliderChanged, this, &MainWindow::updateOverlayTransparency);
 
     m_differencesDockWidget = new DifferencesDockWidget(this, &m_diffResult, &m_filteredDiffResult, &m_diffNavigator, &m_settings);
     addDockWidget(Qt::LeftDockWidgetArea, m_differencesDockWidget);
@@ -171,6 +174,7 @@ MainWindow::MainWindow(QWidget* parent) :
 
     loadSettings();
     updateAll(false);
+    updateOverlayTransparency();
 }
 
 MainWindow::~MainWindow()
@@ -403,8 +407,10 @@ bool MainWindow::canPerformOperation(Operation operation) const
             return m_diffNavigator.canGoNext();
 
         case Operation::CreateCompareReport:
-        case Operation::ShowPageswithDifferences:
         case Operation::SaveDifferencesToXML:
+            return m_filteredDiffResult.isChanged();
+
+        case Operation::ShowPageswithDifferences:
             return m_diffResult.isChanged();
 
         case Operation::DisplayDifferences:
@@ -610,9 +616,31 @@ void MainWindow::performOperation(Operation operation)
 
             break;
         }
+
         case Operation::CreateCompareReport:
-            Q_ASSERT(false);
+        {
+            if (m_filteredDiffResult.isSame())
+            {
+                break;
+            }
+
+            QString saveFileName = QFileDialog::getSaveFileName(this, tr("Save As"), m_settings.directory, tr("Portable Document (*.pdf);;All files (*.*)"));
+            if (!saveFileName.isEmpty())
+            {
+                pdf::PDFDocumentBuilder builder(m_pdfWidget->getDrawWidgetProxy()->getDocument());
+                m_drawInterface.drawAnnotations(m_pdfWidget->getDrawWidgetProxy()->getDocument(), &builder);
+
+                pdf::PDFDocument document = builder.build();
+                pdf::PDFDocumentWriter writer(m_progress);
+                pdf::PDFOperationResult result = writer.write(saveFileName, &document, QFile::exists(saveFileName));
+                if (!result)
+                {
+                    QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
+                }
+            }
+
             break;
+        }
 
         default:
         {
@@ -763,6 +791,14 @@ void MainWindow::updateCustomPageLayout()
 
     m_pdfWidget->getDrawWidgetProxy()->setCustomPageLayout(m_documentMapper.getLayout());
     m_pdfWidget->getDrawWidgetProxy()->setPageLayout(pdf::PageLayout::Custom);
+}
+
+void MainWindow::updateOverlayTransparency()
+{
+    const pdf::PDFReal value = m_settingsDockWidget->getTransparencySliderValue() * 0.01;
+    m_pdfWidget->getDrawWidgetProxy()->setGroupTransparency(1, true, 1.0 - value);
+    m_pdfWidget->getDrawWidgetProxy()->setGroupTransparency(2, false, value);
+    m_pdfWidget->update();
 }
 
 std::optional<pdf::PDFDocument> MainWindow::openDocument()

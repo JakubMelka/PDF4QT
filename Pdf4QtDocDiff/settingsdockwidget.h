@@ -52,8 +52,11 @@ public:
     void loadColors();
     void saveColors();
 
+    int getTransparencySliderValue() const;
+
 signals:
     void colorsChanged();
+    void transparencySliderChanged(int value);
 
 private:
     QIcon getIconForColor(QColor color) const;

@@ -77,9 +77,9 @@ public:
     /// page and page rectangle, in which the page is contained.
     struct LayoutItem
     {
-        constexpr inline explicit LayoutItem() : blockIndex(-1), pageIndex(-1) { }
-        constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, const QRectF& pageRectMM) :
-            blockIndex(blockIndex), pageIndex(pageIndex), pageRectMM(pageRectMM) { }
+        constexpr inline explicit LayoutItem() : blockIndex(-1), pageIndex(-1), groupIndex(-1) { }
+        constexpr inline explicit LayoutItem(PDFInteger blockIndex, PDFInteger pageIndex, PDFInteger groupIndex, const QRectF& pageRectMM) :
+            blockIndex(blockIndex), pageIndex(pageIndex), groupIndex(groupIndex), pageRectMM(pageRectMM) { }
 
         bool operator ==(const LayoutItem&) const = default;
 
@@ -87,6 +87,7 @@ public:
 
         PDFInteger blockIndex;
         PDFInteger pageIndex;
+        PDFInteger groupIndex; ///< Page group index
         QRectF pageRectMM;
     };
 
@@ -371,6 +372,13 @@ public:
 
     /// Returns snapshot of current view area
     PDFWidgetSnapshot getSnapshot() const;
+
+    /// Sets page group transparency settings. All pages with a given group index
+    /// will be displayed with this transparency settings.
+    /// \param groupIndex Group index
+    /// \param drawPaper Draw background paper
+    /// \param transparency Page graphics transparency
+    void setGroupTransparency(PDFInteger groupIndex, bool drawPaper = true, PDFReal transparency = 1.0);
     
     PDFWidgetAnnotationManager* getAnnotationManager() const;
 
@@ -385,12 +393,13 @@ signals:
 private:
     struct LayoutItem
     {
-        constexpr inline explicit LayoutItem() : pageIndex(-1) { }
-        constexpr inline explicit LayoutItem(PDFInteger pageIndex, const QRect& pageRect) :
-            pageIndex(pageIndex), pageRect(pageRect) { }
+        constexpr inline explicit LayoutItem() : pageIndex(-1), groupIndex(-1) { }
+        constexpr inline explicit LayoutItem(PDFInteger pageIndex, PDFInteger groupIndex, const QRect& pageRect) :
+            pageIndex(pageIndex), groupIndex(groupIndex), pageRect(pageRect) { }
 
 
         PDFInteger pageIndex;
+        PDFInteger groupIndex; ///< Used to create group of pages (for transparency and overlay)
         QRect pageRect;
     };
 
@@ -404,6 +413,14 @@ private:
 
         std::vector<LayoutItem> items;
         QRect blockRect;
+    };
+
+    struct GroupInfo
+    {
+        bool operator==(const GroupInfo&) const = default;
+
+        bool drawPaper = true;
+        PDFReal transparency = 1.0;
     };
 
     static constexpr size_t INVALID_BLOCK_INDEX = std::numeric_limits<size_t>::max();
@@ -429,6 +446,8 @@ private:
 
     void updateHorizontalScrollbarFromOffset();
     void updateVerticalScrollbarFromOffset();
+
+    GroupInfo getGroupInfo(int groupIndex) const;
 
     template<typename T>
     struct Range
@@ -518,6 +537,11 @@ private:
 
     /// Surface format for OpenGL
     QSurfaceFormat m_surfaceFormat;
+
+    /// Page group info for rendering. Group of pages
+    /// can be rendered with transparency or without paper
+    /// as overlay.
+    std::map<PDFInteger, GroupInfo> m_groupInfos;
 };
 
 }   // namespace pdf

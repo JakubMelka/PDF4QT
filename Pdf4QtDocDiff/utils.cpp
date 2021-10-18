@@ -16,8 +16,10 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "utils.h"
+#include "pdfutils.h"
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QPainter>
 
@@ -87,7 +89,7 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
                 {
                     QSizeF pageSize = catalog->getPage(i)->getRotatedMediaBoxMM().size();
                     QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
-                    m_layout.emplace_back(0, i, rect);
+                    m_layout.emplace_back(0, i, -1, rect);
                     yPos += pageSize.height() + 5;
                 }
             }
@@ -102,7 +104,7 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
 
                     QSizeF pageSize = catalog->getPage(item.leftPage)->getRotatedMediaBoxMM().size();
                     QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
-                    m_layout.emplace_back(0, item.leftPage, rect);
+                    m_layout.emplace_back(0, item.leftPage, -1, rect);
                     yPos += pageSize.height() + 5;
                 }
             }
@@ -126,7 +128,7 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
                 {
                     QSizeF pageSize = catalog->getPage(i)->getRotatedMediaBoxMM().size();
                     QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
-                    m_layout.emplace_back(0, i, rect);
+                    m_layout.emplace_back(0, i, -1, rect);
                     yPos += pageSize.height() + 5;
                 }
             }
@@ -141,7 +143,7 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
 
                     QSizeF pageSize = catalog->getPage(item.rightPage)->getRotatedMediaBoxMM().size();
                     QRectF rect(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
-                    m_layout.emplace_back(0, item.rightPage, rect);
+                    m_layout.emplace_back(0, item.rightPage, -1, rect);
                     yPos += pageSize.height() + 5;
                 }
             }
@@ -164,15 +166,20 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
                 {
                     QSizeF pageSize = catalog->getPage(item.leftPage)->getRotatedMediaBoxMM().size();
                     QRectF rect;
+                    pdf::PDFInteger groupIndex = -1;
                     if (mode == ComparedDocumentMapper::Mode::Combined)
                     {
                         rect = QRectF(-pageSize.width() - 5, yPos, pageSize.width(), pageSize.height());
                     }
                     else
                     {
+                        if (item.rightPage != -1)
+                        {
+                            groupIndex = 1;
+                        }
                         rect = QRectF(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
                     }
-                    m_layout.emplace_back(0, item.leftPage, rect);
+                    m_layout.emplace_back(0, item.leftPage, groupIndex, rect);
                     yAdvance = pageSize.height() + 5;
                     m_leftPageIndices[item.leftPage] = item.leftPage;
                 }
@@ -182,15 +189,20 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
                     pdf::PDFInteger rightPageIndex = item.rightPage + offset;
                     QSizeF pageSize = catalog->getPage(rightPageIndex)->getRotatedMediaBoxMM().size();
                     QRectF rect;
+                    pdf::PDFInteger groupIndex = -1;
                     if (mode == ComparedDocumentMapper::Mode::Combined)
                     {
                         rect = QRectF(5, yPos, pageSize.width(), pageSize.height());
                     }
                     else
                     {
+                        if (item.leftPage != -1)
+                        {
+                            groupIndex = 2;
+                        }
                         rect = QRectF(-pageSize.width() * 0.5, yPos, pageSize.width(), pageSize.height());
                     }
-                    m_layout.emplace_back(0, rightPageIndex, rect);
+                    m_layout.emplace_back(0, rightPageIndex, groupIndex, rect);
                     yAdvance = qMax(yAdvance, pageSize.height() + 5);
                     m_rightPageIndices[rightPageIndex] = item.rightPage;
                 }
@@ -412,6 +424,69 @@ void DifferencesDrawInterface::drawPostRendering(QPainter* painter, QRect rect) 
 {
     Q_UNUSED(painter);
     Q_UNUSED(rect);
+}
+
+void DifferencesDrawInterface::drawAnnotations(const pdf::PDFDocument* document,
+                                               pdf::PDFDocumentBuilder* builder)
+{
+    pdf::PDFInteger pageCount = document->getCatalog()->getPageCount();
+
+    QString title = pdf::PDFSysUtils::getUserName();
+    QString subject = tr("Difference");
+
+    for (pdf::PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+    {
+        const size_t differencesCount = m_diffResult->getDifferencesCount();
+        const pdf::PDFInteger leftPageIndex = m_mapper->getLeftPageIndex(pageIndex);
+        const pdf::PDFInteger rightPageIndex = m_mapper->getRightPageIndex(pageIndex);
+
+        const pdf::PDFPage* page = document->getCatalog()->getPage(pageIndex);
+        pdf::PDFObjectReference reference = page->getPageReference();
+
+        if (leftPageIndex != -1)
+        {
+            for (size_t i = 0; i < differencesCount; ++i)
+            {
+                auto leftRectangles = m_diffResult->getLeftRectangles(i);
+                for (auto it = leftRectangles.first; it != leftRectangles.second; ++it)
+                {
+                    const auto& item = *it;
+                    if (item.first == leftPageIndex)
+                    {
+                        QColor color = getColorForIndex(i);
+                        const QRectF& rect = item.second;
+                        QPolygonF polygon;
+                        polygon << rect.topLeft() << rect.topRight() << rect.bottomRight() << rect.bottomLeft();
+                        pdf::PDFObjectReference annotation = builder->createAnnotationPolygon(reference, polygon, 1.0, color, color, title, subject, m_diffResult->getMessage(i));
+                        builder->setAnnotationOpacity(annotation, 0.3);
+                        builder->updateAnnotationAppearanceStreams(annotation);
+                    }
+                }
+            }
+        }
+
+        if (rightPageIndex != -1)
+        {
+            for (size_t i = 0; i < differencesCount; ++i)
+            {
+                auto rightRectangles = m_diffResult->getRightRectangles(i);
+                for (auto it = rightRectangles.first; it != rightRectangles.second; ++it)
+                {
+                    const auto& item = *it;
+                    if (item.first == rightPageIndex)
+                    {
+                        QColor color = getColorForIndex(i);
+                        const QRectF& rect = item.second;
+                        QPolygonF polygon;
+                        polygon << rect.topLeft() << rect.topRight() << rect.bottomRight() << rect.bottomLeft();
+                        pdf::PDFObjectReference annotation = builder->createAnnotationPolygon(reference, polygon, 1.0, color, color, title, subject, m_diffResult->getMessage(i));
+                        builder->setAnnotationOpacity(annotation, 0.3);
+                        builder->updateAnnotationAppearanceStreams(annotation);
+                    }
+                }
+            }
+        }
+    }
 }
 
 void DifferencesDrawInterface::drawRectangle(QPainter* painter,

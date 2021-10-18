@@ -106,7 +106,7 @@ PDFDocument PDFRedact::perform(Options options)
 
         QPainter* painter = contentStreamBuilder.begin(newPageReference);
         compiledPage.redact(redactPath, matrix, m_redactFillColor);
-        compiledPage.draw(painter, QRectF(), matrix, PDFRenderer::None);
+        compiledPage.draw(painter, QRectF(), matrix, PDFRenderer::None, 1.0);
         contentStreamBuilder.end(painter);
     }
 

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>548</width>
-    <height>417</height>
+    <height>511</height>
    </rect>
   </property>
   <property name="allowedAreas">
@@ -73,6 +73,31 @@
         <widget class="QCheckBox" name="compareCharactersInsteadOfWordsCheckBox">
          <property name="text">
           <string>Compare text characters instead of words</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="overlayGroupBox">
+      <property name="title">
+       <string>Transparency | Overlay View</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <widget class="QSlider" name="transparencySlider">
+         <property name="maximum">
+          <number>100</number>
+         </property>
+         <property name="value">
+          <number>50</number>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="tickPosition">
+          <enum>QSlider::TicksAbove</enum>
          </property>
         </widget>
        </item>

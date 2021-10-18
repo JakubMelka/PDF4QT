@@ -114,6 +114,7 @@ private:
     void updateFilteredResult();
     void updateViewDocument();
     void updateCustomPageLayout();
+    void updateOverlayTransparency();
 
     std::optional<pdf::PDFDocument> openDocument();
 
