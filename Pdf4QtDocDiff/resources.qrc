@@ -6,5 +6,22 @@
         <file>resources/get-source.svg</file>
         <file>resources/open-left.svg</file>
         <file>resources/open-right.svg</file>
+        <file>resources/create-compare-report.svg</file>
+        <file>resources/filter-images.svg</file>
+        <file>resources/filter-page-movement.svg</file>
+        <file>resources/filter-shading.svg</file>
+        <file>resources/filter-text.svg</file>
+        <file>resources/filter-vector-graphics.svg</file>
+        <file>resources/next-diff.svg</file>
+        <file>resources/prev-diff.svg</file>
+        <file>resources/save-diff-to-xml.svg</file>
+        <file>resources/show-p-with-diff.svg</file>
+        <file>resources/synchronize-view.svg</file>
+        <file>resources/view-differences.svg</file>
+        <file>resources/view-left.svg</file>
+        <file>resources/view-overlay.svg</file>
+        <file>resources/view-right.svg</file>
+        <file>resources/display-differences.svg</file>
+        <file>resources/display-markers.svg</file>
     </qresource>
 </RCC>

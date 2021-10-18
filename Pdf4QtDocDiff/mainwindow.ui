@@ -162,6 +162,10 @@
    </property>
   </action>
   <action name="actionPrevious_Difference">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/prev-diff.svg</normaloff>:/pdfdocdiff/resources/prev-diff.svg</iconset>
+   </property>
    <property name="text">
     <string>Previous Difference</string>
    </property>
@@ -170,6 +174,10 @@
    </property>
   </action>
   <action name="actionNext_Difference">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/next-diff.svg</normaloff>:/pdfdocdiff/resources/next-diff.svg</iconset>
+   </property>
    <property name="text">
     <string>Next Difference</string>
    </property>
@@ -178,6 +186,10 @@
    </property>
   </action>
   <action name="actionCreate_Compare_Report">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/create-compare-report.svg</normaloff>:/pdfdocdiff/resources/create-compare-report.svg</iconset>
+   </property>
    <property name="text">
     <string>Create Compare Report</string>
    </property>
@@ -185,6 +197,10 @@
   <action name="actionFilter_Text">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/filter-text.svg</normaloff>:/pdfdocdiff/resources/filter-text.svg</iconset>
    </property>
    <property name="text">
     <string>Filter Text</string>
@@ -194,6 +210,10 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/filter-vector-graphics.svg</normaloff>:/pdfdocdiff/resources/filter-vector-graphics.svg</iconset>
+   </property>
    <property name="text">
     <string>Filter Vector Graphics</string>
    </property>
@@ -201,6 +221,10 @@
   <action name="actionFilter_Images">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/filter-images.svg</normaloff>:/pdfdocdiff/resources/filter-images.svg</iconset>
    </property>
    <property name="text">
     <string>Filter Images</string>
@@ -210,6 +234,10 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/filter-shading.svg</normaloff>:/pdfdocdiff/resources/filter-shading.svg</iconset>
+   </property>
    <property name="text">
     <string>Filter Shading</string>
    </property>
@@ -217,6 +245,10 @@
   <action name="actionFilter_Page_Movement">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/filter-page-movement.svg</normaloff>:/pdfdocdiff/resources/filter-page-movement.svg</iconset>
    </property>
    <property name="text">
     <string>Filter Page Movement</string>
@@ -226,6 +258,10 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/view-differences.svg</normaloff>:/pdfdocdiff/resources/view-differences.svg</iconset>
+   </property>
    <property name="text">
     <string>View Differences</string>
    </property>
@@ -233,6 +269,10 @@
   <action name="actionView_Left">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/view-left.svg</normaloff>:/pdfdocdiff/resources/view-left.svg</iconset>
    </property>
    <property name="text">
     <string>View Left</string>
@@ -242,6 +282,10 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/view-right.svg</normaloff>:/pdfdocdiff/resources/view-right.svg</iconset>
+   </property>
    <property name="text">
     <string>View Right</string>
    </property>
@@ -249,6 +293,10 @@
   <action name="actionView_Overlay">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/view-overlay.svg</normaloff>:/pdfdocdiff/resources/view-overlay.svg</iconset>
    </property>
    <property name="text">
     <string>View Overlay</string>
@@ -258,6 +306,10 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/show-p-with-diff.svg</normaloff>:/pdfdocdiff/resources/show-p-with-diff.svg</iconset>
+   </property>
    <property name="text">
     <string>Show Pages with Differences</string>
    </property>
@@ -266,6 +318,10 @@
    </property>
   </action>
   <action name="actionSave_Differences_to_XML">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/save-diff-to-xml.svg</normaloff>:/pdfdocdiff/resources/save-diff-to-xml.svg</iconset>
+   </property>
    <property name="text">
     <string>Save Differences to XML</string>
    </property>
@@ -273,6 +329,10 @@
   <action name="actionSynchronize_View_with_Differences">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/synchronize-view.svg</normaloff>:/pdfdocdiff/resources/synchronize-view.svg</iconset>
    </property>
    <property name="text">
     <string>Synchronize View with Differences</string>
@@ -282,6 +342,10 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/display-differences.svg</normaloff>:/pdfdocdiff/resources/display-differences.svg</iconset>
+   </property>
    <property name="text">
     <string>Display Differences</string>
    </property>
@@ -289,6 +353,10 @@
   <action name="actionDisplay_Markers">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/display-markers.svg</normaloff>:/pdfdocdiff/resources/display-markers.svg</iconset>
    </property>
    <property name="text">
     <string>Display Markers</string>

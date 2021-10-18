@@ -103,6 +103,10 @@ public:
     /// \param index Index
     Type getType(size_t index) const;
 
+    /// Returns text description of type
+    /// \param index Index
+    QString getTypeDescription(size_t index) const;
+
     /// Returns iterator range for rectangles of "left" pages of an item
     std::pair<RectInfosIt, RectInfosIt> getLeftRectangles(size_t index) const;
 

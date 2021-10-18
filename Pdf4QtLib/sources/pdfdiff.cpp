@@ -1312,6 +1312,49 @@ PDFDiffResult::Type PDFDiffResult::getType(size_t index) const
     return m_differences[index].type;
 }
 
+QString PDFDiffResult::getTypeDescription(size_t index) const
+{
+    switch (getType(index))
+    {
+        case Type::Invalid:
+            return PDFDiff::tr("Invalid");
+        case Type::PageMoved:
+            return PDFDiff::tr("Page moved");
+        case Type::PageAdded:
+            return PDFDiff::tr("Page added");
+        case Type::PageRemoved:
+            return PDFDiff::tr("Page removed");
+        case Type::RemovedTextCharContent:
+            return PDFDiff::tr("Removed text character");
+        case Type::RemovedVectorGraphicContent:
+            return PDFDiff::tr("Removed vector graphics");
+        case Type::RemovedImageContent:
+            return PDFDiff::tr("Removed image");
+        case Type::RemovedShadingContent:
+            return PDFDiff::tr("Removed shading");
+        case Type::AddedTextCharContent:
+            return PDFDiff::tr("Added text character");
+        case Type::AddedVectorGraphicContent:
+            return PDFDiff::tr("Added vector graphics");
+        case Type::AddedImageContent:
+            return PDFDiff::tr("Added image");
+        case Type::AddedShadingContent:
+            return PDFDiff::tr("Added shading");
+        case Type::TextAdded:
+            return PDFDiff::tr("Text added");
+        case Type::TextRemoved:
+            return PDFDiff::tr("Text removed");
+        case Type::TextReplaced:
+            return PDFDiff::tr("Text replaced");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
 std::pair<PDFDiffResult::RectInfosIt, PDFDiffResult::RectInfosIt> PDFDiffResult::getLeftRectangles(size_t index) const
 {
     if (index >= m_differences.size())

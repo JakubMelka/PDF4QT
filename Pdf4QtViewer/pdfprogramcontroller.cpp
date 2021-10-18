@@ -2151,6 +2151,10 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
     addComponentMeta("pdf4qt_dpo", tr("DocPage Organizer"), tr("Document page organizer (split/merge documents, insert/remove/move/clone pages, insert blank pages and images to create a new document)."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_dpo", false, true, false);
     addFileContent("pdf4qt_dpo", "Pdf4QtDocPageOrganizer.exe");
 
+    addStartMenuShortcut("pdf4qt_diff", "Pdf4QtDocDiff", tr("PDF4QT DocDiff"));
+    addComponentMeta("pdf4qt_diff", tr("DocDiff"), tr("Compare content of two documents."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_diff", false, true, false);
+    addFileContent("pdf4qt_diff", "Pdf4QtDocDiff.exe");
+
     addStartMenuShortcut("pdf4qt_tool", "PdfTool", tr("PDF4QT Command Line Tool"));
     addComponentMeta("pdf4qt_tool", tr("PdfTool"), tr("Command line tool for manipulation of PDF files with many functions."), pdf::PDF_LIBRARY_VERSION, "pdf4qt_tool", false, false, false);
     addFileContent("pdf4qt_tool", "PdfTool.exe");
