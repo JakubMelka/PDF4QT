@@ -12,6 +12,10 @@ Pdf4QtLibrary {
         condition: qbs.toolchain.contains("gcc")
         name: "tbb"
     }
+    Depends {
+        condition: qbs.hostOS.contains("linux")
+        name: "fontconfig"
+    }
     files: [
         "sources/*.cpp",
         "sources/*.h",
@@ -30,6 +34,10 @@ Pdf4QtLibrary {
         Depends {
             condition: qbs.toolchain.contains("gcc")
             name: "tbb"
+        }
+        Depends {
+            condition: qbs.hostOS.contains("linux")
+            name: "fontconfig"
         }
     }
 }
