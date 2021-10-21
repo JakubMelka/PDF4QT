@@ -45,7 +45,6 @@
 
 namespace pdf
 {
-
 /// Storage class for system fonts
 class PDFSystemFontInfoStorage
 {
@@ -61,7 +60,9 @@ public:
 private:
     explicit PDFSystemFontInfoStorage();
 
+#ifdef Q_OS_UNIX
     static void checkFontConfigError(FcBool result);
+#endif
 
     /// Create a postscript name for comparation purposes
     static QString getFontPostscriptName(QString fontName);
@@ -254,45 +255,54 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
 
     ReleaseDC(NULL, hdc);
 #elif defined(Q_OS_UNIX)
-    FcPattern *p = FcPatternBuild(nullptr, FC_FAMILY, FcTypeString, fontName.constData(), nullptr);
+    FcPattern* p = FcPatternBuild(nullptr, FC_FAMILY, FcTypeString, fontName.constData(), nullptr);
     if (!p)
+    {
         throw PDFException(PDFTranslationContext::tr("FontConfig error building pattern for font %1").arg(fontName));
-    const QMap<PDFReal, int> weights{
-        {100, FC_WEIGHT_EXTRALIGHT},
-        {200, FC_WEIGHT_LIGHT},
-        {300, FC_WEIGHT_BOOK},
-        {400, FC_WEIGHT_NORMAL},
-        {500, FC_WEIGHT_MEDIUM},
-        {600, FC_WEIGHT_DEMIBOLD},
-        {700, FC_WEIGHT_BOLD},
-        {800, FC_WEIGHT_EXTRABOLD},
-        {900, FC_WEIGHT_EXTRABOLD}
-    };
-    QList<PDFReal> keys = weights.keys();
-    QList<PDFReal>::iterator ite = std::lower_bound(keys.begin(), keys.end(), descriptor->fontWeight);
-    if (ite != keys.end())
-        checkFontConfigError(FcPatternAddInteger(p, FC_WEIGHT, weights[*ite]));
-    const QMap<int, int> stretches{
-        {QFont::UltraCondensed, FC_WIDTH_ULTRACONDENSED},
-        {QFont::ExtraCondensed, FC_WIDTH_EXTRACONDENSED},
-        {QFont::Condensed, FC_WIDTH_CONDENSED},
-        {QFont::SemiCondensed, FC_WIDTH_SEMICONDENSED},
-        {QFont::Unstretched, FC_WIDTH_NORMAL},
-        {QFont::SemiExpanded, FC_WIDTH_SEMIEXPANDED},
-        {QFont::Expanded, FC_WIDTH_EXPANDED},
-        {QFont::ExtraExpanded, FC_WIDTH_EXTRAEXPANDED},
-        {QFont::UltraExpanded, FC_WIDTH_ULTRAEXPANDED}
-    };
-    if (stretches.contains(descriptor->fontStretch))
-        checkFontConfigError(FcPatternAddInteger(p, FC_WIDTH, stretches[descriptor->fontStretch]));
+    }
+
+    constexpr const std::array<std::pair<PDFReal, int>, 9> weights{
+            std::pair<PDFReal, int>{100, FC_WEIGHT_EXTRALIGHT},
+            std::pair<PDFReal, int>{200, FC_WEIGHT_LIGHT},
+            std::pair<PDFReal, int>{300, FC_WEIGHT_BOOK},
+            std::pair<PDFReal, int>{400, FC_WEIGHT_NORMAL},
+            std::pair<PDFReal, int>{500, FC_WEIGHT_MEDIUM},
+            std::pair<PDFReal, int>{600, FC_WEIGHT_DEMIBOLD},
+            std::pair<PDFReal, int>{700, FC_WEIGHT_BOLD},
+            std::pair<PDFReal, int>{800, FC_WEIGHT_EXTRABOLD},
+            std::pair<PDFReal, int>{900, FC_WEIGHT_EXTRABOLD}};
+    auto wit = std::lower_bound(weights.cbegin(), weights.cend(), descriptor->fontWeight, [](const std::pair<PDFReal, int>& data, PDFReal key) { return data.first < key; });
+    if (wit != weights.cend())
+    {
+        checkFontConfigError(FcPatternAddInteger(p, FC_WEIGHT, wit->second));
+    }
+
+    constexpr const std::array<std::pair<QFont::Stretch, int>, 9> stretches{
+        std::pair<QFont::Stretch, int>{QFont::UltraCondensed, FC_WIDTH_ULTRACONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::ExtraCondensed, FC_WIDTH_EXTRACONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::Condensed, FC_WIDTH_CONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::SemiCondensed, FC_WIDTH_SEMICONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::Unstretched, FC_WIDTH_NORMAL},
+        std::pair<QFont::Stretch, int>{QFont::SemiExpanded, FC_WIDTH_SEMIEXPANDED},
+        std::pair<QFont::Stretch, int>{QFont::Expanded, FC_WIDTH_EXPANDED},
+        std::pair<QFont::Stretch, int>{QFont::ExtraExpanded, FC_WIDTH_EXTRAEXPANDED},
+        std::pair<QFont::Stretch, int>{QFont::UltraExpanded, FC_WIDTH_ULTRAEXPANDED}};
+
+    auto sit = std::find_if(stretches.cbegin(), stretches.cend(), [&](const std::pair<QFont::Stretch, int>& item) { return item.first == descriptor->fontStretch; });
+    if (sit != stretches.cend())
+    {
+        checkFontConfigError(FcPatternAddInteger(p, FC_WIDTH, sit->second));
+    }
 
     checkFontConfigError(FcConfigSubstitute(nullptr, p, FcMatchPattern));
     FcDefaultSubstitute(p);
-    FcResult res;
+    FcResult res = FcResultNoMatch;
     FcPattern* match = FcFontMatch(nullptr, p, &res);
-    if (match) {
-        FcChar8 *s = nullptr;
-        if (FcPatternGetString(match, FC_FILE, 0, &s) == FcResultMatch) {
+    if (match)
+    {
+        FcChar8* s = nullptr;
+        if (FcPatternGetString(match, FC_FILE, 0, &s) == FcResultMatch)
+        {
             QFile f(QString::fromUtf8(reinterpret_cast<char*>(s)));
             f.open(QIODevice::ReadOnly);
             result = f.readAll();
@@ -375,11 +385,15 @@ QByteArray PDFSystemFontInfoStorage::getFontData(const LOGFONT* font, HDC hdc)
 }
 #endif
 
+#ifdef Q_OS_UNIX
 void PDFSystemFontInfoStorage::checkFontConfigError(FcBool result)
 {
     if (!result)
+    {
         throw PDFException(PDFTranslationContext::tr("Fontconfig error"));
+    }
 }
+#endif
 
 QString PDFSystemFontInfoStorage::getFontPostscriptName(QString fontName)
 {
