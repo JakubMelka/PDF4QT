@@ -10,6 +10,7 @@ Project {
         "CodeGenerator/CodeGenerator.qbs",
         "JBIG2_Viewer/JBIG2_Viewer.qbs",
         "Pdf4QtDocPageOrganizer/Pdf4QtDocPageOrganizer.qbs",
+        "Pdf4QtDocDiff/Pdf4QtDocDiff.qbs",
         "Pdf4QtViewerPlugins/AudioBookPlugin/AudioBookPlugin.qbs",
         "Pdf4QtViewerPlugins/DimensionsPlugin/DimensionsPlugin.qbs",
         "Pdf4QtViewerPlugins/OutputPreviewPlugin/OutputPreviewPlugin.qbs",
