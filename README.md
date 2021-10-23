@@ -49,7 +49,7 @@ Software have following features (the list is not complete):
 - [x] command line tool
 - [x] audio book conversion
 - [x] internal structure inspector
-- [ ] compare documents *(planned in year 2021)*
+- [x] compare documents
 - [ ] XFA support *(planned in year 2022)*
 - [ ] create fillable forms *(planned in year 2022)*
 - [ ] electronically/digitally sign documents *(planned in year 2023)*

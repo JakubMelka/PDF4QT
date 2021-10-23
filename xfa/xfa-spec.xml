@@ -1,0 +1,1503 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<xfa>
+
+<!-- XFA template specification written by Jakub Melka -->
+<template>
+    <class name ="appearanceFilter">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="arc">
+        <property name="circular" type="0 | 1" default="0"/>
+        <property name="hand" type="even | left | right" default="even"/>
+        <property name="id" type="cdata"/>
+        <property name="startAngle" type="0 | angle" default="0"/>
+        <property name="sweepAngle" type="360 | angle" default="360"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="edge" min="0" max="1"/>
+        <item class="fill" min="0" max="1"/>
+    </class>
+
+    <class name="area">
+        <property name="colSpan" type="1 | integer" default="1"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="x" type="0in | measurement" default="0in"/>
+        <property name="y" type="0in | measurement" default="0in"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="area" min="0" max="n"/>
+        <item class="draw" min="0" max="n"/>
+        <item class="exObject" min="0" max="n"/>
+        <item class="exclGroup" min="0" max="n"/>
+        <item class="field" min="0" max="n"/>
+        <item class="subform" min="0" max="n"/>
+        <item class="subformSet" min="0" max="n"/>
+    </class>
+
+    <class name="assist">
+        <property name="id" type="cdata"/>
+        <property name="role" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="speak" min="0" max="1"/>
+        <item class="toolTip" min="0" max="1"/>
+    </class>
+
+    <class name="barcode">
+        <property name="charEncoding" type="cdata"/>
+        <property name="checksum" type="none | 1mod10 | 1mod10_1mod11 | 2mod10 | auto" default="none"/>
+        <property name="dataColumnCount" type="cdata"/>
+        <property name="dataLength" type="cdata"/>
+        <property name="dataPrep" type="none | flateCompress" default="none"/>
+        <property name="dataRowCount" type="cdata"/>
+        <property name="endChar" type="cdata"/>
+        <property name="errorCorrectionLevel" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="moduleHeight" type="5mm | measurement" default="5mm"/>
+        <property name="moduleWidth" type="0.25mm | measurement" default="0.25mm"/>
+        <property name="printCheckDigit" type="0 | 1" default="0"/>
+        <property name="rowColumnRatio" type="cdata"/>
+        <property name="startChar" type="cdata"/>
+        <property name="textLocation" type="below | above | aboveEmbedded | belowEmbedded | none" default="below"/>
+        <property name="truncate" type="0 | 1"/>
+        <property name="type" type="cdata"/>
+        <property name="upsMode" type="usCarrier | internationalCarrier | secureSymbol | standardSymbol" default="usCarrier"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="wideNarrowRatio" type="cdata"/>
+        <item class="encrypt" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="bind">
+        <property name="match" type="once | dataRef | global | none" default="once"/>
+        <property name="ref" type="cdata"/>
+        <item class="picture" min="0" max="1"/>
+    </class>
+
+    <class name="bindItems">
+        <property name="connection" type="cdata"/>
+        <property name="labelRef" type="cdata"/>
+        <property name="ref" type="cdata"/>
+        <property name="valueRef" type="cdata"/>
+    </class>
+
+    <class name="bookend">
+        <property name="id" type="cdata"/>
+        <property name="leader" type="cdata"/>
+        <property name="trailer" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="boolean">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="border">
+        <property name="break" type="close | open" default="close"/>
+        <property name="hand" type="even | left | right" default="even"/>
+        <property name="id" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="corner" min="0" max="4"/>
+        <item class="edge" min="0" max="4"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="fill" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="break">
+        <property name="after" type="auto | contentArea | pageArea | pageEven | pageOdd" default="auto"/>
+        <property name="afterTarget" type="cdata"/>
+        <property name="before" type="auto | contentArea | pageArea | pageEven | pageOdd" default="auto"/>
+        <property name="beforeTarget" type="cdata"/>
+        <property name="bookendLeader" type="cdata"/>
+        <property name="bookendTrailer" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="overflowLeader" type="cdata"/>
+        <property name="overflowTarget" type="cdata"/>
+        <property name="overflowTrailer" type="cdata"/>
+        <property name="startNew" type="0 | 1" default="0"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="breakAfter">
+        <property name="id" type="cdata"/>
+        <property name="leader" type="cdata"/>
+        <property name="startNew" type="0 | 1" default="0"/>
+        <property name="target" type="cdata"/>
+        <property name="targetType" type="auto | contentArea | pageArea | pageEven | pageOdd" default="auto"/>
+        <property name="trailer" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="script" min="0" max="1"/>
+    </class>
+
+    <class name="breakBefore">
+        <property name="id" type="cdata"/>
+        <property name="leader" type="cdata"/>
+        <property name="startNew" type="0 | 1" default="0"/>
+        <property name="target" type="cdata"/>
+        <property name="targetType" type="auto | contentArea | pageArea | pageEven | pageOdd" default="auto"/>
+        <property name="trailer" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="script" min="0" max="1"/>
+    </class>
+
+    <class name="button">
+        <property name="highlight" type="inverted | none | outline | push" default="inverted"/>
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="calculate">
+        <property name="id" type="cdata"/>
+        <property name="override" type="disabled | error | ignore | warning" default="disabled"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="message" min="0" max="1"/>
+        <item class="script" min="0" max="1"/>
+    </class>
+
+    <class name="caption">
+        <property name="id" type="cdata"/>
+        <property name="placement" type="left | bottom | inline | right | top" default="left"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="reserve" type="-1 | measurement" default="-1"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="font" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+        <item class="para" min="0" max="1"/>
+        <item class="value" min="0" max="1"/>
+    </class>
+
+    <class name="certificate">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="certificates">
+        <property name="credentialServerPolicy" type="optional | required" default="optional"/>
+        <property name="id" type="cdata"/>
+        <property name="url" type="cdata"/>
+        <property name="urlPolicy" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="encryption" min="0" max="1"/>
+        <item class="issuers" min="0" max="1"/>
+        <item class="keyUsage" min="0" max="1"/>
+        <item class="oids" min="0" max="1"/>
+        <item class="signing" min="0" max="1"/>
+        <item class="subjectDNs" min="0" max="1"/>
+    </class>
+
+    <class name="checkButton">
+        <property name="id" type="cdata"/>
+        <property name="mark" type="default | check | circle | cross | diamond | square | star" default="default"/>
+        <property name="shape" type="square | round" default="square"/>
+        <property name="size" type="10pt | measurement" default="10pt"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="choiceList">
+        <property name="commitOn" type="select | exit" default="select"/>
+        <property name="id" type="cdata"/>
+        <property name="open" type="userControl | always | multiSelect | onEntry" default="userControl"/>
+        <property name="textEntry" type="0 | 1" default="0"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="color">
+        <property name="cSpace" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="value" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="comb">
+        <property name="id" type="cdata"/>
+        <property name="numberOfCells" type="0 | integer" default="0"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="connect">
+        <property name="connection" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="ref" type="cdata"/>
+        <property name="usage" type="exportAndImport | exportOnly | importOnly" default="exportAndImport"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="picture" min="0" max="1"/>
+    </class>
+
+    <class name="contentArea">
+        <property name="h" type="0in | measurement" default="0in"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="w" type="0in | measurement" default="0in"/>
+        <property name="x" type="0in | measurement" default="0in"/>
+        <property name="y" type="0in | measurement" default="0in"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="corner">
+        <property name="id" type="cdata"/>
+        <property name="inverted" type="0 | 1" default="0"/>
+        <property name="join" type="square | round" default="square"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="radius" type="0in | measurement" default="0in"/>
+        <property name="stroke" type="solid | dashDot | dashDotDot | dashed | dotted | embossed | etched | lowered | raised" default="solid"/>
+        <property name="thickness" type="0.5pt | measurement" default="0.pt"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="date">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="dateTime">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="dateTimeEdit">
+        <property name="hScrollPolicy" type="auto | off | on" default="auto"/>
+        <property name="id" type="cdata"/>
+        <property name="picker" type="host | none" default="host"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="comb" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="decimal">
+        <property name="fracDigits" type="2 | integer" default="2"/>
+        <property name="id" type="cdata"/>
+        <property name="leadDigits" type="-1 | integer" default="-1"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="defaultUi">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="desc">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="boolean" min="0" max="n"/>
+        <item class="date" min="0" max="n"/>
+        <item class="dateTime" min="0" max="n"/>
+        <item class="decimal" min="0" max="n"/>
+        <item class="exData" min="0" max="n"/>
+        <item class="float" min="0" max="n"/>
+        <item class="image" min="0" max="n"/>
+        <item class="integer" min="0" max="n"/>
+        <item class="text" min="0" max="n"/>
+        <item class="time" min="0" max="n"/>
+    </class>
+
+    <class name="digestMethod">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="digestMethods">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="digestMethod" min="0" max="n"/>
+    </class>
+
+    <class name="draw">
+        <property name="anchorType" type="topLeft | bottomCenter | bottomLeft | bottomRight | middleCenter | middleLeft | middleRight | topCenter | topRight" default="topleft"/>
+        <property name="colSpan" type="1 | integer" default="1"/>
+        <property name="h" type="0in | measurement" default="0in"/>
+        <property name="hAlign" type="left | center | justify | justifyAll | radix | right" default="left"/>
+        <property name="id" type="cdata"/>
+        <property name="locale" type="cdata"/>
+        <property name="maxH" type="0in | measurement" default="0in"/>
+        <property name="maxW" type="0in | measurement" default="0in"/>
+        <property name="minH" type="0in | measurement" default="0in"/>
+        <property name="minW" type="0in | measurement" default="0in"/>
+        <property name="name" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="relevant" type="cdata"/>
+        <property name="rotate" type="0 | angle" default="0"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="w" type="0in | measurement" default="0in"/>
+        <property name="x" type="0in | measurement" default="0in"/>
+        <property name="y" type="0in | measurement" default="0in"/>
+        <item class="assist" min="0" max="1"/>
+        <item class="border" min="0" max="1"/>
+        <item class="caption" min="0" max="1"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="font" min="0" max="1"/>
+        <item class="keep" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+        <item class="para" min="0" max="1"/>
+        <item class="traversal" min="0" max="1"/>
+        <item class="ui" min="0" max="1"/>
+        <item class="value" min="0" max="1"/>
+        <item class="setProperty" min="0" max="n"/>
+    </class>
+
+    <class name="edge">
+        <property name="cap" type="square | butt | round" default="square"/>
+        <property name="id" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="stroke" type="solid | dashDot | dashDotDot | dashed | dotted | embossed | etched | lowered | raised" default="solid"/>
+        <property name="thickness" type="0.5pt | measurement" default="0.5pt"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="encoding">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="encodings">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="encoding" min="0" max="n"/>
+    </class>
+
+    <class name="encrypt">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="certificate" min="0" max="1"/>
+    </class>
+
+    <class name="encryptData">
+        <property name="id" type="cdata"/>
+        <property name="operation" type="encrypt | decrypt" default="encrypt"/>
+        <property name="target" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="filter" min="0" max="1"/>
+        <item class="manifest" min="0" max="1"/>
+    </class>
+
+    <class name="encryption">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="certificate" min="0" max="n"/>
+    </class>
+
+    <class name="encryptionMethod">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="encryptionMethods">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="encryptionMethod" min="0" max="n"/>
+    </class>
+
+    <class name="event">
+        <property name="activity" type="click | change | docClose | docReady | enter | exit | full | indexChange | initialize | mouseDown | mouseEnter | mouseExit | mouseUp | postExecute | postOpen | postPrint | postSave | postSign | postSubmit | preExecute | preOpen | prePrint | preSave | preSign | preSubmit | ready | validationState" default="click"/>
+        <property name="id" type="cdata"/>
+        <property name="listen" type="refOnly | refAndDescendents" default="refOnly"/>
+        <property name="name" type="cdata"/>
+        <property name="ref" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="encryptData" min="0" max="1"/>
+        <item class="execute" min="0" max="1"/>
+        <item class="script" min="0" max="1"/>
+        <item class="signData" min="0" max="1"/>
+        <item class="submit" min="0" max="1"/>
+    </class>
+
+    <class name="exData">
+        <property name="contentType" type="cdata"/>
+        <property name="href" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="maxLength" type="-1 | integer" default="-1"/>
+        <property name="name" type="cdata"/>
+        <property name="rid" type="cdata"/>
+        <property name="transferEncoding" type="none | base64 | package" default="none"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="exObject">
+        <property name="archive" type="cdata"/>
+        <property name="classId" type="cdata"/>
+        <property name="codeBase" type="cdata"/>
+        <property name="codeType" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="boolean" min="0" max="n"/>
+        <item class="date" min="0" max="n"/>
+        <item class="dateTime" min="0" max="n"/>
+        <item class="decimal" min="0" max="n"/>
+        <item class="exData" min="0" max="n"/>
+        <item class="exObject" min="0" max="n"/>
+        <item class="float" min="0" max="n"/>
+        <item class="image" min="0" max="n"/>
+        <item class="integer" min="0" max="n"/>
+        <item class="text" min="0" max="n"/>
+        <item class="time" min="0" max="n"/>
+    </class>
+
+    <class name="exclGroup">
+        <property name="access" type="open | nonInteractive | protected | readOnly" default="open"/>
+        <property name="accessKey" type="cdata"/>
+        <property name="anchorType" type="topLeft | bottomCenter | bottomLeft | bottomRight | middleCenter | middleLeft | middleRight | topCenter | topRight"  default="topleft"/>
+        <property name="colSpan" type="1 | integer" default="1"/>
+        <property name="h" type="0in | measurement" default="0in"/>
+        <property name="hAlign" type="left | center | justify | justifyAll | radix | right" default="left"/>
+        <property name="id" type="cdata"/>
+        <property name="layout" type="position | lr-tb | rl-row | rl-tb | row | table | tb" default="position"/>
+        <property name="maxH" type="0in | measurement" default="0in"/>
+        <property name="maxW" type="0in | measurement" default="0in"/>
+        <property name="minH" type="0in | measurement" default="0in"/>
+        <property name="minW" type="0in | measurement" default="0in"/>
+        <property name="name" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="w" type="0in | measurement" default="0in"/>
+        <property name="x" type="0in | measurement" default="0in"/>
+        <property name="y" type="0in | measurement" default="0in"/>
+        <item class="assist" min="0" max="1"/>
+        <item class="bind" min="0" max="1"/>
+        <item class="border" min="0" max="1"/>
+        <item class="calculate" min="0" max="1"/>
+        <item class="caption" min="0" max="1"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+        <item class="para" min="0" max="1"/>
+        <item class="traversal" min="0" max="1"/>
+        <item class="validate" min="0" max="1"/>
+        <item class="connect" min="0" max="n"/>
+        <item class="event" min="0" max="n"/>
+        <item class="field" min="0" max="n"/>
+        <item class="setProperty" min="0" max="n"/>
+    </class>
+
+    <class name="execute">
+        <property name="connection" type="cdata"/>
+        <property name="executeType" type="import | remerge" default="import"/>
+        <property name="id" type="cdata"/>
+        <property name="runAt" type="client | both | server" default="client"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="extras">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="boolean" min="0" max="n"/>
+        <item class="date" min="0" max="n"/>
+        <item class="dateTime" min="0" max="n"/>
+        <item class="decimal" min="0" max="n"/>
+        <item class="exData" min="0" max="n"/>
+        <item class="extras" min="0" max="n"/>
+        <item class="float" min="0" max="n"/>
+        <item class="image" min="0" max="n"/>
+        <item class="integer" min="0" max="n"/>
+        <item class="text" min="0" max="n"/>
+        <item class="time" min="0" max="n"/>
+    </class>
+
+    <class name="field">
+        <property name="access" type="open | nonInteractive | protected | readOnly" default="open"/>
+        <property name="accessKey" type="cdata"/>
+        <property name="anchorType" type="topLeft | bottomCenter | bottomLeft | bottomRight | middleCenter | middleLeft | middleRight | topCenter | topRight"  default="topleft"/>
+        <property name="colSpan" type="1 | integer" default="1"/>
+        <property name="h" type="0in | measurement" default="0in"/>
+        <property name="hAlign" type="left | center | justify | justifyAll | radix | right" default="left"/>
+        <property name="id" type="cdata"/>
+        <property name="locale" type="cdata"/>
+        <property name="maxH" type="0in | measurement" default="0in"/>
+        <property name="maxW" type="0in | measurement" default="0in"/>
+        <property name="minH" type="0in | measurement" default="0in"/>
+        <property name="minW" type="0in | measurement" default="0in"/>
+        <property name="name" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="relevant" type="cdata"/>
+        <property name="rotate" type="0 | angle" default="0"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="w" type="0in | measurement" default="0in"/>
+        <property name="x" type="0in | measurement" default="0in"/>
+        <property name="y" type="0in | measurement" default="0in"/>
+        <item class="assist" min="0" max="1"/>
+        <item class="bind" min="0" max="1"/>
+        <item class="border" min="0" max="1"/>
+        <item class="calculate" min="0" max="1"/>
+        <item class="caption" min="0" max="1"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="font" min="0" max="1"/>
+        <item class="format" min="0" max="1"/>
+        <item class="items" min="0" max="2"/>
+        <item class="keep" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+        <item class="para" min="0" max="1"/>
+        <item class="traversal" min="0" max="1"/>
+        <item class="ui" min="0" max="1"/>
+        <item class="validate" min="0" max="1"/>
+        <item class="value" min="0" max="1"/>
+        <item class="bindItems" min="0" max="n"/>
+        <item class="connect" min="0" max="n"/>
+        <item class="event" min="0" max="n"/>
+        <item class="setProperty" min="0" max="n"/>
+    </class>
+
+    <class name="fill">
+        <property name="id" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="linear" min="0" max="1"/>
+        <item class="pattern" min="0" max="1"/>
+        <item class="radial" min="0" max="1"/>
+        <item class="solid" min="0" max="1"/>
+        <item class="stipple" min="0" max="1"/>
+    </class>
+
+    <class name="filter">
+        <property name="addRevocationInfo" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="version" type="cdata"/>
+        <item class="appearanceFilter" min="0" max="1"/>
+        <item class="certificates" min="0" max="1"/>
+        <item class="digestMethods" min="0" max="1"/>
+        <item class="encodings" min="0" max="1"/>
+        <item class="encryptionMethods" min="0" max="1"/>
+        <item class="handler" min="0" max="1"/>
+        <item class="lockDocument" min="0" max="1"/>
+        <item class="mdp" min="0" max="1"/>
+        <item class="reasons" min="0" max="1"/>
+        <item class="timeStamp" min="0" max="1"/>
+    </class>
+
+    <class name="float">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="font">
+        <property name="baselineShift" type="0in | measurement" default="0in"/>
+        <property name="fontHorizontalScale" type="cdata"/>
+        <property name="fontVerticalScale" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="kerningMode" type="none | pair"/ default="none">
+        <property name="letterSpacing" type="cdata"/>
+        <property name="lineThrough" type="0 | 1 | 2" default="0"/>
+        <property name="lineThroughPeriod" type="all | word" default="all"/>
+        <property name="overline" type="0 | 1 | 2" default="0"/>
+        <property name="overlinePeriod" type="all | word" default="all"/>
+        <property name="posture" type="normal | italic" default="normal"/>
+        <property name="size" type="10pt | measurement" default="10pt"/>
+        <property name="typeface" type="cdata"/>
+        <property name="underline" type="0 | 1 | 2" default="0"/>
+        <property name="underlinePeriod" type="all | word" default="all"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="weight" type="normal | bold" default="normal"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="fill" min="0" max="1"/>
+    </class>
+
+    <class name="format">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="picture" min="0" max="1"/>
+    </class>
+
+    <class name="handler">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="hyphenation">
+        <property name="excludeAllCaps" type="0 | 1" default="0"/>
+        <property name="excludeInitialCap" type="0 | 1" default="0"/>
+        <property name="hyphenate" type="0 | 1" default="0"/>
+        <property name="id" type="cdata"/>
+        <property name="pushCharacterCount" type="3 | integer" default="3"/>
+        <property name="remainCharacterCount" type="3 | integer" default="3"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="wordCharacterCount" type="7 | integer" default="7"/>
+    </class>
+
+    <class name="image">
+        <property name="aspect" type="fit | actual | height | none | width" default="fit"/>
+        <property name="contentType" type="cdata"/>
+        <property name="href" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="transferEncoding" type="base64 | none | package" default="base64"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="imageEdit">
+        <property name="data" type="link | embed" default="link"/>
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="integer">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="issuers">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="certificate" min="0" max="n"/>
+    </class>
+
+    <class name="items">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="ref" type="cdata"/>
+        <property name="save" type="0 | 1" default="0"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="boolean" min="0" max="n"/>
+        <item class="date" min="0" max="n"/>
+        <item class="dateTime" min="0" max="n"/>
+        <item class="decimal" min="0" max="n"/>
+        <item class="exData" min="0" max="n"/>
+        <item class="float" min="0" max="n"/>
+        <item class="image" min="0" max="n"/>
+        <item class="integer" min="0" max="n"/>
+        <item class="text" min="0" max="n"/>
+        <item class="time" min="0" max="n"/>
+    </class>
+
+    <class name="keep">
+        <property name="id" type="cdata"/>
+        <property name="intact" type="none | contentArea | pageArea" default="none"/>
+        <property name="next" type="none | contentArea | pageArea" default="none"/>
+        <property name="previous" type="none | contentArea | pageArea" default="none"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="keyUsage">
+        <property name="crlSign" type="cdata"/>
+        <property name="dataEncipherment" type="cdata"/>
+        <property name="decipherOnly" type="cdata"/>
+        <property name="digitalSignature" type="cdata"/>
+        <property name="encipherOnly" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="keyAgreement" type="cdata"/>
+        <property name="keyCertSign" type="cdata"/>
+        <property name="keyEncipherment" type="cdata"/>
+        <property name="nonRepudiation" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="line">
+        <property name="hand" type="even | left | right" default="even"/>
+        <property name="id" type="cdata"/>
+        <property name="slope" type="\ | /" default="\"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="edge" min="0" max="1"/>
+    </class>
+
+    <class name="linear">
+        <property name="id" type="cdata"/>
+        <property name="type" type="toRight | toBottom | toLeft | toTop" default="toRight"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="lockDocument">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="manifest">
+        <property name="action" type="include | all | exclude" default="include"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="ref" min="0" max="n"/>
+    </class>
+
+    <class name="margin">
+        <property name="bottomInset" type="0in | measurement" default="0in"/>
+        <property name="id" type="cdata"/>
+        <property name="leftInset" type="0in | measurement" default="0in"/>
+        <property name="rightInset" type="0in | measurement" default="0in"/>
+        <property name="topInset" type="0in | measurement" default="0in"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="mdp">
+        <property name="id" type="cdata"/>
+        <property name="permissions" type="2 | 1 | 3" default="2"/>
+        <property name="signatureType" type="filler | author" default="filler"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="medium">
+        <property name="id" type="cdata"/>
+        <property name="imagingBBox" type="cdata"/>
+        <property name="long" type="0in | measurement" default="0in"/>
+        <property name="orientation" type="portrait | landscape" default="portrait"/>
+        <property name="short" type="0in | measurement" default="0in"/>
+        <property name="stock" type="cdata"/>
+        <property name="trayIn" type="auto | delegate | pageFront" default="auto"/>
+        <property name="trayOut" type="auto | delegate" default="auto"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="message">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="text" min="0" max="n"/>
+    </class>
+
+    <class name="numericEdit">
+        <property name="hScrollPolicy" type="auto | off | on" default="auto"/>
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="comb" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="occur">
+        <property name="id" type="cdata"/>
+        <property name="initial" type="1 | integer" default="1"/>
+        <property name="max" type="1 | integer" default="1"/>
+        <property name="min" type="1 | integer" default="1"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="oid">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="oids">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="oid" min="0" max="n"/>
+    </class>
+
+    <class name="overflow">
+        <property name="id" type="cdata"/>
+        <property name="leader" type="cdata"/>
+        <property name="target" type="cdata"/>
+        <property name="trailer" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="pageArea">
+        <property name="blankOrNotBlank" type="any | blank | notBlank" default="any"/>
+        <property name="id" type="cdata"/>
+        <property name="initialNumber" type="1 | integer" default="1"/>
+        <property name="name" type="cdata"/>
+        <property name="numbered" type="1 | integer" default="1"/>
+        <property name="oddOrEven" type="any | even | odd" default="any"/>
+        <property name="pagePosition" type="any | first | last | only | rest" default="any"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="medium" min="0" max="1"/>
+        <item class="occur" min="0" max="1"/>
+        <item class="area" min="0" max="n"/>
+        <item class="contentArea" min="0" max="n"/>
+        <item class="draw" min="0" max="n"/>
+        <item class="exclGroup" min="0" max="n"/>
+        <item class="field" min="0" max="n"/>
+        <item class="subform" min="0" max="n"/>
+    </class>
+
+    <class name="pageSet">
+        <property name="duplexImposition" type="longEdge | shortEdge" default="longEdge"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="relation" type="orderedOccurrence | duplexPaginated | simplexPaginated" default="orderedOccurrence"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="occur" min="0" max="1"/>
+        <item class="pageArea" min="0" max="n"/>
+        <item class="pageSet" min="0" max="n"/>
+    </class>
+
+    <class name="para">
+        <property name="hAlign" type="left | center | justify | justifyAll | radix | right" default="left"/>
+        <property name="id" type="cdata"/>
+        <property name="lineHeight" type="0pt | measurement" default="0pt"/>
+        <property name="marginLeft" type="0in | measurement" default="0in"/>
+        <property name="marginRight" type="0in | measurement" default="0in"/>
+        <property name="orphans" type="0 | integer" default="0"/>
+        <property name="preserve" type="cdata"/>
+        <property name="radixOffset" type="0in | measurement" default="0in"/>
+        <property name="spaceAbove" type="0in | measurement" default="0in"/>
+        <property name="spaceBelow" type="0in | measurement" default="0in"/>
+        <property name="tabDefault" type="cdata"/>
+        <property name="tabStops" type="cdata"/>
+        <property name="textIndent" type="0in | measurement" default="0in"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="vAlign" type="top | bottom | middle" default="top"/>
+        <property name="widows" type="0 | integer" default="0"/>
+        <item class="hyphenation" min="0" max="1"/>
+    </class>
+
+    <class name="passwordEdit">
+        <property name="hScrollPolicy" type="auto | off | on" default="auto"/>
+        <property name="id" type="cdata"/>
+        <property name="passwordChar" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="pattern">
+        <property name="id" type="cdata"/>
+        <property name="type" type="crossHatch | crossDiagonal | diagonalLeft | diagonalRight | horizontal | vertical" default="crossHatch"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="picture">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="proto">
+        <item class="appearanceFilter" min="0" max="n"/>
+        <item class="arc" min="0" max="n"/>
+        <item class="area" min="0" max="n"/>
+        <item class="assist" min="0" max="n"/>
+        <item class="barcode" min="0" max="n"/>
+        <item class="bindItems" min="0" max="n"/>
+        <item class="bookend" min="0" max="n"/>
+        <item class="boolean" min="0" max="n"/>
+        <item class="border" min="0" max="n"/>
+        <item class="break" min="0" max="n"/>
+        <item class="breakAfter" min="0" max="n"/>
+        <item class="breakBefore" min="0" max="n"/>
+        <item class="button" min="0" max="n"/>
+        <item class="calculate" min="0" max="n"/>
+        <item class="caption" min="0" max="n"/>
+        <item class="certificate" min="0" max="n"/>
+        <item class="certificates" min="0" max="n"/>
+        <item class="checkButton" min="0" max="n"/>
+        <item class="choiceList" min="0" max="n"/>
+        <item class="color" min="0" max="n"/>
+        <item class="comb" min="0" max="n"/>
+        <item class="connect" min="0" max="n"/>
+        <item class="contentArea" min="0" max="n"/>
+        <item class="corner" min="0" max="n"/>
+        <item class="date" min="0" max="n"/>
+        <item class="dateTime" min="0" max="n"/>
+        <item class="dateTimeEdit" min="0" max="n"/>
+        <item class="decimal" min="0" max="n"/>
+        <item class="defaultUi" min="0" max="n"/>
+        <item class="desc" min="0" max="n"/>
+        <item class="digestMethod" min="0" max="n"/>
+        <item class="digestMethods" min="0" max="n"/>
+        <item class="draw" min="0" max="n"/>
+        <item class="edge" min="0" max="n"/>
+        <item class="encoding" min="0" max="n"/>
+        <item class="encodings" min="0" max="n"/>
+        <item class="encrypt" min="0" max="n"/>
+        <item class="encryptData" min="0" max="n"/>
+        <item class="encryption" min="0" max="n"/>
+        <item class="encryptionMethod" min="0" max="n"/>
+        <item class="encryptionMethods" min="0" max="n"/>
+        <item class="event" min="0" max="n"/>
+        <item class="exData" min="0" max="n"/>
+        <item class="exObject" min="0" max="n"/>
+        <item class="exclGroup" min="0" max="n"/>
+        <item class="execute" min="0" max="n"/>
+        <item class="extras" min="0" max="n"/>
+        <item class="field" min="0" max="n"/>
+        <item class="fill" min="0" max="n"/>
+        <item class="filter" min="0" max="n"/>
+        <item class="float" min="0" max="n"/>
+        <item class="font" min="0" max="n"/>
+        <item class="format" min="0" max="n"/>
+        <item class="handler" min="0" max="n"/>
+        <item class="hyphenation" min="0" max="n"/>
+        <item class="image" min="0" max="n"/>
+        <item class="imageEdit" min="0" max="n"/>
+        <item class="integer" min="0" max="n"/>
+        <item class="issuers" min="0" max="n"/>
+        <item class="items" min="0" max="n"/>
+        <item class="keep" min="0" max="n"/>
+        <item class="keyUsage" min="0" max="n"/>
+        <item class="line" min="0" max="n"/>
+        <item class="linear" min="0" max="n"/>
+        <item class="lockDocument" min="0" max="n"/>
+        <item class="manifest" min="0" max="n"/>
+        <item class="margin" min="0" max="n"/>
+        <item class="mdp" min="0" max="n"/>
+        <item class="medium" min="0" max="n"/>
+        <item class="message" min="0" max="n"/>
+        <item class="numericEdit" min="0" max="n"/>
+        <item class="occur" min="0" max="n"/>
+        <item class="oid" min="0" max="n"/>
+        <item class="oids" min="0" max="n"/>
+        <item class="overflow" min="0" max="n"/>
+        <item class="pageArea" min="0" max="n"/>
+        <item class="pageSet" min="0" max="n"/>
+        <item class="para" min="0" max="n"/>
+        <item class="passwordEdit" min="0" max="n"/>
+        <item class="pattern" min="0" max="n"/>
+        <item class="picture" min="0" max="n"/>
+        <item class="radial" min="0" max="n"/>
+        <item class="reason" min="0" max="n"/>
+        <item class="reasons" min="0" max="n"/>
+        <item class="rectangle" min="0" max="n"/>
+        <item class="ref" min="0" max="n"/>
+        <item class="script" min="0" max="n"/>
+        <item class="setProperty" min="0" max="n"/>
+        <item class="signData" min="0" max="n"/>
+        <item class="signature" min="0" max="n"/>
+        <item class="signing" min="0" max="n"/>
+        <item class="solid" min="0" max="n"/>
+        <item class="speak" min="0" max="n"/>
+        <item class="stipple" min="0" max="n"/>
+        <item class="subform" min="0" max="n"/>
+        <item class="subformSet" min="0" max="n"/>
+        <item class="subjectDN" min="0" max="n"/>
+        <item class="subjectDNs" min="0" max="n"/>
+        <item class="submit" min="0" max="n"/>
+        <item class="text" min="0" max="n"/>
+        <item class="textEdit" min="0" max="n"/>
+        <item class="time" min="0" max="n"/>
+        <item class="timeStamp" min="0" max="n"/>
+        <item class="toolTip" min="0" max="n"/>
+        <item class="traversal" min="0" max="n"/>
+        <item class="traverse" min="0" max="n"/>
+        <item class="ui" min="0" max="n"/>
+        <item class="validate" min="0" max="n"/>
+        <item class="value" min="0" max="n"/>
+        <item class="variables" min="0" max="n"/>
+    </class>
+
+    <class name="radial">
+        <property name="id" type="cdata"/>
+        <property name="type" type="toEdge | toCenter" default="toEdge"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="reason">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="reasons">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="reason" min="0" max="n"/>
+    </class>
+
+    <class name="rectangle">
+        <property name="hand" type="even | left | right" default="even"/>
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="corner" min="0" max="4"/>
+        <item class="edge" min="0" max="4"/>
+        <item class="fill" min="0" max="1"/>
+    </class>
+
+    <class name="ref">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="script">
+        <property name="binding" type="cdata"/>
+        <property name="contentType" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="runAt" type="client | both | server" default="client"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="setProperty">
+        <property name="connection" type="cdata"/>
+        <property name="ref" type="cdata"/>
+        <property name="target" type="cdata"/>
+    </class>
+
+    <class name="signData">
+        <property name="id" type="cdata"/>
+        <property name="operation" type="sign | clear | verify" default="sign"/>
+        <property name="ref" type="cdata"/>
+        <property name="target" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="filter" min="0" max="1"/>
+        <item class="manifest" min="0" max="1"/>
+    </class>
+
+    <class name="signature">
+        <property name="id" type="cdata"/>
+        <property name="type" type="PDF1.3 | PDF1.6" default="PDF1.3"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="border" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="filter" min="0" max="1"/>
+        <item class="manifest" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="signing">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="certificate" min="0" max="n"/>
+    </class>
+
+    <class name="solid">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="speak">
+        <property name="disable" type="0 | 1" default="0"/>
+        <property name="id" type="cdata"/>
+        <property name="priority" type="custom | caption | name | toolTip" default="custom"/>
+        <property name="rid" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="stipple">
+        <property name="id" type="cdata"/>
+        <property name="rate" type="50 | integer" default="50"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="color" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+    </class>
+
+    <class name="subform">
+        <property name="access" type="open | nonInteractive | protected | readOnly" default="open"/>
+        <property name="allowMacro" type="0 | 1" default="0"/>
+        <property name="anchorType" type="topLeft | bottomCenter | bottomLeft | bottomRight | middleCenter | middleLeft | middleRight | topCenter | topRight" default="topLeft"/>
+        <property name="colSpan" type="1 | integer" default="1"/>
+        <property name="columnWidths" type="cdata"/>
+        <property name="h" type="0in | measurement" default="0in"/>
+        <property name="hAlign" type="left | center | justify | justifyAll | radix | right" default="left"/>
+        <property name="id" type="cdata"/>
+        <property name="layout" type="position | lr-tb | rl-row | rl-tb | row | table | tb" default="position"/>
+        <property name="locale" type="cdata"/>
+        <property name="maxH" type="0in | measurement" default="0in"/>
+        <property name="maxW" type="0in | measurement" default="0in"/>
+        <property name="mergeMode" type="consumeData | matchTemplate" default="consumeData"/>
+        <property name="minH" type="0in | measurement" default="0in"/>
+        <property name="minW" type="0in | measurement" default="0in"/>
+        <property name="name" type="cdata"/>
+        <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
+        <property name="relevant" type="cdata"/>
+        <property name="restoreState" type="manual | auto" default="manual"/>
+        <property name="scope" type="name | none" default="name"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="w" type="0in | measurement" default="0in"/>
+        <property name="x" type="0in | measurement" default="0in"/>
+        <property name="y" type="0in | measurement" default="0in"/>
+        <item class="assist" min="0" max="1"/>
+        <item class="bind" min="0" max="1"/>
+        <item class="bookend" min="0" max="1"/>
+        <item class="border" min="0" max="1"/>
+        <item class="break" min="0" max="1"/>
+        <item class="calculate" min="0" max="1"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="keep" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+        <item class="occur" min="0" max="1"/>
+        <item class="overflow" min="0" max="1"/>
+        <item class="pageSet" min="0" max="1"/>
+        <item class="para" min="0" max="1"/>
+        <item class="traversal" min="0" max="1"/>
+        <item class="validate" min="0" max="1"/>
+        <item class="variables" min="0" max="1"/>
+        <item class="area" min="0" max="n"/>
+        <item class="breakAfter" min="0" max="n"/>
+        <item class="breakBefore" min="0" max="n"/>
+        <item class="connect" min="0" max="n"/>
+        <item class="draw" min="0" max="n"/>
+        <item class="event" min="0" max="n"/>
+        <item class="exObject" min="0" max="n"/>
+        <item class="exclGroup" min="0" max="n"/>
+        <item class="field" min="0" max="n"/>
+        <item class="proto" min="0" max="n"/>
+        <item class="setProperty" min="0" max="n"/>
+        <item class="subform" min="0" max="n"/>
+        <item class="subformSet" min="0" max="n"/>
+    </class>
+
+    <class name="subformSet">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="relation" type="ordered | choice | unordered" default="ordered"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="bookend" min="0" max="1"/>
+        <item class="break" min="0" max="1"/>
+        <item class="desc" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="occur" min="0" max="1"/>
+        <item class="overflow" min="0" max="1"/>
+        <item class="breakAfter" min="0" max="n"/>
+        <item class="breakBefore" min="0" max="n"/>
+        <item class="subform" min="0" max="n"/>
+        <item class="subformSet" min="0" max="n"/>
+    </class>
+
+    <class name="subjectDN">
+        <property name="delimiter" type="cdata"/>
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="subjectDNs">
+        <property name="id" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="subjectDN" min="0" max="n"/>
+    </class>
+
+    <class name="submit">
+        <property name="embedPDF" type="0 | 1" default="0"/>
+        <property name="format" type="xdp | formdata | pdf | urlencoded | xfd | xml" default="xdp"/>
+        <property name="id" type="cdata"/>
+        <property name="target" type="cdata"/>
+        <property name="textEncoding" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="xdpContent" type="cdata"/>
+        <item class="encrypt" min="0" max="1"/>
+        <item class="encryptData" min="0" max="n"/>
+        <item class="signData" min="0" max="n"/>
+    </class>
+
+    <class name="template">
+        <property name="baseProfile" type="full | interactiveForms" default="full"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="subform" min="0" max="n"/>
+    </class>
+
+    <class name="text">
+        <property name="id" type="cdata"/>
+        <property name="maxChars" type="0 | integer" default="0"/>
+        <property name="name" type="cdata"/>
+        <property name="rid" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="textEdit">
+        <property name="allowRichText" type="0 | 1" default="0"/>
+        <property name="hScrollPolicy" type="auto | off | on" default="auto"/>
+        <property name="id" type="cdata"/>
+        <property name="multiLine" type="1 | 0" default="1"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <property name="vScrollPolicy" type="auto | off | on" default="auto"/>
+        <item class="border" min="0" max="1"/>
+        <item class="comb" min="0" max="1"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="margin" min="0" max="1"/>
+    </class>
+
+    <class name="time">
+        <property name="id" type="cdata"/>
+        <property name="name" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="timeStamp">
+        <property name="id" type="cdata"/>
+        <property name="server" type="cdata"/>
+        <property name="type" type="optional | required" default="optional"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+    </class>
+
+    <class name="toolTip">
+        <property name="id" type="cdata"/>
+        <property name="rid" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <value type="pcdata"/>
+    </class>
+
+    <class name="traversal">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="traverse" min="0" max="n"/>
+    </class>
+
+    <class name="traverse">
+        <property name="id" type="cdata"/>
+        <property name="operation" type="next | back | down | first | left | right | up" default="next"/>
+        <property name="ref" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="script" min="0" max="1"/>
+    </class>
+
+    <class name="ui">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="picture" min="0" max="1"/>
+        <item class="barcode" min="0" max="1"/>
+        <item class="button" min="0" max="1"/>
+        <item class="checkButton" min="0" max="1"/>
+        <item class="choiceList" min="0" max="1"/>
+        <item class="dateTimeEdit" min="0" max="1"/>
+        <item class="defaultUi" min="0" max="1"/>
+        <item class="imageEdit" min="0" max="1"/>
+        <item class="numericEdit" min="0" max="1"/>
+        <item class="passwordEdit" min="0" max="1"/>
+        <item class="signature" min="0" max="1"/>
+        <item class="textEdit" min="0" max="1"/>
+    </class>
+
+    <class name="validate">
+        <property name="formatTest" type="warning | disabled | error" default="warning"/>
+        <property name="id" type="cdata"/>
+        <property name="nullTest" type="disabled | error | warning" default="disabled"/>
+        <property name="scriptTest" type="error | disabled | warning" default="error"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="extras" min="0" max="1"/>
+        <item class="message" min="0" max="1"/>
+        <item class="picture" min="0" max="1"/>
+        <item class="script" min="0" max="1"/>
+    </class>
+
+    <class name="value">
+        <property name="id" type="cdata"/>
+        <property name="override" type="0 | 1" default="0"/>
+        <property name="relevant" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="arc" min="0" max="1"/>
+        <item class="boolean" min="0" max="1"/>
+        <item class="date" min="0" max="1"/>
+        <item class="dateTime" min="0" max="1"/>
+        <item class="decimal" min="0" max="1"/>
+        <item class="exData" min="0" max="1"/>
+        <item class="float" min="0" max="1"/>
+        <item class="image" min="0" max="1"/>
+        <item class="integer" min="0" max="1"/>
+        <item class="line" min="0" max="1"/>
+        <item class="rectangle" min="0" max="1"/>
+        <item class="text" min="0" max="1"/>
+        <item class="time" min="0" max="1"/>
+    </class>
+
+    <class name="variables">
+        <property name="id" type="cdata"/>
+        <property name="use" type="cdata"/>
+        <property name="usehref" type="cdata"/>
+        <item class="boolean" min="0" max="n"/>
+        <item class="date" min="0" max="n"/>
+        <item class="dateTime" min="0" max="n"/>
+        <item class="decimal" min="0" max="n"/>
+        <item class="exData" min="0" max="n"/>
+        <item class="float" min="0" max="n"/>
+        <item class="image" min="0" max="n"/>
+        <item class="integer" min="0" max="n"/>
+        <item class="manifest" min="0" max="n"/>
+        <item class="script" min="0" max="n"/>
+        <item class="text" min="0" max="n"/>
+        <item class="time" min="0" max="n"/>
+    </class>
+
+</template>
+
+</xfa>
