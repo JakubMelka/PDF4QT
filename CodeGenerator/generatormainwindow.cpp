@@ -88,6 +88,9 @@ void GeneratorMainWindow::saveSettings()
     settings.setValue("fileName", m_defaultFileName);
     settings.setValue("headerFile", m_headerFileName);
     settings.setValue("sourceFile", m_sourceFileName);
+    settings.setValue("XFAdefinitionFileName", m_XFAdefinitionFileName);
+    settings.setValue("XFAheaderFileName", m_XFAheaderFileName);
+    settings.setValue("XFAsourceFileName", m_XFAsourceFileName);
 }
 
 void GeneratorMainWindow::loadGeneratedSettings()
@@ -356,6 +359,9 @@ void GeneratorMainWindow::loadSettings()
     m_defaultFileName = settings.value("fileName").toString();
     m_headerFileName = settings.value("headerFile", QVariant()).toString();
     m_sourceFileName = settings.value("sourceFile", QVariant()).toString();
+    m_XFAdefinitionFileName = settings.value("XFAdefinitionFileName", QVariant()).toString();
+    m_XFAheaderFileName = settings.value("XFAheaderFileName", QVariant()).toString();
+    m_XFAsourceFileName = settings.value("XFAsourceFileName", QVariant()).toString();
 }
 
 void GeneratorMainWindow::save(const QString& fileName)
@@ -520,4 +526,39 @@ void GeneratorMainWindow::on_actionGenerate_code_triggered()
     {
         m_generator->generateCode(m_headerFileName, m_sourceFileName);
     }
+}
+
+void GeneratorMainWindow::on_actionSet_code_header_XFA_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select cpp header"), QString(), "cpp header (*.h)");
+    if (!fileName.isEmpty())
+    {
+        m_XFAheaderFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_code_source_XFA_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select cpp source"), QString(), "cpp source (*.cpp)");
+    if (!fileName.isEmpty())
+    {
+        m_XFAsourceFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_XFA_description_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select xml definition"), QString(), "XML file (*.xml)");
+    if (!fileName.isEmpty())
+    {
+        m_XFAdefinitionFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionGenerate_XFA_code_triggered()
+{
+
 }

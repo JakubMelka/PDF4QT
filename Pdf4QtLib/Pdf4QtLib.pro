@@ -91,6 +91,7 @@ SOURCES += \
     sources/pdfutils.cpp \
     sources/pdfwidgettool.cpp \
     sources/pdfwidgetutils.cpp \
+    sources/pdfxfaengine.cpp \
     sources/pdfxreftable.cpp \
     sources/pdfvisitor.cpp \
     sources/pdfencoding.cpp \
@@ -165,6 +166,7 @@ HEADERS += \
     sources/pdftransparencyrenderer.h \
     sources/pdfwidgettool.h \
     sources/pdfwidgetutils.h \
+    sources/pdfxfaengine.h \
     sources/pdfxreftable.h \
     sources/pdfflatmap.h \
     sources/pdfvisitor.h \

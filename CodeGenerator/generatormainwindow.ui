@@ -241,8 +241,18 @@
     <addaction name="actionSet_code_source_cpp"/>
     <addaction name="actionGenerate_code"/>
    </widget>
+   <widget class="QMenu" name="menuXFA">
+    <property name="title">
+     <string>XFA</string>
+    </property>
+    <addaction name="actionSet_XFA_description"/>
+    <addaction name="actionSet_code_header_XFA"/>
+    <addaction name="actionSet_code_source_XFA"/>
+    <addaction name="actionGenerate_XFA_code"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuCode"/>
+   <addaction name="menuXFA"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionLoad">
@@ -282,6 +292,26 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+G</string>
+   </property>
+  </action>
+  <action name="actionSet_code_header_XFA">
+   <property name="text">
+    <string>Set code header XFA</string>
+   </property>
+  </action>
+  <action name="actionSet_code_source_XFA">
+   <property name="text">
+    <string>Set code source XFA</string>
+   </property>
+  </action>
+  <action name="actionGenerate_XFA_code">
+   <property name="text">
+    <string>Generate XFA code</string>
+   </property>
+  </action>
+  <action name="actionSet_XFA_description">
+   <property name="text">
+    <string>Set XFA description</string>
    </property>
   </action>
  </widget>

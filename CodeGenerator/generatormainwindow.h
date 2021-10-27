@@ -80,6 +80,10 @@ private slots:
     void on_actionSet_code_header_h_triggered();
     void on_actionSet_code_source_cpp_triggered();
     void on_actionGenerate_code_triggered();
+    void on_actionSet_code_header_XFA_triggered();
+    void on_actionSet_code_source_XFA_triggered();
+    void on_actionGenerate_XFA_code_triggered();
+    void on_actionSet_XFA_description_triggered();
 
 private:
     void loadSettings();
@@ -104,6 +108,10 @@ private:
     QString m_sourceFileName;
     std::map<codegen::GeneratedFunction*, QTreeWidgetItem*> m_mapFunctionToWidgetItem;
     bool m_isLoadingData;
+
+    QString m_XFAdefinitionFileName;
+    QString m_XFAheaderFileName;
+    QString m_XFAsourceFileName;
 };
 
 #endif // GENERATORMAINWINDOW_H

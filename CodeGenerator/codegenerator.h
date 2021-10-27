@@ -446,6 +446,11 @@ private:
     GeneratedCodeStorage* m_storage = nullptr;
 };
 
+class XFACodeGenerator
+{
+
+};
+
 }   // namespace codegen
 
 Q_DECLARE_METATYPE(codegen::GeneratedCodeStorage*)
