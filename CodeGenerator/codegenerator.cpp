@@ -1399,4 +1399,299 @@ void GeneratedParameter::setParameterDescription(const QString& parameterDescrip
     m_parameterDescription = parameterDescription;
 }
 
+void XFACodeGenerator::generateCode(const QDomDocument& document, QString headerName, QString sourceName)
+{
+    QString startMark = "/* START GENERATED CODE */";
+    QString endMark = "/* END GENERATED CODE */";
+
+    loadClasses(document);
+
+    QFile headerFile(headerName);
+    if (headerFile.exists())
+    {
+        if (headerFile.open(QFile::ReadOnly | QFile::Text))
+        {
+            QString utfCode = QString::fromUtf8(headerFile.readAll());
+            headerFile.close();
+
+            int startIndex = utfCode.indexOf(startMark, Qt::CaseSensitive) + startMark.length();
+            int endIndex = utfCode.indexOf(endMark, Qt::CaseSensitive);
+
+            QString frontPart = utfCode.left(startIndex);
+            QString backPart = utfCode.mid(endIndex);
+            QString headerGeneratedCode = generateHeader();
+            QString allCode = frontPart + headerGeneratedCode + backPart;
+
+            headerFile.open(QFile::WriteOnly | QFile::Truncate);
+            headerFile.write(allCode.toUtf8());
+            headerFile.close();
+        }
+    }
+
+    QFile sourceFile(sourceName);
+    if (sourceFile.exists())
+    {
+        if (sourceFile.open(QFile::ReadOnly | QFile::Text))
+        {
+            QString utfCode = QString::fromUtf8(sourceFile.readAll());
+            sourceFile.close();
+
+            int startIndex = utfCode.indexOf(startMark, Qt::CaseSensitive) + startMark.length();
+            int endIndex = utfCode.indexOf(endMark, Qt::CaseSensitive);
+
+            QString frontPart = utfCode.left(startIndex);
+            QString backPart = utfCode.mid(endIndex);
+            QString sourceGeneratedCode = generateSource();
+            QString allCode = frontPart + sourceGeneratedCode + backPart;
+
+            sourceFile.open(QFile::WriteOnly | QFile::Truncate);
+            sourceFile.write(allCode.toUtf8());
+            sourceFile.close();
+        }
+    }
+}
+
+void XFACodeGenerator::loadClasses(const QDomDocument& document)
+{
+    QDomElement xfaElement = document.firstChildElement("xfa");
+
+    if (xfaElement.isNull())
+    {
+        return;
+    }
+
+    QDomElement element = xfaElement.firstChildElement("template");
+
+    if (element.isNull())
+    {
+        return;
+    }
+
+    QDomNodeList childNodes = element.elementsByTagName("class");
+    const int size = childNodes.size();
+    m_classes.reserve(size);
+    for (int i = 0; i < size; ++i)
+    {
+        QDomNode child = childNodes.item(i);
+
+        if (!child.isElement())
+        {
+            continue;
+        }
+
+        Class myClass;
+
+        QDomElement element = child.toElement();
+
+        // Class name
+        myClass.className = element.attribute("name");
+
+        // Attributes
+        QDomNodeList attributes = element.elementsByTagName("property");
+        const int attributeCount = attributes.size();
+        for (int ai = 0; ai < attributeCount; ++ai)
+        {
+            QDomElement attributeElement = attributes.item(ai).toElement();
+            QString name = attributeElement.attribute("name");
+            QString type = attributeElement.attribute("type");
+            QString defaultValue = attributeElement.attribute("default");
+            QString id = QString("%1_%2").arg(name, type);
+
+            Attribute attribute;
+            attribute.attributeName = name;
+            attribute.defaultValue = defaultValue;
+            attribute.type = createType(id, name, type);
+
+            myClass.attributes.emplace_back(std::move(attribute));
+        }
+
+        m_classes.emplace_back(std::move(myClass));
+    }
+}
+
+const XFACodeGenerator::Type* XFACodeGenerator::createType(QString id, QString name, QString type)
+{
+    QString simpleType;
+    QString adjustedId = id;
+
+    if (type == "cdata" || type == "pcdata")
+    {
+        simpleType = "QString";
+        adjustedId = "QString";
+    }
+    else if (type == "0 | 1")
+    {
+        simpleType = "bool";
+        adjustedId = "bool";
+    }
+    else if (type.contains("measurement"))
+    {
+        simpleType = "XFA_Measurement";
+        adjustedId = "XFA_Measurement";
+    }
+    else if (type.contains("integer"))
+    {
+        simpleType = "PDFInteger";
+        adjustedId = "PDFInteger";
+    }
+    else if (type.contains("angle"))
+    {
+        simpleType = "PDFReal";
+        adjustedId = "PDFReal";
+    }
+
+    QString enumValuesString = type;
+
+    auto it = m_types.find(adjustedId);
+    if (it == m_types.end())
+    {
+        Type type;
+        type.id = adjustedId;
+        type.typeName = simpleType;
+
+        if (type.typeName.isEmpty())
+        {
+            QString typeName = name.toUpper();
+            QString finalTypeName = typeName;
+
+            int i = 1;
+            while (m_types.count(finalTypeName))
+            {
+                finalTypeName = typeName + QString::number(i++);
+            }
+
+            QString enumValues = enumValuesString.remove(QChar::Space);
+            type.enumValues = enumValues.split("|");
+
+            type.typeName = finalTypeName;
+        }
+
+        it = m_types.insert(std::make_pair(type.id, type)).first;
+    }
+
+    return &it->second;
+}
+
+QString XFACodeGenerator::generateSource() const
+{
+    QByteArray ba;
+    {
+        QTextStream stream(&ba, QIODevice::WriteOnly);
+        stream.setCodec("UTF-8");
+        stream.setRealNumberPrecision(3);
+        stream.setRealNumberNotation(QTextStream::FixedNotation);
+
+        stream << Qt::endl << Qt::endl;
+        stream << "namespace xfa" << Qt::endl;
+        stream << "{" << Qt::endl << Qt::endl;
+
+        stream << "class XFA_BaseNode : public XFA_AbstractNode" << Qt::endl;
+        stream << "{" << Qt::endl;
+        stream << "public:" << Qt::endl;
+
+        stream << Qt::endl;
+
+        for (const auto& typeItem : m_types)
+        {
+            const Type& type = typeItem.second;
+
+            if (type.enumValues.isEmpty())
+            {
+                continue;
+            }
+
+            stream << QString("    enum class %1").arg(type.typeName) << Qt::endl;
+            stream << "    {" << Qt::endl;
+            for (const QString& enumValue : type.enumValues)
+            {
+                stream << "        " << getEnumValueName(enumValue) << "," << Qt::endl;
+            }
+            stream << "    };" << Qt::endl << Qt::endl;
+        }
+
+        stream << "};" << Qt::endl << Qt::endl;
+
+        for (const Class& myClass : m_classes)
+        {
+            stream << QString("class XFA_%1 : public XFA_BaseNode").arg(myClass.className) << Qt::endl;
+            stream << "{" << Qt::endl;
+            stream << "public:" << Qt::endl;
+
+            QStringList attributeGetters;
+            QStringList attributeDeclarations;
+            for (const Attribute& attribute : myClass.attributes)
+            {
+                QString attributeFieldName = QString("m_%1").arg(attribute.attributeName);
+                QString attributeGetterName = attribute.attributeName;
+                attributeGetterName[0] = attributeGetterName.front().toUpper();
+                QString attributeDeclaration = QString("    XFA_Attribute<%1> %2;").arg(attribute.type->typeName, attributeFieldName);
+                QString attributeGetter = QString("    const %1* get%2() const {  return %3.getValue(); }").arg(attribute.type->typeName, attributeGetterName, attributeFieldName);
+                attributeDeclarations << attributeDeclaration;
+                attributeGetters << attributeGetter;
+            }
+
+            for (const QString& getter : attributeGetters)
+            {
+                stream << getter << Qt::endl;
+            }
+
+            stream << Qt::endl;
+            stream << "private:" << Qt::endl;
+            stream << "    /* properties */" << Qt::endl;
+
+            for (const QString& getter : attributeDeclarations)
+            {
+                stream << getter << Qt::endl;
+            }
+
+            stream << Qt::endl;
+
+            stream << "};" << Qt::endl << Qt::endl;
+        }
+
+        stream << "} // namespace xfa" << Qt::endl;
+        stream << Qt::endl << Qt::endl;
+    }
+
+    return QString::fromUtf8(ba);
+}
+
+QString XFACodeGenerator::getEnumValueName(QString enumName) const
+{
+    if (!enumName.isEmpty())
+    {
+        enumName[0] = enumName.front().toUpper();
+
+        if (enumName.front().isDigit())
+        {
+            enumName.push_front("_");
+        }
+
+        enumName.replace("-", "_");
+    }
+
+    return enumName;
+}
+
+QString XFACodeGenerator::generateHeader() const
+{
+    QByteArray ba;
+    {
+        QTextStream stream(&ba, QIODevice::WriteOnly);
+        stream.setCodec("UTF-8");
+        stream.setRealNumberPrecision(3);
+        stream.setRealNumberNotation(QTextStream::FixedNotation);
+
+        stream << Qt::endl << Qt::endl;
+        stream << "namespace xfa" << Qt::endl;
+        stream << "{" << Qt::endl;
+
+
+        stream << "} // namespace xfa" << Qt::endl;
+        stream << Qt::endl << Qt::endl;
+    }
+
+    return QString::fromUtf8(ba);
+}
+
 }

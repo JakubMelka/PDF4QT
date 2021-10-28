@@ -560,5 +560,15 @@ void GeneratorMainWindow::on_actionSet_XFA_description_triggered()
 
 void GeneratorMainWindow::on_actionGenerate_XFA_code_triggered()
 {
+    codegen::XFACodeGenerator generator;
 
+    QFile file(m_XFAdefinitionFileName);
+    if (file.open(QFile::ReadOnly))
+    {
+        QDomDocument document;
+        document.setContent(&file);
+        file.close();
+
+        generator.generateCode(document, m_XFAheaderFileName, m_XFAsourceFileName);
+    }
 }

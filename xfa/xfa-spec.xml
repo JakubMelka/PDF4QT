@@ -3,7 +3,7 @@
 
 <!-- XFA template specification written by Jakub Melka -->
 <template>
-    <class name ="appearanceFilter">
+    <class name="appearanceFilter">
         <property name="id" type="cdata"/>
         <property name="type" type="optional | required" default="optional"/>
         <property name="use" type="cdata"/>

@@ -448,7 +448,43 @@ private:
 
 class XFACodeGenerator
 {
+public:
+    XFACodeGenerator() = default;
 
+    void generateCode(const QDomDocument& document, QString headerName, QString sourceName);
+
+private:
+
+    struct Type
+    {
+        QString id;
+        QString typeName;
+        QStringList enumValues;
+    };
+
+    struct Attribute
+    {
+        QString attributeName;
+        const Type* type = nullptr;
+        QString defaultValue;
+    };
+
+    struct Class
+    {
+        QString className;
+        QString valueType;
+        std::vector<Attribute> attributes;
+    };
+
+    void loadClasses(const QDomDocument& document);
+    const Type* createType(QString id, QString name, QString type);
+
+    QString generateHeader() const;
+    QString generateSource() const;
+    QString getEnumValueName(QString enumName) const;
+
+    std::vector<Class> m_classes;
+    std::map<QString, Type> m_types;
 };
 
 }   // namespace codegen

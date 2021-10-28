@@ -31,7 +31,7 @@ namespace xfa
 struct XFA_InplaceTag;
 struct XFA_SharedMemoryTag;
 
-template<typename Value, struct Tag>
+template<typename Value, typename Tag>
 class PDFXFAValueHolder
 {
 public:
@@ -142,6 +142,11 @@ private:
 };
 
 /* START GENERATED CODE */
+
+namespace xfa
+{
+} // namespace xfa
+
 
 /* END GENERATED CODE */
 
