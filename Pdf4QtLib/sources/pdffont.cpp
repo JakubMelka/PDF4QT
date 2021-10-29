@@ -254,6 +254,7 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
     }
 
     ReleaseDC(NULL, hdc);
+    return result;
 #elif defined(Q_OS_UNIX)
     FcPattern* p = FcPatternBuild(nullptr, FC_FAMILY, FcTypeString, fontName.constData(), nullptr);
     if (!p)
