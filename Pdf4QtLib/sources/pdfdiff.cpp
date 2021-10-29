@@ -522,7 +522,7 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
             for (auto it = range.first; it != range.second; ++it)
             {
                 const AlgorithmLCS::SequenceItem& item = *it;
-                if (item.isReplaced())
+                if (item.isReplaced() && item.isMatch())
                 {
                     const PDFDiffPageContext& leftPageContext = leftPreparedPages[item.index1];
                     const PDFDiffPageContext& rightPageContext = rightPreparedPages[item.index2];
