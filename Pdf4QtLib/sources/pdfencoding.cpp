@@ -21,6 +21,7 @@
 #include <QTextCodec>
 
 #include <cctype>
+#include <cstring>
 
 namespace pdf
 {

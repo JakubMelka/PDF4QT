@@ -622,7 +622,7 @@ struct PDFTransparencyRendererSettings
     Q_DECLARE_FLAGS(Flags, Flag)
 
     /// Flags
-    Flags flags = DisplayImages | DisplayText | DisplayVectorGraphics | DisplayShadings | DisplayTilingPatterns;
+    Flags flags = static_cast<Flags>(DisplayImages | DisplayText | DisplayVectorGraphics | DisplayShadings | DisplayTilingPatterns);
 
     /// Active color mask
     uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();

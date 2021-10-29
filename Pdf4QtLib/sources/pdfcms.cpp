@@ -1732,7 +1732,7 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
 
     QStringList directories(m_settings.profileDirectory);
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
     std::array<WCHAR, _MAX_PATH> buffer = { };
     DWORD bufferSize = DWORD(buffer.size() * sizeof(WCHAR));
     if (GetColorDirectoryW(NULL, buffer.data(), &bufferSize))
@@ -1743,8 +1743,20 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
         QString directory = QString::fromWCharArray(buffer.data(), int(charactersWithoutNull));
         directories << QDir::fromNativeSeparators(directory);
     }
+#elif defined(Q_OS_UNIX)
+    QDir directory(QStringLiteral("/usr/share/color/icc"));
+    if (directory.exists())
+    {
+        QStringList colorDirectories = directory.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString colorDirectory : colorDirectories)
+        {
+            QString colorDirectoryName = directory.absoluteFilePath(colorDirectory);
+            directories << QDir::fromNativeSeparators(colorDirectoryName);
+        }
+    }
+#else
+    static_assert(false, "Implement this for another OS!");
 #endif
-
     for (const QString& directory : directories)
     {
         PDFColorProfileIdentifiers externalProfiles = getExternalColorProfiles(directory);

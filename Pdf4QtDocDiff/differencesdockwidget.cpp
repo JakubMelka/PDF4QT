@@ -248,7 +248,7 @@ void DifferencesDockWidget::update()
             QTreeWidgetItem* parent = topItems.back();
 
             QTreeWidgetItem* item = new QTreeWidgetItem(parent, QStringList() << m_diffResult->getMessage(i));
-            item->setData(0, Qt::UserRole, i);
+            item->setData(0, Qt::UserRole, QVariant(static_cast<qint64>(i)));
 
             QColor color = getColorForIndex(i);
 

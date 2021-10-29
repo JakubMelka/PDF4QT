@@ -27,8 +27,10 @@
 
 #include <QMainWindow>
 #include <QSignalMapper>
+#ifdef Q_OS_WIN
 #include <QWinTaskbarButton>
 #include <QWinTaskbarProgress>
+#endif
 
 namespace Ui
 {
@@ -121,8 +123,10 @@ private:
     Ui::MainWindow* ui;
 
     pdf::PDFProgress* m_progress;
+#ifdef Q_OS_WIN
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
+#endif
     pdf::PDFCMSManager* m_cmsManager;
     pdf::PDFWidget* m_pdfWidget;
     SettingsDockWidget* m_settingsDockWidget;

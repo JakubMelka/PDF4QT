@@ -20,6 +20,7 @@
 #include "pdfparser.h"
 #include "pdfnametounicode.h"
 #include "pdfexception.h"
+#include "pdfutils.h"
 
 #include <ft2build.h>
 #include <freetype/freetype.h>
@@ -33,17 +34,17 @@
 #include <QPainterPath>
 #include <QDataStream>
 #include <QTreeWidgetItem>
-
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
 #include "Windows.h"
 
 #pragma comment(lib, "Gdi32")
 #pragma comment(lib, "User32")
+#elif defined(Q_OS_UNIX)
+#include <fontconfig/fontconfig.h>
 #endif
 
 namespace pdf
 {
-
 /// Storage class for system fonts
 class PDFSystemFontInfoStorage
 {
@@ -59,15 +60,19 @@ public:
 private:
     explicit PDFSystemFontInfoStorage();
 
+#ifdef Q_OS_UNIX
+    static void checkFontConfigError(FcBool result);
+#endif
+
+    /// Create a postscript name for comparation purposes
+    static QString getFontPostscriptName(QString fontName);
+
 #ifdef Q_OS_WIN
     /// Callback for enumerating fonts
     static int CALLBACK enumerateFontProc(const LOGFONT* font, const TEXTMETRIC* textMetrics, DWORD fontType, LPARAM lParam);
 
     /// Retrieves font data for desired font
     static QByteArray getFontData(const LOGFONT* font, HDC hdc);
-
-    /// Create a postscript name for comparation purposes
-    static QString getFontPostscriptName(QString fontName);
 
     struct FontInfo
     {
@@ -96,14 +101,9 @@ const PDFSystemFontInfoStorage* PDFSystemFontInfoStorage::getInstance()
 QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType, PDFRenderErrorReporter* reporter) const
 {
     QByteArray result;
-
-#ifdef Q_OS_WIN
-    HDC hdc = GetDC(NULL);
-
-    const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
+    QString fontName;
 
     // Exact match font face name
-    QString fontName;
     switch (standardFontType)
     {
         case StandardFontType::TimesRoman:
@@ -147,6 +147,9 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
         }
     }
 
+#if defined(Q_OS_WIN)
+    HDC hdc = GetDC(NULL);
+    const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
     if (!fontName.isEmpty())
     {
         for (const FontInfo& fontInfo : m_fontInfos)
@@ -251,7 +254,61 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
     }
 
     ReleaseDC(NULL, hdc);
-#endif
+#elif defined(Q_OS_UNIX)
+    FcPattern* p = FcPatternBuild(nullptr, FC_FAMILY, FcTypeString, fontName.constData(), nullptr);
+    if (!p)
+    {
+        throw PDFException(PDFTranslationContext::tr("FontConfig error building pattern for font %1").arg(fontName));
+    }
+
+    constexpr const std::array<std::pair<PDFReal, int>, 9> weights{
+            std::pair<PDFReal, int>{100, FC_WEIGHT_EXTRALIGHT},
+            std::pair<PDFReal, int>{200, FC_WEIGHT_LIGHT},
+            std::pair<PDFReal, int>{300, FC_WEIGHT_BOOK},
+            std::pair<PDFReal, int>{400, FC_WEIGHT_NORMAL},
+            std::pair<PDFReal, int>{500, FC_WEIGHT_MEDIUM},
+            std::pair<PDFReal, int>{600, FC_WEIGHT_DEMIBOLD},
+            std::pair<PDFReal, int>{700, FC_WEIGHT_BOLD},
+            std::pair<PDFReal, int>{800, FC_WEIGHT_EXTRABOLD},
+            std::pair<PDFReal, int>{900, FC_WEIGHT_EXTRABOLD}};
+    auto wit = std::lower_bound(weights.cbegin(), weights.cend(), descriptor->fontWeight, [](const std::pair<PDFReal, int>& data, PDFReal key) { return data.first < key; });
+    if (wit != weights.cend())
+    {
+        checkFontConfigError(FcPatternAddInteger(p, FC_WEIGHT, wit->second));
+    }
+
+    constexpr const std::array<std::pair<QFont::Stretch, int>, 9> stretches{
+        std::pair<QFont::Stretch, int>{QFont::UltraCondensed, FC_WIDTH_ULTRACONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::ExtraCondensed, FC_WIDTH_EXTRACONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::Condensed, FC_WIDTH_CONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::SemiCondensed, FC_WIDTH_SEMICONDENSED},
+        std::pair<QFont::Stretch, int>{QFont::Unstretched, FC_WIDTH_NORMAL},
+        std::pair<QFont::Stretch, int>{QFont::SemiExpanded, FC_WIDTH_SEMIEXPANDED},
+        std::pair<QFont::Stretch, int>{QFont::Expanded, FC_WIDTH_EXPANDED},
+        std::pair<QFont::Stretch, int>{QFont::ExtraExpanded, FC_WIDTH_EXTRAEXPANDED},
+        std::pair<QFont::Stretch, int>{QFont::UltraExpanded, FC_WIDTH_ULTRAEXPANDED}};
+
+    auto sit = std::find_if(stretches.cbegin(), stretches.cend(), [&](const std::pair<QFont::Stretch, int>& item) { return item.first == descriptor->fontStretch; });
+    if (sit != stretches.cend())
+    {
+        checkFontConfigError(FcPatternAddInteger(p, FC_WIDTH, sit->second));
+    }
+
+    checkFontConfigError(FcConfigSubstitute(nullptr, p, FcMatchPattern));
+    FcDefaultSubstitute(p);
+    FcResult res = FcResultNoMatch;
+    FcPattern* match = FcFontMatch(nullptr, p, &res);
+    if (match)
+    {
+        FcChar8* s = nullptr;
+        if (FcPatternGetString(match, FC_FILE, 0, &s) == FcResultMatch)
+        {
+            QFile f(QString::fromUtf8(reinterpret_cast<char*>(s)));
+            f.open(QIODevice::ReadOnly);
+            result = f.readAll();
+            f.close();
+        }
+    }
 
     if (result.isEmpty() && standardFontType == StandardFontType::Invalid)
     {
@@ -260,6 +317,7 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
     }
 
     return result;
+#endif
 }
 
 PDFSystemFontInfoStorage::PDFSystemFontInfoStorage()
@@ -325,6 +383,17 @@ QByteArray PDFSystemFontInfoStorage::getFontData(const LOGFONT* font, HDC hdc)
 
     return byteArray;
 }
+#endif
+
+#ifdef Q_OS_UNIX
+void PDFSystemFontInfoStorage::checkFontConfigError(FcBool result)
+{
+    if (!result)
+    {
+        throw PDFException(PDFTranslationContext::tr("Fontconfig error"));
+    }
+}
+#endif
 
 QString PDFSystemFontInfoStorage::getFontPostscriptName(QString fontName)
 {
@@ -335,8 +404,6 @@ QString PDFSystemFontInfoStorage::getFontPostscriptName(QString fontName)
 
     return fontName.remove(QChar(' ')).remove(QChar('-')).remove(QChar(',')).trimmed();
 }
-
-#endif
 
 PDFFont::PDFFont(FontDescriptor fontDescriptor) :
     m_fontDescriptor(qMove(fontDescriptor))
