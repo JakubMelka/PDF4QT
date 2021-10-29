@@ -26,6 +26,8 @@
 #include <QObjectList>
 #include <QComboBox>
 
+#include <set>
+
 namespace codegen
 {
 
@@ -469,11 +471,20 @@ private:
         QString defaultValue;
     };
 
+    struct Subnode
+    {
+        QString subnodeName;
+        int min = 0;
+        int max = 0;
+    };
+
     struct Class
     {
         QString className;
-        QString valueType;
+        const Type* valueType = nullptr;
+        QString nodeValue;
         std::vector<Attribute> attributes;
+        std::vector<Subnode> subnodes;
     };
 
     void loadClasses(const QDomDocument& document);
@@ -485,6 +496,7 @@ private:
 
     std::vector<Class> m_classes;
     std::map<QString, Type> m_types;
+    std::set<QString> m_usedTypes;
 };
 
 }   // namespace codegen

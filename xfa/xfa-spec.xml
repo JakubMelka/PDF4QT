@@ -682,7 +682,7 @@
         <property name="fontHorizontalScale" type="cdata"/>
         <property name="fontVerticalScale" type="cdata"/>
         <property name="id" type="cdata"/>
-        <property name="kerningMode" type="none | pair"/ default="none">
+        <property name="kerningMode" type="none | pair" default="none"/>
         <property name="letterSpacing" type="cdata"/>
         <property name="lineThrough" type="0 | 1 | 2" default="0"/>
         <property name="lineThroughPeriod" type="all | word" default="all"/>

@@ -1486,6 +1486,13 @@ void XFACodeGenerator::loadClasses(const QDomDocument& document)
         // Class name
         myClass.className = element.attribute("name");
 
+        QDomElement valueElement = element.firstChildElement("value");
+        if (!valueElement.isNull())
+        {
+            QString valueType = valueElement.attribute("type");
+            myClass.valueType = createType("node_value", "nodeValue", valueType);
+        }
+
         // Attributes
         QDomNodeList attributes = element.elementsByTagName("property");
         const int attributeCount = attributes.size();
@@ -1503,6 +1510,24 @@ void XFACodeGenerator::loadClasses(const QDomDocument& document)
             attribute.type = createType(id, name, type);
 
             myClass.attributes.emplace_back(std::move(attribute));
+        }
+
+        // Subnodes
+        QDomNodeList subnodes = element.elementsByTagName("item");
+        const int subnodeCount = subnodes.size();
+        for (int ai = 0; ai < subnodeCount; ++ai)
+        {
+            QDomElement subnodeElement = subnodes.item(ai).toElement();
+            QString className = subnodeElement.attribute("class");
+            QString min = subnodeElement.attribute("min");
+            QString max = subnodeElement.attribute("max");
+
+            Subnode subnode;
+            subnode.subnodeName = std::move(className);
+            subnode.min = min.toInt();
+            subnode.max = (max == "n") ? std::numeric_limits<int>::max() : max.toInt();
+
+            myClass.subnodes.emplace_back(std::move(subnode));
         }
 
         m_classes.emplace_back(std::move(myClass));
@@ -1555,10 +1580,12 @@ const XFACodeGenerator::Type* XFACodeGenerator::createType(QString id, QString n
             QString finalTypeName = typeName;
 
             int i = 1;
-            while (m_types.count(finalTypeName))
+            while (m_usedTypes.count(finalTypeName))
             {
                 finalTypeName = typeName + QString::number(i++);
             }
+
+            m_usedTypes.insert(finalTypeName);
 
             QString enumValues = enumValuesString.remove(QChar::Space);
             type.enumValues = enumValues.split("|");
@@ -1584,6 +1611,14 @@ QString XFACodeGenerator::generateSource() const
         stream << Qt::endl << Qt::endl;
         stream << "namespace xfa" << Qt::endl;
         stream << "{" << Qt::endl << Qt::endl;
+
+        // Forward declarations
+        for (const Class& myClass : m_classes)
+        {
+            stream << QString("class XFA_%1;").arg(myClass.className) << Qt::endl;
+        }
+
+        stream << Qt::endl;
 
         stream << "class XFA_BaseNode : public XFA_AbstractNode" << Qt::endl;
         stream << "{" << Qt::endl;
@@ -1630,12 +1665,55 @@ QString XFACodeGenerator::generateSource() const
                 attributeGetters << attributeGetter;
             }
 
+            stream << Qt::endl;
+
+            QStringList subnodeGetters;
+            QStringList subnodeDeclarations;
+            for (const Subnode& subnode : myClass.subnodes)
+            {
+                if (subnode.max == 1)
+                {
+                    QString subnodeFieldName = QString("m_%1").arg(subnode.subnodeName);
+                    QString subnodeTypeName = QString("XFA_%1").arg(subnode.subnodeName);
+                    QString subnodeGetterName = subnode.subnodeName;
+                    subnodeGetterName[0] = subnodeGetterName.front().toUpper();
+                    QString subnodeDeclaration = QString("    XFA_Node<%1> %2;").arg(subnodeTypeName, subnodeFieldName);
+                    QString subnodeGetter = QString("    const %1* get%2() const {  return %3.getValue(); }").arg(subnodeTypeName, subnodeGetterName, subnodeFieldName);
+                    subnodeDeclarations << subnodeDeclaration;
+                    subnodeGetters << subnodeGetter;
+                }
+                else
+                {
+                    QString subnodeFieldName = QString("m_%1").arg(subnode.subnodeName);
+                    QString subnodeTypeName = QString("std::vector<XFA_Node<XFA_%1>>").arg(subnode.subnodeName);
+                    QString subnodeGetterName = subnode.subnodeName;
+                    subnodeGetterName[0] = subnodeGetterName.front().toUpper();
+                    QString subnodeDeclaration = QString("    %1 %2;").arg(subnodeTypeName, subnodeFieldName);
+                    QString subnodeGetter = QString("    const %1& get%2() const {  return %3; }").arg(subnodeTypeName, subnodeGetterName, subnodeFieldName);
+                    subnodeDeclarations << subnodeDeclaration;
+                    subnodeGetters << subnodeGetter;
+                }
+            }
+
             for (const QString& getter : attributeGetters)
             {
                 stream << getter << Qt::endl;
             }
 
             stream << Qt::endl;
+
+            for (const QString& getter : subnodeGetters)
+            {
+                stream << getter << Qt::endl;
+            }
+
+            stream << Qt::endl;
+
+            if (myClass.valueType)
+            {
+                stream << QString("    const %1* getNodeValue() const {  return m_nodeValue.getValue(); }").arg(myClass.valueType->typeName) << Qt::endl << Qt::endl;
+            }
+
             stream << "private:" << Qt::endl;
             stream << "    /* properties */" << Qt::endl;
 
@@ -1645,6 +1723,19 @@ QString XFACodeGenerator::generateSource() const
             }
 
             stream << Qt::endl;
+
+            stream << "    /* subnodes */" << Qt::endl;
+
+            for (const QString& getter : subnodeDeclarations)
+            {
+                stream << getter << Qt::endl;
+            }
+
+            if (myClass.valueType)
+            {
+                stream << Qt::endl;
+                stream << QString("    XFA_Value<%1> m_nodeValue;").arg(myClass.valueType->typeName) << Qt::endl;
+            }
 
             stream << "};" << Qt::endl << Qt::endl;
         }
@@ -1668,6 +1759,9 @@ QString XFACodeGenerator::getEnumValueName(QString enumName) const
         }
 
         enumName.replace("-", "_");
+        enumName.replace('\\', "Backslash");
+        enumName.replace('/', "Slash");
+        enumName.replace('.', "_");
     }
 
     return enumName;

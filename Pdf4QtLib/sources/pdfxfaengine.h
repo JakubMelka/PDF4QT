@@ -80,7 +80,10 @@ template<typename Value>
 using XFA_Attribute = PDFXFAValueHolder<Value, XFA_InplaceTag>;
 
 template<typename Value>
-using XFA_Node = PDFXFAValueHolder<Value, typename Value::StorageTag>;
+using XFA_Node = PDFXFAValueHolder<Value, XFA_SharedMemoryTag>;
+
+template<typename Value>
+using XFA_Value = PDFXFAValueHolder<Value, XFA_InplaceTag>;
 
 class XFA_Measurement
 {
