@@ -125,6 +125,7 @@ public:
     PDFObjectFactory& operator<<(FileAttachmentIcon icon);
     PDFObjectFactory& operator<<(const PDFDestination& destination);
     PDFObjectFactory& operator<<(PageRotation pageRotation);
+    PDFObjectFactory& operator<<(PDFFormSubmitFlags flags);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>

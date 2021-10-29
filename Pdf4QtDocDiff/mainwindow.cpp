@@ -44,8 +44,10 @@ MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_progress(new pdf::PDFProgress(this)),
+#ifdef Q_OS_WIN
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
+#endif
     m_cmsManager(nullptr),
     m_pdfWidget(nullptr),
     m_settingsDockWidget(nullptr),
@@ -62,7 +64,9 @@ MainWindow::MainWindow(QWidget* parent) :
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 
     // Initialize task bar progress
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator = m_taskbarButton->progress();
+#endif
 
     m_settingsDockWidget = new SettingsDockWidget(&m_settings, this);
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
@@ -186,7 +190,9 @@ MainWindow::~MainWindow()
 void MainWindow::showEvent(QShowEvent* event)
 {
     Q_UNUSED(event);
+#ifdef Q_OS_WIN
     m_taskbarButton->setWindow(windowHandle());
+#endif
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)
@@ -839,9 +845,13 @@ std::optional<pdf::PDFDocument> MainWindow::openDocument()
 
 void MainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
 {
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
+#else
+    Q_UNUSED(info);
+#endif
 }
 
 void MainWindow::onProgressStep(int percentage)
@@ -852,12 +862,18 @@ void MainWindow::onProgressStep(int percentage)
     }
 
     pdf::PDFTemporaryValueChange guard(&m_isChangingProgressStep, true);
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator->setValue(percentage);
+#else
+    Q_UNUSED(percentage);
+#endif
 }
 
 void MainWindow::onProgressFinished()
 {
+#ifdef Q_OS_WIN
     m_progressTaskbarIndicator->hide();
+#endif
 }
 
 }   // namespace pdfdocdiff

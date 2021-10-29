@@ -28,20 +28,6 @@ constexpr uint8_t operator "" _bitlength()
     return sizeof...(Digits);
 }
 
-enum CCITT_2D_Code_Mode
-{
-    Pass,
-    Horizontal,
-    Vertical_3L,
-    Vertical_2L,
-    Vertical_1L,
-    Vertical_0,
-    Vertical_1R,
-    Vertical_2R,
-    Vertical_3R,
-    Invalid
-};
-
 struct PDFCCITT2DModeInfo
 {
     CCITT_2D_Code_Mode mode;

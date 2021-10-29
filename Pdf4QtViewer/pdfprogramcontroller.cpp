@@ -1769,9 +1769,15 @@ void PDFProgramController::updatePageLayoutActions()
 
 void PDFProgramController::loadPlugins()
 {
+#if defined(Q_OS_WIN)
     QDir directory(QApplication::applicationDirPath() + "/pdfplugins");
     QStringList availablePlugins = directory.entryList(QStringList("*.dll"));
-
+#elif defined(Q_OS_UNIX)
+    QDir directory(QApplication::applicationDirPath() + "/../pdfplugins");
+    QStringList availablePlugins = directory.entryList(QStringList("*.so"));
+#else
+    static_assert(false, "Implement this for another OS!");
+#endif
     for (const QString& availablePlugin : availablePlugins)
     {
         QString pluginFileName = directory.absoluteFilePath(availablePlugin);
