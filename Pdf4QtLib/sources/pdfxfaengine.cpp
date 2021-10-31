@@ -257,6 +257,17 @@ public:
             attribute = XFA_Attribute<XFA_Measurement>(XFA_Measurement(value, measurementType));
         }
     }
+
+    static void parseValue(const QDomElement& element, XFA_Value<QString>& nodeValue)
+    {
+        nodeValue = XFA_Value<QString>();
+
+        QString text = element.text();
+        if (!text.isEmpty())
+        {
+            nodeValue = XFA_Value<QString>(std::move(text));
+        }
+    }
 };
 
 }   // namespace xfa
@@ -1927,6 +1938,10 @@ std::optional<XFA_appearanceFilter> XFA_appearanceFilter::parse(const QDomElemen
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -2384,6 +2399,10 @@ std::optional<XFA_boolean> XFA_boolean::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -2841,6 +2860,10 @@ std::optional<XFA_certificate> XFA_certificate::parse(const QDomElement& element
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -3334,6 +3357,10 @@ std::optional<XFA_date> XFA_date::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -3380,6 +3407,10 @@ std::optional<XFA_dateTime> XFA_dateTime::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -3489,6 +3520,10 @@ std::optional<XFA_decimal> XFA_decimal::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -3643,6 +3678,10 @@ std::optional<XFA_digestMethod> XFA_digestMethod::parse(const QDomElement& eleme
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -3914,6 +3953,10 @@ std::optional<XFA_encoding> XFA_encoding::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -4140,6 +4183,10 @@ std::optional<XFA_encryptionMethod> XFA_encryptionMethod::parse(const QDomElemen
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -4315,6 +4362,10 @@ std::optional<XFA_exData> XFA_exData::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -5006,6 +5057,10 @@ std::optional<XFA_float> XFA_float::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -5187,6 +5242,10 @@ std::optional<XFA_handler> XFA_handler::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -5302,6 +5361,10 @@ std::optional<XFA_image> XFA_image::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -5399,6 +5462,10 @@ std::optional<XFA_integer> XFA_integer::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -5787,6 +5854,10 @@ std::optional<XFA_lockDocument> XFA_lockDocument::parse(const QDomElement& eleme
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -6190,6 +6261,10 @@ std::optional<XFA_oid> XFA_oid::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -6665,6 +6740,10 @@ std::optional<XFA_picture> XFA_picture::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -7119,6 +7198,10 @@ std::optional<XFA_reason> XFA_reason::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -7258,6 +7341,10 @@ std::optional<XFA_ref> XFA_ref::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -7313,6 +7400,10 @@ std::optional<XFA_script> XFA_script::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -7602,6 +7693,10 @@ std::optional<XFA_speak> XFA_speak::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -7972,6 +8067,10 @@ std::optional<XFA_subjectDN> XFA_subjectDN::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -8171,6 +8270,10 @@ std::optional<XFA_text> XFA_text::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -8280,6 +8383,10 @@ std::optional<XFA_time> XFA_time::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 
@@ -8371,6 +8478,10 @@ std::optional<XFA_toolTip> XFA_toolTip::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+
+    // load node value
+    parseValue(element, myClass.m_nodeValue);
+
     return myClass;
 }
 

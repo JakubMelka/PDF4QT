@@ -1793,6 +1793,14 @@ QString XFACodeGenerator::generateSource() const
                 stream << QString("    parseItem(element, \"%1\", myClass.%2);").arg(subnode.subnodeName, subnodeFieldName) << Qt::endl;
             }
 
+            // Node value
+            if (myClass.valueType)
+            {
+                stream << Qt::endl;
+                stream << "    // load node value" << Qt::endl;
+                stream << QString("    parseValue(element, myClass.m_nodeValue);") << Qt::endl << Qt::endl;
+            }
+
             stream << "    return myClass;" << Qt::endl;
             stream << "}" << Qt::endl;
 

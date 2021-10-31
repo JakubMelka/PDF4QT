@@ -482,7 +482,6 @@ private:
     {
         QString className;
         const Type* valueType = nullptr;
-        QString nodeValue;
         std::vector<Attribute> attributes;
         std::vector<Subnode> subnodes;
     };
