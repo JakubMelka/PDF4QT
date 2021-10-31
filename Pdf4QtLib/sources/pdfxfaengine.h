@@ -20,128 +20,21 @@
 
 #include "pdfglobal.h"
 
-#include <optional>
 #include <memory>
 
 namespace pdf
 {
 
-namespace xfa
-{
-struct XFA_InplaceTag;
-struct XFA_SharedMemoryTag;
-
-template<typename Value, typename Tag>
-class PDFXFAValueHolder
-{
-public:
-    constexpr inline bool hasValue() const { return false; }
-    constexpr const Value* getValue() const { return nullptr; }
-};
-
-template<typename Value>
-class PDFXFAValueHolder<Value, XFA_InplaceTag>
-{
-public:
-    inline constexpr PDFXFAValueHolder(std::optional<Value> value) :
-        m_value(std::move(value))
-    {
-
-    }
-
-    constexpr inline bool hasValue() const { return m_value.has_value(); }
-    constexpr const Value* getValue() const { return m_value.has_value() ? &m_value.value() : nullptr; }
-
-private:
-    std::optional<Value> m_value;
-};
-
-template<typename Value>
-class PDFXFAValueHolder<Value, XFA_SharedMemoryTag>
-{
-public:
-    inline constexpr PDFXFAValueHolder(std::optional<Value> value) :
-        m_value()
-    {
-        if (value)
-        {
-            m_value = std::make_shared(std::move(*value));
-        }
-    }
-
-    constexpr inline bool hasValue() const { return m_value; }
-    constexpr const Value* getValue() const { return m_value.get(); }
-
-private:
-    std::shared_ptr<Value> m_value;
-};
-
-template<typename Value>
-using XFA_Attribute = PDFXFAValueHolder<Value, XFA_InplaceTag>;
-
-template<typename Value>
-using XFA_Node = PDFXFAValueHolder<Value, XFA_SharedMemoryTag>;
-
-template<typename Value>
-using XFA_Value = PDFXFAValueHolder<Value, XFA_InplaceTag>;
-
-class XFA_Measurement
-{
-public:
-    enum Type
-    {
-        in,
-        cm,
-        mm,
-        pt,
-        em,
-        percent
-    };
-
-    constexpr inline XFA_Measurement() :
-        m_value(0.0),
-        m_type(in)
-    {
-
-    }
-
-    constexpr inline XFA_Measurement(PDFReal value, Type type) :
-        m_value(value),
-        m_type(type)
-    {
-
-    }
-
-    constexpr inline XFA_Measurement(PDFReal value) :
-        m_value(value),
-        m_type(in)
-    {
-
-    }
-
-    constexpr PDFReal getValue() const { return m_value; }
-    constexpr Type getType() const { return m_type; }
-
-private:
-    PDFReal m_value;
-    Type m_type;
-};
-
-class XFA_AbstractNode
-{
-public:
-    constexpr inline XFA_AbstractNode() = default;
-    virtual ~XFA_AbstractNode();
-};
-
-}   // namespace xfa
+class PDFXFAEngineImpl;
 
 class PDFXFAEngine
 {
 public:
     PDFXFAEngine();
+    ~PDFXFAEngine();
 
 private:
+    std::unique_ptr<PDFXFAEngineImpl> m_impl;
 };
 
 /* START GENERATED CODE */

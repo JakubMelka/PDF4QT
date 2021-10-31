@@ -1623,6 +1623,7 @@ QString XFACodeGenerator::generateSource() const
         stream << "class XFA_BaseNode : public XFA_AbstractNode" << Qt::endl;
         stream << "{" << Qt::endl;
         stream << "public:" << Qt::endl;
+        stream << "    using XFA_AbstractNode::parseAttribute;" << Qt::endl;
 
         stream << Qt::endl;
 
@@ -1642,6 +1643,29 @@ QString XFACodeGenerator::generateSource() const
                 stream << "        " << getEnumValueName(enumValue) << "," << Qt::endl;
             }
             stream << "    };" << Qt::endl << Qt::endl;
+        }
+
+        for (const auto& typeItem : m_types)
+        {
+            const Type& type = typeItem.second;
+
+            if (type.enumValues.isEmpty())
+            {
+                continue;
+            }
+
+            stream << QString("    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<%1>& attribute, QString defaultValue)").arg(type.typeName) << Qt::endl;
+            stream << QString("    {") << Qt::endl;
+            stream << QString("        constexpr std::array enumValues = {") << Qt::endl;
+            for (const QString& enumValue : type.enumValues)
+            {
+                QString adjustedEnumValue = enumValue;
+                adjustedEnumValue.replace("\\", "\\\\");
+                stream << QString("            std::make_pair(%1::%2, \"%3\"),").arg(type.typeName, getEnumValueName(enumValue), adjustedEnumValue) << Qt::endl;
+            }
+            stream << QString("        };") << Qt::endl;
+            stream << QString("        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);") << Qt::endl;
+            stream << QString("    }") << Qt::endl << Qt::endl;
         }
 
         stream << "};" << Qt::endl << Qt::endl;
@@ -1714,6 +1738,10 @@ QString XFACodeGenerator::generateSource() const
                 stream << QString("    const %1* getNodeValue() const {  return m_nodeValue.getValue(); }").arg(myClass.valueType->typeName) << Qt::endl << Qt::endl;
             }
 
+            stream << QString("    static std::optional<XFA_%1> parse(const QDomElement& element);").arg(myClass.className) << Qt::endl;
+
+            stream << Qt::endl;
+
             stream << "private:" << Qt::endl;
             stream << "    /* properties */" << Qt::endl;
 
@@ -1738,6 +1766,37 @@ QString XFACodeGenerator::generateSource() const
             }
 
             stream << "};" << Qt::endl << Qt::endl;
+
+            // Class loader
+            stream << QString("std::optional<XFA_%1> XFA_%1::parse(const QDomElement& element)").arg(myClass.className) << Qt::endl;
+            stream << "{" << Qt::endl;
+            stream << "    if (element.isNull())" << Qt::endl << "    {" << Qt::endl << "        return std::nullopt;" << Qt::endl << "    }" << Qt::endl << Qt::endl;
+            stream << QString("    XFA_%1 myClass;").arg(myClass.className) << Qt::endl << Qt::endl;
+
+            // Load attributes
+            stream << "    // load attributes" << Qt::endl;
+            for (const Attribute& attribute : myClass.attributes)
+            {
+                QString attributeFieldName = QString("m_%1").arg(attribute.attributeName);
+                QString adjustedDefaultValue = attribute.defaultValue;
+                adjustedDefaultValue.replace("\\", "\\\\");
+                stream << QString("    parseAttribute(element, \"%1\", myClass.%2, \"%3\");").arg(attribute.attributeName, attributeFieldName, adjustedDefaultValue) << Qt::endl;
+            }
+
+            stream << Qt::endl;
+
+            // Load subitems
+            stream << "    // load items" << Qt::endl;
+            for (const Subnode& subnode : myClass.subnodes)
+            {
+                QString subnodeFieldName = QString("m_%1").arg(subnode.subnodeName);
+                stream << QString("    parseItem(element, \"%1\", myClass.%2);").arg(subnode.subnodeName, subnodeFieldName) << Qt::endl;
+            }
+
+            stream << "    return myClass;" << Qt::endl;
+            stream << "}" << Qt::endl;
+
+            stream << Qt::endl << Qt::endl;
         }
 
         stream << "} // namespace xfa" << Qt::endl;

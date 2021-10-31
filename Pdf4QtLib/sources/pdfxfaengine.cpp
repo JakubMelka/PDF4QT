@@ -17,8 +17,249 @@
 
 #include "pdfxfaengine.h"
 
+#include <QDomElement>
+
+#include <optional>
+
 namespace pdf
 {
+
+namespace xfa
+{
+struct XFA_InplaceTag;
+struct XFA_SharedMemoryTag;
+
+template<typename Value, typename Tag>
+class PDFXFAValueHolder
+{
+public:
+    inline constexpr PDFXFAValueHolder() = default;
+
+    constexpr inline bool hasValue() const { return false; }
+    constexpr const Value* getValue() const { return nullptr; }
+};
+
+template<typename Value>
+class PDFXFAValueHolder<Value, XFA_InplaceTag>
+{
+public:
+    inline constexpr PDFXFAValueHolder() = default;
+
+    inline constexpr PDFXFAValueHolder(std::optional<Value> value) :
+        m_value(std::move(value))
+    {
+
+    }
+
+    constexpr inline bool hasValue() const { return m_value.has_value(); }
+    constexpr const Value* getValue() const { return m_value.has_value() ? &m_value.value() : nullptr; }
+
+private:
+    std::optional<Value> m_value;
+};
+
+template<typename Value>
+class PDFXFAValueHolder<Value, XFA_SharedMemoryTag>
+{
+public:
+    inline constexpr PDFXFAValueHolder() = default;
+
+    inline constexpr PDFXFAValueHolder(std::optional<Value> value) :
+        m_value()
+    {
+        if (value)
+        {
+            m_value = std::make_shared<Value>(std::move(*value));
+        }
+    }
+
+    constexpr inline bool hasValue() const { return m_value; }
+    constexpr const Value* getValue() const { return m_value.get(); }
+
+private:
+    std::shared_ptr<Value> m_value;
+};
+
+template<typename Value>
+using XFA_Attribute = PDFXFAValueHolder<Value, XFA_InplaceTag>;
+
+template<typename Value>
+using XFA_Node = PDFXFAValueHolder<Value, XFA_SharedMemoryTag>;
+
+template<typename Value>
+using XFA_Value = PDFXFAValueHolder<Value, XFA_InplaceTag>;
+
+class XFA_Measurement
+{
+public:
+    enum Type
+    {
+        in,
+        cm,
+        mm,
+        pt,
+        em,
+        percent
+    };
+
+    constexpr inline XFA_Measurement() :
+        m_value(0.0),
+        m_type(in)
+    {
+
+    }
+
+    constexpr inline XFA_Measurement(PDFReal value, Type type) :
+        m_value(value),
+        m_type(type)
+    {
+
+    }
+
+    constexpr inline XFA_Measurement(PDFReal value) :
+        m_value(value),
+        m_type(in)
+    {
+
+    }
+
+    constexpr PDFReal getValue() const { return m_value; }
+    constexpr Type getType() const { return m_type; }
+
+private:
+    PDFReal m_value;
+    Type m_type;
+};
+
+class XFA_AbstractNode
+{
+public:
+    constexpr inline XFA_AbstractNode() = default;
+    virtual ~XFA_AbstractNode() = default;
+
+    template<typename Type>
+    static void parseItem(const QDomElement& element, QString value, XFA_Node<Type>& node)
+    {
+        // Jakub Melka: set node value to null
+        node = XFA_Node<Type>();
+
+        QDomNodeList elements = element.elementsByTagName(value);
+        if (!elements.isEmpty())
+        {
+            node = XFA_Node<Type>(Type::parse(elements.item(0).toElement()));
+        }
+    }
+
+    template<typename Type>
+    static void parseItem(const QDomElement& element, QString value, std::vector<XFA_Node<Type>>& nodes)
+    {
+        // Jakub Melka: clear node list
+        nodes.clear();
+
+        QDomNodeList elements = element.elementsByTagName(value);
+        if (!elements.isEmpty())
+        {
+            nodes.resize(elements.size());
+            for (int i = 0; i < elements.size(); ++i)
+            {
+                nodes[i] = XFA_Node<Type>(Type::parse(elements.item(i).toElement()));
+            }
+        }
+    }
+
+    template<typename Enum>
+    static void parseEnumAttribute(const QDomElement& element,
+                                   QString attributeFieldName,
+                                   XFA_Attribute<Enum>& attribute,
+                                   QString defaultValue,
+                                   const auto& enumValues)
+    {
+        attribute = XFA_Attribute<Enum>();
+        QString value = element.attribute(attributeFieldName, defaultValue);
+
+        for (const auto& enumValue : enumValues)
+        {
+            if (enumValue.second == value)
+            {
+                attribute = XFA_Attribute<Enum>(enumValue.first);
+                break;
+            }
+        }
+    }
+
+    static void parseAttribute(const QDomElement& element,
+                               QString attributeFieldName,
+                               XFA_Attribute<QString>& attribute,
+                               QString defaultValue)
+    {
+        attribute = XFA_Attribute<QString>(element.attribute(attributeFieldName, defaultValue));
+    }
+
+    static void parseAttribute(const QDomElement& element,
+                               QString attributeFieldName,
+                               XFA_Attribute<bool>& attribute,
+                               QString defaultValue)
+    {
+        attribute = XFA_Attribute<bool>(element.attribute(attributeFieldName, defaultValue).toInt() != 0);
+    }
+
+    static void parseAttribute(const QDomElement& element,
+                               QString attributeFieldName,
+                               XFA_Attribute<PDFReal>& attribute,
+                               QString defaultValue)
+    {
+        attribute = XFA_Attribute<PDFReal>(element.attribute(attributeFieldName, defaultValue).toDouble());
+    }
+
+    static void parseAttribute(const QDomElement& element,
+                               QString attributeFieldName,
+                               XFA_Attribute<PDFInteger>& attribute,
+                               QString defaultValue)
+    {
+        attribute = XFA_Attribute<PDFInteger>(element.attribute(attributeFieldName, defaultValue).toInt());
+    }
+
+    static void parseAttribute(const QDomElement& element,
+                               QString attributeFieldName,
+                               XFA_Attribute<XFA_Measurement>& attribute,
+                               QString defaultValue)
+    {
+        attribute = XFA_Attribute<XFA_Measurement>();
+
+        QString measurement = element.attribute(attributeFieldName, defaultValue);
+        XFA_Measurement::Type measurementType = XFA_Measurement::Type::in;
+
+        constexpr std::array measurementUnits = {
+            std::make_pair(XFA_Measurement::Type::in, "in"),
+            std::make_pair(XFA_Measurement::Type::pt, "pt"),
+            std::make_pair(XFA_Measurement::Type::cm, "cm"),
+            std::make_pair(XFA_Measurement::Type::mm, "mm"),
+            std::make_pair(XFA_Measurement::Type::em, "em"),
+            std::make_pair(XFA_Measurement::Type::percent, "%")
+        };
+
+        for (const auto& measurementUnit : measurementUnits)
+        {
+            QLatin1String unit(measurementUnit.second);
+            if (measurement.endsWith(unit))
+            {
+                measurementType = measurementUnit.first;
+                measurement.chop(unit.size());
+                break;
+            }
+        }
+
+        bool ok = false;
+        PDFReal value = measurement.toDouble(&ok);
+
+        if (ok)
+        {
+            attribute = XFA_Attribute<XFA_Measurement>(XFA_Measurement(value, measurementType));
+        }
+    }
+};
+
+}   // namespace xfa
 
 /* START GENERATED CODE */
 
@@ -142,6 +383,7 @@ class XFA_variables;
 class XFA_BaseNode : public XFA_AbstractNode
 {
 public:
+    using XFA_AbstractNode::parseAttribute;
 
     enum class ACCESS
     {
@@ -769,6 +1011,878 @@ public:
         Bold,
     };
 
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ACCESS>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ACCESS::Open, "open"),
+            std::make_pair(ACCESS::NonInteractive, "nonInteractive"),
+            std::make_pair(ACCESS::Protected, "protected"),
+            std::make_pair(ACCESS::ReadOnly, "readOnly"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ACTION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ACTION::Include, "include"),
+            std::make_pair(ACTION::All, "all"),
+            std::make_pair(ACTION::Exclude, "exclude"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ACTIVITY>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ACTIVITY::Click, "click"),
+            std::make_pair(ACTIVITY::Change, "change"),
+            std::make_pair(ACTIVITY::DocClose, "docClose"),
+            std::make_pair(ACTIVITY::DocReady, "docReady"),
+            std::make_pair(ACTIVITY::Enter, "enter"),
+            std::make_pair(ACTIVITY::Exit, "exit"),
+            std::make_pair(ACTIVITY::Full, "full"),
+            std::make_pair(ACTIVITY::IndexChange, "indexChange"),
+            std::make_pair(ACTIVITY::Initialize, "initialize"),
+            std::make_pair(ACTIVITY::MouseDown, "mouseDown"),
+            std::make_pair(ACTIVITY::MouseEnter, "mouseEnter"),
+            std::make_pair(ACTIVITY::MouseExit, "mouseExit"),
+            std::make_pair(ACTIVITY::MouseUp, "mouseUp"),
+            std::make_pair(ACTIVITY::PostExecute, "postExecute"),
+            std::make_pair(ACTIVITY::PostOpen, "postOpen"),
+            std::make_pair(ACTIVITY::PostPrint, "postPrint"),
+            std::make_pair(ACTIVITY::PostSave, "postSave"),
+            std::make_pair(ACTIVITY::PostSign, "postSign"),
+            std::make_pair(ACTIVITY::PostSubmit, "postSubmit"),
+            std::make_pair(ACTIVITY::PreExecute, "preExecute"),
+            std::make_pair(ACTIVITY::PreOpen, "preOpen"),
+            std::make_pair(ACTIVITY::PrePrint, "prePrint"),
+            std::make_pair(ACTIVITY::PreSave, "preSave"),
+            std::make_pair(ACTIVITY::PreSign, "preSign"),
+            std::make_pair(ACTIVITY::PreSubmit, "preSubmit"),
+            std::make_pair(ACTIVITY::Ready, "ready"),
+            std::make_pair(ACTIVITY::ValidationState, "validationState"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<AFTER>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(AFTER::Auto, "auto"),
+            std::make_pair(AFTER::ContentArea, "contentArea"),
+            std::make_pair(AFTER::PageArea, "pageArea"),
+            std::make_pair(AFTER::PageEven, "pageEven"),
+            std::make_pair(AFTER::PageOdd, "pageOdd"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ANCHORTYPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ANCHORTYPE::TopLeft, "topLeft"),
+            std::make_pair(ANCHORTYPE::BottomCenter, "bottomCenter"),
+            std::make_pair(ANCHORTYPE::BottomLeft, "bottomLeft"),
+            std::make_pair(ANCHORTYPE::BottomRight, "bottomRight"),
+            std::make_pair(ANCHORTYPE::MiddleCenter, "middleCenter"),
+            std::make_pair(ANCHORTYPE::MiddleLeft, "middleLeft"),
+            std::make_pair(ANCHORTYPE::MiddleRight, "middleRight"),
+            std::make_pair(ANCHORTYPE::TopCenter, "topCenter"),
+            std::make_pair(ANCHORTYPE::TopRight, "topRight"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ASPECT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ASPECT::Fit, "fit"),
+            std::make_pair(ASPECT::Actual, "actual"),
+            std::make_pair(ASPECT::Height, "height"),
+            std::make_pair(ASPECT::None, "none"),
+            std::make_pair(ASPECT::Width, "width"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<BASEPROFILE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(BASEPROFILE::Full, "full"),
+            std::make_pair(BASEPROFILE::InteractiveForms, "interactiveForms"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<BEFORE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(BEFORE::Auto, "auto"),
+            std::make_pair(BEFORE::ContentArea, "contentArea"),
+            std::make_pair(BEFORE::PageArea, "pageArea"),
+            std::make_pair(BEFORE::PageEven, "pageEven"),
+            std::make_pair(BEFORE::PageOdd, "pageOdd"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<BLANKORNOTBLANK>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(BLANKORNOTBLANK::Any, "any"),
+            std::make_pair(BLANKORNOTBLANK::Blank, "blank"),
+            std::make_pair(BLANKORNOTBLANK::NotBlank, "notBlank"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<BREAK>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(BREAK::Close, "close"),
+            std::make_pair(BREAK::Open, "open"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<CAP>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(CAP::Square, "square"),
+            std::make_pair(CAP::Butt, "butt"),
+            std::make_pair(CAP::Round, "round"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<CHECKSUM>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(CHECKSUM::None, "none"),
+            std::make_pair(CHECKSUM::_1mod10, "1mod10"),
+            std::make_pair(CHECKSUM::_1mod10_1mod11, "1mod10_1mod11"),
+            std::make_pair(CHECKSUM::_2mod10, "2mod10"),
+            std::make_pair(CHECKSUM::Auto, "auto"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<COMMITON>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(COMMITON::Select, "select"),
+            std::make_pair(COMMITON::Exit, "exit"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<CREDENTIALSERVERPOLICY>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(CREDENTIALSERVERPOLICY::Optional, "optional"),
+            std::make_pair(CREDENTIALSERVERPOLICY::Required, "required"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<DATAPREP>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(DATAPREP::None, "none"),
+            std::make_pair(DATAPREP::FlateCompress, "flateCompress"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<DATA>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(DATA::Link, "link"),
+            std::make_pair(DATA::Embed, "embed"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<DUPLEXIMPOSITION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(DUPLEXIMPOSITION::LongEdge, "longEdge"),
+            std::make_pair(DUPLEXIMPOSITION::ShortEdge, "shortEdge"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<EXECUTETYPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(EXECUTETYPE::Import, "import"),
+            std::make_pair(EXECUTETYPE::Remerge, "remerge"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<FORMATTEST>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(FORMATTEST::Warning, "warning"),
+            std::make_pair(FORMATTEST::Disabled, "disabled"),
+            std::make_pair(FORMATTEST::Error, "error"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<FORMAT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(FORMAT::Xdp, "xdp"),
+            std::make_pair(FORMAT::Formdata, "formdata"),
+            std::make_pair(FORMAT::Pdf, "pdf"),
+            std::make_pair(FORMAT::Urlencoded, "urlencoded"),
+            std::make_pair(FORMAT::Xfd, "xfd"),
+            std::make_pair(FORMAT::Xml, "xml"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<HALIGN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(HALIGN::Left, "left"),
+            std::make_pair(HALIGN::Center, "center"),
+            std::make_pair(HALIGN::Justify, "justify"),
+            std::make_pair(HALIGN::JustifyAll, "justifyAll"),
+            std::make_pair(HALIGN::Radix, "radix"),
+            std::make_pair(HALIGN::Right, "right"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<HSCROLLPOLICY>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(HSCROLLPOLICY::Auto, "auto"),
+            std::make_pair(HSCROLLPOLICY::Off, "off"),
+            std::make_pair(HSCROLLPOLICY::On, "on"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<HAND>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(HAND::Even, "even"),
+            std::make_pair(HAND::Left, "left"),
+            std::make_pair(HAND::Right, "right"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<HIGHLIGHT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(HIGHLIGHT::Inverted, "inverted"),
+            std::make_pair(HIGHLIGHT::None, "none"),
+            std::make_pair(HIGHLIGHT::Outline, "outline"),
+            std::make_pair(HIGHLIGHT::Push, "push"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<INTACT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(INTACT::None, "none"),
+            std::make_pair(INTACT::ContentArea, "contentArea"),
+            std::make_pair(INTACT::PageArea, "pageArea"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<JOIN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(JOIN::Square, "square"),
+            std::make_pair(JOIN::Round, "round"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<KERNINGMODE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(KERNINGMODE::None, "none"),
+            std::make_pair(KERNINGMODE::Pair, "pair"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<LAYOUT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(LAYOUT::Position, "position"),
+            std::make_pair(LAYOUT::Lr_tb, "lr-tb"),
+            std::make_pair(LAYOUT::Rl_row, "rl-row"),
+            std::make_pair(LAYOUT::Rl_tb, "rl-tb"),
+            std::make_pair(LAYOUT::Row, "row"),
+            std::make_pair(LAYOUT::Table, "table"),
+            std::make_pair(LAYOUT::Tb, "tb"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<LINETHROUGHPERIOD>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(LINETHROUGHPERIOD::All, "all"),
+            std::make_pair(LINETHROUGHPERIOD::Word, "word"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<LINETHROUGH>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(LINETHROUGH::_0, "0"),
+            std::make_pair(LINETHROUGH::_1, "1"),
+            std::make_pair(LINETHROUGH::_2, "2"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<LISTEN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(LISTEN::RefOnly, "refOnly"),
+            std::make_pair(LISTEN::RefAndDescendents, "refAndDescendents"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<MARK>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(MARK::Default, "default"),
+            std::make_pair(MARK::Check, "check"),
+            std::make_pair(MARK::Circle, "circle"),
+            std::make_pair(MARK::Cross, "cross"),
+            std::make_pair(MARK::Diamond, "diamond"),
+            std::make_pair(MARK::Square, "square"),
+            std::make_pair(MARK::Star, "star"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<MATCH>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(MATCH::Once, "once"),
+            std::make_pair(MATCH::DataRef, "dataRef"),
+            std::make_pair(MATCH::Global, "global"),
+            std::make_pair(MATCH::None, "none"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<MERGEMODE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(MERGEMODE::ConsumeData, "consumeData"),
+            std::make_pair(MERGEMODE::MatchTemplate, "matchTemplate"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<MULTILINE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(MULTILINE::_1, "1"),
+            std::make_pair(MULTILINE::_0, "0"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<NEXT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(NEXT::None, "none"),
+            std::make_pair(NEXT::ContentArea, "contentArea"),
+            std::make_pair(NEXT::PageArea, "pageArea"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<NULLTEST>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(NULLTEST::Disabled, "disabled"),
+            std::make_pair(NULLTEST::Error, "error"),
+            std::make_pair(NULLTEST::Warning, "warning"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ODDOREVEN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ODDOREVEN::Any, "any"),
+            std::make_pair(ODDOREVEN::Even, "even"),
+            std::make_pair(ODDOREVEN::Odd, "odd"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OPEN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OPEN::UserControl, "userControl"),
+            std::make_pair(OPEN::Always, "always"),
+            std::make_pair(OPEN::MultiSelect, "multiSelect"),
+            std::make_pair(OPEN::OnEntry, "onEntry"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OPERATION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OPERATION::Encrypt, "encrypt"),
+            std::make_pair(OPERATION::Decrypt, "decrypt"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OPERATION2>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OPERATION2::Next, "next"),
+            std::make_pair(OPERATION2::Back, "back"),
+            std::make_pair(OPERATION2::Down, "down"),
+            std::make_pair(OPERATION2::First, "first"),
+            std::make_pair(OPERATION2::Left, "left"),
+            std::make_pair(OPERATION2::Right, "right"),
+            std::make_pair(OPERATION2::Up, "up"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OPERATION1>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OPERATION1::Sign, "sign"),
+            std::make_pair(OPERATION1::Clear, "clear"),
+            std::make_pair(OPERATION1::Verify, "verify"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<ORIENTATION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(ORIENTATION::Portrait, "portrait"),
+            std::make_pair(ORIENTATION::Landscape, "landscape"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OVERLINEPERIOD>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OVERLINEPERIOD::All, "all"),
+            std::make_pair(OVERLINEPERIOD::Word, "word"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OVERLINE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OVERLINE::_0, "0"),
+            std::make_pair(OVERLINE::_1, "1"),
+            std::make_pair(OVERLINE::_2, "2"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<OVERRIDE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(OVERRIDE::Disabled, "disabled"),
+            std::make_pair(OVERRIDE::Error, "error"),
+            std::make_pair(OVERRIDE::Ignore, "ignore"),
+            std::make_pair(OVERRIDE::Warning, "warning"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PAGEPOSITION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PAGEPOSITION::Any, "any"),
+            std::make_pair(PAGEPOSITION::First, "first"),
+            std::make_pair(PAGEPOSITION::Last, "last"),
+            std::make_pair(PAGEPOSITION::Only, "only"),
+            std::make_pair(PAGEPOSITION::Rest, "rest"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PERMISSIONS>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PERMISSIONS::_2, "2"),
+            std::make_pair(PERMISSIONS::_1, "1"),
+            std::make_pair(PERMISSIONS::_3, "3"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PICKER>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PICKER::Host, "host"),
+            std::make_pair(PICKER::None, "none"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PLACEMENT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PLACEMENT::Left, "left"),
+            std::make_pair(PLACEMENT::Bottom, "bottom"),
+            std::make_pair(PLACEMENT::Inline, "inline"),
+            std::make_pair(PLACEMENT::Right, "right"),
+            std::make_pair(PLACEMENT::Top, "top"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<POSTURE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(POSTURE::Normal, "normal"),
+            std::make_pair(POSTURE::Italic, "italic"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PRESENCE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PRESENCE::Visible, "visible"),
+            std::make_pair(PRESENCE::Hidden, "hidden"),
+            std::make_pair(PRESENCE::Inactive, "inactive"),
+            std::make_pair(PRESENCE::Invisible, "invisible"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PREVIOUS>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PREVIOUS::None, "none"),
+            std::make_pair(PREVIOUS::ContentArea, "contentArea"),
+            std::make_pair(PREVIOUS::PageArea, "pageArea"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<PRIORITY>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(PRIORITY::Custom, "custom"),
+            std::make_pair(PRIORITY::Caption, "caption"),
+            std::make_pair(PRIORITY::Name, "name"),
+            std::make_pair(PRIORITY::ToolTip, "toolTip"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<RELATION1>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(RELATION1::Ordered, "ordered"),
+            std::make_pair(RELATION1::Choice, "choice"),
+            std::make_pair(RELATION1::Unordered, "unordered"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<RELATION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(RELATION::OrderedOccurrence, "orderedOccurrence"),
+            std::make_pair(RELATION::DuplexPaginated, "duplexPaginated"),
+            std::make_pair(RELATION::SimplexPaginated, "simplexPaginated"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<RESTORESTATE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(RESTORESTATE::Manual, "manual"),
+            std::make_pair(RESTORESTATE::Auto, "auto"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<RUNAT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(RUNAT::Client, "client"),
+            std::make_pair(RUNAT::Both, "both"),
+            std::make_pair(RUNAT::Server, "server"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<SCOPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(SCOPE::Name, "name"),
+            std::make_pair(SCOPE::None, "none"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<SCRIPTTEST>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(SCRIPTTEST::Error, "error"),
+            std::make_pair(SCRIPTTEST::Disabled, "disabled"),
+            std::make_pair(SCRIPTTEST::Warning, "warning"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<SHAPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(SHAPE::Square, "square"),
+            std::make_pair(SHAPE::Round, "round"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<SIGNATURETYPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(SIGNATURETYPE::Filler, "filler"),
+            std::make_pair(SIGNATURETYPE::Author, "author"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<SLOPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(SLOPE::Backslash, "\\"),
+            std::make_pair(SLOPE::Slash, "/"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<STROKE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(STROKE::Solid, "solid"),
+            std::make_pair(STROKE::DashDot, "dashDot"),
+            std::make_pair(STROKE::DashDotDot, "dashDotDot"),
+            std::make_pair(STROKE::Dashed, "dashed"),
+            std::make_pair(STROKE::Dotted, "dotted"),
+            std::make_pair(STROKE::Embossed, "embossed"),
+            std::make_pair(STROKE::Etched, "etched"),
+            std::make_pair(STROKE::Lowered, "lowered"),
+            std::make_pair(STROKE::Raised, "raised"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TARGETTYPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TARGETTYPE::Auto, "auto"),
+            std::make_pair(TARGETTYPE::ContentArea, "contentArea"),
+            std::make_pair(TARGETTYPE::PageArea, "pageArea"),
+            std::make_pair(TARGETTYPE::PageEven, "pageEven"),
+            std::make_pair(TARGETTYPE::PageOdd, "pageOdd"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TEXTLOCATION>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TEXTLOCATION::Below, "below"),
+            std::make_pair(TEXTLOCATION::Above, "above"),
+            std::make_pair(TEXTLOCATION::AboveEmbedded, "aboveEmbedded"),
+            std::make_pair(TEXTLOCATION::BelowEmbedded, "belowEmbedded"),
+            std::make_pair(TEXTLOCATION::None, "none"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TRANSFERENCODING1>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TRANSFERENCODING1::Base64, "base64"),
+            std::make_pair(TRANSFERENCODING1::None, "none"),
+            std::make_pair(TRANSFERENCODING1::Package, "package"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TRANSFERENCODING>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TRANSFERENCODING::None, "none"),
+            std::make_pair(TRANSFERENCODING::Base64, "base64"),
+            std::make_pair(TRANSFERENCODING::Package, "package"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TRAYIN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TRAYIN::Auto, "auto"),
+            std::make_pair(TRAYIN::Delegate, "delegate"),
+            std::make_pair(TRAYIN::PageFront, "pageFront"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TRAYOUT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TRAYOUT::Auto, "auto"),
+            std::make_pair(TRAYOUT::Delegate, "delegate"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TYPE4>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TYPE4::PDF1_3, "PDF1.3"),
+            std::make_pair(TYPE4::PDF1_6, "PDF1.6"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TYPE2>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TYPE2::CrossHatch, "crossHatch"),
+            std::make_pair(TYPE2::CrossDiagonal, "crossDiagonal"),
+            std::make_pair(TYPE2::DiagonalLeft, "diagonalLeft"),
+            std::make_pair(TYPE2::DiagonalRight, "diagonalRight"),
+            std::make_pair(TYPE2::Horizontal, "horizontal"),
+            std::make_pair(TYPE2::Vertical, "vertical"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TYPE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TYPE::Optional, "optional"),
+            std::make_pair(TYPE::Required, "required"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TYPE3>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TYPE3::ToEdge, "toEdge"),
+            std::make_pair(TYPE3::ToCenter, "toCenter"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<TYPE1>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(TYPE1::ToRight, "toRight"),
+            std::make_pair(TYPE1::ToBottom, "toBottom"),
+            std::make_pair(TYPE1::ToLeft, "toLeft"),
+            std::make_pair(TYPE1::ToTop, "toTop"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<UNDERLINEPERIOD>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(UNDERLINEPERIOD::All, "all"),
+            std::make_pair(UNDERLINEPERIOD::Word, "word"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<UNDERLINE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(UNDERLINE::_0, "0"),
+            std::make_pair(UNDERLINE::_1, "1"),
+            std::make_pair(UNDERLINE::_2, "2"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<UPSMODE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(UPSMODE::UsCarrier, "usCarrier"),
+            std::make_pair(UPSMODE::InternationalCarrier, "internationalCarrier"),
+            std::make_pair(UPSMODE::SecureSymbol, "secureSymbol"),
+            std::make_pair(UPSMODE::StandardSymbol, "standardSymbol"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<USAGE>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(USAGE::ExportAndImport, "exportAndImport"),
+            std::make_pair(USAGE::ExportOnly, "exportOnly"),
+            std::make_pair(USAGE::ImportOnly, "importOnly"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<VALIGN>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(VALIGN::Top, "top"),
+            std::make_pair(VALIGN::Bottom, "bottom"),
+            std::make_pair(VALIGN::Middle, "middle"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<VSCROLLPOLICY>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(VSCROLLPOLICY::Auto, "auto"),
+            std::make_pair(VSCROLLPOLICY::Off, "off"),
+            std::make_pair(VSCROLLPOLICY::On, "on"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
+    static void parseAttribute(const QDomElement& element, QString attributeFieldName, XFA_Attribute<WEIGHT>& attribute, QString defaultValue)
+    {
+        constexpr std::array enumValues = {
+            std::make_pair(WEIGHT::Normal, "normal"),
+            std::make_pair(WEIGHT::Bold, "bold"),
+        };
+        parseEnumAttribute(element, attributeFieldName, attribute, defaultValue, enumValues);
+    }
+
 };
 
 class XFA_appearanceFilter : public XFA_BaseNode
@@ -783,6 +1897,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_appearanceFilter> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -794,6 +1910,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_appearanceFilter> XFA_appearanceFilter::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_appearanceFilter myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_arc : public XFA_BaseNode
 {
@@ -810,6 +1946,8 @@ public:
     const XFA_edge* getEdge() const {  return m_edge.getValue(); }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
 
+    static std::optional<XFA_arc> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<bool> m_circular;
@@ -824,6 +1962,31 @@ private:
     XFA_Node<XFA_edge> m_edge;
     XFA_Node<XFA_fill> m_fill;
 };
+
+std::optional<XFA_arc> XFA_arc::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_arc myClass;
+
+    // load attributes
+    parseAttribute(element, "circular", myClass.m_circular, "0");
+    parseAttribute(element, "hand", myClass.m_hand, "even");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "startAngle", myClass.m_startAngle, "0");
+    parseAttribute(element, "sweepAngle", myClass.m_sweepAngle, "360");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "edge", myClass.m_edge);
+    parseItem(element, "fill", myClass.m_fill);
+    return myClass;
+}
+
 
 class XFA_area : public XFA_BaseNode
 {
@@ -848,6 +2011,8 @@ public:
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
     const std::vector<XFA_Node<XFA_subformSet>>& getSubformSet() const {  return m_subformSet; }
 
+    static std::optional<XFA_area> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<PDFInteger> m_colSpan;
@@ -871,6 +2036,39 @@ private:
     std::vector<XFA_Node<XFA_subformSet>> m_subformSet;
 };
 
+std::optional<XFA_area> XFA_area::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_area myClass;
+
+    // load attributes
+    parseAttribute(element, "colSpan", myClass.m_colSpan, "1");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "x", myClass.m_x, "0in");
+    parseAttribute(element, "y", myClass.m_y, "0in");
+
+    // load items
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "area", myClass.m_area);
+    parseItem(element, "draw", myClass.m_draw);
+    parseItem(element, "exObject", myClass.m_exObject);
+    parseItem(element, "exclGroup", myClass.m_exclGroup);
+    parseItem(element, "field", myClass.m_field);
+    parseItem(element, "subform", myClass.m_subform);
+    parseItem(element, "subformSet", myClass.m_subformSet);
+    return myClass;
+}
+
+
 class XFA_assist : public XFA_BaseNode
 {
 public:
@@ -883,6 +2081,8 @@ public:
     const XFA_speak* getSpeak() const {  return m_speak.getValue(); }
     const XFA_toolTip* getToolTip() const {  return m_toolTip.getValue(); }
 
+    static std::optional<XFA_assist> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -894,6 +2094,28 @@ private:
     XFA_Node<XFA_speak> m_speak;
     XFA_Node<XFA_toolTip> m_toolTip;
 };
+
+std::optional<XFA_assist> XFA_assist::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_assist myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "role", myClass.m_role, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "speak", myClass.m_speak);
+    parseItem(element, "toolTip", myClass.m_toolTip);
+    return myClass;
+}
+
 
 class XFA_barcode : public XFA_BaseNode
 {
@@ -924,6 +2146,8 @@ public:
     const XFA_encrypt* getEncrypt() const {  return m_encrypt.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_barcode> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_charEncoding;
@@ -953,6 +2177,45 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_barcode> XFA_barcode::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_barcode myClass;
+
+    // load attributes
+    parseAttribute(element, "charEncoding", myClass.m_charEncoding, "");
+    parseAttribute(element, "checksum", myClass.m_checksum, "none");
+    parseAttribute(element, "dataColumnCount", myClass.m_dataColumnCount, "");
+    parseAttribute(element, "dataLength", myClass.m_dataLength, "");
+    parseAttribute(element, "dataPrep", myClass.m_dataPrep, "none");
+    parseAttribute(element, "dataRowCount", myClass.m_dataRowCount, "");
+    parseAttribute(element, "endChar", myClass.m_endChar, "");
+    parseAttribute(element, "errorCorrectionLevel", myClass.m_errorCorrectionLevel, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "moduleHeight", myClass.m_moduleHeight, "5mm");
+    parseAttribute(element, "moduleWidth", myClass.m_moduleWidth, "0.25mm");
+    parseAttribute(element, "printCheckDigit", myClass.m_printCheckDigit, "0");
+    parseAttribute(element, "rowColumnRatio", myClass.m_rowColumnRatio, "");
+    parseAttribute(element, "startChar", myClass.m_startChar, "");
+    parseAttribute(element, "textLocation", myClass.m_textLocation, "below");
+    parseAttribute(element, "truncate", myClass.m_truncate, "");
+    parseAttribute(element, "type", myClass.m_type, "");
+    parseAttribute(element, "upsMode", myClass.m_upsMode, "usCarrier");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "wideNarrowRatio", myClass.m_wideNarrowRatio, "");
+
+    // load items
+    parseItem(element, "encrypt", myClass.m_encrypt);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_bind : public XFA_BaseNode
 {
 public:
@@ -962,6 +2225,8 @@ public:
 
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
 
+    static std::optional<XFA_bind> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<MATCH> m_match;
@@ -970,6 +2235,25 @@ private:
     /* subnodes */
     XFA_Node<XFA_picture> m_picture;
 };
+
+std::optional<XFA_bind> XFA_bind::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_bind myClass;
+
+    // load attributes
+    parseAttribute(element, "match", myClass.m_match, "once");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+
+    // load items
+    parseItem(element, "picture", myClass.m_picture);
+    return myClass;
+}
+
 
 class XFA_bindItems : public XFA_BaseNode
 {
@@ -981,6 +2265,8 @@ public:
     const QString* getValueRef() const {  return m_valueRef.getValue(); }
 
 
+    static std::optional<XFA_bindItems> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_connection;
@@ -990,6 +2276,26 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_bindItems> XFA_bindItems::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_bindItems myClass;
+
+    // load attributes
+    parseAttribute(element, "connection", myClass.m_connection, "");
+    parseAttribute(element, "labelRef", myClass.m_labelRef, "");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "valueRef", myClass.m_valueRef, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_bookend : public XFA_BaseNode
 {
@@ -1002,6 +2308,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_bookend> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1012,6 +2320,27 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_bookend> XFA_bookend::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_bookend myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "leader", myClass.m_leader, "");
+    parseAttribute(element, "trailer", myClass.m_trailer, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_boolean : public XFA_BaseNode
 {
@@ -1025,6 +2354,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_boolean> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1036,6 +2367,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_boolean> XFA_boolean::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_boolean myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_border : public XFA_BaseNode
 {
@@ -1055,6 +2406,8 @@ public:
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
 
+    static std::optional<XFA_border> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<BREAK> m_break;
@@ -1072,6 +2425,34 @@ private:
     XFA_Node<XFA_fill> m_fill;
     XFA_Node<XFA_margin> m_margin;
 };
+
+std::optional<XFA_border> XFA_border::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_border myClass;
+
+    // load attributes
+    parseAttribute(element, "break", myClass.m_break, "close");
+    parseAttribute(element, "hand", myClass.m_hand, "even");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "corner", myClass.m_corner);
+    parseItem(element, "edge", myClass.m_edge);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "fill", myClass.m_fill);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
 
 class XFA_break : public XFA_BaseNode
 {
@@ -1093,6 +2474,8 @@ public:
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_break> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<AFTER> m_after;
@@ -1113,6 +2496,36 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_break> XFA_break::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_break myClass;
+
+    // load attributes
+    parseAttribute(element, "after", myClass.m_after, "auto");
+    parseAttribute(element, "afterTarget", myClass.m_afterTarget, "");
+    parseAttribute(element, "before", myClass.m_before, "auto");
+    parseAttribute(element, "beforeTarget", myClass.m_beforeTarget, "");
+    parseAttribute(element, "bookendLeader", myClass.m_bookendLeader, "");
+    parseAttribute(element, "bookendTrailer", myClass.m_bookendTrailer, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "overflowLeader", myClass.m_overflowLeader, "");
+    parseAttribute(element, "overflowTarget", myClass.m_overflowTarget, "");
+    parseAttribute(element, "overflowTrailer", myClass.m_overflowTrailer, "");
+    parseAttribute(element, "startNew", myClass.m_startNew, "0");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_breakAfter : public XFA_BaseNode
 {
 public:
@@ -1128,6 +2541,8 @@ public:
 
     const XFA_script* getScript() const {  return m_script.getValue(); }
 
+    static std::optional<XFA_breakAfter> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1142,6 +2557,31 @@ private:
     /* subnodes */
     XFA_Node<XFA_script> m_script;
 };
+
+std::optional<XFA_breakAfter> XFA_breakAfter::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_breakAfter myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "leader", myClass.m_leader, "");
+    parseAttribute(element, "startNew", myClass.m_startNew, "0");
+    parseAttribute(element, "target", myClass.m_target, "");
+    parseAttribute(element, "targetType", myClass.m_targetType, "auto");
+    parseAttribute(element, "trailer", myClass.m_trailer, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "script", myClass.m_script);
+    return myClass;
+}
+
 
 class XFA_breakBefore : public XFA_BaseNode
 {
@@ -1158,6 +2598,8 @@ public:
 
     const XFA_script* getScript() const {  return m_script.getValue(); }
 
+    static std::optional<XFA_breakBefore> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1173,6 +2615,31 @@ private:
     XFA_Node<XFA_script> m_script;
 };
 
+std::optional<XFA_breakBefore> XFA_breakBefore::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_breakBefore myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "leader", myClass.m_leader, "");
+    parseAttribute(element, "startNew", myClass.m_startNew, "0");
+    parseAttribute(element, "target", myClass.m_target, "");
+    parseAttribute(element, "targetType", myClass.m_targetType, "auto");
+    parseAttribute(element, "trailer", myClass.m_trailer, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "script", myClass.m_script);
+    return myClass;
+}
+
+
 class XFA_button : public XFA_BaseNode
 {
 public:
@@ -1184,6 +2651,8 @@ public:
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_button> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<HIGHLIGHT> m_highlight;
@@ -1194,6 +2663,27 @@ private:
     /* subnodes */
     XFA_Node<XFA_extras> m_extras;
 };
+
+std::optional<XFA_button> XFA_button::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_button myClass;
+
+    // load attributes
+    parseAttribute(element, "highlight", myClass.m_highlight, "inverted");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
 
 class XFA_calculate : public XFA_BaseNode
 {
@@ -1208,6 +2698,8 @@ public:
     const XFA_message* getMessage() const {  return m_message.getValue(); }
     const XFA_script* getScript() const {  return m_script.getValue(); }
 
+    static std::optional<XFA_calculate> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1220,6 +2712,29 @@ private:
     XFA_Node<XFA_message> m_message;
     XFA_Node<XFA_script> m_script;
 };
+
+std::optional<XFA_calculate> XFA_calculate::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_calculate myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "override", myClass.m_override, "disabled");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "message", myClass.m_message);
+    parseItem(element, "script", myClass.m_script);
+    return myClass;
+}
+
 
 class XFA_caption : public XFA_BaseNode
 {
@@ -1238,6 +2753,8 @@ public:
     const XFA_para* getPara() const {  return m_para.getValue(); }
     const XFA_value* getValue() const {  return m_value.getValue(); }
 
+    static std::optional<XFA_caption> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1255,6 +2772,33 @@ private:
     XFA_Node<XFA_value> m_value;
 };
 
+std::optional<XFA_caption> XFA_caption::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_caption myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "placement", myClass.m_placement, "left");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "reserve", myClass.m_reserve, "-1");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "font", myClass.m_font);
+    parseItem(element, "margin", myClass.m_margin);
+    parseItem(element, "para", myClass.m_para);
+    parseItem(element, "value", myClass.m_value);
+    return myClass;
+}
+
+
 class XFA_certificate : public XFA_BaseNode
 {
 public:
@@ -1267,6 +2811,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_certificate> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1278,6 +2824,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_certificate> XFA_certificate::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_certificate myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_certificates : public XFA_BaseNode
 {
@@ -1297,6 +2863,8 @@ public:
     const XFA_signing* getSigning() const {  return m_signing.getValue(); }
     const XFA_subjectDNs* getSubjectDNs() const {  return m_subjectDNs.getValue(); }
 
+    static std::optional<XFA_certificates> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<CREDENTIALSERVERPOLICY> m_credentialServerPolicy;
@@ -1315,6 +2883,34 @@ private:
     XFA_Node<XFA_subjectDNs> m_subjectDNs;
 };
 
+std::optional<XFA_certificates> XFA_certificates::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_certificates myClass;
+
+    // load attributes
+    parseAttribute(element, "credentialServerPolicy", myClass.m_credentialServerPolicy, "optional");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "url", myClass.m_url, "");
+    parseAttribute(element, "urlPolicy", myClass.m_urlPolicy, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "encryption", myClass.m_encryption);
+    parseItem(element, "issuers", myClass.m_issuers);
+    parseItem(element, "keyUsage", myClass.m_keyUsage);
+    parseItem(element, "oids", myClass.m_oids);
+    parseItem(element, "signing", myClass.m_signing);
+    parseItem(element, "subjectDNs", myClass.m_subjectDNs);
+    return myClass;
+}
+
+
 class XFA_checkButton : public XFA_BaseNode
 {
 public:
@@ -1329,6 +2925,8 @@ public:
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    static std::optional<XFA_checkButton> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1345,6 +2943,31 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_checkButton> XFA_checkButton::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_checkButton myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "mark", myClass.m_mark, "default");
+    parseAttribute(element, "shape", myClass.m_shape, "square");
+    parseAttribute(element, "size", myClass.m_size, "10pt");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_choiceList : public XFA_BaseNode
 {
 public:
@@ -1359,6 +2982,8 @@ public:
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    static std::optional<XFA_choiceList> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1375,6 +3000,31 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_choiceList> XFA_choiceList::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_choiceList myClass;
+
+    // load attributes
+    parseAttribute(element, "commitOn", myClass.m_commitOn, "select");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "open", myClass.m_open, "userControl");
+    parseAttribute(element, "textEntry", myClass.m_textEntry, "0");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_color : public XFA_BaseNode
 {
 public:
@@ -1386,6 +3036,8 @@ public:
     const QString* getValue() const {  return m_value.getValue(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    static std::optional<XFA_color> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1399,6 +3051,28 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_color> XFA_color::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_color myClass;
+
+    // load attributes
+    parseAttribute(element, "cSpace", myClass.m_cSpace, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "value", myClass.m_value, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_comb : public XFA_BaseNode
 {
 public:
@@ -1409,6 +3083,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_comb> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1418,6 +3094,26 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_comb> XFA_comb::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_comb myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "numberOfCells", myClass.m_numberOfCells, "0");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_connect : public XFA_BaseNode
 {
@@ -1432,6 +3128,8 @@ public:
 
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
 
+    static std::optional<XFA_connect> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_connection;
@@ -1444,6 +3142,29 @@ private:
     /* subnodes */
     XFA_Node<XFA_picture> m_picture;
 };
+
+std::optional<XFA_connect> XFA_connect::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_connect myClass;
+
+    // load attributes
+    parseAttribute(element, "connection", myClass.m_connection, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "usage", myClass.m_usage, "exportAndImport");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "picture", myClass.m_picture);
+    return myClass;
+}
+
 
 class XFA_contentArea : public XFA_BaseNode
 {
@@ -1462,6 +3183,8 @@ public:
     const XFA_desc* getDesc() const {  return m_desc.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_contentArea> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<XFA_Measurement> m_h;
@@ -1478,6 +3201,33 @@ private:
     XFA_Node<XFA_desc> m_desc;
     XFA_Node<XFA_extras> m_extras;
 };
+
+std::optional<XFA_contentArea> XFA_contentArea::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_contentArea myClass;
+
+    // load attributes
+    parseAttribute(element, "h", myClass.m_h, "0in");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "w", myClass.m_w, "0in");
+    parseAttribute(element, "x", myClass.m_x, "0in");
+    parseAttribute(element, "y", myClass.m_y, "0in");
+
+    // load items
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
 
 class XFA_corner : public XFA_BaseNode
 {
@@ -1496,6 +3246,8 @@ public:
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_corner> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1513,6 +3265,33 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_corner> XFA_corner::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_corner myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "inverted", myClass.m_inverted, "0");
+    parseAttribute(element, "join", myClass.m_join, "square");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "radius", myClass.m_radius, "0in");
+    parseAttribute(element, "stroke", myClass.m_stroke, "solid");
+    parseAttribute(element, "thickness", myClass.m_thickness, "0.pt");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_date : public XFA_BaseNode
 {
 public:
@@ -1525,6 +3304,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_date> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1536,6 +3317,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_date> XFA_date::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_date myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_dateTime : public XFA_BaseNode
 {
@@ -1549,6 +3350,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_dateTime> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1560,6 +3363,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_dateTime> XFA_dateTime::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_dateTime myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_dateTimeEdit : public XFA_BaseNode
 {
@@ -1576,6 +3399,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
 
+    static std::optional<XFA_dateTimeEdit> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<HSCROLLPOLICY> m_hScrollPolicy;
@@ -1591,6 +3416,31 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_dateTimeEdit> XFA_dateTimeEdit::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_dateTimeEdit myClass;
+
+    // load attributes
+    parseAttribute(element, "hScrollPolicy", myClass.m_hScrollPolicy, "auto");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "picker", myClass.m_picker, "host");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "comb", myClass.m_comb);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_decimal : public XFA_BaseNode
 {
 public:
@@ -1604,6 +3454,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_decimal> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1619,6 +3471,28 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_decimal> XFA_decimal::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_decimal myClass;
+
+    // load attributes
+    parseAttribute(element, "fracDigits", myClass.m_fracDigits, "2");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "leadDigits", myClass.m_leadDigits, "-1");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_defaultUi : public XFA_BaseNode
 {
 public:
@@ -1629,6 +3503,8 @@ public:
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_defaultUi> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1638,6 +3514,26 @@ private:
     /* subnodes */
     XFA_Node<XFA_extras> m_extras;
 };
+
+std::optional<XFA_defaultUi> XFA_defaultUi::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_defaultUi myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
 
 class XFA_desc : public XFA_BaseNode
 {
@@ -1658,6 +3554,8 @@ public:
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
 
+    static std::optional<XFA_desc> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1677,6 +3575,35 @@ private:
     std::vector<XFA_Node<XFA_time>> m_time;
 };
 
+std::optional<XFA_desc> XFA_desc::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_desc myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "time", myClass.m_time);
+    return myClass;
+}
+
+
 class XFA_digestMethod : public XFA_BaseNode
 {
 public:
@@ -1687,6 +3614,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_digestMethod> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1699,6 +3628,25 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_digestMethod> XFA_digestMethod::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_digestMethod myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_digestMethods : public XFA_BaseNode
 {
 public:
@@ -1710,6 +3658,8 @@ public:
 
     const std::vector<XFA_Node<XFA_digestMethod>>& getDigestMethod() const {  return m_digestMethod; }
 
+    static std::optional<XFA_digestMethods> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1720,6 +3670,27 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_digestMethod>> m_digestMethod;
 };
+
+std::optional<XFA_digestMethods> XFA_digestMethods::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_digestMethods myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "digestMethod", myClass.m_digestMethod);
+    return myClass;
+}
+
 
 class XFA_draw : public XFA_BaseNode
 {
@@ -1759,6 +3730,8 @@ public:
     const XFA_value* getValue() const {  return m_value.getValue(); }
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
 
+    static std::optional<XFA_draw> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ANCHORTYPE> m_anchorType;
@@ -1797,6 +3770,54 @@ private:
     std::vector<XFA_Node<XFA_setProperty>> m_setProperty;
 };
 
+std::optional<XFA_draw> XFA_draw::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_draw myClass;
+
+    // load attributes
+    parseAttribute(element, "anchorType", myClass.m_anchorType, "topleft");
+    parseAttribute(element, "colSpan", myClass.m_colSpan, "1");
+    parseAttribute(element, "h", myClass.m_h, "0in");
+    parseAttribute(element, "hAlign", myClass.m_hAlign, "left");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "locale", myClass.m_locale, "");
+    parseAttribute(element, "maxH", myClass.m_maxH, "0in");
+    parseAttribute(element, "maxW", myClass.m_maxW, "0in");
+    parseAttribute(element, "minH", myClass.m_minH, "0in");
+    parseAttribute(element, "minW", myClass.m_minW, "0in");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "rotate", myClass.m_rotate, "0");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "w", myClass.m_w, "0in");
+    parseAttribute(element, "x", myClass.m_x, "0in");
+    parseAttribute(element, "y", myClass.m_y, "0in");
+
+    // load items
+    parseItem(element, "assist", myClass.m_assist);
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "caption", myClass.m_caption);
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "font", myClass.m_font);
+    parseItem(element, "keep", myClass.m_keep);
+    parseItem(element, "margin", myClass.m_margin);
+    parseItem(element, "para", myClass.m_para);
+    parseItem(element, "traversal", myClass.m_traversal);
+    parseItem(element, "ui", myClass.m_ui);
+    parseItem(element, "value", myClass.m_value);
+    parseItem(element, "setProperty", myClass.m_setProperty);
+    return myClass;
+}
+
+
 class XFA_edge : public XFA_BaseNode
 {
 public:
@@ -1811,6 +3832,8 @@ public:
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    static std::optional<XFA_edge> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1827,6 +3850,31 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_edge> XFA_edge::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_edge myClass;
+
+    // load attributes
+    parseAttribute(element, "cap", myClass.m_cap, "square");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "stroke", myClass.m_stroke, "solid");
+    parseAttribute(element, "thickness", myClass.m_thickness, "0.5pt");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_encoding : public XFA_BaseNode
 {
 public:
@@ -1837,6 +3885,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_encoding> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1849,6 +3899,25 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_encoding> XFA_encoding::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encoding myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_encodings : public XFA_BaseNode
 {
 public:
@@ -1859,6 +3928,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
     const std::vector<XFA_Node<XFA_encoding>>& getEncoding() const {  return m_encoding; }
+
+    static std::optional<XFA_encodings> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1871,6 +3942,27 @@ private:
     std::vector<XFA_Node<XFA_encoding>> m_encoding;
 };
 
+std::optional<XFA_encodings> XFA_encodings::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encodings myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "encoding", myClass.m_encoding);
+    return myClass;
+}
+
+
 class XFA_encrypt : public XFA_BaseNode
 {
 public:
@@ -1881,6 +3973,8 @@ public:
 
     const XFA_certificate* getCertificate() const {  return m_certificate.getValue(); }
 
+    static std::optional<XFA_encrypt> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1890,6 +3984,26 @@ private:
     /* subnodes */
     XFA_Node<XFA_certificate> m_certificate;
 };
+
+std::optional<XFA_encrypt> XFA_encrypt::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encrypt myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "certificate", myClass.m_certificate);
+    return myClass;
+}
+
 
 class XFA_encryptData : public XFA_BaseNode
 {
@@ -1904,6 +4018,8 @@ public:
     const XFA_filter* getFilter() const {  return m_filter.getValue(); }
     const XFA_manifest* getManifest() const {  return m_manifest.getValue(); }
 
+    static std::optional<XFA_encryptData> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1917,6 +4033,29 @@ private:
     XFA_Node<XFA_manifest> m_manifest;
 };
 
+std::optional<XFA_encryptData> XFA_encryptData::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encryptData myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "operation", myClass.m_operation, "encrypt");
+    parseAttribute(element, "target", myClass.m_target, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "filter", myClass.m_filter);
+    parseItem(element, "manifest", myClass.m_manifest);
+    return myClass;
+}
+
+
 class XFA_encryption : public XFA_BaseNode
 {
 public:
@@ -1927,6 +4066,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
     const std::vector<XFA_Node<XFA_certificate>>& getCertificate() const {  return m_certificate; }
+
+    static std::optional<XFA_encryption> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1939,6 +4080,27 @@ private:
     std::vector<XFA_Node<XFA_certificate>> m_certificate;
 };
 
+std::optional<XFA_encryption> XFA_encryption::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encryption myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "certificate", myClass.m_certificate);
+    return myClass;
+}
+
+
 class XFA_encryptionMethod : public XFA_BaseNode
 {
 public:
@@ -1949,6 +4111,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_encryptionMethod> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -1961,6 +4125,25 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_encryptionMethod> XFA_encryptionMethod::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encryptionMethod myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_encryptionMethods : public XFA_BaseNode
 {
 public:
@@ -1972,6 +4155,8 @@ public:
 
     const std::vector<XFA_Node<XFA_encryptionMethod>>& getEncryptionMethod() const {  return m_encryptionMethod; }
 
+    static std::optional<XFA_encryptionMethods> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -1982,6 +4167,27 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_encryptionMethod>> m_encryptionMethod;
 };
+
+std::optional<XFA_encryptionMethods> XFA_encryptionMethods::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_encryptionMethods myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "encryptionMethod", myClass.m_encryptionMethod);
+    return myClass;
+}
+
 
 class XFA_event : public XFA_BaseNode
 {
@@ -2002,6 +4208,8 @@ public:
     const XFA_signData* getSignData() const {  return m_signData.getValue(); }
     const XFA_submit* getSubmit() const {  return m_submit.getValue(); }
 
+    static std::optional<XFA_event> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ACTIVITY> m_activity;
@@ -2021,6 +4229,35 @@ private:
     XFA_Node<XFA_submit> m_submit;
 };
 
+std::optional<XFA_event> XFA_event::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_event myClass;
+
+    // load attributes
+    parseAttribute(element, "activity", myClass.m_activity, "click");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "listen", myClass.m_listen, "refOnly");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "encryptData", myClass.m_encryptData);
+    parseItem(element, "execute", myClass.m_execute);
+    parseItem(element, "script", myClass.m_script);
+    parseItem(element, "signData", myClass.m_signData);
+    parseItem(element, "submit", myClass.m_submit);
+    return myClass;
+}
+
+
 class XFA_exData : public XFA_BaseNode
 {
 public:
@@ -2038,6 +4275,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_exData> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_contentType;
@@ -2054,6 +4293,31 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_exData> XFA_exData::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_exData myClass;
+
+    // load attributes
+    parseAttribute(element, "contentType", myClass.m_contentType, "");
+    parseAttribute(element, "href", myClass.m_href, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "maxLength", myClass.m_maxLength, "-1");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "rid", myClass.m_rid, "");
+    parseAttribute(element, "transferEncoding", myClass.m_transferEncoding, "none");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_exObject : public XFA_BaseNode
 {
@@ -2081,6 +4345,8 @@ public:
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
 
+    static std::optional<XFA_exObject> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_archive;
@@ -2106,6 +4372,42 @@ private:
     std::vector<XFA_Node<XFA_text>> m_text;
     std::vector<XFA_Node<XFA_time>> m_time;
 };
+
+std::optional<XFA_exObject> XFA_exObject::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_exObject myClass;
+
+    // load attributes
+    parseAttribute(element, "archive", myClass.m_archive, "");
+    parseAttribute(element, "classId", myClass.m_classId, "");
+    parseAttribute(element, "codeBase", myClass.m_codeBase, "");
+    parseAttribute(element, "codeType", myClass.m_codeType, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "exObject", myClass.m_exObject);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "time", myClass.m_time);
+    return myClass;
+}
+
 
 class XFA_exclGroup : public XFA_BaseNode
 {
@@ -2148,6 +4450,8 @@ public:
     const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
 
+    static std::optional<XFA_exclGroup> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ACCESS> m_access;
@@ -2189,6 +4493,57 @@ private:
     std::vector<XFA_Node<XFA_setProperty>> m_setProperty;
 };
 
+std::optional<XFA_exclGroup> XFA_exclGroup::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_exclGroup myClass;
+
+    // load attributes
+    parseAttribute(element, "access", myClass.m_access, "open");
+    parseAttribute(element, "accessKey", myClass.m_accessKey, "");
+    parseAttribute(element, "anchorType", myClass.m_anchorType, "topleft");
+    parseAttribute(element, "colSpan", myClass.m_colSpan, "1");
+    parseAttribute(element, "h", myClass.m_h, "0in");
+    parseAttribute(element, "hAlign", myClass.m_hAlign, "left");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "layout", myClass.m_layout, "position");
+    parseAttribute(element, "maxH", myClass.m_maxH, "0in");
+    parseAttribute(element, "maxW", myClass.m_maxW, "0in");
+    parseAttribute(element, "minH", myClass.m_minH, "0in");
+    parseAttribute(element, "minW", myClass.m_minW, "0in");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "w", myClass.m_w, "0in");
+    parseAttribute(element, "x", myClass.m_x, "0in");
+    parseAttribute(element, "y", myClass.m_y, "0in");
+
+    // load items
+    parseItem(element, "assist", myClass.m_assist);
+    parseItem(element, "bind", myClass.m_bind);
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "calculate", myClass.m_calculate);
+    parseItem(element, "caption", myClass.m_caption);
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    parseItem(element, "para", myClass.m_para);
+    parseItem(element, "traversal", myClass.m_traversal);
+    parseItem(element, "validate", myClass.m_validate);
+    parseItem(element, "connect", myClass.m_connect);
+    parseItem(element, "event", myClass.m_event);
+    parseItem(element, "field", myClass.m_field);
+    parseItem(element, "setProperty", myClass.m_setProperty);
+    return myClass;
+}
+
+
 class XFA_execute : public XFA_BaseNode
 {
 public:
@@ -2201,6 +4556,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_execute> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_connection;
@@ -2212,6 +4569,28 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_execute> XFA_execute::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_execute myClass;
+
+    // load attributes
+    parseAttribute(element, "connection", myClass.m_connection, "");
+    parseAttribute(element, "executeType", myClass.m_executeType, "import");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "runAt", myClass.m_runAt, "client");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_extras : public XFA_BaseNode
 {
@@ -2234,6 +4613,8 @@ public:
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
 
+    static std::optional<XFA_extras> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2254,6 +4635,37 @@ private:
     std::vector<XFA_Node<XFA_text>> m_text;
     std::vector<XFA_Node<XFA_time>> m_time;
 };
+
+std::optional<XFA_extras> XFA_extras::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_extras myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "time", myClass.m_time);
+    return myClass;
+}
+
 
 class XFA_field : public XFA_BaseNode
 {
@@ -2303,6 +4715,8 @@ public:
     const std::vector<XFA_Node<XFA_event>>& getEvent() const {  return m_event; }
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
 
+    static std::optional<XFA_field> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ACCESS> m_access;
@@ -2351,6 +4765,64 @@ private:
     std::vector<XFA_Node<XFA_setProperty>> m_setProperty;
 };
 
+std::optional<XFA_field> XFA_field::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_field myClass;
+
+    // load attributes
+    parseAttribute(element, "access", myClass.m_access, "open");
+    parseAttribute(element, "accessKey", myClass.m_accessKey, "");
+    parseAttribute(element, "anchorType", myClass.m_anchorType, "topleft");
+    parseAttribute(element, "colSpan", myClass.m_colSpan, "1");
+    parseAttribute(element, "h", myClass.m_h, "0in");
+    parseAttribute(element, "hAlign", myClass.m_hAlign, "left");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "locale", myClass.m_locale, "");
+    parseAttribute(element, "maxH", myClass.m_maxH, "0in");
+    parseAttribute(element, "maxW", myClass.m_maxW, "0in");
+    parseAttribute(element, "minH", myClass.m_minH, "0in");
+    parseAttribute(element, "minW", myClass.m_minW, "0in");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "rotate", myClass.m_rotate, "0");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "w", myClass.m_w, "0in");
+    parseAttribute(element, "x", myClass.m_x, "0in");
+    parseAttribute(element, "y", myClass.m_y, "0in");
+
+    // load items
+    parseItem(element, "assist", myClass.m_assist);
+    parseItem(element, "bind", myClass.m_bind);
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "calculate", myClass.m_calculate);
+    parseItem(element, "caption", myClass.m_caption);
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "font", myClass.m_font);
+    parseItem(element, "format", myClass.m_format);
+    parseItem(element, "items", myClass.m_items);
+    parseItem(element, "keep", myClass.m_keep);
+    parseItem(element, "margin", myClass.m_margin);
+    parseItem(element, "para", myClass.m_para);
+    parseItem(element, "traversal", myClass.m_traversal);
+    parseItem(element, "ui", myClass.m_ui);
+    parseItem(element, "validate", myClass.m_validate);
+    parseItem(element, "value", myClass.m_value);
+    parseItem(element, "bindItems", myClass.m_bindItems);
+    parseItem(element, "connect", myClass.m_connect);
+    parseItem(element, "event", myClass.m_event);
+    parseItem(element, "setProperty", myClass.m_setProperty);
+    return myClass;
+}
+
+
 class XFA_fill : public XFA_BaseNode
 {
 public:
@@ -2368,6 +4840,8 @@ public:
     const XFA_solid* getSolid() const {  return m_solid.getValue(); }
     const XFA_stipple* getStipple() const {  return m_stipple.getValue(); }
 
+    static std::optional<XFA_fill> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2384,6 +4858,33 @@ private:
     XFA_Node<XFA_solid> m_solid;
     XFA_Node<XFA_stipple> m_stipple;
 };
+
+std::optional<XFA_fill> XFA_fill::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_fill myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "linear", myClass.m_linear);
+    parseItem(element, "pattern", myClass.m_pattern);
+    parseItem(element, "radial", myClass.m_radial);
+    parseItem(element, "solid", myClass.m_solid);
+    parseItem(element, "stipple", myClass.m_stipple);
+    return myClass;
+}
+
 
 class XFA_filter : public XFA_BaseNode
 {
@@ -2407,6 +4908,8 @@ public:
     const XFA_reasons* getReasons() const {  return m_reasons.getValue(); }
     const XFA_timeStamp* getTimeStamp() const {  return m_timeStamp.getValue(); }
 
+    static std::optional<XFA_filter> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_addRevocationInfo;
@@ -2429,6 +4932,38 @@ private:
     XFA_Node<XFA_timeStamp> m_timeStamp;
 };
 
+std::optional<XFA_filter> XFA_filter::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_filter myClass;
+
+    // load attributes
+    parseAttribute(element, "addRevocationInfo", myClass.m_addRevocationInfo, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "version", myClass.m_version, "");
+
+    // load items
+    parseItem(element, "appearanceFilter", myClass.m_appearanceFilter);
+    parseItem(element, "certificates", myClass.m_certificates);
+    parseItem(element, "digestMethods", myClass.m_digestMethods);
+    parseItem(element, "encodings", myClass.m_encodings);
+    parseItem(element, "encryptionMethods", myClass.m_encryptionMethods);
+    parseItem(element, "handler", myClass.m_handler);
+    parseItem(element, "lockDocument", myClass.m_lockDocument);
+    parseItem(element, "mdp", myClass.m_mdp);
+    parseItem(element, "reasons", myClass.m_reasons);
+    parseItem(element, "timeStamp", myClass.m_timeStamp);
+    return myClass;
+}
+
+
 class XFA_float : public XFA_BaseNode
 {
 public:
@@ -2441,6 +4976,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_float> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2452,6 +4989,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_float> XFA_float::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_float myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_font : public XFA_BaseNode
 {
@@ -2479,6 +5036,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
 
+    static std::optional<XFA_font> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<XFA_Measurement> m_baselineShift;
@@ -2505,6 +5064,42 @@ private:
     XFA_Node<XFA_fill> m_fill;
 };
 
+std::optional<XFA_font> XFA_font::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_font myClass;
+
+    // load attributes
+    parseAttribute(element, "baselineShift", myClass.m_baselineShift, "0in");
+    parseAttribute(element, "fontHorizontalScale", myClass.m_fontHorizontalScale, "");
+    parseAttribute(element, "fontVerticalScale", myClass.m_fontVerticalScale, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "kerningMode", myClass.m_kerningMode, "none");
+    parseAttribute(element, "letterSpacing", myClass.m_letterSpacing, "");
+    parseAttribute(element, "lineThrough", myClass.m_lineThrough, "0");
+    parseAttribute(element, "lineThroughPeriod", myClass.m_lineThroughPeriod, "all");
+    parseAttribute(element, "overline", myClass.m_overline, "0");
+    parseAttribute(element, "overlinePeriod", myClass.m_overlinePeriod, "all");
+    parseAttribute(element, "posture", myClass.m_posture, "normal");
+    parseAttribute(element, "size", myClass.m_size, "10pt");
+    parseAttribute(element, "typeface", myClass.m_typeface, "");
+    parseAttribute(element, "underline", myClass.m_underline, "0");
+    parseAttribute(element, "underlinePeriod", myClass.m_underlinePeriod, "all");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "weight", myClass.m_weight, "normal");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "fill", myClass.m_fill);
+    return myClass;
+}
+
+
 class XFA_format : public XFA_BaseNode
 {
 public:
@@ -2516,6 +5111,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
 
+    static std::optional<XFA_format> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2526,6 +5123,27 @@ private:
     XFA_Node<XFA_extras> m_extras;
     XFA_Node<XFA_picture> m_picture;
 };
+
+std::optional<XFA_format> XFA_format::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_format myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "picture", myClass.m_picture);
+    return myClass;
+}
+
 
 class XFA_handler : public XFA_BaseNode
 {
@@ -2539,6 +5157,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_handler> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2550,6 +5170,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_handler> XFA_handler::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_handler myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_hyphenation : public XFA_BaseNode
 {
@@ -2566,6 +5206,8 @@ public:
     const PDFInteger* getWordCharacterCount() const {  return m_wordCharacterCount.getValue(); }
 
 
+    static std::optional<XFA_hyphenation> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<bool> m_excludeAllCaps;
@@ -2580,6 +5222,31 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_hyphenation> XFA_hyphenation::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_hyphenation myClass;
+
+    // load attributes
+    parseAttribute(element, "excludeAllCaps", myClass.m_excludeAllCaps, "0");
+    parseAttribute(element, "excludeInitialCap", myClass.m_excludeInitialCap, "0");
+    parseAttribute(element, "hyphenate", myClass.m_hyphenate, "0");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "pushCharacterCount", myClass.m_pushCharacterCount, "3");
+    parseAttribute(element, "remainCharacterCount", myClass.m_remainCharacterCount, "3");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "wordCharacterCount", myClass.m_wordCharacterCount, "7");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_image : public XFA_BaseNode
 {
@@ -2597,6 +5264,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_image> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ASPECT> m_aspect;
@@ -2613,6 +5282,30 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_image> XFA_image::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_image myClass;
+
+    // load attributes
+    parseAttribute(element, "aspect", myClass.m_aspect, "fit");
+    parseAttribute(element, "contentType", myClass.m_contentType, "");
+    parseAttribute(element, "href", myClass.m_href, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "transferEncoding", myClass.m_transferEncoding, "base64");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_imageEdit : public XFA_BaseNode
 {
 public:
@@ -2625,6 +5318,8 @@ public:
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    static std::optional<XFA_imageEdit> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -2639,6 +5334,29 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_imageEdit> XFA_imageEdit::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_imageEdit myClass;
+
+    // load attributes
+    parseAttribute(element, "data", myClass.m_data, "link");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_integer : public XFA_BaseNode
 {
 public:
@@ -2650,6 +5368,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_integer> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -2663,6 +5383,26 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_integer> XFA_integer::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_integer myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_issuers : public XFA_BaseNode
 {
 public:
@@ -2674,6 +5414,8 @@ public:
 
     const std::vector<XFA_Node<XFA_certificate>>& getCertificate() const {  return m_certificate; }
 
+    static std::optional<XFA_issuers> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2684,6 +5426,27 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_certificate>> m_certificate;
 };
+
+std::optional<XFA_issuers> XFA_issuers::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_issuers myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "certificate", myClass.m_certificate);
+    return myClass;
+}
+
 
 class XFA_items : public XFA_BaseNode
 {
@@ -2708,6 +5471,8 @@ public:
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
 
+    static std::optional<XFA_items> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2731,6 +5496,39 @@ private:
     std::vector<XFA_Node<XFA_time>> m_time;
 };
 
+std::optional<XFA_items> XFA_items::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_items myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "save", myClass.m_save, "0");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "time", myClass.m_time);
+    return myClass;
+}
+
+
 class XFA_keep : public XFA_BaseNode
 {
 public:
@@ -2744,6 +5542,8 @@ public:
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_keep> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2756,6 +5556,29 @@ private:
     /* subnodes */
     XFA_Node<XFA_extras> m_extras;
 };
+
+std::optional<XFA_keep> XFA_keep::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_keep myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "intact", myClass.m_intact, "none");
+    parseAttribute(element, "next", myClass.m_next, "none");
+    parseAttribute(element, "previous", myClass.m_previous, "none");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
 
 class XFA_keyUsage : public XFA_BaseNode
 {
@@ -2776,6 +5599,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_keyUsage> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_crlSign;
@@ -2795,6 +5620,35 @@ private:
     /* subnodes */
 };
 
+std::optional<XFA_keyUsage> XFA_keyUsage::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_keyUsage myClass;
+
+    // load attributes
+    parseAttribute(element, "crlSign", myClass.m_crlSign, "");
+    parseAttribute(element, "dataEncipherment", myClass.m_dataEncipherment, "");
+    parseAttribute(element, "decipherOnly", myClass.m_decipherOnly, "");
+    parseAttribute(element, "digitalSignature", myClass.m_digitalSignature, "");
+    parseAttribute(element, "encipherOnly", myClass.m_encipherOnly, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "keyAgreement", myClass.m_keyAgreement, "");
+    parseAttribute(element, "keyCertSign", myClass.m_keyCertSign, "");
+    parseAttribute(element, "keyEncipherment", myClass.m_keyEncipherment, "");
+    parseAttribute(element, "nonRepudiation", myClass.m_nonRepudiation, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_line : public XFA_BaseNode
 {
 public:
@@ -2806,6 +5660,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
     const XFA_edge* getEdge() const {  return m_edge.getValue(); }
+
+    static std::optional<XFA_line> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -2819,6 +5675,28 @@ private:
     XFA_Node<XFA_edge> m_edge;
 };
 
+std::optional<XFA_line> XFA_line::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_line myClass;
+
+    // load attributes
+    parseAttribute(element, "hand", myClass.m_hand, "even");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "slope", myClass.m_slope, "\\");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "edge", myClass.m_edge);
+    return myClass;
+}
+
+
 class XFA_linear : public XFA_BaseNode
 {
 public:
@@ -2830,6 +5708,8 @@ public:
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    static std::optional<XFA_linear> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -2843,6 +5723,28 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_linear> XFA_linear::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_linear myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "toRight");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_lockDocument : public XFA_BaseNode
 {
 public:
@@ -2855,6 +5757,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_lockDocument> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2866,6 +5770,26 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_lockDocument> XFA_lockDocument::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_lockDocument myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_manifest : public XFA_BaseNode
 {
@@ -2880,6 +5804,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_ref>>& getRef() const {  return m_ref; }
 
+    static std::optional<XFA_manifest> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ACTION> m_action;
@@ -2892,6 +5818,29 @@ private:
     XFA_Node<XFA_extras> m_extras;
     std::vector<XFA_Node<XFA_ref>> m_ref;
 };
+
+std::optional<XFA_manifest> XFA_manifest::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_manifest myClass;
+
+    // load attributes
+    parseAttribute(element, "action", myClass.m_action, "include");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "ref", myClass.m_ref);
+    return myClass;
+}
+
 
 class XFA_margin : public XFA_BaseNode
 {
@@ -2907,6 +5856,8 @@ public:
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_margin> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<XFA_Measurement> m_bottomInset;
@@ -2921,6 +5872,30 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_margin> XFA_margin::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_margin myClass;
+
+    // load attributes
+    parseAttribute(element, "bottomInset", myClass.m_bottomInset, "0in");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "leftInset", myClass.m_leftInset, "0in");
+    parseAttribute(element, "rightInset", myClass.m_rightInset, "0in");
+    parseAttribute(element, "topInset", myClass.m_topInset, "0in");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_mdp : public XFA_BaseNode
 {
 public:
@@ -2932,6 +5907,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_mdp> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2942,6 +5919,27 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_mdp> XFA_mdp::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_mdp myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "permissions", myClass.m_permissions, "2");
+    parseAttribute(element, "signatureType", myClass.m_signatureType, "filler");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_medium : public XFA_BaseNode
 {
@@ -2959,6 +5957,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_medium> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2975,6 +5975,32 @@ private:
     /* subnodes */
 };
 
+std::optional<XFA_medium> XFA_medium::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_medium myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "imagingBBox", myClass.m_imagingBBox, "");
+    parseAttribute(element, "long", myClass.m_long, "0in");
+    parseAttribute(element, "orientation", myClass.m_orientation, "portrait");
+    parseAttribute(element, "short", myClass.m_short, "0in");
+    parseAttribute(element, "stock", myClass.m_stock, "");
+    parseAttribute(element, "trayIn", myClass.m_trayIn, "auto");
+    parseAttribute(element, "trayOut", myClass.m_trayOut, "auto");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_message : public XFA_BaseNode
 {
 public:
@@ -2985,6 +6011,8 @@ public:
 
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
 
+    static std::optional<XFA_message> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -2994,6 +6022,26 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_text>> m_text;
 };
+
+std::optional<XFA_message> XFA_message::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_message myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "text", myClass.m_text);
+    return myClass;
+}
+
 
 class XFA_numericEdit : public XFA_BaseNode
 {
@@ -3009,6 +6057,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
 
+    static std::optional<XFA_numericEdit> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<HSCROLLPOLICY> m_hScrollPolicy;
@@ -3023,6 +6073,30 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_numericEdit> XFA_numericEdit::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_numericEdit myClass;
+
+    // load attributes
+    parseAttribute(element, "hScrollPolicy", myClass.m_hScrollPolicy, "auto");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "comb", myClass.m_comb);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_occur : public XFA_BaseNode
 {
 public:
@@ -3035,6 +6109,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    static std::optional<XFA_occur> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3049,6 +6125,29 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_occur> XFA_occur::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_occur myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "initial", myClass.m_initial, "1");
+    parseAttribute(element, "max", myClass.m_max, "1");
+    parseAttribute(element, "min", myClass.m_min, "1");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_oid : public XFA_BaseNode
 {
 public:
@@ -3060,6 +6159,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_oid> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3073,6 +6174,26 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_oid> XFA_oid::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_oid myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_oids : public XFA_BaseNode
 {
 public:
@@ -3084,6 +6205,8 @@ public:
 
     const std::vector<XFA_Node<XFA_oid>>& getOid() const {  return m_oid; }
 
+    static std::optional<XFA_oids> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3094,6 +6217,27 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_oid>> m_oid;
 };
+
+std::optional<XFA_oids> XFA_oids::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_oids myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "oid", myClass.m_oid);
+    return myClass;
+}
+
 
 class XFA_overflow : public XFA_BaseNode
 {
@@ -3107,6 +6251,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_overflow> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3118,6 +6264,28 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_overflow> XFA_overflow::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_overflow myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "leader", myClass.m_leader, "");
+    parseAttribute(element, "target", myClass.m_target, "");
+    parseAttribute(element, "trailer", myClass.m_trailer, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_pageArea : public XFA_BaseNode
 {
@@ -3145,6 +6313,8 @@ public:
     const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
 
+    static std::optional<XFA_pageArea> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<BLANKORNOTBLANK> m_blankOrNotBlank;
@@ -3171,6 +6341,42 @@ private:
     std::vector<XFA_Node<XFA_subform>> m_subform;
 };
 
+std::optional<XFA_pageArea> XFA_pageArea::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_pageArea myClass;
+
+    // load attributes
+    parseAttribute(element, "blankOrNotBlank", myClass.m_blankOrNotBlank, "any");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "initialNumber", myClass.m_initialNumber, "1");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "numbered", myClass.m_numbered, "1");
+    parseAttribute(element, "oddOrEven", myClass.m_oddOrEven, "any");
+    parseAttribute(element, "pagePosition", myClass.m_pagePosition, "any");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "medium", myClass.m_medium);
+    parseItem(element, "occur", myClass.m_occur);
+    parseItem(element, "area", myClass.m_area);
+    parseItem(element, "contentArea", myClass.m_contentArea);
+    parseItem(element, "draw", myClass.m_draw);
+    parseItem(element, "exclGroup", myClass.m_exclGroup);
+    parseItem(element, "field", myClass.m_field);
+    parseItem(element, "subform", myClass.m_subform);
+    return myClass;
+}
+
+
 class XFA_pageSet : public XFA_BaseNode
 {
 public:
@@ -3188,6 +6394,8 @@ public:
     const std::vector<XFA_Node<XFA_pageArea>>& getPageArea() const {  return m_pageArea; }
     const std::vector<XFA_Node<XFA_pageSet>>& getPageSet() const {  return m_pageSet; }
 
+    static std::optional<XFA_pageSet> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<DUPLEXIMPOSITION> m_duplexImposition;
@@ -3204,6 +6412,33 @@ private:
     std::vector<XFA_Node<XFA_pageArea>> m_pageArea;
     std::vector<XFA_Node<XFA_pageSet>> m_pageSet;
 };
+
+std::optional<XFA_pageSet> XFA_pageSet::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_pageSet myClass;
+
+    // load attributes
+    parseAttribute(element, "duplexImposition", myClass.m_duplexImposition, "longEdge");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "relation", myClass.m_relation, "orderedOccurrence");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "occur", myClass.m_occur);
+    parseItem(element, "pageArea", myClass.m_pageArea);
+    parseItem(element, "pageSet", myClass.m_pageSet);
+    return myClass;
+}
+
 
 class XFA_para : public XFA_BaseNode
 {
@@ -3229,6 +6464,8 @@ public:
 
     const XFA_hyphenation* getHyphenation() const {  return m_hyphenation.getValue(); }
 
+    static std::optional<XFA_para> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<HALIGN> m_hAlign;
@@ -3253,6 +6490,40 @@ private:
     XFA_Node<XFA_hyphenation> m_hyphenation;
 };
 
+std::optional<XFA_para> XFA_para::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_para myClass;
+
+    // load attributes
+    parseAttribute(element, "hAlign", myClass.m_hAlign, "left");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "lineHeight", myClass.m_lineHeight, "0pt");
+    parseAttribute(element, "marginLeft", myClass.m_marginLeft, "0in");
+    parseAttribute(element, "marginRight", myClass.m_marginRight, "0in");
+    parseAttribute(element, "orphans", myClass.m_orphans, "0");
+    parseAttribute(element, "preserve", myClass.m_preserve, "");
+    parseAttribute(element, "radixOffset", myClass.m_radixOffset, "0in");
+    parseAttribute(element, "spaceAbove", myClass.m_spaceAbove, "0in");
+    parseAttribute(element, "spaceBelow", myClass.m_spaceBelow, "0in");
+    parseAttribute(element, "tabDefault", myClass.m_tabDefault, "");
+    parseAttribute(element, "tabStops", myClass.m_tabStops, "");
+    parseAttribute(element, "textIndent", myClass.m_textIndent, "0in");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "vAlign", myClass.m_vAlign, "top");
+    parseAttribute(element, "widows", myClass.m_widows, "0");
+
+    // load items
+    parseItem(element, "hyphenation", myClass.m_hyphenation);
+    return myClass;
+}
+
+
 class XFA_passwordEdit : public XFA_BaseNode
 {
 public:
@@ -3266,6 +6537,8 @@ public:
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    static std::optional<XFA_passwordEdit> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3281,6 +6554,30 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_passwordEdit> XFA_passwordEdit::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_passwordEdit myClass;
+
+    // load attributes
+    parseAttribute(element, "hScrollPolicy", myClass.m_hScrollPolicy, "auto");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "passwordChar", myClass.m_passwordChar, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_pattern : public XFA_BaseNode
 {
 public:
@@ -3292,6 +6589,8 @@ public:
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    static std::optional<XFA_pattern> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3305,6 +6604,28 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_pattern> XFA_pattern::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_pattern myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "crossHatch");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_picture : public XFA_BaseNode
 {
 public:
@@ -3316,6 +6637,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_picture> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3326,6 +6649,25 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_picture> XFA_picture::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_picture myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_proto : public XFA_BaseNode
 {
@@ -3443,6 +6785,8 @@ public:
     const std::vector<XFA_Node<XFA_value>>& getValue() const {  return m_value; }
     const std::vector<XFA_Node<XFA_variables>>& getVariables() const {  return m_variables; }
 
+    static std::optional<XFA_proto> parse(const QDomElement& element);
+
 private:
     /* properties */
 
@@ -3559,6 +6903,132 @@ private:
     std::vector<XFA_Node<XFA_variables>> m_variables;
 };
 
+std::optional<XFA_proto> XFA_proto::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_proto myClass;
+
+    // load attributes
+
+    // load items
+    parseItem(element, "appearanceFilter", myClass.m_appearanceFilter);
+    parseItem(element, "arc", myClass.m_arc);
+    parseItem(element, "area", myClass.m_area);
+    parseItem(element, "assist", myClass.m_assist);
+    parseItem(element, "barcode", myClass.m_barcode);
+    parseItem(element, "bindItems", myClass.m_bindItems);
+    parseItem(element, "bookend", myClass.m_bookend);
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "break", myClass.m_break);
+    parseItem(element, "breakAfter", myClass.m_breakAfter);
+    parseItem(element, "breakBefore", myClass.m_breakBefore);
+    parseItem(element, "button", myClass.m_button);
+    parseItem(element, "calculate", myClass.m_calculate);
+    parseItem(element, "caption", myClass.m_caption);
+    parseItem(element, "certificate", myClass.m_certificate);
+    parseItem(element, "certificates", myClass.m_certificates);
+    parseItem(element, "checkButton", myClass.m_checkButton);
+    parseItem(element, "choiceList", myClass.m_choiceList);
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "comb", myClass.m_comb);
+    parseItem(element, "connect", myClass.m_connect);
+    parseItem(element, "contentArea", myClass.m_contentArea);
+    parseItem(element, "corner", myClass.m_corner);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "dateTimeEdit", myClass.m_dateTimeEdit);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "defaultUi", myClass.m_defaultUi);
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "digestMethod", myClass.m_digestMethod);
+    parseItem(element, "digestMethods", myClass.m_digestMethods);
+    parseItem(element, "draw", myClass.m_draw);
+    parseItem(element, "edge", myClass.m_edge);
+    parseItem(element, "encoding", myClass.m_encoding);
+    parseItem(element, "encodings", myClass.m_encodings);
+    parseItem(element, "encrypt", myClass.m_encrypt);
+    parseItem(element, "encryptData", myClass.m_encryptData);
+    parseItem(element, "encryption", myClass.m_encryption);
+    parseItem(element, "encryptionMethod", myClass.m_encryptionMethod);
+    parseItem(element, "encryptionMethods", myClass.m_encryptionMethods);
+    parseItem(element, "event", myClass.m_event);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "exObject", myClass.m_exObject);
+    parseItem(element, "exclGroup", myClass.m_exclGroup);
+    parseItem(element, "execute", myClass.m_execute);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "field", myClass.m_field);
+    parseItem(element, "fill", myClass.m_fill);
+    parseItem(element, "filter", myClass.m_filter);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "font", myClass.m_font);
+    parseItem(element, "format", myClass.m_format);
+    parseItem(element, "handler", myClass.m_handler);
+    parseItem(element, "hyphenation", myClass.m_hyphenation);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "imageEdit", myClass.m_imageEdit);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "issuers", myClass.m_issuers);
+    parseItem(element, "items", myClass.m_items);
+    parseItem(element, "keep", myClass.m_keep);
+    parseItem(element, "keyUsage", myClass.m_keyUsage);
+    parseItem(element, "line", myClass.m_line);
+    parseItem(element, "linear", myClass.m_linear);
+    parseItem(element, "lockDocument", myClass.m_lockDocument);
+    parseItem(element, "manifest", myClass.m_manifest);
+    parseItem(element, "margin", myClass.m_margin);
+    parseItem(element, "mdp", myClass.m_mdp);
+    parseItem(element, "medium", myClass.m_medium);
+    parseItem(element, "message", myClass.m_message);
+    parseItem(element, "numericEdit", myClass.m_numericEdit);
+    parseItem(element, "occur", myClass.m_occur);
+    parseItem(element, "oid", myClass.m_oid);
+    parseItem(element, "oids", myClass.m_oids);
+    parseItem(element, "overflow", myClass.m_overflow);
+    parseItem(element, "pageArea", myClass.m_pageArea);
+    parseItem(element, "pageSet", myClass.m_pageSet);
+    parseItem(element, "para", myClass.m_para);
+    parseItem(element, "passwordEdit", myClass.m_passwordEdit);
+    parseItem(element, "pattern", myClass.m_pattern);
+    parseItem(element, "picture", myClass.m_picture);
+    parseItem(element, "radial", myClass.m_radial);
+    parseItem(element, "reason", myClass.m_reason);
+    parseItem(element, "reasons", myClass.m_reasons);
+    parseItem(element, "rectangle", myClass.m_rectangle);
+    parseItem(element, "ref", myClass.m_ref);
+    parseItem(element, "script", myClass.m_script);
+    parseItem(element, "setProperty", myClass.m_setProperty);
+    parseItem(element, "signData", myClass.m_signData);
+    parseItem(element, "signature", myClass.m_signature);
+    parseItem(element, "signing", myClass.m_signing);
+    parseItem(element, "solid", myClass.m_solid);
+    parseItem(element, "speak", myClass.m_speak);
+    parseItem(element, "stipple", myClass.m_stipple);
+    parseItem(element, "subform", myClass.m_subform);
+    parseItem(element, "subformSet", myClass.m_subformSet);
+    parseItem(element, "subjectDN", myClass.m_subjectDN);
+    parseItem(element, "subjectDNs", myClass.m_subjectDNs);
+    parseItem(element, "submit", myClass.m_submit);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "textEdit", myClass.m_textEdit);
+    parseItem(element, "time", myClass.m_time);
+    parseItem(element, "timeStamp", myClass.m_timeStamp);
+    parseItem(element, "toolTip", myClass.m_toolTip);
+    parseItem(element, "traversal", myClass.m_traversal);
+    parseItem(element, "traverse", myClass.m_traverse);
+    parseItem(element, "ui", myClass.m_ui);
+    parseItem(element, "validate", myClass.m_validate);
+    parseItem(element, "value", myClass.m_value);
+    parseItem(element, "variables", myClass.m_variables);
+    return myClass;
+}
+
+
 class XFA_radial : public XFA_BaseNode
 {
 public:
@@ -3570,6 +7040,8 @@ public:
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    static std::optional<XFA_radial> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3583,6 +7055,28 @@ private:
     XFA_Node<XFA_extras> m_extras;
 };
 
+std::optional<XFA_radial> XFA_radial::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_radial myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "toEdge");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
+
 class XFA_reason : public XFA_BaseNode
 {
 public:
@@ -3594,6 +7088,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_reason> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3607,6 +7103,26 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_reason> XFA_reason::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_reason myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_reasons : public XFA_BaseNode
 {
 public:
@@ -3618,6 +7134,8 @@ public:
 
     const std::vector<XFA_Node<XFA_reason>>& getReason() const {  return m_reason; }
 
+    static std::optional<XFA_reasons> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3628,6 +7146,27 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_reason>> m_reason;
 };
+
+std::optional<XFA_reasons> XFA_reasons::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_reasons myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "reason", myClass.m_reason);
+    return myClass;
+}
+
 
 class XFA_rectangle : public XFA_BaseNode
 {
@@ -3642,6 +7181,8 @@ public:
     const std::vector<XFA_Node<XFA_edge>>& getEdge() const {  return m_edge; }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
 
+    static std::optional<XFA_rectangle> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<HAND> m_hand;
@@ -3655,6 +7196,29 @@ private:
     XFA_Node<XFA_fill> m_fill;
 };
 
+std::optional<XFA_rectangle> XFA_rectangle::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_rectangle myClass;
+
+    // load attributes
+    parseAttribute(element, "hand", myClass.m_hand, "even");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "corner", myClass.m_corner);
+    parseItem(element, "edge", myClass.m_edge);
+    parseItem(element, "fill", myClass.m_fill);
+    return myClass;
+}
+
+
 class XFA_ref : public XFA_BaseNode
 {
 public:
@@ -3666,6 +7230,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_ref> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3676,6 +7242,25 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_ref> XFA_ref::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_ref myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_script : public XFA_BaseNode
 {
@@ -3692,6 +7277,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_script> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_binding;
@@ -3707,6 +7294,29 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_script> XFA_script::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_script myClass;
+
+    // load attributes
+    parseAttribute(element, "binding", myClass.m_binding, "");
+    parseAttribute(element, "contentType", myClass.m_contentType, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "runAt", myClass.m_runAt, "client");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_setProperty : public XFA_BaseNode
 {
 public:
@@ -3716,6 +7326,8 @@ public:
     const QString* getTarget() const {  return m_target.getValue(); }
 
 
+    static std::optional<XFA_setProperty> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_connection;
@@ -3724,6 +7336,25 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_setProperty> XFA_setProperty::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_setProperty myClass;
+
+    // load attributes
+    parseAttribute(element, "connection", myClass.m_connection, "");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "target", myClass.m_target, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_signData : public XFA_BaseNode
 {
@@ -3739,6 +7370,8 @@ public:
     const XFA_filter* getFilter() const {  return m_filter.getValue(); }
     const XFA_manifest* getManifest() const {  return m_manifest.getValue(); }
 
+    static std::optional<XFA_signData> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3752,6 +7385,30 @@ private:
     XFA_Node<XFA_filter> m_filter;
     XFA_Node<XFA_manifest> m_manifest;
 };
+
+std::optional<XFA_signData> XFA_signData::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_signData myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "operation", myClass.m_operation, "sign");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "target", myClass.m_target, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "filter", myClass.m_filter);
+    parseItem(element, "manifest", myClass.m_manifest);
+    return myClass;
+}
+
 
 class XFA_signature : public XFA_BaseNode
 {
@@ -3768,6 +7425,8 @@ public:
     const XFA_manifest* getManifest() const {  return m_manifest.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
 
+    static std::optional<XFA_signature> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3783,6 +7442,31 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_signature> XFA_signature::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_signature myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "PDF1.3");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "filter", myClass.m_filter);
+    parseItem(element, "manifest", myClass.m_manifest);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_signing : public XFA_BaseNode
 {
 public:
@@ -3793,6 +7477,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
     const std::vector<XFA_Node<XFA_certificate>>& getCertificate() const {  return m_certificate; }
+
+    static std::optional<XFA_signing> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -3805,6 +7491,27 @@ private:
     std::vector<XFA_Node<XFA_certificate>> m_certificate;
 };
 
+std::optional<XFA_signing> XFA_signing::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_signing myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "certificate", myClass.m_certificate);
+    return myClass;
+}
+
+
 class XFA_solid : public XFA_BaseNode
 {
 public:
@@ -3815,6 +7522,8 @@ public:
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_solid> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3824,6 +7533,26 @@ private:
     /* subnodes */
     XFA_Node<XFA_extras> m_extras;
 };
+
+std::optional<XFA_solid> XFA_solid::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_solid myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
 
 class XFA_speak : public XFA_BaseNode
 {
@@ -3839,6 +7568,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_speak> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<bool> m_disable;
@@ -3853,6 +7584,28 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_speak> XFA_speak::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_speak myClass;
+
+    // load attributes
+    parseAttribute(element, "disable", myClass.m_disable, "0");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "priority", myClass.m_priority, "custom");
+    parseAttribute(element, "rid", myClass.m_rid, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_stipple : public XFA_BaseNode
 {
 public:
@@ -3865,6 +7618,8 @@ public:
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
 
+    static std::optional<XFA_stipple> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -3876,6 +7631,28 @@ private:
     XFA_Node<XFA_color> m_color;
     XFA_Node<XFA_extras> m_extras;
 };
+
+std::optional<XFA_stipple> XFA_stipple::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_stipple myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "rate", myClass.m_rate, "50");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "color", myClass.m_color);
+    parseItem(element, "extras", myClass.m_extras);
+    return myClass;
+}
+
 
 class XFA_subform : public XFA_BaseNode
 {
@@ -3938,6 +7715,8 @@ public:
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
     const std::vector<XFA_Node<XFA_subformSet>>& getSubformSet() const {  return m_subformSet; }
 
+    static std::optional<XFA_subform> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<ACCESS> m_access;
@@ -3999,6 +7778,77 @@ private:
     std::vector<XFA_Node<XFA_subformSet>> m_subformSet;
 };
 
+std::optional<XFA_subform> XFA_subform::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_subform myClass;
+
+    // load attributes
+    parseAttribute(element, "access", myClass.m_access, "open");
+    parseAttribute(element, "allowMacro", myClass.m_allowMacro, "0");
+    parseAttribute(element, "anchorType", myClass.m_anchorType, "topLeft");
+    parseAttribute(element, "colSpan", myClass.m_colSpan, "1");
+    parseAttribute(element, "columnWidths", myClass.m_columnWidths, "");
+    parseAttribute(element, "h", myClass.m_h, "0in");
+    parseAttribute(element, "hAlign", myClass.m_hAlign, "left");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "layout", myClass.m_layout, "position");
+    parseAttribute(element, "locale", myClass.m_locale, "");
+    parseAttribute(element, "maxH", myClass.m_maxH, "0in");
+    parseAttribute(element, "maxW", myClass.m_maxW, "0in");
+    parseAttribute(element, "mergeMode", myClass.m_mergeMode, "consumeData");
+    parseAttribute(element, "minH", myClass.m_minH, "0in");
+    parseAttribute(element, "minW", myClass.m_minW, "0in");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "presence", myClass.m_presence, "visible");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "restoreState", myClass.m_restoreState, "manual");
+    parseAttribute(element, "scope", myClass.m_scope, "name");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "w", myClass.m_w, "0in");
+    parseAttribute(element, "x", myClass.m_x, "0in");
+    parseAttribute(element, "y", myClass.m_y, "0in");
+
+    // load items
+    parseItem(element, "assist", myClass.m_assist);
+    parseItem(element, "bind", myClass.m_bind);
+    parseItem(element, "bookend", myClass.m_bookend);
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "break", myClass.m_break);
+    parseItem(element, "calculate", myClass.m_calculate);
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "keep", myClass.m_keep);
+    parseItem(element, "margin", myClass.m_margin);
+    parseItem(element, "occur", myClass.m_occur);
+    parseItem(element, "overflow", myClass.m_overflow);
+    parseItem(element, "pageSet", myClass.m_pageSet);
+    parseItem(element, "para", myClass.m_para);
+    parseItem(element, "traversal", myClass.m_traversal);
+    parseItem(element, "validate", myClass.m_validate);
+    parseItem(element, "variables", myClass.m_variables);
+    parseItem(element, "area", myClass.m_area);
+    parseItem(element, "breakAfter", myClass.m_breakAfter);
+    parseItem(element, "breakBefore", myClass.m_breakBefore);
+    parseItem(element, "connect", myClass.m_connect);
+    parseItem(element, "draw", myClass.m_draw);
+    parseItem(element, "event", myClass.m_event);
+    parseItem(element, "exObject", myClass.m_exObject);
+    parseItem(element, "exclGroup", myClass.m_exclGroup);
+    parseItem(element, "field", myClass.m_field);
+    parseItem(element, "proto", myClass.m_proto);
+    parseItem(element, "setProperty", myClass.m_setProperty);
+    parseItem(element, "subform", myClass.m_subform);
+    parseItem(element, "subformSet", myClass.m_subformSet);
+    return myClass;
+}
+
+
 class XFA_subformSet : public XFA_BaseNode
 {
 public:
@@ -4020,6 +7870,8 @@ public:
     const std::vector<XFA_Node<XFA_breakBefore>>& getBreakBefore() const {  return m_breakBefore; }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
     const std::vector<XFA_Node<XFA_subformSet>>& getSubformSet() const {  return m_subformSet; }
+
+    static std::optional<XFA_subformSet> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -4043,6 +7895,38 @@ private:
     std::vector<XFA_Node<XFA_subformSet>> m_subformSet;
 };
 
+std::optional<XFA_subformSet> XFA_subformSet::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_subformSet myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "relation", myClass.m_relation, "ordered");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "bookend", myClass.m_bookend);
+    parseItem(element, "break", myClass.m_break);
+    parseItem(element, "desc", myClass.m_desc);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "occur", myClass.m_occur);
+    parseItem(element, "overflow", myClass.m_overflow);
+    parseItem(element, "breakAfter", myClass.m_breakAfter);
+    parseItem(element, "breakBefore", myClass.m_breakBefore);
+    parseItem(element, "subform", myClass.m_subform);
+    parseItem(element, "subformSet", myClass.m_subformSet);
+    return myClass;
+}
+
+
 class XFA_subjectDN : public XFA_BaseNode
 {
 public:
@@ -4055,6 +7939,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_subjectDN> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -4069,6 +7955,27 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_subjectDN> XFA_subjectDN::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_subjectDN myClass;
+
+    // load attributes
+    parseAttribute(element, "delimiter", myClass.m_delimiter, "");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_subjectDNs : public XFA_BaseNode
 {
 public:
@@ -4080,6 +7987,8 @@ public:
 
     const std::vector<XFA_Node<XFA_subjectDN>>& getSubjectDN() const {  return m_subjectDN; }
 
+    static std::optional<XFA_subjectDNs> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4090,6 +7999,27 @@ private:
     /* subnodes */
     std::vector<XFA_Node<XFA_subjectDN>> m_subjectDN;
 };
+
+std::optional<XFA_subjectDNs> XFA_subjectDNs::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_subjectDNs myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "subjectDN", myClass.m_subjectDN);
+    return myClass;
+}
+
 
 class XFA_submit : public XFA_BaseNode
 {
@@ -4108,6 +8038,8 @@ public:
     const std::vector<XFA_Node<XFA_encryptData>>& getEncryptData() const {  return m_encryptData; }
     const std::vector<XFA_Node<XFA_signData>>& getSignData() const {  return m_signData; }
 
+    static std::optional<XFA_submit> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<bool> m_embedPDF;
@@ -4125,6 +8057,33 @@ private:
     std::vector<XFA_Node<XFA_signData>> m_signData;
 };
 
+std::optional<XFA_submit> XFA_submit::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_submit myClass;
+
+    // load attributes
+    parseAttribute(element, "embedPDF", myClass.m_embedPDF, "0");
+    parseAttribute(element, "format", myClass.m_format, "xdp");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "target", myClass.m_target, "");
+    parseAttribute(element, "textEncoding", myClass.m_textEncoding, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "xdpContent", myClass.m_xdpContent, "");
+
+    // load items
+    parseItem(element, "encrypt", myClass.m_encrypt);
+    parseItem(element, "encryptData", myClass.m_encryptData);
+    parseItem(element, "signData", myClass.m_signData);
+    return myClass;
+}
+
+
 class XFA_template : public XFA_BaseNode
 {
 public:
@@ -4134,6 +8093,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
 
+    static std::optional<XFA_template> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<BASEPROFILE> m_baseProfile;
@@ -4142,6 +8103,25 @@ private:
     XFA_Node<XFA_extras> m_extras;
     std::vector<XFA_Node<XFA_subform>> m_subform;
 };
+
+std::optional<XFA_template> XFA_template::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_template myClass;
+
+    // load attributes
+    parseAttribute(element, "baseProfile", myClass.m_baseProfile, "full");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "subform", myClass.m_subform);
+    return myClass;
+}
+
 
 class XFA_text : public XFA_BaseNode
 {
@@ -4157,6 +8137,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_text> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4170,6 +8152,28 @@ private:
 
     XFA_Value<QString> m_nodeValue;
 };
+
+std::optional<XFA_text> XFA_text::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_text myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "maxChars", myClass.m_maxChars, "0");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "rid", myClass.m_rid, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_textEdit : public XFA_BaseNode
 {
@@ -4188,6 +8192,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
 
+    static std::optional<XFA_textEdit> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<bool> m_allowRichText;
@@ -4205,6 +8211,33 @@ private:
     XFA_Node<XFA_margin> m_margin;
 };
 
+std::optional<XFA_textEdit> XFA_textEdit::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_textEdit myClass;
+
+    // load attributes
+    parseAttribute(element, "allowRichText", myClass.m_allowRichText, "0");
+    parseAttribute(element, "hScrollPolicy", myClass.m_hScrollPolicy, "auto");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "multiLine", myClass.m_multiLine, "1");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+    parseAttribute(element, "vScrollPolicy", myClass.m_vScrollPolicy, "auto");
+
+    // load items
+    parseItem(element, "border", myClass.m_border);
+    parseItem(element, "comb", myClass.m_comb);
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "margin", myClass.m_margin);
+    return myClass;
+}
+
+
 class XFA_time : public XFA_BaseNode
 {
 public:
@@ -4216,6 +8249,8 @@ public:
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    static std::optional<XFA_time> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -4229,6 +8264,26 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_time> XFA_time::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_time myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "name", myClass.m_name, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_timeStamp : public XFA_BaseNode
 {
 public:
@@ -4240,6 +8295,8 @@ public:
     const QString* getUsehref() const {  return m_usehref.getValue(); }
 
 
+    static std::optional<XFA_timeStamp> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4250,6 +8307,27 @@ private:
 
     /* subnodes */
 };
+
+std::optional<XFA_timeStamp> XFA_timeStamp::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_timeStamp myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "server", myClass.m_server, "");
+    parseAttribute(element, "type", myClass.m_type, "optional");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
 
 class XFA_toolTip : public XFA_BaseNode
 {
@@ -4263,6 +8341,8 @@ public:
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
 
+    static std::optional<XFA_toolTip> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4275,6 +8355,26 @@ private:
     XFA_Value<QString> m_nodeValue;
 };
 
+std::optional<XFA_toolTip> XFA_toolTip::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_toolTip myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "rid", myClass.m_rid, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    return myClass;
+}
+
+
 class XFA_traversal : public XFA_BaseNode
 {
 public:
@@ -4286,6 +8386,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_traverse>>& getTraverse() const {  return m_traverse; }
 
+    static std::optional<XFA_traversal> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4296,6 +8398,27 @@ private:
     XFA_Node<XFA_extras> m_extras;
     std::vector<XFA_Node<XFA_traverse>> m_traverse;
 };
+
+std::optional<XFA_traversal> XFA_traversal::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_traversal myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "traverse", myClass.m_traverse);
+    return myClass;
+}
+
 
 class XFA_traverse : public XFA_BaseNode
 {
@@ -4310,6 +8433,8 @@ public:
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_script* getScript() const {  return m_script.getValue(); }
 
+    static std::optional<XFA_traverse> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4322,6 +8447,29 @@ private:
     XFA_Node<XFA_extras> m_extras;
     XFA_Node<XFA_script> m_script;
 };
+
+std::optional<XFA_traverse> XFA_traverse::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_traverse myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "operation", myClass.m_operation, "next");
+    parseAttribute(element, "ref", myClass.m_ref, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "script", myClass.m_script);
+    return myClass;
+}
+
 
 class XFA_ui : public XFA_BaseNode
 {
@@ -4345,6 +8493,8 @@ public:
     const XFA_signature* getSignature() const {  return m_signature.getValue(); }
     const XFA_textEdit* getTextEdit() const {  return m_textEdit.getValue(); }
 
+    static std::optional<XFA_ui> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4367,6 +8517,38 @@ private:
     XFA_Node<XFA_textEdit> m_textEdit;
 };
 
+std::optional<XFA_ui> XFA_ui::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_ui myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "picture", myClass.m_picture);
+    parseItem(element, "barcode", myClass.m_barcode);
+    parseItem(element, "button", myClass.m_button);
+    parseItem(element, "checkButton", myClass.m_checkButton);
+    parseItem(element, "choiceList", myClass.m_choiceList);
+    parseItem(element, "dateTimeEdit", myClass.m_dateTimeEdit);
+    parseItem(element, "defaultUi", myClass.m_defaultUi);
+    parseItem(element, "imageEdit", myClass.m_imageEdit);
+    parseItem(element, "numericEdit", myClass.m_numericEdit);
+    parseItem(element, "passwordEdit", myClass.m_passwordEdit);
+    parseItem(element, "signature", myClass.m_signature);
+    parseItem(element, "textEdit", myClass.m_textEdit);
+    return myClass;
+}
+
+
 class XFA_validate : public XFA_BaseNode
 {
 public:
@@ -4383,6 +8565,8 @@ public:
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
     const XFA_script* getScript() const {  return m_script.getValue(); }
 
+    static std::optional<XFA_validate> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<FORMATTEST> m_formatTest;
@@ -4398,6 +8582,32 @@ private:
     XFA_Node<XFA_picture> m_picture;
     XFA_Node<XFA_script> m_script;
 };
+
+std::optional<XFA_validate> XFA_validate::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_validate myClass;
+
+    // load attributes
+    parseAttribute(element, "formatTest", myClass.m_formatTest, "warning");
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "nullTest", myClass.m_nullTest, "disabled");
+    parseAttribute(element, "scriptTest", myClass.m_scriptTest, "error");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "extras", myClass.m_extras);
+    parseItem(element, "message", myClass.m_message);
+    parseItem(element, "picture", myClass.m_picture);
+    parseItem(element, "script", myClass.m_script);
+    return myClass;
+}
+
 
 class XFA_value : public XFA_BaseNode
 {
@@ -4423,6 +8633,8 @@ public:
     const XFA_text* getText() const {  return m_text.getValue(); }
     const XFA_time* getTime() const {  return m_time.getValue(); }
 
+    static std::optional<XFA_value> parse(const QDomElement& element);
+
 private:
     /* properties */
     XFA_Attribute<QString> m_id;
@@ -4447,6 +8659,40 @@ private:
     XFA_Node<XFA_time> m_time;
 };
 
+std::optional<XFA_value> XFA_value::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_value myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "override", myClass.m_override, "0");
+    parseAttribute(element, "relevant", myClass.m_relevant, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "arc", myClass.m_arc);
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "line", myClass.m_line);
+    parseItem(element, "rectangle", myClass.m_rectangle);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "time", myClass.m_time);
+    return myClass;
+}
+
+
 class XFA_variables : public XFA_BaseNode
 {
 public:
@@ -4467,6 +8713,8 @@ public:
     const std::vector<XFA_Node<XFA_script>>& getScript() const {  return m_script; }
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
+
+    static std::optional<XFA_variables> parse(const QDomElement& element);
 
 private:
     /* properties */
@@ -4489,9 +8737,60 @@ private:
     std::vector<XFA_Node<XFA_time>> m_time;
 };
 
+std::optional<XFA_variables> XFA_variables::parse(const QDomElement& element)
+{
+    if (element.isNull())
+    {
+        return std::nullopt;
+    }
+
+    XFA_variables myClass;
+
+    // load attributes
+    parseAttribute(element, "id", myClass.m_id, "");
+    parseAttribute(element, "use", myClass.m_use, "");
+    parseAttribute(element, "usehref", myClass.m_usehref, "");
+
+    // load items
+    parseItem(element, "boolean", myClass.m_boolean);
+    parseItem(element, "date", myClass.m_date);
+    parseItem(element, "dateTime", myClass.m_dateTime);
+    parseItem(element, "decimal", myClass.m_decimal);
+    parseItem(element, "exData", myClass.m_exData);
+    parseItem(element, "float", myClass.m_float);
+    parseItem(element, "image", myClass.m_image);
+    parseItem(element, "integer", myClass.m_integer);
+    parseItem(element, "manifest", myClass.m_manifest);
+    parseItem(element, "script", myClass.m_script);
+    parseItem(element, "text", myClass.m_text);
+    parseItem(element, "time", myClass.m_time);
+    return myClass;
+}
+
+
 } // namespace xfa
 
 
 /* END GENERATED CODE */
+
+class PDFXFAEngineImpl
+{
+public:
+    PDFXFAEngineImpl() = default;
+
+private:
+    xfa::XFA_Node<xfa::XFA_template> m_template;
+};
+
+PDFXFAEngine::PDFXFAEngine() :
+    m_impl(std::make_unique<PDFXFAEngineImpl>())
+{
+
+}
+
+PDFXFAEngine::~PDFXFAEngine()
+{
+
+}
 
 }   // namespace pdf
