@@ -2,7 +2,7 @@ import qbs
 
 Pdf4QtLibrary {
     name: "Pdf4QtLib"
-    Depends { name: "Qt"; submodules: ["core", "gui", "widgets"] }
+    Depends { name: "Qt"; submodules: ["core", "gui", "widgets", "xml"] }
     Depends { name: "openssl" }
     Depends { name: "freetype2" }
     Depends { name: "libjpeg" }
@@ -24,7 +24,7 @@ Pdf4QtLibrary {
     ]
     Export {
         Depends { name: "cpp" }
-        Depends { name: "Qt"; submodules: ["core", "gui", "widgets"] }
+        Depends { name: "Qt"; submodules: ["core", "gui", "widgets", "xml"] }
         cpp.includePaths: ["sources"]
         Depends { name: "openssl" }
         Depends { name: "freetype2" }
