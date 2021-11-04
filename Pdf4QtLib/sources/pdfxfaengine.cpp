@@ -16,8 +16,10 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfxfaengine.h"
+#include "pdfform.h"
 
 #include <QDomElement>
+#include <QDomDocument>
 
 #include <optional>
 
@@ -8887,10 +8889,16 @@ std::optional<XFA_variables> XFA_variables::parse(const QDomElement& element)
 class PDFXFAEngineImpl
 {
 public:
-    PDFXFAEngineImpl() = default;
+    PDFXFAEngineImpl();
+
+    void setDocument(const PDFModifiedDocument& document, PDFForm* form);
 
 private:
+    void clear();
+
     xfa::XFA_Node<xfa::XFA_template> m_template;
+    const PDFDocument* m_document;
+    PDFForm* m_form;
 };
 
 PDFXFAEngine::PDFXFAEngine() :
@@ -8902,6 +8910,79 @@ PDFXFAEngine::PDFXFAEngine() :
 PDFXFAEngine::~PDFXFAEngine()
 {
 
+}
+
+void PDFXFAEngine::setDocument(const PDFModifiedDocument& document, PDFForm* form)
+{
+    m_impl->setDocument(document, form);
+}
+
+PDFXFAEngineImpl::PDFXFAEngineImpl() :
+    m_document(nullptr),
+    m_form(nullptr)
+{
+
+}
+
+void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm* form)
+{
+    if (m_document != document || document.hasReset())
+    {
+        m_document = document;
+
+        if (document.hasReset())
+        {
+            clear();
+
+            if (form->getFormType() == PDFForm::FormType::XFAForm)
+            {
+                try
+                {
+                    const PDFObject& xfaObject = m_document->getObject(form->getXFA());
+
+                    std::map<QByteArray, QByteArray> xfaData;
+                    if (xfaObject.isArray())
+                    {
+                        const PDFArray* xfaArrayData = xfaObject.getArray();
+                        const size_t pairCount = xfaArrayData->getCount() / 2;
+
+                        for (size_t i = 0; i < pairCount; ++i)
+                        {
+                            const PDFObject& itemName = m_document->getObject(xfaArrayData->getItem(2 * i + 0));
+                            const PDFObject& streamObject = m_document->getObject(xfaArrayData->getItem(2 * i + 1));
+
+                            if (itemName.isString() && streamObject.isStream())
+                            {
+                                xfaData[itemName.getString()] = m_document->getDecodedStream(streamObject.getStream());
+                            }
+                        }
+                    }
+                    else if (xfaObject.isStream())
+                    {
+                        xfaData["template"] = m_document->getDecodedStream(xfaObject.getStream());
+                    }
+
+                    QDomDocument document;
+                    if (document.setContent(xfaData["template"]))
+                    {
+                        m_template = xfa::XFA_template::parse(document.firstChildElement("template"));
+                    }
+                }
+                catch (PDFException)
+                {
+                    // Just clear once again - if some errorneous data
+                    // were read, we want to clear them.
+                    clear();
+                }
+            }
+        }
+    }
+}
+
+void PDFXFAEngineImpl::clear()
+{
+    // Clear the template
+    m_template = xfa::XFA_Node<xfa::XFA_template>();
 }
 
 }   // namespace pdf

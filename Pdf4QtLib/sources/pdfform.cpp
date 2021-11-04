@@ -1161,6 +1161,8 @@ void PDFFormManager::setDocument(const PDFModifiedDocument& document)
             // Just update field values
             updateFieldValues();
         }
+
+        m_xfaEngine.setDocument(document, &m_form);
     }
 }
 

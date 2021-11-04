@@ -19,12 +19,14 @@
 #define PDFXFAENGINE_H
 
 #include "pdfglobal.h"
+#include "pdfdocument.h"
 
 #include <memory>
 
 namespace pdf
 {
 
+class PDFForm;
 class PDFXFAEngineImpl;
 
 class PDFXFAEngine
@@ -32,6 +34,8 @@ class PDFXFAEngine
 public:
     PDFXFAEngine();
     ~PDFXFAEngine();
+
+    void setDocument(const PDFModifiedDocument& document, PDFForm* form);
 
 private:
     std::unique_ptr<PDFXFAEngineImpl> m_impl;

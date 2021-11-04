@@ -242,7 +242,7 @@ DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/lcms2/include
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info
 
-QMAKE_CXXFLAGS += /std:c++latest /utf-8
+QMAKE_CXXFLAGS += /std:c++latest /utf-8 /bigobj
 QMAKE_RESOURCE_FLAGS += -threshold 0 -compress 9
 
 PdfforQt_library.files = $$DESTDIR/Pdf4QtLib.dll

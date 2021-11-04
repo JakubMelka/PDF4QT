@@ -23,6 +23,7 @@
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfsignaturehandler.h"
+#include "pdfxfaengine.h"
 
 #include <QTextLayout>
 
@@ -719,6 +720,8 @@ private:
     FormAppearanceFlags m_flags;
     PDFForm m_form;
     bool m_isCommitDisabled;
+
+    PDFXFAEngine m_xfaEngine;
 
     std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
     PDFFormFieldWidgetEditor* m_focusedEditor;
