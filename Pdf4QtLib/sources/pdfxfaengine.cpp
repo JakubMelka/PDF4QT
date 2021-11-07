@@ -31,6 +31,8 @@ namespace xfa
 struct XFA_InplaceTag;
 struct XFA_SharedMemoryTag;
 
+class XFA_AbstractVisitor;
+
 template<typename Value, typename Tag>
 class PDFXFAValueHolder
 {
@@ -55,6 +57,7 @@ public:
 
     constexpr inline bool hasValue() const { return m_value.has_value(); }
     constexpr const Value* getValue() const { return m_value.has_value() ? &m_value.value() : nullptr; }
+    constexpr Value getValueOrDefault() const { return m_value.has_value() ? m_value.value() : Value(); }
 
 private:
     std::optional<Value> m_value;
@@ -75,7 +78,7 @@ public:
         }
     }
 
-    constexpr inline bool hasValue() const { return m_value; }
+    constexpr inline bool hasValue() const { return static_cast<bool>(m_value); }
     constexpr const Value* getValue() const { return m_value.get(); }
 
 private:
@@ -138,6 +141,8 @@ class XFA_AbstractNode
 public:
     constexpr inline XFA_AbstractNode() = default;
     virtual ~XFA_AbstractNode() = default;
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const = 0;
 
     template<typename Type>
     static void parseItem(const QDomElement& element, QString value, XFA_Node<Type>& node)
@@ -270,7 +275,58 @@ public:
             nodeValue = XFA_Value<QString>(std::move(text));
         }
     }
+
+    /// Get ordering of the element in original document
+    size_t getOrder() const { return m_order; }
+
+    void setOrderFromElement(const QDomElement& element);
+
+    static inline constexpr void addNodesToContainer(std::vector<const XFA_AbstractNode*>&) { }
+
+    template<typename Container, typename... Containers>
+    static void addNodesToContainer(std::vector<const XFA_AbstractNode*>& nodes,
+                                    const Container& container,
+                                    const Containers&... containers)
+    {
+        for (const auto& node : container)
+        {
+            nodes.push_back(node.getValue());
+        }
+
+        addNodesToContainer(nodes, containers...);
+    }
+
+    template<typename... Containers>
+    static void acceptOrdered(XFA_AbstractVisitor* visitor, const Containers&... containers)
+    {
+        std::vector<const XFA_AbstractNode*> nodes;
+        addNodesToContainer(nodes, containers...);
+        std::sort(nodes.begin(), nodes.end(), [](const auto* l, const auto* r) { return l->getOrder() < r->getOrder(); });
+
+        for (const XFA_AbstractNode* node : nodes)
+        {
+            node->accept(visitor);
+        }
+    }
+
+private:
+    size_t m_order = 0;
 };
+
+void XFA_AbstractNode::setOrderFromElement(const QDomElement& element)
+{
+    const uint32_t lineNumber = element.lineNumber();
+    const uint32_t columnNumber = element.columnNumber();
+
+    if constexpr (sizeof(decltype(m_order)) > 4)
+    {
+        m_order = (size_t(lineNumber) << 32) + columnNumber;
+    }
+    else
+    {
+        m_order = (size_t(lineNumber) << 12) + columnNumber;
+    }
+}
 
 }   // namespace xfa
 
@@ -392,6 +448,127 @@ class XFA_ui;
 class XFA_validate;
 class XFA_value;
 class XFA_variables;
+
+class XFA_AbstractVisitor
+{
+public:
+    XFA_AbstractVisitor() = default;
+    virtual ~XFA_AbstractVisitor() = default;
+
+    virtual void visit(const XFA_appearanceFilter* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_arc* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_area* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_assist* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_barcode* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_bind* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_bindItems* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_bookend* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_boolean* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_border* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_break* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_breakAfter* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_breakBefore* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_button* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_calculate* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_caption* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_certificate* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_certificates* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_checkButton* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_choiceList* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_color* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_comb* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_connect* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_contentArea* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_corner* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_date* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_dateTime* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_dateTimeEdit* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_decimal* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_defaultUi* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_desc* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_digestMethod* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_digestMethods* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_draw* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_edge* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encoding* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encodings* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encrypt* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encryptData* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encryption* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encryptionMethod* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_encryptionMethods* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_event* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_exData* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_exObject* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_exclGroup* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_execute* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_extras* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_field* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_fill* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_filter* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_float* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_font* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_format* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_handler* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_hyphenation* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_image* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_imageEdit* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_integer* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_issuers* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_items* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_keep* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_keyUsage* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_line* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_linear* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_lockDocument* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_manifest* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_margin* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_mdp* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_medium* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_message* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_numericEdit* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_occur* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_oid* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_oids* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_overflow* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_pageArea* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_pageSet* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_para* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_passwordEdit* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_pattern* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_picture* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_proto* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_radial* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_reason* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_reasons* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_rectangle* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_ref* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_script* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_setProperty* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_signData* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_signature* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_signing* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_solid* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_speak* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_stipple* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_subform* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_subformSet* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_subjectDN* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_subjectDNs* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_submit* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_template* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_text* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_textEdit* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_time* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_timeStamp* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_toolTip* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_traversal* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_traverse* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_ui* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_validate* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_value* node) { Q_UNUSED(node); }
+    virtual void visit(const XFA_variables* node) { Q_UNUSED(node); }
+};
 
 class XFA_BaseNode : public XFA_AbstractNode
 {
@@ -1902,13 +2079,15 @@ class XFA_appearanceFilter : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_appearanceFilter> parse(const QDomElement& element);
 
@@ -1944,6 +2123,7 @@ std::optional<XFA_appearanceFilter> XFA_appearanceFilter::parse(const QDomElemen
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -1952,16 +2132,18 @@ class XFA_arc : public XFA_BaseNode
 {
 public:
 
-    const bool* getCircular() const {  return m_circular.getValue(); }
-    const HAND* getHand() const {  return m_hand.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFReal* getStartAngle() const {  return m_startAngle.getValue(); }
-    const PDFReal* getSweepAngle() const {  return m_sweepAngle.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    bool getCircular() const {  return m_circular.getValueOrDefault(); }
+    HAND getHand() const {  return m_hand.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFReal getStartAngle() const {  return m_startAngle.getValueOrDefault(); }
+    PDFReal getSweepAngle() const {  return m_sweepAngle.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_edge* getEdge() const {  return m_edge.getValue(); }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_arc> parse(const QDomElement& element);
 
@@ -2001,6 +2183,7 @@ std::optional<XFA_arc> XFA_arc::parse(const QDomElement& element)
     // load items
     parseItem(element, "edge", myClass.m_edge);
     parseItem(element, "fill", myClass.m_fill);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2009,14 +2192,14 @@ class XFA_area : public XFA_BaseNode
 {
 public:
 
-    const PDFInteger* getColSpan() const {  return m_colSpan.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const XFA_Measurement* getX() const {  return m_x.getValue(); }
-    const XFA_Measurement* getY() const {  return m_y.getValue(); }
+    PDFInteger getColSpan() const {  return m_colSpan.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    XFA_Measurement getX() const {  return m_x.getValueOrDefault(); }
+    XFA_Measurement getY() const {  return m_y.getValueOrDefault(); }
 
     const XFA_desc* getDesc() const {  return m_desc.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
@@ -2027,6 +2210,8 @@ public:
     const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
     const std::vector<XFA_Node<XFA_subformSet>>& getSubformSet() const {  return m_subformSet; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_area> parse(const QDomElement& element);
 
@@ -2082,6 +2267,7 @@ std::optional<XFA_area> XFA_area::parse(const QDomElement& element)
     parseItem(element, "field", myClass.m_field);
     parseItem(element, "subform", myClass.m_subform);
     parseItem(element, "subformSet", myClass.m_subformSet);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2090,13 +2276,15 @@ class XFA_assist : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getRole() const {  return m_role.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getRole() const {  return m_role.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_speak* getSpeak() const {  return m_speak.getValue(); }
     const XFA_toolTip* getToolTip() const {  return m_toolTip.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_assist> parse(const QDomElement& element);
 
@@ -2130,6 +2318,7 @@ std::optional<XFA_assist> XFA_assist::parse(const QDomElement& element)
     // load items
     parseItem(element, "speak", myClass.m_speak);
     parseItem(element, "toolTip", myClass.m_toolTip);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2138,30 +2327,32 @@ class XFA_barcode : public XFA_BaseNode
 {
 public:
 
-    const QString* getCharEncoding() const {  return m_charEncoding.getValue(); }
-    const CHECKSUM* getChecksum() const {  return m_checksum.getValue(); }
-    const QString* getDataColumnCount() const {  return m_dataColumnCount.getValue(); }
-    const QString* getDataLength() const {  return m_dataLength.getValue(); }
-    const DATAPREP* getDataPrep() const {  return m_dataPrep.getValue(); }
-    const QString* getDataRowCount() const {  return m_dataRowCount.getValue(); }
-    const QString* getEndChar() const {  return m_endChar.getValue(); }
-    const QString* getErrorCorrectionLevel() const {  return m_errorCorrectionLevel.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const XFA_Measurement* getModuleHeight() const {  return m_moduleHeight.getValue(); }
-    const XFA_Measurement* getModuleWidth() const {  return m_moduleWidth.getValue(); }
-    const bool* getPrintCheckDigit() const {  return m_printCheckDigit.getValue(); }
-    const QString* getRowColumnRatio() const {  return m_rowColumnRatio.getValue(); }
-    const QString* getStartChar() const {  return m_startChar.getValue(); }
-    const TEXTLOCATION* getTextLocation() const {  return m_textLocation.getValue(); }
-    const bool* getTruncate() const {  return m_truncate.getValue(); }
-    const QString* getType() const {  return m_type.getValue(); }
-    const UPSMODE* getUpsMode() const {  return m_upsMode.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const QString* getWideNarrowRatio() const {  return m_wideNarrowRatio.getValue(); }
+    QString getCharEncoding() const {  return m_charEncoding.getValueOrDefault(); }
+    CHECKSUM getChecksum() const {  return m_checksum.getValueOrDefault(); }
+    QString getDataColumnCount() const {  return m_dataColumnCount.getValueOrDefault(); }
+    QString getDataLength() const {  return m_dataLength.getValueOrDefault(); }
+    DATAPREP getDataPrep() const {  return m_dataPrep.getValueOrDefault(); }
+    QString getDataRowCount() const {  return m_dataRowCount.getValueOrDefault(); }
+    QString getEndChar() const {  return m_endChar.getValueOrDefault(); }
+    QString getErrorCorrectionLevel() const {  return m_errorCorrectionLevel.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    XFA_Measurement getModuleHeight() const {  return m_moduleHeight.getValueOrDefault(); }
+    XFA_Measurement getModuleWidth() const {  return m_moduleWidth.getValueOrDefault(); }
+    bool getPrintCheckDigit() const {  return m_printCheckDigit.getValueOrDefault(); }
+    QString getRowColumnRatio() const {  return m_rowColumnRatio.getValueOrDefault(); }
+    QString getStartChar() const {  return m_startChar.getValueOrDefault(); }
+    TEXTLOCATION getTextLocation() const {  return m_textLocation.getValueOrDefault(); }
+    bool getTruncate() const {  return m_truncate.getValueOrDefault(); }
+    QString getType() const {  return m_type.getValueOrDefault(); }
+    UPSMODE getUpsMode() const {  return m_upsMode.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    QString getWideNarrowRatio() const {  return m_wideNarrowRatio.getValueOrDefault(); }
 
     const XFA_encrypt* getEncrypt() const {  return m_encrypt.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_barcode> parse(const QDomElement& element);
 
@@ -2229,6 +2420,7 @@ std::optional<XFA_barcode> XFA_barcode::parse(const QDomElement& element)
     // load items
     parseItem(element, "encrypt", myClass.m_encrypt);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2237,10 +2429,12 @@ class XFA_bind : public XFA_BaseNode
 {
 public:
 
-    const MATCH* getMatch() const {  return m_match.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
+    MATCH getMatch() const {  return m_match.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
 
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_bind> parse(const QDomElement& element);
 
@@ -2268,6 +2462,7 @@ std::optional<XFA_bind> XFA_bind::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "picture", myClass.m_picture);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2276,11 +2471,13 @@ class XFA_bindItems : public XFA_BaseNode
 {
 public:
 
-    const QString* getConnection() const {  return m_connection.getValue(); }
-    const QString* getLabelRef() const {  return m_labelRef.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const QString* getValueRef() const {  return m_valueRef.getValue(); }
+    QString getConnection() const {  return m_connection.getValueOrDefault(); }
+    QString getLabelRef() const {  return m_labelRef.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    QString getValueRef() const {  return m_valueRef.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_bindItems> parse(const QDomElement& element);
 
@@ -2310,6 +2507,7 @@ std::optional<XFA_bindItems> XFA_bindItems::parse(const QDomElement& element)
     parseAttribute(element, "valueRef", myClass.m_valueRef, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2318,12 +2516,14 @@ class XFA_bookend : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getLeader() const {  return m_leader.getValue(); }
-    const QString* getTrailer() const {  return m_trailer.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getLeader() const {  return m_leader.getValueOrDefault(); }
+    QString getTrailer() const {  return m_trailer.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_bookend> parse(const QDomElement& element);
 
@@ -2355,6 +2555,7 @@ std::optional<XFA_bookend> XFA_bookend::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2363,13 +2564,15 @@ class XFA_boolean : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_boolean> parse(const QDomElement& element);
 
@@ -2405,6 +2608,7 @@ std::optional<XFA_boolean> XFA_boolean::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2413,19 +2617,21 @@ class XFA_border : public XFA_BaseNode
 {
 public:
 
-    const BREAK* getBreak() const {  return m_break.getValue(); }
-    const HAND* getHand() const {  return m_hand.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    BREAK getBreak() const {  return m_break.getValueOrDefault(); }
+    HAND getHand() const {  return m_hand.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_corner>>& getCorner() const {  return m_corner; }
     const std::vector<XFA_Node<XFA_edge>>& getEdge() const {  return m_edge; }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_border> parse(const QDomElement& element);
 
@@ -2471,6 +2677,7 @@ std::optional<XFA_border> XFA_border::parse(const QDomElement& element)
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "fill", myClass.m_fill);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2479,21 +2686,23 @@ class XFA_break : public XFA_BaseNode
 {
 public:
 
-    const AFTER* getAfter() const {  return m_after.getValue(); }
-    const QString* getAfterTarget() const {  return m_afterTarget.getValue(); }
-    const BEFORE* getBefore() const {  return m_before.getValue(); }
-    const QString* getBeforeTarget() const {  return m_beforeTarget.getValue(); }
-    const QString* getBookendLeader() const {  return m_bookendLeader.getValue(); }
-    const QString* getBookendTrailer() const {  return m_bookendTrailer.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getOverflowLeader() const {  return m_overflowLeader.getValue(); }
-    const QString* getOverflowTarget() const {  return m_overflowTarget.getValue(); }
-    const QString* getOverflowTrailer() const {  return m_overflowTrailer.getValue(); }
-    const bool* getStartNew() const {  return m_startNew.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    AFTER getAfter() const {  return m_after.getValueOrDefault(); }
+    QString getAfterTarget() const {  return m_afterTarget.getValueOrDefault(); }
+    BEFORE getBefore() const {  return m_before.getValueOrDefault(); }
+    QString getBeforeTarget() const {  return m_beforeTarget.getValueOrDefault(); }
+    QString getBookendLeader() const {  return m_bookendLeader.getValueOrDefault(); }
+    QString getBookendTrailer() const {  return m_bookendTrailer.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getOverflowLeader() const {  return m_overflowLeader.getValueOrDefault(); }
+    QString getOverflowTarget() const {  return m_overflowTarget.getValueOrDefault(); }
+    QString getOverflowTrailer() const {  return m_overflowTrailer.getValueOrDefault(); }
+    bool getStartNew() const {  return m_startNew.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_break> parse(const QDomElement& element);
 
@@ -2543,6 +2752,7 @@ std::optional<XFA_break> XFA_break::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2551,16 +2761,18 @@ class XFA_breakAfter : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getLeader() const {  return m_leader.getValue(); }
-    const bool* getStartNew() const {  return m_startNew.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
-    const TARGETTYPE* getTargetType() const {  return m_targetType.getValue(); }
-    const QString* getTrailer() const {  return m_trailer.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getLeader() const {  return m_leader.getValueOrDefault(); }
+    bool getStartNew() const {  return m_startNew.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
+    TARGETTYPE getTargetType() const {  return m_targetType.getValueOrDefault(); }
+    QString getTrailer() const {  return m_trailer.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_script* getScript() const {  return m_script.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_breakAfter> parse(const QDomElement& element);
 
@@ -2600,6 +2812,7 @@ std::optional<XFA_breakAfter> XFA_breakAfter::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "script", myClass.m_script);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2608,16 +2821,18 @@ class XFA_breakBefore : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getLeader() const {  return m_leader.getValue(); }
-    const bool* getStartNew() const {  return m_startNew.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
-    const TARGETTYPE* getTargetType() const {  return m_targetType.getValue(); }
-    const QString* getTrailer() const {  return m_trailer.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getLeader() const {  return m_leader.getValueOrDefault(); }
+    bool getStartNew() const {  return m_startNew.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
+    TARGETTYPE getTargetType() const {  return m_targetType.getValueOrDefault(); }
+    QString getTrailer() const {  return m_trailer.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_script* getScript() const {  return m_script.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_breakBefore> parse(const QDomElement& element);
 
@@ -2657,6 +2872,7 @@ std::optional<XFA_breakBefore> XFA_breakBefore::parse(const QDomElement& element
 
     // load items
     parseItem(element, "script", myClass.m_script);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2665,12 +2881,14 @@ class XFA_button : public XFA_BaseNode
 {
 public:
 
-    const HIGHLIGHT* getHighlight() const {  return m_highlight.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    HIGHLIGHT getHighlight() const {  return m_highlight.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_button> parse(const QDomElement& element);
 
@@ -2702,6 +2920,7 @@ std::optional<XFA_button> XFA_button::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2710,14 +2929,16 @@ class XFA_calculate : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const OVERRIDE* getOverride() const {  return m_override.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    OVERRIDE getOverride() const {  return m_override.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_message* getMessage() const {  return m_message.getValue(); }
     const XFA_script* getScript() const {  return m_script.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_calculate> parse(const QDomElement& element);
 
@@ -2753,6 +2974,7 @@ std::optional<XFA_calculate> XFA_calculate::parse(const QDomElement& element)
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "message", myClass.m_message);
     parseItem(element, "script", myClass.m_script);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2761,18 +2983,20 @@ class XFA_caption : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PLACEMENT* getPlacement() const {  return m_placement.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const XFA_Measurement* getReserve() const {  return m_reserve.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PLACEMENT getPlacement() const {  return m_placement.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    XFA_Measurement getReserve() const {  return m_reserve.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_font* getFont() const {  return m_font.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
     const XFA_para* getPara() const {  return m_para.getValue(); }
     const XFA_value* getValue() const {  return m_value.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_caption> parse(const QDomElement& element);
 
@@ -2816,6 +3040,7 @@ std::optional<XFA_caption> XFA_caption::parse(const QDomElement& element)
     parseItem(element, "margin", myClass.m_margin);
     parseItem(element, "para", myClass.m_para);
     parseItem(element, "value", myClass.m_value);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2824,13 +3049,15 @@ class XFA_certificate : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_certificate> parse(const QDomElement& element);
 
@@ -2866,6 +3093,7 @@ std::optional<XFA_certificate> XFA_certificate::parse(const QDomElement& element
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2874,12 +3102,12 @@ class XFA_certificates : public XFA_BaseNode
 {
 public:
 
-    const CREDENTIALSERVERPOLICY* getCredentialServerPolicy() const {  return m_credentialServerPolicy.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUrl() const {  return m_url.getValue(); }
-    const QString* getUrlPolicy() const {  return m_urlPolicy.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    CREDENTIALSERVERPOLICY getCredentialServerPolicy() const {  return m_credentialServerPolicy.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUrl() const {  return m_url.getValueOrDefault(); }
+    QString getUrlPolicy() const {  return m_urlPolicy.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_encryption* getEncryption() const {  return m_encryption.getValue(); }
     const XFA_issuers* getIssuers() const {  return m_issuers.getValue(); }
@@ -2887,6 +3115,8 @@ public:
     const XFA_oids* getOids() const {  return m_oids.getValue(); }
     const XFA_signing* getSigning() const {  return m_signing.getValue(); }
     const XFA_subjectDNs* getSubjectDNs() const {  return m_subjectDNs.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_certificates> parse(const QDomElement& element);
 
@@ -2932,6 +3162,7 @@ std::optional<XFA_certificates> XFA_certificates::parse(const QDomElement& eleme
     parseItem(element, "oids", myClass.m_oids);
     parseItem(element, "signing", myClass.m_signing);
     parseItem(element, "subjectDNs", myClass.m_subjectDNs);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2940,16 +3171,18 @@ class XFA_checkButton : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const MARK* getMark() const {  return m_mark.getValue(); }
-    const SHAPE* getShape() const {  return m_shape.getValue(); }
-    const XFA_Measurement* getSize() const {  return m_size.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    MARK getMark() const {  return m_mark.getValueOrDefault(); }
+    SHAPE getShape() const {  return m_shape.getValueOrDefault(); }
+    XFA_Measurement getSize() const {  return m_size.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_checkButton> parse(const QDomElement& element);
 
@@ -2989,6 +3222,7 @@ std::optional<XFA_checkButton> XFA_checkButton::parse(const QDomElement& element
     parseItem(element, "border", myClass.m_border);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -2997,16 +3231,18 @@ class XFA_choiceList : public XFA_BaseNode
 {
 public:
 
-    const COMMITON* getCommitOn() const {  return m_commitOn.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const OPEN* getOpen() const {  return m_open.getValue(); }
-    const bool* getTextEntry() const {  return m_textEntry.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    COMMITON getCommitOn() const {  return m_commitOn.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    OPEN getOpen() const {  return m_open.getValueOrDefault(); }
+    bool getTextEntry() const {  return m_textEntry.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_choiceList> parse(const QDomElement& element);
 
@@ -3046,6 +3282,7 @@ std::optional<XFA_choiceList> XFA_choiceList::parse(const QDomElement& element)
     parseItem(element, "border", myClass.m_border);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3054,13 +3291,15 @@ class XFA_color : public XFA_BaseNode
 {
 public:
 
-    const QString* getCSpace() const {  return m_cSpace.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const QString* getValue() const {  return m_value.getValue(); }
+    QString getCSpace() const {  return m_cSpace.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    QString getValue() const {  return m_value.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_color> parse(const QDomElement& element);
 
@@ -3094,6 +3333,7 @@ std::optional<XFA_color> XFA_color::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3102,11 +3342,13 @@ class XFA_comb : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getNumberOfCells() const {  return m_numberOfCells.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getNumberOfCells() const {  return m_numberOfCells.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_comb> parse(const QDomElement& element);
 
@@ -3136,6 +3378,7 @@ std::optional<XFA_comb> XFA_comb::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3144,14 +3387,16 @@ class XFA_connect : public XFA_BaseNode
 {
 public:
 
-    const QString* getConnection() const {  return m_connection.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const USAGE* getUsage() const {  return m_usage.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getConnection() const {  return m_connection.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    USAGE getUsage() const {  return m_usage.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_connect> parse(const QDomElement& element);
 
@@ -3187,6 +3432,7 @@ std::optional<XFA_connect> XFA_connect::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "picture", myClass.m_picture);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3195,18 +3441,20 @@ class XFA_contentArea : public XFA_BaseNode
 {
 public:
 
-    const XFA_Measurement* getH() const {  return m_h.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const XFA_Measurement* getW() const {  return m_w.getValue(); }
-    const XFA_Measurement* getX() const {  return m_x.getValue(); }
-    const XFA_Measurement* getY() const {  return m_y.getValue(); }
+    XFA_Measurement getH() const {  return m_h.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    XFA_Measurement getW() const {  return m_w.getValueOrDefault(); }
+    XFA_Measurement getX() const {  return m_x.getValueOrDefault(); }
+    XFA_Measurement getY() const {  return m_y.getValueOrDefault(); }
 
     const XFA_desc* getDesc() const {  return m_desc.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_contentArea> parse(const QDomElement& element);
 
@@ -3250,6 +3498,7 @@ std::optional<XFA_contentArea> XFA_contentArea::parse(const QDomElement& element
     // load items
     parseItem(element, "desc", myClass.m_desc);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3258,18 +3507,20 @@ class XFA_corner : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const bool* getInverted() const {  return m_inverted.getValue(); }
-    const JOIN* getJoin() const {  return m_join.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const XFA_Measurement* getRadius() const {  return m_radius.getValue(); }
-    const STROKE* getStroke() const {  return m_stroke.getValue(); }
-    const XFA_Measurement* getThickness() const {  return m_thickness.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    bool getInverted() const {  return m_inverted.getValueOrDefault(); }
+    JOIN getJoin() const {  return m_join.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    XFA_Measurement getRadius() const {  return m_radius.getValueOrDefault(); }
+    STROKE getStroke() const {  return m_stroke.getValueOrDefault(); }
+    XFA_Measurement getThickness() const {  return m_thickness.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_corner> parse(const QDomElement& element);
 
@@ -3313,6 +3564,7 @@ std::optional<XFA_corner> XFA_corner::parse(const QDomElement& element)
     // load items
     parseItem(element, "color", myClass.m_color);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3321,13 +3573,15 @@ class XFA_date : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_date> parse(const QDomElement& element);
 
@@ -3363,6 +3617,7 @@ std::optional<XFA_date> XFA_date::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3371,13 +3626,15 @@ class XFA_dateTime : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_dateTime> parse(const QDomElement& element);
 
@@ -3413,6 +3670,7 @@ std::optional<XFA_dateTime> XFA_dateTime::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3421,16 +3679,18 @@ class XFA_dateTimeEdit : public XFA_BaseNode
 {
 public:
 
-    const HSCROLLPOLICY* getHScrollPolicy() const {  return m_hScrollPolicy.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PICKER* getPicker() const {  return m_picker.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    HSCROLLPOLICY getHScrollPolicy() const {  return m_hScrollPolicy.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PICKER getPicker() const {  return m_picker.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_comb* getComb() const {  return m_comb.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_dateTimeEdit> parse(const QDomElement& element);
 
@@ -3470,6 +3730,7 @@ std::optional<XFA_dateTimeEdit> XFA_dateTimeEdit::parse(const QDomElement& eleme
     parseItem(element, "comb", myClass.m_comb);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3478,15 +3739,17 @@ class XFA_decimal : public XFA_BaseNode
 {
 public:
 
-    const PDFInteger* getFracDigits() const {  return m_fracDigits.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getLeadDigits() const {  return m_leadDigits.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    PDFInteger getFracDigits() const {  return m_fracDigits.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getLeadDigits() const {  return m_leadDigits.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_decimal> parse(const QDomElement& element);
 
@@ -3526,6 +3789,7 @@ std::optional<XFA_decimal> XFA_decimal::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3534,11 +3798,13 @@ class XFA_defaultUi : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_defaultUi> parse(const QDomElement& element);
 
@@ -3568,6 +3834,7 @@ std::optional<XFA_defaultUi> XFA_defaultUi::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3576,9 +3843,9 @@ class XFA_desc : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_boolean>>& getBoolean() const {  return m_boolean; }
     const std::vector<XFA_Node<XFA_date>>& getDate() const {  return m_date; }
@@ -3590,6 +3857,8 @@ public:
     const std::vector<XFA_Node<XFA_integer>>& getInteger() const {  return m_integer; }
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_desc> parse(const QDomElement& element);
 
@@ -3637,6 +3906,7 @@ std::optional<XFA_desc> XFA_desc::parse(const QDomElement& element)
     parseItem(element, "integer", myClass.m_integer);
     parseItem(element, "text", myClass.m_text);
     parseItem(element, "time", myClass.m_time);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3645,12 +3915,14 @@ class XFA_digestMethod : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_digestMethod> parse(const QDomElement& element);
 
@@ -3684,6 +3956,7 @@ std::optional<XFA_digestMethod> XFA_digestMethod::parse(const QDomElement& eleme
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3692,12 +3965,14 @@ class XFA_digestMethods : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_digestMethod>>& getDigestMethod() const {  return m_digestMethod; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_digestMethods> parse(const QDomElement& element);
 
@@ -3729,6 +4004,7 @@ std::optional<XFA_digestMethods> XFA_digestMethods::parse(const QDomElement& ele
 
     // load items
     parseItem(element, "digestMethod", myClass.m_digestMethod);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3737,25 +4013,25 @@ class XFA_draw : public XFA_BaseNode
 {
 public:
 
-    const ANCHORTYPE* getAnchorType() const {  return m_anchorType.getValue(); }
-    const PDFInteger* getColSpan() const {  return m_colSpan.getValue(); }
-    const XFA_Measurement* getH() const {  return m_h.getValue(); }
-    const HALIGN* getHAlign() const {  return m_hAlign.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getLocale() const {  return m_locale.getValue(); }
-    const XFA_Measurement* getMaxH() const {  return m_maxH.getValue(); }
-    const XFA_Measurement* getMaxW() const {  return m_maxW.getValue(); }
-    const XFA_Measurement* getMinH() const {  return m_minH.getValue(); }
-    const XFA_Measurement* getMinW() const {  return m_minW.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const PDFReal* getRotate() const {  return m_rotate.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const XFA_Measurement* getW() const {  return m_w.getValue(); }
-    const XFA_Measurement* getX() const {  return m_x.getValue(); }
-    const XFA_Measurement* getY() const {  return m_y.getValue(); }
+    ANCHORTYPE getAnchorType() const {  return m_anchorType.getValueOrDefault(); }
+    PDFInteger getColSpan() const {  return m_colSpan.getValueOrDefault(); }
+    XFA_Measurement getH() const {  return m_h.getValueOrDefault(); }
+    HALIGN getHAlign() const {  return m_hAlign.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getLocale() const {  return m_locale.getValueOrDefault(); }
+    XFA_Measurement getMaxH() const {  return m_maxH.getValueOrDefault(); }
+    XFA_Measurement getMaxW() const {  return m_maxW.getValueOrDefault(); }
+    XFA_Measurement getMinH() const {  return m_minH.getValueOrDefault(); }
+    XFA_Measurement getMinW() const {  return m_minW.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    PDFReal getRotate() const {  return m_rotate.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    XFA_Measurement getW() const {  return m_w.getValueOrDefault(); }
+    XFA_Measurement getX() const {  return m_x.getValueOrDefault(); }
+    XFA_Measurement getY() const {  return m_y.getValueOrDefault(); }
 
     const XFA_assist* getAssist() const {  return m_assist.getValue(); }
     const XFA_border* getBorder() const {  return m_border.getValue(); }
@@ -3770,6 +4046,8 @@ public:
     const XFA_ui* getUi() const {  return m_ui.getValue(); }
     const XFA_value* getValue() const {  return m_value.getValue(); }
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_draw> parse(const QDomElement& element);
 
@@ -3855,6 +4133,7 @@ std::optional<XFA_draw> XFA_draw::parse(const QDomElement& element)
     parseItem(element, "ui", myClass.m_ui);
     parseItem(element, "value", myClass.m_value);
     parseItem(element, "setProperty", myClass.m_setProperty);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3863,16 +4142,18 @@ class XFA_edge : public XFA_BaseNode
 {
 public:
 
-    const CAP* getCap() const {  return m_cap.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const STROKE* getStroke() const {  return m_stroke.getValue(); }
-    const XFA_Measurement* getThickness() const {  return m_thickness.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    CAP getCap() const {  return m_cap.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    STROKE getStroke() const {  return m_stroke.getValueOrDefault(); }
+    XFA_Measurement getThickness() const {  return m_thickness.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_edge> parse(const QDomElement& element);
 
@@ -3912,6 +4193,7 @@ std::optional<XFA_edge> XFA_edge::parse(const QDomElement& element)
     // load items
     parseItem(element, "color", myClass.m_color);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3920,12 +4202,14 @@ class XFA_encoding : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encoding> parse(const QDomElement& element);
 
@@ -3959,6 +4243,7 @@ std::optional<XFA_encoding> XFA_encoding::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -3967,12 +4252,14 @@ class XFA_encodings : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_encoding>>& getEncoding() const {  return m_encoding; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encodings> parse(const QDomElement& element);
 
@@ -4004,6 +4291,7 @@ std::optional<XFA_encodings> XFA_encodings::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "encoding", myClass.m_encoding);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4012,11 +4300,13 @@ class XFA_encrypt : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_certificate* getCertificate() const {  return m_certificate.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encrypt> parse(const QDomElement& element);
 
@@ -4046,6 +4336,7 @@ std::optional<XFA_encrypt> XFA_encrypt::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "certificate", myClass.m_certificate);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4054,14 +4345,16 @@ class XFA_encryptData : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const OPERATION* getOperation() const {  return m_operation.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    OPERATION getOperation() const {  return m_operation.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_filter* getFilter() const {  return m_filter.getValue(); }
     const XFA_manifest* getManifest() const {  return m_manifest.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encryptData> parse(const QDomElement& element);
 
@@ -4097,6 +4390,7 @@ std::optional<XFA_encryptData> XFA_encryptData::parse(const QDomElement& element
     // load items
     parseItem(element, "filter", myClass.m_filter);
     parseItem(element, "manifest", myClass.m_manifest);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4105,12 +4399,14 @@ class XFA_encryption : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_certificate>>& getCertificate() const {  return m_certificate; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encryption> parse(const QDomElement& element);
 
@@ -4142,6 +4438,7 @@ std::optional<XFA_encryption> XFA_encryption::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "certificate", myClass.m_certificate);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4150,12 +4447,14 @@ class XFA_encryptionMethod : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encryptionMethod> parse(const QDomElement& element);
 
@@ -4189,6 +4488,7 @@ std::optional<XFA_encryptionMethod> XFA_encryptionMethod::parse(const QDomElemen
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4197,12 +4497,14 @@ class XFA_encryptionMethods : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_encryptionMethod>>& getEncryptionMethod() const {  return m_encryptionMethod; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_encryptionMethods> parse(const QDomElement& element);
 
@@ -4234,6 +4536,7 @@ std::optional<XFA_encryptionMethods> XFA_encryptionMethods::parse(const QDomElem
 
     // load items
     parseItem(element, "encryptionMethod", myClass.m_encryptionMethod);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4242,13 +4545,13 @@ class XFA_event : public XFA_BaseNode
 {
 public:
 
-    const ACTIVITY* getActivity() const {  return m_activity.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const LISTEN* getListen() const {  return m_listen.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    ACTIVITY getActivity() const {  return m_activity.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    LISTEN getListen() const {  return m_listen.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_encryptData* getEncryptData() const {  return m_encryptData.getValue(); }
@@ -4256,6 +4559,8 @@ public:
     const XFA_script* getScript() const {  return m_script.getValue(); }
     const XFA_signData* getSignData() const {  return m_signData.getValue(); }
     const XFA_submit* getSubmit() const {  return m_submit.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_event> parse(const QDomElement& element);
 
@@ -4303,6 +4608,7 @@ std::optional<XFA_event> XFA_event::parse(const QDomElement& element)
     parseItem(element, "script", myClass.m_script);
     parseItem(element, "signData", myClass.m_signData);
     parseItem(element, "submit", myClass.m_submit);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4311,18 +4617,20 @@ class XFA_exData : public XFA_BaseNode
 {
 public:
 
-    const QString* getContentType() const {  return m_contentType.getValue(); }
-    const QString* getHref() const {  return m_href.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getMaxLength() const {  return m_maxLength.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getRid() const {  return m_rid.getValue(); }
-    const TRANSFERENCODING* getTransferEncoding() const {  return m_transferEncoding.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getContentType() const {  return m_contentType.getValueOrDefault(); }
+    QString getHref() const {  return m_href.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getMaxLength() const {  return m_maxLength.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getRid() const {  return m_rid.getValueOrDefault(); }
+    TRANSFERENCODING getTransferEncoding() const {  return m_transferEncoding.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_exData> parse(const QDomElement& element);
 
@@ -4368,6 +4676,7 @@ std::optional<XFA_exData> XFA_exData::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4376,14 +4685,14 @@ class XFA_exObject : public XFA_BaseNode
 {
 public:
 
-    const QString* getArchive() const {  return m_archive.getValue(); }
-    const QString* getClassId() const {  return m_classId.getValue(); }
-    const QString* getCodeBase() const {  return m_codeBase.getValue(); }
-    const QString* getCodeType() const {  return m_codeType.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getArchive() const {  return m_archive.getValueOrDefault(); }
+    QString getClassId() const {  return m_classId.getValueOrDefault(); }
+    QString getCodeBase() const {  return m_codeBase.getValueOrDefault(); }
+    QString getCodeType() const {  return m_codeType.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_boolean>>& getBoolean() const {  return m_boolean; }
@@ -4397,6 +4706,8 @@ public:
     const std::vector<XFA_Node<XFA_integer>>& getInteger() const {  return m_integer; }
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_exObject> parse(const QDomElement& element);
 
@@ -4458,6 +4769,7 @@ std::optional<XFA_exObject> XFA_exObject::parse(const QDomElement& element)
     parseItem(element, "integer", myClass.m_integer);
     parseItem(element, "text", myClass.m_text);
     parseItem(element, "time", myClass.m_time);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4466,26 +4778,26 @@ class XFA_exclGroup : public XFA_BaseNode
 {
 public:
 
-    const ACCESS* getAccess() const {  return m_access.getValue(); }
-    const QString* getAccessKey() const {  return m_accessKey.getValue(); }
-    const ANCHORTYPE* getAnchorType() const {  return m_anchorType.getValue(); }
-    const PDFInteger* getColSpan() const {  return m_colSpan.getValue(); }
-    const XFA_Measurement* getH() const {  return m_h.getValue(); }
-    const HALIGN* getHAlign() const {  return m_hAlign.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const LAYOUT* getLayout() const {  return m_layout.getValue(); }
-    const XFA_Measurement* getMaxH() const {  return m_maxH.getValue(); }
-    const XFA_Measurement* getMaxW() const {  return m_maxW.getValue(); }
-    const XFA_Measurement* getMinH() const {  return m_minH.getValue(); }
-    const XFA_Measurement* getMinW() const {  return m_minW.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const XFA_Measurement* getW() const {  return m_w.getValue(); }
-    const XFA_Measurement* getX() const {  return m_x.getValue(); }
-    const XFA_Measurement* getY() const {  return m_y.getValue(); }
+    ACCESS getAccess() const {  return m_access.getValueOrDefault(); }
+    QString getAccessKey() const {  return m_accessKey.getValueOrDefault(); }
+    ANCHORTYPE getAnchorType() const {  return m_anchorType.getValueOrDefault(); }
+    PDFInteger getColSpan() const {  return m_colSpan.getValueOrDefault(); }
+    XFA_Measurement getH() const {  return m_h.getValueOrDefault(); }
+    HALIGN getHAlign() const {  return m_hAlign.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    LAYOUT getLayout() const {  return m_layout.getValueOrDefault(); }
+    XFA_Measurement getMaxH() const {  return m_maxH.getValueOrDefault(); }
+    XFA_Measurement getMaxW() const {  return m_maxW.getValueOrDefault(); }
+    XFA_Measurement getMinH() const {  return m_minH.getValueOrDefault(); }
+    XFA_Measurement getMinW() const {  return m_minW.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    XFA_Measurement getW() const {  return m_w.getValueOrDefault(); }
+    XFA_Measurement getX() const {  return m_x.getValueOrDefault(); }
+    XFA_Measurement getY() const {  return m_y.getValueOrDefault(); }
 
     const XFA_assist* getAssist() const {  return m_assist.getValue(); }
     const XFA_bind* getBind() const {  return m_bind.getValue(); }
@@ -4502,6 +4814,8 @@ public:
     const std::vector<XFA_Node<XFA_event>>& getEvent() const {  return m_event; }
     const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_exclGroup> parse(const QDomElement& element);
 
@@ -4593,6 +4907,7 @@ std::optional<XFA_exclGroup> XFA_exclGroup::parse(const QDomElement& element)
     parseItem(element, "event", myClass.m_event);
     parseItem(element, "field", myClass.m_field);
     parseItem(element, "setProperty", myClass.m_setProperty);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4601,13 +4916,15 @@ class XFA_execute : public XFA_BaseNode
 {
 public:
 
-    const QString* getConnection() const {  return m_connection.getValue(); }
-    const EXECUTETYPE* getExecuteType() const {  return m_executeType.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const RUNAT* getRunAt() const {  return m_runAt.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getConnection() const {  return m_connection.getValueOrDefault(); }
+    EXECUTETYPE getExecuteType() const {  return m_executeType.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    RUNAT getRunAt() const {  return m_runAt.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_execute> parse(const QDomElement& element);
 
@@ -4641,6 +4958,7 @@ std::optional<XFA_execute> XFA_execute::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4649,10 +4967,10 @@ class XFA_extras : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_boolean>>& getBoolean() const {  return m_boolean; }
     const std::vector<XFA_Node<XFA_date>>& getDate() const {  return m_date; }
@@ -4665,6 +4983,8 @@ public:
     const std::vector<XFA_Node<XFA_integer>>& getInteger() const {  return m_integer; }
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_extras> parse(const QDomElement& element);
 
@@ -4716,6 +5036,7 @@ std::optional<XFA_extras> XFA_extras::parse(const QDomElement& element)
     parseItem(element, "integer", myClass.m_integer);
     parseItem(element, "text", myClass.m_text);
     parseItem(element, "time", myClass.m_time);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4724,27 +5045,27 @@ class XFA_field : public XFA_BaseNode
 {
 public:
 
-    const ACCESS* getAccess() const {  return m_access.getValue(); }
-    const QString* getAccessKey() const {  return m_accessKey.getValue(); }
-    const ANCHORTYPE* getAnchorType() const {  return m_anchorType.getValue(); }
-    const PDFInteger* getColSpan() const {  return m_colSpan.getValue(); }
-    const XFA_Measurement* getH() const {  return m_h.getValue(); }
-    const HALIGN* getHAlign() const {  return m_hAlign.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getLocale() const {  return m_locale.getValue(); }
-    const XFA_Measurement* getMaxH() const {  return m_maxH.getValue(); }
-    const XFA_Measurement* getMaxW() const {  return m_maxW.getValue(); }
-    const XFA_Measurement* getMinH() const {  return m_minH.getValue(); }
-    const XFA_Measurement* getMinW() const {  return m_minW.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const PDFReal* getRotate() const {  return m_rotate.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const XFA_Measurement* getW() const {  return m_w.getValue(); }
-    const XFA_Measurement* getX() const {  return m_x.getValue(); }
-    const XFA_Measurement* getY() const {  return m_y.getValue(); }
+    ACCESS getAccess() const {  return m_access.getValueOrDefault(); }
+    QString getAccessKey() const {  return m_accessKey.getValueOrDefault(); }
+    ANCHORTYPE getAnchorType() const {  return m_anchorType.getValueOrDefault(); }
+    PDFInteger getColSpan() const {  return m_colSpan.getValueOrDefault(); }
+    XFA_Measurement getH() const {  return m_h.getValueOrDefault(); }
+    HALIGN getHAlign() const {  return m_hAlign.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getLocale() const {  return m_locale.getValueOrDefault(); }
+    XFA_Measurement getMaxH() const {  return m_maxH.getValueOrDefault(); }
+    XFA_Measurement getMaxW() const {  return m_maxW.getValueOrDefault(); }
+    XFA_Measurement getMinH() const {  return m_minH.getValueOrDefault(); }
+    XFA_Measurement getMinW() const {  return m_minW.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    PDFReal getRotate() const {  return m_rotate.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    XFA_Measurement getW() const {  return m_w.getValueOrDefault(); }
+    XFA_Measurement getX() const {  return m_x.getValueOrDefault(); }
+    XFA_Measurement getY() const {  return m_y.getValueOrDefault(); }
 
     const XFA_assist* getAssist() const {  return m_assist.getValue(); }
     const XFA_bind* getBind() const {  return m_bind.getValue(); }
@@ -4767,6 +5088,8 @@ public:
     const std::vector<XFA_Node<XFA_connect>>& getConnect() const {  return m_connect; }
     const std::vector<XFA_Node<XFA_event>>& getEvent() const {  return m_event; }
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_field> parse(const QDomElement& element);
 
@@ -4872,6 +5195,7 @@ std::optional<XFA_field> XFA_field::parse(const QDomElement& element)
     parseItem(element, "connect", myClass.m_connect);
     parseItem(element, "event", myClass.m_event);
     parseItem(element, "setProperty", myClass.m_setProperty);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4880,10 +5204,10 @@ class XFA_fill : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
@@ -4892,6 +5216,8 @@ public:
     const XFA_radial* getRadial() const {  return m_radial.getValue(); }
     const XFA_solid* getSolid() const {  return m_solid.getValue(); }
     const XFA_stipple* getStipple() const {  return m_stipple.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_fill> parse(const QDomElement& element);
 
@@ -4935,6 +5261,7 @@ std::optional<XFA_fill> XFA_fill::parse(const QDomElement& element)
     parseItem(element, "radial", myClass.m_radial);
     parseItem(element, "solid", myClass.m_solid);
     parseItem(element, "stipple", myClass.m_stipple);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -4943,12 +5270,12 @@ class XFA_filter : public XFA_BaseNode
 {
 public:
 
-    const QString* getAddRevocationInfo() const {  return m_addRevocationInfo.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const QString* getVersion() const {  return m_version.getValue(); }
+    QString getAddRevocationInfo() const {  return m_addRevocationInfo.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    QString getVersion() const {  return m_version.getValueOrDefault(); }
 
     const XFA_appearanceFilter* getAppearanceFilter() const {  return m_appearanceFilter.getValue(); }
     const XFA_certificates* getCertificates() const {  return m_certificates.getValue(); }
@@ -4960,6 +5287,8 @@ public:
     const XFA_mdp* getMdp() const {  return m_mdp.getValue(); }
     const XFA_reasons* getReasons() const {  return m_reasons.getValue(); }
     const XFA_timeStamp* getTimeStamp() const {  return m_timeStamp.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_filter> parse(const QDomElement& element);
 
@@ -5013,6 +5342,7 @@ std::optional<XFA_filter> XFA_filter::parse(const QDomElement& element)
     parseItem(element, "mdp", myClass.m_mdp);
     parseItem(element, "reasons", myClass.m_reasons);
     parseItem(element, "timeStamp", myClass.m_timeStamp);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5021,13 +5351,15 @@ class XFA_float : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_float> parse(const QDomElement& element);
 
@@ -5063,6 +5395,7 @@ std::optional<XFA_float> XFA_float::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5071,27 +5404,29 @@ class XFA_font : public XFA_BaseNode
 {
 public:
 
-    const XFA_Measurement* getBaselineShift() const {  return m_baselineShift.getValue(); }
-    const QString* getFontHorizontalScale() const {  return m_fontHorizontalScale.getValue(); }
-    const QString* getFontVerticalScale() const {  return m_fontVerticalScale.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const KERNINGMODE* getKerningMode() const {  return m_kerningMode.getValue(); }
-    const QString* getLetterSpacing() const {  return m_letterSpacing.getValue(); }
-    const LINETHROUGH* getLineThrough() const {  return m_lineThrough.getValue(); }
-    const LINETHROUGHPERIOD* getLineThroughPeriod() const {  return m_lineThroughPeriod.getValue(); }
-    const OVERLINE* getOverline() const {  return m_overline.getValue(); }
-    const OVERLINEPERIOD* getOverlinePeriod() const {  return m_overlinePeriod.getValue(); }
-    const POSTURE* getPosture() const {  return m_posture.getValue(); }
-    const XFA_Measurement* getSize() const {  return m_size.getValue(); }
-    const QString* getTypeface() const {  return m_typeface.getValue(); }
-    const UNDERLINE* getUnderline() const {  return m_underline.getValue(); }
-    const UNDERLINEPERIOD* getUnderlinePeriod() const {  return m_underlinePeriod.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const WEIGHT* getWeight() const {  return m_weight.getValue(); }
+    XFA_Measurement getBaselineShift() const {  return m_baselineShift.getValueOrDefault(); }
+    QString getFontHorizontalScale() const {  return m_fontHorizontalScale.getValueOrDefault(); }
+    QString getFontVerticalScale() const {  return m_fontVerticalScale.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    KERNINGMODE getKerningMode() const {  return m_kerningMode.getValueOrDefault(); }
+    QString getLetterSpacing() const {  return m_letterSpacing.getValueOrDefault(); }
+    LINETHROUGH getLineThrough() const {  return m_lineThrough.getValueOrDefault(); }
+    LINETHROUGHPERIOD getLineThroughPeriod() const {  return m_lineThroughPeriod.getValueOrDefault(); }
+    OVERLINE getOverline() const {  return m_overline.getValueOrDefault(); }
+    OVERLINEPERIOD getOverlinePeriod() const {  return m_overlinePeriod.getValueOrDefault(); }
+    POSTURE getPosture() const {  return m_posture.getValueOrDefault(); }
+    XFA_Measurement getSize() const {  return m_size.getValueOrDefault(); }
+    QString getTypeface() const {  return m_typeface.getValueOrDefault(); }
+    UNDERLINE getUnderline() const {  return m_underline.getValueOrDefault(); }
+    UNDERLINEPERIOD getUnderlinePeriod() const {  return m_underlinePeriod.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    WEIGHT getWeight() const {  return m_weight.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_font> parse(const QDomElement& element);
 
@@ -5153,6 +5488,7 @@ std::optional<XFA_font> XFA_font::parse(const QDomElement& element)
     // load items
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "fill", myClass.m_fill);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5161,12 +5497,14 @@ class XFA_format : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_format> parse(const QDomElement& element);
 
@@ -5198,6 +5536,7 @@ std::optional<XFA_format> XFA_format::parse(const QDomElement& element)
     // load items
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "picture", myClass.m_picture);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5206,13 +5545,15 @@ class XFA_handler : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_handler> parse(const QDomElement& element);
 
@@ -5248,6 +5589,7 @@ std::optional<XFA_handler> XFA_handler::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5256,16 +5598,18 @@ class XFA_hyphenation : public XFA_BaseNode
 {
 public:
 
-    const bool* getExcludeAllCaps() const {  return m_excludeAllCaps.getValue(); }
-    const bool* getExcludeInitialCap() const {  return m_excludeInitialCap.getValue(); }
-    const bool* getHyphenate() const {  return m_hyphenate.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getPushCharacterCount() const {  return m_pushCharacterCount.getValue(); }
-    const PDFInteger* getRemainCharacterCount() const {  return m_remainCharacterCount.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const PDFInteger* getWordCharacterCount() const {  return m_wordCharacterCount.getValue(); }
+    bool getExcludeAllCaps() const {  return m_excludeAllCaps.getValueOrDefault(); }
+    bool getExcludeInitialCap() const {  return m_excludeInitialCap.getValueOrDefault(); }
+    bool getHyphenate() const {  return m_hyphenate.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getPushCharacterCount() const {  return m_pushCharacterCount.getValueOrDefault(); }
+    PDFInteger getRemainCharacterCount() const {  return m_remainCharacterCount.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    PDFInteger getWordCharacterCount() const {  return m_wordCharacterCount.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_hyphenation> parse(const QDomElement& element);
 
@@ -5305,6 +5649,7 @@ std::optional<XFA_hyphenation> XFA_hyphenation::parse(const QDomElement& element
     parseAttribute(element, "wordCharacterCount", myClass.m_wordCharacterCount, "7");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5313,17 +5658,19 @@ class XFA_image : public XFA_BaseNode
 {
 public:
 
-    const ASPECT* getAspect() const {  return m_aspect.getValue(); }
-    const QString* getContentType() const {  return m_contentType.getValue(); }
-    const QString* getHref() const {  return m_href.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const TRANSFERENCODING1* getTransferEncoding() const {  return m_transferEncoding.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    ASPECT getAspect() const {  return m_aspect.getValueOrDefault(); }
+    QString getContentType() const {  return m_contentType.getValueOrDefault(); }
+    QString getHref() const {  return m_href.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    TRANSFERENCODING1 getTransferEncoding() const {  return m_transferEncoding.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_image> parse(const QDomElement& element);
 
@@ -5367,6 +5714,7 @@ std::optional<XFA_image> XFA_image::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5375,14 +5723,16 @@ class XFA_imageEdit : public XFA_BaseNode
 {
 public:
 
-    const DATA* getData() const {  return m_data.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    DATA getData() const {  return m_data.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_imageEdit> parse(const QDomElement& element);
 
@@ -5418,6 +5768,7 @@ std::optional<XFA_imageEdit> XFA_imageEdit::parse(const QDomElement& element)
     parseItem(element, "border", myClass.m_border);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5426,13 +5777,15 @@ class XFA_integer : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_integer> parse(const QDomElement& element);
 
@@ -5468,6 +5821,7 @@ std::optional<XFA_integer> XFA_integer::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5476,12 +5830,14 @@ class XFA_issuers : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_certificate>>& getCertificate() const {  return m_certificate; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_issuers> parse(const QDomElement& element);
 
@@ -5513,6 +5869,7 @@ std::optional<XFA_issuers> XFA_issuers::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "certificate", myClass.m_certificate);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5521,13 +5878,13 @@ class XFA_items : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const bool* getSave() const {  return m_save.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    bool getSave() const {  return m_save.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_boolean>>& getBoolean() const {  return m_boolean; }
     const std::vector<XFA_Node<XFA_date>>& getDate() const {  return m_date; }
@@ -5539,6 +5896,8 @@ public:
     const std::vector<XFA_Node<XFA_integer>>& getInteger() const {  return m_integer; }
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_items> parse(const QDomElement& element);
 
@@ -5594,6 +5953,7 @@ std::optional<XFA_items> XFA_items::parse(const QDomElement& element)
     parseItem(element, "integer", myClass.m_integer);
     parseItem(element, "text", myClass.m_text);
     parseItem(element, "time", myClass.m_time);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5602,14 +5962,16 @@ class XFA_keep : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const INTACT* getIntact() const {  return m_intact.getValue(); }
-    const NEXT* getNext() const {  return m_next.getValue(); }
-    const PREVIOUS* getPrevious() const {  return m_previous.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    INTACT getIntact() const {  return m_intact.getValueOrDefault(); }
+    NEXT getNext() const {  return m_next.getValueOrDefault(); }
+    PREVIOUS getPrevious() const {  return m_previous.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_keep> parse(const QDomElement& element);
 
@@ -5645,6 +6007,7 @@ std::optional<XFA_keep> XFA_keep::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5653,20 +6016,22 @@ class XFA_keyUsage : public XFA_BaseNode
 {
 public:
 
-    const QString* getCrlSign() const {  return m_crlSign.getValue(); }
-    const QString* getDataEncipherment() const {  return m_dataEncipherment.getValue(); }
-    const QString* getDecipherOnly() const {  return m_decipherOnly.getValue(); }
-    const QString* getDigitalSignature() const {  return m_digitalSignature.getValue(); }
-    const QString* getEncipherOnly() const {  return m_encipherOnly.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getKeyAgreement() const {  return m_keyAgreement.getValue(); }
-    const QString* getKeyCertSign() const {  return m_keyCertSign.getValue(); }
-    const QString* getKeyEncipherment() const {  return m_keyEncipherment.getValue(); }
-    const QString* getNonRepudiation() const {  return m_nonRepudiation.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getCrlSign() const {  return m_crlSign.getValueOrDefault(); }
+    QString getDataEncipherment() const {  return m_dataEncipherment.getValueOrDefault(); }
+    QString getDecipherOnly() const {  return m_decipherOnly.getValueOrDefault(); }
+    QString getDigitalSignature() const {  return m_digitalSignature.getValueOrDefault(); }
+    QString getEncipherOnly() const {  return m_encipherOnly.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getKeyAgreement() const {  return m_keyAgreement.getValueOrDefault(); }
+    QString getKeyCertSign() const {  return m_keyCertSign.getValueOrDefault(); }
+    QString getKeyEncipherment() const {  return m_keyEncipherment.getValueOrDefault(); }
+    QString getNonRepudiation() const {  return m_nonRepudiation.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_keyUsage> parse(const QDomElement& element);
 
@@ -5714,6 +6079,7 @@ std::optional<XFA_keyUsage> XFA_keyUsage::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5722,13 +6088,15 @@ class XFA_line : public XFA_BaseNode
 {
 public:
 
-    const HAND* getHand() const {  return m_hand.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const SLOPE* getSlope() const {  return m_slope.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    HAND getHand() const {  return m_hand.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    SLOPE getSlope() const {  return m_slope.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_edge* getEdge() const {  return m_edge.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_line> parse(const QDomElement& element);
 
@@ -5762,6 +6130,7 @@ std::optional<XFA_line> XFA_line::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "edge", myClass.m_edge);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5770,13 +6139,15 @@ class XFA_linear : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE1* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE1 getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_linear> parse(const QDomElement& element);
 
@@ -5810,6 +6181,7 @@ std::optional<XFA_linear> XFA_linear::parse(const QDomElement& element)
     // load items
     parseItem(element, "color", myClass.m_color);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5818,13 +6190,15 @@ class XFA_lockDocument : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_lockDocument> parse(const QDomElement& element);
 
@@ -5860,6 +6234,7 @@ std::optional<XFA_lockDocument> XFA_lockDocument::parse(const QDomElement& eleme
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5868,14 +6243,16 @@ class XFA_manifest : public XFA_BaseNode
 {
 public:
 
-    const ACTION* getAction() const {  return m_action.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    ACTION getAction() const {  return m_action.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_ref>>& getRef() const {  return m_ref; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_manifest> parse(const QDomElement& element);
 
@@ -5911,6 +6288,7 @@ std::optional<XFA_manifest> XFA_manifest::parse(const QDomElement& element)
     // load items
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "ref", myClass.m_ref);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5919,15 +6297,17 @@ class XFA_margin : public XFA_BaseNode
 {
 public:
 
-    const XFA_Measurement* getBottomInset() const {  return m_bottomInset.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const XFA_Measurement* getLeftInset() const {  return m_leftInset.getValue(); }
-    const XFA_Measurement* getRightInset() const {  return m_rightInset.getValue(); }
-    const XFA_Measurement* getTopInset() const {  return m_topInset.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    XFA_Measurement getBottomInset() const {  return m_bottomInset.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    XFA_Measurement getLeftInset() const {  return m_leftInset.getValueOrDefault(); }
+    XFA_Measurement getRightInset() const {  return m_rightInset.getValueOrDefault(); }
+    XFA_Measurement getTopInset() const {  return m_topInset.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_margin> parse(const QDomElement& element);
 
@@ -5965,6 +6345,7 @@ std::optional<XFA_margin> XFA_margin::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -5973,12 +6354,14 @@ class XFA_mdp : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PERMISSIONS* getPermissions() const {  return m_permissions.getValue(); }
-    const SIGNATURETYPE* getSignatureType() const {  return m_signatureType.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PERMISSIONS getPermissions() const {  return m_permissions.getValueOrDefault(); }
+    SIGNATURETYPE getSignatureType() const {  return m_signatureType.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_mdp> parse(const QDomElement& element);
 
@@ -6010,6 +6393,7 @@ std::optional<XFA_mdp> XFA_mdp::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6018,17 +6402,19 @@ class XFA_medium : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getImagingBBox() const {  return m_imagingBBox.getValue(); }
-    const XFA_Measurement* getLong() const {  return m_long.getValue(); }
-    const ORIENTATION* getOrientation() const {  return m_orientation.getValue(); }
-    const XFA_Measurement* getShort() const {  return m_short.getValue(); }
-    const QString* getStock() const {  return m_stock.getValue(); }
-    const TRAYIN* getTrayIn() const {  return m_trayIn.getValue(); }
-    const TRAYOUT* getTrayOut() const {  return m_trayOut.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getImagingBBox() const {  return m_imagingBBox.getValueOrDefault(); }
+    XFA_Measurement getLong() const {  return m_long.getValueOrDefault(); }
+    ORIENTATION getOrientation() const {  return m_orientation.getValueOrDefault(); }
+    XFA_Measurement getShort() const {  return m_short.getValueOrDefault(); }
+    QString getStock() const {  return m_stock.getValueOrDefault(); }
+    TRAYIN getTrayIn() const {  return m_trayIn.getValueOrDefault(); }
+    TRAYOUT getTrayOut() const {  return m_trayOut.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_medium> parse(const QDomElement& element);
 
@@ -6070,6 +6456,7 @@ std::optional<XFA_medium> XFA_medium::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6078,11 +6465,13 @@ class XFA_message : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_message> parse(const QDomElement& element);
 
@@ -6112,6 +6501,7 @@ std::optional<XFA_message> XFA_message::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "text", myClass.m_text);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6120,15 +6510,17 @@ class XFA_numericEdit : public XFA_BaseNode
 {
 public:
 
-    const HSCROLLPOLICY* getHScrollPolicy() const {  return m_hScrollPolicy.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    HSCROLLPOLICY getHScrollPolicy() const {  return m_hScrollPolicy.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_comb* getComb() const {  return m_comb.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_numericEdit> parse(const QDomElement& element);
 
@@ -6166,6 +6558,7 @@ std::optional<XFA_numericEdit> XFA_numericEdit::parse(const QDomElement& element
     parseItem(element, "comb", myClass.m_comb);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6174,14 +6567,16 @@ class XFA_occur : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getInitial() const {  return m_initial.getValue(); }
-    const PDFInteger* getMax() const {  return m_max.getValue(); }
-    const PDFInteger* getMin() const {  return m_min.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getInitial() const {  return m_initial.getValueOrDefault(); }
+    PDFInteger getMax() const {  return m_max.getValueOrDefault(); }
+    PDFInteger getMin() const {  return m_min.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_occur> parse(const QDomElement& element);
 
@@ -6217,6 +6612,7 @@ std::optional<XFA_occur> XFA_occur::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6225,13 +6621,15 @@ class XFA_oid : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_oid> parse(const QDomElement& element);
 
@@ -6267,6 +6665,7 @@ std::optional<XFA_oid> XFA_oid::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6275,12 +6674,14 @@ class XFA_oids : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_oid>>& getOid() const {  return m_oid; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_oids> parse(const QDomElement& element);
 
@@ -6312,6 +6713,7 @@ std::optional<XFA_oids> XFA_oids::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "oid", myClass.m_oid);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6320,13 +6722,15 @@ class XFA_overflow : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getLeader() const {  return m_leader.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
-    const QString* getTrailer() const {  return m_trailer.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getLeader() const {  return m_leader.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
+    QString getTrailer() const {  return m_trailer.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_overflow> parse(const QDomElement& element);
 
@@ -6360,6 +6764,7 @@ std::optional<XFA_overflow> XFA_overflow::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6368,16 +6773,16 @@ class XFA_pageArea : public XFA_BaseNode
 {
 public:
 
-    const BLANKORNOTBLANK* getBlankOrNotBlank() const {  return m_blankOrNotBlank.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getInitialNumber() const {  return m_initialNumber.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const PDFInteger* getNumbered() const {  return m_numbered.getValue(); }
-    const ODDOREVEN* getOddOrEven() const {  return m_oddOrEven.getValue(); }
-    const PAGEPOSITION* getPagePosition() const {  return m_pagePosition.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    BLANKORNOTBLANK getBlankOrNotBlank() const {  return m_blankOrNotBlank.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getInitialNumber() const {  return m_initialNumber.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    PDFInteger getNumbered() const {  return m_numbered.getValueOrDefault(); }
+    ODDOREVEN getOddOrEven() const {  return m_oddOrEven.getValueOrDefault(); }
+    PAGEPOSITION getPagePosition() const {  return m_pagePosition.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_desc* getDesc() const {  return m_desc.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
@@ -6389,6 +6794,8 @@ public:
     const std::vector<XFA_Node<XFA_exclGroup>>& getExclGroup() const {  return m_exclGroup; }
     const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_pageArea> parse(const QDomElement& element);
 
@@ -6450,6 +6857,7 @@ std::optional<XFA_pageArea> XFA_pageArea::parse(const QDomElement& element)
     parseItem(element, "exclGroup", myClass.m_exclGroup);
     parseItem(element, "field", myClass.m_field);
     parseItem(element, "subform", myClass.m_subform);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6458,18 +6866,20 @@ class XFA_pageSet : public XFA_BaseNode
 {
 public:
 
-    const DUPLEXIMPOSITION* getDuplexImposition() const {  return m_duplexImposition.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const RELATION* getRelation() const {  return m_relation.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    DUPLEXIMPOSITION getDuplexImposition() const {  return m_duplexImposition.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    RELATION getRelation() const {  return m_relation.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_occur* getOccur() const {  return m_occur.getValue(); }
     const std::vector<XFA_Node<XFA_pageArea>>& getPageArea() const {  return m_pageArea; }
     const std::vector<XFA_Node<XFA_pageSet>>& getPageSet() const {  return m_pageSet; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_pageSet> parse(const QDomElement& element);
 
@@ -6513,6 +6923,7 @@ std::optional<XFA_pageSet> XFA_pageSet::parse(const QDomElement& element)
     parseItem(element, "occur", myClass.m_occur);
     parseItem(element, "pageArea", myClass.m_pageArea);
     parseItem(element, "pageSet", myClass.m_pageSet);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6521,25 +6932,27 @@ class XFA_para : public XFA_BaseNode
 {
 public:
 
-    const HALIGN* getHAlign() const {  return m_hAlign.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const XFA_Measurement* getLineHeight() const {  return m_lineHeight.getValue(); }
-    const XFA_Measurement* getMarginLeft() const {  return m_marginLeft.getValue(); }
-    const XFA_Measurement* getMarginRight() const {  return m_marginRight.getValue(); }
-    const PDFInteger* getOrphans() const {  return m_orphans.getValue(); }
-    const QString* getPreserve() const {  return m_preserve.getValue(); }
-    const XFA_Measurement* getRadixOffset() const {  return m_radixOffset.getValue(); }
-    const XFA_Measurement* getSpaceAbove() const {  return m_spaceAbove.getValue(); }
-    const XFA_Measurement* getSpaceBelow() const {  return m_spaceBelow.getValue(); }
-    const QString* getTabDefault() const {  return m_tabDefault.getValue(); }
-    const QString* getTabStops() const {  return m_tabStops.getValue(); }
-    const XFA_Measurement* getTextIndent() const {  return m_textIndent.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const VALIGN* getVAlign() const {  return m_vAlign.getValue(); }
-    const PDFInteger* getWidows() const {  return m_widows.getValue(); }
+    HALIGN getHAlign() const {  return m_hAlign.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    XFA_Measurement getLineHeight() const {  return m_lineHeight.getValueOrDefault(); }
+    XFA_Measurement getMarginLeft() const {  return m_marginLeft.getValueOrDefault(); }
+    XFA_Measurement getMarginRight() const {  return m_marginRight.getValueOrDefault(); }
+    PDFInteger getOrphans() const {  return m_orphans.getValueOrDefault(); }
+    QString getPreserve() const {  return m_preserve.getValueOrDefault(); }
+    XFA_Measurement getRadixOffset() const {  return m_radixOffset.getValueOrDefault(); }
+    XFA_Measurement getSpaceAbove() const {  return m_spaceAbove.getValueOrDefault(); }
+    XFA_Measurement getSpaceBelow() const {  return m_spaceBelow.getValueOrDefault(); }
+    QString getTabDefault() const {  return m_tabDefault.getValueOrDefault(); }
+    QString getTabStops() const {  return m_tabStops.getValueOrDefault(); }
+    XFA_Measurement getTextIndent() const {  return m_textIndent.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    VALIGN getVAlign() const {  return m_vAlign.getValueOrDefault(); }
+    PDFInteger getWidows() const {  return m_widows.getValueOrDefault(); }
 
     const XFA_hyphenation* getHyphenation() const {  return m_hyphenation.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_para> parse(const QDomElement& element);
 
@@ -6597,6 +7010,7 @@ std::optional<XFA_para> XFA_para::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "hyphenation", myClass.m_hyphenation);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6605,15 +7019,17 @@ class XFA_passwordEdit : public XFA_BaseNode
 {
 public:
 
-    const HSCROLLPOLICY* getHScrollPolicy() const {  return m_hScrollPolicy.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getPasswordChar() const {  return m_passwordChar.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    HSCROLLPOLICY getHScrollPolicy() const {  return m_hScrollPolicy.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getPasswordChar() const {  return m_passwordChar.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_passwordEdit> parse(const QDomElement& element);
 
@@ -6651,6 +7067,7 @@ std::optional<XFA_passwordEdit> XFA_passwordEdit::parse(const QDomElement& eleme
     parseItem(element, "border", myClass.m_border);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6659,13 +7076,15 @@ class XFA_pattern : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE2* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE2 getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_pattern> parse(const QDomElement& element);
 
@@ -6699,6 +7118,7 @@ std::optional<XFA_pattern> XFA_pattern::parse(const QDomElement& element)
     // load items
     parseItem(element, "color", myClass.m_color);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6707,12 +7127,14 @@ class XFA_picture : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_picture> parse(const QDomElement& element);
 
@@ -6746,6 +7168,7 @@ std::optional<XFA_picture> XFA_picture::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -6865,6 +7288,8 @@ public:
     const std::vector<XFA_Node<XFA_validate>>& getValidate() const {  return m_validate; }
     const std::vector<XFA_Node<XFA_value>>& getValue() const {  return m_value; }
     const std::vector<XFA_Node<XFA_variables>>& getVariables() const {  return m_variables; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_proto> parse(const QDomElement& element);
 
@@ -7106,6 +7531,7 @@ std::optional<XFA_proto> XFA_proto::parse(const QDomElement& element)
     parseItem(element, "validate", myClass.m_validate);
     parseItem(element, "value", myClass.m_value);
     parseItem(element, "variables", myClass.m_variables);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7114,13 +7540,15 @@ class XFA_radial : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE3* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE3 getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_radial> parse(const QDomElement& element);
 
@@ -7154,6 +7582,7 @@ std::optional<XFA_radial> XFA_radial::parse(const QDomElement& element)
     // load items
     parseItem(element, "color", myClass.m_color);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7162,13 +7591,15 @@ class XFA_reason : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_reason> parse(const QDomElement& element);
 
@@ -7204,6 +7635,7 @@ std::optional<XFA_reason> XFA_reason::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7212,12 +7644,14 @@ class XFA_reasons : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_reason>>& getReason() const {  return m_reason; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_reasons> parse(const QDomElement& element);
 
@@ -7249,6 +7683,7 @@ std::optional<XFA_reasons> XFA_reasons::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "reason", myClass.m_reason);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7257,14 +7692,16 @@ class XFA_rectangle : public XFA_BaseNode
 {
 public:
 
-    const HAND* getHand() const {  return m_hand.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    HAND getHand() const {  return m_hand.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_corner>>& getCorner() const {  return m_corner; }
     const std::vector<XFA_Node<XFA_edge>>& getEdge() const {  return m_edge; }
     const XFA_fill* getFill() const {  return m_fill.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_rectangle> parse(const QDomElement& element);
 
@@ -7300,6 +7737,7 @@ std::optional<XFA_rectangle> XFA_rectangle::parse(const QDomElement& element)
     parseItem(element, "corner", myClass.m_corner);
     parseItem(element, "edge", myClass.m_edge);
     parseItem(element, "fill", myClass.m_fill);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7308,12 +7746,14 @@ class XFA_ref : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_ref> parse(const QDomElement& element);
 
@@ -7347,6 +7787,7 @@ std::optional<XFA_ref> XFA_ref::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7355,16 +7796,18 @@ class XFA_script : public XFA_BaseNode
 {
 public:
 
-    const QString* getBinding() const {  return m_binding.getValue(); }
-    const QString* getContentType() const {  return m_contentType.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const RUNAT* getRunAt() const {  return m_runAt.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getBinding() const {  return m_binding.getValueOrDefault(); }
+    QString getContentType() const {  return m_contentType.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    RUNAT getRunAt() const {  return m_runAt.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_script> parse(const QDomElement& element);
 
@@ -7406,6 +7849,7 @@ std::optional<XFA_script> XFA_script::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7414,10 +7858,12 @@ class XFA_setProperty : public XFA_BaseNode
 {
 public:
 
-    const QString* getConnection() const {  return m_connection.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
+    QString getConnection() const {  return m_connection.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_setProperty> parse(const QDomElement& element);
 
@@ -7445,6 +7891,7 @@ std::optional<XFA_setProperty> XFA_setProperty::parse(const QDomElement& element
     parseAttribute(element, "target", myClass.m_target, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7453,15 +7900,17 @@ class XFA_signData : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const OPERATION1* getOperation() const {  return m_operation.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    OPERATION1 getOperation() const {  return m_operation.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_filter* getFilter() const {  return m_filter.getValue(); }
     const XFA_manifest* getManifest() const {  return m_manifest.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_signData> parse(const QDomElement& element);
 
@@ -7499,6 +7948,7 @@ std::optional<XFA_signData> XFA_signData::parse(const QDomElement& element)
     // load items
     parseItem(element, "filter", myClass.m_filter);
     parseItem(element, "manifest", myClass.m_manifest);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7507,16 +7957,18 @@ class XFA_signature : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE4* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE4 getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_filter* getFilter() const {  return m_filter.getValue(); }
     const XFA_manifest* getManifest() const {  return m_manifest.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_signature> parse(const QDomElement& element);
 
@@ -7556,6 +8008,7 @@ std::optional<XFA_signature> XFA_signature::parse(const QDomElement& element)
     parseItem(element, "filter", myClass.m_filter);
     parseItem(element, "manifest", myClass.m_manifest);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7564,12 +8017,14 @@ class XFA_signing : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_certificate>>& getCertificate() const {  return m_certificate; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_signing> parse(const QDomElement& element);
 
@@ -7601,6 +8056,7 @@ std::optional<XFA_signing> XFA_signing::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "certificate", myClass.m_certificate);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7609,11 +8065,13 @@ class XFA_solid : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_solid> parse(const QDomElement& element);
 
@@ -7643,6 +8101,7 @@ std::optional<XFA_solid> XFA_solid::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7651,15 +8110,17 @@ class XFA_speak : public XFA_BaseNode
 {
 public:
 
-    const bool* getDisable() const {  return m_disable.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const PRIORITY* getPriority() const {  return m_priority.getValue(); }
-    const QString* getRid() const {  return m_rid.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    bool getDisable() const {  return m_disable.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PRIORITY getPriority() const {  return m_priority.getValueOrDefault(); }
+    QString getRid() const {  return m_rid.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_speak> parse(const QDomElement& element);
 
@@ -7699,6 +8160,7 @@ std::optional<XFA_speak> XFA_speak::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7707,13 +8169,15 @@ class XFA_stipple : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getRate() const {  return m_rate.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getRate() const {  return m_rate.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_color* getColor() const {  return m_color.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_stipple> parse(const QDomElement& element);
 
@@ -7747,6 +8211,7 @@ std::optional<XFA_stipple> XFA_stipple::parse(const QDomElement& element)
     // load items
     parseItem(element, "color", myClass.m_color);
     parseItem(element, "extras", myClass.m_extras);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7755,31 +8220,31 @@ class XFA_subform : public XFA_BaseNode
 {
 public:
 
-    const ACCESS* getAccess() const {  return m_access.getValue(); }
-    const bool* getAllowMacro() const {  return m_allowMacro.getValue(); }
-    const ANCHORTYPE* getAnchorType() const {  return m_anchorType.getValue(); }
-    const PDFInteger* getColSpan() const {  return m_colSpan.getValue(); }
-    const QString* getColumnWidths() const {  return m_columnWidths.getValue(); }
-    const XFA_Measurement* getH() const {  return m_h.getValue(); }
-    const HALIGN* getHAlign() const {  return m_hAlign.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const LAYOUT* getLayout() const {  return m_layout.getValue(); }
-    const QString* getLocale() const {  return m_locale.getValue(); }
-    const XFA_Measurement* getMaxH() const {  return m_maxH.getValue(); }
-    const XFA_Measurement* getMaxW() const {  return m_maxW.getValue(); }
-    const MERGEMODE* getMergeMode() const {  return m_mergeMode.getValue(); }
-    const XFA_Measurement* getMinH() const {  return m_minH.getValue(); }
-    const XFA_Measurement* getMinW() const {  return m_minW.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const PRESENCE* getPresence() const {  return m_presence.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const RESTORESTATE* getRestoreState() const {  return m_restoreState.getValue(); }
-    const SCOPE* getScope() const {  return m_scope.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const XFA_Measurement* getW() const {  return m_w.getValue(); }
-    const XFA_Measurement* getX() const {  return m_x.getValue(); }
-    const XFA_Measurement* getY() const {  return m_y.getValue(); }
+    ACCESS getAccess() const {  return m_access.getValueOrDefault(); }
+    bool getAllowMacro() const {  return m_allowMacro.getValueOrDefault(); }
+    ANCHORTYPE getAnchorType() const {  return m_anchorType.getValueOrDefault(); }
+    PDFInteger getColSpan() const {  return m_colSpan.getValueOrDefault(); }
+    QString getColumnWidths() const {  return m_columnWidths.getValueOrDefault(); }
+    XFA_Measurement getH() const {  return m_h.getValueOrDefault(); }
+    HALIGN getHAlign() const {  return m_hAlign.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    LAYOUT getLayout() const {  return m_layout.getValueOrDefault(); }
+    QString getLocale() const {  return m_locale.getValueOrDefault(); }
+    XFA_Measurement getMaxH() const {  return m_maxH.getValueOrDefault(); }
+    XFA_Measurement getMaxW() const {  return m_maxW.getValueOrDefault(); }
+    MERGEMODE getMergeMode() const {  return m_mergeMode.getValueOrDefault(); }
+    XFA_Measurement getMinH() const {  return m_minH.getValueOrDefault(); }
+    XFA_Measurement getMinW() const {  return m_minW.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    PRESENCE getPresence() const {  return m_presence.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    RESTORESTATE getRestoreState() const {  return m_restoreState.getValueOrDefault(); }
+    SCOPE getScope() const {  return m_scope.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    XFA_Measurement getW() const {  return m_w.getValueOrDefault(); }
+    XFA_Measurement getX() const {  return m_x.getValueOrDefault(); }
+    XFA_Measurement getY() const {  return m_y.getValueOrDefault(); }
 
     const XFA_assist* getAssist() const {  return m_assist.getValue(); }
     const XFA_bind* getBind() const {  return m_bind.getValue(); }
@@ -7811,6 +8276,8 @@ public:
     const std::vector<XFA_Node<XFA_setProperty>>& getSetProperty() const {  return m_setProperty; }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
     const std::vector<XFA_Node<XFA_subformSet>>& getSubformSet() const {  return m_subformSet; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_subform> parse(const QDomElement& element);
 
@@ -7942,6 +8409,7 @@ std::optional<XFA_subform> XFA_subform::parse(const QDomElement& element)
     parseItem(element, "setProperty", myClass.m_setProperty);
     parseItem(element, "subform", myClass.m_subform);
     parseItem(element, "subformSet", myClass.m_subformSet);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -7950,12 +8418,12 @@ class XFA_subformSet : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const RELATION1* getRelation() const {  return m_relation.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    RELATION1 getRelation() const {  return m_relation.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_bookend* getBookend() const {  return m_bookend.getValue(); }
     const XFA_break* getBreak() const {  return m_break.getValue(); }
@@ -7967,6 +8435,8 @@ public:
     const std::vector<XFA_Node<XFA_breakBefore>>& getBreakBefore() const {  return m_breakBefore; }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
     const std::vector<XFA_Node<XFA_subformSet>>& getSubformSet() const {  return m_subformSet; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_subformSet> parse(const QDomElement& element);
 
@@ -8020,6 +8490,7 @@ std::optional<XFA_subformSet> XFA_subformSet::parse(const QDomElement& element)
     parseItem(element, "breakBefore", myClass.m_breakBefore);
     parseItem(element, "subform", myClass.m_subform);
     parseItem(element, "subformSet", myClass.m_subformSet);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8028,14 +8499,16 @@ class XFA_subjectDN : public XFA_BaseNode
 {
 public:
 
-    const QString* getDelimiter() const {  return m_delimiter.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getDelimiter() const {  return m_delimiter.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_subjectDN> parse(const QDomElement& element);
 
@@ -8073,6 +8546,7 @@ std::optional<XFA_subjectDN> XFA_subjectDN::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8081,12 +8555,14 @@ class XFA_subjectDNs : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_subjectDN>>& getSubjectDN() const {  return m_subjectDN; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_subjectDNs> parse(const QDomElement& element);
 
@@ -8118,6 +8594,7 @@ std::optional<XFA_subjectDNs> XFA_subjectDNs::parse(const QDomElement& element)
 
     // load items
     parseItem(element, "subjectDN", myClass.m_subjectDN);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8126,18 +8603,20 @@ class XFA_submit : public XFA_BaseNode
 {
 public:
 
-    const bool* getEmbedPDF() const {  return m_embedPDF.getValue(); }
-    const FORMAT* getFormat() const {  return m_format.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getTarget() const {  return m_target.getValue(); }
-    const QString* getTextEncoding() const {  return m_textEncoding.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const QString* getXdpContent() const {  return m_xdpContent.getValue(); }
+    bool getEmbedPDF() const {  return m_embedPDF.getValueOrDefault(); }
+    FORMAT getFormat() const {  return m_format.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getTarget() const {  return m_target.getValueOrDefault(); }
+    QString getTextEncoding() const {  return m_textEncoding.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    QString getXdpContent() const {  return m_xdpContent.getValueOrDefault(); }
 
     const XFA_encrypt* getEncrypt() const {  return m_encrypt.getValue(); }
     const std::vector<XFA_Node<XFA_encryptData>>& getEncryptData() const {  return m_encryptData; }
     const std::vector<XFA_Node<XFA_signData>>& getSignData() const {  return m_signData; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_submit> parse(const QDomElement& element);
 
@@ -8181,6 +8660,7 @@ std::optional<XFA_submit> XFA_submit::parse(const QDomElement& element)
     parseItem(element, "encrypt", myClass.m_encrypt);
     parseItem(element, "encryptData", myClass.m_encryptData);
     parseItem(element, "signData", myClass.m_signData);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8189,10 +8669,12 @@ class XFA_template : public XFA_BaseNode
 {
 public:
 
-    const BASEPROFILE* getBaseProfile() const {  return m_baseProfile.getValue(); }
+    BASEPROFILE getBaseProfile() const {  return m_baseProfile.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_template> parse(const QDomElement& element);
 
@@ -8220,6 +8702,7 @@ std::optional<XFA_template> XFA_template::parse(const QDomElement& element)
     // load items
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "subform", myClass.m_subform);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8228,15 +8711,17 @@ class XFA_text : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const PDFInteger* getMaxChars() const {  return m_maxChars.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getRid() const {  return m_rid.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    PDFInteger getMaxChars() const {  return m_maxChars.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getRid() const {  return m_rid.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_text> parse(const QDomElement& element);
 
@@ -8276,6 +8761,7 @@ std::optional<XFA_text> XFA_text::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8284,18 +8770,20 @@ class XFA_textEdit : public XFA_BaseNode
 {
 public:
 
-    const bool* getAllowRichText() const {  return m_allowRichText.getValue(); }
-    const HSCROLLPOLICY* getHScrollPolicy() const {  return m_hScrollPolicy.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const MULTILINE* getMultiLine() const {  return m_multiLine.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
-    const VSCROLLPOLICY* getVScrollPolicy() const {  return m_vScrollPolicy.getValue(); }
+    bool getAllowRichText() const {  return m_allowRichText.getValueOrDefault(); }
+    HSCROLLPOLICY getHScrollPolicy() const {  return m_hScrollPolicy.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    MULTILINE getMultiLine() const {  return m_multiLine.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
+    VSCROLLPOLICY getVScrollPolicy() const {  return m_vScrollPolicy.getValueOrDefault(); }
 
     const XFA_border* getBorder() const {  return m_border.getValue(); }
     const XFA_comb* getComb() const {  return m_comb.getValue(); }
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_textEdit> parse(const QDomElement& element);
 
@@ -8339,6 +8827,7 @@ std::optional<XFA_textEdit> XFA_textEdit::parse(const QDomElement& element)
     parseItem(element, "comb", myClass.m_comb);
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "margin", myClass.m_margin);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8347,13 +8836,15 @@ class XFA_time : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getName() const {  return m_name.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getName() const {  return m_name.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_time> parse(const QDomElement& element);
 
@@ -8389,6 +8880,7 @@ std::optional<XFA_time> XFA_time::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8397,12 +8889,14 @@ class XFA_timeStamp : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getServer() const {  return m_server.getValue(); }
-    const TYPE* getType() const {  return m_type.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getServer() const {  return m_server.getValueOrDefault(); }
+    TYPE getType() const {  return m_type.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_timeStamp> parse(const QDomElement& element);
 
@@ -8434,6 +8928,7 @@ std::optional<XFA_timeStamp> XFA_timeStamp::parse(const QDomElement& element)
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
     // load items
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8442,13 +8937,15 @@ class XFA_toolTip : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getRid() const {  return m_rid.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getRid() const {  return m_rid.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
 
     const QString* getNodeValue() const {  return m_nodeValue.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_toolTip> parse(const QDomElement& element);
 
@@ -8484,6 +8981,7 @@ std::optional<XFA_toolTip> XFA_toolTip::parse(const QDomElement& element)
     // load node value
     parseValue(element, myClass.m_nodeValue);
 
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8492,12 +8990,14 @@ class XFA_traversal : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const std::vector<XFA_Node<XFA_traverse>>& getTraverse() const {  return m_traverse; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_traversal> parse(const QDomElement& element);
 
@@ -8529,6 +9029,7 @@ std::optional<XFA_traversal> XFA_traversal::parse(const QDomElement& element)
     // load items
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "traverse", myClass.m_traverse);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8537,14 +9038,16 @@ class XFA_traverse : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const OPERATION2* getOperation() const {  return m_operation.getValue(); }
-    const QString* getRef() const {  return m_ref.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    OPERATION2 getOperation() const {  return m_operation.getValueOrDefault(); }
+    QString getRef() const {  return m_ref.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_script* getScript() const {  return m_script.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_traverse> parse(const QDomElement& element);
 
@@ -8580,6 +9083,7 @@ std::optional<XFA_traverse> XFA_traverse::parse(const QDomElement& element)
     // load items
     parseItem(element, "extras", myClass.m_extras);
     parseItem(element, "script", myClass.m_script);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8588,9 +9092,9 @@ class XFA_ui : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
@@ -8605,6 +9109,8 @@ public:
     const XFA_passwordEdit* getPasswordEdit() const {  return m_passwordEdit.getValue(); }
     const XFA_signature* getSignature() const {  return m_signature.getValue(); }
     const XFA_textEdit* getTextEdit() const {  return m_textEdit.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_ui> parse(const QDomElement& element);
 
@@ -8658,6 +9164,7 @@ std::optional<XFA_ui> XFA_ui::parse(const QDomElement& element)
     parseItem(element, "passwordEdit", myClass.m_passwordEdit);
     parseItem(element, "signature", myClass.m_signature);
     parseItem(element, "textEdit", myClass.m_textEdit);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8666,17 +9173,19 @@ class XFA_validate : public XFA_BaseNode
 {
 public:
 
-    const FORMATTEST* getFormatTest() const {  return m_formatTest.getValue(); }
-    const QString* getId() const {  return m_id.getValue(); }
-    const NULLTEST* getNullTest() const {  return m_nullTest.getValue(); }
-    const SCRIPTTEST* getScriptTest() const {  return m_scriptTest.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    FORMATTEST getFormatTest() const {  return m_formatTest.getValueOrDefault(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    NULLTEST getNullTest() const {  return m_nullTest.getValueOrDefault(); }
+    SCRIPTTEST getScriptTest() const {  return m_scriptTest.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_extras* getExtras() const {  return m_extras.getValue(); }
     const XFA_message* getMessage() const {  return m_message.getValue(); }
     const XFA_picture* getPicture() const {  return m_picture.getValue(); }
     const XFA_script* getScript() const {  return m_script.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_validate> parse(const QDomElement& element);
 
@@ -8718,6 +9227,7 @@ std::optional<XFA_validate> XFA_validate::parse(const QDomElement& element)
     parseItem(element, "message", myClass.m_message);
     parseItem(element, "picture", myClass.m_picture);
     parseItem(element, "script", myClass.m_script);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8726,11 +9236,11 @@ class XFA_value : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const bool* getOverride() const {  return m_override.getValue(); }
-    const QString* getRelevant() const {  return m_relevant.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    bool getOverride() const {  return m_override.getValueOrDefault(); }
+    QString getRelevant() const {  return m_relevant.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const XFA_arc* getArc() const {  return m_arc.getValue(); }
     const XFA_boolean* getBoolean() const {  return m_boolean.getValue(); }
@@ -8745,6 +9255,8 @@ public:
     const XFA_rectangle* getRectangle() const {  return m_rectangle.getValue(); }
     const XFA_text* getText() const {  return m_text.getValue(); }
     const XFA_time* getTime() const {  return m_time.getValue(); }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_value> parse(const QDomElement& element);
 
@@ -8802,6 +9314,7 @@ std::optional<XFA_value> XFA_value::parse(const QDomElement& element)
     parseItem(element, "rectangle", myClass.m_rectangle);
     parseItem(element, "text", myClass.m_text);
     parseItem(element, "time", myClass.m_time);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8810,9 +9323,9 @@ class XFA_variables : public XFA_BaseNode
 {
 public:
 
-    const QString* getId() const {  return m_id.getValue(); }
-    const QString* getUse() const {  return m_use.getValue(); }
-    const QString* getUsehref() const {  return m_usehref.getValue(); }
+    QString getId() const {  return m_id.getValueOrDefault(); }
+    QString getUse() const {  return m_use.getValueOrDefault(); }
+    QString getUsehref() const {  return m_usehref.getValueOrDefault(); }
 
     const std::vector<XFA_Node<XFA_boolean>>& getBoolean() const {  return m_boolean; }
     const std::vector<XFA_Node<XFA_date>>& getDate() const {  return m_date; }
@@ -8826,6 +9339,8 @@ public:
     const std::vector<XFA_Node<XFA_script>>& getScript() const {  return m_script; }
     const std::vector<XFA_Node<XFA_text>>& getText() const {  return m_text; }
     const std::vector<XFA_Node<XFA_time>>& getTime() const {  return m_time; }
+
+    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }
 
     static std::optional<XFA_variables> parse(const QDomElement& element);
 
@@ -8877,6 +9392,7 @@ std::optional<XFA_variables> XFA_variables::parse(const QDomElement& element)
     parseItem(element, "script", myClass.m_script);
     parseItem(element, "text", myClass.m_text);
     parseItem(element, "time", myClass.m_time);
+    myClass.setOrderFromElement(element);
     return myClass;
 }
 
@@ -8900,6 +9416,354 @@ private:
     const PDFDocument* m_document;
     PDFForm* m_form;
 };
+
+class PDFXFALayoutEngine : public xfa::XFA_AbstractVisitor
+{
+    // XFA_AbstractVisitor interface
+public:
+    virtual void visit(const xfa::XFA_template* node) override;
+    virtual void visit(const xfa::XFA_pageArea* node) override;
+    virtual void visit(const xfa::XFA_pageSet* node) override;
+    virtual void visit(const xfa::XFA_subformSet* node) override;
+    virtual void visit(const xfa::XFA_subform* node) override;
+
+private:
+    enum class ContentAreaScope
+    {
+        Page,
+        ContentContainer
+    };
+
+    void moveToNextArea(ContentAreaScope scope);
+
+    bool isCurrentPageValid() const { return m_currentPageIndex < m_pages.size(); }
+    bool isCurrentPageOdd() const { return isCurrentPageValid() && m_pages[m_currentPageIndex].pageIndex % 2 == 1; }
+    bool isCurrentPageEven() const { return isCurrentPageValid() && m_pages[m_currentPageIndex].pageIndex % 2 == 0; }
+    bool isMaximalPageCountReached() const { return m_pages.size() >= m_maximalPageCount; }
+
+    PDFInteger getCurrentPageIndex() const { return isCurrentPageValid() ? m_pages[m_currentPageIndex].pageIndex : -1; }
+
+    void handleBreak(const xfa::XFA_break* node, bool isBeforeLayout);
+    void handleBreak(const xfa::XFA_breakBefore* node);
+    void handleBreak(const xfa::XFA_breakAfter* node);
+    void handleBreak(const std::vector<xfa::XFA_Node<xfa::XFA_breakBefore>>& nodes);
+    void handleBreak(const std::vector<xfa::XFA_Node<xfa::XFA_breakAfter>>& nodes);
+
+    PDFInteger getOccurenceCount(const xfa::XFA_occur* occur);
+    PDFInteger getPageOrPageSetMaxOccurenceCount(const xfa::XFA_occur* occur);
+
+    struct PageInfo
+    {
+        PDFInteger pageIndex = 0;
+        PDFInteger contentBoxIndex = 0;
+        QRectF mediaBox;
+        QRectF contentBox;
+    };
+
+    std::vector<PageInfo> m_pages;
+    size_t m_currentPageIndex = 0;
+    size_t m_maximalPageCount = 128;
+};
+
+void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
+{
+    switch (node->getOddOrEven())
+    {
+        case pdf::xfa::XFA_BaseNode::ODDOREVEN::Any:
+            break;
+
+        case pdf::xfa::XFA_BaseNode::ODDOREVEN::Even:
+        {
+            // Can we add even page (old page must be odd)
+            if (m_pages.empty() || m_pages.back().pageIndex % 2 == 0)
+            {
+                return;
+            }
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::ODDOREVEN::Odd:
+        {
+            // Can we add even page (old page must be odd)
+            if (m_pages.empty() && m_pages.back().pageIndex % 2 == 1)
+            {
+                return;
+            }
+            break;
+        }
+    }
+
+    const PDFInteger max = getPageOrPageSetMaxOccurenceCount(node->getOccur());
+    for (PDFInteger i = 0; i < max && !isMaximalPageCountReached(); ++i)
+    {
+
+    }
+    /*   const XFA_desc* getDesc() const {  return m_desc.getValue(); }
+    const XFA_extras* getExtras() const {  return m_extras.getValue(); }
+    const XFA_medium* getMedium() const {  return m_medium.getValue(); }
+    const XFA_occur* getOccur() const {  return m_occur.getValue(); }
+    const std::vector<XFA_Node<XFA_area>>& getArea() const {  return m_area; }
+    const std::vector<XFA_Node<XFA_contentArea>>& getContentArea() const {  return m_contentArea; }
+    const std::vector<XFA_Node<XFA_draw>>& getDraw() const {  return m_draw; }
+    const std::vector<XFA_Node<XFA_exclGroup>>& getExclGroup() const {  return m_exclGroup; }
+    const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
+    const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }*/
+}
+
+void PDFXFALayoutEngine::visit(const xfa::XFA_pageSet* node)
+{
+    const PDFInteger max = getPageOrPageSetMaxOccurenceCount(node->getOccur());
+    for (PDFInteger i = 0; i < max && !isMaximalPageCountReached(); ++i)
+    {
+        const size_t oldPageCount = m_pages.size();
+        xfa::XFA_AbstractNode::acceptOrdered(this, node->getPageArea(), node->getPageSet());
+        const size_t newPageCount = m_pages.size();
+
+        // This is fallback case for malformed template. If page set
+        // element contains no subnodes, we will potentially iterate
+        // forever.
+        if (oldPageCount == newPageCount)
+        {
+            // Jakub Melka: No pages generated.
+            break;
+        }
+    }
+}
+
+void PDFXFALayoutEngine::visit(const xfa::XFA_subformSet* node)
+{
+    // Handle break before
+    handleBreak(node->getBreak(), true);
+    handleBreak(node->getBreakBefore());
+
+    // Perform layout, layout subforms so many times
+    const PDFInteger occurenceCount = getOccurenceCount(node->getOccur());
+    for (PDFInteger index = 0; index < occurenceCount; ++index)
+    {
+        xfa::XFA_AbstractNode::acceptOrdered(this, node->getSubform(), node->getSubformSet());
+    }
+
+    // Handle break after
+    handleBreak(node->getBreak(), false);
+    handleBreak(node->getBreakAfter());
+}
+
+void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
+{
+}
+
+void PDFXFALayoutEngine::moveToNextArea(ContentAreaScope scope)
+{
+    switch (scope)
+    {
+        case pdf::PDFXFALayoutEngine::ContentAreaScope::Page:
+        {
+            if (isCurrentPageValid())
+            {
+                const PDFInteger pageIndex = getCurrentPageIndex();
+                while (isCurrentPageValid() && pageIndex == getCurrentPageIndex())
+                {
+                    ++m_currentPageIndex;
+                }
+            }
+            else
+            {
+                ++m_currentPageIndex;
+            }
+            break;
+        }
+
+        case pdf::PDFXFALayoutEngine::ContentAreaScope::ContentContainer:
+            ++m_currentPageIndex;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+}
+
+void PDFXFALayoutEngine::handleBreak(const xfa::XFA_break* node, bool isBeforeLayout)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    xfa::XFA_break::BEFORE before = isBeforeLayout ? node->getBefore() : xfa::XFA_break::BEFORE::Auto;
+    xfa::XFA_break::AFTER after = !isBeforeLayout ? node->getAfter() : xfa::XFA_break::AFTER::Auto;
+
+    if (before == xfa::XFA_break::BEFORE::PageArea ||
+        after == xfa::XFA_break::AFTER::PageArea)
+    {
+        moveToNextArea(ContentAreaScope::Page);
+    }
+    else if (before == xfa::XFA_break::BEFORE::ContentArea ||
+             after == xfa::XFA_break::AFTER::ContentArea)
+    {
+        moveToNextArea(ContentAreaScope::ContentContainer);
+    }
+    else if (before == xfa::XFA_break::BEFORE::PageEven ||
+             after == xfa::XFA_break::AFTER::PageEven)
+    {
+        if (isCurrentPageOdd())
+        {
+            moveToNextArea(ContentAreaScope::Page);
+        }
+    }
+    else if (before == xfa::XFA_break::BEFORE::PageOdd ||
+             after == xfa::XFA_break::AFTER::PageOdd)
+    {
+        if (isCurrentPageEven())
+        {
+            moveToNextArea(ContentAreaScope::Page);
+        }
+    }
+}
+
+void PDFXFALayoutEngine::visit(const xfa::XFA_template* node)
+{
+    for (const auto& subform : node->getSubform())
+    {
+        subform.getValue()->accept(this);
+    }
+}
+
+PDFInteger PDFXFALayoutEngine::getOccurenceCount(const xfa::XFA_occur* occur)
+{
+    if (!occur)
+    {
+        return 1;
+    }
+
+    const PDFInteger initialOccurenceCount = occur->getInitial();
+    const PDFInteger minOccurenceCount = occur->getMin();
+    const PDFInteger maxOccurenceCount = occur->getMax();
+
+    PDFInteger occurenceCount = qMax(initialOccurenceCount, minOccurenceCount);
+
+    if (maxOccurenceCount >= 0)
+    {
+        occurenceCount = qMin(occurenceCount, maxOccurenceCount);
+    }
+
+    return occurenceCount;
+}
+
+PDFInteger PDFXFALayoutEngine::getPageOrPageSetMaxOccurenceCount(const xfa::XFA_occur* occur)
+{
+    PDFInteger max = std::numeric_limits<PDFInteger>::max();
+
+    if (occur)
+    {
+        const PDFInteger occurMax = occur->getMax();
+
+        if (occurMax != -1)
+        {
+            max = occurMax;
+        }
+    }
+
+    return max;
+}
+
+void PDFXFALayoutEngine::handleBreak(const std::vector<xfa::XFA_Node<xfa::XFA_breakBefore>>& nodes)
+{
+    for (const auto& node : nodes)
+    {
+        handleBreak(node.getValue());
+    }
+}
+
+void PDFXFALayoutEngine::handleBreak(const xfa::XFA_breakBefore* node)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    switch (node->getTargetType())
+    {
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::Auto:
+            // Nothing happens
+            break;
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::ContentArea:
+            moveToNextArea(ContentAreaScope::ContentContainer);
+            break;
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::PageArea:
+            moveToNextArea(ContentAreaScope::Page);
+            break;
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::PageEven:
+        {
+            if (isCurrentPageOdd())
+            {
+                moveToNextArea(ContentAreaScope::Page);
+            }
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::PageOdd:
+        {
+            if (isCurrentPageEven())
+            {
+                moveToNextArea(ContentAreaScope::Page);
+            }
+            break;
+        }
+    }
+}
+
+void PDFXFALayoutEngine::handleBreak(const std::vector<xfa::XFA_Node<xfa::XFA_breakAfter> >& nodes)
+{
+    for (const auto& node : nodes)
+    {
+        handleBreak(node.getValue());
+    }
+}
+
+void PDFXFALayoutEngine::handleBreak(const xfa::XFA_breakAfter* node)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    switch (node->getTargetType())
+    {
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::Auto:
+            // Nothing happens
+            break;
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::ContentArea:
+            moveToNextArea(ContentAreaScope::ContentContainer);
+            break;
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::PageArea:
+            moveToNextArea(ContentAreaScope::Page);
+            break;
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::PageEven:
+        {
+            if (isCurrentPageOdd())
+            {
+                moveToNextArea(ContentAreaScope::Page);
+            }
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::TARGETTYPE::PageOdd:
+        {
+            if (isCurrentPageEven())
+            {
+                moveToNextArea(ContentAreaScope::Page);
+            }
+            break;
+        }
+    }
+}
 
 PDFXFAEngine::PDFXFAEngine() :
     m_impl(std::make_unique<PDFXFAEngineImpl>())
@@ -8974,6 +9838,13 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
                     // were read, we want to clear them.
                     clear();
                 }
+            }
+
+            // Perform layout
+            if (m_template.hasValue())
+            {
+                PDFXFALayoutEngine layoutEngine;
+                m_template.getValue()->accept(&layoutEngine);
             }
         }
     }

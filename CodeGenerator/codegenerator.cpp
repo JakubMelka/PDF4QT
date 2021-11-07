@@ -1620,6 +1620,19 @@ QString XFACodeGenerator::generateSource() const
 
         stream << Qt::endl;
 
+
+        stream << "class XFA_AbstractVisitor" << Qt::endl;
+        stream << "{" << Qt::endl;
+        stream << "public:" << Qt::endl;
+        stream << "    XFA_AbstractVisitor() = default;" << Qt::endl;
+        stream << "    virtual ~XFA_AbstractVisitor() = default;" << Qt::endl << Qt::endl;
+        for (const Class& myClass : m_classes)
+        {
+            stream << QString("    virtual void visit(const XFA_%1* node) { Q_UNUSED(node); }").arg(myClass.className) << Qt::endl;
+        }
+        stream << "};" << Qt::endl;
+        stream << Qt::endl;
+
         stream << "class XFA_BaseNode : public XFA_AbstractNode" << Qt::endl;
         stream << "{" << Qt::endl;
         stream << "public:" << Qt::endl;
@@ -1684,7 +1697,7 @@ QString XFACodeGenerator::generateSource() const
                 QString attributeGetterName = attribute.attributeName;
                 attributeGetterName[0] = attributeGetterName.front().toUpper();
                 QString attributeDeclaration = QString("    XFA_Attribute<%1> %2;").arg(attribute.type->typeName, attributeFieldName);
-                QString attributeGetter = QString("    const %1* get%2() const {  return %3.getValue(); }").arg(attribute.type->typeName, attributeGetterName, attributeFieldName);
+                QString attributeGetter = QString("    %1 get%2() const {  return %3.getValueOrDefault(); }").arg(attribute.type->typeName, attributeGetterName, attributeFieldName);
                 attributeDeclarations << attributeDeclaration;
                 attributeGetters << attributeGetter;
             }
@@ -1737,6 +1750,8 @@ QString XFACodeGenerator::generateSource() const
             {
                 stream << QString("    const %1* getNodeValue() const {  return m_nodeValue.getValue(); }").arg(myClass.valueType->typeName) << Qt::endl << Qt::endl;
             }
+
+            stream << QString("    virtual void accept(XFA_AbstractVisitor* visitor) const override { visitor->visit(this); }") << Qt::endl << Qt::endl;
 
             stream << QString("    static std::optional<XFA_%1> parse(const QDomElement& element);").arg(myClass.className) << Qt::endl;
 
@@ -1801,6 +1816,7 @@ QString XFACodeGenerator::generateSource() const
                 stream << QString("    parseValue(element, myClass.m_nodeValue);") << Qt::endl << Qt::endl;
             }
 
+            stream << "    myClass.setOrderFromElement(element);" << Qt::endl;
             stream << "    return myClass;" << Qt::endl;
             stream << "}" << Qt::endl;
 

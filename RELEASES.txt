@@ -1,4 +1,7 @@
+CURRENT:
 
+ - DocDiff application (compare similar PDF documents)
+ - Linux support
 
 V: 1.0.0 Beta, 19.9.2021
  - initial beta release for non-production testing
