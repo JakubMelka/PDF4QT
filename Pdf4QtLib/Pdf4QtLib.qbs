@@ -16,6 +16,12 @@ Pdf4QtLibrary {
         condition: qbs.hostOS.contains("linux")
         name: "fontconfig"
     }
+    Properties {
+        condition: qbs.hostOS.contains("windows")
+        cpp.defines: "PDF4QTLIB_LIBRARY"
+        cpp.cxxFlags: "/bigobj"
+    }
+
     files: [
         "sources/*.cpp",
         "sources/*.h",

@@ -8,4 +8,5 @@ Pdf4QtApp {
     ]
     cpp.includePaths: ["."]
     Depends { name: "Qt"; submodules: ["widgets"] }
+    Depends { name: "Qt.winextras"; condition: qbs.hostOS.contains("windows") }
 }

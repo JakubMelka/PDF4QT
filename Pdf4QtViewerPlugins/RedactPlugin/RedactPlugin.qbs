@@ -9,4 +9,8 @@ Pdf4QtPlugin {
         "icons.qrc",
     ]
     cpp.includePaths: ["."]
+    Properties {
+        condition: qbs.hostOS.contains("windows")
+        cpp.defines: "REDACTPLUGIN_LIBRARY"
+    }
 }
