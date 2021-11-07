@@ -1,0 +1,11 @@
+[requires]
+openssl/1.1.1l
+freetype/2.11.0
+libjpeg/9c
+openjpeg/2.4.0
+lcms/2.12
+
+[generators]
+qbs
+
+[options]
