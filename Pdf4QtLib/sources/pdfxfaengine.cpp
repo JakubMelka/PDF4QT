@@ -21,6 +21,7 @@
 #include <QDomElement>
 #include <QDomDocument>
 
+#include <stack>
 #include <optional>
 
 namespace pdf
@@ -85,6 +86,21 @@ private:
     std::shared_ptr<Value> m_value;
 };
 
+class XFA_ParagraphSettings
+{
+public:
+
+    PDFReal getFontEmSize() const;
+    void setFontEmSize(const PDFReal& fontEmSize);
+
+    PDFReal getFontSpaceSize() const;
+    void setFontSpaceSize(const PDFReal& fontSpaceSize);
+
+private:
+    PDFReal m_fontEmSize = 0.0;
+    PDFReal m_fontSpaceSize = 0.0;
+};
+
 template<typename Value>
 using XFA_Attribute = PDFXFAValueHolder<Value, XFA_InplaceTag>;
 
@@ -130,6 +146,8 @@ public:
 
     constexpr PDFReal getValue() const { return m_value; }
     constexpr Type getType() const { return m_type; }
+
+    PDFReal getValuePt(const XFA_ParagraphSettings* paragraphSettings) const;
 
 private:
     PDFReal m_value;
@@ -288,9 +306,19 @@ public:
                                     const Container& container,
                                     const Containers&... containers)
     {
-        for (const auto& node : container)
+        if constexpr (std::is_convertible<Container, const xfa::XFA_AbstractNode*>::value)
         {
-            nodes.push_back(node.getValue());
+            if (container)
+            {
+                nodes.push_back(container);
+            }
+        }
+        else
+        {
+            for (const auto& node : container)
+            {
+                nodes.push_back(node.getValue());
+            }
         }
 
         addNodesToContainer(nodes, containers...);
@@ -326,6 +354,56 @@ void XFA_AbstractNode::setOrderFromElement(const QDomElement& element)
     {
         m_order = (size_t(lineNumber) << 12) + columnNumber;
     }
+}
+
+PDFReal XFA_ParagraphSettings::getFontEmSize() const
+{
+    return m_fontEmSize;
+}
+
+void XFA_ParagraphSettings::setFontEmSize(const PDFReal& fontEmSize)
+{
+    m_fontEmSize = fontEmSize;
+}
+
+PDFReal XFA_ParagraphSettings::getFontSpaceSize() const
+{
+    return m_fontSpaceSize;
+}
+
+void XFA_ParagraphSettings::setFontSpaceSize(const PDFReal& fontSpaceSize)
+{
+    m_fontSpaceSize = fontSpaceSize;
+}
+
+PDFReal XFA_Measurement::getValuePt(const XFA_ParagraphSettings* paragraphSettings) const
+{
+    switch (m_type)
+    {
+        case pdf::xfa::XFA_Measurement::in:
+            return m_value * 72.0;
+
+        case pdf::xfa::XFA_Measurement::cm:
+            return m_value / 2.54 * 72.0;
+
+        case pdf::xfa::XFA_Measurement::mm:
+            return m_value / 25.4 * 72.0;
+
+        case pdf::xfa::XFA_Measurement::pt:
+            return m_value;
+
+        case pdf::xfa::XFA_Measurement::em:
+            return paragraphSettings ? m_value * paragraphSettings->getFontEmSize() : 0.0;
+
+        case pdf::xfa::XFA_Measurement::percent:
+            return paragraphSettings ? m_value * paragraphSettings->getFontSpaceSize() : 0.0;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return 0.0;
 }
 
 }   // namespace xfa
@@ -9454,60 +9532,134 @@ private:
 
     struct PageInfo
     {
+        const xfa::XFA_pageArea* pageArea = nullptr;
         PDFInteger pageIndex = 0;
         PDFInteger contentBoxIndex = 0;
         QRectF mediaBox;
         QRectF contentBox;
     };
 
+    struct LayoutParameters
+    {
+        xfa::XFA_BaseNode::PRESENCE presence = xfa::XFA_BaseNode::PRESENCE::Visible;
+    };
+
+    class LayoutParametersStackGuard
+    {
+    public:
+        explicit inline LayoutParametersStackGuard(PDFXFALayoutEngine* engine) :
+            m_engine(engine)
+        {
+            if (m_engine->m_layoutParameters.empty())
+            {
+                m_engine->m_layoutParameters.push(LayoutParameters());
+            }
+            else
+            {
+                m_engine->m_layoutParameters.push(m_engine->m_layoutParameters.top());
+            }
+        }
+
+        inline ~LayoutParametersStackGuard()
+        {
+            m_engine->m_layoutParameters.pop();
+        }
+
+    private:
+        PDFXFALayoutEngine* m_engine;
+    };
+
+    LayoutParameters& getLayoutParameters() { return m_layoutParameters.top(); }
+
     std::vector<PageInfo> m_pages;
+    std::stack<LayoutParameters> m_layoutParameters;
     size_t m_currentPageIndex = 0;
     size_t m_maximalPageCount = 128;
 };
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
 {
-    switch (node->getOddOrEven())
+    auto isPageAddPossible = [this, node]()
     {
-        case pdf::xfa::XFA_BaseNode::ODDOREVEN::Any:
-            break;
-
-        case pdf::xfa::XFA_BaseNode::ODDOREVEN::Even:
+        switch (node->getOddOrEven())
         {
-            // Can we add even page (old page must be odd)
-            if (m_pages.empty() || m_pages.back().pageIndex % 2 == 0)
+            case pdf::xfa::XFA_BaseNode::ODDOREVEN::Any:
+                break;
+
+            case pdf::xfa::XFA_BaseNode::ODDOREVEN::Even:
             {
-                return;
+                // Can we add even page (old page must be odd)
+                if (m_pages.empty() || m_pages.back().pageIndex % 2 == 0)
+                {
+                    return false;
+                }
+                break;
             }
-            break;
+
+            case pdf::xfa::XFA_BaseNode::ODDOREVEN::Odd:
+            {
+                // Can we add even page (old page must be odd)
+                if (m_pages.empty() && m_pages.back().pageIndex % 2 == 1)
+                {
+                    return false;
+                }
+                break;
+            }
         }
 
-        case pdf::xfa::XFA_BaseNode::ODDOREVEN::Odd:
-        {
-            // Can we add even page (old page must be odd)
-            if (m_pages.empty() && m_pages.back().pageIndex % 2 == 1)
-            {
-                return;
-            }
-            break;
-        }
-    }
+        return true;
+    };
 
     const PDFInteger max = getPageOrPageSetMaxOccurenceCount(node->getOccur());
-    for (PDFInteger i = 0; i < max && !isMaximalPageCountReached(); ++i)
+    for (PDFInteger i = 0; i < max; ++i)
     {
+        if (isMaximalPageCountReached() || !isPageAddPossible())
+        {
+            break;
+        }
 
+        const std::vector<xfa::XFA_Node<xfa::XFA_contentArea>>& contentAreas = node->getContentArea();
+        if (contentAreas.empty())
+        {
+            // Content area is empty... nothing to process at all.
+            break;
+        }
+
+        const xfa::XFA_medium* medium = node->getMedium();
+        if (!medium)
+        {
+            // Page doesn't contain medium - which is required, so we will
+            // stop processing.
+            break;
+        }
+
+        const PDFReal shortPageSize = medium->getShort().getValuePt(nullptr);
+        const PDFReal longPageSize = medium->getLong().getValuePt(nullptr);
+        const bool paperOrientationPortrait = medium->getOrientation() == xfa::XFA_medium::ORIENTATION::Portrait;
+        QSizeF pageSize = paperOrientationPortrait ? QSizeF(shortPageSize, longPageSize) : QSizeF(longPageSize, shortPageSize);
+
+        PageInfo pageInfo;
+        pageInfo.pageIndex = m_pages.empty() ? 1 : m_pages.back().pageIndex + 1;
+        pageInfo.mediaBox = QRectF(QPointF(0, 0), pageSize);
+        pageInfo.contentBoxIndex = 0;
+        pageInfo.pageArea = node;
+
+        for (const auto& contentAreaNode : contentAreas)
+        {
+            const xfa::XFA_contentArea* contentArea = contentAreaNode.getValue();
+
+            const PDFReal x = contentArea->getX().getValuePt(nullptr);
+            const PDFReal y = contentArea->getY().getValuePt(nullptr);
+            const PDFReal w = contentArea->getW().getValuePt(nullptr);
+            const PDFReal h = contentArea->getH().getValuePt(nullptr);
+
+            pageInfo.contentBox = QRectF(x, y, w, h);
+            m_pages.push_back(pageInfo);
+
+            ++pageInfo.contentBoxIndex;
+        }
+        xfa::XFA_AbstractNode::acceptOrdered(this, node->getArea(), node->getDraw(), node->getExclGroup(), node->getField(), node->getSubform());
     }
-    /*   const XFA_desc* getDesc() const {  return m_desc.getValue(); }
-    const XFA_extras* getExtras() const {  return m_extras.getValue(); }
-    const XFA_medium* getMedium() const {  return m_medium.getValue(); }
-    const XFA_occur* getOccur() const {  return m_occur.getValue(); }
-    const std::vector<XFA_Node<XFA_area>>& getArea() const {  return m_area; }
-    const std::vector<XFA_Node<XFA_contentArea>>& getContentArea() const {  return m_contentArea; }
-    const std::vector<XFA_Node<XFA_draw>>& getDraw() const {  return m_draw; }
-    const std::vector<XFA_Node<XFA_exclGroup>>& getExclGroup() const {  return m_exclGroup; }
-    const std::vector<XFA_Node<XFA_field>>& getField() const {  return m_field; }
-    const std::vector<XFA_Node<XFA_subform>>& getSubform() const {  return m_subform; }*/
 }
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_pageSet* node)
@@ -9550,6 +9702,48 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_subformSet* node)
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
 {
+    switch (node->getPresence())
+    {
+        case xfa::XFA_BaseNode::PRESENCE::Visible:
+            break;
+
+        case xfa::XFA_BaseNode::PRESENCE::Hidden:
+        case xfa::XFA_BaseNode::PRESENCE::Inactive:
+            return;
+
+        case xfa::XFA_BaseNode::PRESENCE::Invisible:
+            break;
+    }
+
+    LayoutParametersStackGuard guard(this);
+    getLayoutParameters().presence = node->getPresence();
+
+    // Handle break before
+    handleBreak(node->getBreak(), true);
+    handleBreak(node->getBreakBefore());
+
+    // Perform layout, layout subforms so many times
+    const PDFInteger occurenceCount = getOccurenceCount(node->getOccur());
+    for (PDFInteger index = 0; index < occurenceCount; ++index)
+    {
+        xfa::XFA_AbstractNode::acceptOrdered(this,
+                                             node->getSubform(),
+                                             node->getSubformSet(),
+                                             node->getField(),
+                                             node->getExclGroup(),
+                                             node->getDraw(),
+                                             node->getArea(),
+                                             node->getPageSet());
+    }
+
+    // Handle break after
+    handleBreak(node->getBreak(), false);
+    handleBreak(node->getBreakAfter());
+
+    /*
+    const XFA_border* getBorder() const {  return m_border.getValue(); }
+    const XFA_margin* getMargin() const {  return m_margin.getValue(); }
+    const XFA_para* getPara() const {  return m_para.getValue(); }*/
 }
 
 void PDFXFALayoutEngine::moveToNextArea(ContentAreaScope scope)
