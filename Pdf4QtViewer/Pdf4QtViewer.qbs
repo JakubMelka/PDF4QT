@@ -11,7 +11,11 @@ Pdf4QtLibrary {
     cpp.includePaths: ["."]
     Properties {
         condition: qbs.hostOS.contains("windows")
-        cpp.defines: ["PDF4QTVIEWER_LIBRARY"]
+        cpp.defines: ["PDF4QTVIEWER_LIBRARY", "QT_INSTALL_DIRECTORY=" + Utilities.cStringQuote(Qt.core.binPath)]
+    }
+    Properties {
+        condition: qbs.hostOS.contains("linux")
+        cpp.defines: ["QT_INSTALL_DIRECTORY=" + Utilities.cStringQuote(Qt.core.binPath)]
     }
     cpp.defines: base.concat(["QT_INSTALL_DIRECTORY=" + Utilities.cStringQuote(Qt.core.binPath)])
     Depends { name: "Qt"; submodules: ["printsupport", "texttospeech", "network", "xml"] }
