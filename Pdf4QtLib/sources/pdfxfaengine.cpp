@@ -9612,12 +9612,30 @@ public:
 
     void setDocument(const PDFModifiedDocument& document, PDFForm* form);
 
+    struct LayoutItem
+    {
+        QRectF nominalExtent;
+        const xfa::XFA_draw* draw = nullptr;
+        const xfa::XFA_field* field = nullptr;
+    };
+
+    using LayoutItems = std::vector<LayoutItem>;
+
+    void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
+
 private:
+
+    struct Layout
+    {
+        std::map<PDFInteger, LayoutItems> layoutItems;
+    };
+
     void clear();
 
     xfa::XFA_Node<xfa::XFA_template> m_template;
     const PDFDocument* m_document;
     PDFForm* m_form;
+    Layout m_layout;
 };
 
 class PDFXFALayoutEngine : public xfa::XFA_AbstractVisitor
@@ -9632,6 +9650,8 @@ public:
     virtual void visit(const xfa::XFA_area* node) override;
     virtual void visit(const xfa::XFA_draw* node) override;
     virtual void visit(const xfa::XFA_field* node) override;
+
+    void performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_template* node);
 
 private:
     enum class ContentAreaScope
@@ -9675,12 +9695,52 @@ private:
         QRectF contentBox;
     };
 
+    struct SizeInfo
+    {
+        /// Size of item
+        QSizeF origSize;
+
+        /// Effective size - size computed, bounded by min/max size
+        QSizeF effSize;
+
+        /// Minimal size of item
+        QSizeF minSize;
+
+        /// Maximal size of item
+        QSizeF maxSize;
+
+        QSizeF adjustNominalExtentSize(const QSizeF size);
+    };
+
+    template<typename Node>
+    SizeInfo getSizeInfo(const Node* node) const;
+
     /// Represents single item layouted onto page (for example,
     /// field, graphics etc.). Nominal extent can be relative to the
     /// parent, or it can be absolute (if parent is a page).
     struct LayoutItem
     {
         void translate(PDFReal dx, PDFReal dy) { nominalExtent.translate(dx, dy); }
+
+        void updatePresence(xfa::XFA_BaseNode::PRESENCE presence)
+        {
+            switch (presence)
+            {
+                case xfa::XFA_BaseNode::PRESENCE::Visible:
+                    break;
+                case xfa::XFA_BaseNode::PRESENCE::Hidden:
+                case xfa::XFA_BaseNode::PRESENCE::Inactive:
+                    Q_ASSERT(false); // These should not be lay-out
+                    break;
+                case xfa::XFA_BaseNode::PRESENCE::Invisible:
+                    presence = xfa::XFA_BaseNode::PRESENCE::Invisible;
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+        }
 
         /// Nominal extent for this item (relative to the parent item)
         QRectF nominalExtent;
@@ -9695,6 +9755,11 @@ private:
         {
             nominalExtent.translate(dx, dy);
             std::for_each(items.begin(), items.end(), [dx, dy](auto& item) { item.translate(dx, dy); });
+        }
+
+        void updatePresence(xfa::XFA_BaseNode::PRESENCE presence)
+        {
+            std::for_each(items.begin(), items.end(), [presence](auto& item) { item.updatePresence(presence); });
         }
 
         /// Page index (or, more precisely, index of content area)
@@ -9718,14 +9783,8 @@ private:
         /// layouted, then this layout is used - for direct subitems)
         xfa::XFA_BaseNode::LAYOUT layoutType = xfa::XFA_BaseNode::LAYOUT::Position;
 
-        /// Size of actual item
-        QSizeF size;
-
-        /// Minimal size of actual item
-        QSizeF minSize;
-
-        /// Maximal size of actual item
-        QSizeF maxSize;
+        /// Size info
+        SizeInfo sizeInfo;
 
         /// Actual x-offset relative to the parent container (in case of positional
         /// layout settings)
@@ -9769,6 +9828,11 @@ private:
             {
                 m_engine->layout(std::move(parameters));
             }
+            else
+            {
+                // Store final layout
+                m_engine->m_layout.insert(m_engine->m_layout.end(), std::make_move_iterator(parameters.layout.begin()), std::make_move_iterator(parameters.layout.end()));
+            }
         }
 
     private:
@@ -9787,6 +9851,7 @@ private:
     const LayoutParameters& getLayoutParameters() const { return m_layoutParameters.top(); }
 
     std::vector<PageInfo> m_pages;
+    std::vector<Layout> m_layout;
     std::stack<LayoutParameters> m_layoutParameters;
     size_t m_currentPageIndex = 0;
     size_t m_maximalPageCount = 128;
@@ -9803,7 +9868,6 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_area* node)
     xfa::XFA_AbstractNode::acceptOrdered(this,
                                          node->getArea(),
                                          node->getDraw(),
-                                         node->getExclGroup(),
                                          node->getExclGroup(),
                                          node->getField(),
                                          node->getSubform(),
@@ -9828,10 +9892,147 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
 
     for (Layout& layout : layoutParameters.layout)
     {
-        layoutsPerPage[layout.pageIndex] = std::move(layout);
+        layoutsPerPage[layout.pageIndex].emplace_back(std::move(layout));
     }
 
+    LayoutParameters& currentLayoutParameters = getLayoutParameters();
+    for (auto& item : layoutsPerPage)
+    {
+        const size_t pageIndex = item.first;
+        std::vector<Layout> layouts = std::move(item.second);
 
+        for (Layout& layout : layouts)
+        {
+            layout.updatePresence(currentLayoutParameters.presence);
+        }
+
+        switch (currentLayoutParameters.layoutType)
+        {
+            case xfa::XFA_BaseNode::LAYOUT::Position:
+            {
+                Layout finalLayout;
+                finalLayout.pageIndex = pageIndex;
+
+                PDFReal x = layoutParameters.xOffset + currentLayoutParameters.margins.left();
+                PDFReal y = layoutParameters.yOffset + currentLayoutParameters.margins.top();
+
+                for (Layout& layout : layouts)
+                {
+                    // Jakub Melka: we must add offset from anchor type
+                    switch (layoutParameters.anchorType)
+                    {
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopLeft:
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomCenter:
+                            x -= layout.nominalExtent.width() * 0.5;
+                            y -= layout.nominalExtent.height();
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomLeft:
+                            y -= layout.nominalExtent.height();
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomRight:
+                            x -= layout.nominalExtent.width();
+                            y -= layout.nominalExtent.height();
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleCenter:
+                            x -= layout.nominalExtent.width() * 0.5;
+                            y -= layout.nominalExtent.height() * 0.5;
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleLeft:
+                            y -= layout.nominalExtent.height() * 0.5;
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleRight:
+                            x -= layout.nominalExtent.width();
+                            y -= layout.nominalExtent.height() * 0.5;
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopCenter:
+                            x -= layout.nominalExtent.width() * 0.5;
+                            break;
+
+                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopRight:
+                            x -= layout.nominalExtent.width();
+                            break;
+
+                        default:
+                            Q_ASSERT(false);
+                            break;
+                    }
+
+                    layout.translate(x, y);
+                    finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
+                }
+
+                QSizeF nominalExtentSize = currentLayoutParameters.sizeInfo.effSize;
+                finalLayout.nominalExtent = QRectF(QPointF(0, 0), nominalExtentSize);
+
+                if (!finalLayout.items.empty())
+                {
+                    currentLayoutParameters.layout.emplace_back(std::move(finalLayout));
+                }
+                break;
+            }
+
+            case xfa::XFA_BaseNode::LAYOUT::Lr_tb:
+                break;
+
+            case xfa::XFA_BaseNode::LAYOUT::Rl_row:
+                break;
+
+            case xfa::XFA_BaseNode::LAYOUT::Rl_tb:
+                break;
+
+            case xfa::XFA_BaseNode::LAYOUT::Row:
+                break;
+
+            case xfa::XFA_BaseNode::LAYOUT::Table:
+                break;
+
+            case xfa::XFA_BaseNode::LAYOUT::Tb:
+            {
+                // Top-to-bottom layout
+                Layout finalLayout;
+                finalLayout.pageIndex = pageIndex;
+
+                PDFReal x = 0.0;
+                PDFReal y = 0.0;
+                PDFReal maxW = 0.0;
+
+                for (Layout& layout : layouts)
+                {
+                    layout.translate(x, y);
+                    finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
+                    y += layout.nominalExtent.height();
+                    maxW = qMax(maxW, layout.nominalExtent.width());
+                }
+
+                // Translate by margin
+                finalLayout.translate(currentLayoutParameters.margins.left(), currentLayoutParameters.margins.top());
+
+                QSizeF nominalContentSize(maxW, y);
+                QSizeF nominalExtentSize = nominalContentSize.grownBy(currentLayoutParameters.margins);
+                nominalExtentSize = currentLayoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
+                QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
+                finalLayout.nominalExtent = nominalExtentRegion;
+
+                if (!finalLayout.items.empty())
+                {
+                    currentLayoutParameters.layout.emplace_back(std::move(finalLayout));
+                }
+                break;
+            }
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
 }
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
@@ -9849,23 +10050,16 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
             break;
     }
 
-    QSizeF size = getSizeFromMeasurement(node->getW(), node->getH());
-    QSizeF minSize = getSizeFromMeasurement(node->getMinW(), node->getMinH());
-    QSizeF maxSize = getSizeFromMeasurement(node->getMaxW(), node->getMaxH());
+    SizeInfo sizeInfo = getSizeInfo(node);
 
-    if (size.isNull())
-    {
-        size = minSize;
-    }
-
-    if (size.isNull())
+    if (sizeInfo.effSize.isNull())
     {
         // Empty draw, do nothing
         return;
     }
 
     QPointF point = getPointFromMeasurement(node->getX(), node->getY());
-    QRectF nominalExtent(QPoint(0, 0), size);
+    QRectF nominalExtent(QPoint(0, 0), sizeInfo.effSize);
 
     LayoutParametersStackGuard guard(this);
     LayoutParameters& parameters = getLayoutParameters();
@@ -9873,9 +10067,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
     parameters.yOffset = point.y();
     parameters.anchorType = node->getAnchorType();
     parameters.presence = node->getPresence();
-    parameters.size = size;
-    parameters.minSize = minSize;
-    parameters.maxSize = maxSize;
+    parameters.sizeInfo = sizeInfo;
 
     Layout layout = initializeSingleLayout(nominalExtent);
     layout.items.back().presence = node->getPresence();
@@ -9886,6 +10078,80 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
 {
+    switch (node->getPresence())
+    {
+        case xfa::XFA_BaseNode::PRESENCE::Visible:
+            break;
+
+        case xfa::XFA_BaseNode::PRESENCE::Hidden:
+        case xfa::XFA_BaseNode::PRESENCE::Inactive:
+            return;
+
+        case xfa::XFA_BaseNode::PRESENCE::Invisible:
+            break;
+    }
+
+    SizeInfo sizeInfo = getSizeInfo(node);
+    if (sizeInfo.effSize.isNull())
+    {
+        // Empty draw, do nothing
+        return;
+    }
+
+    QPointF point = getPointFromMeasurement(node->getX(), node->getY());
+    QRectF nominalExtent(QPoint(0, 0), sizeInfo.effSize);
+
+    LayoutParametersStackGuard guard(this);
+    LayoutParameters& parameters = getLayoutParameters();
+    parameters.xOffset = point.x();
+    parameters.yOffset = point.y();
+    parameters.anchorType = node->getAnchorType();
+    parameters.presence = node->getPresence();
+    parameters.sizeInfo = sizeInfo;
+
+    Layout layout = initializeSingleLayout(nominalExtent);
+    layout.items.back().presence = node->getPresence();
+    layout.items.back().field = node;
+
+    parameters.layout.emplace_back(std::move(layout));
+}
+
+void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_template* node)
+{
+    node->accept(this);
+
+    std::map<PDFInteger, std::vector<Layout>> layoutPerPage;
+
+    for (Layout& layout : m_layout)
+    {
+        layoutPerPage[layout.pageIndex].emplace_back(std::move(layout));
+    }
+
+    PDFInteger pageIndex = 0;
+    for (const auto& layoutSinglePage : layoutPerPage)
+    {
+        PDFXFAEngineImpl::LayoutItems layoutItems;
+
+        for (const Layout& layout : layoutSinglePage.second)
+        {
+            for (const LayoutItem& layoutItem : layout.items)
+            {
+                // Invisible item?
+                if (layoutItem.presence != xfa::XFA_BaseNode::PRESENCE::Visible)
+                {
+                    continue;
+                }
+
+                PDFXFAEngineImpl::LayoutItem engineLayoutItem;
+                engineLayoutItem.nominalExtent = layoutItem.nominalExtent;
+                engineLayoutItem.draw = layoutItem.draw;
+                engineLayoutItem.field = layoutItem.field;
+                layoutItems.emplace_back(std::move(engineLayoutItem));
+            }
+        }
+
+        engine->setLayoutItems(pageIndex++, std::move(layoutItems));
+    }
 }
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
@@ -10027,7 +10293,16 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
     }
 
     LayoutParametersStackGuard guard(this);
-    getLayoutParameters().presence = node->getPresence();
+
+    SizeInfo sizeInfo = getSizeInfo(node);
+    QPointF point = getPointFromMeasurement(node->getX(), node->getY());
+
+    LayoutParameters& parameters = getLayoutParameters();
+    parameters.xOffset = point.x();
+    parameters.yOffset = point.y();
+    parameters.anchorType = node->getAnchorType();
+    parameters.presence = node->getPresence();
+    parameters.sizeInfo = sizeInfo;
 
     // Handle break before
     handleBreak(node->getBreak(), true);
@@ -10462,7 +10737,7 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
             if (m_template.hasValue())
             {
                 PDFXFALayoutEngine layoutEngine;
-                m_template.getValue()->accept(&layoutEngine);
+                layoutEngine.performLayout(this, m_template.getValue());
             }
         }
     }
@@ -10472,6 +10747,66 @@ void PDFXFAEngineImpl::clear()
 {
     // Clear the template
     m_template = xfa::XFA_Node<xfa::XFA_template>();
+    m_layout = Layout();
+}
+
+template<typename Node>
+PDFXFALayoutEngine::SizeInfo PDFXFALayoutEngine::getSizeInfo(const Node* node) const
+{
+    SizeInfo info;
+    info.origSize = getSizeFromMeasurement(node->getW(), node->getH());
+    info.minSize = getSizeFromMeasurement(node->getMinW(), node->getMinH());
+    info.maxSize = getSizeFromMeasurement(node->getMaxW(), node->getMaxH());
+    info.effSize = info.origSize;
+
+    info.effSize.setWidth(qMax(info.effSize.width(), info.minSize.width()));
+    info.effSize.setHeight(qMax(info.effSize.height(), info.minSize.height()));
+
+    if (!qFuzzyIsNull(info.maxSize.width()))
+    {
+        info.effSize.setWidth(qMin(info.effSize.width(), info.maxSize.width()));
+    }
+
+    if (!qFuzzyIsNull(info.maxSize.height()))
+    {
+        info.effSize.setHeight(qMin(info.effSize.height(), info.maxSize.height()));
+    }
+
+    return info;
+}
+
+QSizeF PDFXFALayoutEngine::SizeInfo::adjustNominalExtentSize(const QSizeF size)
+{
+    PDFReal minW = origSize.width();
+    PDFReal minH = origSize.height();
+
+    if (qFuzzyIsNull(minW))
+    {
+        minW = minSize.width();
+    }
+
+    if (qFuzzyIsNull(minH))
+    {
+        minH = minSize.height();
+    }
+
+    PDFReal maxW = origSize.width();
+    PDFReal maxH = origSize.height();
+
+    if (qFuzzyIsNull(maxW))
+    {
+        maxW = maxSize.width();
+    }
+
+    if (qFuzzyIsNull(maxH))
+    {
+        maxH = maxSize.height();
+    }
+
+    PDFReal correctedWidth = qBound(minW, size.width(), maxW);
+    PDFReal correctedHeight = qBound(minH, size.height(), maxH);
+
+    return QSizeF(correctedWidth, correctedHeight);
 }
 
 }   // namespace pdf
