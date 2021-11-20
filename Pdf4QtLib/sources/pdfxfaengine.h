@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfdocument.h"
+#include "pdfexception.h"
 
 #include <memory>
 
@@ -36,6 +37,16 @@ public:
     ~PDFXFAEngine();
 
     void setDocument(const PDFModifiedDocument& document, PDFForm* form);
+
+    /// Draws XFA form
+    /// \param pagePointToDevicePointMatrix Page point to device point matrix
+    /// \param page Page
+    /// \param errors Error list (for reporting rendering errors)
+    /// \param painter Painter
+    void draw(const QMatrix& pagePointToDevicePointMatrix,
+              const PDFPage* page,
+              QList<PDFRenderError>& errors,
+              QPainter* painter);
 
 private:
     std::unique_ptr<PDFXFAEngineImpl> m_impl;

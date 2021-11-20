@@ -17,9 +17,11 @@
 
 #include "pdfxfaengine.h"
 #include "pdfform.h"
+#include "pdfpainterutils.h"
 
 #include <QDomElement>
 #include <QDomDocument>
+#include <QStringList>
 
 #include <stack>
 #include <optional>
@@ -9623,6 +9625,11 @@ public:
 
     void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
 
+    void draw(const QMatrix& pagePointToDevicePointMatrix,
+              const PDFPage* page,
+              QList<PDFRenderError>& errors,
+              QPainter* painter);
+
 private:
 
     struct Layout
@@ -9631,6 +9638,39 @@ private:
     };
 
     void clear();
+
+    QMarginsF createMargin(const xfa::XFA_margin* margin);
+
+    QColor createColor(const xfa::XFA_color* color) const;
+    QPen createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRenderError>& errors) const;
+
+    void drawItemBorder(const xfa::XFA_border* item,
+                        QList<PDFRenderError>& errors,
+                        QRectF nominalContentArea,
+                        QPainter* painter);
+
+    void drawItemFill(const xfa::XFA_fill* item,
+                      QList<PDFRenderError>& errors,
+                      QRectF nominalContentArea,
+                      QPainter* painter);
+
+    void drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XFA_edge>>& edges,
+                           const std::vector<xfa::XFA_Node<xfa::XFA_corner>>& corners,
+                           QList<PDFRenderError>& errors,
+                           QRectF nominalContentArea,
+                           const xfa::XFA_BaseNode::HAND hand,
+                           QPainter* painter);
+
+    void drawItemDraw(const xfa::XFA_draw* item,
+                      QList<PDFRenderError>& errors,
+                      QRectF nominalExtentArea,
+                      QPainter* painter);
+
+    void drawItemField(const xfa::XFA_field* item,
+                       QList<PDFRenderError>& errors,
+                       QRectF nominalExtentArea,
+                       QPainter* painter);
+
 
     xfa::XFA_Node<xfa::XFA_template> m_template;
     const PDFDocument* m_document;
@@ -10674,6 +10714,14 @@ void PDFXFAEngine::setDocument(const PDFModifiedDocument& document, PDFForm* for
     m_impl->setDocument(document, form);
 }
 
+void PDFXFAEngine::draw(const QMatrix& pagePointToDevicePointMatrix,
+                        const PDFPage* page,
+                        QList<PDFRenderError>& errors,
+                        QPainter* painter)
+{
+    m_impl->draw(pagePointToDevicePointMatrix, page, errors, painter);
+}
+
 PDFXFAEngineImpl::PDFXFAEngineImpl() :
     m_document(nullptr),
     m_form(nullptr)
@@ -10743,11 +10791,385 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
     }
 }
 
+void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
+                            const PDFPage* page,
+                            QList<PDFRenderError>& errors,
+                            QPainter* painter)
+{
+    if (!m_document || m_layout.layoutItems.empty())
+    {
+        // Nothing to draw
+        return;
+    }
+
+    PDFInteger pageIndex = m_document->getCatalog()->getPageIndexFromPageReference(page->getPageReference());
+    auto it = m_layout.layoutItems.find(pageIndex);
+    if (it == m_layout.layoutItems.cend())
+    {
+        // Nothing to draw, page is not present
+        return;
+    }
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->translate(0, page->getMediaBox().height());
+    painter->scale(1.0, -1.0);
+
+    const LayoutItems& items = it->second;
+    for (const LayoutItem& item : items)
+    {
+        drawItemDraw(item.draw, errors, item.nominalExtent, painter);
+        drawItemField(item.field, errors, item.nominalExtent, painter);
+    }
+}
+
+void PDFXFAEngineImpl::drawItemDraw(const xfa::XFA_draw* item,
+                                    QList<PDFRenderError>& errors,
+                                    QRectF nominalExtentArea,
+                                    QPainter* painter)
+{
+    if (!item)
+    {
+        // Not a draw
+        return;
+    }
+
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = createMargin(item->getMargin());
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    drawItemBorder(item->getBorder(), errors, nominalExtent, painter);
+
+    if (const xfa::XFA_value* value = item->getValue())
+    {
+        if (const xfa::XFA_rectangle* rectangle = value->getRectangle())
+        {
+            drawItemFill(rectangle->getFill(), errors, nominalContentArea, painter);
+            drawItemRectEdges(rectangle->getEdge(), rectangle->getCorner(), errors, nominalContentArea, rectangle->getHand(), painter);
+        }
+
+
+        // TODO: implement draw value
+    }
+}
+
+void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
+                                     QList<PDFRenderError>& errors,
+                                     QRectF nominalExtentArea,
+                                     QPainter* painter)
+{
+    // TODO: implement this
+}
+
+void PDFXFAEngineImpl::drawItemBorder(const xfa::XFA_border* item,
+                                      QList<PDFRenderError>& errors,
+                                      QRectF nominalContentArea,
+                                      QPainter* painter)
+{
+    if (!item || item->getPresence() != xfa::XFA_BaseNode::PRESENCE::Visible)
+    {
+        return;
+    }
+
+    QMarginsF contentMargins = createMargin(item->getMargin());
+    nominalContentArea = nominalContentArea.marginsRemoved(contentMargins);
+
+    if (nominalContentArea.isEmpty())
+    {
+        // Jakub Melka: nothing to draw
+        return;
+    }
+
+    drawItemFill(item->getFill(), errors, nominalContentArea, painter);
+    drawItemRectEdges(item->getEdge(), item->getCorner(), errors, nominalContentArea, item->getHand(), painter);
+}
+
+void PDFXFAEngineImpl::drawItemFill(const xfa::XFA_fill* item,
+                                    QList<PDFRenderError>& errors,
+                                    QRectF nominalContentArea,
+                                    QPainter* painter)
+{
+    if (!item)
+    {
+        return;
+    }
+
+    QColor startColor = createColor(item->getColor());
+    if (!startColor.isValid())
+    {
+        startColor = Qt::white;
+    }
+
+    if (item->getSolid())
+    {
+        painter->fillRect(nominalContentArea, startColor);
+    }
+    else if (const xfa::XFA_linear* linear = item->getLinear())
+    {
+        QLinearGradient linearGradient;
+
+        switch (linear->getType())
+        {
+            case pdf::xfa::XFA_BaseNode::TYPE1::ToRight:
+                linearGradient.setStart(nominalContentArea.topLeft());
+                linearGradient.setFinalStop(nominalContentArea.topRight());
+                break;
+            case pdf::xfa::XFA_BaseNode::TYPE1::ToBottom:
+                linearGradient.setStart(nominalContentArea.topLeft());
+                linearGradient.setFinalStop(nominalContentArea.bottomLeft());
+                break;
+            case pdf::xfa::XFA_BaseNode::TYPE1::ToLeft:
+                linearGradient.setStart(nominalContentArea.topRight());
+                linearGradient.setFinalStop(nominalContentArea.topLeft());
+                break;
+            case pdf::xfa::XFA_BaseNode::TYPE1::ToTop:
+                linearGradient.setStart(nominalContentArea.bottomLeft());
+                linearGradient.setFinalStop(nominalContentArea.topLeft());
+                break;
+        }
+
+        QColor endColor = createColor(linear->getColor());
+        linearGradient.setColorAt(0.0, startColor);
+        linearGradient.setColorAt(1.0, endColor);
+        painter->fillRect(nominalContentArea, QBrush(std::move(linearGradient)));
+    }
+    else if (const xfa::XFA_radial* radial = item->getRadial())
+    {
+        QRadialGradient radialGradient(nominalContentArea.center(), qMin(nominalContentArea.width(), nominalContentArea.height()));
+        QColor endColor = createColor(radial->getColor());
+
+        switch (radial->getType())
+        {
+            case pdf::xfa::XFA_BaseNode::TYPE3::ToEdge:
+                radialGradient.setColorAt(0.0, startColor);
+                radialGradient.setColorAt(1.0, endColor);
+                break;
+            case pdf::xfa::XFA_BaseNode::TYPE3::ToCenter:
+                radialGradient.setColorAt(1.0, startColor);
+                radialGradient.setColorAt(0.0, endColor);
+                break;
+        }
+
+        painter->fillRect(nominalContentArea, QBrush(std::move(radialGradient)));
+    }
+    else if (item->getPattern() || item->getStipple())
+    {
+        errors << PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("XFA: Unknown fill pattern."));
+    }
+    else
+    {
+        painter->fillRect(nominalContentArea, startColor);
+    }
+}
+
+void PDFXFAEngineImpl::drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XFA_edge>>& edges,
+                                         const std::vector<xfa::XFA_Node<xfa::XFA_corner>>& corners,
+                                         QList<PDFRenderError>& errors,
+                                         QRectF nominalContentArea,
+                                         const xfa::XFA_BaseNode::HAND hand,
+                                         QPainter* painter)
+{
+    if (edges.empty())
+    {
+        return;
+    }
+
+    constexpr size_t LINE_COUNT = 4;
+    std::array<xfa::XFA_Node<xfa::XFA_edge>, LINE_COUNT> fourEdges = { edges.back(), edges.back(), edges.back(), edges.back() };
+    for (size_t i = 0; i < edges.size(); ++i)
+    {
+        if (i >= fourEdges.size())
+        {
+            break;
+        }
+
+        fourEdges[i] = edges[i];
+    }
+
+    std::array<QPen, LINE_COUNT> edgePen = {
+        createPenFromEdge(fourEdges[0].getValue(), errors),
+        createPenFromEdge(fourEdges[1].getValue(), errors),
+        createPenFromEdge(fourEdges[2].getValue(), errors),
+        createPenFromEdge(fourEdges[3].getValue(), errors)
+    };
+
+    // All lines are equal? If yes, just draw the rectangle using first pen. If lines
+    // are not equal, then we must draw each line separately.
+    if (std::adjacent_find(edgePen.begin(), edgePen.end(), std::not_equal_to()) == edgePen.end())
+    {
+        QPen pen = edgePen.front();
+        QRectF lineRectangle = nominalContentArea;
+
+        qreal penWidthHalf = pen.widthF() * 0.5;
+        QMarginsF margins(penWidthHalf, penWidthHalf, penWidthHalf, penWidthHalf);
+
+        switch (hand)
+        {
+            case pdf::xfa::XFA_BaseNode::HAND::Even:
+                break;
+            case pdf::xfa::XFA_BaseNode::HAND::Left:
+                lineRectangle = lineRectangle.marginsAdded(margins);
+                break;
+            case pdf::xfa::XFA_BaseNode::HAND::Right:
+                lineRectangle = lineRectangle.marginsRemoved(margins);
+                break;
+        }
+
+        painter->setPen(pen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(lineRectangle);
+    }
+    else
+    {
+        std::array<QLineF, LINE_COUNT> lines = {
+            QLineF(nominalContentArea.topLeft(), nominalContentArea.topRight()),
+            QLineF(nominalContentArea.topRight(), nominalContentArea.bottomRight()),
+            QLineF(nominalContentArea.bottomRight(), nominalContentArea.bottomLeft()),
+            QLineF(nominalContentArea.bottomLeft(), nominalContentArea.topLeft())
+        };
+
+        for (size_t i = 0; i < LINE_COUNT; ++i)
+        {
+            PDFReal offset = 0.0;
+            switch (hand)
+            {
+                case pdf::xfa::XFA_BaseNode::HAND::Even:
+                    break;
+                case pdf::xfa::XFA_BaseNode::HAND::Left:
+                    offset = -edgePen[i].widthF() * 0.5;
+                    break;
+                case pdf::xfa::XFA_BaseNode::HAND::Right:
+                    offset = +edgePen[i].widthF() * 0.5;
+                    break;
+            }
+
+            if (!qFuzzyIsNull(offset))
+            {
+                QLineF& line = lines[i];
+                QLineF normal = line.normalVector().unitVector();
+                line.translate(normal.dx() * offset, normal.dy() * offset);
+            }
+
+            painter->setPen(edgePen[i]);
+            painter->setBrush(Qt::NoBrush);
+            painter->drawLine(lines[i]);
+        }
+    }
+
+    if (!corners.empty())
+    {
+        errors << PDFRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("XFA: visual display of the corners of rectangle are not supported."));
+    }
+}
+
 void PDFXFAEngineImpl::clear()
 {
     // Clear the template
     m_template = xfa::XFA_Node<xfa::XFA_template>();
     m_layout = Layout();
+}
+
+QMarginsF PDFXFAEngineImpl::createMargin(const xfa::XFA_margin* margin)
+{
+    if (!margin)
+    {
+        return QMarginsF();
+    }
+
+    const PDFReal leftMargin = margin->getLeftInset().getValuePt(nullptr);
+    const PDFReal topMargin = margin->getTopInset().getValuePt(nullptr);
+    const PDFReal rightMargin = margin->getRightInset().getValuePt(nullptr);
+    const PDFReal bottomMargin = margin->getBottomInset().getValuePt(nullptr);
+
+    QMarginsF margins(leftMargin, topMargin, rightMargin, bottomMargin);
+    return margins;
+}
+
+QColor PDFXFAEngineImpl::createColor(const xfa::XFA_color* color) const
+{
+    if (color)
+    {
+        QStringList sl = color->getValue().split(",");
+        const int r = sl.size() > 0 ? sl[0].toInt() : 255;
+        const int g = sl.size() > 1 ? sl[1].toInt() : 255;
+        const int b = sl.size() > 2 ? sl[2].toInt() : 255;
+        return QColor(r, g, b, 255);
+    }
+
+    return QColor();
+}
+
+QPen PDFXFAEngineImpl::createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRenderError>& errors) const
+{
+    QPen pen;
+
+    if (!edge)
+    {
+        return pen;
+    }
+
+    switch (edge->getCap())
+    {
+        case pdf::xfa::XFA_BaseNode::CAP::Square:
+            pen.setCapStyle(Qt::SquareCap);
+            break;
+        case pdf::xfa::XFA_BaseNode::CAP::Butt:
+            pen.setCapStyle(Qt::FlatCap);
+            break;
+        case pdf::xfa::XFA_BaseNode::CAP::Round:
+            pen.setCapStyle(Qt::RoundCap);
+            break;
+    }
+
+    switch (edge->getStroke())
+    {
+        case pdf::xfa::XFA_BaseNode::STROKE::Solid:
+            pen.setStyle(Qt::SolidLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::DashDot:
+            pen.setStyle(Qt::DashDotLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::DashDotDot:
+            pen.setStyle(Qt::DashDotDotLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::Dashed:
+            pen.setStyle(Qt::DashLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::Dotted:
+            pen.setStyle(Qt::DotLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::Embossed:
+        case pdf::xfa::XFA_BaseNode::STROKE::Etched:
+        case pdf::xfa::XFA_BaseNode::STROKE::Lowered:
+        case pdf::xfa::XFA_BaseNode::STROKE::Raised:
+            pen.setStyle(Qt::SolidLine); // Ignore these line types
+            errors << PDFRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("XFA: special stroke is not supported."));
+            break;
+    }
+
+    pen.setWidthF(edge->getThickness().getValuePt(nullptr));
+
+    QColor color = createColor(edge->getColor());
+
+    if (color.isValid())
+    {
+        const xfa::XFA_BaseNode::PRESENCE presence = edge->getPresence();
+        switch (presence)
+        {
+            case pdf::xfa::XFA_BaseNode::PRESENCE::Visible:
+                color.setAlphaF(1.0);
+                break;
+            case pdf::xfa::XFA_BaseNode::PRESENCE::Hidden:
+            case pdf::xfa::XFA_BaseNode::PRESENCE::Inactive:
+            case pdf::xfa::XFA_BaseNode::PRESENCE::Invisible:
+                color.setAlphaF(0.0);
+                break;
+        }
+    }
+
+    pen.setColor(color);
+    return pen;
 }
 
 template<typename Node>

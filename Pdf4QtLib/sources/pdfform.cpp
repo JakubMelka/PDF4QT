@@ -1657,6 +1657,17 @@ const std::optional<QCursor>& PDFFormManager::getCursor() const
     return m_mouseCursor;
 }
 
+void PDFFormManager::drawXFAForm(const QMatrix& pagePointToDevicePointMatrix,
+                                 const PDFPage* page,
+                                 QList<PDFRenderError>& errors,
+                                 QPainter* painter)
+{
+    if (hasXFAForm())
+    {
+        m_xfaEngine.draw(pagePointToDevicePointMatrix, page, errors, painter);
+    }
+}
+
 void PDFFormManager::clearEditors()
 {
     qDeleteAll(m_widgetEditors);

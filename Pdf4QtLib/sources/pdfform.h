@@ -677,11 +677,21 @@ public:
     /// Returns current cursor
     virtual const std::optional<QCursor>& getCursor() const override;
 
+    /// Draws XFA form, or does nothing, if XFA form is not present
+    /// \param pagePointToDevicePointMatrix Page point to device point matrix
+    /// \param page Page
+    /// \param errors Error list (for reporting rendering errors)
+    /// \param painter Painter
+    void drawXFAForm(const QMatrix& pagePointToDevicePointMatrix,
+                     const PDFPage* page,
+                     QList<PDFRenderError>& errors,
+                     QPainter* painter);
+
     virtual int getInputPriority() const override { return FormPriority; }
 
 signals:
-    void actionTriggered(const PDFAction* action);
-    void documentModified(PDFModifiedDocument document);
+    void actionTriggered(const pdf::PDFAction* action);
+    void documentModified(pdf::PDFModifiedDocument document);
 
 private:
     void updateFormWidgetEditors();

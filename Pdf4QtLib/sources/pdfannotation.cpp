@@ -1330,12 +1330,12 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
 
+    const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+    Q_ASSERT(page);
+
     const PageAnnotations& annotations = getPageAnnotations(pageIndex);
     if (!annotations.isEmpty())
     {
-        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
-        Q_ASSERT(page);
-
         PDFRenderer::Features features = m_features;
         if (!features.testFlag(PDFRenderer::DisplayAnnotations))
         {
@@ -1376,6 +1376,12 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
         }
 
         m_fontCache->setCacheShrinkEnabled(&fontCacheLock, true);
+    }
+
+    // Draw XFA form
+    if (m_formManager)
+    {
+        m_formManager->drawXFAForm(pagePointToDevicePointMatrix, page, errors, painter);
     }
 }
 
