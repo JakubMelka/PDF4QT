@@ -9848,6 +9848,7 @@ private:
         xfa::XFA_BaseNode::ANCHORTYPE anchorType = xfa::XFA_BaseNode::ANCHORTYPE::TopLeft;
         const xfa::XFA_border* border = nullptr;
         const xfa::XFA_area* nodeArea = nullptr;
+        const xfa::XFA_caption* nodeCaption = nullptr;
         xfa::XFA_ParagraphSettings paragraphSettings;
         QMarginsF margins;
 
@@ -9986,6 +9987,33 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
 
     std::map<size_t, std::vector<Layout>> layoutsPerPage;
 
+    // Do we have visible caption?
+    QMarginsF captionMargins(0.0, 0.0, 0.0, 0.0);
+    if (layoutParameters.nodeCaption &&
+        (layoutParameters.nodeCaption->getPresence() == xfa::XFA_BaseNode::PRESENCE::Visible ||
+         layoutParameters.nodeCaption->getPresence() == xfa::XFA_BaseNode::PRESENCE::Invisible))
+    {
+        PDFReal reserveSize = layoutParameters.nodeCaption->getReserve().getValuePt(&layoutParameters.paragraphSettings);
+        switch (layoutParameters.nodeCaption->getPlacement())
+        {
+            case xfa::XFA_BaseNode::PLACEMENT::Left:
+                captionMargins.setLeft(reserveSize);
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Bottom:
+                captionMargins.setBottom(reserveSize);
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Inline:
+                // Do nothing
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Right:
+                captionMargins.setRight(reserveSize);
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Top:
+                captionMargins.setTop(reserveSize);
+                break;
+        }
+    }
+
     for (Layout& layout : layoutParameters.layout)
     {
         layoutsPerPage[layout.pageIndex].emplace_back(std::move(layout));
@@ -10008,8 +10036,8 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
                 Layout finalLayout;
                 finalLayout.pageIndex = pageIndex;
 
-                PDFReal x = layoutParameters.xOffset + currentLayoutParameters.margins.left();
-                PDFReal y = layoutParameters.yOffset + currentLayoutParameters.margins.top();
+                PDFReal x = layoutParameters.xOffset + currentLayoutParameters.margins.left() + captionMargins.left();
+                PDFReal y = layoutParameters.yOffset + currentLayoutParameters.margins.top() + captionMargins.top();
 
                 for (Layout& layout : layouts)
                 {
@@ -10111,7 +10139,8 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
                 finalLayout.translate(currentLayoutParameters.margins.left(), currentLayoutParameters.margins.top());
 
                 QSizeF nominalContentSize(maxW, y);
-                QSizeF nominalExtentSize = nominalContentSize.grownBy(currentLayoutParameters.margins);
+                QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(currentLayoutParameters.margins);
+                QSizeF nominalExtentSize = nominalExtentSizeWithoutCaption.grownBy(captionMargins);
                 nominalExtentSize = currentLayoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
                 QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
                 finalLayout.nominalExtent = nominalExtentRegion;
@@ -10163,6 +10192,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
     parameters.anchorType = node->getAnchorType();
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
+    parameters.nodeCaption = node->getCaption();
 
     handlePara(node->getPara());
     handleFont(node->getFont());
@@ -10206,6 +10236,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
     parameters.anchorType = node->getAnchorType();
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
+    parameters.nodeCaption = node->getCaption();
 
     handlePara(node->getPara());
     handleFont(node->getFont());
