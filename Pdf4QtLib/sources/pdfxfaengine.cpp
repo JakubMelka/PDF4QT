@@ -91,6 +91,16 @@ private:
 class XFA_ParagraphSettings
 {
 public:
+    XFA_ParagraphSettings()
+    {
+        m_font.setFamily("Courier");
+        m_font.setPixelSize(10);
+        m_font.setHintingPreference(QFont::PreferNoHinting);
+    }
+
+    bool operator ==(const XFA_ParagraphSettings&) const = default;
+    bool operator !=(const XFA_ParagraphSettings&) const = default;
+
     PDFReal getFontEmSize() const;
     void setFontEmSize(const PDFReal& fontEmSize);
 
@@ -124,6 +134,9 @@ public:
     QString getTabStops() const;
     void setTabStops(const QString& tabStops);
 
+    QFont getFont() const;
+    void setFont(const QFont& font);
+
 private:
     PDFReal m_lineHeight = 0.0;
     PDFReal m_fontEmSize = 0.0;
@@ -136,6 +149,7 @@ private:
     PDFInteger m_widows = 0;
     QString m_tabDefault;
     QString m_tabStops;
+    QFont m_font;
 };
 
 template<typename Value>
@@ -501,6 +515,16 @@ QString XFA_ParagraphSettings::getTabStops() const
 void XFA_ParagraphSettings::setTabStops(const QString& tabStops)
 {
     m_tabStops = tabStops;
+}
+
+QFont XFA_ParagraphSettings::getFont() const
+{
+    return m_font;
+}
+
+void XFA_ParagraphSettings::setFont(const QFont& font)
+{
+    m_font = font;
 }
 
 PDFReal XFA_Measurement::getValuePt(const XFA_ParagraphSettings* paragraphSettings) const
@@ -9624,6 +9648,7 @@ public:
     using LayoutItems = std::vector<LayoutItem>;
 
     void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
+    void setParagraphSettings(std::vector<xfa::XFA_ParagraphSettings> paragraphSettings) { m_layout.paragraphSettings = std::move(paragraphSettings); }
 
     void draw(const QMatrix& pagePointToDevicePointMatrix,
               const PDFPage* page,
@@ -9635,6 +9660,7 @@ private:
     struct Layout
     {
         std::map<PDFInteger, LayoutItems> layoutItems;
+        std::vector<xfa::XFA_ParagraphSettings> paragraphSettings;
     };
 
     void clear();
@@ -9712,6 +9738,7 @@ private:
     void handleMargin(const xfa::XFA_margin* margin);
     void handleBorder(const xfa::XFA_border* border);
     void handlePara(const xfa::XFA_para* para);
+    void handleFont(const xfa::XFA_font* font);
 
     void handleBreak(const xfa::XFA_break* node, bool isBeforeLayout);
     void handleBreak(const xfa::XFA_breakBefore* node);
@@ -9785,6 +9812,10 @@ private:
         /// Nominal extent for this item (relative to the parent item)
         QRectF nominalExtent;
         xfa::XFA_BaseNode::PRESENCE presence = xfa::XFA_BaseNode::PRESENCE::Visible;
+
+        /// Paragraph settings index
+        size_t paragraphSettingsIndex = 0;
+
         const xfa::XFA_draw* draw = nullptr;
         const xfa::XFA_field* field = nullptr;
     };
@@ -9816,6 +9847,7 @@ private:
         xfa::XFA_BaseNode::PRESENCE presence = xfa::XFA_BaseNode::PRESENCE::Visible;
         xfa::XFA_BaseNode::ANCHORTYPE anchorType = xfa::XFA_BaseNode::ANCHORTYPE::TopLeft;
         const xfa::XFA_border* border = nullptr;
+        const xfa::XFA_area* nodeArea = nullptr;
         xfa::XFA_ParagraphSettings paragraphSettings;
         QMarginsF margins;
 
@@ -9853,8 +9885,10 @@ private:
             }
             else
             {
+                // Copy paragraph settings
                 LayoutParameters oldParameters = m_engine->m_layoutParameters.top();
                 LayoutParameters newParameters;
+                newParameters.paragraphSettings = oldParameters.paragraphSettings;
                 m_engine->m_layoutParameters.push(newParameters);
             }
         }
@@ -9879,6 +9913,9 @@ private:
         PDFXFALayoutEngine* m_engine;
     };
 
+    /// Creates paragraph settings index from current paragraph settings
+    size_t createParagraphSettings();
+
     /// Initializes single layout item
     Layout initializeSingleLayout(QRectF nominalExtent);
 
@@ -9892,6 +9929,7 @@ private:
 
     std::vector<PageInfo> m_pages;
     std::vector<Layout> m_layout;
+    std::vector<xfa::XFA_ParagraphSettings> m_paragraphSettings;
     std::stack<LayoutParameters> m_layoutParameters;
     size_t m_currentPageIndex = 0;
     size_t m_maximalPageCount = 128;
@@ -9904,6 +9942,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_area* node)
     LayoutParameters& parameters = getLayoutParameters();
     parameters.xOffset = node->getX().getValuePt(&parameters.paragraphSettings);
     parameters.yOffset = node->getY().getValuePt(&parameters.paragraphSettings);
+    parameters.nodeArea = node;
 
     xfa::XFA_AbstractNode::acceptOrdered(this,
                                          node->getArea(),
@@ -9922,12 +9961,29 @@ PDFXFALayoutEngine::Layout PDFXFALayoutEngine::initializeSingleLayout(QRectF nom
 
     LayoutItem item;
     item.nominalExtent = nominalExtent;
+    item.paragraphSettingsIndex = createParagraphSettings();
     layout.items.push_back(std::move(item));
     return layout;
 }
 
 void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
 {
+    LayoutParameters& currentLayoutParameters = getLayoutParameters();
+    if (layoutParameters.nodeArea)
+    {
+        PDFReal x = layoutParameters.xOffset;
+        PDFReal y = layoutParameters.yOffset;
+
+        // Just translate the layout by area offset
+        for (Layout& layout : layoutParameters.layout)
+        {
+            layout.translate(x, y);
+        }
+        currentLayoutParameters.layout = std::move(layoutParameters.layout);
+
+        return;
+    }
+
     std::map<size_t, std::vector<Layout>> layoutsPerPage;
 
     for (Layout& layout : layoutParameters.layout)
@@ -9935,7 +9991,6 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
         layoutsPerPage[layout.pageIndex].emplace_back(std::move(layout));
     }
 
-    LayoutParameters& currentLayoutParameters = getLayoutParameters();
     for (auto& item : layoutsPerPage)
     {
         const size_t pageIndex = item.first;
@@ -10109,6 +10164,9 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
 
+    handlePara(node->getPara());
+    handleFont(node->getFont());
+
     Layout layout = initializeSingleLayout(nominalExtent);
     layout.items.back().presence = node->getPresence();
     layout.items.back().draw = node;
@@ -10149,6 +10207,9 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
 
+    handlePara(node->getPara());
+    handleFont(node->getFont());
+
     Layout layout = initializeSingleLayout(nominalExtent);
     layout.items.back().presence = node->getPresence();
     layout.items.back().field = node;
@@ -10158,6 +10219,9 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
 
 void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_template* node)
 {
+    // Create default paragraph settings
+    m_paragraphSettings = { xfa::XFA_ParagraphSettings() };
+
     node->accept(this);
 
     std::map<PDFInteger, std::vector<Layout>> layoutPerPage;
@@ -10192,6 +10256,8 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
 
         engine->setLayoutItems(pageIndex++, std::move(layoutItems));
     }
+
+    engine->setParagraphSettings(std::move(m_paragraphSettings));
 }
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
@@ -10494,6 +10560,87 @@ void PDFXFALayoutEngine::handlePara(const xfa::XFA_para* para)
     settings.setAlignment(alignment);
 }
 
+void PDFXFALayoutEngine::handleFont(const xfa::XFA_font* font)
+{
+    if (!font)
+    {
+        return;
+    }
+
+    QString faceName = font->getTypeface();
+    PDFReal size = font->getSize().getValuePt(nullptr);
+    QFont createdFont(faceName);
+    createdFont.setPixelSize(size);
+
+    switch (font->getWeight())
+    {
+        case xfa::XFA_BaseNode::WEIGHT::Normal:
+            createdFont.setBold(false);
+            break;
+        case xfa::XFA_BaseNode::WEIGHT::Bold:
+            createdFont.setBold(true);
+            break;
+    }
+
+    switch (font->getPosture())
+    {
+        case xfa::XFA_BaseNode::POSTURE::Normal:
+            createdFont.setItalic(false);
+            break;
+        case xfa::XFA_BaseNode::POSTURE::Italic:
+            createdFont.setItalic(true);
+            break;
+    }
+
+    switch (font->getKerningMode())
+    {
+        case xfa::XFA_BaseNode::KERNINGMODE::None:
+            createdFont.setKerning(false);
+            break;
+        case xfa::XFA_BaseNode::KERNINGMODE::Pair:
+            createdFont.setKerning(true);
+            break;
+    }
+
+    switch (font->getUnderline())
+    {
+        case xfa::XFA_BaseNode::UNDERLINE::_0:
+            createdFont.setUnderline(false);
+            break;
+        case xfa::XFA_BaseNode::UNDERLINE::_1:
+        case xfa::XFA_BaseNode::UNDERLINE::_2:
+            createdFont.setUnderline(true);
+            break;
+    }
+
+    switch (font->getOverline())
+    {
+        case pdf::xfa::XFA_BaseNode::OVERLINE::_0:
+            createdFont.setOverline(false);
+            break;
+        case pdf::xfa::XFA_BaseNode::OVERLINE::_1:
+        case pdf::xfa::XFA_BaseNode::OVERLINE::_2:
+            createdFont.setOverline(true);
+            break;
+    }
+
+    switch (font->getLineThrough())
+    {
+        case pdf::xfa::XFA_BaseNode::LINETHROUGH::_0:
+            createdFont.setStrikeOut(false);
+            break;
+        case pdf::xfa::XFA_BaseNode::LINETHROUGH::_1:
+        case pdf::xfa::XFA_BaseNode::LINETHROUGH::_2:
+            createdFont.setStrikeOut(true);
+            break;
+    }
+
+    createdFont.setHintingPreference(QFont::PreferNoHinting);
+
+    xfa::XFA_ParagraphSettings& settings = getLayoutParameters().paragraphSettings;
+    settings.setFont(createdFont);
+}
+
 void PDFXFALayoutEngine::handleBreak(const xfa::XFA_break* node, bool isBeforeLayout)
 {
     if (!node)
@@ -10598,6 +10745,19 @@ QPointF PDFXFALayoutEngine::getPointFromMeasurement(const xfa::XFA_Measurement& 
     const PDFReal yPos = y.getValuePt(&paragraphSettings);
 
     return QPointF(xPos, yPos);
+}
+
+size_t PDFXFALayoutEngine::createParagraphSettings()
+{
+    const LayoutParameters& layoutParameters = getLayoutParameters();
+
+    auto it = std::find(m_paragraphSettings.begin(), m_paragraphSettings.end(), layoutParameters.paragraphSettings);
+    if (it == m_paragraphSettings.end())
+    {
+        it = m_paragraphSettings.insert(m_paragraphSettings.end(), layoutParameters.paragraphSettings);
+    }
+
+    return std::distance(m_paragraphSettings.begin(), it);
 }
 
 void PDFXFALayoutEngine::handleBreak(const std::vector<xfa::XFA_Node<xfa::XFA_breakBefore>>& nodes)
@@ -10849,7 +11009,6 @@ void PDFXFAEngineImpl::drawItemDraw(const xfa::XFA_draw* item,
             drawItemRectEdges(rectangle->getEdge(), rectangle->getCorner(), errors, nominalContentArea, rectangle->getHand(), painter);
         }
 
-
         // TODO: implement draw value
     }
 }
@@ -10859,6 +11018,19 @@ void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
                                      QRectF nominalExtentArea,
                                      QPainter* painter)
 {
+    if (!item)
+    {
+        // Not a field
+        return;
+    }
+
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = createMargin(item->getMargin());
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    drawItemBorder(item->getBorder(), errors, nominalExtent, painter);
+
     // TODO: implement this
 }
 
@@ -11057,7 +11229,7 @@ void PDFXFAEngineImpl::drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XF
         }
     }
 
-    if (!corners.empty())
+    if (std::any_of(corners.cbegin(), corners.cend(), [](const auto& corner) { return corner.getValue()->getPresence() == xfa::XFA_BaseNode::PRESENCE::Visible; }))
     {
         errors << PDFRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("XFA: visual display of the corners of rectangle are not supported."));
     }
@@ -11157,12 +11329,12 @@ QPen PDFXFAEngineImpl::createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRen
         const xfa::XFA_BaseNode::PRESENCE presence = edge->getPresence();
         switch (presence)
         {
-            case pdf::xfa::XFA_BaseNode::PRESENCE::Visible:
+            case xfa::XFA_BaseNode::PRESENCE::Visible:
                 color.setAlphaF(1.0);
                 break;
-            case pdf::xfa::XFA_BaseNode::PRESENCE::Hidden:
-            case pdf::xfa::XFA_BaseNode::PRESENCE::Inactive:
-            case pdf::xfa::XFA_BaseNode::PRESENCE::Invisible:
+            case xfa::XFA_BaseNode::PRESENCE::Hidden:
+            case xfa::XFA_BaseNode::PRESENCE::Inactive:
+            case xfa::XFA_BaseNode::PRESENCE::Invisible:
                 color.setAlphaF(0.0);
                 break;
         }
