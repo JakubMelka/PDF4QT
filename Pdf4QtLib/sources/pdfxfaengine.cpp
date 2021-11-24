@@ -9840,6 +9840,8 @@ private:
         /// of this node).
         QRectF nominalExtent;
         std::vector<LayoutItem> items;
+
+        int colSpan = 1;
     };
 
     struct LayoutParameters
@@ -9872,6 +9874,11 @@ private:
 
         /// Layout of the subitems
         std::vector<Layout> layout;
+
+        /// Rows for table cells
+        std::vector<std::vector<Layout>> tableRows;
+
+        QString colWidths;
     };
 
     class LayoutParametersStackGuard
@@ -9920,10 +9927,26 @@ private:
     /// Initializes single layout item
     Layout initializeSingleLayout(QRectF nominalExtent);
 
+    /// Returns margins computed from the caption
+    QMarginsF getCaptionMargins(const LayoutParameters& layoutParameters) const;
+
     /// Performs layout (so, using current layout parameters
     /// and given layouts, it layouts them to the current layout node)
     /// \param layoutParameters Parameters, which will be lay out
+    /// \param isTop Are we layouting top item?
     void layout(LayoutParameters layoutParameters);
+
+    /// Perform flow layout. Does nothing, if layout has positional
+    /// layout type. Final layout is stored also in the layout parameters.
+    /// \param layoutParameters Layout parameters
+    void layoutFlow(LayoutParameters& layoutParameters);
+
+    /// Performs positiona layout from source layout to target layout.
+    /// Target layout must have positional layout type.
+    /// \param sourceLayoutParameters Source layout
+    /// \param targetLayoutParameters Target layout
+    void layoutPositional(LayoutParameters& sourceLayoutParameters,
+                          LayoutParameters& targetLayoutParameters);
 
     LayoutParameters& getLayoutParameters() { return m_layoutParameters.top(); }
     const LayoutParameters& getLayoutParameters() const { return m_layoutParameters.top(); }
@@ -9944,6 +9967,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_area* node)
     parameters.xOffset = node->getX().getValuePt(&parameters.paragraphSettings);
     parameters.yOffset = node->getY().getValuePt(&parameters.paragraphSettings);
     parameters.nodeArea = node;
+    parameters.columnSpan = node->getColSpan();
 
     xfa::XFA_AbstractNode::acceptOrdered(this,
                                          node->getArea(),
@@ -9967,26 +9991,8 @@ PDFXFALayoutEngine::Layout PDFXFALayoutEngine::initializeSingleLayout(QRectF nom
     return layout;
 }
 
-void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
+QMarginsF PDFXFALayoutEngine::getCaptionMargins(const LayoutParameters& layoutParameters) const
 {
-    LayoutParameters& currentLayoutParameters = getLayoutParameters();
-    if (layoutParameters.nodeArea)
-    {
-        PDFReal x = layoutParameters.xOffset;
-        PDFReal y = layoutParameters.yOffset;
-
-        // Just translate the layout by area offset
-        for (Layout& layout : layoutParameters.layout)
-        {
-            layout.translate(x, y);
-        }
-        currentLayoutParameters.layout = std::move(layoutParameters.layout);
-
-        return;
-    }
-
-    std::map<size_t, std::vector<Layout>> layoutsPerPage;
-
     // Do we have visible caption?
     QMarginsF captionMargins(0.0, 0.0, 0.0, 0.0);
     if (layoutParameters.nodeCaption &&
@@ -10014,10 +10020,61 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
         }
     }
 
+    return captionMargins;
+}
+
+void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
+{
+    // Current layout parameters are layout parameters, to which we are performing
+    // layout - new layout nodes will emerge in current layout. Layout parameters
+    // as parameter of this function comes from node, which layout is finalizing.
+    // We have several issues:
+    //
+    //     1) We must finish layout of the finalized node, if it is
+    //        not a positional layout (positional layout is performed
+    //        differently)
+    //
+    //     2) We must check, if we are performing layouting of the "area" node,
+    //        which just translates the nodes by given offset.
+    //
+    //     3) Finally, we move layout from child parameters to parent layout parameters,
+    //        and in case of positional layout, we move them to the right position.
+
+    // Case 1)
+    LayoutParameters& currentLayoutParameters = getLayoutParameters();
+    layoutFlow(layoutParameters);
+
+    if (layoutParameters.nodeArea)
+    {
+        // Case 2)
+        const PDFReal x = layoutParameters.xOffset;
+        const PDFReal y = layoutParameters.yOffset;
+
+        // Just translate the layout by area offset
+        for (Layout& layout : layoutParameters.layout)
+        {
+            layout.translate(x, y);
+        }
+        currentLayoutParameters.layout = std::move(layoutParameters.layout);
+    }
+    else
+    {
+        // Case 3)
+        layoutPositional(layoutParameters, currentLayoutParameters);
+    }
+}
+
+void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
+{
+    std::map<size_t, std::vector<Layout>> layoutsPerPage;
+
     for (Layout& layout : layoutParameters.layout)
     {
         layoutsPerPage[layout.pageIndex].emplace_back(std::move(layout));
     }
+    layoutParameters.layout.clear();
+
+    QMarginsF captionMargins = getCaptionMargins(layoutParameters);
 
     for (auto& item : layoutsPerPage)
     {
@@ -10026,96 +10083,59 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
 
         for (Layout& layout : layouts)
         {
-            layout.updatePresence(currentLayoutParameters.presence);
+            layout.updatePresence(layoutParameters.presence);
         }
 
-        switch (currentLayoutParameters.layoutType)
+        switch (layoutParameters.layoutType)
         {
             case xfa::XFA_BaseNode::LAYOUT::Position:
-            {
-                Layout finalLayout;
-                finalLayout.pageIndex = pageIndex;
-
-                PDFReal x = layoutParameters.xOffset + currentLayoutParameters.margins.left() + captionMargins.left();
-                PDFReal y = layoutParameters.yOffset + currentLayoutParameters.margins.top() + captionMargins.top();
-
-                for (Layout& layout : layouts)
-                {
-                    // Jakub Melka: we must add offset from anchor type
-                    switch (layoutParameters.anchorType)
-                    {
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopLeft:
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomCenter:
-                            x -= layout.nominalExtent.width() * 0.5;
-                            y -= layout.nominalExtent.height();
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomLeft:
-                            y -= layout.nominalExtent.height();
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomRight:
-                            x -= layout.nominalExtent.width();
-                            y -= layout.nominalExtent.height();
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleCenter:
-                            x -= layout.nominalExtent.width() * 0.5;
-                            y -= layout.nominalExtent.height() * 0.5;
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleLeft:
-                            y -= layout.nominalExtent.height() * 0.5;
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleRight:
-                            x -= layout.nominalExtent.width();
-                            y -= layout.nominalExtent.height() * 0.5;
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopCenter:
-                            x -= layout.nominalExtent.width() * 0.5;
-                            break;
-
-                        case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopRight:
-                            x -= layout.nominalExtent.width();
-                            break;
-
-                        default:
-                            Q_ASSERT(false);
-                            break;
-                    }
-
-                    layout.translate(x, y);
-                    finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
-                }
-
-                QSizeF nominalExtentSize = currentLayoutParameters.sizeInfo.effSize;
-                finalLayout.nominalExtent = QRectF(QPointF(0, 0), nominalExtentSize);
-
-                if (!finalLayout.items.empty())
-                {
-                    currentLayoutParameters.layout.emplace_back(std::move(finalLayout));
-                }
+                // Do nothing - positional layout is done elsewhere
                 break;
-            }
 
             case xfa::XFA_BaseNode::LAYOUT::Lr_tb:
                 break;
 
             case xfa::XFA_BaseNode::LAYOUT::Rl_row:
+            {
+                std::reverse(layouts.begin(), layouts.end());
+                layoutParameters.tableRows.emplace_back(std::move(layouts));
                 break;
+            }
 
             case xfa::XFA_BaseNode::LAYOUT::Rl_tb:
                 break;
 
             case xfa::XFA_BaseNode::LAYOUT::Row:
+            {
+                layoutParameters.tableRows.emplace_back(std::move(layouts));
                 break;
+            }
 
             case xfa::XFA_BaseNode::LAYOUT::Table:
+            {
+                std::vector<PDFReal> rowHeights(layoutParameters.tableRows.size(), 0.0);
+
+                size_t maxColumns = 0;
+                for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
+                {
+                    size_t columns = 0;
+                    const std::vector<Layout>& row = layoutParameters.tableRows[rowIndex];
+                    for (size_t columnIndex = 0; columnIndex < row.size(); ++columnIndex)
+                    {
+                        const PDFReal cellHeight = row[columnIndex].nominalExtent.height();
+                        if (rowHeights[rowIndex] < cellHeight)
+                        {
+                            rowHeights[rowIndex] = cellHeight;
+                        }
+                        if (row[columnIndex].colSpan == 1)
+                        {
+                            ++columns;
+                        }
+                    }
+                    maxColumns = qMax(maxColumns, columns);
+                }
                 break;
+            }
 
             case xfa::XFA_BaseNode::LAYOUT::Tb:
             {
@@ -10136,18 +10156,19 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
                 }
 
                 // Translate by margin
-                finalLayout.translate(currentLayoutParameters.margins.left(), currentLayoutParameters.margins.top());
+                finalLayout.translate(layoutParameters.margins.left(), layoutParameters.margins.top());
 
                 QSizeF nominalContentSize(maxW, y);
-                QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(currentLayoutParameters.margins);
+                QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(layoutParameters.margins);
                 QSizeF nominalExtentSize = nominalExtentSizeWithoutCaption.grownBy(captionMargins);
-                nominalExtentSize = currentLayoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
+                nominalExtentSize = layoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
                 QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
                 finalLayout.nominalExtent = nominalExtentRegion;
+                finalLayout.colSpan = layoutParameters.columnSpan;
 
                 if (!finalLayout.items.empty())
                 {
-                    currentLayoutParameters.layout.emplace_back(std::move(finalLayout));
+                    layoutParameters.layout.emplace_back(std::move(finalLayout));
                 }
                 break;
             }
@@ -10155,6 +10176,104 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
             default:
                 Q_ASSERT(false);
                 break;
+        }
+    }
+}
+
+void PDFXFALayoutEngine::layoutPositional(LayoutParameters& sourceLayoutParameters,
+                                          LayoutParameters& targetLayoutParameters)
+{
+    if (targetLayoutParameters.layoutType != xfa::XFA_BaseNode::LAYOUT::Position)
+    {
+        // Not a positional layout
+        return;
+    }
+
+    std::map<size_t, std::vector<Layout>> layoutsPerPage;
+
+    for (Layout& layout : sourceLayoutParameters.layout)
+    {
+        layoutsPerPage[layout.pageIndex].emplace_back(std::move(layout));
+    }
+
+    QMarginsF captionMargins = getCaptionMargins(targetLayoutParameters);
+
+    for (auto& item : layoutsPerPage)
+    {
+        const size_t pageIndex = item.first;
+        std::vector<Layout> layouts = std::move(item.second);
+
+        for (Layout& layout : layouts)
+        {
+            layout.updatePresence(targetLayoutParameters.presence);
+        }
+
+        Layout finalLayout;
+        finalLayout.pageIndex = pageIndex;
+
+        PDFReal x = sourceLayoutParameters.xOffset + targetLayoutParameters.margins.left() + captionMargins.left();
+        PDFReal y = sourceLayoutParameters.yOffset + targetLayoutParameters.margins.top() + captionMargins.top();
+
+        for (Layout& layout : layouts)
+        {
+            // Jakub Melka: we must add offset from anchor type
+            switch (sourceLayoutParameters.anchorType)
+            {
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopLeft:
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomCenter:
+                    x -= layout.nominalExtent.width() * 0.5;
+                    y -= layout.nominalExtent.height();
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomLeft:
+                    y -= layout.nominalExtent.height();
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::BottomRight:
+                    x -= layout.nominalExtent.width();
+                    y -= layout.nominalExtent.height();
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleCenter:
+                    x -= layout.nominalExtent.width() * 0.5;
+                    y -= layout.nominalExtent.height() * 0.5;
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleLeft:
+                    y -= layout.nominalExtent.height() * 0.5;
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::MiddleRight:
+                    x -= layout.nominalExtent.width();
+                    y -= layout.nominalExtent.height() * 0.5;
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopCenter:
+                    x -= layout.nominalExtent.width() * 0.5;
+                    break;
+
+                case pdf::xfa::XFA_BaseNode::ANCHORTYPE::TopRight:
+                    x -= layout.nominalExtent.width();
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            layout.translate(x, y);
+            finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
+        }
+
+        QSizeF nominalExtentSize = targetLayoutParameters.sizeInfo.effSize;
+        finalLayout.nominalExtent = QRectF(QPointF(0, 0), nominalExtentSize);
+        finalLayout.colSpan = targetLayoutParameters.columnSpan;
+
+        if (!finalLayout.items.empty())
+        {
+            targetLayoutParameters.layout.emplace_back(std::move(finalLayout));
         }
     }
 }
@@ -10193,6 +10312,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
     parameters.nodeCaption = node->getCaption();
+    parameters.columnSpan = node->getColSpan();
 
     handlePara(node->getPara());
     handleFont(node->getFont());
@@ -10440,6 +10560,8 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
     parameters.anchorType = node->getAnchorType();
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
+    parameters.layoutType = node->getLayout();
+    parameters.colWidths = node->getColumnWidths();
 
     // Handle break before
     handleBreak(node->getBreak(), true);
@@ -11005,6 +11127,7 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
     painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
     painter->translate(0, page->getMediaBox().height());
     painter->scale(1.0, -1.0);
+    painter->fillRect(page->getMediaBox(), Qt::white);
 
     const LayoutItems& items = it->second;
     for (const LayoutItem& item : items)
