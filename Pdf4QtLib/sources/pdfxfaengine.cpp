@@ -200,6 +200,41 @@ public:
 
     PDFReal getValuePt(const XFA_ParagraphSettings* paragraphSettings) const;
 
+    static bool parseMeasurement(QString measurementText, XFA_Measurement& measurement)
+    {
+        XFA_Measurement::Type measurementType = XFA_Measurement::Type::in;
+
+        constexpr std::array measurementUnits = {
+            std::make_pair(XFA_Measurement::Type::in, "in"),
+            std::make_pair(XFA_Measurement::Type::pt, "pt"),
+            std::make_pair(XFA_Measurement::Type::cm, "cm"),
+            std::make_pair(XFA_Measurement::Type::mm, "mm"),
+            std::make_pair(XFA_Measurement::Type::em, "em"),
+            std::make_pair(XFA_Measurement::Type::percent, "%")
+        };
+
+        for (const auto& measurementUnit : measurementUnits)
+        {
+            QLatin1String unit(measurementUnit.second);
+            if (measurementText.endsWith(unit))
+            {
+                measurementType = measurementUnit.first;
+                measurementText.chop(unit.size());
+                break;
+            }
+        }
+
+        bool ok = false;
+        PDFReal value = measurementText.toDouble(&ok);
+
+        if (ok)
+        {
+            measurement = XFA_Measurement(value, measurementType);
+        }
+
+        return ok;
+    }
+
 private:
     PDFReal m_value;
     Type m_type;
@@ -295,6 +330,8 @@ public:
         attribute = XFA_Attribute<PDFInteger>(element.attribute(attributeFieldName, defaultValue).toInt());
     }
 
+
+
     static void parseAttribute(const QDomElement& element,
                                QString attributeFieldName,
                                XFA_Attribute<XFA_Measurement>& attribute,
@@ -303,34 +340,11 @@ public:
         attribute = XFA_Attribute<XFA_Measurement>();
 
         QString measurement = element.attribute(attributeFieldName, defaultValue);
-        XFA_Measurement::Type measurementType = XFA_Measurement::Type::in;
 
-        constexpr std::array measurementUnits = {
-            std::make_pair(XFA_Measurement::Type::in, "in"),
-            std::make_pair(XFA_Measurement::Type::pt, "pt"),
-            std::make_pair(XFA_Measurement::Type::cm, "cm"),
-            std::make_pair(XFA_Measurement::Type::mm, "mm"),
-            std::make_pair(XFA_Measurement::Type::em, "em"),
-            std::make_pair(XFA_Measurement::Type::percent, "%")
-        };
-
-        for (const auto& measurementUnit : measurementUnits)
+        XFA_Measurement value;
+        if (XFA_Measurement::parseMeasurement(measurement, value))
         {
-            QLatin1String unit(measurementUnit.second);
-            if (measurement.endsWith(unit))
-            {
-                measurementType = measurementUnit.first;
-                measurement.chop(unit.size());
-                break;
-            }
-        }
-
-        bool ok = false;
-        PDFReal value = measurement.toDouble(&ok);
-
-        if (ok)
-        {
-            attribute = XFA_Attribute<XFA_Measurement>(XFA_Measurement(value, measurementType));
+            attribute = XFA_Attribute<XFA_Measurement>(std::move(value));
         }
     }
 
@@ -9833,6 +9847,21 @@ private:
             std::for_each(items.begin(), items.end(), [presence](auto& item) { item.updatePresence(presence); });
         }
 
+        void resize(QSizeF newSize)
+        {
+            QSizeF oldSize = nominalExtent.size();
+            nominalExtent.setSize(newSize);
+
+            qreal diffX = newSize.width() - oldSize.width();
+            qreal diffY = newSize.height() - oldSize.height();
+
+            for (LayoutItem& layoutItem : items)
+            {
+                layoutItem.nominalExtent.setWidth(layoutItem.nominalExtent.width() + diffX);
+                layoutItem.nominalExtent.setHeight(layoutItem.nominalExtent.height() + diffY);
+            }
+        }
+
         /// Page index (or, more precisely, index of content area)
         size_t pageIndex = 0;
 
@@ -9945,7 +9974,7 @@ private:
     /// Target layout must have positional layout type.
     /// \param sourceLayoutParameters Source layout
     /// \param targetLayoutParameters Target layout
-    void layoutPositional(LayoutParameters& sourceLayoutParameters,
+    bool layoutPositional(LayoutParameters& sourceLayoutParameters,
                           LayoutParameters& targetLayoutParameters);
 
     LayoutParameters& getLayoutParameters() { return m_layoutParameters.top(); }
@@ -10044,6 +10073,7 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
     LayoutParameters& currentLayoutParameters = getLayoutParameters();
     layoutFlow(layoutParameters);
 
+    std::vector<Layout>& layout = currentLayoutParameters.layout;
     if (layoutParameters.nodeArea)
     {
         // Case 2)
@@ -10055,17 +10085,34 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
         {
             layout.translate(x, y);
         }
-        currentLayoutParameters.layout = std::move(layoutParameters.layout);
+        layout.insert(layout.end(),
+                      std::make_move_iterator(layoutParameters.layout.begin()),
+                      std::make_move_iterator(layoutParameters.layout.end()));
     }
     else
     {
         // Case 3)
-        layoutPositional(layoutParameters, currentLayoutParameters);
+        if (!layoutPositional(layoutParameters, currentLayoutParameters))
+        {
+            // Not a positional layout
+            layout.insert(layout.end(),
+                          std::make_move_iterator(layoutParameters.layout.begin()),
+                          std::make_move_iterator(layoutParameters.layout.end()));
+        }
     }
+
+    currentLayoutParameters.tableRows.insert(currentLayoutParameters.tableRows.end(),
+                                             std::make_move_iterator(layoutParameters.tableRows.begin()),
+                                             std::make_move_iterator(layoutParameters.tableRows.end()));
 }
 
 void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
 {
+    if (layoutParameters.layoutType == xfa::XFA_BaseNode::LAYOUT::Position)
+    {
+        return;
+    }
+
     std::map<size_t, std::vector<Layout>> layoutsPerPage;
 
     for (Layout& layout : layoutParameters.layout)
@@ -10113,16 +10160,30 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
 
             case xfa::XFA_BaseNode::LAYOUT::Table:
             {
+                if (layoutParameters.tableRows.empty())
+                {
+                    // No table to lay out
+                    break;
+                }
+
                 std::vector<PDFReal> rowHeights(layoutParameters.tableRows.size(), 0.0);
+                std::vector<PDFReal> columnWidths;
 
                 size_t maxColumns = 0;
                 for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
                 {
                     size_t columns = 0;
                     const std::vector<Layout>& row = layoutParameters.tableRows[rowIndex];
+
+                    if (columnWidths.size() < row.size())
+                    {
+                        columnWidths.resize(row.size(), 0.0);
+                    }
+
                     for (size_t columnIndex = 0; columnIndex < row.size(); ++columnIndex)
                     {
                         const PDFReal cellHeight = row[columnIndex].nominalExtent.height();
+                        const PDFReal cellWidth = row[columnIndex].nominalExtent.width();
                         if (rowHeights[rowIndex] < cellHeight)
                         {
                             rowHeights[rowIndex] = cellHeight;
@@ -10131,9 +10192,86 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
                         {
                             ++columns;
                         }
+                        columnWidths[columnIndex] = qMax(columnWidths[columnIndex], cellWidth);
                     }
                     maxColumns = qMax(maxColumns, columns);
                 }
+
+                QStringList colWidths = layoutParameters.colWidths.split(' ', Qt::SkipEmptyParts);
+                for (size_t i = 0; i < columnWidths.size(); ++i)
+                {
+                    if (i >= colWidths.size())
+                    {
+                        break;
+                    }
+
+                    xfa::XFA_Measurement measurement;
+                    if (xfa::XFA_Measurement::parseMeasurement(colWidths[int(i)], measurement))
+                    {
+                        const PDFReal colWidth = measurement.getValuePt(&layoutParameters.paragraphSettings);
+                        if (colWidth > 0)
+                        {
+                            columnWidths[i] = colWidth;
+                        }
+                    }
+                }
+
+                Layout finalLayout;
+                finalLayout.pageIndex = pageIndex;
+                finalLayout.colSpan = layoutParameters.columnSpan;
+
+                PDFReal xOffset = 0;
+                PDFReal yOffset = 0;
+
+                for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
+                {
+                    std::vector<Layout>& tableRow = layoutParameters.tableRows[rowIndex];
+
+                    xOffset = 0;
+                    size_t columnTargetIndex = 0;
+                    for (size_t columnSourceIndex = 0; columnSourceIndex < tableRow.size(); ++columnSourceIndex)
+                    {
+                        Layout& sourceLayout = tableRow[columnSourceIndex];
+                        sourceLayout.translate(xOffset, yOffset);
+                        sourceLayout.updatePresence(layoutParameters.presence);
+
+                        PDFReal width = 0;
+                        for (size_t i = 0; i < sourceLayout.colSpan; ++i)
+                        {
+                            if (columnTargetIndex >= columnWidths.size())
+                            {
+                                // We do not have enough space in the table
+                                break;
+                            }
+
+                            width += columnWidths[columnTargetIndex++];
+                        }
+
+                        sourceLayout.resize(QSizeF(width, rowHeights[rowIndex]));
+                        finalLayout.items.insert(finalLayout.items.end(), sourceLayout.items.begin(), sourceLayout.items.end());
+
+                        xOffset += width;
+                    }
+
+                    yOffset += rowHeights[rowIndex];
+                }
+
+                // Translate by margin
+                finalLayout.translate(layoutParameters.margins.left(), layoutParameters.margins.top());
+
+                QSizeF nominalContentSize(xOffset, yOffset);
+                QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(layoutParameters.margins);
+                QSizeF nominalExtentSize = nominalExtentSizeWithoutCaption.grownBy(captionMargins);
+                nominalExtentSize = layoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
+                QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
+                finalLayout.nominalExtent = nominalExtentRegion;
+                finalLayout.colSpan = layoutParameters.columnSpan;
+
+                if (!finalLayout.items.empty())
+                {
+                    layoutParameters.layout.emplace_back(std::move(finalLayout));
+                }
+
                 break;
             }
 
@@ -10180,13 +10318,13 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
     }
 }
 
-void PDFXFALayoutEngine::layoutPositional(LayoutParameters& sourceLayoutParameters,
+bool PDFXFALayoutEngine::layoutPositional(LayoutParameters& sourceLayoutParameters,
                                           LayoutParameters& targetLayoutParameters)
 {
     if (targetLayoutParameters.layoutType != xfa::XFA_BaseNode::LAYOUT::Position)
     {
         // Not a positional layout
-        return;
+        return false;
     }
 
     std::map<size_t, std::vector<Layout>> layoutsPerPage;
@@ -10276,6 +10414,8 @@ void PDFXFALayoutEngine::layoutPositional(LayoutParameters& sourceLayoutParamete
             targetLayoutParameters.layout.emplace_back(std::move(finalLayout));
         }
     }
+
+    return true;
 }
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
