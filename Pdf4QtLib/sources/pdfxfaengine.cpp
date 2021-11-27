@@ -254,10 +254,10 @@ public:
         // Jakub Melka: set node value to null
         node = XFA_Node<Type>();
 
-        QDomNodeList elements = element.elementsByTagName(value);
-        if (!elements.isEmpty())
+        QDomElement child = element.firstChildElement(value);
+        if (!child.isNull())
         {
-            node = XFA_Node<Type>(Type::parse(elements.item(0).toElement()));
+            node = XFA_Node<Type>(Type::parse(child));
         }
     }
 
@@ -267,14 +267,11 @@ public:
         // Jakub Melka: clear node list
         nodes.clear();
 
-        QDomNodeList elements = element.elementsByTagName(value);
-        if (!elements.isEmpty())
+        QDomElement child = element.firstChildElement(value);
+        while (!child.isNull())
         {
-            nodes.resize(elements.size());
-            for (int i = 0; i < elements.size(); ++i)
-            {
-                nodes[i] = XFA_Node<Type>(Type::parse(elements.item(i).toElement()));
-            }
+            nodes.emplace_back(XFA_Node<Type>(Type::parse(child)));
+            child = child.nextSiblingElement(value);
         }
     }
 
@@ -9683,6 +9680,9 @@ private:
 
     QColor createColor(const xfa::XFA_color* color) const;
     QPen createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRenderError>& errors) const;
+    QPen createPenFromCorner(const xfa::XFA_corner* corner, QList<PDFRenderError>& errors) const;
+    QPen createPenFromEdge(const std::vector<xfa::XFA_Node<xfa::XFA_edge>>& edges, size_t index, QList<PDFRenderError>& errors) const;
+    QPen createPenFromCorner(const std::vector<xfa::XFA_Node<xfa::XFA_corner>>& corners, size_t index, QList<PDFRenderError>& errors) const;
 
     void drawItemBorder(const xfa::XFA_border* item,
                         QList<PDFRenderError>& errors,
@@ -11264,6 +11264,7 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
     }
 
     PDFPainterStateGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing);
     painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
     painter->translate(0, page->getMediaBox().height());
     painter->scale(1.0, -1.0);
@@ -11436,97 +11437,173 @@ void PDFXFAEngineImpl::drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XF
                                          const xfa::XFA_BaseNode::HAND hand,
                                          QPainter* painter)
 {
-    if (edges.empty())
+    if (edges.empty() && corners.empty())
     {
+        // We draw nothing
         return;
     }
 
-    constexpr size_t LINE_COUNT = 4;
-    std::array<xfa::XFA_Node<xfa::XFA_edge>, LINE_COUNT> fourEdges = { edges.back(), edges.back(), edges.back(), edges.back() };
-    for (size_t i = 0; i < edges.size(); ++i)
-    {
-        if (i >= fourEdges.size())
-        {
-            break;
-        }
-
-        fourEdges[i] = edges[i];
-    }
-
-    std::array<QPen, LINE_COUNT> edgePen = {
-        createPenFromEdge(fourEdges[0].getValue(), errors),
-        createPenFromEdge(fourEdges[1].getValue(), errors),
-        createPenFromEdge(fourEdges[2].getValue(), errors),
-        createPenFromEdge(fourEdges[3].getValue(), errors)
+    // Step 1) prepare edge array. We must note, that edges
+    // can be nullptr, in that case, do not draw anything.
+    // All edges are null, then empty pen is returned.
+    std::array edgePens = {
+        createPenFromEdge(edges, 0, errors),
+        createPenFromEdge(edges, 1, errors),
+        createPenFromEdge(edges, 2, errors),
+        createPenFromEdge(edges, 3, errors)
     };
 
-    // All lines are equal? If yes, just draw the rectangle using first pen. If lines
-    // are not equal, then we must draw each line separately.
-    if (std::adjacent_find(edgePen.begin(), edgePen.end(), std::not_equal_to()) == edgePen.end())
+    // Step 2) prepare draw rectangle, which can be different
+    // from nominal content area, because we must handle handedness.
+
+    auto getOffset = [&edgePens, hand](const size_t index)
     {
-        QPen pen = edgePen.front();
-        QRectF lineRectangle = nominalContentArea;
-
-        qreal penWidthHalf = pen.widthF() * 0.5;
-        QMarginsF margins(penWidthHalf, penWidthHalf, penWidthHalf, penWidthHalf);
-
+        PDFReal offset = 0.0;
         switch (hand)
         {
             case pdf::xfa::XFA_BaseNode::HAND::Even:
                 break;
             case pdf::xfa::XFA_BaseNode::HAND::Left:
-                lineRectangle = lineRectangle.marginsAdded(margins);
+                offset = -edgePens[index].widthF() * 0.5;
                 break;
             case pdf::xfa::XFA_BaseNode::HAND::Right:
-                lineRectangle = lineRectangle.marginsRemoved(margins);
+                offset = +edgePens[index].widthF() * 0.5;
                 break;
         }
 
-        painter->setPen(pen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(lineRectangle);
-    }
-    else
-    {
-        std::array<QLineF, LINE_COUNT> lines = {
-            QLineF(nominalContentArea.topLeft(), nominalContentArea.topRight()),
-            QLineF(nominalContentArea.topRight(), nominalContentArea.bottomRight()),
-            QLineF(nominalContentArea.bottomRight(), nominalContentArea.bottomLeft()),
-            QLineF(nominalContentArea.bottomLeft(), nominalContentArea.topLeft())
-        };
+        return offset;
+    };
 
-        for (size_t i = 0; i < LINE_COUNT; ++i)
+    QMarginsF handMargins(getOffset(3), getOffset(0), -getOffset(1), -getOffset(2));
+    QRectF drawRect = nominalContentArea.marginsRemoved(handMargins);
+
+    // Step 3) Draw lines without corners. We must  consider corner radius.
+    // Corners will be then drawm afterwards.
+
+    constexpr size_t CORNER_TOP_LEFT_INDEX = 0;
+    constexpr size_t CORNER_TOP_RIGHT_INDEX = 1;
+    constexpr size_t CORNER_BOTTOM_RIGHT_INDEX = 2;
+    constexpr size_t CORNER_BOTTOM_LEFT_INDEX = 3;
+
+    auto getRadiusFromCorner = [&corners](const size_t index) -> PDFReal
+    {
+        if (index < corners.size())
         {
-            PDFReal offset = 0.0;
-            switch (hand)
-            {
-                case pdf::xfa::XFA_BaseNode::HAND::Even:
-                    break;
-                case pdf::xfa::XFA_BaseNode::HAND::Left:
-                    offset = -edgePen[i].widthF() * 0.5;
-                    break;
-                case pdf::xfa::XFA_BaseNode::HAND::Right:
-                    offset = +edgePen[i].widthF() * 0.5;
-                    break;
-            }
-
-            if (!qFuzzyIsNull(offset))
-            {
-                QLineF& line = lines[i];
-                QLineF normal = line.normalVector().unitVector();
-                line.translate(normal.dx() * offset, normal.dy() * offset);
-            }
-
-            painter->setPen(edgePen[i]);
-            painter->setBrush(Qt::NoBrush);
-            painter->drawLine(lines[i]);
+            return corners[index].getValue()->getRadius().getValuePt(nullptr);
         }
-    }
+        else if (!corners.empty())
+        {
+            return corners.back().getValue()->getRadius().getValuePt(nullptr);
+        }
 
-    if (std::any_of(corners.cbegin(), corners.cend(), [](const auto& corner) { return corner.getValue()->getPresence() == xfa::XFA_BaseNode::PRESENCE::Visible; }))
+        return 0.0;
+    };
+
+    std::array cornerOffsets = {
+        getRadiusFromCorner(CORNER_TOP_LEFT_INDEX),
+        getRadiusFromCorner(CORNER_TOP_RIGHT_INDEX),
+        getRadiusFromCorner(CORNER_BOTTOM_RIGHT_INDEX),
+        getRadiusFromCorner(CORNER_BOTTOM_LEFT_INDEX)
+    };
+
+    auto drawLine = [painter](QPointF start, QPointF end, QPen pen, qreal offsetStart, qreal offsetEnd)
     {
-        errors << PDFRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("XFA: visual display of the corners of rectangle are not supported."));
-    }
+        QPointF adjustedStart = start;
+        QPointF adjustedEnd = end;
+
+        if (!qFuzzyIsNull(offsetStart))
+        {
+            QLineF line(start, end);
+            QLineF unitVector = line.unitVector();
+
+            adjustedStart += (unitVector.p2() - unitVector.p1()) * offsetStart;
+        }
+
+        if (!qFuzzyIsNull(offsetEnd))
+        {
+            QLineF line(end, start);
+            QLineF unitVector = line.unitVector();
+
+            adjustedEnd += (unitVector.p2() - unitVector.p1()) * offsetEnd;
+        }
+
+        painter->setPen(std::move(pen));
+        painter->drawLine(adjustedStart, adjustedEnd);
+    };
+
+    drawLine(drawRect.topLeft(), drawRect.topRight(), edgePens[0], cornerOffsets[CORNER_TOP_LEFT_INDEX], cornerOffsets[CORNER_TOP_RIGHT_INDEX]);
+    drawLine(drawRect.topRight(), drawRect.bottomRight(), edgePens[1], cornerOffsets[CORNER_TOP_RIGHT_INDEX], cornerOffsets[CORNER_BOTTOM_RIGHT_INDEX]);
+    drawLine(drawRect.bottomRight(), drawRect.bottomLeft(), edgePens[2], cornerOffsets[CORNER_BOTTOM_RIGHT_INDEX], cornerOffsets[CORNER_BOTTOM_LEFT_INDEX]);
+    drawLine(drawRect.bottomLeft(), drawRect.topLeft(), edgePens[3], cornerOffsets[CORNER_BOTTOM_LEFT_INDEX], cornerOffsets[CORNER_TOP_LEFT_INDEX]);
+
+    // Step 4) Draw corners
+    auto getCorner = [&corners](size_t index) -> const xfa::XFA_corner*
+    {
+        if (index < corners.size())
+        {
+            return corners[index].getValue();
+        }
+        else if (!corners.empty())
+        {
+            return corners.back().getValue();
+        }
+
+        return nullptr;
+    };
+
+    // Draws corner with down line and right line orientation (when rotation is zero).
+
+    std::array cornerPens = {
+        createPenFromCorner(corners, CORNER_TOP_LEFT_INDEX, errors),
+        createPenFromCorner(corners, CORNER_TOP_RIGHT_INDEX, errors),
+        createPenFromCorner(corners, CORNER_BOTTOM_RIGHT_INDEX, errors),
+        createPenFromCorner(corners, CORNER_BOTTOM_LEFT_INDEX, errors)
+    };
+
+    auto drawCorner = [painter](QPointF point, QPen pen, qreal rotation, const xfa::XFA_corner* corner)
+    {
+        if (!corner)
+        {
+            return;
+        }
+
+        const xfa::XFA_BaseNode::JOIN join = corner->getJoin();
+        bool isInverted = corner->getInverted();
+        const PDFReal radius = corner->getRadius().getValuePt(nullptr);
+
+        PDFPainterStateGuard guard(painter);
+        painter->translate(point);
+        painter->rotate(rotation);
+        painter->setPen(std::move(pen));
+
+        switch (join)
+        {
+            case xfa::XFA_BaseNode::JOIN::Square:
+            {
+                painter->drawLine(0, 0, 0, radius);
+                painter->drawLine(0, 0, radius, 0);
+                break;
+            }
+
+            case xfa::XFA_BaseNode::JOIN::Round:
+            {
+                if (!isInverted)
+                {
+                    painter->drawArc(0, 0, 2.0 * radius, 2.0 * radius, -180 * 16, -90 * 16);
+                }
+                else
+                {
+                    painter->drawArc(-radius, -radius, 2.0 * radius, 2.0 * radius, 0, -90 * 16);
+                }
+                break;
+            }
+        }
+    };
+
+    drawCorner(drawRect.topLeft(), cornerPens[CORNER_TOP_LEFT_INDEX],   0, getCorner(CORNER_TOP_LEFT_INDEX));
+    drawCorner(drawRect.topRight(), cornerPens[CORNER_TOP_RIGHT_INDEX],  90, getCorner(CORNER_TOP_RIGHT_INDEX));
+    drawCorner(drawRect.bottomRight(), cornerPens[CORNER_BOTTOM_RIGHT_INDEX], 180, getCorner(CORNER_BOTTOM_RIGHT_INDEX));
+    drawCorner(drawRect.bottomLeft(), cornerPens[CORNER_BOTTOM_LEFT_INDEX], 270, getCorner(CORNER_BOTTOM_LEFT_INDEX));
 }
 
 void PDFXFAEngineImpl::clear()
@@ -11568,7 +11645,7 @@ QColor PDFXFAEngineImpl::createColor(const xfa::XFA_color* color) const
 
 QPen PDFXFAEngineImpl::createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRenderError>& errors) const
 {
-    QPen pen;
+    QPen pen(Qt::NoPen);
 
     if (!edge)
     {
@@ -11636,6 +11713,97 @@ QPen PDFXFAEngineImpl::createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRen
 
     pen.setColor(color);
     return pen;
+}
+
+QPen PDFXFAEngineImpl::createPenFromCorner(const xfa::XFA_corner* corner, QList<PDFRenderError>& errors) const
+{
+    QPen pen(Qt::NoPen);
+
+    if (!corner)
+    {
+        return pen;
+    }
+
+    switch (corner->getStroke())
+    {
+        case pdf::xfa::XFA_BaseNode::STROKE::Solid:
+            pen.setStyle(Qt::SolidLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::DashDot:
+            pen.setStyle(Qt::DashDotLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::DashDotDot:
+            pen.setStyle(Qt::DashDotDotLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::Dashed:
+            pen.setStyle(Qt::DashLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::Dotted:
+            pen.setStyle(Qt::DotLine);
+            break;
+        case pdf::xfa::XFA_BaseNode::STROKE::Embossed:
+        case pdf::xfa::XFA_BaseNode::STROKE::Etched:
+        case pdf::xfa::XFA_BaseNode::STROKE::Lowered:
+        case pdf::xfa::XFA_BaseNode::STROKE::Raised:
+            pen.setStyle(Qt::SolidLine); // Ignore these line types
+            errors << PDFRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("XFA: special stroke is not supported."));
+            break;
+    }
+
+    pen.setWidthF(corner->getThickness().getValuePt(nullptr));
+
+    QColor color = createColor(corner->getColor());
+
+    if (color.isValid())
+    {
+        const xfa::XFA_BaseNode::PRESENCE presence = corner->getPresence();
+        switch (presence)
+        {
+            case xfa::XFA_BaseNode::PRESENCE::Visible:
+                color.setAlphaF(1.0);
+                break;
+            case xfa::XFA_BaseNode::PRESENCE::Hidden:
+            case xfa::XFA_BaseNode::PRESENCE::Inactive:
+            case xfa::XFA_BaseNode::PRESENCE::Invisible:
+                color.setAlphaF(0.0);
+                break;
+        }
+    }
+
+    pen.setColor(color);
+    return pen;
+}
+
+QPen PDFXFAEngineImpl::createPenFromEdge(const std::vector<xfa::XFA_Node<xfa::XFA_edge>>& edges,
+                                         size_t index,
+                                         QList<PDFRenderError>& errors) const
+{
+    if (index < edges.size())
+    {
+        return createPenFromEdge(edges[index].getValue(), errors);
+    }
+    else if (!edges.empty())
+    {
+        return createPenFromEdge(edges.back().getValue(), errors);
+    }
+
+    return QPen(Qt::NoPen);
+}
+
+QPen PDFXFAEngineImpl::createPenFromCorner(const std::vector<xfa::XFA_Node<xfa::XFA_corner>>& corners,
+                                           size_t index,
+                                           QList<PDFRenderError>& errors) const
+{
+    if (index < corners.size())
+    {
+        return createPenFromCorner(corners[index].getValue(), errors);
+    }
+    else if (!corners.empty())
+    {
+        return createPenFromCorner(corners.back().getValue(), errors);
+    }
+
+    return QPen(Qt::NoPen);
 }
 
 template<typename Node>
