@@ -24,6 +24,8 @@
 #include <QStringList>
 #include <QDateTime>
 #include <QImageReader>
+#include <QTextDocument>
+#include <QTextBlock>
 
 #include <stack>
 #include <optional>
@@ -351,7 +353,19 @@ public:
     {
         nodeValue = XFA_Value<QString>();
 
-        QString text = element.text();
+        QString text;
+
+        if (element.hasChildNodes())
+        {
+            QTextStream textStream(&text);
+            QDomNode node = element.firstChild();
+            while (!node.isNull())
+            {
+                textStream << node;
+                node = node.nextSibling();
+            }
+        }
+
         if (!text.isEmpty())
         {
             nodeValue = XFA_Value<QString>(std::move(text));
@@ -11557,7 +11571,7 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     if (textEdit)
     {
         isMultiline = textEdit->getMultiLine() == xfa::XFA_textEdit::MULTILINE::_1;
-        isRichTextAllowed = textEdit->getAllowRichText();
+        isRichTextAllowed = isRichTextAllowed || textEdit->getAllowRichText();
 
         if (const xfa::XFA_comb* comb = textEdit->getComb())
         {
@@ -11584,12 +11598,61 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
 
         if (!isRichTextAllowed)
         {
-            const int textFlag = isMultiline ? Qt::TextWordWrap : Qt::TextSingleLine;
-            painter->drawText(textRect, textFlag | int(settings.getAlignment()), value.value.toString());
+            int textFlag = int(settings.getAlignment()) | Qt::TextDontClip;
+
+            // Do we have space for at least one line?
+            if (isMultiline && textRect.height() < 1.8 * painter->fontMetrics().lineSpacing())
+            {
+                isMultiline = false;
+            }
+
+            if (isMultiline)
+            {
+                textFlag = textFlag | Qt::TextWordWrap;
+            }
+            else
+            {
+                textFlag = textFlag | Qt::TextSingleLine;
+            }
+
+            painter->drawText(textRect, textFlag, value.value.toString());
         }
         else
         {
-            // TODO: handle rich text
+            PDFPainterStateGuard guard(painter);
+            painter->translate(textRect.topLeft());
+
+            QString html = value.value.toString();
+            html.replace("pt", "px");
+
+            QTextDocument document;
+            document.setDocumentMargin(0);
+            document.setUseDesignMetrics(true);
+            document.setDefaultFont(painter->font());
+
+            QTextOption textOption = document.defaultTextOption();
+            textOption.setAlignment(settings.getAlignment());
+            textOption.setWrapMode(QTextOption::ManualWrap);
+            document.setDefaultTextOption(textOption);
+
+            document.setHtml(html);
+
+            QTextBlock block = document.firstBlock();
+            while (block.isValid())
+            {
+                QTextBlockFormat format = block.blockFormat();
+                format.setTopMargin(0);
+                format.setBottomMargin(0);
+
+                QTextCursor cursor(block);
+                cursor.select(QTextCursor::BlockUnderCursor);
+                cursor.mergeBlockFormat(format);
+
+                block = block.next();
+            }
+
+            document.setPageSize(textRect.size());
+            document.drawContents(painter);
         }
     }
     else
