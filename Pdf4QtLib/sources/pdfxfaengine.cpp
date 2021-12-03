@@ -11623,7 +11623,6 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
             painter->translate(textRect.topLeft());
 
             QString html = value.value.toString();
-            html.replace("pt", "px");
 
             QTextDocument document;
             document.setDocumentMargin(0);
@@ -11634,7 +11633,6 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
             textOption.setAlignment(settings.getAlignment());
             textOption.setWrapMode(QTextOption::ManualWrap);
             document.setDefaultTextOption(textOption);
-
             document.setHtml(html);
 
             QTextBlock block = document.firstBlock();
@@ -11647,6 +11645,27 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
                 QTextCursor cursor(block);
                 cursor.select(QTextCursor::BlockUnderCursor);
                 cursor.mergeBlockFormat(format);
+
+                QVector<QTextLayout::FormatRange> textFormats = block.textFormats();
+                for (const QTextLayout::FormatRange& formatRange : textFormats)
+                {
+                    QTextCharFormat format = formatRange.format;
+                    QFont font = format.font();
+
+                    if (font.pointSizeF() < 0)
+                    {
+                        continue;
+                    }
+
+                    font.setPixelSize(qFloor(font.pointSizeF()));
+                    font.setHintingPreference(QFont::PreferNoHinting);
+                    format.setFont(font, QTextCharFormat::FontPropertiesAll);
+
+                    QTextCursor cursor(block);
+                    cursor.setPosition(block.position() + formatRange.start, QTextCursor::MoveAnchor);
+                    cursor.setPosition(block.position() + formatRange.start + formatRange.length, QTextCursor::KeepAnchor);
+                    cursor.mergeCharFormat(format);
+                }
 
                 block = block.next();
             }
