@@ -9671,6 +9671,7 @@ public:
         const xfa::XFA_draw* draw = nullptr;
         const xfa::XFA_field* field = nullptr;
         size_t paragraphSettingsIndex = 0;
+        size_t captionParagraphSettingsIndex = 0;
     };
 
     using LayoutItems = std::vector<LayoutItem>;
@@ -9736,11 +9737,27 @@ private:
                       QList<PDFRenderError>& errors,
                       QRectF nominalExtentArea,
                       size_t paragraphSettingsIndex,
+                      size_t captionParagraphSettingsIndex,
                       QPainter* painter);
 
     void drawItemField(const xfa::XFA_field* item,
                        QList<PDFRenderError>& errors,
                        QRectF nominalExtentArea,
+                       size_t paragraphSettingsIndex,
+                       size_t captionParagraphSettingsIndex,
+                       QPainter* painter);
+
+    void drawItemCaption(const xfa::XFA_caption* item,
+                         QList<PDFRenderError>& errors,
+                         QRectF& nominalExtentArea,
+                         size_t captionParagraphSettingsIndex,
+                         QPainter* painter);
+
+    void drawItemValue(const xfa::XFA_value* value,
+                       const xfa::XFA_ui* ui,
+                       QList<PDFRenderError>& errors,
+                       QRectF nominalContentArea,
+                       size_t paragraphSettingsIndex,
                        QPainter* painter);
 
     void drawUi(const xfa::XFA_ui* ui,
@@ -9798,6 +9815,8 @@ private:
     void handleBorder(const xfa::XFA_border* border);
     void handlePara(const xfa::XFA_para* para);
     void handleFont(const xfa::XFA_font* font);
+
+    size_t handleCaption(const xfa::XFA_caption* caption);
 
     void handleBreak(const xfa::XFA_break* node, bool isBeforeLayout);
     void handleBreak(const xfa::XFA_breakBefore* node);
@@ -9874,6 +9893,9 @@ private:
 
         /// Paragraph settings index
         size_t paragraphSettingsIndex = 0;
+
+        /// Paragraph settings index for caption
+        size_t captionParagraphSettingsIndex = 0;
 
         const xfa::XFA_draw* draw = nullptr;
         const xfa::XFA_field* field = nullptr;
@@ -10505,6 +10527,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
     Layout layout = initializeSingleLayout(nominalExtent);
     layout.items.back().presence = node->getPresence();
     layout.items.back().draw = node;
+    layout.items.back().captionParagraphSettingsIndex = handleCaption(node->getCaption());
 
     parameters.layout.emplace_back(std::move(layout));
 }
@@ -10549,6 +10572,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
     Layout layout = initializeSingleLayout(nominalExtent);
     layout.items.back().presence = node->getPresence();
     layout.items.back().field = node;
+    layout.items.back().captionParagraphSettingsIndex = handleCaption(node->getCaption());
 
     parameters.layout.emplace_back(std::move(layout));
 }
@@ -10587,6 +10611,7 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
                 engineLayoutItem.draw = layoutItem.draw;
                 engineLayoutItem.field = layoutItem.field;
                 engineLayoutItem.paragraphSettingsIndex = layoutItem.paragraphSettingsIndex;
+                engineLayoutItem.captionParagraphSettingsIndex = layoutItem.captionParagraphSettingsIndex;
                 layoutItems.emplace_back(std::move(engineLayoutItem));
             }
         }
@@ -10980,6 +11005,21 @@ void PDFXFALayoutEngine::handleFont(const xfa::XFA_font* font)
     settings.setFont(createdFont);
 }
 
+size_t PDFXFALayoutEngine::handleCaption(const xfa::XFA_caption* caption)
+{
+    if (!caption)
+    {
+        return 0;
+    }
+
+    LayoutParameters& layoutParameters = getLayoutParameters();
+    PDFTemporaryValueChange guard(&layoutParameters.paragraphSettings, layoutParameters.paragraphSettings);
+
+    handlePara(caption->getPara());
+    handleFont(caption->getFont());
+    return createParagraphSettings();
+}
+
 void PDFXFALayoutEngine::handleBreak(const xfa::XFA_break* node, bool isBeforeLayout)
 {
     if (!node)
@@ -11319,31 +11359,19 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
     const LayoutItems& items = it->second;
     for (const LayoutItem& item : items)
     {
-        drawItemDraw(item.draw, errors, item.nominalExtent, item.paragraphSettingsIndex, painter);
-        drawItemField(item.field, errors, item.nominalExtent, painter);
+        drawItemDraw(item.draw, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
+        drawItemField(item.field, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
     }
 }
 
-void PDFXFAEngineImpl::drawItemDraw(const xfa::XFA_draw* item,
-                                    QList<PDFRenderError>& errors,
-                                    QRectF nominalExtentArea,
-                                    size_t paragraphSettingsIndex,
-                                    QPainter* painter)
+void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
+                                     const xfa::XFA_ui* ui,
+                                     QList<PDFRenderError>& errors,
+                                     QRectF nominalContentArea,
+                                     size_t paragraphSettingsIndex,
+                                     QPainter* painter)
 {
-    if (!item)
-    {
-        // Not a draw
-        return;
-    }
-
-    QRectF nominalExtent = nominalExtentArea;
-    QRectF nominalContentArea = nominalExtent;
-    QMarginsF contentMargins = createMargin(item->getMargin());
-    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
-
-    drawItemBorder(item->getBorder(), errors, nominalExtent, painter);
-
-    if (const xfa::XFA_value* value = item->getValue())
+    if (value)
     {
         std::optional<NodeValue> nodeValue;
 
@@ -11470,7 +11498,7 @@ void PDFXFAEngineImpl::drawItemDraw(const xfa::XFA_draw* item,
 
         if (nodeValue)
         {
-            drawUi(item->getUi(), nodeValue.value(), errors, nominalContentArea, paragraphSettingsIndex, painter);
+            drawUi(ui, nodeValue.value(), errors, nominalContentArea, paragraphSettingsIndex, painter);
         }
 
         // TODO: implement draw arc (getArc())
@@ -11478,9 +11506,34 @@ void PDFXFAEngineImpl::drawItemDraw(const xfa::XFA_draw* item,
     }
 }
 
+void PDFXFAEngineImpl::drawItemDraw(const xfa::XFA_draw* item,
+                                    QList<PDFRenderError>& errors,
+                                    QRectF nominalExtentArea,
+                                    size_t paragraphSettingsIndex,
+                                    size_t captionParagraphSettingsIndex,
+                                    QPainter* painter)
+{
+    if (!item)
+    {
+        // Not a draw
+        return;
+    }
+
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = createMargin(item->getMargin());
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    drawItemBorder(item->getBorder(), errors, nominalExtent, painter);
+    drawItemCaption(item->getCaption(), errors, nominalContentArea, captionParagraphSettingsIndex, painter);
+    drawItemValue(item->getValue(), item->getUi(), errors, nominalContentArea, paragraphSettingsIndex, painter);
+}
+
 void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
                                      QList<PDFRenderError>& errors,
                                      QRectF nominalExtentArea,
+                                     size_t paragraphSettingsIndex,
+                                     size_t captionParagraphSettingsIndex,
                                      QPainter* painter)
 {
     if (!item)
@@ -11495,8 +11548,67 @@ void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
     nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
 
     drawItemBorder(item->getBorder(), errors, nominalExtent, painter);
+    drawItemCaption(item->getCaption(), errors, nominalContentArea, captionParagraphSettingsIndex, painter);
 
     // TODO: implement this
+}
+
+void PDFXFAEngineImpl::drawItemCaption(const xfa::XFA_caption* item,
+                                       QList<PDFRenderError>& errors,
+                                       QRectF& nominalExtentArea,
+                                       size_t captionParagraphSettingsIndex,
+                                       QPainter* painter)
+{
+    if (!item)
+    {
+        return;
+    }
+
+    QRectF captionArea = nominalExtentArea;
+
+    // Do we have visible caption?
+    QMarginsF captionsNominalExtentMargins(0.0, 0.0, 0.0, 0.0);
+    if (item->getPresence() == xfa::XFA_BaseNode::PRESENCE::Visible ||
+        item->getPresence() == xfa::XFA_BaseNode::PRESENCE::Invisible)
+    {
+        PDFReal reserveSize = item->getReserve().getValuePt(nullptr);
+        switch (item->getPlacement())
+        {
+            case xfa::XFA_BaseNode::PLACEMENT::Left:
+                captionsNominalExtentMargins.setLeft(reserveSize);
+                captionArea.setWidth(reserveSize);
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Bottom:
+                captionsNominalExtentMargins.setBottom(reserveSize);
+                captionArea.setTop(captionArea.bottom() - reserveSize);
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Inline:
+                // Do nothing
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Right:
+                captionsNominalExtentMargins.setRight(reserveSize);
+                captionArea.setLeft(captionArea.right() - reserveSize);
+                break;
+            case xfa::XFA_BaseNode::PLACEMENT::Top:
+                captionsNominalExtentMargins.setTop(reserveSize);
+                captionArea.setHeight(reserveSize);
+                break;
+        }
+    }
+
+    if (captionsNominalExtentMargins.isNull())
+    {
+        return;
+    }
+
+    // Remove caption area from nominal extent area
+    nominalExtentArea = nominalExtentArea.marginsRemoved(captionsNominalExtentMargins);
+
+    // Caption can have its own margin
+    QMarginsF captionNominalContentMargins = createMargin(item->getMargin());
+    captionArea = captionArea.marginsRemoved(captionNominalContentMargins);
+
+    drawItemValue(item->getValue(), nullptr, errors, captionArea, captionParagraphSettingsIndex, painter);
 }
 
 void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
