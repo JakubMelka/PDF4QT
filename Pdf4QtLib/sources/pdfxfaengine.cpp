@@ -9792,6 +9792,7 @@ public:
     virtual void visit(const xfa::XFA_area* node) override;
     virtual void visit(const xfa::XFA_draw* node) override;
     virtual void visit(const xfa::XFA_field* node) override;
+    virtual void visit(const xfa::XFA_exclGroup* node) override;
 
     void performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_template* node);
 
@@ -9812,7 +9813,6 @@ private:
     PDFInteger getCurrentPageIndex() const { return isCurrentPageValid() ? m_pages[m_currentPageIndex].pageIndex : -1; }
 
     void handleMargin(const xfa::XFA_margin* margin);
-    void handleBorder(const xfa::XFA_border* border);
     void handlePara(const xfa::XFA_para* para);
     void handleFont(const xfa::XFA_font* font);
 
@@ -9944,7 +9944,8 @@ private:
     {
         xfa::XFA_BaseNode::PRESENCE presence = xfa::XFA_BaseNode::PRESENCE::Visible;
         xfa::XFA_BaseNode::ANCHORTYPE anchorType = xfa::XFA_BaseNode::ANCHORTYPE::TopLeft;
-        const xfa::XFA_border* border = nullptr;
+        const xfa::XFA_subform* nodeSubform = nullptr;
+        const xfa::XFA_exclGroup* nodeExclGroup = nullptr;
         const xfa::XFA_area* nodeArea = nullptr;
         const xfa::XFA_caption* nodeCaption = nullptr;
         xfa::XFA_ParagraphSettings paragraphSettings;
@@ -10180,6 +10181,127 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
         return;
     }
 
+    QMarginsF captionMargins = getCaptionMargins(layoutParameters);
+
+    if (layoutParameters.layoutType == xfa::XFA_BaseNode::LAYOUT::Table)
+    {
+        if (layoutParameters.tableRows.empty())
+        {
+            // No table to lay out
+            return;
+        }
+
+        size_t pageIndex = 0;
+        std::vector<PDFReal> rowHeights(layoutParameters.tableRows.size(), 0.0);
+        std::vector<PDFReal> columnWidths;
+
+        size_t maxColumns = 0;
+        for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
+        {
+            size_t columns = 0;
+            const std::vector<Layout>& row = layoutParameters.tableRows[rowIndex];
+
+            if (columnWidths.size() < row.size())
+            {
+                columnWidths.resize(row.size(), 0.0);
+            }
+
+            for (size_t columnIndex = 0; columnIndex < row.size(); ++columnIndex)
+            {
+                const PDFReal cellHeight = row[columnIndex].nominalExtent.height();
+                const PDFReal cellWidth = row[columnIndex].nominalExtent.width();
+                pageIndex = row[columnIndex].pageIndex;
+                if (rowHeights[rowIndex] < cellHeight)
+                {
+                    rowHeights[rowIndex] = cellHeight;
+                }
+                if (row[columnIndex].colSpan == 1)
+                {
+                    ++columns;
+                }
+                columnWidths[columnIndex] = qMax(columnWidths[columnIndex], cellWidth);
+            }
+            maxColumns = qMax(maxColumns, columns);
+        }
+
+        QStringList colWidths = layoutParameters.colWidths.split(' ', Qt::SkipEmptyParts);
+        for (size_t i = 0; i < columnWidths.size(); ++i)
+        {
+            if (i >= colWidths.size())
+            {
+                break;
+            }
+
+            xfa::XFA_Measurement measurement;
+            if (xfa::XFA_Measurement::parseMeasurement(colWidths[int(i)], measurement))
+            {
+                const PDFReal colWidth = measurement.getValuePt(&layoutParameters.paragraphSettings);
+                if (colWidth > 0)
+                {
+                    columnWidths[i] = colWidth;
+                }
+            }
+        }
+
+        Layout finalLayout;
+        finalLayout.pageIndex = pageIndex;
+        finalLayout.colSpan = layoutParameters.columnSpan;
+
+        PDFReal xOffset = 0;
+        PDFReal yOffset = 0;
+
+        for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
+        {
+            std::vector<Layout>& tableRow = layoutParameters.tableRows[rowIndex];
+
+            xOffset = 0;
+            size_t columnTargetIndex = 0;
+            for (size_t columnSourceIndex = 0; columnSourceIndex < tableRow.size(); ++columnSourceIndex)
+            {
+                Layout& sourceLayout = tableRow[columnSourceIndex];
+                sourceLayout.translate(xOffset, yOffset);
+                sourceLayout.updatePresence(layoutParameters.presence);
+
+                PDFReal width = 0;
+                for (size_t i = 0; i < sourceLayout.colSpan; ++i)
+                {
+                    if (columnTargetIndex >= columnWidths.size())
+                    {
+                        // We do not have enough space in the table
+                        break;
+                    }
+
+                    width += columnWidths[columnTargetIndex++];
+                }
+
+                sourceLayout.resize(QSizeF(width, rowHeights[rowIndex]));
+                finalLayout.items.insert(finalLayout.items.end(), sourceLayout.items.begin(), sourceLayout.items.end());
+
+                xOffset += width;
+            }
+
+            yOffset += rowHeights[rowIndex];
+        }
+
+        // Translate by margin
+        finalLayout.translate(layoutParameters.margins.left(), layoutParameters.margins.top());
+
+        QSizeF nominalContentSize(xOffset, yOffset);
+        QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(layoutParameters.margins);
+        QSizeF nominalExtentSize = nominalExtentSizeWithoutCaption.grownBy(captionMargins);
+        nominalExtentSize = layoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
+        QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
+        finalLayout.nominalExtent = nominalExtentRegion;
+        finalLayout.colSpan = layoutParameters.columnSpan;
+
+        if (!finalLayout.items.empty())
+        {
+            layoutParameters.layout.emplace_back(std::move(finalLayout));
+        }
+
+        return;
+    }
+
     std::map<size_t, std::vector<Layout>> layoutsPerPage;
 
     for (Layout& layout : layoutParameters.layout)
@@ -10187,8 +10309,6 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
         layoutsPerPage[layout.pageIndex].emplace_back(std::move(layout));
     }
     layoutParameters.layout.clear();
-
-    QMarginsF captionMargins = getCaptionMargins(layoutParameters);
 
     for (auto& item : layoutsPerPage)
     {
@@ -10227,118 +10347,7 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
 
             case xfa::XFA_BaseNode::LAYOUT::Table:
             {
-                if (layoutParameters.tableRows.empty())
-                {
-                    // No table to lay out
-                    break;
-                }
-
-                std::vector<PDFReal> rowHeights(layoutParameters.tableRows.size(), 0.0);
-                std::vector<PDFReal> columnWidths;
-
-                size_t maxColumns = 0;
-                for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
-                {
-                    size_t columns = 0;
-                    const std::vector<Layout>& row = layoutParameters.tableRows[rowIndex];
-
-                    if (columnWidths.size() < row.size())
-                    {
-                        columnWidths.resize(row.size(), 0.0);
-                    }
-
-                    for (size_t columnIndex = 0; columnIndex < row.size(); ++columnIndex)
-                    {
-                        const PDFReal cellHeight = row[columnIndex].nominalExtent.height();
-                        const PDFReal cellWidth = row[columnIndex].nominalExtent.width();
-                        if (rowHeights[rowIndex] < cellHeight)
-                        {
-                            rowHeights[rowIndex] = cellHeight;
-                        }
-                        if (row[columnIndex].colSpan == 1)
-                        {
-                            ++columns;
-                        }
-                        columnWidths[columnIndex] = qMax(columnWidths[columnIndex], cellWidth);
-                    }
-                    maxColumns = qMax(maxColumns, columns);
-                }
-
-                QStringList colWidths = layoutParameters.colWidths.split(' ', Qt::SkipEmptyParts);
-                for (size_t i = 0; i < columnWidths.size(); ++i)
-                {
-                    if (i >= colWidths.size())
-                    {
-                        break;
-                    }
-
-                    xfa::XFA_Measurement measurement;
-                    if (xfa::XFA_Measurement::parseMeasurement(colWidths[int(i)], measurement))
-                    {
-                        const PDFReal colWidth = measurement.getValuePt(&layoutParameters.paragraphSettings);
-                        if (colWidth > 0)
-                        {
-                            columnWidths[i] = colWidth;
-                        }
-                    }
-                }
-
-                Layout finalLayout;
-                finalLayout.pageIndex = pageIndex;
-                finalLayout.colSpan = layoutParameters.columnSpan;
-
-                PDFReal xOffset = 0;
-                PDFReal yOffset = 0;
-
-                for (size_t rowIndex = 0; rowIndex < layoutParameters.tableRows.size(); ++rowIndex)
-                {
-                    std::vector<Layout>& tableRow = layoutParameters.tableRows[rowIndex];
-
-                    xOffset = 0;
-                    size_t columnTargetIndex = 0;
-                    for (size_t columnSourceIndex = 0; columnSourceIndex < tableRow.size(); ++columnSourceIndex)
-                    {
-                        Layout& sourceLayout = tableRow[columnSourceIndex];
-                        sourceLayout.translate(xOffset, yOffset);
-                        sourceLayout.updatePresence(layoutParameters.presence);
-
-                        PDFReal width = 0;
-                        for (size_t i = 0; i < sourceLayout.colSpan; ++i)
-                        {
-                            if (columnTargetIndex >= columnWidths.size())
-                            {
-                                // We do not have enough space in the table
-                                break;
-                            }
-
-                            width += columnWidths[columnTargetIndex++];
-                        }
-
-                        sourceLayout.resize(QSizeF(width, rowHeights[rowIndex]));
-                        finalLayout.items.insert(finalLayout.items.end(), sourceLayout.items.begin(), sourceLayout.items.end());
-
-                        xOffset += width;
-                    }
-
-                    yOffset += rowHeights[rowIndex];
-                }
-
-                // Translate by margin
-                finalLayout.translate(layoutParameters.margins.left(), layoutParameters.margins.top());
-
-                QSizeF nominalContentSize(xOffset, yOffset);
-                QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(layoutParameters.margins);
-                QSizeF nominalExtentSize = nominalExtentSizeWithoutCaption.grownBy(captionMargins);
-                nominalExtentSize = layoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
-                QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
-                finalLayout.nominalExtent = nominalExtentRegion;
-                finalLayout.colSpan = layoutParameters.columnSpan;
-
-                if (!finalLayout.items.empty())
-                {
-                    layoutParameters.layout.emplace_back(std::move(finalLayout));
-                }
-
+                Q_ASSERT(false);
                 break;
             }
 
@@ -10528,6 +10537,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_draw* node)
     layout.items.back().presence = node->getPresence();
     layout.items.back().draw = node;
     layout.items.back().captionParagraphSettingsIndex = handleCaption(node->getCaption());
+    layout.colSpan = parameters.columnSpan;
 
     parameters.layout.emplace_back(std::move(layout));
 }
@@ -10565,6 +10575,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
     parameters.presence = node->getPresence();
     parameters.sizeInfo = sizeInfo;
     parameters.nodeCaption = node->getCaption();
+    parameters.columnSpan = node->getColSpan();
 
     handlePara(node->getPara());
     handleFont(node->getFont());
@@ -10573,6 +10584,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_field* node)
     layout.items.back().presence = node->getPresence();
     layout.items.back().field = node;
     layout.items.back().captionParagraphSettingsIndex = handleCaption(node->getCaption());
+    layout.colSpan = parameters.columnSpan;
 
     parameters.layout.emplace_back(std::move(layout));
 }
@@ -10773,6 +10785,8 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
     parameters.sizeInfo = sizeInfo;
     parameters.layoutType = node->getLayout();
     parameters.colWidths = node->getColumnWidths();
+    parameters.nodeSubform = node;
+    parameters.columnSpan = node->getColSpan();
 
     // Handle break before
     handleBreak(node->getBreak(), true);
@@ -10780,7 +10794,6 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
 
     // Handle settings
     handlePara(node->getPara());
-    handleBorder(node->getBorder());
     handleMargin(node->getMargin());
 
     // Perform layout, layout subforms so many times
@@ -10800,6 +10813,43 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_subform* node)
     // Handle break after
     handleBreak(node->getBreak(), false);
     handleBreak(node->getBreakAfter());
+}
+
+void PDFXFALayoutEngine::visit(const xfa::XFA_exclGroup* node)
+{
+    switch (node->getPresence())
+    {
+        case xfa::XFA_BaseNode::PRESENCE::Visible:
+            break;
+
+        case xfa::XFA_BaseNode::PRESENCE::Hidden:
+        case xfa::XFA_BaseNode::PRESENCE::Inactive:
+            return;
+
+        case xfa::XFA_BaseNode::PRESENCE::Invisible:
+            break;
+    }
+
+    LayoutParametersStackGuard guard(this);
+
+    SizeInfo sizeInfo = getSizeInfo(node);
+    QPointF point = getPointFromMeasurement(node->getX(), node->getY());
+
+    LayoutParameters& parameters = getLayoutParameters();
+    parameters.xOffset = point.x();
+    parameters.yOffset = point.y();
+    parameters.anchorType = node->getAnchorType();
+    parameters.presence = node->getPresence();
+    parameters.sizeInfo = sizeInfo;
+    parameters.layoutType = node->getLayout();
+    parameters.nodeExclGroup = node;
+    parameters.columnSpan = node->getColSpan();
+
+    // Handle settings
+    handlePara(node->getPara());
+    handleMargin(node->getMargin());
+
+    xfa::XFA_AbstractNode::acceptOrdered(this, node->getField());
 }
 
 void PDFXFALayoutEngine::moveToNextArea(ContentAreaScope scope)
@@ -10854,11 +10904,6 @@ QMarginsF PDFXFALayoutEngine::createMargin(const xfa::XFA_margin* margin)
 void PDFXFALayoutEngine::handleMargin(const xfa::XFA_margin* margin)
 {
     getLayoutParameters().margins = createMargin(margin);
-}
-
-void PDFXFALayoutEngine::handleBorder(const xfa::XFA_border* border)
-{
-    getLayoutParameters().border = border;
 }
 
 void PDFXFALayoutEngine::handlePara(const xfa::XFA_para* para)
