@@ -26,6 +26,7 @@
 #include <QImageReader>
 #include <QTextDocument>
 #include <QTextBlock>
+#include <QAbstractTextDocumentLayout>
 
 #include <stack>
 #include <optional>
@@ -11806,29 +11807,37 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
                 QVector<QTextLayout::FormatRange> textFormats = block.textFormats();
                 for (const QTextLayout::FormatRange& formatRange : textFormats)
                 {
-                    QTextCharFormat format = formatRange.format;
-                    QFont font = format.font();
+                    QTextCharFormat charFormat = formatRange.format;
+                    QFont font = charFormat.font();
 
-                    if (font.pointSizeF() < 0)
+                    if (font.pointSizeF() >  0)
                     {
-                        continue;
+                        font.setPixelSize(qFloor(font.pointSizeF()));
                     }
 
-                    font.setPixelSize(qFloor(font.pointSizeF()));
                     font.setHintingPreference(QFont::PreferNoHinting);
-                    format.setFont(font, QTextCharFormat::FontPropertiesAll);
+                    charFormat.setFont(font, QTextCharFormat::FontPropertiesAll);
 
                     QTextCursor cursor(block);
                     cursor.setPosition(block.position() + formatRange.start, QTextCursor::MoveAnchor);
                     cursor.setPosition(block.position() + formatRange.start + formatRange.length, QTextCursor::KeepAnchor);
-                    cursor.mergeCharFormat(format);
+                    cursor.mergeCharFormat(charFormat);
                 }
 
                 block = block.next();
             }
 
             document.setPageSize(textRect.size());
-            document.drawContents(painter);
+
+            if (document.pageCount() > 1)
+            {
+                // Jakub Melka: we do not have enough space, try to make more,
+                // we are still using clip rectangle.
+                QSizeF size = document.documentLayout()->documentSize();
+                document.setPageSize(size);
+            }
+
+            document.drawContents(painter, textRect.translated(-textRect.topLeft()));
         }
     }
     else
