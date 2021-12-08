@@ -289,7 +289,7 @@
         <property name="presence" type="visible | hidden | inactive | invisible" default="visible"/>
         <property name="radius" type="0in | measurement" default="0in"/>
         <property name="stroke" type="solid | dashDot | dashDotDot | dashed | dotted | embossed | etched | lowered | raised" default="solid"/>
-        <property name="thickness" type="0.5pt | measurement" default="0.pt"/>
+        <property name="thickness" type="0.5pt | measurement" default="0.5pt"/>
         <property name="use" type="cdata"/>
         <property name="usehref" type="cdata"/>
         <item class="color" min="0" max="1"/>

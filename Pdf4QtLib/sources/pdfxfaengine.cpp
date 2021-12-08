@@ -3814,7 +3814,7 @@ std::optional<XFA_corner> XFA_corner::parse(const QDomElement& element)
     parseAttribute(element, "presence", myClass.m_presence, "visible");
     parseAttribute(element, "radius", myClass.m_radius, "0in");
     parseAttribute(element, "stroke", myClass.m_stroke, "solid");
-    parseAttribute(element, "thickness", myClass.m_thickness, "0.pt");
+    parseAttribute(element, "thickness", myClass.m_thickness, "0.5pt");
     parseAttribute(element, "use", myClass.m_use, "");
     parseAttribute(element, "usehref", myClass.m_usehref, "");
 
@@ -12078,6 +12078,11 @@ void PDFXFAEngineImpl::drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XF
 
     auto drawLine = [painter](QPointF start, QPointF end, QPen pen, qreal offsetStart, qreal offsetEnd)
     {
+        if (pen.style() == Qt::NoPen)
+        {
+            return;
+        }
+
         QPointF adjustedStart = start;
         QPointF adjustedEnd = end;
 
@@ -12132,7 +12137,7 @@ void PDFXFAEngineImpl::drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XF
 
     auto drawCorner = [painter](QPointF point, QPen pen, qreal rotation, const xfa::XFA_corner* corner)
     {
-        if (!corner)
+        if (!corner || pen.style() == Qt::NoPen)
         {
             return;
         }
@@ -12222,6 +12227,21 @@ QPen PDFXFAEngineImpl::createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRen
         return pen;
     }
 
+    const xfa::XFA_BaseNode::PRESENCE presence = edge->getPresence();
+    switch (presence)
+    {
+        case xfa::XFA_BaseNode::PRESENCE::Visible:
+            break;
+        case xfa::XFA_BaseNode::PRESENCE::Hidden:
+        case xfa::XFA_BaseNode::PRESENCE::Inactive:
+        case xfa::XFA_BaseNode::PRESENCE::Invisible:
+            return pen;
+
+        default:
+            Q_ASSERT(false);
+            return pen;
+    }
+
     switch (edge->getCap())
     {
         case pdf::xfa::XFA_BaseNode::CAP::Square:
@@ -12264,23 +12284,6 @@ QPen PDFXFAEngineImpl::createPenFromEdge(const xfa::XFA_edge* edge, QList<PDFRen
     pen.setWidthF(edge->getThickness().getValuePt(nullptr));
 
     QColor color = createColor(edge->getColor());
-
-    if (color.isValid())
-    {
-        const xfa::XFA_BaseNode::PRESENCE presence = edge->getPresence();
-        switch (presence)
-        {
-            case xfa::XFA_BaseNode::PRESENCE::Visible:
-                color.setAlphaF(1.0);
-                break;
-            case xfa::XFA_BaseNode::PRESENCE::Hidden:
-            case xfa::XFA_BaseNode::PRESENCE::Inactive:
-            case xfa::XFA_BaseNode::PRESENCE::Invisible:
-                color.setAlphaF(0.0);
-                break;
-        }
-    }
-
     pen.setColor(color);
     return pen;
 }
@@ -12292,6 +12295,21 @@ QPen PDFXFAEngineImpl::createPenFromCorner(const xfa::XFA_corner* corner, QList<
     if (!corner)
     {
         return pen;
+    }
+
+    const xfa::XFA_BaseNode::PRESENCE presence = corner->getPresence();
+    switch (presence)
+    {
+        case xfa::XFA_BaseNode::PRESENCE::Visible:
+            break;
+        case xfa::XFA_BaseNode::PRESENCE::Hidden:
+        case xfa::XFA_BaseNode::PRESENCE::Inactive:
+        case xfa::XFA_BaseNode::PRESENCE::Invisible:
+            return pen;
+
+        default:
+            Q_ASSERT(false);
+            return pen;
     }
 
     switch (corner->getStroke())
@@ -12323,23 +12341,6 @@ QPen PDFXFAEngineImpl::createPenFromCorner(const xfa::XFA_corner* corner, QList<
     pen.setWidthF(corner->getThickness().getValuePt(nullptr));
 
     QColor color = createColor(corner->getColor());
-
-    if (color.isValid())
-    {
-        const xfa::XFA_BaseNode::PRESENCE presence = corner->getPresence();
-        switch (presence)
-        {
-            case xfa::XFA_BaseNode::PRESENCE::Visible:
-                color.setAlphaF(1.0);
-                break;
-            case xfa::XFA_BaseNode::PRESENCE::Hidden:
-            case xfa::XFA_BaseNode::PRESENCE::Inactive:
-            case xfa::XFA_BaseNode::PRESENCE::Invisible:
-                color.setAlphaF(0.0);
-                break;
-        }
-    }
-
     pen.setColor(color);
     return pen;
 }
