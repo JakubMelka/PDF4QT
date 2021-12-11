@@ -9671,6 +9671,8 @@ public:
         QRectF nominalExtent;
         const xfa::XFA_draw* draw = nullptr;
         const xfa::XFA_field* field = nullptr;
+        const xfa::XFA_subform* subform = nullptr;
+        const xfa::XFA_exclGroup* exclGroup = nullptr;
         size_t paragraphSettingsIndex = 0;
         size_t captionParagraphSettingsIndex = 0;
     };
@@ -9747,6 +9749,16 @@ private:
                        size_t paragraphSettingsIndex,
                        size_t captionParagraphSettingsIndex,
                        QPainter* painter);
+
+    void drawItemSubform(const xfa::XFA_subform* item,
+                         QList<PDFRenderError>& errors,
+                         QRectF nominalExtentArea,
+                         QPainter* painter);
+
+    void drawItemExclGroup(const xfa::XFA_exclGroup* item,
+                           QList<PDFRenderError>& errors,
+                           QRectF nominalExtentArea,
+                           QPainter* painter);
 
     void drawItemCaption(const xfa::XFA_caption* item,
                          QList<PDFRenderError>& errors,
@@ -9900,6 +9912,8 @@ private:
 
         const xfa::XFA_draw* draw = nullptr;
         const xfa::XFA_field* field = nullptr;
+        const xfa::XFA_subform* subform = nullptr;
+        const xfa::XFA_exclGroup* exclGroup = nullptr;
     };
 
     struct Layout
@@ -10167,6 +10181,25 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
             layout.insert(layout.end(),
                           std::make_move_iterator(layoutParameters.layout.begin()),
                           std::make_move_iterator(layoutParameters.layout.end()));
+        }
+    }
+
+    if (currentLayoutParameters.nodeSubform || currentLayoutParameters.nodeExclGroup)
+    {
+        for (Layout& currentLayout : layout)
+        {
+            if (currentLayout.nominalExtent.isValid())
+            {
+                LayoutItem item;
+                item.nominalExtent = currentLayout.nominalExtent;
+                item.paragraphSettingsIndex = 0;
+                item.presence = currentLayoutParameters.nodeSubform ? currentLayoutParameters.nodeSubform->getPresence() :
+                                                                      currentLayoutParameters.nodeExclGroup->getPresence();
+                item.subform = currentLayoutParameters.nodeSubform;
+                item.exclGroup = currentLayoutParameters.nodeExclGroup;
+                item.captionParagraphSettingsIndex = 0;
+                currentLayout.items.insert(currentLayout.items.begin(), std::move(item));
+            }
         }
     }
 
@@ -10623,6 +10656,8 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
                 engineLayoutItem.nominalExtent = layoutItem.nominalExtent;
                 engineLayoutItem.draw = layoutItem.draw;
                 engineLayoutItem.field = layoutItem.field;
+                engineLayoutItem.subform = layoutItem.subform;
+                engineLayoutItem.exclGroup = layoutItem.exclGroup;
                 engineLayoutItem.paragraphSettingsIndex = layoutItem.paragraphSettingsIndex;
                 engineLayoutItem.captionParagraphSettingsIndex = layoutItem.captionParagraphSettingsIndex;
                 layoutItems.emplace_back(std::move(engineLayoutItem));
@@ -11407,6 +11442,8 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
     {
         drawItemDraw(item.draw, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
         drawItemField(item.field, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
+        drawItemSubform(item.subform, errors, item.nominalExtent, painter);
+        drawItemExclGroup(item.exclGroup, errors, item.nominalExtent, painter);
     }
 }
 
@@ -11597,6 +11634,34 @@ void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
     drawItemCaption(item->getCaption(), errors, nominalContentArea, captionParagraphSettingsIndex, painter);
 
     // TODO: implement this
+}
+
+void PDFXFAEngineImpl::drawItemSubform(const xfa::XFA_subform* item,
+                                       QList<PDFRenderError>& errors,
+                                       QRectF nominalExtentArea,
+                                       QPainter* painter)
+{
+    if (!item)
+    {
+        // Not a form
+        return;
+    }
+
+    drawItemBorder(item->getBorder(), errors, nominalExtentArea, painter);
+}
+
+void PDFXFAEngineImpl::drawItemExclGroup(const xfa::XFA_exclGroup* item,
+                                         QList<PDFRenderError>& errors,
+                                         QRectF nominalExtentArea,
+                                         QPainter* painter)
+{
+    if (!item)
+    {
+        // Not an excelusion group
+        return;
+    }
+
+    drawItemBorder(item->getBorder(), errors, nominalExtentArea, painter);
 }
 
 void PDFXFAEngineImpl::drawItemCaption(const xfa::XFA_caption* item,
