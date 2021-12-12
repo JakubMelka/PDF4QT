@@ -1562,6 +1562,11 @@ void PDFProgramController::onDocumentReadingFinished()
             pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
             setDocument(document);
 
+            if (m_formManager)
+            {
+                m_formManager->performPaging();
+            }
+
             pdf::PDFDocumentRequirements requirements = pdf::PDFDocumentRequirements::parse(&m_pdfDocument->getStorage(), m_pdfDocument->getCatalog()->getRequirements());
             constexpr pdf::PDFDocumentRequirements::Requirements requirementFlags = pdf::PDFDocumentRequirements::Requirements(pdf::PDFDocumentRequirements::OCInteract |
                                                                                                                                pdf::PDFDocumentRequirements::OCAutoStates |

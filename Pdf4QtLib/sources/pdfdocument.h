@@ -504,6 +504,7 @@ public:
         Annotation      = 0x0002,   ///< Annotations changed
         FormField       = 0x0004,   ///< Form field content changed
         Authorization   = 0x0008,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
+        XFA_Pagination  = 0x0010,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
     };
 
     Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)

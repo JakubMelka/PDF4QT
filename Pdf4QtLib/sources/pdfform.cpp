@@ -1668,6 +1668,75 @@ void PDFFormManager::drawXFAForm(const QMatrix& pagePointToDevicePointMatrix,
     }
 }
 
+void PDFFormManager::performPaging()
+{
+    if (!hasXFAForm() || !m_document)
+    {
+        return;
+    }
+
+    std::vector<QSizeF> pageSizes = m_xfaEngine.getPageSizes();
+
+    const PDFCatalog* catalog = m_document->getCatalog();
+    const size_t pageCount = catalog->getPageCount();
+    std::vector<QSizeF> oldPageSizes;
+    oldPageSizes.reserve(pageCount);
+
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        oldPageSizes.push_back(catalog->getPage(i)->getMediaBox().size());
+    }
+
+    bool changed = pageSizes.size() != oldPageSizes.size();
+    if (!changed)
+    {
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            changed = changed ||
+                      !qFuzzyCompare(pageSizes[i].width(), oldPageSizes[i].width()) ||
+                      !qFuzzyCompare(pageSizes[i].height(), oldPageSizes[i].height());
+        }
+    }
+
+    if (changed && !oldPageSizes.empty())
+    {
+        PDFDocumentModifier modifier(m_document);
+        modifier.getBuilder()->setFormManager(this);
+        modifier.markReset();
+
+        PDFDocumentBuilder* builder = modifier.getBuilder();
+        builder->flattenPageTree();
+        std::vector<PDFObjectReference> pages = builder->getPages();
+
+        // Do we have more pages?
+        if (pages.size() > pageSizes.size())
+        {
+            pages.resize(pageSizes.size());
+        }
+
+        // Do we have less pages?
+        while (pages.size() < pageSizes.size())
+        {
+            std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(builder->copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences({ pages.front() }), *builder->getStorage(), true));
+            Q_ASSERT(references.size() == 1);
+            pages.push_back(references.front());
+        }
+
+        Q_ASSERT(pages.size() == pageSizes.size());
+        for (size_t i = 0; i < pages.size(); ++i)
+        {
+            builder->setPageMediaBox(pages[i], QRectF(QPointF(0, 0), pageSizes[i]));
+        }
+
+        builder->setPages(std::move(pages));
+
+        if (modifier.finalize())
+        {
+            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
+    }
+}
+
 void PDFFormManager::clearEditors()
 {
     qDeleteAll(m_widgetEditors);

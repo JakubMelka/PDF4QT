@@ -1515,6 +1515,7 @@ public:
     void markReset() { m_modificationFlags.setFlag(PDFModifiedDocument::Reset); }
     void markAnnotationsChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::Annotation); }
     void markFormFieldChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::FormField); }
+    void markXFAPagination() { m_modificationFlags.setFlag(PDFModifiedDocument::XFA_Pagination); }
 
 private:
     const PDFDocument* m_originalDocument;

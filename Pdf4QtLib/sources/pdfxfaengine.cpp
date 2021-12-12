@@ -9679,8 +9679,11 @@ public:
 
     using LayoutItems = std::vector<LayoutItem>;
 
-    void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
-    void setParagraphSettings(std::vector<xfa::XFA_ParagraphSettings> paragraphSettings) { m_layout.paragraphSettings = std::move(paragraphSettings); }
+    std::vector<QSizeF> getPageSizes() const { return m_layout.pageSizes; }
+
+    inline void setPageSizes(std::vector<QSizeF> pageSizes) { m_layout.pageSizes = std::move(pageSizes); }
+    inline void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
+    inline void setParagraphSettings(std::vector<xfa::XFA_ParagraphSettings> paragraphSettings) { m_layout.paragraphSettings = std::move(paragraphSettings); }
 
     void draw(const QMatrix& pagePointToDevicePointMatrix,
               const PDFPage* page,
@@ -9691,6 +9694,7 @@ private:
 
     struct Layout
     {
+        std::vector<QSizeF> pageSizes;
         std::map<PDFInteger, LayoutItems> layoutItems;
         std::vector<xfa::XFA_ParagraphSettings> paragraphSettings;
     };
@@ -10648,6 +10652,7 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
 
     node->accept(this);
 
+    std::vector<QSizeF> pageSizes;
     std::map<PDFInteger, std::vector<Layout>> layoutPerPage;
 
     for (Layout& layout : m_layout)
@@ -10660,6 +10665,8 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
 
         layoutPerPage[layout.pageIndex].emplace_back(std::move(layout));
     }
+
+    pageSizes.reserve(layoutPerPage.size());
 
     PDFInteger pageIndex = 0;
     for (const auto& layoutSinglePage : layoutPerPage)
@@ -10688,9 +10695,13 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
             }
         }
 
+        const PageInfo& pageInfo = m_pages.at(layoutSinglePage.first);
+        pageSizes.push_back(pageInfo.mediaBox.size());
+
         engine->setLayoutItems(pageIndex++, std::move(layoutItems));
     }
 
+    engine->setPageSizes(std::move(pageSizes));
     engine->setParagraphSettings(std::move(m_paragraphSettings));
 }
 
@@ -11364,6 +11375,11 @@ void PDFXFAEngine::setDocument(const PDFModifiedDocument& document, PDFForm* for
     m_impl->setDocument(document, form);
 }
 
+std::vector<QSizeF> PDFXFAEngine::getPageSizes() const
+{
+    return m_impl->getPageSizes();
+}
+
 void PDFXFAEngine::draw(const QMatrix& pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         QList<PDFRenderError>& errors,
@@ -11381,6 +11397,13 @@ PDFXFAEngineImpl::PDFXFAEngineImpl() :
 
 void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm* form)
 {
+    if (document.hasFlag(PDFModifiedDocument::XFA_Pagination))
+    {
+        // Do nothing - pagination of XFA was performed,
+        // nothing else has changed.
+        return;
+    }
+
     if (m_document != document || document.hasReset())
     {
         m_document = document;

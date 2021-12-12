@@ -687,6 +687,11 @@ public:
                      QList<PDFRenderError>& errors,
                      QPainter* painter);
 
+    /// Performs paging, when XFA form needs to change page count and size.
+    /// If some change needs to be done, then signal \p documentModified
+    /// is emitted.
+    void performPaging();
+
     virtual int getInputPriority() const override { return FormPriority; }
 
 signals:

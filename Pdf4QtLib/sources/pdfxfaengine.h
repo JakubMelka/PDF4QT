@@ -38,6 +38,9 @@ public:
 
     void setDocument(const PDFModifiedDocument& document, PDFForm* form);
 
+    /// Returns list of page sizes (after paging is complete)
+    std::vector<QSizeF> getPageSizes() const;
+
     /// Draws XFA form
     /// \param pagePointToDevicePointMatrix Page point to device point matrix
     /// \param page Page
