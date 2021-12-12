@@ -10467,9 +10467,20 @@ bool PDFXFALayoutEngine::layoutPositional(LayoutParameters& sourceLayoutParamete
             layout.updatePresence(targetLayoutParameters.presence);
         }
 
-        Layout finalLayout;
-        finalLayout.pageIndex = pageIndex;
+        auto it = std::find_if(targetLayoutParameters.layout.begin(), targetLayoutParameters.layout.end(), [pageIndex](const auto& layout) { return layout.pageIndex == pageIndex; });
+        if (it == targetLayoutParameters.layout.end())
+        {
+            QSizeF nominalExtentSize = targetLayoutParameters.sizeInfo.effSize;
 
+            Layout createdLayout;
+            createdLayout.pageIndex = pageIndex;
+            createdLayout.nominalExtent = QRectF(QPointF(0, 0), nominalExtentSize);
+            createdLayout.colSpan = targetLayoutParameters.columnSpan;
+            targetLayoutParameters.layout.push_back(createdLayout);
+            it = std::next(targetLayoutParameters.layout.begin(), targetLayoutParameters.layout.size() - 1);
+        }
+
+        Layout& finalLayout = *it;
         PDFReal x = sourceLayoutParameters.xOffset + targetLayoutParameters.margins.left() + captionMargins.left();
         PDFReal y = sourceLayoutParameters.yOffset + targetLayoutParameters.margins.top() + captionMargins.top();
 
@@ -10526,13 +10537,9 @@ bool PDFXFALayoutEngine::layoutPositional(LayoutParameters& sourceLayoutParamete
             finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
         }
 
-        QSizeF nominalExtentSize = targetLayoutParameters.sizeInfo.effSize;
-        finalLayout.nominalExtent = QRectF(QPointF(0, 0), nominalExtentSize);
-        finalLayout.colSpan = targetLayoutParameters.columnSpan;
-
-        if (!finalLayout.items.empty())
+        if (finalLayout.items.empty())
         {
-            targetLayoutParameters.layout.emplace_back(std::move(finalLayout));
+            targetLayoutParameters.layout.pop_back();
         }
     }
 
