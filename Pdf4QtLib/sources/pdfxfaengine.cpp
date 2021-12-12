@@ -9947,6 +9947,9 @@ private:
         /// Page index (or, more precisely, index of content area)
         size_t pageIndex = 0;
 
+        /// Add content area offset?
+        bool addContentAreaOffset = true;
+
         /// Nominal extent of the parent node (where items are children
         /// of this node).
         QRectF nominalExtent;
@@ -10052,6 +10055,8 @@ private:
     /// layout type. Final layout is stored also in the layout parameters.
     /// \param layoutParameters Layout parameters
     void layoutFlow(LayoutParameters& layoutParameters);
+
+    void addSubformToLayout(LayoutParameters& layoutParameters);
 
     /// Performs positiona layout from source layout to target layout.
     /// Target layout must have positional layout type.
@@ -10181,25 +10186,6 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
             layout.insert(layout.end(),
                           std::make_move_iterator(layoutParameters.layout.begin()),
                           std::make_move_iterator(layoutParameters.layout.end()));
-        }
-    }
-
-    if (currentLayoutParameters.nodeSubform || currentLayoutParameters.nodeExclGroup)
-    {
-        for (Layout& currentLayout : layout)
-        {
-            if (currentLayout.nominalExtent.isValid())
-            {
-                LayoutItem item;
-                item.nominalExtent = currentLayout.nominalExtent;
-                item.paragraphSettingsIndex = 0;
-                item.presence = currentLayoutParameters.nodeSubform ? currentLayoutParameters.nodeSubform->getPresence() :
-                                                                      currentLayoutParameters.nodeExclGroup->getPresence();
-                item.subform = currentLayoutParameters.nodeSubform;
-                item.exclGroup = currentLayoutParameters.nodeExclGroup;
-                item.captionParagraphSettingsIndex = 0;
-                currentLayout.items.insert(currentLayout.items.begin(), std::move(item));
-            }
         }
     }
 
@@ -10333,6 +10319,7 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
             layoutParameters.layout.emplace_back(std::move(finalLayout));
         }
 
+        addSubformToLayout(layoutParameters);
         return;
     }
 
@@ -10424,6 +10411,30 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters)
             default:
                 Q_ASSERT(false);
                 break;
+        }
+    }
+
+    addSubformToLayout(layoutParameters);
+}
+
+void PDFXFALayoutEngine::addSubformToLayout(LayoutParameters& layoutParameters)
+{
+    if (layoutParameters.nodeSubform || layoutParameters.nodeExclGroup)
+    {
+        for (Layout& currentLayout : layoutParameters.layout)
+        {
+            if (currentLayout.nominalExtent.isValid())
+            {
+                LayoutItem item;
+                item.nominalExtent = currentLayout.nominalExtent;
+                item.paragraphSettingsIndex = 0;
+                item.presence = layoutParameters.nodeSubform ? layoutParameters.nodeSubform->getPresence() :
+                                                               layoutParameters.nodeExclGroup->getPresence();
+                item.subform = layoutParameters.nodeSubform;
+                item.exclGroup = layoutParameters.nodeExclGroup;
+                item.captionParagraphSettingsIndex = 0;
+                currentLayout.items.insert(currentLayout.items.begin(), std::move(item));
+            }
         }
     }
 }
@@ -10634,6 +10645,12 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
 
     for (Layout& layout : m_layout)
     {
+        if (layout.addContentAreaOffset)
+        {
+            const PageInfo& pageInfo = m_pages.at(layout.pageIndex);
+            layout.translate(pageInfo.contentBox.left(), pageInfo.contentBox.top());
+        }
+
         layoutPerPage[layout.pageIndex].emplace_back(std::move(layout));
     }
 
@@ -10752,6 +10769,12 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
             ++pageInfo.contentBoxIndex;
         }
         xfa::XFA_AbstractNode::acceptOrdered(this, node->getArea(), node->getDraw(), node->getExclGroup(), node->getField(), node->getSubform());
+
+        LayoutParameters& layoutParameters = getLayoutParameters();
+        for (Layout& layout : layoutParameters.layout)
+        {
+            layout.addContentAreaOffset = false;
+        }
     }
 }
 
@@ -11632,8 +11655,7 @@ void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
 
     drawItemBorder(item->getBorder(), errors, nominalExtent, painter);
     drawItemCaption(item->getCaption(), errors, nominalContentArea, captionParagraphSettingsIndex, painter);
-
-    // TODO: implement this
+    drawItemValue(item->getValue(), item->getUi(), errors, nominalContentArea, paragraphSettingsIndex, painter);
 }
 
 void PDFXFAEngineImpl::drawItemSubform(const xfa::XFA_subform* item,
@@ -11657,7 +11679,7 @@ void PDFXFAEngineImpl::drawItemExclGroup(const xfa::XFA_exclGroup* item,
 {
     if (!item)
     {
-        // Not an excelusion group
+        // Not an exclusion group
         return;
     }
 
@@ -11785,6 +11807,11 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     QRectF nominalContentArea = nominalExtent;
     QMarginsF contentMargins = textEdit ? createMargin(textEdit->getMargin()) : QMarginsF();
     nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (textEdit && textEdit->getBorder())
+    {
+        drawItemBorder(textEdit->getBorder(), errors, nominalExtentArea, painter);
+    }
 
     bool isComb = false;
     bool isMultiline = true;
@@ -12493,6 +12520,16 @@ QSizeF PDFXFALayoutEngine::SizeInfo::adjustNominalExtentSize(const QSizeF size)
     if (qFuzzyIsNull(maxH))
     {
         maxH = maxSize.height();
+    }
+
+    if (qFuzzyIsNull(maxW))
+    {
+        maxW = size.width();
+    }
+
+    if (qFuzzyIsNull(maxH))
+    {
+        maxH = size.height();
     }
 
     PDFReal correctedWidth = qBound(minW, size.width(), maxW);
