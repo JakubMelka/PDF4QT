@@ -4,7 +4,7 @@ Pdf4QtLibrary {
     Group {
         fileTagsFilter: "dynamiclibrary"
         qbs.install: install
-        qbs.installDir: "pdfplugins"
+        qbs.installDir: "bin/pdfplugins"
         qbs.installSourceBase: buildDirectory
     }
 }
