@@ -10052,7 +10052,6 @@ private:
     /// Performs layout (so, using current layout parameters
     /// and given layouts, it layouts them to the current layout node)
     /// \param layoutParameters Parameters, which will be lay out
-    /// \param isTop Are we layouting top item?
     void layout(LayoutParameters layoutParameters);
 
     /// Perform flow layout. Does nothing, if layout has positional
@@ -10165,7 +10164,7 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
     LayoutParameters& currentLayoutParameters = getLayoutParameters();
     layoutFlow(layoutParameters);
 
-    std::vector<Layout>& layout = currentLayoutParameters.layout;
+    std::vector<Layout>& layouts = currentLayoutParameters.layout;
     if (layoutParameters.nodeArea)
     {
         // Case 2)
@@ -10173,13 +10172,34 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
         const PDFReal y = layoutParameters.yOffset;
 
         // Just translate the layout by area offset
-        for (Layout& layout : layoutParameters.layout)
+        for (Layout& areaLayout : layoutParameters.layout)
         {
-            layout.translate(x, y);
+            areaLayout.translate(x, y);
+
+            if (currentLayoutParameters.layoutType == xfa::XFA_BaseNode::LAYOUT::Position)
+            {
+                auto it = std::find_if(layouts.begin(), layouts.end(), [&](const auto& layout) { return layout.pageIndex == areaLayout.pageIndex; });
+                if (it == layouts.end())
+                {
+                    layouts.emplace_back(std::move(areaLayout));
+                }
+                else
+                {
+                    // Merge layouts
+                    Layout& layout = *it;
+                    layout.items.insert(layout.items.end(),
+                                        std::make_move_iterator(areaLayout.items.begin()),
+                                        std::make_move_iterator(areaLayout.items.end()));
+                }
+            }
         }
-        layout.insert(layout.end(),
-                      std::make_move_iterator(layoutParameters.layout.begin()),
-                      std::make_move_iterator(layoutParameters.layout.end()));
+
+        if (currentLayoutParameters.layoutType != xfa::XFA_BaseNode::LAYOUT::Position)
+        {
+            layouts.insert(layouts.end(),
+                           std::make_move_iterator(layoutParameters.layout.begin()),
+                           std::make_move_iterator(layoutParameters.layout.end()));
+        }
     }
     else
     {
@@ -10187,9 +10207,9 @@ void PDFXFALayoutEngine::layout(LayoutParameters layoutParameters)
         if (!layoutPositional(layoutParameters, currentLayoutParameters))
         {
             // Not a positional layout
-            layout.insert(layout.end(),
-                          std::make_move_iterator(layoutParameters.layout.begin()),
-                          std::make_move_iterator(layoutParameters.layout.end()));
+            layouts.insert(layouts.end(),
+                           std::make_move_iterator(layoutParameters.layout.begin()),
+                           std::make_move_iterator(layoutParameters.layout.end()));
         }
     }
 
@@ -11876,15 +11896,15 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
         QRectF textRect = nominalContentArea;
         textRect = textRect.marginsRemoved(settings.getMargins());
 
+        // Do we have space for at least one line?
+        if (isMultiline && textRect.height() < 1.8 * painter->fontMetrics().lineSpacing())
+        {
+            isMultiline = false;
+        }
+
         if (!isRichTextAllowed)
         {
             int textFlag = int(settings.getAlignment()) | Qt::TextDontClip;
-
-            // Do we have space for at least one line?
-            if (isMultiline && textRect.height() < 1.8 * painter->fontMetrics().lineSpacing())
-            {
-                isMultiline = false;
-            }
 
             if (isMultiline)
             {
@@ -11911,7 +11931,7 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
 
             QTextOption textOption = document.defaultTextOption();
             textOption.setAlignment(settings.getAlignment());
-            textOption.setWrapMode(QTextOption::ManualWrap);
+            textOption.setWrapMode(isMultiline ? QTextOption::WrapAtWordBoundaryOrAnywhere : QTextOption::ManualWrap);
             document.setDefaultTextOption(textOption);
             document.setHtml(html);
 
@@ -11959,7 +11979,7 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
                 document.setPageSize(size);
             }
 
-            document.drawContents(painter, textRect.translated(-textRect.topLeft()));
+            document.drawContents(painter);
         }
     }
     else
