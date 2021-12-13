@@ -8,4 +8,8 @@ Pdf4QtPlugin {
         "*.ui",
         "icons.qrc",
     ]
+    Properties {
+        condition: qbs.hostOS.contains("windows")
+        cpp.defines: "DIMENTIONPLUGIN_LIBRARY"
+    }
 }
