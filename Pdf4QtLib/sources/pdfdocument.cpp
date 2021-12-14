@@ -642,4 +642,15 @@ std::vector<QByteArray> PDFDocumentDataLoaderDecorator::readStringArray(const PD
     return std::vector<QByteArray>();
 }
 
+const PDFObject& PDFObjectStorage::getObject(const PDFObject& object) const
+{
+    if (object.isReference())
+    {
+        // Try to dereference the object
+        return getObject(object.getReference());
+    }
+
+    return object;
+}
+
 }   // namespace pdf

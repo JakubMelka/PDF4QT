@@ -278,7 +278,7 @@ void PDFPageContentProcessor::initializeProcessor()
         m_deviceRGBColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_RGB);
         m_deviceCMYKColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_CMYK);
     }
-    catch (PDFException exception)
+    catch (const PDFException& exception)
     {
         m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
 
@@ -687,7 +687,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                 }
             }
         }
-        catch (PDFException exception)
+        catch (const PDFException& exception)
         {
             // If we get exception when parsing, and parser position is not advanced,
             // then we must advance it manually, otherwise we get infinite loop.
@@ -715,7 +715,7 @@ void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
 
         processContent(content);
     }
-    catch (PDFException exception)
+    catch (const PDFException& exception)
     {
         m_operands.clear();
         m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
@@ -904,7 +904,8 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
                         if (!lineDashPattern.isSolid())
                         {
-                            stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                            const auto& dashArray = lineDashPattern.getDashArray();
+                            stroker.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
                             stroker.setDashOffset(lineDashPattern.getDashOffset());
                         }
                         QPainterPath strokedPath = stroker.createStroke(path);
@@ -951,7 +952,8 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
                         if (!lineDashPattern.isSolid())
                         {
-                            stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+                            const auto& dashArray = lineDashPattern.getDashArray();
+                            stroker.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
                             stroker.setDashOffset(lineDashPattern.getDashOffset());
                         }
                         QPainterPath strokedPath = stroker.createStroke(path);
@@ -2698,7 +2700,7 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
                 m_graphicState.setTextFontSize(fontSize);
                 updateGraphicState();
             }
-            catch (PDFException)
+            catch (const PDFException&)
             {
                 m_graphicState.setTextFont(nullptr);
                 m_graphicState.setTextFontSize(fontSize);
@@ -3977,7 +3979,7 @@ PDFPageContentProcessor::PDFSoftMaskDefinition PDFPageContentProcessor::PDFSoftM
         {
             result.m_transferFunction = PDFFunction::createFunction(processor->getDocument(), softMask->get("TR"));
         }
-        catch (PDFException)
+        catch (const PDFException&)
         {
             processor->reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid soft mask transfer function."));
         }

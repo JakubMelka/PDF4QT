@@ -1410,7 +1410,7 @@ void PDFAnnotationManager::drawAnnotation(const PageAnnotation& annotation,
             drawAnnotationUsingAppearanceStream(annotation, appearanceStreamObject, pagePointToDevicePointMatrix, page, cms, painter);
         }
     }
-    catch (PDFException exception)
+    catch (const PDFException& exception)
     {
         errors.push_back(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
     }

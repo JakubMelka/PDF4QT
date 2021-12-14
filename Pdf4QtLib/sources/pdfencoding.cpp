@@ -2146,7 +2146,7 @@ QByteArray PDFEncoding::convertToEncoding(const QString& string, Encoding encodi
         ushort unicode = character.unicode();
         unsigned char converted = 0;
 
-        for (int i = 0; i < table->size(); ++i)
+        for (size_t i = 0; i < table->size(); ++i)
         {
             if (unicode == (*table)[static_cast<unsigned char>(i)])
             {
@@ -2353,6 +2353,9 @@ const encoding::EncodingTable* PDFEncoding::getTableForEncoding(Encoding encodin
 
         case Encoding::MacOsRoman:
             return &pdf::encoding::MAC_OS_ENCODING_CONVERSION_TABLE;
+
+        default:
+            break;
     }
 
     // Unknown encoding?

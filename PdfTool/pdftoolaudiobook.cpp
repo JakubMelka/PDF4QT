@@ -362,7 +362,7 @@ int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDoc
     {
         if (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textSpeechMarkPageNumbers)
         {
-            textStream << QString("<bookmark mark=\"%1\"/>").arg(item.text) << endl;
+            textStream << QString("<bookmark mark=\"%1\"/>").arg(item.text) << Qt::endl;
         }
 
         if (!item.text.isEmpty())

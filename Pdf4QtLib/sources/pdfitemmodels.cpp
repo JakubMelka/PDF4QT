@@ -368,8 +368,8 @@ QVariant PDFOutlineTreeItemModel::data(const QModelIndex& index, int role) const
         case Qt::DisplayRole:
             return outlineItem->getTitle();
 
-        case Qt::TextColorRole:
-            return outlineItem->getTextColor();
+        case Qt::ForegroundRole:
+            return QBrush(outlineItem->getTextColor());
 
         case Qt::FontRole:
         {

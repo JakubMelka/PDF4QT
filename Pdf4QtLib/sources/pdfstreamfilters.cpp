@@ -359,13 +359,6 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data,
     {
         const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
 
-        PDFInteger predictor = 1;
-        const PDFObject& predictorObject = objectFetcher(dictionary->get("Predictor"));
-        if (predictorObject.isInt())
-        {
-            predictor = predictorObject.getInteger();
-        }
-
         const PDFObject& earlyChangeObject = objectFetcher(dictionary->get("EarlyChange"));
         if (earlyChangeObject.isInt())
         {
@@ -384,19 +377,6 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data,
                                        const PDFSecurityHandler* securityHandler) const
 {
     Q_UNUSED(securityHandler);
-
-    const PDFObject& dereferencedParameters = objectFetcher(parameters);
-    if (dereferencedParameters.isDictionary())
-    {
-        const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
-
-        PDFInteger predictor = 1;
-        const PDFObject& predictorObject = objectFetcher(dictionary->get("Predictor"));
-        if (predictorObject.isInt())
-        {
-            predictor = predictorObject.getInteger();
-        }
-    }
 
     PDFStreamPredictor predictor = PDFStreamPredictor::createPredictor(objectFetcher, parameters);
     return predictor.apply(uncompress(data));

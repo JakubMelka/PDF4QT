@@ -215,7 +215,7 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
         formatter.writeTableColumn("page-no", locale.toString(image.pageIndex + 1), Qt::AlignRight);
         formatter.writeTableColumn("width", locale.toString(image.image.width()), Qt::AlignRight);
         formatter.writeTableColumn("height", locale.toString(image.image.height()), Qt::AlignRight);
-        formatter.writeTableColumn("size", locale.toString(image.image.byteCount()), Qt::AlignRight);
+        formatter.writeTableColumn("size", locale.toString(image.image.sizeInBytes()), Qt::AlignRight);
         formatter.writeTableColumn("stored-to", image.fileName);
 
         formatter.endTableRow();
@@ -259,7 +259,7 @@ PDFToolAbstractApplication::Options PDFToolFetchImages::getOptionsFlags() const
 void PDFToolFetchImages::onImageExtracted(pdf::PDFInteger pageIndex, pdf::PDFInteger order, const QImage& image)
 {
     QCryptographicHash hasher(QCryptographicHash::Sha512);
-    hasher.addData(reinterpret_cast<const char*>(image.bits()), image.byteCount());
+    hasher.addData(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
     QByteArray hash = hasher.result();
 
     QMutexLocker lock(&m_mutex);

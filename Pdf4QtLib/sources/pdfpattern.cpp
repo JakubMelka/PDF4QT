@@ -1484,7 +1484,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings, con
             QLineF xAxisLine(p1m.x(), 0, p2m.x(), 0);
 
             QPointF intersectionPoint;
-            if (radiusInterpolationLine.intersect(xAxisLine, &intersectionPoint) != QLineF::NoIntersection)
+            if (radiusInterpolationLine.intersects(xAxisLine, &intersectionPoint) != QLineF::NoIntersection)
             {
                 xl = qBound(meshingRectangle.left() - r1, intersectionPoint.x(), xl);
             }
@@ -1509,7 +1509,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings, con
             QLineF xAxisLine(p1m.x(), 0, p2m.x(), 0);
 
             QPointF intersectionPoint;
-            if (radiusInterpolationLine.intersect(xAxisLine, &intersectionPoint) != QLineF::NoIntersection)
+            if (radiusInterpolationLine.intersects(xAxisLine, &intersectionPoint) != QLineF::NoIntersection)
             {
                 xr = qBound(xr, intersectionPoint.x(), meshingRectangle.right() + r2);
             }

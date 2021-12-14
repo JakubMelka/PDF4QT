@@ -684,7 +684,7 @@ PDFDocumentSecurityStore PDFDocumentSecurityStore::parse(const PDFObject& object
             }
         }
     }
-    catch (PDFException)
+    catch (const PDFException&)
     {
         return PDFDocumentSecurityStore();
     }

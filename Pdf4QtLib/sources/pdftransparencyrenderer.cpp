@@ -3229,7 +3229,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                     {
                         colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, m_document->getObject(colorSpaceDictionary->getValue(csIndex)));
                     }
-                    catch (PDFException)
+                    catch (const PDFException&)
                     {
                         // Ignore invalid color spaces
                         continue;

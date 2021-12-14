@@ -91,7 +91,7 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         // Optimize document - remove unused objects and shrink object storage
         finalizeDocument(&mergedDocument);
     }
-    catch (PDFException exception)
+    catch (const PDFException& exception)
     {
         return exception.getMessage();
     }

@@ -49,9 +49,9 @@ AudioBookPlugin::AudioBookPlugin() :
     m_actionMoveSelectionUp(nullptr),
     m_actionMoveSelectionDown(nullptr),
     m_actionCreateAudioBook(nullptr),
+    m_actionClear(nullptr),
     m_audioTextStreamDockWidget(nullptr),
-    m_audioTextStreamEditorModel(nullptr),
-    m_actionClear(nullptr)
+    m_audioTextStreamEditorModel(nullptr)
 {
 
 }

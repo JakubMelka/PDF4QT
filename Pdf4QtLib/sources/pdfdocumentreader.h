@@ -98,7 +98,7 @@ private:
 
     void checkFooter(const QByteArray& buffer);
     void checkHeader(const QByteArray& buffer);
-    const PDFInteger findXrefTableOffset(const QByteArray& buffer);
+    PDFInteger findXrefTableOffset(const QByteArray& buffer);
     Result processReferenceTableEntries(PDFXRefTable* xrefTable, const std::vector<PDFXRefTable::Entry>& occupiedEntries, PDFObjectStorage::PDFObjects& objects);
     Result processSecurityHandler(const PDFObject& trailerDictionaryObject, const std::vector<PDFXRefTable::Entry>& occupiedEntries, PDFObjectStorage::PDFObjects& objects);
     void processObjectStreams(PDFXRefTable* xrefTable, PDFObjectStorage::PDFObjects& objects);

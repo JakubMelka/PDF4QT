@@ -1865,7 +1865,7 @@ PDFFunction::FunctionResult PDFPostScriptFunction::apply(const_iterator x_1, con
             return PDFTranslationContext::tr("Stack contains more values, than output size (%1 remains) (PostScript function).").arg(stack.size());
         }
     }
-    catch (PDFPostScriptFunction::PDFPostScriptFunctionException exception)
+    catch (const PDFPostScriptFunction::PDFPostScriptFunctionException& exception)
     {
         return exception.getMessage();
     }

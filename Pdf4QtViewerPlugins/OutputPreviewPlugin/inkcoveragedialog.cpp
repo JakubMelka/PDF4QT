@@ -308,6 +308,8 @@ QVariant InkCoverageStatisticsModel::data(const QModelIndex& index, int role) co
                     Q_ASSERT(false);
                     break;
             }
+
+            break;
         }
 
         case Qt::BackgroundColorRole:

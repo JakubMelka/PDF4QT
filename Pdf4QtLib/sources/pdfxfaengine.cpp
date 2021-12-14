@@ -11466,7 +11466,7 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
                         m_template = xfa::XFA_template::parse(document.firstChildElement("template"));
                     }
                 }
-                catch (PDFException)
+                catch (const PDFException&)
                 {
                     // Just clear once again - if some errorneous data
                     // were read, we want to clear them.

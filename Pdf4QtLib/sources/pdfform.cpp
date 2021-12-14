@@ -404,7 +404,7 @@ private:
     PDFFormField::FieldFlags m_flags;
 
     Options m_options;
-    Qt::Alignment m_textAlignment = 0;
+    Qt::Alignment m_textAlignment = Qt::Alignment();
     int m_topIndex = 0;
     int m_currentIndex = 0;
     std::set<int> m_selection;
@@ -828,7 +828,7 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
         {
             PDFInteger maxLengthDefault = 0;
             QByteArray defaultAppearance;
-            Qt::Alignment alignment = 0;
+            Qt::Alignment alignment = Qt::Alignment();
 
             if (PDFFormFieldText* parentTextField = dynamic_cast<PDFFormFieldText*>(parentField))
             {
@@ -3776,7 +3776,7 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
     QColor highlightColor = getAdjustedColor(palette.color(QPalette::Highlight));
 
     QRectF rect(0, 0, m_widgetRect.width(), m_lineSpacing);
-    for (int i = m_topIndex; i < m_options.size(); ++i)
+    for (int i = m_topIndex; i < int(m_options.size()); ++i)
     {
         if (m_selection.count(i))
         {
@@ -3912,7 +3912,7 @@ bool PDFListBoxPseudowidget::hasContinuousSelection() const
         return false;
     }
 
-    return *m_selection.rbegin() - *m_selection.begin() + 1 == m_selection.size();
+    return *m_selection.rbegin() - *m_selection.begin() + 1 == int(m_selection.size());
 }
 
 int PDFListBoxPseudowidget::getValidIndex(int index) const

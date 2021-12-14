@@ -315,7 +315,7 @@ public:
                            GlyphIndices glyphIndices);
     virtual ~PDFSimpleFont() override = default;
 
-    const PDFEncoding::Encoding getEncodingType() const { return m_encodingType; }
+    PDFEncoding::Encoding getEncodingType() const { return m_encodingType; }
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
 

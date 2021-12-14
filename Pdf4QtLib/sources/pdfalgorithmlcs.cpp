@@ -164,7 +164,7 @@ PDFAlgorithmLongestCommonSubsequenceBase::SequenceItemRanges PDFAlgorithmLongest
 
 PDFAlgorithmLongestCommonSubsequenceBase::SequenceItemFlags PDFAlgorithmLongestCommonSubsequenceBase::collectFlags(const SequenceItemRange& range)
 {
-    SequenceItemFlags flags = 0;
+    SequenceItemFlags flags = SequenceItemFlags();
 
     for (auto it = range.first; it != range.second; ++it)
     {

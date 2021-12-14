@@ -9,7 +9,7 @@ Pdf4QtLibrary {
     Depends { name: "openjpeg" }
     Depends { name: "lcms" }
     Depends {
-        condition: qbs.toolchain.contains("gcc")
+        condition: qbs.toolchain.contains("gcc") && !qbs.toolchain.contains("mingw")
         name: "tbb"
     }
     Depends {
@@ -17,9 +17,12 @@ Pdf4QtLibrary {
         name: "fontconfig"
     }
     Properties {
+        condition: qbs.toolchain.contains("msvc") || qbs.toolchain.contains("clang")
+        cpp.cxxFlags: "/bigobj"
+    }
+    Properties {
         condition: qbs.hostOS.contains("windows")
         cpp.defines: "PDF4QTLIB_LIBRARY"
-        cpp.cxxFlags: "/bigobj"
     }
 
     files: [
@@ -38,7 +41,7 @@ Pdf4QtLibrary {
         Depends { name: "openjpeg" }
         Depends { name: "lcms" }
         Depends {
-            condition: qbs.toolchain.contains("gcc")
+            condition: qbs.toolchain.contains("gcc") && !qbs.toolchain.contains("mingw")
             name: "tbb"
         }
         Depends {

@@ -355,7 +355,7 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
 
                         QString textCoverage = QString("%1 %").arg(locale.toString(coverage * 100.0, 'f', 2));
                         const int textRight = triangleLeft - rowHeight / 4;
-                        const int textWidth = painter.fontMetrics().width(textCoverage);
+                        const int textWidth = painter.fontMetrics().horizontalAdvance(textCoverage);
                         const int textStart = textRight - textWidth;
 
                         QRect textRect(textStart, yCoordinate - halfHeight, textWidth + 1, rowHeight);

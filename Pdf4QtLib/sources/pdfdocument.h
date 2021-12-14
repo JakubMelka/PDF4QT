@@ -599,18 +599,6 @@ const PDFObject& PDFDocument::getObjectByReference(PDFObjectReference reference)
 }
 
 inline
-const PDFObject& PDFObjectStorage::getObject(const PDFObject& object) const
-{
-    if (object.isReference())
-    {
-        // Try to dereference the object
-        return getObject(object.getReference());
-    }
-
-    return object;
-}
-
-inline
 const PDFDictionary* PDFObjectStorage::getDictionaryFromObject(const PDFObject& object) const
 {
     const PDFObject& dereferencedObject = getObject(object);

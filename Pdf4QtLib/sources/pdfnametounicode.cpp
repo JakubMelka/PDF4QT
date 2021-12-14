@@ -22,7 +22,7 @@
 namespace pdf
 {
 
-static constexpr const std::array glyphNameToUnicode = {
+static constexpr const std::array<std::pair<QChar, const char*>, 4285>  glyphNameToUnicode = {
     std::pair<QChar, const char*>{ QChar(0x0041), "A" },                            // Character 'A' Letter, Uppercase
     std::pair<QChar, const char*>{ QChar(0x00C6), "AE" },                           // Character 'Æ' Letter, Uppercase
     std::pair<QChar, const char*>{ QChar(0x01FC), "AEacute" },                      // Character 'Ǽ' Letter, Uppercase

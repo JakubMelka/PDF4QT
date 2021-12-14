@@ -55,7 +55,7 @@ pdf::PDFOperationResult AudioBookCreator::createAudioBook(const Settings& settin
         QString trimmedText = item.text.trimmed();
         if (!trimmedText.isEmpty())
         {
-            textStream << trimmedText << endl;
+            textStream << trimmedText << Qt::endl;
         }
     }
 

@@ -2033,7 +2033,7 @@ void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store
 #ifdef Q_OS_WIN
     if (m_parameters.useSystemCertificateStore)
     {
-        HCERTSTORE certStore = CertOpenSystemStore(NULL, L"ROOT");
+        HCERTSTORE certStore = CertOpenSystemStore(0, L"ROOT");
         PCCERT_CONTEXT context = nullptr;
         if (certStore)
         {
@@ -2059,7 +2059,7 @@ pdf::PDFCertificateStore::CertificateEntries pdf::PDFCertificateStore::getSystem
     CertificateEntries result;
 
 #ifdef Q_OS_WIN
-    HCERTSTORE certStore = CertOpenSystemStore(NULL, L"ROOT");
+    HCERTSTORE certStore = CertOpenSystemStore(0, L"ROOT");
     PCCERT_CONTEXT context = nullptr;
     if (certStore)
     {

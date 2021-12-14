@@ -1491,7 +1491,7 @@ void PDFCMSManager::setDocument(const PDFDocument* document)
                     content = m_document->getDecodedStream(outputProfileObject.getStream());
                 }
             }
-            catch (PDFException)
+            catch (const PDFException&)
             {
                 continue;
             }

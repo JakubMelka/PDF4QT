@@ -351,7 +351,7 @@ private:
     QByteArray m_defaultAppearance;
 
     /// Text field alignment
-    Qt::Alignment m_alignment = 0;
+    Qt::Alignment m_alignment = Qt::Alignment();
 
     /// Default style
     QString m_defaultStyle;

@@ -787,6 +787,7 @@ PDFObject PDFParser::getObject()
                 shift();
                 return PDFObject::createArray(std::move(arraySharedPointer));
             }
+            return PDFObject::createNull();
         }
         case PDFLexicalAnalyzer::TokenType::DictionaryStart:
         {
@@ -902,6 +903,7 @@ PDFObject PDFParser::getObject()
                 shift();
                 return PDFObject::createDictionary(std::move(dictionarySharedPointer));
             }
+            return PDFObject::createNull();
         }
 
         case PDFLexicalAnalyzer::TokenType::Null:

@@ -162,7 +162,7 @@ void PDFDocumentReader::checkHeader(const QByteArray& buffer)
     }
 }
 
-const PDFInteger PDFDocumentReader::findXrefTableOffset(const QByteArray& buffer)
+PDFInteger PDFDocumentReader::findXrefTableOffset(const QByteArray& buffer)
 {
     const int startXRefPosition = findFromEnd(PDF_START_OF_XREF_MARK, buffer, PDF_FOOTER_SCAN_LIMIT);
     if (startXRefPosition == FIND_NOT_FOUND_RESULT)
@@ -271,7 +271,7 @@ PDFObject PDFDocumentReader::readDamagedTrailerDictionary() const
                 object = PDFObjectManipulator::merge(object, trailerDictionaryObject, PDFObjectManipulator::RemoveNullObjects);
             }
         }
-        catch (PDFException)
+        catch (const PDFException&)
         {
             // Do nothing...
         }
@@ -299,7 +299,7 @@ PDFDocumentReader::Result PDFDocumentReader::processReferenceTableEntries(PDFXRe
                 QMutexLocker lock(&m_mutex);
                 objects[entry.reference.objectNumber] = PDFObjectStorage::Entry(entry.reference.generation, object);
             }
-            catch (PDFException exception)
+            catch (const PDFException& exception)
             {
                 QMutexLocker lock(&m_mutex);
 
@@ -518,7 +518,7 @@ void PDFDocumentReader::processObjectStreams(PDFXRefTable* xrefTable, PDFObjectS
                 }
             }
         }
-        catch (PDFException exception)
+        catch (const PDFException& exception)
         {
             QMutexLocker lock(&m_mutex);
             m_result = Result::Failed;
@@ -711,7 +711,7 @@ bool PDFDocumentReader::restoreObjects(std::map<PDFObjectReference, PDFObject>& 
                 }
             }
         }
-        catch (PDFException)
+        catch (const PDFException&)
         {
             // Do nothing
             succesfull = false;

@@ -984,7 +984,7 @@ QStringList GeneratedBase::getFormattedTextWithLayout(QString firstPrefix, QStri
     int usedLength = indent + qMax(firstPrefix.length(), prefix.length());
     int length = 80 - usedLength;
     QString testText(length, QChar('A'));
-    int width = fontMetrics.width(testText);
+    int width = fontMetrics.horizontalAdvance(testText);
 
     QTextLayout layout(text, font);
     layout.setCacheEnabled(false);

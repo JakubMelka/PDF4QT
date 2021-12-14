@@ -254,8 +254,14 @@ class PDFIntegerRange
 public:
     explicit inline constexpr PDFIntegerRange(T begin, T end) : m_begin(begin), m_end(end) { }
 
-    struct Iterator : public std::iterator<std::random_access_iterator_tag, T, ptrdiff_t, T*, T&>
+    struct Iterator
     {
+        using iterator_category = std::random_access_iterator_tag;
+        using difference_type   = ptrdiff_t;
+        using value_type        = T;
+        using pointer           = T*;
+        using reference         = T&;
+
         inline Iterator() : value(T(0)) { }
         inline Iterator(T value) : value(value) { }
 
