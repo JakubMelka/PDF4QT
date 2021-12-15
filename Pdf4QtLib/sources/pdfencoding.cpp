@@ -2150,7 +2150,7 @@ QByteArray PDFEncoding::convertToEncoding(const QString& string, Encoding encodi
         {
             if (unicode == (*table)[static_cast<unsigned char>(i)])
             {
-                converted = i;
+                converted = static_cast<unsigned char>(i);
                 break;
             }
         }

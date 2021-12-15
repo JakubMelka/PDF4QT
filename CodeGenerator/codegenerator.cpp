@@ -1532,6 +1532,49 @@ void XFACodeGenerator::loadClasses(const QDomDocument& document)
 
         m_classes.emplace_back(std::move(myClass));
     }
+
+    std::map<QString, QStringList> prerequisites;
+    for (const auto& myClass : m_classes)
+    {
+        QStringList& sl = prerequisites[myClass.className];
+        for (const auto& subnode : myClass.subnodes)
+        {
+            if (subnode.subnodeName != myClass.className)
+            {
+                sl << subnode.subnodeName;
+            }
+        }
+    }
+
+    std::vector<Class> sortedClasses;
+    while (!m_classes.empty())
+    {
+        auto it = m_classes.begin();
+        for (; it != m_classes.end(); ++it)
+        {
+            if (prerequisites[it->className].isEmpty())
+            {
+                break;
+            }
+        }
+
+        if (it == m_classes.end())
+        {
+            break;
+        }
+
+        Class myClass = *it;
+        it = m_classes.erase(it);
+
+        for (auto& prerequisite : prerequisites)
+        {
+            prerequisite.second.removeAll(myClass.className);
+        }
+
+        sortedClasses.emplace_back(std::move(myClass));
+    }
+    sortedClasses.insert(sortedClasses.end(), m_classes.begin(), m_classes.end());
+    m_classes = std::move(sortedClasses);
 }
 
 const XFACodeGenerator::Type* XFACodeGenerator::createType(QString id, QString name, QString type)
