@@ -1,114 +1,23 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg5291"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="zoom-out.svg">
-  <defs
-     id="defs5285">
-    <inkscape:perspective
-       sodipodi:type="inkscape:persp3d"
-       inkscape:vp_x="0 : 15 : 1"
-       inkscape:vp_y="0 : 1000 : 0"
-       inkscape:vp_z="30 : 15 : 1"
-       inkscape:persp3d-origin="15 : 10 : 1"
-       id="perspective5921" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="11.313708"
-     inkscape:cx="95.629471"
-     inkscape:cy="75.073314"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5288">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <flowRoot
-       xml:space="preserve"
-       id="flowRoot5913"
-       style="fill:black;fill-opacity:1;stroke:none;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;letter-spacing:0px;word-spacing:0px"><flowRegion
-         id="flowRegion5915"><rect
-           id="rect5917"
-           width="129.22377"
-           height="91.747108"
-           x="-13.788582"
-           y="-33.515606" /></flowRegion><flowPara
-         id="flowPara5919"></flowPara></flowRoot>    <ellipse
-       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="path5985"
-       cx="10.996745"
-       cy="278.08231"
-       rx="6.4988279"
-       ry="6.4161458" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="m 15.64349,283.14245 6.482291,7.27604"
-       id="path5987"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
-       d="m 6.8988947,278.38468 8.1617433,-0.0935"
-       id="path5991"
-       inkscape:connector-curvature="0" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<path fill="#292D32" d="M22.077,17.182c0.128-0.621,0.193-1.346,0.203-2.216V9.031c-0.012-0.89-0.076-1.593-0.204-2.21
+		c-0.252-1.393-0.759-2.461-1.55-3.271c-0.59-0.619-1.389-1.092-2.377-1.405c-0.905-0.281-2.021-0.425-3.311-0.425l-5.68,0.002
+		c-5.146,0-7.439,2.293-7.439,7.438v5.689c0,5.14,2.295,7.431,7.439,7.431h5.681c1.291,0,2.403-0.146,3.312-0.425
+		c0.98-0.307,1.762-0.764,2.379-1.397C21.315,19.65,21.821,18.58,22.077,17.182z M18.22,20.134
+		c-0.643,0.284-1.443,0.446-2.451,0.496c-0.304,0.021-0.604,0.031-0.927,0.031H9.161c-4.354,0-5.821-1.466-5.821-5.812v-5.69
+		c0-4.323,1.439-5.79,5.714-5.811l0.108-0.02h5.68c0.33,0,0.646,0.011,0.938,0.03c1.016,0.062,1.818,0.228,2.453,0.509
+		c1.193,0.507,1.901,1.432,2.228,2.911c0.131,0.631,0.196,1.367,0.205,2.252v5.937c-0.009,0.889-0.074,1.624-0.205,2.254
+		C20.135,18.702,19.423,19.628,18.22,20.134z"/>
+</g>
+<g>
+	<path fill="#292D32" d="M7.293,13.066l-1.127,0.704l-0.568-1.003l1.986-1.329h1.138v6.622H7.293V13.066z"/>
+	<path fill="#292D32" d="M9.899,14.811h2.642v1.198H9.899V14.811z"/>
+	<path fill="#292D32" d="M13.4,16.903l2.438-1.888c0.791-0.628,1.041-1.06,1.041-1.522c0-0.552-0.465-0.878-1.002-0.878
+		c-0.646,0-1.141,0.326-1.619,0.878l-0.908-0.878c0.656-0.83,1.494-1.293,2.564-1.293c1.408,0,2.43,0.867,2.43,2.111
+		c0,0.887-0.385,1.572-1.543,2.411l-1.205,0.934h2.807v1.283h-5.006v-1.157H13.4z"/>
+</g>
 </svg>

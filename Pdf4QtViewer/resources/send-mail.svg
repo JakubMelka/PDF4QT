@@ -1,102 +1,26 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg5291"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="send-mail.svg">
-  <defs
-     id="defs5285" />
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="30.416613"
-     inkscape:cy="-20.999376"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5288">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <rect
-       style="fill:#c8c8c8;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect831"
-       width="26.647322"
-       height="19.135044"
-       x="1.7008928"
-       y="272.33707"
-       ry="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
-       d="M 1.7008928,272.33707 15.308036,284.45591 28.348215,272.33707"
-       id="path833"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
-       d="M 1.7008928,291.47211 12.425967,281.85733"
-       id="path837"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.8;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
-       d="m 28.348215,291.47211 -10.299852,-9.6384"
-       id="path839"
-       inkscape:connector-curvature="0" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<path fill="#292D32" d="M22.531,7.424c-0.213-0.984-1.035-1.621-2.095-1.621H6.334L6.171,5.805C5.196,5.83,4.379,6.533,4.23,7.476
+		C4.175,7.831,4.184,8.194,4.193,8.589c0.008,0.339,0.295,0.604,0.655,0.604C5.2,9.192,5.467,8.948,5.497,8.598
+		c0.011-0.129,0.011-0.259,0.011-0.389c0-0.08,0-0.161,0.002-0.243L10.215,12c-1.57,1.345-3.123,2.676-4.705,4.033
+		c-0.002-0.078-0.001-0.155-0.001-0.232c0-0.106,0.001-0.212-0.003-0.317c-0.018-0.404-0.281-0.677-0.679-0.677c0,0,0,0-0.001,0
+		c-0.368,0.01-0.631,0.293-0.64,0.687c-0.004,0.121-0.003,0.242-0.002,0.364l0,0.159c0.001,1.304,0.872,2.18,2.167,2.18l7.028,0.001
+		l7.029-0.001c1.317,0,2.169-0.853,2.169-2.173c0.002-2.681,0.002-5.361,0-8.043C22.576,7.79,22.571,7.604,22.531,7.424z M16.553,12
+		c1.571-1.348,3.119-2.675,4.668-4.002c0.061,1.433,0.063,6.616,0.006,8.009C19.673,14.674,18.122,13.345,16.553,12z M14.381,13.857
+		c0.306-0.254,0.604-0.516,0.91-0.783l0.239-0.21l4.651,3.989H6.587l4.648-3.989l1.114,0.965c0.052,0.044,0.104,0.088,0.162,0.13
+		C13.083,14.35,13.844,14.311,14.381,13.857z M13.097,12.715L6.578,7.139h13.61l-6.521,5.582
+		C13.417,12.935,13.351,12.931,13.097,12.715z"/>
+	<path fill="#292D32" d="M6.167,13.818c0.234-0.002,0.436-0.086,0.568-0.238c0.121-0.14,0.173-0.326,0.146-0.524
+		c-0.048-0.35-0.332-0.567-0.741-0.569l-0.967-0.001H4.529H3.021c-0.29,0-0.58,0-0.87,0.002c-0.379,0.004-0.653,0.207-0.716,0.529
+		c-0.04,0.206,0.006,0.401,0.128,0.551c0.131,0.159,0.333,0.247,0.571,0.249c0.335,0.003,0.669,0.004,1.004,0.004l0.501-0.001
+		l1.715,0.001L6.167,13.818z"/>
+	<path fill="#292D32" d="M3.541,11.511c0.436,0.003,0.872,0.004,1.307,0.004s0.871-0.001,1.307-0.004
+		c0.23-0.001,0.422-0.074,0.555-0.211c0.119-0.123,0.18-0.286,0.176-0.472c-0.009-0.384-0.304-0.644-0.733-0.646l-0.478-0.001
+		l-0.831,0.001l-0.802-0.001l-0.482,0.001c-0.446,0.002-0.75,0.264-0.758,0.649c-0.005,0.177,0.057,0.342,0.175,0.463
+		C3.111,11.433,3.312,11.51,3.541,11.511z"/>
+</g>
 </svg>

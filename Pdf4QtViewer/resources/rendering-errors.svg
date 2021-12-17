@@ -1,100 +1,27 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg5291"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="rendering-errors.svg">
-  <defs
-     id="defs5285" />
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="5.6568542"
-     inkscape:cx="101.46447"
-     inkscape:cy="10.379569"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5288">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:25.39999962px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       x="9.9129448"
-       y="290.49152"
-       id="text5911"><tspan
-         sodipodi:role="line"
-         id="tspan5909"
-         x="9.9129448"
-         y="290.49152"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:25.39999962px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332">!</tspan></text>
-    <flowRoot
-       xml:space="preserve"
-       id="flowRoot5913"
-       style="fill:black;fill-opacity:1;stroke:none;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;letter-spacing:0px;word-spacing:0px"><flowRegion
-         id="flowRegion5915"><rect
-           id="rect5917"
-           width="129.22377"
-           height="91.747108"
-           x="-13.788582"
-           y="-33.515606" /></flowRegion><flowPara
-         id="flowPara5919"></flowPara></flowRoot>  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<g>
+		<g>
+			<path fill="#292D32" d="M13.336,12l3.948-3.277c0.36-0.297,0.409-0.834,0.113-1.2c-0.308-0.364-0.841-0.414-1.201-0.11
+				l-4.198,3.484L7.805,7.413C7.443,7.111,6.906,7.16,6.606,7.522c-0.3,0.365-0.25,0.903,0.111,1.2L10.666,12l-3.949,3.279
+				c-0.361,0.304-0.411,0.837-0.111,1.201c0.168,0.202,0.41,0.308,0.655,0.308c0.191,0,0.383-0.062,0.543-0.198l4.195-3.48
+				l4.196,3.48c0.161,0.137,0.356,0.198,0.544,0.198c0.242,0,0.487-0.104,0.657-0.308c0.297-0.364,0.246-0.897-0.112-1.201
+				L13.336,12z"/>
+		</g>
+	</g>
+	<g>
+		<path fill="#292D32" d="M22.076,17.183c0.128-0.621,0.194-1.346,0.204-2.217V9.031c-0.012-0.89-0.077-1.593-0.205-2.21
+			c-0.252-1.394-0.758-2.461-1.549-3.271c-0.59-0.618-1.389-1.092-2.377-1.404c-0.906-0.281-2.021-0.426-3.311-0.426l-5.68,0.003
+			c-5.146,0-7.439,2.293-7.439,7.438v5.69c0,5.139,2.295,7.43,7.439,7.43h5.681c1.291,0,2.403-0.145,3.312-0.424
+			c0.98-0.307,1.761-0.764,2.379-1.398C21.315,19.651,21.821,18.581,22.076,17.183z M18.219,20.134
+			c-0.643,0.285-1.444,0.447-2.452,0.496c-0.303,0.021-0.604,0.031-0.926,0.031H9.16c-4.354,0-5.821-1.465-5.821-5.811V9.159
+			c0-4.323,1.44-5.79,5.714-5.811l0.108-0.021h5.68c0.33,0,0.645,0.011,0.938,0.03c1.016,0.062,1.818,0.228,2.453,0.509
+			c1.194,0.507,1.902,1.432,2.228,2.911c0.131,0.631,0.196,1.367,0.205,2.252v5.938c-0.009,0.889-0.074,1.623-0.205,2.254
+			C20.134,18.702,19.422,19.628,18.219,20.134z"/>
+	</g>
+</g>
 </svg>

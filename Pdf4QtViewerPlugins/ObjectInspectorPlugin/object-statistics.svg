@@ -1,133 +1,33 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg8"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="object-statistics.svg">
-  <defs
-     id="defs2">
-    <inkscape:path-effect
-       effect="spiro"
-       id="path-effect831"
-       is_visible="true" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="7.919596"
-     inkscape:cx="110.52031"
-     inkscape:cy="57.025756"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 11.646391,283.58184 v 0 0"
-       id="path837"
-       inkscape:connector-curvature="0" />
-    <path
-       style="opacity:1;fill:#be0000;fill-opacity:1;stroke:none;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="path859"
-       sodipodi:type="arc"
-       sodipodi:cx="15.239737"
-       sodipodi:cy="282.52869"
-       sodipodi:rx="12"
-       sodipodi:ry="12"
-       sodipodi:start="0"
-       sodipodi:end="0.78539816"
-       d="m 27.239737,282.52869 a 12,12 0 0 1 -3.514719,8.48528 l -8.485281,-8.48528 z" />
-    <path
-       style="opacity:1;fill:#0000a9;fill-opacity:1;stroke:none;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="path861"
-       sodipodi:type="arc"
-       sodipodi:cx="13.936797"
-       sodipodi:cy="283.29706"
-       sodipodi:rx="12"
-       sodipodi:ry="12"
-       sodipodi:start="0.87266463"
-       sodipodi:end="2.3561945"
-       d="M 21.650248,292.48959 A 12,12 0 0 1 5.4515157,291.78234 l 8.4852813,-8.48528 z" />
-    <path
-       style="opacity:1;fill:#cdc800;fill-opacity:1;stroke:none;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="path865"
-       sodipodi:type="arc"
-       sodipodi:cx="13.201805"
-       sodipodi:cy="281.00259"
-       sodipodi:rx="12"
-       sodipodi:ry="12"
-       sodipodi:start="2.443461"
-       sodipodi:end="4.7996554"
-       d="M 4.0092714,288.71604 A 12,12 0 0 1 2.5576751,275.46161 12,12 0 0 1 14.247674,269.04826 l -1.045869,11.95433 z" />
-    <path
-       style="opacity:1;fill:#00be00;fill-opacity:1;stroke:none;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="path867"
-       sodipodi:type="arc"
-       sodipodi:cx="15.167545"
-       sodipodi:cy="281.00259"
-       sodipodi:rx="12"
-       sodipodi:ry="12"
-       sodipodi:start="4.8869219"
-       sodipodi:end="6.1959188"
-       d="m 17.251323,269.1849 a 12,12 0 0 1 9.870559,10.77182 l -11.954337,1.04587 z" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<path fill="#292D32" d="M8.215,20.134c0-0.603,0-1.19,0-1.778c0-0.674-0.002-1.344,0.001-2.016
+		c0.001-0.365,0.221-0.589,0.584-0.591c0.686-0.002,1.37-0.001,2.055,0c0.388,0.002,0.605,0.218,0.605,0.602
+		c0.002,1.186,0.001,2.37,0.001,3.55c0,0.072,0,0.146,0,0.229c0.354,0,0.706,0,1.08,0c0-0.066,0-0.135,0-0.206
+		c0-2.607,0-5.212,0-7.819c0-0.492,0.189-0.683,0.688-0.683c0.637,0,1.273,0,1.908,0c0.445,0.001,0.647,0.205,0.647,0.657
+		c0,2.608,0,5.222,0,7.834c0,0.07,0,0.142,0,0.224c0.362,0,0.704,0,1.08,0c0-0.076,0-0.153,0-0.225c0-3.692,0-7.387,0-11.082
+		c0-0.351,0.137-0.565,0.414-0.631c0.076-0.016,0.156-0.016,0.233-0.016c0.65-0.001,1.298-0.001,1.945-0.001
+		c0.446,0.001,0.651,0.202,0.651,0.648c0,3.693,0,7.39,0,11.082c0,0.068,0,0.141,0,0.233c0.163,0,0.318,0,0.47,0
+		c0.398,0,0.649,0.214,0.646,0.547c-0.003,0.323-0.25,0.533-0.638,0.533c-1.992,0-3.987,0-5.983,0c-3.728,0-7.458,0-11.187,0.001
+		c-0.264,0-0.475-0.073-0.592-0.322c-0.163-0.346,0.084-0.739,0.478-0.757c0.19-0.009,0.381-0.002,0.589-0.002
+		c0-0.091,0-0.161,0-0.23c0-1.885,0-3.771,0-5.657c0-0.479,0.191-0.672,0.679-0.672c0.636,0,1.274,0,1.909,0
+		c0.457,0.002,0.655,0.201,0.655,0.661c0,1.887,0,3.774,0,5.657c0,0.072,0,0.143,0,0.227C7.495,20.134,7.844,20.134,8.215,20.134z"
+		/>
+	<path fill="#292D32" d="M19.343,3.03c-0.6-0.352-1.213-0.352-1.779,0.048c-0.574,0.401-0.793,0.975-0.652,1.67
+		c0.021,0.096,0.013,0.149-0.067,0.211c-0.559,0.415-1.118,0.833-1.671,1.253c-0.087,0.065-0.146,0.056-0.241,0.017
+		c-0.075-0.032-0.153-0.06-0.229-0.087c-0.176-0.057-0.542-0.139-0.933-0.054c-0.118,0.03-0.23,0.065-0.337,0.119
+		c-0.038,0.021-0.079,0.043-0.112,0.063c-0.016,0.011-0.034,0.021-0.045,0.028c-0.646,0.416-0.89,1.175-0.625,1.924
+		c0.018,0.054,0.009,0.15-0.028,0.186c-0.669,0.681-1.345,1.355-2.025,2.026c-0.03,0.033-0.112,0.05-0.153,0.036
+		c-0.604-0.231-1.151-0.128-1.655,0.266c-0.039,0.032-0.127,0.036-0.173,0.013c-0.469-0.228-0.934-0.461-1.401-0.7
+		c-0.043-0.022-0.086-0.097-0.086-0.148c0.011-0.574-0.202-1.039-0.653-1.392C5.964,8.106,5.189,8.084,4.62,8.453
+		c-0.563,0.369-0.854,1.118-0.676,1.749c0.332,1.162,1.619,1.59,2.582,0.853c0.084-0.064,0.147-0.068,0.238-0.023
+		c0.442,0.229,0.89,0.453,1.334,0.67c0.096,0.045,0.127,0.094,0.124,0.205c-0.031,0.655,0.344,1.253,0.958,1.537
+		c0.571,0.27,1.279,0.146,1.773-0.309c0.457-0.416,0.625-1.121,0.398-1.718c-0.043-0.114-0.023-0.182,0.059-0.262
+		c0.65-0.642,1.294-1.29,1.937-1.937c0.083-0.084,0.146-0.105,0.264-0.063c0.615,0.22,1.18,0.104,1.654-0.337
+		c0.438-0.409,0.601-0.929,0.469-1.521c-0.025-0.111,0.001-0.161,0.085-0.224c0.555-0.409,1.105-0.823,1.657-1.241
+		c0.083-0.064,0.144-0.069,0.237-0.015c1.009,0.545,2.221-0.076,2.372-1.219C20.168,3.981,19.863,3.333,19.343,3.03z"/>
+</g>
 </svg>

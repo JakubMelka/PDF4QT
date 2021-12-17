@@ -1,119 +1,36 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg8"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="redact-page.svg">
-  <defs
-     id="defs2">
-    <linearGradient
-       id="linearGradient2293"
-       osb:paint="solid">
-      <stop
-         style="stop-color:#000000;stop-opacity:1;"
-         offset="0"
-         id="stop2291" />
-    </linearGradient>
-    <inkscape:path-effect
-       effect="spiro"
-       id="path-effect831"
-       is_visible="true" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="0.35"
-     inkscape:cx="-258.73589"
-     inkscape:cy="571.99872"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 11.646391,283.58184 v 0 0"
-       id="path837"
-       inkscape:connector-curvature="0" />
-    <rect
-       style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect841"
-       width="27.214285"
-       height="26.316593"
-       x="1.3701636"
-       y="268.84076" />
-    <rect
-       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect902"
-       width="10.958051"
-       height="15.434815"
-       x="6.6590743"
-       y="272.2883" />
-    <rect
-       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect902-1"
-       width="10.958051"
-       height="15.434815"
-       x="12.8516"
-       y="277.37302" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<path fill="#292D32" d="M22.075,6.821c-0.252-1.393-0.758-2.461-1.549-3.271c-0.59-0.618-1.389-1.092-2.377-1.404
+	c-0.906-0.281-2.021-0.425-3.312-0.425L9.159,1.724c-5.146,0-7.44,2.293-7.44,7.438v5.688c0,5.139,2.295,7.43,7.44,7.43h5.68
+	c1.291,0,2.404-0.145,3.313-0.424c0.98-0.305,1.761-0.762,2.38-1.396c0.784-0.81,1.29-1.879,1.545-3.276
+	c0.129-0.621,0.194-1.347,0.205-2.216V9.031C22.269,8.143,22.202,7.438,22.075,6.821z"/>
+<g>
+	<g>
+		<path fill="#FFFFFF" d="M13.408,9.516c-0.105-0.642-0.34-1.134-0.69-1.512c-0.009-0.019-0.028-0.037-0.047-0.057
+			C12.491,7.759,12.265,7.599,12,7.476c-0.142-0.075-0.302-0.142-0.472-0.198C11.093,7.136,10.564,7.07,9.941,7.07h-2.72
+			c-2.465,0-3.57,1.105-3.57,3.57v2.729c0,2.455,1.105,3.561,3.57,3.561h2.72c0.624,0,1.152-0.076,1.587-0.207
+			c0.17-0.057,0.331-0.113,0.482-0.189c0.255-0.121,0.472-0.283,0.661-0.48c0.019-0.02,0.028-0.029,0.038-0.049
+			c0.359-0.377,0.586-0.877,0.707-1.52c0.057-0.293,0.086-0.643,0.096-1.059v-2.852C13.502,10.149,13.473,9.809,13.408,9.516z
+			 M12.737,13.426c-0.011,0.426-0.038,0.775-0.104,1.078c-0.113,0.51-0.312,0.887-0.642,1.131c-0.123,0.115-0.264,0.199-0.425,0.266
+			c-0.084,0.037-0.179,0.076-0.283,0.104c-0.255,0.076-0.548,0.123-0.898,0.133c-0.141,0.01-0.283,0.02-0.444,0.02h-2.72
+			c-2.087,0-2.796-0.709-2.796-2.787V10.64c0-2.078,0.69-2.777,2.739-2.787l0.057-0.009h2.72c0.161,0,0.312,0,0.453,0.009
+			c0.35,0.019,0.652,0.067,0.897,0.142c0.104,0.038,0.189,0.067,0.274,0.104c0.161,0.066,0.303,0.151,0.425,0.255
+			c0.331,0.255,0.529,0.633,0.642,1.143c0.066,0.302,0.094,0.652,0.104,1.077V13.426z"/>
+	</g>
+	<g>
+		<path fill="#FFFFFF" d="M20.246,9.516c-0.113-0.67-0.359-1.181-0.738-1.568c-0.283-0.292-0.67-0.519-1.143-0.67
+			c-0.434-0.132-0.973-0.208-1.586-0.208h-2.721c-0.84,0-1.52,0.132-2.059,0.406c-0.273,0.133-0.51,0.303-0.708,0.52
+			c0.104,0.038,0.189,0.067,0.274,0.104c0.161,0.066,0.303,0.151,0.425,0.255c0.198-0.161,0.435-0.274,0.727-0.35
+			c0.351-0.104,0.774-0.141,1.284-0.151l0.057-0.009h2.721c0.16,0,0.311,0,0.453,0.009c0.482,0.038,0.869,0.114,1.172,0.246
+			c0.576,0.246,0.916,0.69,1.066,1.398c0.066,0.302,0.094,0.652,0.104,1.077v2.852c-0.01,0.426-0.037,0.775-0.104,1.078
+			c-0.15,0.709-0.49,1.15-1.066,1.396c-0.311,0.133-0.699,0.217-1.182,0.236c-0.141,0.01-0.293,0.02-0.443,0.02h-2.721
+			c-0.537,0-0.982-0.049-1.35-0.152c-0.293-0.084-0.529-0.207-0.718-0.369c-0.123,0.115-0.264,0.199-0.425,0.266
+			c-0.084,0.037-0.179,0.076-0.283,0.104c0.208,0.219,0.444,0.396,0.727,0.529c0.539,0.275,1.219,0.396,2.049,0.396h2.721
+			c0.623,0,1.152-0.064,1.586-0.207c0.473-0.143,0.85-0.359,1.143-0.67c0.379-0.387,0.615-0.898,0.738-1.568
+			c0.066-0.293,0.094-0.643,0.104-1.059v-2.852C20.34,10.149,20.313,9.818,20.246,9.516z"/>
+	</g>
+</g>
 </svg>

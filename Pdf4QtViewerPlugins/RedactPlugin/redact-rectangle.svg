@@ -1,120 +1,29 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg8"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="redact-rectangle.svg">
-  <defs
-     id="defs2">
-    <linearGradient
-       id="linearGradient2293"
-       osb:paint="solid">
-      <stop
-         style="stop-color:#000000;stop-opacity:1;"
-         offset="0"
-         id="stop2291" />
-    </linearGradient>
-    <inkscape:path-effect
-       effect="spiro"
-       id="path-effect831"
-       is_visible="true" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="1.979899"
-     inkscape:cx="257.55459"
-     inkscape:cy="54.1937"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 11.646391,283.58184 v 0 0"
-       id="path837"
-       inkscape:connector-curvature="0" />
-    <rect
-       style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect841"
-       width="27.214285"
-       height="26.316593"
-       x="1.3701636"
-       y="268.84076" />
-    <path
-       sodipodi:type="star"
-       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="path887"
-       sodipodi:sides="6"
-       sodipodi:cx="14.833459"
-       sodipodi:cy="282.16655"
-       sodipodi:r1="9.7287579"
-       sodipodi:r2="4.8643789"
-       sodipodi:arg1="-1.2055949"
-       sodipodi:arg2="-0.6819961"
-       inkscape:flatsided="false"
-       inkscape:rounded="0"
-       inkscape:randomized="0"
-       d="m 18.307963,273.0794 0.301791,6.02093 5.830672,1.53166 -5.063385,3.27183 1.588881,5.81534 -5.365176,-2.74911 -4.241791,4.28368 -0.301791,-6.02093 -5.830672,-1.53166 5.063385,-3.27183 -1.5888813,-5.81534 5.3651763,2.74911 z" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<g>
+		<path fill="none" stroke="#292D32" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M22.605,10v5
+			c0,5-2,7-7,7h-6c-5,0-7-2-7-7V9c0-5,2-7,7-7h5"/>
+		<path fill="none" stroke="#292D32" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M22.605,10h-4
+			c-3,0-4-1-4-4V2L22.605,10z"/>
+	</g>
+</g>
+<g>
+	<path fill="#292D32" d="M18.518,16.232c-0.037-0.026-0.087-0.037-0.142-0.045l-0.784-0.099c-0.827-0.096-1.648-0.201-2.475-0.3
+		v0.646c0.595,0.07,1.188,0.145,1.782,0.219l0.626,0.074c-0.172,0.128-0.344,0.25-0.516,0.372c-0.269,0.202-0.546,0.406-0.82,0.608
+		c-0.11,0.077-0.166,0.176-0.179,0.311c-0.012,0.144-0.03,0.289-0.042,0.431c-0.013,0.091-0.025,0.183-0.03,0.275
+		c-0.032,0.258-0.056,0.516-0.087,0.784c-0.484-0.712-0.956-1.416-1.439-2.12l-0.086-0.129h-0.772
+		c0.747,1.104,1.501,2.212,2.248,3.314c0.074,0.105,0.173,0.159,0.276,0.159c0.023,0,0.049-0.006,0.073-0.011
+		c0.141-0.034,0.233-0.142,0.245-0.295l0.091-0.858c0.049-0.453,0.099-0.907,0.147-1.367c0-0.023,0.007-0.035,0.025-0.048
+		c0.624-0.46,1.248-0.919,1.881-1.379c0.097-0.074,0.153-0.184,0.141-0.292C18.677,16.373,18.615,16.28,18.518,16.232z"/>
+	<path fill="#292D32" d="M15.117,10.71v5.079c-0.687-0.083-1.379-0.165-2.065-0.25c-0.123-0.011-0.233,0.024-0.306,0.111
+		c-0.063,0.066-0.087,0.159-0.08,0.237c0,0.013,0.006,0.025,0.013,0.056l0.012,0.031c0.014,0.023,0.024,0.056,0.043,0.079
+		c0.276,0.404,0.545,0.805,0.821,1.208H5.968c-0.343,0-0.613-0.275-0.613-0.613V10.71c0-0.337,0.27-0.613,0.613-0.613h8.536
+		C14.847,10.097,15.117,10.373,15.117,10.71z"/>
+	<path fill="#292D32" d="M13.646,16.256c0.489,0.062,0.979,0.122,1.469,0.178v0.213c0,0.34-0.269,0.614-0.612,0.614h-0.177
+		L13.646,16.256z"/>
+</g>
 </svg>

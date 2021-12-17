@@ -1,108 +1,29 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg5291"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="about.svg">
-  <defs
-     id="defs5285">
-    <inkscape:perspective
-       sodipodi:type="inkscape:persp3d"
-       inkscape:vp_x="0 : 15 : 1"
-       inkscape:vp_y="0 : 1000 : 0"
-       inkscape:vp_z="30 : 15 : 1"
-       inkscape:persp3d-origin="15 : 10 : 1"
-       id="perspective5921" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="5.656854"
-     inkscape:cx="148.43961"
-     inkscape:cy="135.18316"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5288">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <flowRoot
-       xml:space="preserve"
-       id="flowRoot5913"
-       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"><flowRegion
-         id="flowRegion5915"><rect
-           id="rect5917"
-           width="129.22377"
-           height="91.747108"
-           x="-13.788582"
-           y="-33.515606" /></flowRegion><flowPara
-         id="flowPara5919" /></flowRoot>    <g
-       aria-label="?"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:25.39999962px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       id="text849"
-       transform="translate(-4.7625002,-4.2333335)">
-      <path
-         d="m 25.373474,281.70442 q 0,1.21543 -0.434082,2.17041 -0.434082,0.94258 -1.141016,1.67432 -0.694531,0.70693 -1.599902,1.32705 -0.905371,0.62011 -1.922363,1.20302 v 2.79053 h -2.22002 v -3.78271 q 0.806153,-0.45889 1.736328,-1.00459 0.942578,-0.54571 1.537891,-1.10381 0.719336,-0.64492 1.116211,-1.32705 0.396875,-0.69453 0.396875,-1.76114 0,-1.40146 -0.954981,-2.08359 -0.942578,-0.69453 -2.443261,-0.69453 -1.339453,0 -2.542481,0.42168 -1.190625,0.42168 -1.885156,0.85576 h -0.124023 v -2.53008 q 0.868164,-0.33486 2.195214,-0.59531 1.339454,-0.27285 2.530079,-0.27285 2.666503,0 4.204394,1.30224 1.550293,1.28985 1.550293,3.41065 z m -4.898926,14.12627 H 17.94447 v -2.6169 h 2.530078 z"
-         style="stroke-width:0.26458332"
-         id="path851"
-         inkscape:connector-curvature="0" />
-    </g>
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<path fill-rule="evenodd" clip-rule="evenodd" d="M-1547.835,403.568c26.05-110.674,51.961-220.759,78.164-332.085
+		c28.745,46.334,56.782,91.526,85.416,137.682c122.286-71.896,196.638-174.667,201.493-318.404
+		c4.855-143.804-62.799-251.306-177.871-330.163c115.04,30.62,252.495,132.629,295.927,304.445
+		c24.787,98.054,15.625,193.557-27.706,285.051c-43.192,91.203-111.394,158.311-201.812,204.03
+		c26.034,42.072,51.925,83.911,78.508,126.869C-1327.05,455.039-1437.206,429.358-1547.835,403.568z"/>
+	<path fill-rule="evenodd" clip-rule="evenodd" d="M-1694.662-287.074c-26.073-42.058-52.021-83.913-78.64-126.851
+		c111.229,25.923,221.277,51.569,332.081,77.393c-25.965,110.341-51.874,220.449-78.129,332.026
+		c-28.676-46.221-56.676-91.354-85.199-137.33c-102.922,58.58-171.482,142.72-195.558,259.743
+		c-15.714,76.38-6.517,150.618,25.988,221.581c32.324,70.571,82.502,125.671,148.557,167.807
+		c-122.248-33.046-259.491-138.307-300.411-312.274c-22.867-97.217-12.584-191.495,31.025-281.439
+		C-1851.486-176.059-1783.807-242.134-1694.662-287.074z"/>
+</g>
+<g>
+	<path fill="#292D32" d="M15.417,23.323h-6c-5.43,0-7.75-2.32-7.75-7.75v-3c0-0.41,0.34-0.75,0.75-0.75s0.75,0.34,0.75,0.75v3
+		c0,4.609,1.641,6.25,6.25,6.25h6c4.609,0,6.25-1.641,6.25-6.25v-6c0-2.899-0.68-4.58-2.21-5.45c-0.16-0.09-0.69-0.33-2.21-0.57
+		c-0.41-0.06-0.689-0.45-0.62-0.86s0.46-0.69,0.86-0.62c1.31,0.21,2.199,0.45,2.709,0.74c2.021,1.15,2.971,3.3,2.971,6.76v6
+		C23.167,21.003,20.847,23.323,15.417,23.323z"/>
+	<path fill-rule="evenodd" clip-rule="evenodd" fill="#292D32" d="M10.255,9.696c-0.081-0.023-0.166-0.042-0.246-0.063
+		c-1.694-0.413-2.91-0.286-2.91-0.286l-0.08,2.796c-0.016,0.578-0.359,0.713-0.767,0.302c-1.433-1.448-2.854-2.884-4.275-4.32
+		C1.57,7.714,1.575,7.051,1.987,6.646c1.472-1.45,2.938-2.894,4.412-4.348C6.812,1.892,7.144,2.032,7.141,2.61
+		C7.136,3.477,7.13,4.333,7.125,5.192c0,0,10.111-0.563,11.268,12.055C16.14,12.213,12.74,10.365,10.255,9.696z"/>
+</g>
 </svg>

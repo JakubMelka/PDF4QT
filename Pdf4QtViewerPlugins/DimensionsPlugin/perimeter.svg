@@ -1,109 +1,38 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg8"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="perimeter.svg">
-  <defs
-     id="defs2">
-    <inkscape:path-effect
-       effect="spiro"
-       id="path-effect831"
-       is_visible="true" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="5.6"
-     inkscape:cx="157.79444"
-     inkscape:cy="47.635251"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 11.646391,283.58184 v 0 0"
-       id="path837"
-       inkscape:connector-curvature="0" />
-    <rect
-       style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.5;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect4611"
-       width="21.591888"
-       height="18.048363"
-       x="4.4790177"
-       y="273.08356"
-       rx="3.0000045"
-       ry="3.0000045" />
-    <g
-       aria-label="o"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.28888893px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       id="text4615"
-       transform="translate(0.52916667)">
-      <path
-         d="m 17.786142,281.98022 q 0,1.50482 -0.771701,2.37574 -0.771701,0.87092 -2.067057,0.87092 -1.306381,0 -2.078082,-0.87092 -0.766189,-0.87092 -0.766189,-2.37574 0,-1.50482 0.766189,-2.37574 0.771701,-0.87643 2.078082,-0.87643 1.295356,0 2.067057,0.87643 0.771701,0.87092 0.771701,2.37574 z m -1.069357,0 q 0,-1.19614 -0.468533,-1.77491 -0.468533,-0.58429 -1.300868,-0.58429 -0.84336,0 -1.311893,0.58429 -0.463021,0.57877 -0.463021,1.77491 0,1.15755 0.468533,1.75838 0.468533,0.59531 1.306381,0.59531 0.826823,0 1.295356,-0.5898 0.474045,-0.59532 0.474045,-1.76389 z"
-         style="stroke-width:0.26458332"
-         id="path4617"
-         inkscape:connector-curvature="0" />
-    </g>
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<path fill="#292D32" d="M11.781,3.289c-0.541-0.55-1.09-1.11-1.65-1.65c-0.12-0.11-0.29-0.18-0.45-0.2
+		c-0.239-0.02-0.42,0.12-0.521,0.34c-0.109,0.25-0.039,0.47,0.141,0.65c0.21,0.23,0.449,0.43,0.68,0.65c0,0.01,0.07,0.05,0.07,0.07
+		v0.03H9.112c-0.75,0-1.601,0.48-1.98,1.12L5.5,7.019l-1.777,2.982l-0.002,0.003l-0.023,0.041c-0.037,0.067-0.09,0.217-0.039,0.467
+		c0.039,0.084,0.095,0.162,0.172,0.218l0.07,0.039c0.041,0.02,0.08,0.04,0.131,0.051c0.27,0.06,0.479-0.041,0.66-0.331
+		c0.139-0.23,0.289-0.46,0.439-0.7l2.939-4.92c0.061-0.1,0.141-0.19,0.25-0.27c0.23-0.19,0.541-0.32,0.791-0.32h0.909l-0.71,0.78
+		c0,0-0.136,0.166-0.175,0.381C9.134,5.579,9.168,5.716,9.282,5.829c0.229,0.24,0.569,0.24,0.84-0.02c0.05-0.05,0.1-0.1,0.149-0.15
+		c0.51-0.5,1.01-1,1.5-1.5C12.041,3.879,12.051,3.569,11.781,3.289z"/>
+	<path fill="#292D32" d="M12.162,20.712c0.541,0.549,1.091,1.109,1.65,1.648c0.12,0.11,0.29,0.181,0.45,0.201
+		c0.239,0.02,0.42-0.121,0.521-0.341c0.109-0.25,0.039-0.471-0.141-0.649c-0.21-0.23-0.449-0.431-0.68-0.65
+		c0-0.01-0.07-0.051-0.07-0.07v-0.029h0.939c0.75,0,1.601-0.479,1.979-1.119l1.632-2.721L20.22,14c0,0,0.002-0.003,0.002-0.005
+		l0.022-0.039c0.037-0.067,0.092-0.219,0.039-0.469c-0.039-0.084-0.094-0.16-0.172-0.217l-0.07-0.039
+		c-0.041-0.02-0.079-0.039-0.131-0.051c-0.27-0.061-0.479,0.041-0.66,0.33c-0.139,0.23-0.288,0.461-0.438,0.701l-2.938,4.92
+		c-0.062,0.1-0.141,0.189-0.25,0.27c-0.23,0.189-0.541,0.32-0.791,0.32h-0.909l0.71-0.779c0,0,0.137-0.166,0.175-0.381
+		c0.002-0.141-0.032-0.277-0.146-0.391c-0.229-0.24-0.569-0.24-0.84,0.021c-0.051,0.049-0.101,0.1-0.149,0.148
+		c-0.511,0.5-1.011,1-1.5,1.5C11.904,20.12,11.894,20.431,12.162,20.712z"/>
+	<path fill="#292D32" d="M21.893,8.519c-0.07-0.23-0.25-0.36-0.5-0.38c-0.271-0.02-0.449,0.12-0.561,0.34
+		c-0.15,0.28-0.271,0.57-0.4,0.86c0,0,0,0.01-0.01,0.01l-1.391-2.33l-1.629-2.72c-0.011-0.01-0.011-0.02-0.021-0.03
+		c-0.381-0.61-1.189-1.07-1.92-1.09h-0.04l-1.16,0.01h-0.05c0,0-0.489,0.006-0.52,0.46v0.08c0.01,0.05,0.01,0.09,0.028,0.14
+		c0.091,0.26,0.28,0.39,0.62,0.4c0.271,0,0.551,0.01,0.83,0.01h0.25c0.25,0,0.561,0.13,0.789,0.32c0.111,0.08,0.191,0.17,0.25,0.27
+		l2.91,4.87l-0.06,0.02l-0.971-0.42c0,0-0.199-0.07-0.421-0.04c-0.129,0.04-0.239,0.12-0.318,0.26c-0.15,0.3-0.04,0.62,0.29,0.79
+		c0.069,0.03,0.13,0.06,0.188,0.09c0.641,0.33,1.281,0.64,1.91,0.94c0.351,0.159,0.641,0.08,0.82-0.271
+		c0.35-0.689,0.699-1.39,1.029-2.1C21.912,8.869,21.922,8.679,21.893,8.519z"/>
+	<path fill="#292D32" d="M2.108,15.543c0.073,0.228,0.253,0.354,0.503,0.373c0.271,0.019,0.448-0.123,0.559-0.345
+		c0.146-0.281,0.264-0.574,0.392-0.861c0,0,0-0.01,0.011-0.012l1.408,2.317l1.653,2.705c0.01,0.013,0.01,0.022,0.021,0.032
+		c0.385,0.605,1.198,1.059,1.928,1.072l0.041-0.002l1.16-0.02h0.051c0,0,0.488-0.012,0.517-0.464l-0.002-0.08
+		c-0.01-0.05-0.009-0.09-0.028-0.142c-0.095-0.258-0.285-0.387-0.625-0.394c-0.271,0.003-0.552-0.006-0.83-0.004l-0.25,0.002
+		c-0.25,0.003-0.563-0.124-0.793-0.312c-0.111-0.08-0.192-0.17-0.252-0.271L4.62,14.296l0.06-0.021l0.974,0.412
+		c0,0,0.2,0.067,0.42,0.037c0.129-0.041,0.239-0.123,0.317-0.263c0.147-0.302,0.035-0.62-0.297-0.787
+		c-0.069-0.03-0.131-0.062-0.19-0.089c-0.642-0.324-1.285-0.631-1.916-0.924c-0.353-0.157-0.642-0.076-0.818,0.277
+		c-0.346,0.691-0.688,1.395-1.012,2.105C2.086,15.192,2.078,15.381,2.108,15.543z"/>
+</g>
 </svg>
