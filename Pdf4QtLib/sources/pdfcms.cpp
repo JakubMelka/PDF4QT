@@ -34,7 +34,9 @@
 #define NOMINMAX
 #include <Windows.h>
 #include <Icm.h>
+#if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "Mscms")
+#endif
 #endif
 
 #include <unordered_map>

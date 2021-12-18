@@ -52,7 +52,7 @@
 #include <QToolBar>
 #include <QXmlStreamWriter>
 
-#ifdef Q_OS_WIN
+#if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "Shell32")
 #endif
 

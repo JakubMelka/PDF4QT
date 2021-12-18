@@ -2009,7 +2009,9 @@ void PDFCertificateStore::createDirectoryForDefaultUserCertificatesStore()
 #ifdef Q_OS_WIN
 #include <Windows.h>
 #include <wincrypt.h>
+#if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "crypt32.lib")
+#endif
 #endif
 
 void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store) const

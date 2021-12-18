@@ -15,7 +15,6 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef PDFGLOBAL_H
 #define PDFGLOBAL_H
 
@@ -30,6 +29,27 @@
 #  define PDF4QTLIBSHARED_EXPORT Q_DECL_EXPORT
 #else
 #  define PDF4QTLIBSHARED_EXPORT Q_DECL_IMPORT
+#endif
+
+// Compiler detection
+#if defined(_MSC_VER)
+#define PDF4QT_COMPILER_MSVC 1
+#endif
+
+#if defined(__clang__)
+#define PDF4QT_COMPILER_CLANG 1
+#endif
+
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#define PDF4QT_COMPILER_MINGW 1
+#endif
+
+#if defined(__GNUC__)
+#define PDF4QT_COMPILER_GCC 1
+#endif
+
+#if defined(Q_OS_WIN) && (defined(PDF4QT_COMPILER_MSVC) || defined(PDF4QT_COMPILER_CLANG))
+#define PDF4QT_USE_PRAGMA_LIB 1
 #endif
 
 namespace pdf

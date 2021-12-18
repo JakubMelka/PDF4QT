@@ -32,7 +32,9 @@
 #define SECURITY_WIN32
 #include <Windows.h>
 #include <security.h>
+#if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "Secur32.lib")
+#endif
 #endif
 
 #pragma warning(push)

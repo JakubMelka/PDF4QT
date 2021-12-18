@@ -413,6 +413,9 @@ void PDFTextToSpeech::onPlayClicked()
             updatePlay();
             break;
         }
+
+        default:
+            break;
     }
 
     updateUI();

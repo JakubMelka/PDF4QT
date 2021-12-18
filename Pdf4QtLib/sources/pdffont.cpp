@@ -34,13 +34,16 @@
 #include <QPainterPath>
 #include <QDataStream>
 #include <QTreeWidgetItem>
+
 #if defined(Q_OS_WIN)
 #include "Windows.h"
-
-#pragma comment(lib, "Gdi32")
-#pragma comment(lib, "User32")
 #elif defined(Q_OS_UNIX)
 #include <fontconfig/fontconfig.h>
+#endif
+
+#if defined(PDF4QT_USE_PRAGMA_LIB)
+#pragma comment(lib, "Gdi32")
+#pragma comment(lib, "User32")
 #endif
 
 namespace pdf
