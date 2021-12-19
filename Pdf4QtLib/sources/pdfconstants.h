@@ -25,8 +25,8 @@ namespace pdf
 {
 
 // Name of the library, together with version
-static constexpr const char* PDF_LIBRARY_NAME = "PDF4QT 1.0.0";
-static constexpr const char* PDF_LIBRARY_VERSION = "1.0.0";
+static constexpr const char* PDF_LIBRARY_NAME = "PDF4QT 1.1.0";
+static constexpr const char* PDF_LIBRARY_VERSION = "1.1.0";
 
 // Structure file constants
 static constexpr const char* PDF_END_OF_FILE_MARK = "%%EOF";

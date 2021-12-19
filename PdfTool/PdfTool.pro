@@ -19,7 +19,7 @@ CONFIG += c++11 console
 CONFIG -= app_bundle
 
 TARGET = PdfTool
-VERSION = 1.0.0
+VERSION = 1.1.0
 
 QMAKE_TARGET_DESCRIPTION = "PDF tool for Qt"
 QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"

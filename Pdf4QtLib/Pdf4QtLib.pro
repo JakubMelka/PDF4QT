@@ -21,7 +21,7 @@ TARGET = Pdf4QtLib
 TEMPLATE = lib
 
 win32:TARGET_EXT = .dll
-VERSION = 1.0.0
+VERSION = 1.1.0
 
 QMAKE_TARGET_DESCRIPTION = "PDF rendering / editing library for Qt"
 QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"

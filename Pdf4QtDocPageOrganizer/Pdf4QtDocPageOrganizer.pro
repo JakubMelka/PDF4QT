@@ -20,7 +20,7 @@ QT += core gui widgets winextras
 TARGET = Pdf4QtDocPageOrganizer
 TEMPLATE = app
 
-VERSION = 1.0.0
+VERSION = 1.1.0
 
 RC_ICONS = $$PWD/app-icon.ico
 
