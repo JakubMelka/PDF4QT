@@ -9895,7 +9895,7 @@ private:
                     Q_ASSERT(false); // These should not be lay-out
                     break;
                 case xfa::XFA_BaseNode::PRESENCE::Invisible:
-                    presence = xfa::XFA_BaseNode::PRESENCE::Invisible;
+                    this->presence = xfa::XFA_BaseNode::PRESENCE::Invisible;
                     break;
 
                 default:
@@ -9951,8 +9951,8 @@ private:
         /// Page index (or, more precisely, index of content area)
         size_t pageIndex = 0;
 
-        /// Add content area offset?
-        bool addContentAreaOffset = true;
+        /// Are we performing layout into content area (not to a page)?
+        bool isContentAreaLayout = true;
 
         /// Nominal extent of the parent node (where items are children
         /// of this node).
@@ -10073,6 +10073,7 @@ private:
 
     std::vector<PageInfo> m_pages;
     std::vector<Layout> m_layout;
+    std::map<const xfa::XFA_pageArea*, std::vector<Layout>> m_pageLayouts;
     std::vector<xfa::XFA_ParagraphSettings> m_paragraphSettings;
     std::stack<LayoutParameters> m_layoutParameters;
     size_t m_currentPageIndex = 0;
@@ -10677,7 +10678,7 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
 
     for (Layout& layout : m_layout)
     {
-        if (layout.addContentAreaOffset)
+        if (layout.isContentAreaLayout)
         {
             const PageInfo& pageInfo = m_pages.at(layout.pageIndex);
             layout.translate(pageInfo.contentBox.left(), pageInfo.contentBox.top());
@@ -10692,6 +10693,31 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
     for (const auto& layoutSinglePage : layoutPerPage)
     {
         PDFXFAEngineImpl::LayoutItems layoutItems;
+
+        const PageInfo& pageInfo = m_pages.at(layoutSinglePage.first);
+        pageSizes.push_back(pageInfo.mediaBox.size());
+
+        for (const Layout& layout : m_pageLayouts[pageInfo.pageArea])
+        {
+            for (const LayoutItem& layoutItem : layout.items)
+            {
+                // Invisible item?
+                if (layoutItem.presence != xfa::XFA_BaseNode::PRESENCE::Visible)
+                {
+                    continue;
+                }
+
+                PDFXFAEngineImpl::LayoutItem engineLayoutItem;
+                engineLayoutItem.nominalExtent = layoutItem.nominalExtent;
+                engineLayoutItem.draw = layoutItem.draw;
+                engineLayoutItem.field = layoutItem.field;
+                engineLayoutItem.subform = layoutItem.subform;
+                engineLayoutItem.exclGroup = layoutItem.exclGroup;
+                engineLayoutItem.paragraphSettingsIndex = layoutItem.paragraphSettingsIndex;
+                engineLayoutItem.captionParagraphSettingsIndex = layoutItem.captionParagraphSettingsIndex;
+                layoutItems.emplace_back(std::move(engineLayoutItem));
+            }
+        }
 
         for (const Layout& layout : layoutSinglePage.second)
         {
@@ -10714,9 +10740,6 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
                 layoutItems.emplace_back(std::move(engineLayoutItem));
             }
         }
-
-        const PageInfo& pageInfo = m_pages.at(layoutSinglePage.first);
-        pageSizes.push_back(pageInfo.mediaBox.size());
 
         engine->setLayoutItems(pageIndex++, std::move(layoutItems));
     }
@@ -10806,14 +10829,18 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
 
             ++pageInfo.contentBoxIndex;
         }
-        xfa::XFA_AbstractNode::acceptOrdered(this, node->getArea(), node->getDraw(), node->getExclGroup(), node->getField(), node->getSubform());
-
-        LayoutParameters& layoutParameters = getLayoutParameters();
-        for (Layout& layout : layoutParameters.layout)
-        {
-            layout.addContentAreaOffset = false;
-        }
     }
+
+    xfa::XFA_AbstractNode::acceptOrdered(this, node->getArea(), node->getDraw(), node->getExclGroup(), node->getField(), node->getSubform());
+
+    LayoutParameters& layoutParameters = getLayoutParameters();
+    for (Layout& layout : layoutParameters.layout)
+    {
+        layout.isContentAreaLayout = false;
+    }
+
+    m_pageLayouts[node] = std::move(layoutParameters.layout);
+    layoutParameters.layout.clear();
 }
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_pageSet* node)
