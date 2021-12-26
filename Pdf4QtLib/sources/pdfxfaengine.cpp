@@ -9871,7 +9871,8 @@ private:
         /// Maximal size of item
         QSizeF maxSize;
 
-        QSizeF adjustNominalExtentSize(const QSizeF size);
+        QSizeF adjustNominalExtentSize(const QSizeF size) const;
+        QSizeF getSizeForLayout() const;
     };
 
     template<typename Node>
@@ -10401,8 +10402,40 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
                 break;
 
             case xfa::XFA_BaseNode::LAYOUT::Lr_tb:
-                // TODO: Implement Lr_Tb
+            {
+                // Left-to-right, top to bottom layout
+                Layout finalLayout;
+                PDFInteger targetPageIndex = sourcePageIndex + pageOffset;
+                finalLayout.pageIndex = targetPageIndex;
+
+                PDFReal x = 0.0;
+                PDFReal y = 0.0;
+                PDFReal maxW = 0.0;
+                PDFReal maxH = 0.0;
+
+                QSizeF size = layoutParameters.sizeInfo.getSizeForLayout();
+
+                for (Layout& layout : layouts)
+                {
+                    if (x + layout.nominalExtent.width() > size.width())
+                    {
+                        // New line
+                        y += maxH;
+                        x = 0.0;
+                        maxH = 0.0;
+                    }
+
+                    layout.translate(x, y);
+                    x += layout.nominalExtent.width();
+                    maxW = qMax(maxW, x);
+                    maxH = qMax(maxH, layout.nominalExtent.height());
+
+                    finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
+                }
+
+                finalizeAndAddLayout(captionMargins, finalLayout, layoutParameters, QSizeF(maxW, y));
                 break;
+            }
 
             case xfa::XFA_BaseNode::LAYOUT::Rl_row:
             {
@@ -10412,8 +10445,38 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
             }
 
             case xfa::XFA_BaseNode::LAYOUT::Rl_tb:
-                // TODO: Implement Rl_tb
+            {
+                // Left-to-right, top to bottom layout
+                Layout finalLayout;
+                PDFInteger targetPageIndex = sourcePageIndex + pageOffset;
+                finalLayout.pageIndex = targetPageIndex;
+
+                QSizeF size = layoutParameters.sizeInfo.getSizeForLayout();
+
+                PDFReal x = size.width();
+                PDFReal y = 0.0;
+                PDFReal maxH = 0.0;
+
+                for (Layout& layout : layouts)
+                {
+                    if (x - layout.nominalExtent.width() < 0.0)
+                    {
+                        // New line
+                        y += maxH;
+                        x = size.width();
+                        maxH = 0.0;
+                    }
+
+                    x -= layout.nominalExtent.width();
+                    layout.translate(x, y);
+
+                    maxH = qMax(maxH, layout.nominalExtent.height());
+                    finalLayout.items.insert(finalLayout.items.end(), layout.items.begin(), layout.items.end());
+                }
+
+                finalizeAndAddLayout(captionMargins, finalLayout, layoutParameters, QSizeF(size.width(), y));
                 break;
+            }
 
             case xfa::XFA_BaseNode::LAYOUT::Row:
             {
@@ -10455,7 +10518,7 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
                         {
                             finalizeAndAddLayout(captionMargins, finalLayout, layoutParameters, QSizeF(maxW, y));
 
-                            // Update page offets and maximal height
+                            // Update page offsets and maximal height
                             ++pageOffset;
                             ++targetPageIndex;
                             if (targetPageIndex < PDFInteger(m_pages.size()))
@@ -12628,7 +12691,7 @@ PDFXFALayoutEngine::SizeInfo PDFXFALayoutEngine::getSizeInfo(const Node* node) c
     return info;
 }
 
-QSizeF PDFXFALayoutEngine::SizeInfo::adjustNominalExtentSize(const QSizeF size)
+QSizeF PDFXFALayoutEngine::SizeInfo::adjustNominalExtentSize(const QSizeF size) const
 {
     PDFReal minW = origSize.width();
     PDFReal minH = origSize.height();
@@ -12670,6 +12733,11 @@ QSizeF PDFXFALayoutEngine::SizeInfo::adjustNominalExtentSize(const QSizeF size)
     PDFReal correctedHeight = qBound(minH, size.height(), maxH);
 
     return QSizeF(correctedWidth, correctedHeight);
+}
+
+QSizeF PDFXFALayoutEngine::SizeInfo::getSizeForLayout() const
+{
+    return adjustNominalExtentSize(maxSize);
 }
 
 }   // namespace pdf
