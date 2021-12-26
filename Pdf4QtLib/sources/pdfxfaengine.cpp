@@ -9715,6 +9715,7 @@ private:
         PDFInteger hintTextMaxChars = 0;
         PDFInteger hintFloatFracDigits = 2;
         PDFInteger hintFloatLeadDigits = -1;
+        xfa::XFA_BaseNode::ASPECT hintImageAspect = xfa::XFA_BaseNode::ASPECT::Fit;
         bool hintTextHtml = false;
     };
 
@@ -9790,6 +9791,18 @@ private:
                         QRectF nominalExtentArea,
                         size_t paragraphSettingsIndex,
                         QPainter* painter);
+
+    void drawUiCheckButton(const xfa::XFA_checkButton* checkButton,
+                           const NodeValue& value,
+                           QRectF nominalExtentArea,
+                           QPainter* painter);
+
+    void drawUiImageEdit(const xfa::XFA_imageEdit* imageEdit,
+                         const NodeValue& value,
+                         QList<PDFRenderError>& errors,
+                         QRectF nominalExtentArea,
+                         size_t paragraphSettingsIndex,
+                         QPainter* painter);
 
     xfa::XFA_Node<xfa::XFA_template> m_template;
     const PDFDocument* m_document;
@@ -11792,6 +11805,7 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
             {
                 nodeValue.emplace();
                 nodeValue->value = std::move(imageValue);
+                nodeValue->hintImageAspect = image->getAspect();
             }
             else
             {
@@ -11967,17 +11981,17 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
 
     if (ui)
     {
-        barcode = ui->getBarcode();
-        button = ui->getButton();
+        barcode = ui->getBarcode(); // TODO: implement
+        button = ui->getButton(); // TODO: implement
         checkButton = ui->getCheckButton();
-        choiceList = ui->getChoiceList();
-        dateTimeEdit = ui->getDateTimeEdit();
+        choiceList = ui->getChoiceList(); // TODO: implement
+        dateTimeEdit = ui->getDateTimeEdit(); // TODO: implement
         defaultUi = ui->getDefaultUi();
         imageEdit = ui->getImageEdit();
-        numericEdit = ui->getNumericEdit();
-        passwordEdit = ui->getPasswordEdit();
-        signature = ui->getSignature();
-        textEdit = ui->getTextEdit();
+        numericEdit = ui->getNumericEdit(); // TODO: implement
+        passwordEdit = ui->getPasswordEdit(); // TODO: implement
+        signature = ui->getSignature(); // TODO: implement
+        textEdit = ui->getTextEdit(); // TODO: implement
     }
 
     const bool isNonDefaultUi = barcode || button || checkButton || choiceList ||
@@ -11988,6 +12002,14 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     if (textEdit || (isDefaultUi && value.value.type() == QVariant::String))
     {
         drawUiTextEdit(textEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
+    }
+    else if (checkButton || (isDefaultUi && value.value.type() == QVariant::Bool))
+    {
+        drawUiCheckButton(checkButton, value, nominalExtentArea, painter);
+    }
+    else if (imageEdit || (isDefaultUi && value.value.type() == QVariant::Image))
+    {
+        drawUiImageEdit(imageEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
 
     // TODO: implement all ui
@@ -12132,6 +12154,202 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     else
     {
         // TODO: We draw comb
+    }
+}
+
+void PDFXFAEngineImpl::drawUiCheckButton(const xfa::XFA_checkButton* checkButton,
+                                         const NodeValue& value,
+                                         QRectF nominalExtentArea,
+                                         QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = checkButton ? createMargin(checkButton->getMargin()) : QMarginsF();
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    PDFReal markSize = xfa::XFA_Measurement(10.0, xfa::XFA_Measurement::Type::pt).getValuePt(nullptr);
+    xfa::XFA_BaseNode::SHAPE shape = xfa::XFA_BaseNode::SHAPE::Square;
+    xfa::XFA_BaseNode::MARK mark = xfa::XFA_BaseNode::MARK::Default;
+
+    if (checkButton)
+    {
+        // We ignore border for check buttons
+        markSize = checkButton->getSize().getValuePt(nullptr);
+        shape = checkButton->getShape();
+        mark = checkButton->getMark();
+    }
+
+    QRectF checkBoxRect = nominalContentArea;
+    checkBoxRect.setSize(QSizeF(markSize, markSize));
+    checkBoxRect.moveCenter(nominalContentArea.center());
+
+    QPen pen(Qt::black);
+    pen.setWidthF(1.0);
+    painter->setPen(pen);
+    painter->setBrush(Qt::NoBrush);
+
+    switch (shape)
+    {
+        case pdf::xfa::XFA_BaseNode::SHAPE::Square:
+            painter->drawRect(checkBoxRect);
+            break;
+        case pdf::xfa::XFA_BaseNode::SHAPE::Round:
+            painter->drawEllipse(checkBoxRect);
+            break;
+    }
+
+    if (value.value.toBool())
+    {
+        switch (mark)
+        {
+            case pdf::xfa::XFA_BaseNode::MARK::Default:
+            {
+                switch (shape)
+                {
+                    case pdf::xfa::XFA_BaseNode::SHAPE::Square:
+                        painter->fillRect(checkBoxRect, Qt::black);
+                        break;
+                    case pdf::xfa::XFA_BaseNode::SHAPE::Round:
+                    {
+                        QPainterPath path;
+                        path.addEllipse(checkBoxRect);
+                        painter->fillPath(path, Qt::black);
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case pdf::xfa::XFA_BaseNode::MARK::Check:
+            {
+                PDFReal starSize = markSize * 0.9;
+
+                QPainterPath path;
+                path.addText(QPointF(0, 0), QFont("Arial", starSize), "✓");
+                path.translate(checkBoxRect.center() - path.boundingRect().center());
+                painter->drawPath(path);
+                break;
+            }
+
+            case pdf::xfa::XFA_BaseNode::MARK::Circle:
+            {
+                QPainterPath path;
+                path.addEllipse(checkBoxRect);
+                painter->fillPath(path, Qt::black);
+                break;
+            }
+
+            case pdf::xfa::XFA_BaseNode::MARK::Cross:
+            {
+                painter->drawLine(checkBoxRect.topLeft(), checkBoxRect.bottomRight());
+                painter->drawLine(checkBoxRect.bottomLeft(), checkBoxRect.topRight());
+                break;
+            }
+
+            case pdf::xfa::XFA_BaseNode::MARK::Diamond:
+            {
+                PDFReal diamondSize = markSize * 0.4;
+
+                QPainterPath path;
+                path.moveTo(0, -diamondSize);
+                path.lineTo(diamondSize, 0);
+                path.lineTo(0, diamondSize);
+                path.lineTo(-diamondSize, 0);
+                path.closeSubpath();
+                path.translate(checkBoxRect.center());
+                painter->fillPath(path, Qt::black);
+                break;
+            }
+
+            case pdf::xfa::XFA_BaseNode::MARK::Square:
+            {
+                painter->fillRect(checkBoxRect, Qt::black);
+                break;
+            }
+
+            case pdf::xfa::XFA_BaseNode::MARK::Star:
+            {
+                PDFReal starSize = markSize * 0.9;
+
+                QPainterPath path;
+                path.addText(QPointF(0, 0), QFont("Arial", starSize), "☆");
+                path.translate(checkBoxRect.center() - path.boundingRect().center());
+                painter->drawPath(path);
+                break;
+            }
+        }
+    }
+}
+
+void PDFXFAEngineImpl::drawUiImageEdit(const xfa::XFA_imageEdit* imageEdit,
+                                       const NodeValue& value,
+                                       QList<PDFRenderError>& errors,
+                                       QRectF nominalExtentArea,
+                                       size_t paragraphSettingsIndex,
+                                       QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = imageEdit ? createMargin(imageEdit->getMargin()) : QMarginsF();
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (imageEdit && imageEdit->getBorder())
+    {
+        drawItemBorder(imageEdit->getBorder(), errors, nominalExtentArea, painter);
+    }
+
+    QImage image = value.value.value<QImage>();
+    switch (value.hintImageAspect)
+    {
+        case pdf::xfa::XFA_BaseNode::ASPECT::Fit:
+        {
+            QRectF imageRect = nominalContentArea;
+            QSizeF imageSize = QSizeF(image.size()).scaled(imageRect.size(), Qt::KeepAspectRatio);
+            imageRect.setSize(imageSize);
+            imageRect.moveCenter(nominalContentArea.center());
+            painter->drawImage(imageRect, image);
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::ASPECT::Actual:
+        {
+            painter->drawImage(nominalContentArea.topLeft(), image);
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::ASPECT::Height:
+        {
+            QRectF imageRect = nominalContentArea;
+            QSizeF imageSize = QSizeF(image.size());
+
+            if (qFuzzyIsNull(imageSize.height()))
+            {
+                imageRect.setWidth(imageSize.width() * imageRect.height() / imageSize.height());
+                imageRect.moveCenter(nominalContentArea.center());
+                painter->drawImage(imageRect, image);
+            }
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::ASPECT::None:
+        {
+            painter->drawImage(nominalContentArea, image);
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::ASPECT::Width:
+        {
+            QRectF imageRect = nominalContentArea;
+            QSizeF imageSize = QSizeF(image.size());
+
+            if (qFuzzyIsNull(imageSize.width()))
+            {
+                imageRect.setHeight(imageSize.height() * imageRect.width() / imageSize.width());
+                imageRect.moveCenter(nominalContentArea.center());
+                painter->drawImage(imageRect, image);
+            }
+            break;
+        }
     }
 }
 
