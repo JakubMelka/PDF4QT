@@ -9792,6 +9792,18 @@ private:
                         size_t paragraphSettingsIndex,
                         QPainter* painter);
 
+    void drawUiPasswordEdit(const xfa::XFA_passwordEdit* passwordEdit,
+                            const NodeValue& value,
+                            QList<PDFRenderError>& errors,
+                            QRectF nominalExtentArea,
+                            size_t paragraphSettingsIndex,
+                            QPainter* painter);
+
+    void drawUiSignature(const xfa::XFA_signature* signature,
+                         QList<PDFRenderError>& errors,
+                         QRectF nominalExtentArea,
+                         QPainter* painter);
+
     void drawUiCheckButton(const xfa::XFA_checkButton* checkButton,
                            const NodeValue& value,
                            QRectF nominalExtentArea,
@@ -9801,7 +9813,6 @@ private:
                          const NodeValue& value,
                          QList<PDFRenderError>& errors,
                          QRectF nominalExtentArea,
-                         size_t paragraphSettingsIndex,
                          QPainter* painter);
 
     xfa::XFA_Node<xfa::XFA_template> m_template;
@@ -11989,9 +12000,9 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
         defaultUi = ui->getDefaultUi();
         imageEdit = ui->getImageEdit();
         numericEdit = ui->getNumericEdit(); // TODO: implement
-        passwordEdit = ui->getPasswordEdit(); // TODO: implement
-        signature = ui->getSignature(); // TODO: implement
-        textEdit = ui->getTextEdit(); // TODO: implement
+        passwordEdit = ui->getPasswordEdit();
+        signature = ui->getSignature();
+        textEdit = ui->getTextEdit();
     }
 
     const bool isNonDefaultUi = barcode || button || checkButton || choiceList ||
@@ -12009,7 +12020,15 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     }
     else if (imageEdit || (isDefaultUi && value.value.type() == QVariant::Image))
     {
-        drawUiImageEdit(imageEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
+        drawUiImageEdit(imageEdit, value, errors, nominalExtentArea, painter);
+    }
+    else if (signature)
+    {
+        drawUiSignature(signature, errors, nominalExtentArea, painter);
+    }
+    else if (passwordEdit)
+    {
+        drawUiPasswordEdit(passwordEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
 
     // TODO: implement all ui
@@ -12157,6 +12176,59 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     }
 }
 
+void PDFXFAEngineImpl::drawUiPasswordEdit(const xfa::XFA_passwordEdit* passwordEdit,
+                                          const NodeValue& value,
+                                          QList<PDFRenderError>& errors,
+                                          QRectF nominalExtentArea,
+                                          size_t paragraphSettingsIndex,
+                                          QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = createMargin(passwordEdit->getMargin());
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (passwordEdit->getBorder())
+    {
+        drawItemBorder(passwordEdit->getBorder(), errors, nominalExtentArea, painter);
+    }
+
+    QString passwordChar = passwordEdit->getPasswordChar();
+    if (passwordChar.isEmpty())
+    {
+        passwordChar = "*";
+    }
+
+    QString passwordString(value.value.toString().length(), passwordChar.front());
+
+    if (!passwordString.isEmpty())
+    {
+        const xfa::XFA_ParagraphSettings& settings = m_layout.paragraphSettings.at(paragraphSettingsIndex);
+        painter->setFont(settings.getFont());
+        painter->drawText(nominalContentArea, passwordString);
+    }
+}
+
+void PDFXFAEngineImpl::drawUiSignature(const xfa::XFA_signature* signature,
+                                       QList<PDFRenderError>& errors,
+                                       QRectF nominalExtentArea,
+                                       QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = createMargin(signature->getMargin());
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (signature && signature->getBorder())
+    {
+        drawItemBorder(signature->getBorder(), errors, nominalExtentArea, painter);
+    }
+
+    painter->setPen(Qt::black);
+    painter->fillRect(nominalContentArea, Qt::lightGray);
+    painter->drawLine(nominalContentArea.bottomLeft(), nominalContentArea.bottomRight());
+}
+
 void PDFXFAEngineImpl::drawUiCheckButton(const xfa::XFA_checkButton* checkButton,
                                          const NodeValue& value,
                                          QRectF nominalExtentArea,
@@ -12285,7 +12357,6 @@ void PDFXFAEngineImpl::drawUiImageEdit(const xfa::XFA_imageEdit* imageEdit,
                                        const NodeValue& value,
                                        QList<PDFRenderError>& errors,
                                        QRectF nominalExtentArea,
-                                       size_t paragraphSettingsIndex,
                                        QPainter* painter)
 {
     QRectF nominalExtent = nominalExtentArea;
