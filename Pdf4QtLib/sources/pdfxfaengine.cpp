@@ -9792,6 +9792,13 @@ private:
                         size_t paragraphSettingsIndex,
                         QPainter* painter);
 
+    void drawUiNumericEdit(const xfa::XFA_numericEdit* numericEdit,
+                           const NodeValue& value,
+                           QList<PDFRenderError>& errors,
+                           QRectF nominalExtentArea,
+                           size_t paragraphSettingsIndex,
+                           QPainter* painter);
+
     void drawUiPasswordEdit(const xfa::XFA_passwordEdit* passwordEdit,
                             const NodeValue& value,
                             QList<PDFRenderError>& errors,
@@ -9803,6 +9810,11 @@ private:
                          QList<PDFRenderError>& errors,
                          QRectF nominalExtentArea,
                          QPainter* painter);
+
+    void drawUiBarcode(const xfa::XFA_barcode* barcode,
+                       QList<PDFRenderError>& errors,
+                       QRectF nominalExtentArea,
+                       QPainter* painter);
 
     void drawUiCheckButton(const xfa::XFA_checkButton* checkButton,
                            const NodeValue& value,
@@ -11828,9 +11840,17 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
         {
             drawUi(ui, nodeValue.value(), errors, nominalContentArea, paragraphSettingsIndex, painter);
         }
+        else
+        {
+            drawUi(ui, NodeValue(), errors, nominalContentArea, paragraphSettingsIndex, painter);
+        }
 
         // TODO: implement draw arc (getArc())
         // TODO: implement draw value
+    }
+    else
+    {
+        drawUi(ui, NodeValue(), errors, nominalContentArea, paragraphSettingsIndex, painter);
     }
 }
 
@@ -11973,11 +11993,6 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
                               size_t paragraphSettingsIndex,
                               QPainter* painter)
 {
-    if (!value.value.isValid())
-    {
-        return;
-    }
-
     const xfa::XFA_barcode* barcode = nullptr;
     const xfa::XFA_button* button = nullptr;
     const xfa::XFA_checkButton* checkButton = nullptr;
@@ -11992,14 +12007,14 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
 
     if (ui)
     {
-        barcode = ui->getBarcode(); // TODO: implement
+        barcode = ui->getBarcode();
         button = ui->getButton(); // TODO: implement
         checkButton = ui->getCheckButton();
         choiceList = ui->getChoiceList(); // TODO: implement
         dateTimeEdit = ui->getDateTimeEdit(); // TODO: implement
         defaultUi = ui->getDefaultUi();
         imageEdit = ui->getImageEdit();
-        numericEdit = ui->getNumericEdit(); // TODO: implement
+        numericEdit = ui->getNumericEdit();
         passwordEdit = ui->getPasswordEdit();
         signature = ui->getSignature();
         textEdit = ui->getTextEdit();
@@ -12022,6 +12037,10 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     {
         drawUiImageEdit(imageEdit, value, errors, nominalExtentArea, painter);
     }
+    else if (numericEdit || (isDefaultUi && value.value.type() == QVariant::Double))
+    {
+        drawUiNumericEdit(numericEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
+    }
     else if (signature)
     {
         drawUiSignature(signature, errors, nominalExtentArea, painter);
@@ -12029,6 +12048,10 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     else if (passwordEdit)
     {
         drawUiPasswordEdit(passwordEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
+    }
+    else if (barcode)
+    {
+        drawUiBarcode(barcode, errors, nominalExtentArea, painter);
     }
 
     // TODO: implement all ui
@@ -12176,6 +12199,59 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     }
 }
 
+void PDFXFAEngineImpl::drawUiNumericEdit(const xfa::XFA_numericEdit* numericEdit,
+                                         const NodeValue& value,
+                                         QList<PDFRenderError>& errors,
+                                         QRectF nominalExtentArea,
+                                         size_t paragraphSettingsIndex,
+                                         QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = numericEdit ? createMargin(numericEdit->getMargin()) : QMarginsF();
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (numericEdit && numericEdit->getBorder())
+    {
+        drawItemBorder(numericEdit->getBorder(), errors, nominalExtentArea, painter);
+    }
+
+    QString text;
+
+    if (value.hintFloatFracDigits != -1)
+    {
+        text = QString::number(value.value.toDouble(), 'f', value.hintFloatFracDigits);
+    }
+    else
+    {
+        text = QString::number(value.value.toDouble());
+    }
+
+    if (value.hintFloatLeadDigits != -1)
+    {
+        int leadLength = text.indexOf('.');
+        if (leadLength == -1)
+        {
+            leadLength = text.length();
+        }
+
+        while (leadLength < value.hintFloatLeadDigits)
+        {
+            ++leadLength;
+            text.prepend('0');
+        }
+    }
+
+    const xfa::XFA_ParagraphSettings& settings = m_layout.paragraphSettings.at(paragraphSettingsIndex);
+    painter->setFont(settings.getFont());
+    int textFlag = int(settings.getAlignment()) | Qt::TextDontClip | Qt::TextSingleLine;
+
+    QRectF textRect = nominalContentArea;
+    textRect = textRect.marginsRemoved(settings.getMargins());
+
+    painter->drawText(textRect, textFlag, value.value.toString());
+}
+
 void PDFXFAEngineImpl::drawUiPasswordEdit(const xfa::XFA_passwordEdit* passwordEdit,
                                           const NodeValue& value,
                                           QList<PDFRenderError>& errors,
@@ -12227,6 +12303,18 @@ void PDFXFAEngineImpl::drawUiSignature(const xfa::XFA_signature* signature,
     painter->setPen(Qt::black);
     painter->fillRect(nominalContentArea, Qt::lightGray);
     painter->drawLine(nominalContentArea.bottomLeft(), nominalContentArea.bottomRight());
+}
+
+void PDFXFAEngineImpl::drawUiBarcode(const xfa::XFA_barcode* barcode,
+                                     QList<PDFRenderError>& errors,
+                                     QRectF nominalExtentArea,
+                                     QPainter* painter)
+{
+    Q_UNUSED(barcode);
+    Q_UNUSED(nominalExtentArea);
+    Q_UNUSED(painter);
+
+    errors << PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("Barcode not implemented!"));
 }
 
 void PDFXFAEngineImpl::drawUiCheckButton(const xfa::XFA_checkButton* checkButton,
