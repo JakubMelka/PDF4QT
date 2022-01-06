@@ -10987,6 +10987,7 @@ void PDFXFALayoutEngine::visit(const xfa::XFA_pageArea* node)
         }
     }
 
+    LayoutParametersStackGuard guard(this);
     xfa::XFA_AbstractNode::acceptOrdered(this, node->getArea(), node->getDraw(), node->getExclGroup(), node->getField(), node->getSubform());
 
     LayoutParameters& layoutParameters = getLayoutParameters();
