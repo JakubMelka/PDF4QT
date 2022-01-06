@@ -3,7 +3,7 @@ import qbs.FileInfo
 Pdf4QtProduct {
     Depends { name: "cpp" }
     type: "application"
-    cpp.rpaths: FileInfo.joinPaths(cpp.rpathOrigin, "..", "lib")
+    cpp.rpaths: [FileInfo.joinPaths(cpp.rpathOrigin, "..", "lib"), conanLibDirectory]
 
     Depends { name: "Pdf4QtLib" }
     Group {
@@ -14,4 +14,3 @@ Pdf4QtProduct {
     }
     targetInstallDir: pdf4qtbuildconfig.appInstallDir
 }
-

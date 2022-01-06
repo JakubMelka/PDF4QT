@@ -1,7 +1,2 @@
 *.pro.user
 *.qbs.user
-conan.lock
-conanbuildinfo.qbs
-conanbuildinfo.txt
-conaninfo.txt
-graph_info.json
