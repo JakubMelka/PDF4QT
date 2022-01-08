@@ -11697,6 +11697,7 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
     const LayoutItems& items = it->second;
     for (const LayoutItem& item : items)
     {
+        PDFPainterStateGuard guard(painter);
         drawItemDraw(item.draw, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
         drawItemField(item.field, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
         drawItemSubform(item.subform, errors, item.nominalExtent, painter);
@@ -11847,7 +11848,6 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
         }
 
         // TODO: implement draw arc (getArc())
-        // TODO: implement draw value
     }
     else
     {
@@ -11888,6 +11888,13 @@ void PDFXFAEngineImpl::drawItemField(const xfa::XFA_field* item,
     if (!item)
     {
         // Not a field
+        return;
+    }
+
+    if (item->getUi() && item->getUi()->getButton())
+    {
+        // We do not display buttons - we do not implement click functionality
+        errors << PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("XFA: Buttons not implemented."));
         return;
     }
 
@@ -12009,7 +12016,7 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     if (ui)
     {
         barcode = ui->getBarcode();
-        button = ui->getButton(); // TODO: implement
+        button = ui->getButton();
         checkButton = ui->getCheckButton();
         choiceList = ui->getChoiceList(); // TODO: implement
         dateTimeEdit = ui->getDateTimeEdit(); // TODO: implement
@@ -12053,6 +12060,10 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     else if (barcode)
     {
         drawUiBarcode(barcode, errors, nominalExtentArea, painter);
+    }
+    else if (button)
+    {
+        errors << PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("XFA: Buttons not implemented."));
     }
 
     // TODO: implement all ui
@@ -12101,12 +12112,12 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     combNumberOfCells = qMax(combNumberOfCells, PDFInteger(1));
     const xfa::XFA_ParagraphSettings& settings = m_layout.paragraphSettings.at(paragraphSettingsIndex);
 
+    QRectF textRect = nominalContentArea;
+    textRect = textRect.marginsRemoved(settings.getMargins());
+
     if (!isComb)
     {
         painter->setFont(settings.getFont());
-
-        QRectF textRect = nominalContentArea;
-        textRect = textRect.marginsRemoved(settings.getMargins());
 
         // Do we have space for at least one line?
         if (isMultiline && textRect.height() < 1.8 * painter->fontMetrics().lineSpacing())
@@ -12196,7 +12207,27 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
     }
     else
     {
-        // TODO: We draw comb
+        qreal combWidth = textRect.width() / combNumberOfCells;
+        QRectF combRect(0.0, 0.0, combWidth, textRect.height());
+        painter->setFont(settings.getFont());
+
+        QString text = value.value.toString();
+
+        QColor textColor = Qt::black;
+        painter->setPen(textColor);
+
+        for (int i = 0; i < text.size(); ++i)
+        {
+            if (i >= combNumberOfCells)
+            {
+                break;
+            }
+
+            QString text = QString(text[i]);
+            painter->drawText(combRect, Qt::AlignCenter, text);
+
+            combRect.translate(combWidth, 0.0);
+        }
     }
 }
 
