@@ -9792,6 +9792,13 @@ private:
                         size_t paragraphSettingsIndex,
                         QPainter* painter);
 
+    void drawUiDateTimeEdit(const xfa::XFA_dateTimeEdit* dateTimeEdit,
+                            const NodeValue& value,
+                            QList<PDFRenderError>& errors,
+                            QRectF nominalExtentArea,
+                            size_t paragraphSettingsIndex,
+                            QPainter* painter);
+
     void drawUiNumericEdit(const xfa::XFA_numericEdit* numericEdit,
                            const NodeValue& value,
                            QList<PDFRenderError>& errors,
@@ -12019,7 +12026,7 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
         button = ui->getButton();
         checkButton = ui->getCheckButton();
         choiceList = ui->getChoiceList(); // TODO: implement
-        dateTimeEdit = ui->getDateTimeEdit(); // TODO: implement
+        dateTimeEdit = ui->getDateTimeEdit();
         defaultUi = ui->getDefaultUi();
         imageEdit = ui->getImageEdit();
         numericEdit = ui->getNumericEdit();
@@ -12064,6 +12071,12 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     else if (button)
     {
         errors << PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("XFA: Buttons not implemented."));
+    }
+    else if (dateTimeEdit || (isDefaultUi && (value.value.type() == QVariant::DateTime ||
+                                              value.value.type() == QVariant::Date ||
+                                              value.value.type() == QVariant::Time)))
+    {
+        drawUiDateTimeEdit(dateTimeEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
 
     // TODO: implement all ui
@@ -12228,6 +12241,47 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
 
             combRect.translate(combWidth, 0.0);
         }
+    }
+}
+
+void PDFXFAEngineImpl::drawUiDateTimeEdit(const xfa::XFA_dateTimeEdit* dateTimeEdit,
+                                          const NodeValue& value,
+                                          QList<PDFRenderError>& errors,
+                                          QRectF nominalExtentArea,
+                                          size_t paragraphSettingsIndex,
+                                          QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = dateTimeEdit ? createMargin(dateTimeEdit->getMargin()) : QMarginsF();
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (dateTimeEdit && dateTimeEdit->getBorder())
+    {
+        drawItemBorder(dateTimeEdit->getBorder(), errors, nominalExtentArea, painter);
+    }
+
+    QString text;
+
+    if (value.value.type() == QVariant::DateTime)
+    {
+        text = value.value.toDateTime().toString();
+    }
+    else if (value.value.type() == QVariant::Time)
+    {
+        text = value.value.toTime().toString();
+    }
+    else if (value.value.type() == QVariant::Date)
+    {
+        text = value.value.toDate().toString();
+    }
+
+    if (!text.isEmpty())
+    {
+        NodeValue textValue;
+        textValue.value = text;
+
+        drawUiTextEdit(nullptr, textValue, errors, nominalContentArea, paragraphSettingsIndex, painter);
     }
 }
 
