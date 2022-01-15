@@ -9734,6 +9734,11 @@ private:
                       QRectF nominalContentArea,
                       QPainter* painter);
 
+    void drawItemArc(const xfa::XFA_arc* item,
+                     QList<PDFRenderError>& errors,
+                     QRectF nominalContentArea,
+                     QPainter* painter);
+
     void drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XFA_edge>>& edges,
                            const std::vector<xfa::XFA_Node<xfa::XFA_corner>>& corners,
                            QList<PDFRenderError>& errors,
@@ -9791,6 +9796,13 @@ private:
                         QRectF nominalExtentArea,
                         size_t paragraphSettingsIndex,
                         QPainter* painter);
+
+    void drawUiChoiceList(const xfa::XFA_choiceList* choiceList,
+                          const NodeValue& value,
+                          QList<PDFRenderError>& errors,
+                          QRectF nominalExtentArea,
+                          size_t paragraphSettingsIndex,
+                          QPainter* painter);
 
     void drawUiDateTimeEdit(const xfa::XFA_dateTimeEdit* dateTimeEdit,
                             const NodeValue& value,
@@ -11732,6 +11744,10 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
         {
             drawItemLine(line, errors, nominalContentArea, painter);
         }
+        else if (const xfa::XFA_arc* arc = value->getArc())
+        {
+            drawItemArc(arc, errors, nominalContentArea, painter);
+        }
         else if (const xfa::XFA_text* text = value->getText())
         {
             nodeValue.emplace();
@@ -11853,8 +11869,6 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
         {
             drawUi(ui, NodeValue(), errors, nominalContentArea, paragraphSettingsIndex, painter);
         }
-
-        // TODO: implement draw arc (getArc())
     }
     else
     {
@@ -12025,7 +12039,7 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
         barcode = ui->getBarcode();
         button = ui->getButton();
         checkButton = ui->getCheckButton();
-        choiceList = ui->getChoiceList(); // TODO: implement
+        choiceList = ui->getChoiceList();
         dateTimeEdit = ui->getDateTimeEdit();
         defaultUi = ui->getDefaultUi();
         imageEdit = ui->getImageEdit();
@@ -12078,8 +12092,14 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     {
         drawUiDateTimeEdit(dateTimeEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
-
-    // TODO: implement all ui
+    else if (choiceList)
+    {
+        drawUiChoiceList(choiceList, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
+    }
+    else
+    {
+        errors << PDFRenderError(RenderErrorType::NotSupported, PDFTranslationContext::tr("XFA: Uknown ui."));
+    }
 }
 
 void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
@@ -12241,6 +12261,34 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
 
             combRect.translate(combWidth, 0.0);
         }
+    }
+}
+
+void PDFXFAEngineImpl::drawUiChoiceList(const xfa::XFA_choiceList* choiceList,
+                                        const NodeValue& value,
+                                        QList<PDFRenderError>& errors,
+                                        QRectF nominalExtentArea,
+                                        size_t paragraphSettingsIndex,
+                                        QPainter* painter)
+{
+    QRectF nominalExtent = nominalExtentArea;
+    QRectF nominalContentArea = nominalExtent;
+    QMarginsF contentMargins = choiceList ? createMargin(choiceList->getMargin()) : QMarginsF();
+    nominalContentArea = nominalExtent.marginsRemoved(contentMargins);
+
+    if (choiceList && choiceList->getBorder())
+    {
+        drawItemBorder(choiceList->getBorder(), errors, nominalExtentArea, painter);
+    }
+
+    QString text = value.value.toString();
+
+    if (!text.isEmpty())
+    {
+        NodeValue textValue;
+        textValue.value = text;
+
+        drawUiTextEdit(nullptr, textValue, errors, nominalContentArea, paragraphSettingsIndex, painter);
     }
 }
 
@@ -12750,6 +12798,60 @@ void PDFXFAEngineImpl::drawItemLine(const xfa::XFA_line* item,
 
     painter->setPen(std::move(pen));
     painter->drawLine(line);
+}
+
+void PDFXFAEngineImpl::drawItemArc(const xfa::XFA_arc* item,
+                                   QList<PDFRenderError>& errors,
+                                   QRectF nominalContentArea,
+                                   QPainter* painter)
+{
+    if (!item)
+    {
+        return;
+    }
+
+    // Draw fill
+    drawItemFill(item->getFill(), errors, nominalContentArea, painter);
+
+    // Draw arc
+    QPen pen = createPenFromEdge(item->getEdge(), errors);
+    if (pen.style() == Qt::NoPen)
+    {
+        return;
+    }
+
+    QRectF arcArea = nominalContentArea;
+    if (item->getCircular())
+    {
+        qreal minEdge = qMin(arcArea.width(), arcArea.height());
+        arcArea.setWidth(minEdge);
+        arcArea.setHeight(minEdge);
+    }
+
+    switch (item->getHand())
+    {
+        case pdf::xfa::XFA_BaseNode::HAND::Even:
+            break;
+
+        case pdf::xfa::XFA_BaseNode::HAND::Left:
+        {
+            const qreal halfEdgeWidth = pen.widthF() * 0.5;
+            arcArea.adjust(0, 0, -halfEdgeWidth, -halfEdgeWidth);
+            break;
+        }
+
+        case pdf::xfa::XFA_BaseNode::HAND::Right:
+        {
+            const qreal halfEdgeWidth = pen.widthF() * 0.5;
+            arcArea.adjust(0, 0, +halfEdgeWidth, +halfEdgeWidth);
+            break;
+        }
+    }
+
+    arcArea.moveCenter(nominalContentArea.center());
+
+    painter->setPen(std::move(pen));
+    painter->drawArc(arcArea, item->getStartAngle() * 16, item->getSweepAngle() * 16);
 }
 
 void PDFXFAEngineImpl::drawItemRectEdges(const std::vector<xfa::XFA_Node<xfa::XFA_edge>>& edges,
