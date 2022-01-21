@@ -10417,7 +10417,6 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
         QSizeF nominalContentSize(xOffset, yOffset);
         QSizeF nominalExtentSizeWithoutCaption = nominalContentSize.grownBy(layoutParameters.margins);
         QSizeF nominalExtentSize = nominalExtentSizeWithoutCaption.grownBy(captionMargins);
-        nominalExtentSize = layoutParameters.sizeInfo.adjustNominalExtentSize(nominalExtentSize);
         QRectF nominalExtentRegion(QPointF(0, 0), nominalExtentSize);
         finalLayout.nominalExtent = nominalExtentRegion;
         finalLayout.colSpan = layoutParameters.columnSpan;
@@ -10428,6 +10427,8 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
         }
 
         addSubformToLayout(layoutParameters);
+        layoutParameters.tableRows.clear();
+        layoutParameters.colWidths.clear();
         return;
     }
 
