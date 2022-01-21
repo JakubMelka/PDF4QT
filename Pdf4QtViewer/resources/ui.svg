@@ -1,138 +1,36 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg5291"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="ui.svg">
-  <defs
-     id="defs5285">
-    <inkscape:perspective
-       sodipodi:type="inkscape:persp3d"
-       inkscape:vp_x="0 : 15 : 1"
-       inkscape:vp_y="0 : 1000 : 0"
-       inkscape:vp_z="30 : 15 : 1"
-       inkscape:persp3d-origin="15 : 10 : 1"
-       id="perspective5921" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="0.49999998"
-     inkscape:cx="-709.86288"
-     inkscape:cy="-498.71696"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata5288">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <flowRoot
-       xml:space="preserve"
-       id="flowRoot5913"
-       style="fill:black;fill-opacity:1;stroke:none;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;letter-spacing:0px;word-spacing:0px"><flowRegion
-         id="flowRegion5915"><rect
-           id="rect5917"
-           width="129.22377"
-           height="91.747108"
-           x="-13.788582"
-           y="-33.515606" /></flowRegion><flowPara
-         id="flowPara5919" /></flowRoot>    <rect
-       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect845"
-       width="27.735897"
-       height="26.309353"
-       x="1.403165"
-       y="269.40442" />
-    <rect
-       style="fill:#000000;fill-opacity:0.34117648;stroke:#000000;stroke-width:0.5;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect847"
-       width="27.665739"
-       height="2.4087679"
-       x="1.403165"
-       y="269.40442" />
-    <rect
-       style="fill:none;fill-opacity:0.34117647;stroke:#000000;stroke-width:0.5;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="rect849"
-       width="8.8633251"
-       height="20.462824"
-       x="2.3386083"
-       y="273.73083" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 4.1671877,276.32943 5.4570315,0.0331"
-       id="path855"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 4.1837241,277.58619 5.4570312,0.0331"
-       id="path855-1"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 3.9604819,278.9091 5.4570297,0.0331"
-       id="path855-5"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 3.9770183,280.16586 5.4570293,0.0331"
-       id="path855-1-5"
-       inkscape:connector-curvature="0" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="56.689px" height="56.689px" viewBox="0 0 56.689 56.689" enable-background="new 0 0 56.689 56.689" xml:space="preserve">
+<g>
+	<path fill="#9D724C" d="M52.531,16.874v22.939c0,0.141,0,0.271-0.011,0.41c-0.17,3.391-2.42,6.34-5.71,7.948
+		c-0.75,0.37-1.562,0.67-2.409,0.892c-1.07,0.271-2.2,0.421-3.37,0.421h-25.35c-6.182,0-11.23-4.11-11.49-9.261
+		c-0.01-0.142-0.01-0.271-0.01-0.41V16.874c0-5.33,5.158-9.67,11.5-9.67h25.351C47.381,7.204,52.531,11.544,52.531,16.874z"/>
+</g>
+<g>
+	<path fill="#231F20" d="M41.031,6.204h-25.35c-6.892,0-12.5,4.79-12.5,10.67v22.939c0,5.891,5.608,10.671,12.5,10.671h25.351
+		c6.899,0,12.5-4.78,12.5-10.671V16.874C53.531,10.994,47.931,6.204,41.031,6.204z M44.402,49.064c-1.07,0.271-2.2,0.421-3.37,0.421
+		H15.681c-6.182,0-11.23-4.11-11.49-9.261c-0.01-0.142-0.01-0.271-0.01-0.41v-22.94c0-5.33,5.158-9.67,11.5-9.67h25.351
+		c6.35,0,11.5,4.34,11.5,9.67v22.939c0,0.141,0,0.271-0.011,0.41c-0.17,3.391-2.42,6.34-5.71,7.948
+		C46.061,48.544,45.251,48.844,44.402,49.064z"/>
+	<path fill="#FFEACE" d="M52.521,40.224c-0.17,3.391-2.42,6.34-5.71,7.948l-2.409,0.892c-1.07,0.271-2.2,0.421-3.37,0.421H15.681
+		c-6.182,0-11.23-4.11-11.49-9.261H52.521z"/>
+</g>
+<line fill="none" stroke="#231F20" stroke-miterlimit="10" x1="3.633" y1="39.834" x2="52.989" y2="39.834"/>
+<path fill="#D9EACE" stroke="#231F20" stroke-miterlimit="10" d="M26.647,45.067c0,0.942,0.765,1.709,1.709,1.709l0,0
+	c0.942,0,1.708-0.767,1.708-1.709l0,0c0-0.943-0.767-1.708-1.708-1.708l0,0C27.412,43.359,26.647,44.123,26.647,45.067
+	L26.647,45.067z"/>
+<path fill="#66724C" d="M4.191,39.344L48.83,9.78c0,0,3.434,2.411,3.701,6.355l0.001,23.208"/>
+<g>
+	<g>
+		<path fill="#FFFFFF" d="M24.047,35.192c-5.757,0-9.776-3.996-9.776-9.718V13.34h5.385v11.955c0,2.885,1.806,4.899,4.392,4.899
+			c2.568,0,4.362-2.015,4.362-4.899V13.34h5.415v12.135C33.824,31.105,29.712,35.192,24.047,35.192z M15.269,14.34v11.135
+			c0,5.133,3.608,8.718,8.776,8.718s8.777-3.585,8.777-8.718V14.34h-3.415v10.955c0,3.418-2.255,5.899-5.362,5.899
+			c-3.125,0-5.392-2.481-5.392-5.899V14.34H15.269z"/>
+	</g>
+	<g>
+		<path fill="#FFFFFF" d="M42.294,34.834h-5.415V13.34h5.415V34.834z M37.879,33.834h3.415V14.34h-3.415V33.834z"/>
+	</g>
+</g>
 </svg>

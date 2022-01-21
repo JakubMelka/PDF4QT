@@ -1,111 +1,41 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="30mm"
-   height="30mm"
-   viewBox="0 0 30 30"
-   version="1.1"
-   id="svg871"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="shading.svg">
-  <defs
-     id="defs865">
-    <linearGradient
-       inkscape:collect="always"
-       id="linearGradient1422">
-      <stop
-         style="stop-color:#000000;stop-opacity:1;"
-         offset="0"
-         id="stop1418" />
-      <stop
-         style="stop-color:#000000;stop-opacity:0;"
-         offset="1"
-         id="stop1420" />
-    </linearGradient>
-    <radialGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient1422"
-       id="radialGradient1424"
-       cx="14.950389"
-       cy="281.9661"
-       fx="14.950389"
-       fy="281.9661"
-       r="13.931085"
-       gradientTransform="matrix(1,0,0,1.0083935,0,-2.3666712)"
-       gradientUnits="userSpaceOnUse" />
-  </defs>
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="7.9195959"
-     inkscape:cx="47.362246"
-     inkscape:cy="32.247958"
-     inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:window-width="3840"
-     inkscape:window-height="2035"
-     inkscape:window-x="-13"
-     inkscape:window-y="-13"
-     inkscape:window-maximized="1" />
-  <metadata
-     id="metadata868">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
-        <dc:creator>
-          <cc:Agent>
-            <dc:title>Jakub Melka</dc:title>
-          </cc:Agent>
-        </dc:creator>
-        <cc:license
-           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
-      </cc:Work>
-      <cc:License
-         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Reproduction" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#Distribution" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Notice" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#Attribution" />
-        <cc:permits
-           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
-        <cc:requires
-           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
-      </cc:License>
-    </rdf:RDF>
-  </metadata>
-  <g
-     inkscape:label="Vrstva 1"
-     inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-267)">
-    <rect
-       style="fill:url(#radialGradient1424);stroke:none;stroke-width:0.3;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;fill-opacity:1"
-       id="rect1416"
-       width="27.56217"
-       height="27.79603"
-       x="1.1693041"
-       y="268.06808" />
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="56.689px" height="56.689px" viewBox="0 0 56.689 56.689" enable-background="new 0 0 56.689 56.689" xml:space="preserve">
+<g>
+	<path fill="#DE9518" stroke="#231F20" stroke-miterlimit="10" d="M28.344,4.937v46.859c-12.95-0.01-23.43-10.48-23.43-23.43
+		C4.914,15.427,15.394,4.947,28.344,4.937z"/>
+	<path fill="#FF9518" stroke="#231F20" stroke-miterlimit="10" d="M51.775,28.366c0,12.95-10.48,23.43-23.421,23.43h-0.01V4.937
+		h0.01C41.294,4.937,51.775,15.427,51.775,28.366z"/>
+	<line fill="none" stroke="#231F20" stroke-miterlimit="10" x1="28.344" y1="4.937" x2="28.344" y2="4.807"/>
+	<line fill="none" stroke="#231F20" stroke-miterlimit="10" x1="28.344" y1="51.937" x2="28.344" y2="51.796"/>
+	<rect x="26.872" y="5.466" fill="#A19518" width="0.964" height="45.785"/>
+	<g>
+		<path fill-rule="evenodd" clip-rule="evenodd" fill="#231F20" d="M28.441,6.549c-0.182,0.145-0.278,0.21-0.361,0.288
+			C20.52,14.04,12.959,21.244,5.404,28.45c-0.108,0.103-0.263,0.241-0.258,0.358c0.029,0.892,0.094,1.785,0.147,2.675
+			c0.058,0.018,0.115,0.033,0.173,0.051c0.109-0.131,0.205-0.277,0.329-0.396c4.704-4.486,9.408-8.971,14.114-13.457
+			c2.729-2.599,5.459-5.197,8.179-7.802c0.158-0.154,0.326-0.385,0.337-0.583C28.46,8.422,28.441,7.544,28.441,6.549z M6.396,36.2
+			c0.15-0.123,0.245-0.195,0.331-0.275c7.141-6.807,14.28-13.612,21.42-20.419c0.107-0.104,0.269-0.233,0.271-0.354
+			c0.022-0.945,0.012-1.892,0.012-2.95c-0.239,0.218-0.379,0.343-0.517,0.472c-7.253,6.913-14.506,13.825-21.759,20.74
+			c-0.088,0.082-0.195,0.154-0.256,0.252c-0.067,0.105-0.146,0.246-0.118,0.35C5.965,34.73,6.177,35.435,6.396,36.2z M8.267,40.282
+			c0.178-0.236,0.272-0.406,0.407-0.537c6.304-6.012,12.6-12.032,18.929-18.019c0.615-0.581,0.951-1.143,0.852-1.969
+			c-0.071-0.586-0.014-1.183-0.014-1.89c-0.229,0.204-0.346,0.305-0.454,0.41C21.178,24.764,14.372,31.253,7.566,37.74
+			c-0.063,0.059-0.154,0.111-0.181,0.182c-0.051,0.139-0.132,0.316-0.079,0.434C7.579,38.95,7.89,39.534,8.267,40.282z
+			 M27.424,4.685c-1.284,0.262-2.52,0.505-3.751,0.771c-0.14,0.029-0.265,0.161-0.373,0.266
+			c-5.658,5.387-11.313,10.777-16.963,16.167c-0.12,0.114-0.258,0.255-0.294,0.404c-0.276,1.157-0.528,2.321-0.798,3.53
+			C12.659,18.757,20.005,11.755,27.424,4.685z M28.439,23.69c-6.385,6.086-12.734,12.139-19.104,18.213
+			c0.391,0.512,0.819,1.076,1.245,1.635c0.097-0.057,0.131-0.068,0.155-0.092c5.832-5.557,11.663-11.111,17.489-16.672
+			c0.102-0.098,0.202-0.253,0.203-0.383C28.447,25.489,28.439,24.584,28.439,23.69z M28.437,29.4
+			c-5.479,5.223-10.957,10.441-16.346,15.58c0.425,0.432,0.927,0.945,1.43,1.455c0.013-0.006,0.032-0.01,0.042-0.02
+			c4.892-4.658,9.781-9.314,14.669-13.975c0.093-0.088,0.195-0.221,0.195-0.334C28.444,31.189,28.437,30.269,28.437,29.4z
+			 M28.441,35.107c-4.428,4.215-8.864,8.445-13.309,12.682c0.521,0.35,1.112,0.744,1.694,1.137c0.075-0.043,0.127-0.061,0.164-0.094
+			c3.752-3.574,7.504-7.148,11.248-10.729c0.107-0.104,0.188-0.289,0.19-0.438C28.447,36.792,28.441,35.915,28.441,35.107z
+			 M18.702,49.97c0.576,0.256,1.171,0.512,1.756,0.785c0.246,0.117,0.402,0.074,0.593-0.107c2.383-2.283,4.774-4.555,7.159-6.834
+			c0.094-0.09,0.215-0.217,0.217-0.33c0.016-0.932,0.008-1.863,0.008-2.795C25.184,43.788,21.966,46.859,18.702,49.97z
+			 M28.439,46.318c-1.887,1.795-3.707,3.527-5.573,5.303c0.719,0.172,1.539,0.105,2.257,0.246c0.182,0.033,0.344,0.219,0.475,0.1
+			c0.879-0.803,1.736-1.631,2.589-2.459c0.116-0.113,0.239-0.277,0.241-0.42C28.448,48.183,28.439,47.279,28.439,46.318z
+			 M18.846,7.245c-4.789,2.426-8.378,5.84-10.909,10.397C11.594,14.159,15.177,10.741,18.846,7.245z"/>
+	</g>
+</g>
 </svg>
