@@ -57,5 +57,22 @@
         <file>resources/strikeout.svg</file>
         <file>resources/underline.svg</file>
         <file>../LICENSE.txt</file>
+        <file>resources/annot-ellipse.svg</file>
+        <file>resources/annot-freehand-curve.svg</file>
+        <file>resources/annot-inline-text.svg</file>
+        <file>resources/annot-polygon.svg</file>
+        <file>resources/annot-polyline.svg</file>
+        <file>resources/annot-sticky-note.svg</file>
+        <file>resources/annot-straight-line.svg</file>
+        <file>resources/app-icon.svg</file>
+        <file>resources/close.svg</file>
+        <file>resources/copy-text.svg</file>
+        <file>resources/deselect-text.svg</file>
+        <file>resources/encryption.svg</file>
+        <file>resources/invert-colors.svg</file>
+        <file>resources/optimize.svg</file>
+        <file>resources/save.svg</file>
+        <file>resources/save-as.svg</file>
+        <file>resources/select-all-text.svg</file>
     </qresource>
 </RCC>

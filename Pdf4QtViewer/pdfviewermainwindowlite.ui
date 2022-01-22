@@ -131,6 +131,10 @@
    </property>
   </action>
   <action name="actionClose">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/close.svg</normaloff>:/resources/close.svg</iconset>
+   </property>
    <property name="text">
     <string>Close</string>
    </property>
@@ -335,6 +339,10 @@
   <action name="actionInvertColors">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
    </property>
    <property name="text">
     <string>Invert Colors</string>
