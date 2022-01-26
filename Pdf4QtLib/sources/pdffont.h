@@ -287,14 +287,13 @@ public:
     /// \param document Document
     static PDFFontPointer createFont(const PDFObject& object, const PDFDocument* document);
 
-protected:
-    FontDescriptor m_fontDescriptor;
-
-private:
     /// Tries to read font descriptor from the object
     /// \param fontDescriptorObject Font descriptor dictionary
     /// \param document Document
     static FontDescriptor readFontDescriptor(const PDFObject& fontDescriptorObject, const PDFDocument* document);
+
+protected:
+    FontDescriptor m_fontDescriptor;
 };
 
 /// Simple font, see PDF reference 1.7, chapter 5.5. Simple fonts have encoding table,

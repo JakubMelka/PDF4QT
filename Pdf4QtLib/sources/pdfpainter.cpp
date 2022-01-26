@@ -819,11 +819,7 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     };
     for (const PathPaintData& data : m_paths)
     {
-        // Texts are shared from the font
-        if (!data.isText)
-        {
-            m_memoryConsumptionEstimate += calculateQPathMemoryConsumption(data.path);
-        }
+        m_memoryConsumptionEstimate += calculateQPathMemoryConsumption(data.path);
     }
     for (const ClipData& data : m_clips)
     {

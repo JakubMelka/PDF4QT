@@ -18,6 +18,7 @@
 #include "pdfxfaengine.h"
 #include "pdfform.h"
 #include "pdfpainterutils.h"
+#include "pdffont.h"
 
 #include <QDomElement>
 #include <QDomDocument>
@@ -26,6 +27,7 @@
 #include <QImageReader>
 #include <QTextDocument>
 #include <QTextBlock>
+#include <QFontDatabase>
 #include <QAbstractTextDocumentLayout>
 
 #include <stack>
@@ -9699,6 +9701,7 @@ private:
         std::vector<xfa::XFA_ParagraphSettings> paragraphSettings;
     };
 
+    void updateResources(const PDFObject& resources);
     void clear();
 
     QMarginsF createMargin(const xfa::XFA_margin* margin);
@@ -9850,6 +9853,7 @@ private:
     const PDFDocument* m_document;
     PDFForm* m_form;
     Layout m_layout;
+    std::map<int, QByteArray> m_fonts;
 };
 
 class PDFXFALayoutEngine : public xfa::XFA_AbstractVisitor
@@ -11641,6 +11645,7 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
                 try
                 {
                     const PDFObject& xfaObject = m_document->getObject(form->getXFA());
+                    updateResources(m_document->getObject(form->getResources()));
 
                     std::map<QByteArray, QByteArray> xfaData;
                     if (xfaObject.isArray())
@@ -11722,6 +11727,79 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
         drawItemField(item.field, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
         drawItemSubform(item.subform, errors, item.nominalExtent, painter);
         drawItemExclGroup(item.exclGroup, errors, item.nominalExtent, painter);
+    }
+}
+
+void PDFXFAEngineImpl::updateResources(const PDFObject& resources)
+{
+    try
+    {
+        std::set<int> usedFonts;
+
+        if (m_document)
+        {
+            if (const PDFDictionary* resourcesDictionary = m_document->getDictionaryFromObject(resources))
+            {
+                if (const PDFDictionary* fontsDictionary = m_document->getDictionaryFromObject(resourcesDictionary->get("Font")))
+                {
+                    const size_t size = fontsDictionary->getCount();
+                    for (size_t i = 0; i < size; ++i)
+                    {
+                        const PDFDictionary* fontDictionary = m_document->getDictionaryFromObject(fontsDictionary->getValue(i));
+                        FontDescriptor descriptor = PDFFont::readFontDescriptor(m_document->getObject(fontDictionary->get("FontDescriptor")), m_document);
+
+                        if (const QByteArray* data = descriptor.getEmbeddedFontData())
+                        {
+                            int fontId = -1;
+
+                            for (const auto& font : m_fonts)
+                            {
+                                if (font.second == *data)
+                                {
+                                    fontId = font.first;
+                                    break;
+                                }
+                            }
+
+                            if (fontId == -1)
+                            {
+                                // Try to create application font from data
+                                fontId = QFontDatabase::addApplicationFontFromData(*data);
+                            }
+
+                            if (fontId != -1)
+                            {
+                                if (!m_fonts.count(fontId))
+                                {
+                                    m_fonts[fontId] = *data;
+                                }
+
+                                // Mark font as used
+                                usedFonts.insert(fontId);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove unused fonts
+        for (auto it = m_fonts.begin(); it != m_fonts.end();)
+        {
+            if (usedFonts.count(it->first))
+            {
+                ++it;
+            }
+            else
+            {
+                QFontDatabase::removeApplicationFont(it->first);
+                it = m_fonts.erase(it);
+            }
+        }
+    }
+    catch (const PDFException&)
+    {
+        // Just clear the fonts
     }
 }
 
@@ -13041,6 +13119,12 @@ void PDFXFAEngineImpl::clear()
     // Clear the template
     m_template = xfa::XFA_Node<xfa::XFA_template>();
     m_layout = Layout();
+
+    for (const auto& font : m_fonts)
+    {
+        QFontDatabase::removeApplicationFont(font.first);
+    }
+    m_fonts.clear();
 }
 
 QMarginsF PDFXFAEngineImpl::createMargin(const xfa::XFA_margin* margin)
