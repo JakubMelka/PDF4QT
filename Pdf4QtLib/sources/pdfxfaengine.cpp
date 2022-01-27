@@ -11851,7 +11851,7 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
         {
             QString textValue = integer->getNodeValue() ? *integer->getNodeValue() : QString();
             nodeValue.emplace();
-            nodeValue->value = textValue.toInt();
+            nodeValue->value = textValue.isEmpty() ? QVariant() : textValue.toInt();
         }
         else if (const xfa::XFA_boolean* boolean = value->getBoolean())
         {
@@ -11865,7 +11865,7 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
             nodeValue.emplace();
             nodeValue->hintFloatFracDigits = decimal->getFracDigits();
             nodeValue->hintFloatLeadDigits = decimal->getLeadDigits();
-            nodeValue->value = textValue.toDouble();
+            nodeValue->value = textValue.isEmpty() ? QVariant() : textValue.toDouble();
         }
         else if (const xfa::XFA_float* floatItem = value->getFloat())
         {
@@ -11873,7 +11873,7 @@ void PDFXFAEngineImpl::drawItemValue(const xfa::XFA_value* value,
             nodeValue.emplace();
             nodeValue->hintFloatFracDigits = -1;
             nodeValue->hintFloatLeadDigits = -1;
-            nodeValue->value = textValue.toDouble();
+            nodeValue->value = textValue.isEmpty() ? QVariant() : textValue.toDouble();
         }
         else if (const xfa::XFA_dateTime* dateTime = value->getDateTime())
         {
@@ -12429,6 +12429,11 @@ void PDFXFAEngineImpl::drawUiNumericEdit(const xfa::XFA_numericEdit* numericEdit
         drawItemBorder(numericEdit->getBorder(), errors, nominalExtentArea, painter);
     }
 
+    if (!value.value.isValid())
+    {
+        return;
+    }
+
     QString text;
 
     if (value.hintFloatFracDigits != -1)
@@ -12561,14 +12566,24 @@ void PDFXFAEngineImpl::drawUiCheckButton(const xfa::XFA_checkButton* checkButton
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
 
-    switch (shape)
+    bool showBorder = true;
+    if (const xfa::XFA_border* border = checkButton->getBorder())
     {
-        case pdf::xfa::XFA_BaseNode::SHAPE::Square:
-            painter->drawRect(checkBoxRect);
-            break;
-        case pdf::xfa::XFA_BaseNode::SHAPE::Round:
-            painter->drawEllipse(checkBoxRect);
-            break;
+        const xfa::XFA_BaseNode::PRESENCE presence = border->getPresence();
+        showBorder = presence == xfa::XFA_BaseNode::PRESENCE::Visible;
+    }
+
+    if (showBorder)
+    {
+        switch (shape)
+        {
+            case pdf::xfa::XFA_BaseNode::SHAPE::Square:
+                painter->drawRect(checkBoxRect);
+                break;
+            case pdf::xfa::XFA_BaseNode::SHAPE::Round:
+                painter->drawEllipse(checkBoxRect);
+                break;
+        }
     }
 
     if (value.value.toBool())
