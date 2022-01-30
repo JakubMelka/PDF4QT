@@ -28,11 +28,97 @@
 namespace pdf
 {
 
+PDFAsynchronousPageCompilerWorkerThread::PDFAsynchronousPageCompilerWorkerThread(PDFAsynchronousPageCompiler* parent) :
+    QThread(parent),
+    m_compiler(parent),
+    m_mutex(&m_compiler->m_mutex),
+    m_waitCondition(&m_compiler->m_waitCondition)
+{
+
+}
+
+void PDFAsynchronousPageCompilerWorkerThread::run()
+{
+    QMutexLocker locker(m_mutex);
+    while (!isInterruptionRequested())
+    {
+        if (m_waitCondition->wait(locker.mutex(), QDeadlineTimer(QDeadlineTimer::Forever)))
+        {
+            while (!isInterruptionRequested())
+            {
+                std::vector<PDFAsynchronousPageCompiler::CompileTask> tasks;
+                for (auto& task : m_compiler->m_tasks)
+                {
+                    if (!task.second.finished)
+                    {
+                        tasks.push_back(task.second);
+                    }
+                }
+
+                if (!tasks.empty())
+                {
+                    locker.unlock();
+
+                    // Perform page compilation
+                    auto proxy = m_compiler->getProxy();
+                    proxy->getFontCache()->setCacheShrinkEnabled(this, false);
+
+                    auto compilePage = [proxy](PDFAsynchronousPageCompiler::CompileTask& task) -> PDFPrecompiledPage
+                    {
+                        PDFPrecompiledPage compiledPage;
+                        PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
+                        PDFRenderer renderer(proxy->getDocument(), proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), proxy->getFeatures(), proxy->getMeshQualitySettings());
+                        renderer.compile(&task.precompiledPage, task.pageIndex);
+                        task.finished = true;
+                        return compiledPage;
+                    };
+                    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), compilePage);
+
+                    proxy->getFontCache()->setCacheShrinkEnabled(this, true);
+
+                    // Relock the mutex to write the tasks
+                    locker.relock();
+
+                    // Now, write compiled pages
+                    bool isSomethingWritten = false;
+                    for (auto& task : tasks)
+                    {
+                        if (task.finished)
+                        {
+                            isSomethingWritten = true;
+                            m_compiler->m_tasks[task.pageIndex] = std::move(task);
+                        }
+                    }
+
+                    if (isSomethingWritten)
+                    {
+                        // Why we are unlocking the mutex? Because
+                        // we do not want to emit signals with locked mutexes.
+                        // If direct connection is applied, this can lead to deadlock.
+                        locker.unlock();
+                        emit pageCompiled();
+                        locker.relock();
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+    }
+}
+
 PDFAsynchronousPageCompiler::PDFAsynchronousPageCompiler(PDFDrawWidgetProxy* proxy) :
     BaseClass(proxy),
     m_proxy(proxy)
 {
     m_cache.setMaxCost(128 * 1024 * 1024);
+}
+
+PDFAsynchronousPageCompiler::~PDFAsynchronousPageCompiler()
+{
+    stop(true);
 }
 
 void PDFAsynchronousPageCompiler::start()
@@ -41,7 +127,11 @@ void PDFAsynchronousPageCompiler::start()
     {
         case State::Inactive:
         {
+            Q_ASSERT(!m_thread);
             m_state = State::Active;
+            m_thread = new PDFAsynchronousPageCompilerWorkerThread(this);
+            connect(m_thread, &PDFAsynchronousPageCompilerWorkerThread::pageCompiled, this, &PDFAsynchronousPageCompiler::onPageCompiled);
+            m_thread->start();
             break;
         }
 
@@ -62,18 +152,25 @@ void PDFAsynchronousPageCompiler::stop(bool clearCache)
     switch (m_state)
     {
         case State::Inactive:
+        {
+            Q_ASSERT(!m_thread);
             break; // We have nothing to do...
+        }
 
         case State::Active:
         {
             // Stop the engine
             m_state = State::Stopping;
 
-            for (const auto& taskItem : m_tasks)
-            {
-                disconnect(taskItem.second.taskWatcher, &QFutureWatcher<PDFPrecompiledPage>::finished, this, &PDFAsynchronousPageCompiler::onPageCompiled);
-                taskItem.second.taskWatcher->waitForFinished();
-            }
+            Q_ASSERT(m_thread);
+            m_thread->requestInterruption();
+            m_waitCondition.wakeAll();
+            m_thread->wait();
+            delete m_thread;
+            m_thread = nullptr;
+
+            // It is safe to do not use mutex, because
+            // we have ended the work thread.
             m_tasks.clear();
 
             if (clearCache)
@@ -114,24 +211,14 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
     }
 
     const PDFPrecompiledPage* page = m_cache.object(pageIndex);
-    if (!page && compile && !m_tasks.count(pageIndex))
+    if (!page && compile)
     {
-        // Compile the page
-        auto compilePage = [this, pageIndex]() -> PDFPrecompiledPage
+        QMutexLocker locker(&m_mutex);
+        if (!m_tasks.count(pageIndex))
         {
-            PDFPrecompiledPage compiledPage;
-            PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
-            PDFRenderer renderer(m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), m_proxy->getFeatures(), m_proxy->getMeshQualitySettings());
-            renderer.compile(&compiledPage, pageIndex);
-            return compiledPage;
-        };
-
-        m_proxy->getFontCache()->setCacheShrinkEnabled(this, false);
-        CompileTask& task = m_tasks[pageIndex];
-        task.taskFuture = QtConcurrent::run(compilePage);
-        task.taskWatcher = new QFutureWatcher<PDFPrecompiledPage>(this);
-        connect(task.taskWatcher, &QFutureWatcher<PDFPrecompiledPage>::finished, this, &PDFAsynchronousPageCompiler::onPageCompiled);
-        task.taskWatcher->setFuture(task.taskFuture);
+            m_tasks.insert(std::make_pair(pageIndex, CompileTask(pageIndex)));
+            m_waitCondition.wakeOne();
+        }
     }
 
     return page;
@@ -140,43 +227,49 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
 void PDFAsynchronousPageCompiler::onPageCompiled()
 {
     std::vector<PDFInteger> compiledPages;
+    std::map<PDFInteger, PDFRenderError> errors;
 
-    // Search all tasks for finished tasks
-    for (auto it = m_tasks.begin(); it != m_tasks.end();)
     {
-        CompileTask& task = it->second;
-        if (task.taskWatcher->isFinished())
-        {
-            if (m_state == State::Active)
-            {
-                // If we are in active state, try to store precompiled page
-                PDFPrecompiledPage* page = new PDFPrecompiledPage(task.taskWatcher->result());
-                qint64 memoryConsumptionEstimate = page->getMemoryConsumptionEstimate();
-                if (m_cache.insert(it->first, page, memoryConsumptionEstimate))
-                {
-                    compiledPages.push_back(it->first);
-                }
-                else
-                {
-                    // We can't insert page to the cache, because cache size is too small. We will
-                    // emit error string to inform the user, that cache is too small.
-                    QString message = PDFTranslationContext::tr("Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!").arg(memoryConsumptionEstimate / 1024).arg(m_cache.maxCost() / 1024);
-                    emit renderingError(it->first, { PDFRenderError(RenderErrorType::Error, message) });
-                }
-            }
+        QMutexLocker locker(&m_mutex);
 
-            task.taskWatcher->deleteLater();
-            it = m_tasks.erase(it);
-        }
-        else
+        // Search all tasks for finished tasks
+        for (auto it = m_tasks.begin(); it != m_tasks.end();)
         {
-            // Just increment the counter
-            ++it;
+            CompileTask& task = it->second;
+            if (task.finished)
+            {
+                if (m_state == State::Active)
+                {
+                    // If we are in active state, try to store precompiled page
+                    PDFPrecompiledPage* page = new PDFPrecompiledPage(std::move(task.precompiledPage));
+                    qint64 memoryConsumptionEstimate = page->getMemoryConsumptionEstimate();
+                    if (m_cache.insert(it->first, page, memoryConsumptionEstimate))
+                    {
+                        compiledPages.push_back(it->first);
+                    }
+                    else
+                    {
+                        // We can't insert page to the cache, because cache size is too small. We will
+                        // emit error string to inform the user, that cache is too small.
+                        QString message = PDFTranslationContext::tr("Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!").arg(memoryConsumptionEstimate / 1024).arg(m_cache.maxCost() / 1024);
+                        errors[it->first] = PDFRenderError(RenderErrorType::Error, message);
+                    }
+                }
+
+                it = m_tasks.erase(it);
+            }
+            else
+            {
+                // Just increment the counter
+                ++it;
+            }
         }
     }
 
-    // We allow font cache shrinking, when we aren't doing something in parallel.
-    m_proxy->getFontCache()->setCacheShrinkEnabled(this, m_tasks.empty());
+    for (const auto& error : errors)
+    {
+        emit renderingError(error.first, { error.second });
+    }
 
     if (!compiledPages.empty())
     {

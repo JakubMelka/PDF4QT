@@ -25,10 +25,31 @@
 #include <QCache>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QWaitCondition>
 
 namespace pdf
 {
 class PDFDrawWidgetProxy;
+class PDFAsynchronousPageCompiler;
+
+class PDFAsynchronousPageCompilerWorkerThread : public QThread
+{
+    Q_OBJECT
+
+public:
+    explicit PDFAsynchronousPageCompilerWorkerThread(PDFAsynchronousPageCompiler* parent);
+
+signals:
+    void pageCompiled();
+
+protected:
+    virtual void run() override;
+
+private:
+    PDFAsynchronousPageCompiler* m_compiler;
+    QMutex* m_mutex;
+    QWaitCondition* m_waitCondition;
+};
 
 /// Asynchronous page compiler compiles pages asynchronously, and stores them in the
 /// cache. Cache size can be set. This object is designed to cooperate with
@@ -42,6 +63,7 @@ private:
 
 public:
     explicit PDFAsynchronousPageCompiler(PDFDrawWidgetProxy* proxy);
+    virtual ~PDFAsynchronousPageCompiler();
 
     /// Starts the engine. Call this function only if the engine
     /// is stopped.
@@ -70,6 +92,12 @@ public:
         Stopping
     };
 
+    /// Returns current state of compiler
+    State getState() const { return m_state; }
+
+    /// Return proxy
+    PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
+
     /// Tries to retrieve precompiled page from the cache. If page is not found,
     /// then nullptr is returned (no exception is thrown). If \p compile is set to true,
     /// and page is not found, and compiler is active, then new asynchronous compile
@@ -79,21 +107,34 @@ public:
     const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
 
 signals:
-    void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
-    void renderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
+    void pageImageChanged(bool all, const std::vector<pdf::PDFInteger>& pages);
+    void renderingError(pdf::PDFInteger pageIndex, const QList<pdf::PDFRenderError>& errors);
 
 private:
+    friend class PDFAsynchronousPageCompilerWorkerThread;
+
     void onPageCompiled();
 
     struct CompileTask
     {
-        QFuture<PDFPrecompiledPage> taskFuture;
-        QFutureWatcher<PDFPrecompiledPage>* taskWatcher = nullptr;
+        CompileTask() = default;
+        CompileTask(PDFInteger pageIndex) : pageIndex(pageIndex) { }
+
+        PDFInteger pageIndex = 0;
+        bool finished = false;
+        PDFPrecompiledPage precompiledPage;
     };
 
-    PDFDrawWidgetProxy* m_proxy;
     State m_state = State::Inactive;
+    QMutex m_mutex;
+    QWaitCondition m_waitCondition;
+    PDFAsynchronousPageCompilerWorkerThread* m_thread = nullptr;
+
+    PDFDrawWidgetProxy* m_proxy;
     QCache<PDFInteger, PDFPrecompiledPage> m_cache;
+
+    /// This task is protected by mutex. Every access to this
+    /// variable must be done with locked mutex.
     std::map<PDFInteger, CompileTask> m_tasks;
 };
 

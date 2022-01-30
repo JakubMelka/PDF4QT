@@ -12567,10 +12567,13 @@ void PDFXFAEngineImpl::drawUiCheckButton(const xfa::XFA_checkButton* checkButton
     painter->setBrush(Qt::NoBrush);
 
     bool showBorder = true;
-    if (const xfa::XFA_border* border = checkButton->getBorder())
+    if (checkButton)
     {
-        const xfa::XFA_BaseNode::PRESENCE presence = border->getPresence();
-        showBorder = presence == xfa::XFA_BaseNode::PRESENCE::Visible;
+        if (const xfa::XFA_border* border = checkButton->getBorder())
+        {
+            const xfa::XFA_BaseNode::PRESENCE presence = border->getPresence();
+            showBorder = presence == xfa::XFA_BaseNode::PRESENCE::Visible;
+        }
     }
 
     if (showBorder)
