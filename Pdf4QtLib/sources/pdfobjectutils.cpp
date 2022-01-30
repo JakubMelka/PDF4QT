@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -19,6 +19,7 @@
 #include "pdfvisitor.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfdocumentwriter.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

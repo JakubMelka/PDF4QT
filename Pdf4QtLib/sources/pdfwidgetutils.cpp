@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -16,6 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfwidgetutils.h"
+#include "pdfdbgheap.h"
 
 #include <QDialog>
 #include <QLayout>

@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+//    Copyright (C) 2021-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -18,6 +18,7 @@
 #include "pdfencryptionstrengthhintwidget.h"
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
+#include "pdfdbgheap.h"
 
 #include <QPainter>
 #include <QFontMetrics>

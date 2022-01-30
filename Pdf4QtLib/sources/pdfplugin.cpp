@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -16,6 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfplugin.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
+#include "pdfdbgheap.h"
 
 #include <stack>
 #include <iterator>

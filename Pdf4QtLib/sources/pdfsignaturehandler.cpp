@@ -1,4 +1,4 @@
- //    Copyright (C) 2020-2021 Jakub Melka
+ //    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -20,6 +20,7 @@
 #include "pdfencoding.h"
 #include "pdfform.h"
 #include "pdfutils.h"
+#include "pdfdbgheap.h"
 #include "pdfsignaturehandler_impl.h"
 
 #include <openssl/err.h>

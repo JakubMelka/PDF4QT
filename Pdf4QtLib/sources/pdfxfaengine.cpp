@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+//    Copyright (C) 2021-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -19,6 +19,7 @@
 #include "pdfform.h"
 #include "pdfpainterutils.h"
 #include "pdffont.h"
+#include "pdfdbgheap.h"
 
 #include <QDomElement>
 #include <QDomDocument>

@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -21,6 +21,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfobjectutils.h"
 #include "pdfnametreeloader.h"
+#include "pdfdbgheap.h"
 
 #include <QBuffer>
 #include <QPainter>

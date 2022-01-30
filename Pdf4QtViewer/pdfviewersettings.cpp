@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -17,6 +17,7 @@
 
 #include "pdfviewersettings.h"
 #include "pdfconstants.h"
+#include "pdfdbgheap.h"
 
 #include <QPixmapCache>
 

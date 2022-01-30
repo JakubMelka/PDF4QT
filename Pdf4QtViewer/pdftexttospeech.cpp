@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -20,6 +20,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfcompiler.h"
 #include "pdfdrawwidget.h"
+#include "pdfdbgheap.h"
 
 #include <QLabel>
 #include <QAction>
@@ -101,7 +102,7 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
     const PDFViewerSettings::Settings& settings = viewerSettings->getSettings();
     if (!settings.m_speechEngine.isEmpty())
     {
-        m_textToSpeech = new QTextToSpeech(settings.m_speechEngine);
+        m_textToSpeech = new QTextToSpeech(settings.m_speechEngine, this);
         connect(m_textToSpeech, &QTextToSpeech::stateChanged, this, &PDFTextToSpeech::updatePlay);
         m_state = m_document ? Ready : NoDocument;
 

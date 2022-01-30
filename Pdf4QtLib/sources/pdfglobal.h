@@ -52,6 +52,10 @@
 #define PDF4QT_USE_PRAGMA_LIB 1
 #endif
 
+#if defined(Q_OS_WIN) && defined(PDF4QT_COMPILER_MSVC) && !defined(NDEBUG)
+#define PDF4QT_USE_DBG_HEAP
+#endif
+
 namespace pdf
 {
 

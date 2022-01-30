@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -18,6 +18,7 @@
 #include "pdfmultimedia.h"
 #include "pdfdocument.h"
 #include "pdfnametreeloader.h"
+#include "pdfdbgheap.h"
 
 #include <QtEndian>
 

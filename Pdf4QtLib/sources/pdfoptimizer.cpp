@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -23,6 +23,7 @@
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfstreamfilters.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

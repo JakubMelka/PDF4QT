@@ -119,6 +119,7 @@ HEADERS += \
     sources/pdfccittfaxdecoder.h \
     sources/pdfcms.h \
     sources/pdfcompiler.h \
+    sources/pdfdbgheap.h \
     sources/pdfdiff.h \
     sources/pdfdocumentbuilder.h \
     sources/pdfdocumentdrawinterface.h \

@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -25,6 +25,7 @@
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfrendertoimagesdialog.h"
 #include "pdfoptimizedocumentdialog.h"
+#include "pdfdbgheap.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"

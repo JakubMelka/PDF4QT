@@ -17,12 +17,17 @@
 
 #include "pdfviewermainwindow.h"
 #include "pdfconstants.h"
+#include "pdfdbgheap.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
 
 int main(int argc, char *argv[])
 {
+#if defined(PDF4QT_USE_DBG_HEAP)
+    _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+#endif
+
     QApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents, true);
     QApplication::setAttribute(Qt::AA_DisableHighDpiScaling, true);
     QApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);

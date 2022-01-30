@@ -1,4 +1,4 @@
-﻿//    Copyright (C) 2021 Jakub Melka
+﻿//    Copyright (C) 2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -24,6 +24,7 @@
 #include "pdfcompiler.h"
 #include "pdfconstants.h"
 #include "pdfalgorithmlcs.h"
+#include "pdfdbgheap.h"
 
 #include <QtConcurrent/QtConcurrent>
 

@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -24,6 +24,7 @@
 #include "pdfconstants.h"
 #include "pdfcms.h"
 #include "pdfannotation.h"
+#include "pdfdbgheap.h"
 
 #include <QPainter>
 #include <QFontMetrics>

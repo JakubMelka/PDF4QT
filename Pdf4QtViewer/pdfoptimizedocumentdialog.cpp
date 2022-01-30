@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+//    Copyright (C) 2021-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -20,6 +20,7 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
+#include "pdfdbgheap.h"
 
 #include <QCheckBox>
 #include <QPushButton>

@@ -1,4 +1,4 @@
-//    Copyright (C) 2018-2021 Jakub Melka
+//    Copyright (C) 2018-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -23,6 +23,7 @@
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfdbgheap.h"
 
 #include <QFile>
 

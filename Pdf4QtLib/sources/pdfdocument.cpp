@@ -1,4 +1,4 @@
-//    Copyright (C) 2018-2021 Jakub Melka
+//    Copyright (C) 2018-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -21,6 +21,7 @@
 #include "pdfexception.h"
 #include "pdfstreamfilters.h"
 #include "pdfconstants.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

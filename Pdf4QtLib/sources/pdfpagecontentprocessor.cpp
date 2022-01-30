@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -22,6 +22,7 @@
 #include "pdfpattern.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfstreamfilters.h"
+#include "pdfdbgheap.h"
 
 #include <QPainterPathStroker>
 

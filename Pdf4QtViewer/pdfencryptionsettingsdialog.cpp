@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+//    Copyright (C) 2021-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -21,6 +21,7 @@
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
 #include "pdfsecurityhandler.h"
+#include "pdfdbgheap.h"
 
 #include <QMessageBox>
 

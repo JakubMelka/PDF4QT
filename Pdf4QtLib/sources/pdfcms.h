@@ -347,6 +347,11 @@ private:
 public:
     explicit PDFCMSManager(QObject* parent);
 
+    /// Finalizes cms manager. Call this function
+    /// only at program exit. Frees all allocated
+    /// resources. Function is not thread-safe.
+    static void finalize();
+
     /// Returns current CMS. This function possibly creates CMS,
     /// of no CMS is found.
     PDFCMSPointer getCurrentCMS() const;

@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -18,6 +18,7 @@
 #include "pdfcms.h"
 #include "pdfdocument.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfdbgheap.h"
 
 #include <QApplication>
 #include <QReadWriteLock>
@@ -1386,6 +1387,11 @@ PDFCMSManager::PDFCMSManager(QObject* parent) :
     m_mutex(QMutex::Recursive)
 {
 
+}
+
+void PDFCMSManager::finalize()
+{
+    cmsUnregisterPlugins();
 }
 
 PDFCMSPointer PDFCMSManager::getCurrentCMS() const
