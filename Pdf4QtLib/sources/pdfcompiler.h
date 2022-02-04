@@ -54,7 +54,7 @@ private:
 /// Asynchronous page compiler compiles pages asynchronously, and stores them in the
 /// cache. Cache size can be set. This object is designed to cooperate with
 /// draw widget proxy.
-class PDFAsynchronousPageCompiler : public QObject
+class PDFAsynchronousPageCompiler : public QObject, public PDFOperationControl
 {
     Q_OBJECT
 
@@ -105,6 +105,9 @@ public:
     /// \param pageIndex Index of page
     /// \param compile Compile the page, if it is not found in the cache
     const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
+
+    /// Is operation being cancelled?
+    virtual bool isOperationCancelled() const override;
 
 signals:
     void pageImageChanged(bool all, const std::vector<pdf::PDFInteger>& pages);

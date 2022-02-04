@@ -64,11 +64,12 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
                     auto proxy = m_compiler->getProxy();
                     proxy->getFontCache()->setCacheShrinkEnabled(this, false);
 
-                    auto compilePage = [proxy](PDFAsynchronousPageCompiler::CompileTask& task) -> PDFPrecompiledPage
+                    auto compilePage = [this, proxy](PDFAsynchronousPageCompiler::CompileTask& task) -> PDFPrecompiledPage
                     {
                         PDFPrecompiledPage compiledPage;
                         PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
                         PDFRenderer renderer(proxy->getDocument(), proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), proxy->getFeatures(), proxy->getMeshQualitySettings());
+                        renderer.setOperationControl(m_compiler);
                         renderer.compile(&task.precompiledPage, task.pageIndex);
                         task.finished = true;
                         return compiledPage;
@@ -120,6 +121,11 @@ PDFAsynchronousPageCompiler::PDFAsynchronousPageCompiler(PDFDrawWidgetProxy* pro
 PDFAsynchronousPageCompiler::~PDFAsynchronousPageCompiler()
 {
     stop(true);
+}
+
+bool PDFAsynchronousPageCompiler::isOperationCancelled() const
+{
+    return m_state == State::Stopping;
 }
 
 void PDFAsynchronousPageCompiler::start()

@@ -608,9 +608,15 @@ ShadingType PDFFunctionShading::getShadingType() const
     return ShadingType::Function;
 }
 
-PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings,
+                                       const PDFCMS* cms,
+                                       RenderingIntent intent,
+                                       PDFRenderErrorReporter* reporter,
+                                       const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
+
+    Q_UNUSED(operationControl);
 
     QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QMatrix domainToDeviceSpaceMatrix = m_domainToTargetTransform * patternSpaceToDeviceSpaceMatrix;
@@ -916,9 +922,15 @@ PDFShadingSampler* PDFFunctionShading::createSampler(QMatrix userSpaceToDeviceSp
     return new PDFFunctionShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
 
-PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings,
+                                    const PDFCMS* cms,
+                                    RenderingIntent intent,
+                                    PDFRenderErrorReporter* reporter,
+                                    const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
+
+    Q_UNUSED(operationControl);
 
     QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
@@ -1423,9 +1435,15 @@ ShadingType PDFRadialShading::getShadingType() const
     return ShadingType::Radial;
 }
 
-PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
+                                     const PDFCMS* cms,
+                                     RenderingIntent intent,
+                                     PDFRenderErrorReporter* reporter,
+                                     const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
+
+    Q_UNUSED(operationControl);
 
     QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
@@ -2239,9 +2257,15 @@ bool PDFFreeFormGouradTriangleShading::processTriangles(InitializeFunction initi
     return true;
 }
 
-PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings,
+                                                     const PDFCMS* cms,
+                                                     RenderingIntent intent,
+                                                     PDFRenderErrorReporter* reporter,
+                                                     const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
+
+    Q_UNUSED(operationControl);
 
     auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
     {
@@ -2401,9 +2425,15 @@ bool PDFLatticeFormGouradTriangleShading::processTriangles(InitializeFunction in
     return true;
 }
 
-PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySettings& settings,
+                                                        const PDFCMS* cms,
+                                                        RenderingIntent intent,
+                                                        PDFRenderErrorReporter* reporter,
+                                                        const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
+
+    Q_UNUSED(operationControl);
 
     auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
     {
@@ -3071,7 +3101,11 @@ PDFTensorPatches PDFTensorProductPatchShading::createPatches(QMatrix userSpaceTo
     return patches;
 }
 
-PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& settings,
+                                                 const PDFCMS* cms,
+                                                 RenderingIntent intent,
+                                                 PDFRenderErrorReporter* reporter,
+                                                 const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
 
@@ -3082,7 +3116,7 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
         throw PDFException(PDFTranslationContext::tr("Invalid data in tensor product patch shading."));
     }
 
-    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings.userSpaceToDeviceSpaceMatrix), settings, patches, cms, intent, reporter);
+    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings.userSpaceToDeviceSpaceMatrix), settings, patches, cms, intent, reporter, operationControl);
     return mesh;
 }
 
@@ -3228,7 +3262,8 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 const PDFCMS* cms,
                                                 RenderingIntent intent,
                                                 PDFRenderErrorReporter* reporter,
-                                                bool fastAlgorithm) const
+                                                bool fastAlgorithm,
+                                                const PDFOperationControl* operationControl) const
 {
     // We implement algorithm similar to Ruppert's algorithm (see https://en.wikipedia.org/wiki/Ruppert%27s_algorithm), but
     // we do not need a mesh for FEM calculation, so we do not care about quality of the triangles (we can have triangles with
@@ -3301,6 +3336,13 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
 
     while (!unfinishedTriangles.empty())
     {
+        // Mesh generation is cancelled
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            mesh = PDFMesh();
+            return;
+        }
+
         Triangle triangle = unfinishedTriangles.back();
         unfinishedTriangles.pop_back();
 
@@ -3417,12 +3459,13 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 const PDFTensorPatches& patches,
                                                 const PDFCMS* cms,
                                                 RenderingIntent intent,
-                                                PDFRenderErrorReporter* reporter) const
+                                                PDFRenderErrorReporter* reporter,
+                                                const PDFOperationControl* operationControl) const
 {
     const bool fastAlgorithm = patches.size() > 16;
     for (const auto& patch : patches)
     {
-        fillMesh(mesh, settings, patch, cms, intent, reporter, fastAlgorithm);
+        fillMesh(mesh, settings, patch, cms, intent, reporter, fastAlgorithm, operationControl);
     }
 
     // Create bounding path
@@ -3655,7 +3698,11 @@ PDFTensorPatches PDFCoonsPatchShading::createPatches(QMatrix userSpaceToDeviceSp
     return patches;
 }
 
-PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
+                                         const PDFCMS* cms,
+                                         RenderingIntent intent,
+                                         PDFRenderErrorReporter* reporter,
+                                         const PDFOperationControl* operationControl) const
 {
     PDFMesh mesh;
     PDFTensorPatches patches = createPatches(settings.userSpaceToDeviceSpaceMatrix, true);
@@ -3665,7 +3712,7 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
         throw PDFException(PDFTranslationContext::tr("Invalid data in coons patch shading."));
     }
 
-    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings), settings, patches, cms, intent, reporter);
+    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings), settings, patches, cms, intent, reporter, operationControl);
     return mesh;
 }
 

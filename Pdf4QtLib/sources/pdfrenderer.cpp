@@ -43,6 +43,7 @@ PDFRenderer::PDFRenderer(const PDFDocument* document,
     m_fontCache(fontCache),
     m_cms(cms),
     m_optionalContentActivity(optionalContentActivity),
+    m_operationControl(nullptr),
     m_features(features),
     m_meshQualitySettings(meshQualitySettings)
 {
@@ -107,6 +108,16 @@ QMatrix PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
     return matrix;
 }
 
+const PDFOperationControl* PDFRenderer::getOperationControl() const
+{
+    return m_operationControl;
+}
+
+void PDFRenderer::setOperationControl(const PDFOperationControl* newOperationControl)
+{
+    m_operationControl = newOperationControl;
+}
+
 QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& rectangle, size_t pageIndex) const
 {
     const PDFCatalog* catalog = m_document->getCatalog();
@@ -122,6 +133,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
     QMatrix matrix = createPagePointToDevicePointMatrix(page, rectangle);
 
     PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    processor.setOperationControl(m_operationControl);
     return processor.processContents();
 }
 
@@ -138,6 +150,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matr
     Q_ASSERT(page);
 
     PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    processor.setOperationControl(m_operationControl);
     return processor.processContents();
 }
 
@@ -158,6 +171,7 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
     timer.start();
 
     PDFPrecompiledPageGenerator generator(precompiledPage, m_features, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    generator.setOperationControl(m_operationControl);
     QList<PDFRenderError> errors = generator.processContents();
 
     if (m_features.testFlag(InvertColors))

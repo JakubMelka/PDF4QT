@@ -218,7 +218,8 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                                        const PDFImageData& softMask,
                                        const PDFCMS* cms,
                                        RenderingIntent intent,
-                                       PDFRenderErrorReporter* reporter) const
+                                       PDFRenderErrorReporter* reporter,
+                                       const PDFOperationControl* operationControl) const
 {
     if (imageData.isValid())
     {
@@ -249,6 +250,12 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                 auto transformPixelLine = [&](unsigned int i)
                 {
+                    // Is operation being cancelled?
+                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    {
+                        return;
+                    }
+
                     try
                     {
                         PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
@@ -260,21 +267,27 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                         std::vector<float> inputColors(imageWidth * componentCount, 0.0f);
                         auto itInputColor = inputColors.begin();
-                        for (unsigned int j = 0; j < imageData.getWidth(); ++j)
-                        {
-                            for (unsigned int k = 0; k < componentCount; ++k)
-                            {
-                                PDFReal value = reader.read();
 
-                                // Interpolate value, if it is not empty
-                                if (!decode.empty())
+                        if (!decode.empty())
+                        {
+                            // Interpolate value
+                            for (unsigned int j = 0; j < imageData.getWidth(); ++j)
+                            {
+                                for (unsigned int k = 0; k < componentCount; ++k)
                                 {
+                                    PDFReal value = reader.read();
                                     *itInputColor++ = interpolate(value, 0.0, max, decode[2 * k], decode[2 * k + 1]);
                                 }
-                                else
-                                {
-                                    *itInputColor++ = value * coefficient;
-                                }
+                            }
+                        }
+                        else
+                        {
+                            // Just read all values and multiply them with coefficient
+                            const unsigned int pixelCount = imageData.getWidth() * componentCount;
+                            for (unsigned int j = 0; j < pixelCount; ++j)
+                            {
+                                PDFReal value = reader.read();
+                                *itInputColor++ = value * coefficient;
                             }
                         }
 
@@ -334,6 +347,12 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                 auto transformPixelLine = [&](unsigned int i)
                 {
+                    // Is operation being cancelled?
+                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    {
+                        return;
+                    }
+
                     try
                     {
                         PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
@@ -1872,7 +1891,8 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
                                       const PDFImageData& softMask,
                                       const PDFCMS* cms,
                                       RenderingIntent intent,
-                                      PDFRenderErrorReporter* reporter) const
+                                      PDFRenderErrorReporter* reporter,
+                                      const PDFOperationControl* operationControl) const
 {
     if (imageData.isValid())
     {
@@ -1898,6 +1918,12 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
+                    // Is operation being cancelled?
+                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Operation cancelled!"));
+                    }
+
                     reader.seek(i * imageData.getStride());
                     unsigned char* outputLine = image.scanLine(i);
 
@@ -1945,6 +1971,12 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
+                    // Is operation being cancelled?
+                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    {
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Operation cancelled!"));
+                    }
+
                     reader.seek(i * imageData.getStride());
                     unsigned char* outputLine = image.scanLine(i);
                     unsigned char* alphaLine = alphaMask.scanLine(i);

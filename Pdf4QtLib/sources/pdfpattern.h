@@ -311,7 +311,11 @@ public:
     /// \param cms Color management system
     /// \param intent Rendering intent
     /// \param reporter Error reporter
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const = 0;
+    /// \param operationControl Operation control
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms, RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const = 0;
 
     /// Returns patterns graphic state. This state must be applied before
     /// the shading pattern is painted to the target device.
@@ -386,7 +390,11 @@ public:
     explicit PDFFunctionShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
     const QRectF& getDomain() const { return m_domain; }
@@ -407,7 +415,11 @@ public:
     explicit PDFAxialShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
 private:
@@ -420,7 +432,11 @@ public:
     explicit PDFRadialShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
     PDFReal getR0() const { return m_r0; }
@@ -480,7 +496,11 @@ public:
     explicit PDFFreeFormGouradTriangleShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
 private:
@@ -509,7 +529,11 @@ public:
     explicit PDFLatticeFormGouradTriangleShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
 
 private:
@@ -675,8 +699,8 @@ public:
 protected:
     struct Triangle;
 
-    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool fastAlgorithm) const;
-    void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const;
+    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool fastAlgorithm, const PDFOperationControl* operationControl) const;
+    void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, const PDFOperationControl* operationControl) const;
     static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
 
 private:
@@ -689,7 +713,11 @@ public:
     explicit PDFCoonsPatchShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:
@@ -702,7 +730,11 @@ public:
     explicit PDFTensorProductPatchShading() = default;
 
     virtual ShadingType getShadingType() const override;
-    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const override;
+    virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                               const PDFCMS* cms,
+                               RenderingIntent intent,
+                               PDFRenderErrorReporter* reporter,
+                               const PDFOperationControl* operationControl) const override;
     virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:

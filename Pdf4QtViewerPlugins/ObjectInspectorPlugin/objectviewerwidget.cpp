@@ -228,7 +228,7 @@ void ObjectViewerWidget::updateUi()
 
                 pdf::PDFRenderErrorReporterDummy dummyErrorReporter;
                 pdf::PDFImage pdfImage = pdf::PDFImage::createImage(m_document, stream, qMove(colorSpace), false, pdf::RenderingIntent::Perceptual, &dummyErrorReporter);
-                QImage image = pdfImage.getImage(m_cms, &dummyErrorReporter);
+                QImage image = pdfImage.getImage(m_cms, &dummyErrorReporter, nullptr);
                 ui->stackedWidget->setCurrentWidget(ui->imageBrowserPage);
                 ui->imageBrowser->setPixmap(QPixmap::fromImage(image));
 

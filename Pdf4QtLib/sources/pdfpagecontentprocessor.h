@@ -26,6 +26,7 @@
 #include "pdfmeshqualitysettings.h"
 #include "pdfblendfunction.h"
 #include "pdftextlayout.h"
+#include "pdfoperationcontrol.h"
 
 #include <QMatrix>
 #include <QPainterPath>
@@ -236,6 +237,15 @@ public:
     /// Computes visibility of OCG/OCMD - returns false, if it is not suppressed,
     /// or true, if it is suppressed.
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
+
+    /// Sets operation control object which can decide, if operation should
+    /// be cancelled. If this is the case, page content processor stops
+    /// processing page contents.
+    /// \param newOperationControl Operation control object
+    void setOperationControl(const PDFOperationControl* newOperationControl);
+
+    /// Returns true, if page content processing is being cancelled
+    bool isProcessingCancelled() const;
 
 protected:
 
@@ -1009,6 +1019,7 @@ private:
     const PDFFontCache* m_fontCache;
     const PDFCMS* m_CMS;
     const PDFOptionalContentActivity* m_optionalContentActivity;
+    const PDFOperationControl* m_operationControl;
     const PDFDictionary* m_colorSpaceDictionary;
     const PDFDictionary* m_fontDictionary;
     const PDFDictionary* m_xobjectDictionary;

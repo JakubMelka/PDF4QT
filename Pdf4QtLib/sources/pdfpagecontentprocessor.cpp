@@ -232,6 +232,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_fontCache(fontCache),
     m_CMS(CMS),
     m_optionalContentActivity(optionalContentActivity),
+    m_operationControl(nullptr),
     m_colorSpaceDictionary(nullptr),
     m_fontDictionary(nullptr),
     m_xobjectDictionary(nullptr),
@@ -311,6 +312,12 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
 
         for (size_t i = 0; i < count; ++i)
         {
+            if (isProcessingCancelled())
+            {
+                // Break, if processing is being cancelled
+                break;
+            }
+
             const PDFObject& streamObject = m_document->getObject(array->getItem(i));
             if (streamObject.isStream())
             {
@@ -523,7 +530,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 {
     PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());
 
-    while (!parser.isAtEnd())
+    while (!parser.isAtEnd() && !isProcessingCancelled())
     {
         bool tokenFetched = false;
         PDFInteger oldParserPosition = parser.pos();
@@ -844,7 +851,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                         if (!performPathPaintingUsingShading(path, false, true, shadingPattern))
                         {
-                            PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
+                            PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this, m_operationControl);
 
                             // Now, merge the current path to the mesh clipping path
                             QPainterPath boundingPath = mesh.getBoundingPath();
@@ -961,7 +968,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
                         if (!performPathPaintingUsingShading(strokedPath, true, false, shadingPattern))
                         {
-                            PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this);
+                            PDFMesh mesh = shadingPattern->createMesh(settings, m_CMS, m_graphicState.getRenderingIntent(), this, m_operationControl);
 
                             QPainterPath boundingPath = mesh.getBoundingPath();
                             if (boundingPath.isEmpty())
@@ -1095,6 +1102,16 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
 
             performClipping(boundingPath, boundingPath.fillRule());
             processContent(content);
+
+            if (isProcessingCancelled())
+            {
+                break;
+            }
+        }
+
+        if (isProcessingCancelled())
+        {
+            break;
         }
     }
 }
@@ -1829,6 +1846,16 @@ void PDFPageContentProcessor::finishMarkedContent()
     {
         operatorMarkedContentEnd();
     }
+}
+
+void PDFPageContentProcessor::setOperationControl(const PDFOperationControl* newOperationControl)
+{
+    m_operationControl = newOperationControl;
+}
+
+bool PDFPageContentProcessor::isProcessingCancelled() const
+{
+    return m_operationControl && m_operationControl->isOperationCancelled();
 }
 
 void PDFPageContentProcessor::reportRenderErrorOnce(RenderErrorType type, QString message)
@@ -2952,24 +2979,27 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 
     if (!performOriginalImagePainting(pdfImage))
     {
-        QImage image = pdfImage.getImage(m_CMS, this);
+        QImage image = pdfImage.getImage(m_CMS, this, m_operationControl);
 
-        if (image.format() == QImage::Format_Alpha8)
+        if (!isProcessingCancelled())
         {
-            QSize size = image.size();
-            QImage unmaskedImage(size, QImage::Format_ARGB32_Premultiplied);
-            unmaskedImage.fill(m_graphicState.getFillColor());
-            unmaskedImage.setAlphaChannel(image);
-            image = qMove(unmaskedImage);
-        }
+            if (image.format() == QImage::Format_Alpha8)
+            {
+                QSize size = image.size();
+                QImage unmaskedImage(size, QImage::Format_ARGB32_Premultiplied);
+                unmaskedImage.fill(m_graphicState.getFillColor());
+                unmaskedImage.setAlphaChannel(image);
+                image = qMove(unmaskedImage);
+            }
 
-        if (!image.isNull())
-        {
-            performImagePainting(image);
-        }
-        else
-        {
-            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+            if (!image.isNull())
+            {
+                performImagePainting(image);
+            }
+            else
+            {
+                throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't decode the image."));
+            }
         }
     }
 }

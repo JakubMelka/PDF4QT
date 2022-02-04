@@ -20,6 +20,7 @@
 
 #include "pdfpage.h"
 #include "pdfexception.h"
+#include "pdfoperationcontrol.h"
 #include "pdfmeshqualitysettings.h"
 
 #include <QMutex>
@@ -113,11 +114,15 @@ public:
     /// Returns default renderer features
     static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations); }
 
+    const PDFOperationControl* getOperationControl() const;
+    void setOperationControl(const PDFOperationControl* newOperationControl);
+
 private:
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
     const PDFCMS* m_cms;
     const PDFOptionalContentActivity* m_optionalContentActivity;
+    const PDFOperationControl* m_operationControl;
     Features m_features;
     PDFMeshQualitySettings m_meshQualitySettings;
 };

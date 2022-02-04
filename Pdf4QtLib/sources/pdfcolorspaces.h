@@ -21,6 +21,7 @@
 #include "pdfflatarray.h"
 #include "pdffunction.h"
 #include "pdfutils.h"
+#include "pdfoperationcontrol.h"
 
 #include <QColor>
 #include <QImage>
@@ -365,11 +366,13 @@ public:
     /// \param cms Color management system
     /// \param intent Rendering intent
     /// \param reporter Error reporter
+    /// \param operationControl Operation control
     virtual QImage getImage(const PDFImageData& imageData,
                             const PDFImageData& softMask,
                             const PDFCMS* cms,
                             RenderingIntent intent,
-                            PDFRenderErrorReporter* reporter) const;
+                            PDFRenderErrorReporter* reporter,
+                            const PDFOperationControl* operationControl) const;
 
     /// Fills RGB buffer using colors from \p colors. Colors are transformed
     /// by this color space (or color management system is used). Buffer
@@ -755,7 +758,8 @@ public:
                             const PDFImageData& softMask,
                             const PDFCMS* cms,
                             RenderingIntent intent,
-                            PDFRenderErrorReporter* reporter) const override;
+                            PDFRenderErrorReporter* reporter,
+                            const PDFOperationControl* operationControl) const override;
 
     /// Creates indexed color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary

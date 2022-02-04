@@ -20,6 +20,7 @@
 
 #include "pdfobject.h"
 #include "pdfcolorspaces.h"
+#include "pdfoperationcontrol.h"
 
 #include <QByteArray>
 
@@ -73,7 +74,9 @@ public:
                                 PDFRenderErrorReporter* errorReporter);
 
     /// Returns image transformed from image data and color space
-    QImage getImage(const PDFCMS* cms, PDFRenderErrorReporter* reporter) const;
+    QImage getImage(const PDFCMS* cms,
+                    PDFRenderErrorReporter* reporter,
+                    const PDFOperationControl* operationControl) const;
 
     /// Returns rendering intent of the image
     RenderingIntent getRenderingIntent() const { return m_renderingIntent; }
