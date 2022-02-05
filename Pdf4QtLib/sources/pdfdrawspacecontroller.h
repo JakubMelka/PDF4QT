@@ -30,6 +30,7 @@
 
 class QPainter;
 class QScrollBar;
+class QTimer;
 
 namespace pdf
 {
@@ -307,6 +308,9 @@ public:
     /// \param rect Rectangle to test
     std::vector<PDFInteger> getPagesIntersectingRect(QRect rect) const;
 
+    /// Returns sorted vector of page indices, which should remain in the cache
+    std::vector<PDFInteger> getActivePages() const;
+
     /// Returns page, under which is point. If no page is under the point,
     /// then -1 is returned. Point is in widget coordinates. If \p pagePoint
     /// is not nullptr, then point in page coordinate space is set here.
@@ -431,8 +435,13 @@ private:
     static constexpr PDFReal MIN_ZOOM = 8.0 / 100.0;
     static constexpr PDFReal MAX_ZOOM = 6400.0 / 100.0;
 
+    static constexpr qint64 CACHE_CLEAR_TIMEOUT = 5000;
+    static constexpr qint64 CACHE_PAGE_EXPIRATION_TIMEOUT = 30000;
+
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
+
+    void performPageCacheClear();
 
     void onTextLayoutChanged();
     void onOptionalContentGroupStateChanged();
@@ -528,6 +537,9 @@ private:
 
     /// Progress
     PDFProgress* m_progress;
+
+    /// Cache clear timer
+    QTimer* m_cacheClearTimer;
 
     /// Additional drawing interfaces
     std::set<IDocumentDrawInterface*> m_drawInterfaces;

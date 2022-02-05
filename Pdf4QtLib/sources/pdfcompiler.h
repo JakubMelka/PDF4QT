@@ -106,6 +106,13 @@ public:
     /// \param compile Compile the page, if it is not found in the cache
     const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
 
+    /// Performs smart cache clear. Too old pages are removed from the cache,
+    /// but only if these pages are not in active pages. Use this function to
+    /// clear cache to avoid huge memory consumption.
+    /// \param milisecondsLimit Pages with access time above this limit will be erased
+    /// \param activePages Sorted vector of active pages, which should remain in cache
+    void smartClearCache(const int milisecondsLimit, const std::vector<PDFInteger>& activePages);
+
     /// Is operation being cancelled?
     virtual bool isOperationCancelled() const override;
 

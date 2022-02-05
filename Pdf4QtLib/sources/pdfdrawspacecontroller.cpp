@@ -26,6 +26,7 @@
 #include "pdfannotation.h"
 #include "pdfdbgheap.h"
 
+#include <QTimer>
 #include <QPainter>
 #include <QFontMetrics>
 
@@ -464,6 +465,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_textLayoutCompiler(new PDFAsynchronousTextLayoutCompiler(this)),
     m_rasterizer(new PDFRasterizer(this)),
     m_progress(nullptr),
+    m_cacheClearTimer(new QTimer(this)),
     m_useOpenGL(false)
 {
     m_controller = new PDFDrawSpaceController(this);
@@ -473,6 +475,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     connect(m_compiler, &PDFAsynchronousPageCompiler::renderingError, this, &PDFDrawWidgetProxy::renderingError);
     connect(m_compiler, &PDFAsynchronousPageCompiler::pageImageChanged, this, &PDFDrawWidgetProxy::pageImageChanged);
     connect(m_textLayoutCompiler, &PDFAsynchronousTextLayoutCompiler::textLayoutChanged, this, &PDFDrawWidgetProxy::onTextLayoutChanged);
+    connect(m_cacheClearTimer, &QTimer::timeout, this, &PDFDrawWidgetProxy::performPageCacheClear);
 }
 
 PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
@@ -484,6 +487,7 @@ void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document)
 {
     if (getDocument() != document)
     {
+        m_cacheClearTimer->stop();
         m_compiler->stop(document.hasReset());
         m_textLayoutCompiler->stop(document.hasReset());
         m_controller->setDocument(document);
@@ -495,6 +499,11 @@ void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document)
 
         m_compiler->start();
         m_textLayoutCompiler->start();
+
+        if (document)
+        {
+            m_cacheClearTimer->start(CACHE_CLEAR_TIMEOUT);
+        }
     }
 }
 
@@ -951,6 +960,29 @@ std::vector<PDFInteger> PDFDrawWidgetProxy::getPagesIntersectingRect(QRect rect)
     return pages;
 }
 
+std::vector<PDFInteger> PDFDrawWidgetProxy::getActivePages() const
+{
+    std::vector<PDFInteger> activePages = getPagesIntersectingRect(m_widget->rect());
+
+    // Consider page prefetching - at least two pages after last current
+    // pages are treated as active.
+    if (!activePages.empty())
+    {
+        if (const PDFDocument* document = getDocument())
+        {
+            const PDFInteger pageIndex = activePages.back();
+            const PDFInteger pageCount = document->getCatalog()->getPageCount();
+            const PDFInteger pageEnd = qMin(pageCount, pageIndex + 3);
+            for (PDFInteger i = pageIndex + 1; i < pageEnd; ++i)
+            {
+                activePages.push_back(i);
+            }
+        }
+    }
+
+    return activePages;
+}
+
 PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoint) const
 {
     // Iterate trough pages, place them and test, if they intersects with rectangle
@@ -1257,6 +1289,12 @@ QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
                   rect.top() * m_deviceSpaceUnitToPixel,
                   rect.width() * m_deviceSpaceUnitToPixel,
                   rect.height() * m_deviceSpaceUnitToPixel);
+}
+
+void PDFDrawWidgetProxy::performPageCacheClear()
+{
+    std::vector<PDFInteger> activePage = getActivePages();
+    m_compiler->smartClearCache(CACHE_PAGE_EXPIRATION_TIMEOUT, activePage);
 }
 
 void PDFDrawWidgetProxy::onTextLayoutChanged()

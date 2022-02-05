@@ -27,6 +27,7 @@
 
 #include <QPen>
 #include <QBrush>
+#include <QElapsedTimer>
 
 namespace pdf
 {
@@ -239,6 +240,16 @@ public:
     PDFSnapInfo* getSnapInfo() { return &m_snapInfo; }
     const PDFSnapInfo* getSnapInfo() const { return &m_snapInfo; }
 
+    /// Mark this precompiled page as accessed at a current time
+    void markAccessed() { m_expirationTimer.start(); }
+
+    /// Has page content expired with given timeout? This function
+    /// is used together with function \p markAccessed to control
+    /// cached pages expiration policy. Pages can be marked as accessed,
+    /// and too old accessed pages can be removed.
+    /// \sa markAccessed
+    bool hasExpired(qint64 timeout) const { return m_expirationTimer.hasExpired(timeout); }
+
     struct GraphicPieceInfo
     {
         enum class Type
@@ -347,6 +358,7 @@ private:
     std::vector<QPainter::CompositionMode> m_compositionModes;
     QList<PDFRenderError> m_errors;
     PDFSnapInfo m_snapInfo;
+    QElapsedTimer m_expirationTimer;
 };
 
 /// Processor, which processes PDF's page commands and writes them to the precompiled page.

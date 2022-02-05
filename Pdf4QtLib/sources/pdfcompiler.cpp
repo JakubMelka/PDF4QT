@@ -217,7 +217,8 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
         return nullptr;
     }
 
-    const PDFPrecompiledPage* page = m_cache.object(pageIndex);
+    PDFPrecompiledPage* page = m_cache.object(pageIndex);
+
     if (!page && compile)
     {
         QMutexLocker locker(&m_mutex);
@@ -228,7 +229,41 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
         }
     }
 
+    if (page)
+    {
+        page->markAccessed();
+    }
+
     return page;
+}
+
+void PDFAsynchronousPageCompiler::smartClearCache(const int milisecondsLimit, const std::vector<PDFInteger>& activePages)
+{
+    if (m_state != State::Active)
+    {
+        // Jakub Melka: Cache clearing can be done only in active state
+        return;
+    }
+
+    QMutexLocker locker(&m_mutex);
+
+    Q_ASSERT(std::is_sorted(activePages.cbegin(), activePages.cend()));
+
+    QList<PDFInteger> pageIndices = m_cache.keys();
+    for (const PDFInteger pageIndex : pageIndices)
+    {
+        if (std::binary_search(activePages.cbegin(), activePages.cend(), pageIndex))
+        {
+            // We do not remove active page
+            continue;
+        }
+
+        const PDFPrecompiledPage* page = m_cache.object(pageIndex);
+        if (page && page->hasExpired(milisecondsLimit))
+        {
+            m_cache.remove(pageIndex);
+        }
+    }
 }
 
 void PDFAsynchronousPageCompiler::onPageCompiled()
@@ -249,6 +284,7 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
                 {
                     // If we are in active state, try to store precompiled page
                     PDFPrecompiledPage* page = new PDFPrecompiledPage(std::move(task.precompiledPage));
+                    page->markAccessed();
                     qint64 memoryConsumptionEstimate = page->getMemoryConsumptionEstimate();
                     if (m_cache.insert(it->first, page, memoryConsumptionEstimate))
                     {
