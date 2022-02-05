@@ -471,6 +471,8 @@ private:
         constexpr inline T bound(T value) { return qBound(min, value, max); }
     };
 
+    static constexpr bool ENABLE_OPENGL_FOR_THUMBNAILS = false;
+
     /// Flag, disables the update
     bool m_updateDisabled;
 

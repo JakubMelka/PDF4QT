@@ -1329,7 +1329,7 @@ void PDFDrawWidgetProxy::updateRenderer(bool useOpenGL, const QSurfaceFormat& su
 {
     m_useOpenGL = useOpenGL;
     m_surfaceFormat = surfaceFormat;
-    m_rasterizer->reset(useOpenGL, surfaceFormat);
+    m_rasterizer->reset(useOpenGL && ENABLE_OPENGL_FOR_THUMBNAILS, surfaceFormat);
 }
 
 void PDFDrawWidgetProxy::prefetchPages(PDFInteger pageIndex)
