@@ -50,7 +50,7 @@ Software have following features (the list is not complete):
 - [x] audio book conversion
 - [x] internal structure inspector
 - [x] compare documents
-- [ ] XFA support *(planned in year 2021)*
+- [x] static XFA support (readonly, simple XFA only)
 - [ ] create fillable forms *(planned in year 2022)*
 - [ ] electronically/digitally sign documents *(planned in year 2022)*
 - [ ] 3D PDF support *(planned in year 2023)*

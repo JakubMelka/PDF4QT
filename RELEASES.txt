@@ -1,5 +1,8 @@
 CURRENT:
 
+ - Issue #10: Performance optimization
+ - static XFA support (readonly, simple XFA only)
+
 V: 1.1.0, 19.12.2021
  - DocDiff application (compare similar PDF documents)
  - Linux support
