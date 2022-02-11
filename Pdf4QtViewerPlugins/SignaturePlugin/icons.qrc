@@ -1,0 +1,4 @@
+<RCC>
+    <qresource prefix="/pdfplugins/signatureplugin">
+    </qresource>
+</RCC>

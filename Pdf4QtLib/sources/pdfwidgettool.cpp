@@ -1233,7 +1233,7 @@ void PDFPickTool::resetTool()
     m_snapper.clearReferencePoint();
 
     buildSnapData();
-    getProxy()->repaintNeeded();
+    emit getProxy()->repaintNeeded();
 }
 
 void PDFPickTool::buildSnapData()

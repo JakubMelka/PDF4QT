@@ -1,7 +1,7 @@
 import qbs
 
 Pdf4QtPlugin {
-    name: "DimensionsPlugin"
+    name: "SignaturePlugin"
     files: [
         "*.h",
         "*.cpp",
@@ -10,6 +10,6 @@ Pdf4QtPlugin {
     ]
     Properties {
         condition: qbs.hostOS.contains("windows")
-        cpp.defines: "DIMENSIONPLUGIN_LIBRARY"
+        cpp.defines: "SIGNATUREPLUGIN_LIBRARY"
     }
 }

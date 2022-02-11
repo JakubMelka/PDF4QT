@@ -344,8 +344,8 @@ public:
     void setSelectionRectangleColor(QColor selectionRectangleColor);
 
 signals:
-    void pointPicked(PDFInteger pageIndex, QPointF pagePoint);
-    void rectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
+    void pointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
+    void rectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
     void imagePicked(const QImage& image);
 
 protected:

@@ -1,0 +1,7 @@
+{
+    "Name" : "Signature",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "Electronically or digitally sign PDF document."
+}
