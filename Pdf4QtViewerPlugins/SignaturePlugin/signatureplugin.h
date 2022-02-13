@@ -76,6 +76,9 @@ private:
     {
         RectangleTool,
         RoundedRectangleTool,
+        HorizontalLineTool,
+        VerticalLineTool,
+        LineTool,
         LastTool
     };
 

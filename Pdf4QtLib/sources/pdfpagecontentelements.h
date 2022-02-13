@@ -22,6 +22,7 @@
 
 #include <QPen>
 #include <QBrush>
+#include <QCursor>
 
 namespace pdf
 {
@@ -90,6 +91,38 @@ private:
     QRectF m_rectangle;
 };
 
+class PDFPageContentElementLine : public PDFPageContentStyledElement
+{
+public:
+    virtual ~PDFPageContentElementLine() = default;
+
+    virtual PDFPageContentElementLine* clone() const override;
+
+    enum class LineGeometry
+    {
+        General,
+        Horizontal,
+        Vertical
+    };
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    LineGeometry getGeometry() const;
+    void setGeometry(LineGeometry newGeometry);
+
+    const QLineF& getLine() const;
+    void setLine(const QLineF& newLine);
+
+private:
+    LineGeometry m_geometry = LineGeometry::General;
+    QLineF m_line;
+};
+
 class PDF4QTLIBSHARED_EXPORT PDFPageContentScene : public QObject,
                                                    public IDocumentDrawInterface,
                                                    public IDrawWidgetInputInterface
@@ -140,6 +173,7 @@ signals:
 
 private:
     std::vector<std::unique_ptr<PDFPageContentElement>> m_elements;
+    std::optional<QCursor> m_cursor;
 };
 
 }   // namespace pdf

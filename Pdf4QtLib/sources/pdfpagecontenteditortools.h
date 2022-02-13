@@ -24,6 +24,7 @@ namespace pdf
 {
 
 class PDFPageContentScene;
+class PDFPageContentElementLine;
 class PDFPageContentElementRectangle;
 
 class PDFCreatePCElementTool : public PDFWidgetTool
@@ -66,6 +67,39 @@ private:
 
     PDFPickTool* m_pickTool;
     PDFPageContentElementRectangle* m_element;
+};
+
+/// Tool that creates line element.
+class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementLineTool : public PDFCreatePCElementTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreatePCElementTool;
+
+public:
+    explicit PDFCreatePCElementLineTool(PDFDrawWidgetProxy* proxy,
+                                        PDFPageContentScene* scene,
+                                        QAction* action,
+                                        bool isHorizontal,
+                                        bool isVertical,
+                                        QObject* parent);
+    virtual ~PDFCreatePCElementLineTool() override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+private:
+    void clear();
+    void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
+
+    PDFPickTool* m_pickTool;
+    PDFPageContentElementLine* m_element;
+    std::optional<QPointF> m_startPoint;
 };
 
 }   // namespace pdf

@@ -105,6 +105,9 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
 
     m_tools[RectangleTool] = new pdf::PDFCreatePCElementRectangleTool(widget->getDrawWidgetProxy(), &m_scene, createRectangleAction, false, this);
     m_tools[RoundedRectangleTool] = new pdf::PDFCreatePCElementRectangleTool(widget->getDrawWidgetProxy(), &m_scene, createRoundedRectangleAction, true, this);
+    m_tools[HorizontalLineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createHorizontalLineAction, true, false, this);
+    m_tools[VerticalLineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createVerticalLineAction, false, true, this);
+    m_tools[LineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createLineAction, false, false, this);
 
     pdf::PDFToolManager* toolManager = widget->getToolManager();
     for (pdf::PDFWidgetTool* tool : m_tools)
@@ -156,7 +159,8 @@ std::vector<QAction*> SignaturePlugin::getActions() const
 
 void SignaturePlugin::updateActions()
 {
-
+    QAction* clearAction = m_actions[Clear];
+    clearAction->setEnabled(!m_scene.isEmpty());
 }
 
 void SignaturePlugin::updateGraphics()

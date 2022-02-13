@@ -21,7 +21,6 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>
-#include <QCursor>
 
 namespace pdf
 {
@@ -202,7 +201,7 @@ QString PDFPageContentScene::getTooltip() const
 
 const std::optional<QCursor>& PDFPageContentScene::getCursor() const
 {
-    return std::nullopt;
+    return m_cursor;
 }
 
 int PDFPageContentScene::getInputPriority() const
@@ -211,12 +210,87 @@ int PDFPageContentScene::getInputPriority() const
 }
 
 void PDFPageContentScene::drawPage(QPainter* painter,
-                                        PDFInteger pageIndex,
-                                        const PDFPrecompiledPage* compiledPage,
-                                        PDFTextLayoutGetter& layoutGetter,
-                                        const QMatrix& pagePointToDevicePointMatrix,
-                                        QList<PDFRenderError>& errors) const
+                                   PDFInteger pageIndex,
+                                   const PDFPrecompiledPage* compiledPage,
+                                   PDFTextLayoutGetter& layoutGetter,
+                                   const QMatrix& pagePointToDevicePointMatrix,
+                                   QList<PDFRenderError>& errors) const
 {
+    for (const auto& element : m_elements)
+    {
+        if (element->getPageIndex() != pageIndex)
+        {
+            continue;
+        }
+
+        element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    }
+}
+
+PDFPageContentElementLine* PDFPageContentElementLine::clone() const
+{
+    PDFPageContentElementLine* copy = new PDFPageContentElementLine();
+    copy->setPageIndex(getPageIndex());
+    copy->setPen(getPen());
+    copy->setBrush(getBrush());
+    copy->setGeometry(getGeometry());
+    copy->setLine(getLine());
+    return copy;
+}
+
+void PDFPageContentElementLine::drawPage(QPainter* painter,
+                                         PDFInteger pageIndex,
+                                         const PDFPrecompiledPage* compiledPage,
+                                         PDFTextLayoutGetter& layoutGetter,
+                                         const QMatrix& pagePointToDevicePointMatrix,
+                                         QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    if (pageIndex != getPageIndex())
+    {
+        return;
+    }
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setPen(getPen());
+    painter->setBrush(getBrush());
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    painter->drawLine(getLine());
+}
+
+PDFPageContentElementLine::LineGeometry PDFPageContentElementLine::getGeometry() const
+{
+    return m_geometry;
+}
+
+void PDFPageContentElementLine::setGeometry(LineGeometry newGeometry)
+{
+    m_geometry = newGeometry;
+}
+
+const QLineF& PDFPageContentElementLine::getLine() const
+{
+    return m_line;
+}
+
+void PDFPageContentElementLine::setLine(const QLineF& newLine)
+{
+    m_line = newLine;
+
+    if (m_geometry == LineGeometry::Horizontal)
+    {
+        m_line.setP2(QPointF(newLine.p2().x(), newLine.p1().y()));
+    }
+
+    if (m_geometry == LineGeometry::Vertical)
+    {
+        m_line.setP2(QPointF(newLine.p1().x(), newLine.p2().y()));
+    }
 }
 
 }   // namespace pdf

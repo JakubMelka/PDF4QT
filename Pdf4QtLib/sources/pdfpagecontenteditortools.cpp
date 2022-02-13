@@ -117,4 +117,108 @@ void PDFCreatePCElementRectangleTool::onRectanglePicked(PDFInteger pageIndex, QR
     setActive(false);
 }
 
+PDFCreatePCElementLineTool::PDFCreatePCElementLineTool(PDFDrawWidgetProxy* proxy,
+                                                       PDFPageContentScene* scene,
+                                                       QAction* action,
+                                                       bool isHorizontal,
+                                                       bool isVertical,
+                                                       QObject* parent) :
+    BaseClass(proxy, scene, action, parent),
+    m_pickTool(nullptr),
+    m_element(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Points, this);
+    m_pickTool->setDrawSelectionRectangle(false);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreatePCElementLineTool::onPointPicked);
+
+    QPen pen(Qt::SolidLine);
+    pen.setWidthF(2.0);
+    pen.setCapStyle(Qt::RoundCap);
+
+    PDFPageContentElementLine::LineGeometry geometry = PDFPageContentElementLine::LineGeometry::General;
+
+    if (isHorizontal)
+    {
+        geometry = PDFPageContentElementLine::LineGeometry::Horizontal;
+    }
+
+    if (isVertical)
+    {
+        geometry = PDFPageContentElementLine::LineGeometry::Vertical;
+    }
+
+    m_element = new PDFPageContentElementLine();
+    m_element->setBrush(Qt::NoBrush);
+    m_element->setPen(std::move(pen));
+    m_element->setGeometry(geometry);
+
+    updateActions();
+}
+
+PDFCreatePCElementLineTool::~PDFCreatePCElementLineTool()
+{
+    delete m_element;
+}
+
+void PDFCreatePCElementLineTool::drawPage(QPainter* painter,
+                                          PDFInteger pageIndex,
+                                          const PDFPrecompiledPage* compiledPage,
+                                          PDFTextLayoutGetter& layoutGetter,
+                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_pickTool->getPageIndex() || !m_startPoint)
+    {
+        return;
+    }
+
+    m_element->setPageIndex(pageIndex);
+
+    QPointF startPoint = *m_startPoint;
+    QPointF endPoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
+    QLineF line(startPoint, endPoint);
+
+    if (!qFuzzyIsNull(line.length()))
+    {
+        m_element->setLine(line);
+    }
+
+    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+}
+
+void PDFCreatePCElementLineTool::clear()
+{
+    m_startPoint = std::nullopt;
+}
+
+void PDFCreatePCElementLineTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    if (!m_startPoint || m_element->getPageIndex() != pageIndex)
+    {
+        m_startPoint = pagePoint;
+        m_element->setPageIndex(pageIndex);
+        m_element->setLine(QLineF(pagePoint, pagePoint));
+        return;
+    }
+
+    if (qFuzzyCompare(m_startPoint.value().x(), pagePoint.x()) &&
+        qFuzzyCompare(m_startPoint.value().y(), pagePoint.y()))
+    {
+        // Jakub Melka: Point is same as the start point
+        clear();
+        return;
+    }
+
+    QLineF line = m_element->getLine();
+    line.setP2(pagePoint);
+    m_element->setLine(line);
+    m_scene->addElement(m_element->clone());
+    clear();
+
+    setActive(false);
+}
+
 }   // namespace pdf
