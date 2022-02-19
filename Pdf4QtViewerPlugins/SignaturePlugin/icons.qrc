@@ -1,4 +1,6 @@
 <RCC>
     <qresource prefix="/pdfplugins/signatureplugin">
+	    <file>accept-mark.svg</file>
+		<file>reject-mark.svg</file>
     </qresource>
 </RCC>

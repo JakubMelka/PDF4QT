@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QSvgRenderer>
 
 namespace pdf
 {
@@ -291,6 +292,90 @@ void PDFPageContentElementLine::setLine(const QLineF& newLine)
     {
         m_line.setP2(QPointF(newLine.p1().x(), newLine.p2().y()));
     }
+}
+
+PDFPageContentSvgElement::PDFPageContentSvgElement() :
+    m_renderer(std::make_unique<QSvgRenderer>())
+{
+
+}
+
+PDFPageContentSvgElement::~PDFPageContentSvgElement()
+{
+
+}
+
+PDFPageContentSvgElement* PDFPageContentSvgElement::clone() const
+{
+    PDFPageContentSvgElement* copy = new PDFPageContentSvgElement();
+    copy->setPageIndex(getPageIndex());
+    copy->setRectangle(getRectangle());
+    copy->setContent(getContent());
+    return copy;
+}
+
+void PDFPageContentSvgElement::drawPage(QPainter* painter,
+                                        PDFInteger pageIndex,
+                                        const PDFPrecompiledPage* compiledPage,
+                                        PDFTextLayoutGetter& layoutGetter,
+                                        const QMatrix& pagePointToDevicePointMatrix,
+                                        QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    if (pageIndex != getPageIndex() || !getRectangle().isValid())
+    {
+        return;
+    }
+
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    QRectF viewBox = m_renderer->viewBoxF();
+    if (!viewBox.isValid())
+    {
+        return;
+    }
+
+    QRectF renderBox = getRectangle();
+    QSizeF viewBoxSize = viewBox.size();
+    QSizeF renderBoxSize = viewBoxSize.scaled(renderBox.size(), Qt::KeepAspectRatio);
+    QRectF targetRenderBox = QRectF(QPointF(), renderBoxSize);
+    targetRenderBox.moveCenter(renderBox.center());
+
+    painter->translate(targetRenderBox.bottomLeft());
+    painter->scale(1.0, -1.0);
+    targetRenderBox.moveTopLeft(QPointF(0, 0));
+
+    m_renderer->render(painter, targetRenderBox);
+}
+
+const QByteArray& PDFPageContentSvgElement::getContent() const
+{
+    return m_content;
+}
+
+void PDFPageContentSvgElement::setContent(const QByteArray& newContent)
+{
+    if (m_content != newContent)
+    {
+        m_content = newContent;
+        m_renderer->load(m_content);
+    }
+}
+
+const QRectF& PDFPageContentSvgElement::getRectangle() const
+{
+    return m_rectangle;
+}
+
+void PDFPageContentSvgElement::setRectangle(const QRectF& newRectangle)
+{
+    m_rectangle = newRectangle;
 }
 
 }   // namespace pdf

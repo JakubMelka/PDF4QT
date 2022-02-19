@@ -24,6 +24,7 @@ namespace pdf
 {
 
 class PDFPageContentScene;
+class PDFPageContentSvgElement;
 class PDFPageContentElementLine;
 class PDFPageContentElementRectangle;
 
@@ -36,6 +37,8 @@ public:
                            QObject* parent);
 
 protected:
+    static QRectF getRectangleFromPickTool(PDFPickTool* pickTool, const QMatrix& pagePointToDevicePointMatrix);
+
     PDFPageContentScene* m_scene;
 };
 
@@ -67,6 +70,36 @@ private:
 
     PDFPickTool* m_pickTool;
     PDFPageContentElementRectangle* m_element;
+};
+
+/// Tool that displays SVG image
+class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementSvgTool : public PDFCreatePCElementTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreatePCElementTool;
+
+public:
+    explicit PDFCreatePCElementSvgTool(PDFDrawWidgetProxy* proxy,
+                                       PDFPageContentScene* scene,
+                                       QAction* action,
+                                       QByteArray content,
+                                       QObject* parent);
+    virtual ~PDFCreatePCElementSvgTool() override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+private:
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+
+    PDFPickTool* m_pickTool;
+    PDFPageContentSvgElement* m_element;
 };
 
 /// Tool that creates line element.

@@ -17,8 +17,10 @@
 
 #include "pdfpagecontenteditortools.h"
 #include "pdfpagecontentelements.h"
+#include "pdfpainterutils.h"
 
 #include <QPen>
+#include <QPainter>
 
 namespace pdf
 {
@@ -31,6 +33,32 @@ PDFCreatePCElementTool::PDFCreatePCElementTool(PDFDrawWidgetProxy* proxy,
     m_scene(scene)
 {
 
+}
+
+QRectF PDFCreatePCElementTool::getRectangleFromPickTool(PDFPickTool* pickTool,
+                                                        const QMatrix& pagePointToDevicePointMatrix)
+{
+    const std::vector<QPointF>& points = pickTool->getPickedPoints();
+    if (points.empty())
+    {
+        return QRectF();
+    }
+
+    QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(pickTool->getSnappedPoint());
+    QPointF point = points.front();
+    qreal xMin = qMin(point.x(), mousePoint.x());
+    qreal xMax = qMax(point.x(), mousePoint.x());
+    qreal yMin = qMin(point.y(), mousePoint.y());
+    qreal yMax = qMax(point.y(), mousePoint.y());
+    qreal width = xMax - xMin;
+    qreal height = yMax - yMin;
+
+    if (!qFuzzyIsNull(width) && !qFuzzyIsNull(height))
+    {
+        return QRectF(xMin, yMin, width, height);
+    }
+
+    return QRectF();
 }
 
 PDFCreatePCElementRectangleTool::PDFCreatePCElementRectangleTool(PDFDrawWidgetProxy* proxy,
@@ -77,28 +105,14 @@ void PDFCreatePCElementRectangleTool::drawPage(QPainter* painter,
         return;
     }
 
-    const std::vector<QPointF>& points = m_pickTool->getPickedPoints();
-    if (points.empty())
+    QRectF rectangle = getRectangleFromPickTool(m_pickTool, pagePointToDevicePointMatrix);
+    if (!rectangle.isValid())
     {
         return;
     }
 
     m_element->setPageIndex(pageIndex);
-
-    QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
-    QPointF point = points.front();
-    qreal xMin = qMin(point.x(), mousePoint.x());
-    qreal xMax = qMax(point.x(), mousePoint.x());
-    qreal yMin = qMin(point.y(), mousePoint.y());
-    qreal yMax = qMax(point.y(), mousePoint.y());
-    qreal width = xMax - xMin;
-    qreal height = yMax - yMin;
-
-    if (!qFuzzyIsNull(width) && !qFuzzyIsNull(height))
-    {
-        QRectF rect(xMin, yMin, width, height);
-        m_element->setRectangle(rect);
-    }
+    m_element->setRectangle(rectangle);
 
     m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
@@ -217,6 +231,80 @@ void PDFCreatePCElementLineTool::onPointPicked(PDFInteger pageIndex, QPointF pag
     m_element->setLine(line);
     m_scene->addElement(m_element->clone());
     clear();
+
+    setActive(false);
+}
+
+PDFCreatePCElementSvgTool::PDFCreatePCElementSvgTool(PDFDrawWidgetProxy* proxy,
+                                                     PDFPageContentScene* scene,
+                                                     QAction* action,
+                                                     QByteArray content,
+                                                     QObject* parent) :
+    BaseClass(proxy, scene, action, parent),
+    m_pickTool(nullptr),
+    m_element(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_pickTool->setDrawSelectionRectangle(false);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementSvgTool::onRectanglePicked);
+
+    m_element = new PDFPageContentSvgElement();
+    m_element->setContent(content);
+
+    updateActions();
+}
+
+PDFCreatePCElementSvgTool::~PDFCreatePCElementSvgTool()
+{
+    delete m_element;
+}
+
+void PDFCreatePCElementSvgTool::drawPage(QPainter* painter,
+                                         PDFInteger pageIndex,
+                                         const PDFPrecompiledPage* compiledPage,
+                                         PDFTextLayoutGetter& layoutGetter,
+                                         const QMatrix& pagePointToDevicePointMatrix,
+                                         QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_pickTool->getPageIndex())
+    {
+        return;
+    }
+
+    QRectF rectangle = getRectangleFromPickTool(m_pickTool, pagePointToDevicePointMatrix);
+    if (!rectangle.isValid())
+    {
+        return;
+    }
+
+    m_element->setPageIndex(pageIndex);
+    m_element->setRectangle(rectangle);
+
+    {
+        PDFPainterStateGuard guard(painter);
+        painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::DotLine);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(rectangle);
+    }
+
+    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+}
+
+void PDFCreatePCElementSvgTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        return;
+    }
+
+    m_element->setPageIndex(pageIndex);
+    m_element->setRectangle(pageRectangle);
+    m_scene->addElement(m_element->clone());
 
     setActive(false);
 }

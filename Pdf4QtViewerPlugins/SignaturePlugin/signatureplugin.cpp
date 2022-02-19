@@ -103,6 +103,24 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     m_actions[SignDigitally] = signDigitallyAction;
     m_actions[Ceritificates] = certificatesAction;
 
+    QFile acceptMarkFile(":/pdfplugins/signatureplugin/accept-mark.svg");
+    QByteArray acceptMarkContent;
+    if (acceptMarkFile.open(QFile::ReadOnly))
+    {
+        acceptMarkContent = acceptMarkFile.readAll();
+        acceptMarkFile.close();
+    }
+
+    QFile rejectMarkFile(":/pdfplugins/signatureplugin/reject-mark.svg");
+    QByteArray rejectMarkContent;
+    if (rejectMarkFile.open(QFile::ReadOnly))
+    {
+        rejectMarkContent = rejectMarkFile.readAll();
+        rejectMarkFile.close();
+    }
+
+    m_tools[AcceptMarkTool] = new pdf::PDFCreatePCElementSvgTool(widget->getDrawWidgetProxy(), &m_scene, createAcceptMarkAction, acceptMarkContent, this);
+    m_tools[RejectMarkTool] = new pdf::PDFCreatePCElementSvgTool(widget->getDrawWidgetProxy(), &m_scene, createRejectMarkAction, rejectMarkContent, this);
     m_tools[RectangleTool] = new pdf::PDFCreatePCElementRectangleTool(widget->getDrawWidgetProxy(), &m_scene, createRectangleAction, false, this);
     m_tools[RoundedRectangleTool] = new pdf::PDFCreatePCElementRectangleTool(widget->getDrawWidgetProxy(), &m_scene, createRoundedRectangleAction, true, this);
     m_tools[HorizontalLineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createHorizontalLineAction, true, false, this);

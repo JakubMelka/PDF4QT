@@ -74,6 +74,8 @@ private:
 
     enum Tools
     {
+        AcceptMarkTool,
+        RejectMarkTool,
         RectangleTool,
         RoundedRectangleTool,
         HorizontalLineTool,

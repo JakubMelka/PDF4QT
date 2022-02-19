@@ -24,10 +24,12 @@
 #include <QBrush>
 #include <QCursor>
 
+class QSvgRenderer;
+
 namespace pdf
 {
 
-class PDFPageContentElement
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElement
 {
 public:
     explicit PDFPageContentElement() = default;
@@ -49,7 +51,7 @@ protected:
     PDFInteger m_pageIndex = -1;
 };
 
-class PDFPageContentStyledElement : public PDFPageContentElement
+class PDF4QTLIBSHARED_EXPORT PDFPageContentStyledElement : public PDFPageContentElement
 {
 public:
     explicit PDFPageContentStyledElement() = default;
@@ -66,7 +68,7 @@ protected:
     QBrush m_brush;
 };
 
-class PDFPageContentElementRectangle : public PDFPageContentStyledElement
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElementRectangle : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementRectangle() = default;
@@ -91,7 +93,7 @@ private:
     QRectF m_rectangle;
 };
 
-class PDFPageContentElementLine : public PDFPageContentStyledElement
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElementLine : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementLine() = default;
@@ -121,6 +123,33 @@ public:
 private:
     LineGeometry m_geometry = LineGeometry::General;
     QLineF m_line;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDFPageContentSvgElement : public PDFPageContentElement
+{
+public:
+    PDFPageContentSvgElement();
+    virtual ~PDFPageContentSvgElement();
+
+    virtual PDFPageContentSvgElement* clone() const override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    const QByteArray& getContent() const;
+    void setContent(const QByteArray& newContent);
+
+    const QRectF& getRectangle() const;
+    void setRectangle(const QRectF& newRectangle);
+
+private:
+    QRectF m_rectangle;
+    QByteArray m_content;
+    std::unique_ptr<QSvgRenderer> m_renderer;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentScene : public QObject,
