@@ -122,7 +122,8 @@ void PDFPageContentElementRectangle::drawPage(QPainter* painter,
 }
 
 PDFPageContentScene::PDFPageContentScene(QObject* parent) :
-    QObject(parent)
+    QObject(parent),
+    m_isActive(false)
 {
 
 }
@@ -217,6 +218,11 @@ void PDFPageContentScene::drawPage(QPainter* painter,
                                    const QMatrix& pagePointToDevicePointMatrix,
                                    QList<PDFRenderError>& errors) const
 {
+    if (!m_isActive)
+    {
+        return;
+    }
+
     for (const auto& element : m_elements)
     {
         if (element->getPageIndex() != pageIndex)
@@ -225,6 +231,20 @@ void PDFPageContentScene::drawPage(QPainter* painter,
         }
 
         element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    }
+}
+
+bool PDFPageContentScene::isActive() const
+{
+    return m_isActive;
+}
+
+void PDFPageContentScene::setActive(bool newIsActive)
+{
+    if (m_isActive != newIsActive)
+    {
+        m_isActive = newIsActive;
+        emit sceneChanged();
     }
 }
 
@@ -330,7 +350,6 @@ void PDFPageContentSvgElement::drawPage(QPainter* painter,
         return;
     }
 
-
     PDFPainterStateGuard guard(painter);
     painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
     painter->setRenderHint(QPainter::Antialiasing);
@@ -376,6 +395,48 @@ const QRectF& PDFPageContentSvgElement::getRectangle() const
 void PDFPageContentSvgElement::setRectangle(const QRectF& newRectangle)
 {
     m_rectangle = newRectangle;
+}
+
+PDFPageContentElementDot* PDFPageContentElementDot::clone() const
+{
+    PDFPageContentElementDot* copy = new PDFPageContentElementDot();
+    copy->setPageIndex(getPageIndex());
+    copy->setPen(getPen());
+    copy->setBrush(getBrush());
+    copy->setPoint(getPoint());
+    return copy;
+}
+
+void PDFPageContentElementDot::drawPage(QPainter* painter,
+                                        PDFInteger pageIndex,
+                                        const PDFPrecompiledPage* compiledPage,
+                                        PDFTextLayoutGetter& layoutGetter,
+                                        const QMatrix& pagePointToDevicePointMatrix,
+                                        QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    if (pageIndex != getPageIndex())
+    {
+        return;
+    }
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->drawPoint(m_point);
+}
+
+QPointF PDFPageContentElementDot::getPoint() const
+{
+    return m_point;
+}
+
+void PDFPageContentElementDot::setPoint(QPointF newPoint)
+{
+    m_point = newPoint;
 }
 
 }   // namespace pdf

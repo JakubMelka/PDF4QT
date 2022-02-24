@@ -125,6 +125,28 @@ private:
     QLineF m_line;
 };
 
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElementDot : public PDFPageContentStyledElement
+{
+public:
+    virtual ~PDFPageContentElementDot() = default;
+
+    virtual PDFPageContentElementDot* clone() const override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+
+    QPointF getPoint() const;
+    void setPoint(QPointF newPoint);
+
+private:
+    QPointF m_point;
+};
+
 class PDF4QTLIBSHARED_EXPORT PDFPageContentSvgElement : public PDFPageContentElement
 {
 public:
@@ -196,11 +218,15 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    bool isActive() const;
+    void setActive(bool newIsActive);
+
 signals:
     /// This signal is emitted when scene has changed (including graphics)
     void sceneChanged();
 
 private:
+    bool m_isActive;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_elements;
     std::optional<QCursor> m_cursor;
 };

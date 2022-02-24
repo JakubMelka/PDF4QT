@@ -72,6 +72,7 @@ SOURCES += \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
     sources/pdfpagecontenteditortools.cpp \
+    sources/pdfpagecontenteditorwidget.cpp \
     sources/pdfpagecontentelements.cpp \
     sources/pdfpagenavigation.cpp \
     sources/pdfpagetransition.cpp \
@@ -149,6 +150,7 @@ HEADERS += \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
     sources/pdfpagecontenteditortools.h \
+    sources/pdfpagecontenteditorwidget.h \
     sources/pdfpagecontentelements.h \
     sources/pdfpagenavigation.h \
     sources/pdfpagetransition.h \
@@ -197,6 +199,7 @@ HEADERS += \
     sources/pdfimage.h
 
 FORMS += \
+    sources/pdfpagecontenteditorwidget.ui \
     sources/pdfrenderingerrorswidget.ui \
     sources/pdfselectpagesdialog.ui
 

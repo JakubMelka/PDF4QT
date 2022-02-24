@@ -43,11 +43,16 @@ public:
     virtual std::vector<QAction*> getActions() const override;
 
 private:
+    void onSceneChanged();
 
     enum Action
     {
+        // Activate action
+        Activate,
+
         // Create graphics actions
         Text,
+        FreehandCurve,
         AcceptMark,
         RejectMark,
         Rectangle,
@@ -59,15 +64,10 @@ private:
         SvgImage,
         Clear,
 
-        // Settings actions
-        SetColor,
-        SetPen,
-        SetBrush,
-
         // Sign actions
         SignElectronically,
         SignDigitally,
-        Ceritificates,
+        Certificates,
 
         LastAction
     };
@@ -83,6 +83,8 @@ private:
         LineTool,
         LastTool
     };
+
+    void setActive(bool active);
 
     void updateActions();
     void updateGraphics();

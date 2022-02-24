@@ -38,7 +38,9 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
+    QAction* activateAction = new QAction(QIcon(":/pdfplugins/signaturetool/activate.svg"), tr("Activate signature creator"), this);
     QAction* createTextAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-text.svg"), tr("Create Text Label"), this);
+    QAction* createFreehandCurveAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-freehand-curve.svg"), tr("Create Freehand Curve"), this);
     QAction* createAcceptMarkAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-yes-mark.svg"), tr("Create Accept Mark"), this);
     QAction* createRejectMarkAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-no-mark.svg"), tr("Create Reject Mark"), this);
     QAction* createRectangleAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-rectangle.svg"), tr("Create Rectangle"), this);
@@ -49,14 +51,13 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     QAction* createDotAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-dot.svg"), tr("Create Dot"), this);
     QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-svg-image.svg"), tr("Create SVG Image"), this);
     QAction* clearAction = new QAction(QIcon(":/pdfplugins/signaturetool/clear.svg"), tr("Clear All Graphics"), this);
-    QAction* setColorAction = new QAction(QIcon(":/pdfplugins/signaturetool/set-color.svg"), tr("Set Color"), this);
-    QAction* setPenAction = new QAction(QIcon(":/pdfplugins/signaturetool/set-pen.svg"), tr("Set Pen"), this);
-    QAction* setBrushAction = new QAction(QIcon(":/pdfplugins/signaturetool/set-brush.svg"), tr("Set Brush"), this);
     QAction* signElectronicallyAction = new QAction(QIcon(":/pdfplugins/signaturetool/sign-electronically.svg"), tr("Sign Electronically"), this);
     QAction* signDigitallyAction = new QAction(QIcon(":/pdfplugins/signaturetool/sign-digitally.svg"), tr("Sign Digitally With Certificate"), this);
     QAction* certificatesAction = new QAction(QIcon(":/pdfplugins/signaturetool/certificates.svg"), tr("Certificates Manager"), this);
 
+    activateAction->setObjectName("signaturetool_activateAction");
     createTextAction->setObjectName("signaturetool_createTextAction");
+    createFreehandCurveAction->setObjectName("signaturetool_createFreehandCurveAction");
     createAcceptMarkAction->setObjectName("signaturetool_createAcceptMarkAction");
     createRejectMarkAction->setObjectName("signaturetool_createRejectMarkAction");
     createRectangleAction->setObjectName("signaturetool_createRectangleAction");
@@ -67,14 +68,13 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     createDotAction->setObjectName("signaturetool_createDotAction");
     createSvgImageAction->setObjectName("signaturetool_createSvgImageAction");
     clearAction->setObjectName("signaturetool_clearAction");
-    setColorAction->setObjectName("signaturetool_setColorAction");
-    setPenAction->setObjectName("signaturetool_setPenAction");
-    setBrushAction->setObjectName("signaturetool_setBrushAction");
     signElectronicallyAction->setObjectName("signaturetool_signElectronicallyAction");
     signDigitallyAction->setObjectName("signaturetool_signDigitallyAction");
     certificatesAction->setObjectName("signaturetool_certificatesAction");
 
+    activateAction->setCheckable(true);
     createTextAction->setCheckable(true);
+    createFreehandCurveAction->setCheckable(true);
     createAcceptMarkAction->setCheckable(true);
     createRejectMarkAction->setCheckable(true);
     createRectangleAction->setCheckable(true);
@@ -85,7 +85,9 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     createDotAction->setCheckable(true);
     createSvgImageAction->setCheckable(true);
 
+    m_actions[Activate] = activateAction;
     m_actions[Text] = createTextAction;
+    m_actions[FreehandCurve] = createFreehandCurveAction;
     m_actions[AcceptMark] = createAcceptMarkAction;
     m_actions[RejectMark] = createRejectMarkAction;
     m_actions[Rectangle] = createRectangleAction;
@@ -96,12 +98,9 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     m_actions[Dot] = createDotAction;
     m_actions[SvgImage] = createSvgImageAction;
     m_actions[Clear] = clearAction;
-    m_actions[SetColor] = setColorAction;
-    m_actions[SetPen] = setPenAction;
-    m_actions[SetBrush] = setBrushAction;
     m_actions[SignElectronically] = signElectronicallyAction;
     m_actions[SignDigitally] = signDigitallyAction;
-    m_actions[Ceritificates] = certificatesAction;
+    m_actions[Certificates] = certificatesAction;
 
     QFile acceptMarkFile(":/pdfplugins/signatureplugin/accept-mark.svg");
     QByteArray acceptMarkContent;
@@ -134,6 +133,9 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     }
 
     m_widget->getDrawWidgetProxy()->registerDrawInterface(&m_scene);
+    connect(&m_scene, &pdf::PDFPageContentScene::sceneChanged, this, &SignaturePlugin::onSceneChanged);
+    connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
+    connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);
 
     updateActions();
 }
@@ -144,7 +146,7 @@ void SignaturePlugin::setDocument(const pdf::PDFModifiedDocument& document)
 
     if (document.hasReset())
     {
-        m_scene.clear();
+        setActive(false);
         updateActions();
     }
 }
@@ -153,7 +155,9 @@ std::vector<QAction*> SignaturePlugin::getActions() const
 {
     std::vector<QAction*> result;
 
+    result.push_back(m_actions[Activate]);
     result.push_back(m_actions[Text]);
+    result.push_back(m_actions[FreehandCurve]);
     result.push_back(m_actions[AcceptMark]);
     result.push_back(m_actions[RejectMark]);
     result.push_back(m_actions[Rectangle]);
@@ -164,21 +168,87 @@ std::vector<QAction*> SignaturePlugin::getActions() const
     result.push_back(m_actions[Dot]);
     result.push_back(m_actions[Clear]);
     result.push_back(nullptr);
-    result.push_back(m_actions[SetColor]);
-    result.push_back(m_actions[SetPen]);
-    result.push_back(m_actions[SetBrush]);
-    result.push_back(nullptr);
     result.push_back(m_actions[SignElectronically]);
     result.push_back(m_actions[SignDigitally]);
-    result.push_back(m_actions[Ceritificates]);
+    result.push_back(m_actions[Certificates]);
 
     return result;
 }
 
+void SignaturePlugin::onSceneChanged()
+{
+    updateActions();
+    updateGraphics();
+}
+
+void SignaturePlugin::setActive(bool active)
+{
+    if (m_scene.isActive() != active)
+    {
+        // Abort active tool, if we are deactivating the plugin
+        if (!active)
+        {
+            if (pdf::PDFWidgetTool* tool = m_widget->getToolManager()->getActiveTool())
+            {
+                auto it = std::find(m_tools.cbegin(), m_tools.cend(), tool);
+                if (it == m_tools.cend())
+                {
+                    m_widget->getToolManager()->setActiveTool(nullptr);
+                }
+            }
+        }
+
+        m_scene.setActive(active);
+        if (!active)
+        {
+            m_scene.clear();
+        }
+
+        m_actions[Activate]->setChecked(active);
+        updateActions();
+    }
+}
+
 void SignaturePlugin::updateActions()
 {
+    m_actions[Activate]->setEnabled(m_document);
+
+    if (!m_scene.isActive() || !m_document)
+    {
+        // Inactive scene - disable all except activate action and certificates
+        for (QAction* action : m_actions)
+        {
+            if (action == m_actions[Activate] ||
+                action == m_actions[Certificates])
+            {
+                continue;
+            }
+
+            action->setEnabled(false);
+        }
+
+        return;
+    }
+
+    const bool isSceneNonempty = !m_scene.isEmpty();
+
+    // Tool actions
+    for (auto actionId : { Text, FreehandCurve, AcceptMark, RejectMark,
+                           Rectangle, RoundedRectangle, HorizontalLine,
+                           VerticalLine, Line, Dot, SvgImage })
+    {
+        m_actions[actionId]->setEnabled(true);
+    }
+
+    // Clear action
     QAction* clearAction = m_actions[Clear];
-    clearAction->setEnabled(!m_scene.isEmpty());
+    clearAction->setEnabled(isSceneNonempty);
+
+    // Sign actions
+    QAction* signElectronicallyAction = m_actions[SignElectronically];
+    signElectronicallyAction->setEnabled(isSceneNonempty);
+    QAction* signDigitallyAction = m_actions[SignDigitally];
+    signDigitallyAction->setEnabled(isSceneNonempty);
 }
 
 void SignaturePlugin::updateGraphics()
