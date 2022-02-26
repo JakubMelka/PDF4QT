@@ -18,19 +18,82 @@
 #include "pdfpagecontenteditorwidget.h"
 #include "ui_pdfpagecontenteditorwidget.h"
 
+#include <QAction>
+#include <QToolButton>
+
 namespace pdf
 {
 
 PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget *parent) :
     QDockWidget(parent),
-    ui(new Ui::PDFPageContentEditorWidget)
+    ui(new Ui::PDFPageContentEditorWidget),
+    m_toolBoxColumnCount(6)
 {
     ui->setupUi(this);
+
+    connect(&m_actionMapper, &QSignalMapper::mappedObject, this, &PDFPageContentEditorWidget::onActionTriggerRequest);
 }
 
 PDFPageContentEditorWidget::~PDFPageContentEditorWidget()
 {
     delete ui;
+}
+
+void PDFPageContentEditorWidget::addAction(QAction* action)
+{
+    // First, find position for our action
+    int row = 0;
+    int column = 0;
+
+    while (true)
+    {
+        if (!ui->toolGroupBoxLayout->itemAtPosition(row, column))
+        {
+            break;
+        }
+
+        ++column;
+
+        if (column == m_toolBoxColumnCount)
+        {
+            column = 0;
+            ++row;
+        }
+    }
+
+    QToolButton* button = new QToolButton(this);
+    button->setIcon(action->icon());
+    button->setText(action->text());
+    button->setToolTip(action->toolTip());
+    button->setCheckable(action->isCheckable());
+    button->setChecked(action->isChecked());
+    button->setEnabled(action->isEnabled());
+    button->setShortcut(action->shortcut());
+    m_actionMapper.setMapping(button, action);
+    connect(button, &QToolButton::clicked, &m_actionMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(action, &QAction::changed, this, &PDFPageContentEditorWidget::onActionChanged);
+
+    ui->toolGroupBoxLayout->addWidget(button, row, column, Qt::AlignCenter);
+}
+
+void PDFPageContentEditorWidget::onActionTriggerRequest(QObject* actionObject)
+{
+    QAction* action = qobject_cast<QAction*>(actionObject);
+    Q_ASSERT(action);
+
+    action->trigger();
+}
+
+void PDFPageContentEditorWidget::onActionChanged()
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    QToolButton* button = qobject_cast<QToolButton*>(m_actionMapper.mapping(action));
+
+    Q_ASSERT(action);
+    Q_ASSERT(button);
+
+    button->setChecked(action->isChecked());
+    button->setEnabled(action->isEnabled());
 }
 
 }   // namespace pdf

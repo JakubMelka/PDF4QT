@@ -21,6 +21,7 @@
 #include "pdfglobal.h"
 
 #include <QDockWidget>
+#include <QSignalMapper>
 
 namespace Ui
 {
@@ -38,8 +39,16 @@ public:
     explicit PDFPageContentEditorWidget(QWidget* parent);
     virtual ~PDFPageContentEditorWidget() override;
 
+    /// Adds external action to the tool box
+    void addAction(QAction* action);
+
 private:
+    void onActionTriggerRequest(QObject* actionObject);
+    void onActionChanged();
+
     Ui::PDFPageContentEditorWidget* ui;
+    QSignalMapper m_actionMapper;
+    int m_toolBoxColumnCount;
 };
 
 }   // namespace pdf

@@ -24,6 +24,11 @@
 
 #include <QObject>
 
+namespace pdf
+{
+class PDFPageContentEditorWidget;
+}
+
 namespace pdfplugin
 {
 
@@ -88,9 +93,11 @@ private:
 
     void updateActions();
     void updateGraphics();
+    void updateDockWidget();
 
     std::array<QAction*, LastAction> m_actions;
     std::array<pdf::PDFWidgetTool*, LastTool> m_tools;
+    pdf::PDFPageContentEditorWidget* m_editorWidget;
 
     pdf::PDFPageContentScene m_scene;
 };

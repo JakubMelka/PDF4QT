@@ -23,7 +23,7 @@
       <property name="title">
        <string>Toolbox</string>
       </property>
-      <layout class="QGridLayout" name="gridLayout_2"/>
+      <layout class="QGridLayout" name="toolGroupBoxLayout"/>
      </widget>
     </item>
     <item>
@@ -31,7 +31,7 @@
       <property name="title">
        <string>Geometry Tools</string>
       </property>
-      <layout class="QGridLayout" name="gridLayout">
+      <layout class="QGridLayout" name="geometryToolsGroupBoxLayout">
        <item row="0" column="0">
         <widget class="QToolButton" name="alignVertTopButton">
          <property name="text">
@@ -124,7 +124,7 @@
       <property name="title">
        <string>Layout Tools</string>
       </property>
-      <layout class="QHBoxLayout" name="horizontalLayout">
+      <layout class="QHBoxLayout" name="layoutToolBoxLayout">
        <item>
         <widget class="QToolButton" name="layoutHorizontallyButton">
          <property name="text">

@@ -17,8 +17,10 @@
 
 #include "signatureplugin.h"
 #include "pdfdrawwidget.h"
+#include "pdfpagecontenteditorwidget.h"
 
 #include <QAction>
+#include <QMainWindow>
 
 namespace pdfplugin
 {
@@ -27,6 +29,7 @@ SignaturePlugin::SignaturePlugin() :
     pdf::PDFPlugin(nullptr),
     m_actions({ }),
     m_tools({ }),
+    m_editorWidget(nullptr),
     m_scene(nullptr)
 {
 
@@ -38,22 +41,22 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    QAction* activateAction = new QAction(QIcon(":/pdfplugins/signaturetool/activate.svg"), tr("Activate signature creator"), this);
-    QAction* createTextAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-text.svg"), tr("Create Text Label"), this);
-    QAction* createFreehandCurveAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-freehand-curve.svg"), tr("Create Freehand Curve"), this);
-    QAction* createAcceptMarkAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-yes-mark.svg"), tr("Create Accept Mark"), this);
-    QAction* createRejectMarkAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-no-mark.svg"), tr("Create Reject Mark"), this);
-    QAction* createRectangleAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-rectangle.svg"), tr("Create Rectangle"), this);
-    QAction* createRoundedRectangleAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-rounded-rectangle.svg"), tr("Create Rounded Rectangle"), this);
-    QAction* createHorizontalLineAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-horizontal-line.svg"), tr("Create Horizontal Line"), this);
-    QAction* createVerticalLineAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-vertical-line.svg"), tr("Create Vertical Line"), this);
-    QAction* createLineAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-line.svg"), tr("Create Line"), this);
-    QAction* createDotAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-dot.svg"), tr("Create Dot"), this);
-    QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/signaturetool/create-svg-image.svg"), tr("Create SVG Image"), this);
-    QAction* clearAction = new QAction(QIcon(":/pdfplugins/signaturetool/clear.svg"), tr("Clear All Graphics"), this);
-    QAction* signElectronicallyAction = new QAction(QIcon(":/pdfplugins/signaturetool/sign-electronically.svg"), tr("Sign Electronically"), this);
-    QAction* signDigitallyAction = new QAction(QIcon(":/pdfplugins/signaturetool/sign-digitally.svg"), tr("Sign Digitally With Certificate"), this);
-    QAction* certificatesAction = new QAction(QIcon(":/pdfplugins/signaturetool/certificates.svg"), tr("Certificates Manager"), this);
+    QAction* activateAction = new QAction(QIcon(":/pdfplugins/signatureplugin/activate.svg"), tr("Activate signature creator"), this);
+    QAction* createTextAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-text.svg"), tr("Create Text Label"), this);
+    QAction* createFreehandCurveAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-freehand-curve.svg"), tr("Create Freehand Curve"), this);
+    QAction* createAcceptMarkAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-yes-mark.svg"), tr("Create Accept Mark"), this);
+    QAction* createRejectMarkAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-no-mark.svg"), tr("Create Reject Mark"), this);
+    QAction* createRectangleAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-rectangle.svg"), tr("Create Rectangle"), this);
+    QAction* createRoundedRectangleAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-rounded-rectangle.svg"), tr("Create Rounded Rectangle"), this);
+    QAction* createHorizontalLineAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-horizontal-line.svg"), tr("Create Horizontal Line"), this);
+    QAction* createVerticalLineAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-vertical-line.svg"), tr("Create Vertical Line"), this);
+    QAction* createLineAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-line.svg"), tr("Create Line"), this);
+    QAction* createDotAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-dot.svg"), tr("Create Dot"), this);
+    QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/signatureplugin/create-svg-image.svg"), tr("Create SVG Image"), this);
+    QAction* clearAction = new QAction(QIcon(":/pdfplugins/signatureplugin/clear.svg"), tr("Clear All Graphics"), this);
+    QAction* signElectronicallyAction = new QAction(QIcon(":/pdfplugins/signatureplugin/sign-electronically.svg"), tr("Sign Electronically"), this);
+    QAction* signDigitallyAction = new QAction(QIcon(":/pdfplugins/signatureplugin/sign-digitally.svg"), tr("Sign Digitally With Certificate"), this);
+    QAction* certificatesAction = new QAction(QIcon(":/pdfplugins/signatureplugin/certificates.svg"), tr("Certificates Manager"), this);
 
     activateAction->setObjectName("signaturetool_activateAction");
     createTextAction->setObjectName("signaturetool_createTextAction");
@@ -203,6 +206,10 @@ void SignaturePlugin::setActive(bool active)
         {
             m_scene.clear();
         }
+        else
+        {
+            updateDockWidget();
+        }
 
         m_actions[Activate]->setChecked(active);
         updateActions();
@@ -256,6 +263,24 @@ void SignaturePlugin::updateGraphics()
     if (m_widget)
     {
         m_widget->getDrawWidget()->getWidget()->update();
+    }
+}
+
+void SignaturePlugin::updateDockWidget()
+{
+    if (m_editorWidget)
+    {
+        return;
+    }
+
+    m_editorWidget = new pdf::PDFPageContentEditorWidget(m_dataExchangeInterface->getMainWindow());
+    m_editorWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_dataExchangeInterface->getMainWindow()->addDockWidget(Qt::RightDockWidgetArea, m_editorWidget, Qt::Vertical);
+    m_editorWidget->setFloating(false);
+
+    for (QAction* action : m_actions)
+    {
+        m_editorWidget->addAction(action);
     }
 }
 
