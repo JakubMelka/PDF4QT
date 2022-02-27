@@ -49,6 +49,7 @@ private:
     Ui::PDFPageContentEditorWidget* ui;
     QSignalMapper m_actionMapper;
     int m_toolBoxColumnCount;
+    QSize m_toolButtonIconSize;
 };
 
 }   // namespace pdf

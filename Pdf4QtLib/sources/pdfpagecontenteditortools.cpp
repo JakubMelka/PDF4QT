@@ -309,4 +309,63 @@ void PDFCreatePCElementSvgTool::onRectanglePicked(PDFInteger pageIndex, QRectF p
     setActive(false);
 }
 
+PDFCreatePCElementDotTool::PDFCreatePCElementDotTool(PDFDrawWidgetProxy* proxy,
+                                                     PDFPageContentScene* scene,
+                                                     QAction* action,
+                                                     QObject* parent) :
+    BaseClass(proxy, scene, action, parent),
+    m_pickTool(nullptr),
+    m_element(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Points, this);
+    m_pickTool->setDrawSelectionRectangle(false);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreatePCElementDotTool::onPointPicked);
+
+    QPen pen(Qt::SolidLine);
+    pen.setWidthF(5.0);
+    pen.setCapStyle(Qt::RoundCap);
+
+    m_element = new PDFPageContentElementDot();
+    m_element->setBrush(Qt::NoBrush);
+    m_element->setPen(std::move(pen));
+
+    updateActions();
+}
+
+PDFCreatePCElementDotTool::~PDFCreatePCElementDotTool()
+{
+    delete m_element;
+}
+
+void PDFCreatePCElementDotTool::drawPage(QPainter* painter,
+                                         PDFInteger pageIndex,
+                                         const PDFPrecompiledPage* compiledPage,
+                                         PDFTextLayoutGetter& layoutGetter,
+                                         const QMatrix& pagePointToDevicePointMatrix,
+                                         QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    QPointF point = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(m_element->getPen());
+    painter->setBrush(m_element->getBrush());
+    painter->drawPoint(point);
+}
+
+void PDFCreatePCElementDotTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    m_element->setPageIndex(pageIndex);
+    m_element->setPoint(pagePoint);
+
+    m_scene->addElement(m_element->clone());
+    m_element->setPageIndex(-1);
+
+    setActive(false);
+}
+
 }   // namespace pdf

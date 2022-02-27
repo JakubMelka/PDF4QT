@@ -426,6 +426,8 @@ void PDFPageContentElementDot::drawPage(QPainter* painter,
     PDFPainterStateGuard guard(painter);
     painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
     painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(getPen());
+    painter->setBrush(getBrush());
     painter->drawPoint(m_point);
 }
 

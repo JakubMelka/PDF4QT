@@ -25,6 +25,7 @@ namespace pdf
 
 class PDFPageContentScene;
 class PDFPageContentSvgElement;
+class PDFPageContentElementDot;
 class PDFPageContentElementLine;
 class PDFPageContentElementRectangle;
 
@@ -133,6 +134,35 @@ private:
     PDFPickTool* m_pickTool;
     PDFPageContentElementLine* m_element;
     std::optional<QPointF> m_startPoint;
+};
+
+/// Tool that creates dot element.
+class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementDotTool : public PDFCreatePCElementTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreatePCElementTool;
+
+public:
+    explicit PDFCreatePCElementDotTool(PDFDrawWidgetProxy* proxy,
+                                       PDFPageContentScene* scene,
+                                       QAction* action,
+                                       QObject* parent);
+    virtual ~PDFCreatePCElementDotTool() override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+private:
+    void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
+
+    PDFPickTool* m_pickTool;
+    PDFPageContentElementDot* m_element;
 };
 
 }   // namespace pdf

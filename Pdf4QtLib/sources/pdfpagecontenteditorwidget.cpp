@@ -17,6 +17,7 @@
 
 #include "pdfpagecontenteditorwidget.h"
 #include "ui_pdfpagecontenteditorwidget.h"
+#include "pdfwidgetutils.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -30,6 +31,13 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget *parent) :
     m_toolBoxColumnCount(6)
 {
     ui->setupUi(this);
+
+    m_toolButtonIconSize = PDFWidgetUtils::scaleDPI(this, QSize(32, 32));
+
+    for (QToolButton* button : findChildren<QToolButton*>())
+    {
+        button->setIconSize(m_toolButtonIconSize);
+    }
 
     connect(&m_actionMapper, &QSignalMapper::mappedObject, this, &PDFPageContentEditorWidget::onActionTriggerRequest);
 }
@@ -69,6 +77,7 @@ void PDFPageContentEditorWidget::addAction(QAction* action)
     button->setChecked(action->isChecked());
     button->setEnabled(action->isEnabled());
     button->setShortcut(action->shortcut());
+    button->setIconSize(m_toolButtonIconSize);
     m_actionMapper.setMapping(button, action);
     connect(button, &QToolButton::clicked, &m_actionMapper, QOverload<>::of(&QSignalMapper::map));
     connect(action, &QAction::changed, this, &PDFPageContentEditorWidget::onActionChanged);

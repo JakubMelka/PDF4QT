@@ -128,6 +128,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     m_tools[HorizontalLineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createHorizontalLineAction, true, false, this);
     m_tools[VerticalLineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createVerticalLineAction, false, true, this);
     m_tools[LineTool] = new pdf::PDFCreatePCElementLineTool(widget->getDrawWidgetProxy(), &m_scene, createLineAction, false, false, this);
+    m_tools[DotTool] = new pdf::PDFCreatePCElementDotTool(widget->getDrawWidgetProxy(), &m_scene, createDotAction, this);
 
     pdf::PDFToolManager* toolManager = widget->getToolManager();
     for (pdf::PDFWidgetTool* tool : m_tools)
@@ -159,18 +160,6 @@ std::vector<QAction*> SignaturePlugin::getActions() const
     std::vector<QAction*> result;
 
     result.push_back(m_actions[Activate]);
-    result.push_back(m_actions[Text]);
-    result.push_back(m_actions[FreehandCurve]);
-    result.push_back(m_actions[AcceptMark]);
-    result.push_back(m_actions[RejectMark]);
-    result.push_back(m_actions[Rectangle]);
-    result.push_back(m_actions[RoundedRectangle]);
-    result.push_back(m_actions[HorizontalLine]);
-    result.push_back(m_actions[VerticalLine]);
-    result.push_back(m_actions[Line]);
-    result.push_back(m_actions[Dot]);
-    result.push_back(m_actions[Clear]);
-    result.push_back(nullptr);
     result.push_back(m_actions[SignElectronically]);
     result.push_back(m_actions[SignDigitally]);
     result.push_back(m_actions[Certificates]);
@@ -277,6 +266,7 @@ void SignaturePlugin::updateDockWidget()
     m_editorWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_dataExchangeInterface->getMainWindow()->addDockWidget(Qt::RightDockWidgetArea, m_editorWidget, Qt::Vertical);
     m_editorWidget->setFloating(false);
+    m_editorWidget->setWindowTitle(tr("Signature Toolbox"));
 
     for (QAction* action : m_actions)
     {
