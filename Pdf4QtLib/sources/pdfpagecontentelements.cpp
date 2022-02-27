@@ -441,4 +441,65 @@ void PDFPageContentElementDot::setPoint(QPointF newPoint)
     m_point = newPoint;
 }
 
+PDFPageContentElementFreehandCurve* PDFPageContentElementFreehandCurve::clone() const
+{
+    PDFPageContentElementFreehandCurve* copy = new PDFPageContentElementFreehandCurve();
+    copy->setPageIndex(getPageIndex());
+    copy->setPen(getPen());
+    copy->setBrush(getBrush());
+    copy->setCurve(getCurve());
+    return copy;
+}
+
+void PDFPageContentElementFreehandCurve::drawPage(QPainter* painter,
+                                                  PDFInteger pageIndex,
+                                                  const PDFPrecompiledPage* compiledPage,
+                                                  PDFTextLayoutGetter& layoutGetter,
+                                                  const QMatrix& pagePointToDevicePointMatrix,
+                                                  QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    if (pageIndex != getPageIndex())
+    {
+        return;
+    }
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setPen(getPen());
+    painter->setBrush(getBrush());
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    painter->drawPath(getCurve());
+}
+
+QPainterPath PDFPageContentElementFreehandCurve::getCurve() const
+{
+    return m_curve;
+}
+
+void PDFPageContentElementFreehandCurve::setCurve(QPainterPath newCurve)
+{
+    m_curve = newCurve;
+}
+
+void PDFPageContentElementFreehandCurve::addStartPoint(const QPointF& point)
+{
+    m_curve.moveTo(point);
+}
+
+void PDFPageContentElementFreehandCurve::addPoint(const QPointF& point)
+{
+    m_curve.lineTo(point);
+}
+
+void PDFPageContentElementFreehandCurve::clear()
+{
+    setPageIndex(-1);
+    m_curve = QPainterPath();
+}
+
 }   // namespace pdf

@@ -23,6 +23,7 @@
 #include <QPen>
 #include <QBrush>
 #include <QCursor>
+#include <QPainterPath>
 
 class QSvgRenderer;
 
@@ -145,6 +146,32 @@ public:
 
 private:
     QPointF m_point;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElementFreehandCurve : public PDFPageContentStyledElement
+{
+public:
+    virtual ~PDFPageContentElementFreehandCurve() = default;
+
+    virtual PDFPageContentElementFreehandCurve* clone() const override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    QPainterPath getCurve() const;
+    void setCurve(QPainterPath newCurve);
+
+    bool isEmpty() const { return m_curve.isEmpty(); }
+    void addStartPoint(const QPointF& point);
+    void addPoint(const QPointF& point);
+    void clear();
+
+private:
+    QPainterPath m_curve;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentSvgElement : public PDFPageContentElement

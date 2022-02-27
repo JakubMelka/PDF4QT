@@ -79,6 +79,7 @@ private:
 
     enum Tools
     {
+        FreehandCurveTool,
         AcceptMarkTool,
         RejectMarkTool,
         RectangleTool,

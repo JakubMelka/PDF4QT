@@ -21,6 +21,7 @@
 
 #include <QPen>
 #include <QPainter>
+#include <QMouseEvent>
 
 namespace pdf
 {
@@ -366,6 +367,131 @@ void PDFCreatePCElementDotTool::onPointPicked(PDFInteger pageIndex, QPointF page
     m_element->setPageIndex(-1);
 
     setActive(false);
+}
+
+PDFCreatePCElementFreehandCurveTool::PDFCreatePCElementFreehandCurveTool(PDFDrawWidgetProxy* proxy,
+                                                                         PDFPageContentScene* scene,
+                                                                         QAction* action,
+                                                                         QObject* parent) :
+    BaseClass(proxy, scene, action, parent),
+    m_element(nullptr)
+{
+    QPen pen(Qt::SolidLine);
+    pen.setWidthF(2.0);
+    pen.setCapStyle(Qt::RoundCap);
+
+    m_element = new PDFPageContentElementFreehandCurve();
+    m_element->setBrush(Qt::NoBrush);
+    m_element->setPen(std::move(pen));
+}
+
+PDFCreatePCElementFreehandCurveTool::~PDFCreatePCElementFreehandCurveTool()
+{
+    delete m_element;
+}
+
+void PDFCreatePCElementFreehandCurveTool::drawPage(QPainter* painter,
+                                                   PDFInteger pageIndex,
+                                                   const PDFPrecompiledPage* compiledPage,
+                                                   PDFTextLayoutGetter& layoutGetter,
+                                                   const QMatrix& pagePointToDevicePointMatrix,
+                                                   QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_element->getPageIndex() || m_element->isEmpty())
+    {
+        return;
+    }
+
+    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+}
+
+void PDFCreatePCElementFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+
+    if (event->button() == Qt::LeftButton)
+    {
+        // Try to perform pick point
+        QPointF pagePoint;
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 &&    // We have picked some point on page
+                (m_element->getPageIndex() == -1 || m_element->getPageIndex() == pageIndex)) // We are under current page
+        {
+            m_element->setPageIndex(pageIndex);
+            m_element->addStartPoint(pagePoint);
+        }
+    }
+    else if (event->button() == Qt::RightButton)
+    {
+        resetTool();
+    }
+
+    emit getProxy()->repaintNeeded();
+}
+
+void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+
+    if (event->button() == Qt::LeftButton)
+    {
+        // Try to perform pick point
+        QPointF pagePoint;
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 &&    // We have picked some point on page
+                (m_element->getPageIndex() == pageIndex)) // We are under current page
+        {
+            m_element->setPageIndex(pageIndex);
+            m_element->addPoint(pagePoint);
+
+            if (!m_element->isEmpty())
+            {
+                m_scene->addElement(m_element->clone());
+            }
+        }
+
+        resetTool();
+    }
+
+    emit getProxy()->repaintNeeded();
+}
+
+void PDFCreatePCElementFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    Q_UNUSED(widget);
+    event->accept();
+
+    if (event->buttons() & Qt::LeftButton && m_element->getPageIndex() != -1)
+    {
+        // Try to add point to the path
+        QPointF pagePoint;
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex == m_element->getPageIndex())
+        {
+            m_element->addPoint(pagePoint);
+        }
+
+        emit getProxy()->repaintNeeded();
+    }
+}
+
+void PDFCreatePCElementFreehandCurveTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        resetTool();
+    }
+}
+
+void PDFCreatePCElementFreehandCurveTool::resetTool()
+{
+    m_element->clear();
 }
 
 }   // namespace pdf

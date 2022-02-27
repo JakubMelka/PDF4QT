@@ -28,6 +28,7 @@ class PDFPageContentSvgElement;
 class PDFPageContentElementDot;
 class PDFPageContentElementLine;
 class PDFPageContentElementRectangle;
+class PDFPageContentElementFreehandCurve;
 
 class PDFCreatePCElementTool : public PDFWidgetTool
 {
@@ -163,6 +164,41 @@ private:
 
     PDFPickTool* m_pickTool;
     PDFPageContentElementDot* m_element;
+};
+
+/// Tool that creates freehand curve element.
+class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementFreehandCurveTool : public PDFCreatePCElementTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFCreatePCElementTool;
+
+public:
+    explicit PDFCreatePCElementFreehandCurveTool(PDFDrawWidgetProxy* proxy,
+                                         PDFPageContentScene* scene,
+                                         QAction* action,
+                                         QObject* parent);
+    virtual ~PDFCreatePCElementFreehandCurveTool() override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+protected:
+    virtual void setActiveImpl(bool active);
+
+private:
+    void resetTool();
+
+    PDFPageContentElementFreehandCurve* m_element;
 };
 
 }   // namespace pdf
