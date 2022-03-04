@@ -102,6 +102,7 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
 
     // Initialize toolbar icon size
     adjustToolbar(ui->mainToolBar);
+    ui->mainToolBar->setWindowTitle(tr("Standard"));
 
     // Initialize task bar progress
 #ifdef Q_OS_WIN

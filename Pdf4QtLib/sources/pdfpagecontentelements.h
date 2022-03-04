@@ -25,10 +25,13 @@
 #include <QCursor>
 #include <QPainterPath>
 
+#include <set>
+
 class QSvgRenderer;
 
 namespace pdf
 {
+class PDFPageContentScene;
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentElement
 {
@@ -48,7 +51,11 @@ public:
     PDFInteger getPageIndex() const;
     void setPageIndex(PDFInteger newPageIndex);
 
+    PDFInteger getElementId() const;
+    void setElementId(PDFInteger newElementId);
+
 protected:
+    PDFInteger m_elementId = -1;
     PDFInteger m_pageIndex = -1;
 };
 
@@ -201,6 +208,61 @@ private:
     std::unique_ptr<QSvgRenderer> m_renderer;
 };
 
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElementManipulator : public QObject
+{
+    Q_OBJECT
+
+public:
+    PDFPageContentElementManipulator(PDFPageContentScene* scene, QObject* parent);
+
+    enum SelectionMode
+    {
+        NoUpdate = 0x0000,
+        Clear    = 0x0001,  ///< Clears current selection
+        Select   = 0x0002,  ///< Selects item
+        Deselect = 0x0004,  ///< Deselects item
+        Toggle   = 0x0008,  ///< Toggles selection of the item
+    };
+    Q_DECLARE_FLAGS(SelectionModes, SelectionMode)
+
+    /// Returns true, if element with given id is selected
+    /// \param id Element id
+    bool isSelected(PDFInteger id) const { return m_selection.count(id); }
+
+    /// Returns true, if selection is empty
+    bool isSelectionEmpty() const { return m_selection.empty(); }
+
+    /// Clear all selection, stop manipulation
+    void reset();
+
+    void update(PDFInteger id, SelectionModes modes);
+    void update(const std::set<PDFInteger>& ids, SelectionModes modes);
+    void select(PDFInteger id);
+    void select(const std::set<PDFInteger>& ids);
+    void selectNew(PDFInteger id);
+    void selectNew(const std::set<PDFInteger>& ids);
+    void deselect(PDFInteger id);
+    void deselect(const std::set<PDFInteger>& ids);
+    void deselectAll();
+
+    bool isManipulationInProgress() const { return m_isManipulationInProgress; }
+
+    void manipulateDeleteSelection();
+
+signals:
+    void selectionChanged();
+    void stateChanged();
+
+private:
+    void stopManipulation();
+
+    PDFPageContentScene* m_scene;
+    std::set<PDFInteger> m_selection;
+    bool m_isManipulationInProgress;
+    std::vector<std::unique_ptr<PDFPageContentElement>> m_manipulatedElements;
+    std::map<PDFInteger, uint> m_manipulationModes;
+};
+
 class PDF4QTLIBSHARED_EXPORT PDFPageContentScene : public QObject,
                                                    public IDocumentDrawInterface,
                                                    public IDrawWidgetInputInterface
@@ -216,11 +278,22 @@ public:
     /// \param element Element
     void addElement(PDFPageContentElement* element);
 
+    /// Returns element by its id (identifier number)
+    /// \param id Element id
+    PDFPageContentElement* getElementById(PDFInteger id) const;
+
     /// Clear whole scene - remove all page content elements
     void clear();
 
     /// Returns true, if scene is empty
     bool isEmpty() const { return m_elements.empty(); }
+
+    bool isActive() const;
+    void setActive(bool newIsActive);
+
+    /// Removes elements specified in selection
+    /// \param selection Items to be removed
+    void removeElementsById(const std::set<PDFInteger>& selection);
 
     // IDrawWidgetInputInterface interface
 public:
@@ -244,20 +317,55 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
-
-    bool isActive() const;
-    void setActive(bool newIsActive);
-
 signals:
     /// This signal is emitted when scene has changed (including graphics)
     void sceneChanged();
 
 private:
+
+    struct MouseEventInfo
+    {
+        std::set<PDFInteger> hoveredElementIds;
+        QPoint widgetMouseStartPos;
+        QPoint widgetMouseCurrentPos;
+        QElapsedTimer timer;
+
+        bool isValid() const { return !hoveredElementIds.empty(); }
+    };
+
+    MouseEventInfo getMouseEventInfo(QWidget* widget, QPoint point);
+
+    struct MouseGrabInfo
+    {
+        MouseEventInfo info;
+        int mouseGrabNesting = 0;
+
+        bool isMouseGrabbed() const { return mouseGrabNesting > 0; }
+    };
+
+    bool isMouseGrabbed() const { return m_mouseGrabInfo.isMouseGrabbed(); }
+
+    /// Grabs mouse input, if mouse is already grabbed, or if event
+    /// is accepted.
+    /// \param info Mouse event info
+    /// \param event Mouse event
+    void grabMouse(const MouseEventInfo& info, QMouseEvent* event);
+
+    /// Release mouse input
+    /// \param info Mouse event info
+    /// \param event Mouse event
+    void ungrabMouse(const MouseEventInfo& info, QMouseEvent* event);
+
+    PDFInteger m_firstFreeId;
     bool m_isActive;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_elements;
     std::optional<QCursor> m_cursor;
+    PDFPageContentElementManipulator m_manipulator;
+    MouseGrabInfo m_mouseGrabInfo;
 };
 
 }   // namespace pdf
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(pdf::PDFPageContentElementManipulator::SelectionModes)
 
 #endif // PDFPAGECONTENTELEMENTS_H
