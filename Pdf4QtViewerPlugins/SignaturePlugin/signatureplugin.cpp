@@ -137,7 +137,9 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
         toolManager->addTool(tool);
     }
 
+    m_widget->addInputInterface(&m_scene);
     m_widget->getDrawWidgetProxy()->registerDrawInterface(&m_scene);
+    m_scene.setWidget(m_widget);
     connect(&m_scene, &pdf::PDFPageContentScene::sceneChanged, this, &SignaturePlugin::onSceneChanged);
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);

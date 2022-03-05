@@ -19,6 +19,7 @@
 #include "pdfpainterutils.h"
 #include "pdfdrawwidget.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfwidgetutils.h"
 
 #include <QPainter>
 #include <QKeyEvent>
@@ -47,6 +48,121 @@ PDFInteger PDFPageContentElement::getElementId() const
 void PDFPageContentElement::setElementId(PDFInteger newElementId)
 {
     m_elementId = newElementId;
+}
+
+uint PDFPageContentElement::getRectangleManipulationMode(const QRectF& rectangle,
+                                                         const QPointF& point,
+                                                         PDFReal snapPointDistanceThreshold) const
+{
+    if ((rectangle.topLeft() - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return TopLeft;
+    }
+
+    if ((rectangle.topRight() - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return TopRight;
+    }
+
+    if ((rectangle.bottomLeft() - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return BottomLeft;
+    }
+
+    if ((rectangle.bottomRight() - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return BottomRight;
+    }
+
+    if (rectangle.left() <= point.x() &&
+        point.x() <= rectangle.right() &&
+        (qAbs(rectangle.top() - point.y()) < snapPointDistanceThreshold))
+    {
+        return Top;
+    }
+
+    if (rectangle.left() <= point.x() &&
+        point.x() <= rectangle.right() &&
+        (qAbs(rectangle.bottom() - point.y()) < snapPointDistanceThreshold))
+    {
+        return Bottom;
+    }
+
+    if (rectangle.top() <= point.y() &&
+        point.y() <= rectangle.bottom() &&
+        (qAbs(rectangle.left() - point.y()) < snapPointDistanceThreshold))
+    {
+        return Left;
+    }
+
+    if (rectangle.top() <= point.y() &&
+        point.y() <= rectangle.bottom() &&
+        (qAbs(rectangle.right() - point.y()) < snapPointDistanceThreshold))
+    {
+        return Right;
+    }
+
+    if (rectangle.contains(point))
+    {
+        return Translate;
+    }
+
+    return None;
+}
+
+void PDFPageContentElement::performRectangleManipulation(QRectF& rectangle,
+                                                         uint mode,
+                                                         const QPointF& offset)
+{
+    switch (mode)
+    {
+        case None:
+            break;
+
+        case Translate:
+            rectangle.translate(offset);
+            break;
+
+        case Top:
+            rectangle.setTop(qMin(rectangle.bottom(), rectangle.top() + offset.y()));
+            break;
+
+        case Left:
+            rectangle.setLeft(qMin(rectangle.right(), rectangle.left() + offset.x()));
+            break;
+
+        case Right:
+            rectangle.setRight(qMax(rectangle.left(), rectangle.right() + offset.x()));
+            break;
+
+        case Bottom:
+            rectangle.setBottom(qMax(rectangle.top(), rectangle.bottom() + offset.y()));
+            break;
+
+        case TopLeft:
+            rectangle.setTop(qMin(rectangle.bottom(), rectangle.top() + offset.y()));
+            rectangle.setLeft(qMin(rectangle.right(), rectangle.left() + offset.x()));
+            break;
+
+        case TopRight:
+            rectangle.setTop(qMin(rectangle.bottom(), rectangle.top() + offset.y()));
+            rectangle.setRight(qMax(rectangle.left(), rectangle.right() + offset.x()));
+            break;
+
+        case BottomLeft:
+            rectangle.setBottom(qMax(rectangle.top(), rectangle.bottom() + offset.y()));
+            rectangle.setLeft(qMin(rectangle.right(), rectangle.left() + offset.x()));
+            break;
+
+        case BottomRight:
+            rectangle.setBottom(qMax(rectangle.top(), rectangle.bottom() + offset.y()));
+            rectangle.setRight(qMax(rectangle.left(), rectangle.right() + offset.x()));
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 }
 
 const QPen& PDFPageContentStyledElement::getPen() const
@@ -135,10 +251,22 @@ void PDFPageContentElementRectangle::drawPage(QPainter* painter,
     }
 }
 
+uint PDFPageContentElementRectangle::getManipulationMode(const QPointF& point,
+                                                         PDFReal snapPointDistanceThreshold) const
+{
+    return getRectangleManipulationMode(getRectangle(), point, snapPointDistanceThreshold);
+}
+
+void PDFPageContentElementRectangle::performManipulation(uint mode, const QPointF& offset)
+{
+    performRectangleManipulation(m_rectangle, mode, offset);
+}
+
 PDFPageContentScene::PDFPageContentScene(QObject* parent) :
     QObject(parent),
     m_firstFreeId(1),
     m_isActive(false),
+    m_widget(nullptr),
     m_manipulator(this, nullptr)
 {
 
@@ -153,6 +281,22 @@ void PDFPageContentScene::addElement(PDFPageContentElement* element)
 {
     element->setElementId(m_firstFreeId++);
     m_elements.emplace_back(element);
+    emit sceneChanged();
+}
+
+void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
+{
+    std::unique_ptr<PDFPageContentElement> elementPtr(element);
+
+    for (size_t i = 0; i < m_elements.size(); ++i)
+    {
+        if (m_elements[i]->getElementId() == element->getElementId())
+        {
+            m_elements[i] = std::move(elementPtr);
+            break;
+        }
+    }
+
     emit sceneChanged();
 }
 
@@ -214,8 +358,8 @@ void PDFPageContentScene::mousePressEvent(QWidget* widget, QMouseEvent* event)
             if (!m_manipulator.isManipulationInProgress())
             {
                 Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
-                const bool isCtrl = keyboardModifiers.testFlag(Qt::CTRL);
-                const bool isShift = keyboardModifiers.testFlag(Qt::SHIFT);
+                const bool isCtrl = keyboardModifiers.testFlag(Qt::ControlModifier);
+                const bool isShift = keyboardModifiers.testFlag(Qt::ShiftModifier);
 
                 if (isCtrl && !isShift)
                 {
@@ -235,6 +379,10 @@ void PDFPageContentScene::mousePressEvent(QWidget* widget, QMouseEvent* event)
         }
 
         grabMouse(info, event);
+    }
+    else if (event->button() == Qt::LeftButton)
+    {
+        m_manipulator.deselectAll();
     }
 }
 
@@ -271,25 +419,55 @@ void PDFPageContentScene::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
         if (event->button() == Qt::LeftButton)
         {
             event->accept();
-            m_manipulator.finishManipulation();
+
+            if (m_manipulator.isManipulationInProgress())
+            {
+                QPointF pagePoint;
+                const PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+                m_mouseGrabInfo.info.widgetMouseCurrentPos = event->pos();
+                bool isCopyCreated = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
+                m_manipulator.finishManipulation(pageIndex, m_mouseGrabInfo.info.pagePos, pagePoint, isCopyCreated);
+            }
         }
 
-        ungrabMouse(info, event);
+        ungrabMouse(getMouseEventInfo(widget, event->pos()), event);
     }
 }
 
 void PDFPageContentScene::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
+    Q_UNUSED(widget);
+
     if (!isActive())
     {
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
-    if (info.isValid())
+    const PDFReal threshold = getSnapPointDistanceThreshold();
+
+    QPointF pagePoint;
+    const PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    if (m_mouseGrabInfo.info.isValid() &&
+        event->buttons().testFlag(Qt::LeftButton) &&
+        m_mouseGrabInfo.info.pageIndex == pageIndex &&
+        m_manipulator.isManipulationAllowed(pageIndex))
     {
+        // Jakub Melka: Start grab?
+        m_mouseGrabInfo.info.widgetMouseCurrentPos = event->pos();
 
-
+        if (!m_manipulator.isManipulationInProgress())
+        {
+            QPoint vector = m_mouseGrabInfo.info.widgetMouseCurrentPos - m_mouseGrabInfo.info.widgetMouseStartPos;
+            if (vector.manhattanLength() > QApplication::startDragDistance() ||
+                    m_mouseGrabInfo.info.timer.hasExpired(QApplication::startDragTime()))
+            {
+                m_manipulator.startManipulation(pageIndex, m_mouseGrabInfo.info.pagePos, pagePoint, threshold);
+            }
+        }
+        else
+        {
+            m_manipulator.updateManipulation(pageIndex, m_mouseGrabInfo.info.pagePos, pagePoint);
+        }
     }
 
     // If mouse is grabbed, then event is accepted always (because
@@ -361,6 +539,7 @@ PDFPageContentScene::MouseEventInfo PDFPageContentScene::getMouseEventInfo(QWidg
 {
     MouseEventInfo result;
 
+    Q_UNUSED(widget);
     Q_ASSERT(isActive());
 
     if (isMouseGrabbed())
@@ -370,13 +549,36 @@ PDFPageContentScene::MouseEventInfo PDFPageContentScene::getMouseEventInfo(QWidg
         return result;
     }
 
-    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
-    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
-    {
+    result.widgetMouseStartPos = point;
+    result.widgetMouseCurrentPos = point;
+    result.timer = m_mouseGrabInfo.info.timer;
+    result.pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(point, &result.pagePos);
 
+    const PDFReal threshold = getSnapPointDistanceThreshold();
+    for (const auto& elementItem : m_elements)
+    {
+        PDFPageContentElement* element = elementItem.get();
+
+        if (element->getPageIndex() != result.pageIndex)
+        {
+            // Different page
+            continue;
+        }
+
+        if (element->getManipulationMode(result.pagePos, threshold) != 0)
+        {
+            result.hoveredElementIds.insert(element->getElementId());
+        }
     }
 
     return result;
+}
+
+PDFReal PDFPageContentScene::getSnapPointDistanceThreshold() const
+{
+    const PDFReal snapPointDistanceThresholdPixels = PDFWidgetUtils::scaleDPI_x(m_widget, 6.0);
+    const PDFReal snapPointDistanceThreshold = m_widget->getDrawWidgetProxy()->transformPixelToDeviceSpace(snapPointDistanceThresholdPixels);
+    return snapPointDistanceThreshold;
 }
 
 void PDFPageContentScene::grabMouse(const MouseEventInfo& info, QMouseEvent* event)
@@ -429,6 +631,16 @@ void PDFPageContentScene::ungrabMouse(const MouseEventInfo& info, QMouseEvent* e
     }
 
     Q_ASSERT(m_mouseGrabInfo.mouseGrabNesting >= 0);
+}
+
+PDFWidget* PDFPageContentScene::widget() const
+{
+    return m_widget;
+}
+
+void PDFPageContentScene::setWidget(PDFWidget* newWidget)
+{
+    m_widget = newWidget;
 }
 
 bool PDFPageContentScene::isActive() const
@@ -499,6 +711,67 @@ void PDFPageContentElementLine::drawPage(QPainter* painter,
     painter->setRenderHint(QPainter::Antialiasing);
 
     painter->drawLine(getLine());
+}
+
+uint PDFPageContentElementLine::getManipulationMode(const QPointF& point,
+                                                    PDFReal snapPointDistanceThreshold) const
+{
+    if ((m_line.p1() - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return Pt1;
+    }
+
+    if ((m_line.p2() - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return Pt2;
+    }
+
+    QPointF vl = m_line.p2() - m_line.p1();
+    QPointF vp = point - m_line.p1();
+
+    const qreal lengthSquared = QPointF::dotProduct(vp, vp);
+
+    if (qFuzzyIsNull(lengthSquared))
+    {
+        return None;
+    }
+
+    const qreal t = QPointF::dotProduct(vl, vp) / lengthSquared;
+    if (t >= 0.0 && t <= 1.0)
+    {
+        QPointF projectedPoint = m_line.p1() + t * vl;
+        if ((point - projectedPoint).manhattanLength() < snapPointDistanceThreshold)
+        {
+            return Translate;
+        }
+    }
+
+    return None;
+}
+
+void PDFPageContentElementLine::performManipulation(uint mode, const QPointF& offset)
+{
+    switch (mode)
+    {
+        case None:
+            break;
+
+        case Pt1:
+            m_line.setP1(m_line.p1() + offset);
+            break;
+
+        case Pt2:
+            m_line.setP2(m_line.p2() + offset);
+            break;
+
+        case Translate:
+            m_line.translate(offset);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 }
 
 PDFPageContentElementLine::LineGeometry PDFPageContentElementLine::getGeometry() const
@@ -591,6 +864,16 @@ void PDFPageContentSvgElement::drawPage(QPainter* painter,
     m_renderer->render(painter, targetRenderBox);
 }
 
+uint PDFPageContentSvgElement::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
+{
+    return getRectangleManipulationMode(getRectangle(), point, snapPointDistanceThreshold);
+}
+
+void PDFPageContentSvgElement::performManipulation(uint mode, const QPointF& offset)
+{
+    performRectangleManipulation(m_rectangle, mode, offset);
+}
+
 const QByteArray& PDFPageContentSvgElement::getContent() const
 {
     return m_content;
@@ -650,6 +933,34 @@ void PDFPageContentElementDot::drawPage(QPainter* painter,
     painter->drawPoint(m_point);
 }
 
+uint PDFPageContentElementDot::getManipulationMode(const QPointF& point,
+                                                   PDFReal snapPointDistanceThreshold) const
+{
+    if ((m_point - point).manhattanLength() < snapPointDistanceThreshold)
+    {
+        return Translate;
+    }
+
+    return None;
+}
+
+void PDFPageContentElementDot::performManipulation(uint mode, const QPointF& offset)
+{
+    switch (mode)
+    {
+        case None:
+            break;
+
+        case Translate:
+            m_point += offset;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+}
+
 QPointF PDFPageContentElementDot::getPoint() const
 {
     return m_point;
@@ -696,6 +1007,40 @@ void PDFPageContentElementFreehandCurve::drawPage(QPainter* painter,
     painter->drawPath(getCurve());
 }
 
+uint PDFPageContentElementFreehandCurve::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
+{
+    Q_UNUSED(snapPointDistanceThreshold);
+
+    if (m_curve.isEmpty())
+    {
+        return None;
+    }
+
+    if (m_curve.controlPointRect().contains(point))
+    {
+        return Translate;
+    }
+
+    return None;
+}
+
+void PDFPageContentElementFreehandCurve::performManipulation(uint mode, const QPointF& offset)
+{
+    switch (mode)
+    {
+        case None:
+            break;
+
+        case Translate:
+            m_curve.translate(offset);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+}
+
 QPainterPath PDFPageContentElementFreehandCurve::getCurve() const
 {
     return m_curve;
@@ -732,7 +1077,7 @@ PDFPageContentElementManipulator::PDFPageContentElementManipulator(PDFPageConten
 
 void PDFPageContentElementManipulator::reset()
 {
-    stopManipulation();
+    cancelManipulation();
     deselectAll();
 }
 
@@ -863,12 +1208,12 @@ void PDFPageContentElementManipulator::select(const std::set<PDFInteger>& ids)
 
 void PDFPageContentElementManipulator::selectNew(PDFInteger id)
 {
-    update(id, Select | Clear);
+    update(id, SelectionModes(Select | Clear));
 }
 
 void PDFPageContentElementManipulator::selectNew(const std::set<PDFInteger>& ids)
 {
-    update(ids, Select | Clear);
+    update(ids, SelectionModes(Select | Clear));
 }
 
 void PDFPageContentElementManipulator::deselect(PDFInteger id)
@@ -886,22 +1231,118 @@ void PDFPageContentElementManipulator::deselectAll()
     update(-1, Clear);
 }
 
+bool PDFPageContentElementManipulator::isManipulationAllowed(PDFInteger pageIndex) const
+{
+    for (const PDFInteger id : m_selection)
+    {
+        if (const PDFPageContentElement* element = m_scene->getElementById(id))
+        {
+            if (element->getPageIndex() == pageIndex)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void PDFPageContentElementManipulator::manipulateDeleteSelection()
 {
-    stopManipulation();
+    cancelManipulation();
     m_scene->removeElementsById(m_selection);
     deselectAll();
 }
 
-void PDFPageContentElementManipulator::stopManipulation()
+void PDFPageContentElementManipulator::startManipulation(PDFInteger pageIndex,
+                                                         const QPointF& startPoint,
+                                                         const QPointF& currentPoint,
+                                                         PDFReal snapPointDistanceThreshold)
 {
-    if (m_isManipulationInProgress)
+    Q_ASSERT(!isManipulationInProgress());
+
+    // Collect elements to be manipulated
+    for (const PDFInteger id : m_selection)
+    {
+        const PDFPageContentElement* element = m_scene->getElementById(id);
+
+        if (!element || element->getPageIndex() != pageIndex)
+        {
+            continue;
+        }
+
+        const uint manipulationMode = element->getManipulationMode(startPoint, snapPointDistanceThreshold);
+        if (manipulationMode)
+        {
+            // Jakub Melka: yes, we can manipulate this element
+            m_manipulatedElements.emplace_back(element->clone());
+            m_manipulationModes[id] = manipulationMode;
+        }
+    }
+
+    m_lastUpdatedPoint = startPoint;
+    updateManipulation(pageIndex, startPoint, currentPoint);
+    emit stateChanged();
+}
+
+void PDFPageContentElementManipulator::updateManipulation(PDFInteger pageIndex,
+                                                          const QPointF& startPoint,
+                                                          const QPointF& currentPoint)
+{
+    Q_UNUSED(startPoint);
+
+    QPointF offset = currentPoint - m_lastUpdatedPoint;
+
+    for (const auto& element : m_manipulatedElements)
+    {
+        if (element->getElementId() == pageIndex)
+        {
+            element->performManipulation(m_manipulationModes[element->getElementId()], offset);
+        }
+    }
+
+    emit stateChanged();
+}
+
+void PDFPageContentElementManipulator::finishManipulation(PDFInteger pageIndex,
+                                                          const QPointF& startPoint,
+                                                          const QPointF& currentPoint,
+                                                          bool createCopy)
+{
+    Q_ASSERT(isManipulationInProgress());
+    updateManipulation(pageIndex, startPoint, currentPoint);
+
+    if (createCopy)
+    {
+        for (const auto& element : m_manipulatedElements)
+        {
+            m_scene->addElement(element->clone());
+        }
+    }
+    else
+    {
+        for (const auto& element : m_manipulatedElements)
+        {
+            m_scene->replaceElement(element->clone());
+        }
+    }
+
+    cancelManipulation();
+}
+
+void PDFPageContentElementManipulator::cancelManipulation()
+{
+    if (isManipulationInProgress())
     {
         m_isManipulationInProgress = false;
         m_manipulatedElements.clear();
         m_manipulationModes.clear();
         emit stateChanged();
     }
+
+    Q_ASSERT(!m_isManipulationInProgress);
+    Q_ASSERT(m_manipulatedElements.empty());
+    Q_ASSERT(m_manipulationModes.empty());
 }
 
 }   // namespace pdf

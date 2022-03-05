@@ -31,10 +31,11 @@ class QSvgRenderer;
 
 namespace pdf
 {
+class PDFWidget;
 class PDFPageContentScene;
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentElement
-{
+{ 
 public:
     explicit PDFPageContentElement() = default;
     virtual ~PDFPageContentElement() = default;
@@ -48,6 +49,19 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const = 0;
 
+    /// Returns manipulation mode. If manipulation mode is zero, then element
+    /// cannot be manipulated. If it is nonzero, then element can be manipulated
+    /// in some way.
+    /// \param point Point on page
+    /// \param snapPointDistanceTreshold Snap point threshold
+    virtual uint getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const = 0;
+
+    /// Performs manipulation of given mode. Mode must be the one returned
+    /// from function getManipulationMode. \sa getManipulationMode
+    /// \param mode Mode
+    /// \param offset Offset
+    virtual void performManipulation(uint mode, const QPointF& offset) = 0;
+
     PDFInteger getPageIndex() const;
     void setPageIndex(PDFInteger newPageIndex);
 
@@ -55,6 +69,31 @@ public:
     void setElementId(PDFInteger newElementId);
 
 protected:
+
+    enum ManipulationModes : uint
+    {
+        None = 0,
+        Translate,
+        Top,
+        Left,
+        Right,
+        Bottom,
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight,
+        Pt1,
+        Pt2
+    };
+
+    uint getRectangleManipulationMode(const QRectF& rectangle,
+                                      const QPointF& point,
+                                      PDFReal snapPointDistanceThreshold) const;
+
+    void performRectangleManipulation(QRectF& rectangle,
+                                      uint mode,
+                                      const QPointF& offset);
+
     PDFInteger m_elementId = -1;
     PDFInteger m_pageIndex = -1;
 };
@@ -96,6 +135,11 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual uint getManipulationMode(const QPointF& point,
+                                     PDFReal snapPointDistanceThreshold) const override;
+
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
+
 private:
     bool m_rounded = false;
     QRectF m_rectangle;
@@ -122,6 +166,11 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual uint getManipulationMode(const QPointF& point,
+                                     PDFReal snapPointDistanceThreshold) const override;
+
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
+
     LineGeometry getGeometry() const;
     void setGeometry(LineGeometry newGeometry);
 
@@ -147,6 +196,11 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual uint getManipulationMode(const QPointF& point,
+                                     PDFReal snapPointDistanceThreshold) const override;
+
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
+
 
     QPointF getPoint() const;
     void setPoint(QPointF newPoint);
@@ -168,6 +222,11 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+
+    virtual uint getManipulationMode(const QPointF& point,
+                                     PDFReal snapPointDistanceThreshold) const override;
+
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
 
     QPainterPath getCurve() const;
     void setCurve(QPainterPath newCurve);
@@ -195,6 +254,11 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+
+    virtual uint getManipulationMode(const QPointF& point,
+                                     PDFReal snapPointDistanceThreshold) const override;
+
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
 
     const QByteArray& getContent() const;
     void setContent(const QByteArray& newContent);
@@ -245,22 +309,38 @@ public:
     void deselect(const std::set<PDFInteger>& ids);
     void deselectAll();
 
+    bool isManipulationAllowed(PDFInteger pageIndex) const;
     bool isManipulationInProgress() const { return m_isManipulationInProgress; }
 
     void manipulateDeleteSelection();
+
+    void startManipulation(PDFInteger pageIndex,
+                           const QPointF& startPoint,
+                           const QPointF& currentPoint,
+                           PDFReal snapPointDistanceThreshold);
+
+    void updateManipulation(PDFInteger pageIndex,
+                            const QPointF& startPoint,
+                            const QPointF& currentPoint);
+
+    void finishManipulation(PDFInteger pageIndex,
+                            const QPointF& startPoint,
+                            const QPointF& currentPoint,
+                            bool createCopy);
+
+    void cancelManipulation();
 
 signals:
     void selectionChanged();
     void stateChanged();
 
 private:
-    void stopManipulation();
-
     PDFPageContentScene* m_scene;
     std::set<PDFInteger> m_selection;
     bool m_isManipulationInProgress;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_manipulatedElements;
     std::map<PDFInteger, uint> m_manipulationModes;
+    QPointF m_lastUpdatedPoint;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentScene : public QObject,
@@ -277,6 +357,11 @@ public:
     /// takes ownership over the element.
     /// \param element Element
     void addElement(PDFPageContentElement* element);
+
+    /// Replaces element in the page content scene, scene
+    /// takes ownership over the element.
+    /// \param element Element
+    void replaceElement(PDFPageContentElement* element);
 
     /// Returns element by its id (identifier number)
     /// \param id Element id
@@ -317,6 +402,9 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+    PDFWidget* widget() const;
+    void setWidget(PDFWidget* newWidget);
+
 signals:
     /// This signal is emitted when scene has changed (including graphics)
     void sceneChanged();
@@ -329,6 +417,8 @@ private:
         QPoint widgetMouseStartPos;
         QPoint widgetMouseCurrentPos;
         QElapsedTimer timer;
+        PDFInteger pageIndex = -1;
+        QPointF pagePos;
 
         bool isValid() const { return !hoveredElementIds.empty(); }
     };
@@ -342,6 +432,8 @@ private:
 
         bool isMouseGrabbed() const { return mouseGrabNesting > 0; }
     };
+
+    PDFReal getSnapPointDistanceThreshold() const;
 
     bool isMouseGrabbed() const { return m_mouseGrabInfo.isMouseGrabbed(); }
 
@@ -358,6 +450,7 @@ private:
 
     PDFInteger m_firstFreeId;
     bool m_isActive;
+    PDFWidget* m_widget;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_elements;
     std::optional<QCursor> m_cursor;
     PDFPageContentElementManipulator m_manipulator;
