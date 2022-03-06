@@ -170,9 +170,13 @@ std::vector<QAction*> SignaturePlugin::getActions() const
     return result;
 }
 
-void SignaturePlugin::onSceneChanged()
+void SignaturePlugin::onSceneChanged(bool graphicsOnly)
 {
-    updateActions();
+    if (!graphicsOnly)
+    {
+        updateActions();
+    }
+
     updateGraphics();
 }
 

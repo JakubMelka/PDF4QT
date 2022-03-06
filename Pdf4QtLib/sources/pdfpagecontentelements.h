@@ -68,6 +68,10 @@ public:
     PDFInteger getElementId() const;
     void setElementId(PDFInteger newElementId);
 
+    /// Returns cursor shape for manipulation mode
+    /// \param mode Manipulation mode
+    static Qt::CursorShape getCursorShapeForManipulationMode(uint mode);
+
 protected:
 
     enum ManipulationModes : uint
@@ -330,6 +334,13 @@ public:
 
     void cancelManipulation();
 
+    void drawPage(QPainter* painter,
+                  PDFInteger pageIndex,
+                  const PDFPrecompiledPage* compiledPage,
+                  PDFTextLayoutGetter& layoutGetter,
+                  const QMatrix& pagePointToDevicePointMatrix,
+                  QList<PDFRenderError>& errors) const;
+
 signals:
     void selectionChanged();
     void stateChanged();
@@ -407,7 +418,7 @@ public:
 
 signals:
     /// This signal is emitted when scene has changed (including graphics)
-    void sceneChanged();
+    void sceneChanged(bool graphicsOnly);
 
 private:
 
@@ -447,6 +458,11 @@ private:
     /// \param info Mouse event info
     /// \param event Mouse event
     void ungrabMouse(const MouseEventInfo& info, QMouseEvent* event);
+
+    /// Updates mouse cursor
+    /// \param info Mouse event info
+    /// \param snapPointDistanceTreshold Snap point threshold
+    void updateMouseCursor(const MouseEventInfo& info, PDFReal snapPointDistanceThreshold);
 
     PDFInteger m_firstFreeId;
     bool m_isActive;

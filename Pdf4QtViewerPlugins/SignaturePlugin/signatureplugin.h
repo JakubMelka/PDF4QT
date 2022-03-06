@@ -48,7 +48,7 @@ public:
     virtual std::vector<QAction*> getActions() const override;
 
 private:
-    void onSceneChanged();
+    void onSceneChanged(bool graphicsOnly);
 
     enum Action
     {
