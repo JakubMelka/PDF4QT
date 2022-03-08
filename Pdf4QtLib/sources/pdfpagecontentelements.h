@@ -62,6 +62,9 @@ public:
     /// \param offset Offset
     virtual void performManipulation(uint mode, const QPointF& offset) = 0;
 
+    /// Returns bounding box of the element
+    virtual QRectF getBoundingBox() const = 0;
+
     PDFInteger getPageIndex() const;
     void setPageIndex(PDFInteger newPageIndex);
 
@@ -143,6 +146,7 @@ public:
                                      PDFReal snapPointDistanceThreshold) const override;
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
 
 private:
     bool m_rounded = false;
@@ -174,6 +178,7 @@ public:
                                      PDFReal snapPointDistanceThreshold) const override;
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
 
     LineGeometry getGeometry() const;
     void setGeometry(LineGeometry newGeometry);
@@ -204,7 +209,7 @@ public:
                                      PDFReal snapPointDistanceThreshold) const override;
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
-
+    virtual QRectF getBoundingBox() const override;
 
     QPointF getPoint() const;
     void setPoint(QPointF newPoint);
@@ -231,6 +236,7 @@ public:
                                      PDFReal snapPointDistanceThreshold) const override;
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
 
     QPainterPath getCurve() const;
     void setCurve(QPainterPath newCurve);
@@ -263,6 +269,7 @@ public:
                                      PDFReal snapPointDistanceThreshold) const override;
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
 
     const QByteArray& getContent() const;
     void setContent(const QByteArray& newContent);
@@ -463,6 +470,9 @@ private:
     /// \param info Mouse event info
     /// \param snapPointDistanceTreshold Snap point threshold
     void updateMouseCursor(const MouseEventInfo& info, PDFReal snapPointDistanceThreshold);
+
+    /// Reaction on selection changed
+    void onSelectionChanged();
 
     PDFInteger m_firstFreeId;
     bool m_isActive;

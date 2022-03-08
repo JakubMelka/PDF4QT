@@ -296,6 +296,11 @@ void PDFPageContentElementRectangle::performManipulation(uint mode, const QPoint
     performRectangleManipulation(m_rectangle, mode, offset);
 }
 
+QRectF PDFPageContentElementRectangle::getBoundingBox() const
+{
+    return getRectangle();
+}
+
 PDFPageContentScene::PDFPageContentScene(QObject* parent) :
     QObject(parent),
     m_firstFreeId(1),
@@ -303,7 +308,7 @@ PDFPageContentScene::PDFPageContentScene(QObject* parent) :
     m_widget(nullptr),
     m_manipulator(this, nullptr)
 {
-
+    connect(&m_manipulator, &PDFPageContentElementManipulator::selectionChanged, this, &PDFPageContentScene::onSelectionChanged);
 }
 
 PDFPageContentScene::~PDFPageContentScene()
@@ -724,6 +729,11 @@ void PDFPageContentScene::updateMouseCursor(const MouseEventInfo& info, PDFReal 
     }
 }
 
+void PDFPageContentScene::onSelectionChanged()
+{
+    emit sceneChanged(true);
+}
+
 PDFWidget* PDFPageContentScene::widget() const
 {
     return m_widget;
@@ -820,7 +830,7 @@ uint PDFPageContentElementLine::getManipulationMode(const QPointF& point,
     QPointF vl = m_line.p2() - m_line.p1();
     QPointF vp = point - m_line.p1();
 
-    const qreal lengthSquared = QPointF::dotProduct(vp, vp);
+    const qreal lengthSquared = QPointF::dotProduct(vl, vl);
 
     if (qFuzzyIsNull(lengthSquared))
     {
@@ -863,6 +873,20 @@ void PDFPageContentElementLine::performManipulation(uint mode, const QPointF& of
             Q_ASSERT(false);
             break;
     }
+}
+
+QRectF PDFPageContentElementLine::getBoundingBox() const
+{
+    if (!qFuzzyIsNull(m_line.length()))
+    {
+        const qreal xMin = qMin(m_line.p1().x(), m_line.p2().x());
+        const qreal xMax = qMax(m_line.p1().x(), m_line.p2().x());
+        const qreal yMin = qMin(m_line.p1().y(), m_line.p2().y());
+        const qreal yMax = qMax(m_line.p1().y(), m_line.p2().y());
+        return QRectF(xMin, yMin, xMax - xMin, yMax - yMin);
+    }
+
+    return QRectF();
 }
 
 PDFPageContentElementLine::LineGeometry PDFPageContentElementLine::getGeometry() const
@@ -965,6 +989,11 @@ void PDFPageContentSvgElement::performManipulation(uint mode, const QPointF& off
     performRectangleManipulation(m_rectangle, mode, offset);
 }
 
+QRectF PDFPageContentSvgElement::getBoundingBox() const
+{
+    return getRectangle();
+}
+
 const QByteArray& PDFPageContentSvgElement::getContent() const
 {
     return m_content;
@@ -1052,6 +1081,11 @@ void PDFPageContentElementDot::performManipulation(uint mode, const QPointF& off
     }
 }
 
+QRectF PDFPageContentElementDot::getBoundingBox() const
+{
+    return QRectF(m_point, QSizeF(0.001, 0.001));
+}
+
 QPointF PDFPageContentElementDot::getPoint() const
 {
     return m_point;
@@ -1130,6 +1164,11 @@ void PDFPageContentElementFreehandCurve::performManipulation(uint mode, const QP
             Q_ASSERT(false);
             break;
     }
+}
+
+QRectF PDFPageContentElementFreehandCurve::getBoundingBox() const
+{
+    return m_curve.controlPointRect();
 }
 
 QPainterPath PDFPageContentElementFreehandCurve::getCurve() const
@@ -1449,7 +1488,35 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
                                                 QList<PDFRenderError>& errors) const
 {
     // Draw selection
+    if (!isSelectionEmpty())
+    {
+        QPainterPath selectionPath;
+        for (const PDFInteger id : m_selection)
+        {
+            if (PDFPageContentElement* element = m_scene->getElementById(id))
+            {
+                QPainterPath tempPath;
+                tempPath.addRect(element->getBoundingBox());
+                selectionPath = selectionPath.united(tempPath);
+            }
+        }
 
+        if (!selectionPath.isEmpty())
+        {
+            PDFPainterStateGuard guard(painter);
+            QPen pen(Qt::SolidLine);
+            pen.setWidthF(2.0);
+            pen.setColor(QColor::fromRgbF(0.8, 0.8, 0.1, 0.7));
+            QBrush brush(Qt::SolidPattern);
+            brush.setColor(QColor::fromRgbF(1.0, 1.0, 0.0, 0.2));
+
+            painter->setPen(std::move(pen));
+            painter->setBrush(std::move(brush));
+
+            selectionPath = pagePointToDevicePointMatrix.map(selectionPath);
+            painter->drawPath(selectionPath);
+        }
+    }
 
     // Draw dragged items
     if (isManipulationInProgress())
