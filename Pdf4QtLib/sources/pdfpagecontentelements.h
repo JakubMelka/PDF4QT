@@ -318,12 +318,13 @@ public:
     void selectNew(const std::set<PDFInteger>& ids);
     void deselect(PDFInteger id);
     void deselect(const std::set<PDFInteger>& ids);
+    void selectAll();
     void deselectAll();
 
     bool isManipulationAllowed(PDFInteger pageIndex) const;
     bool isManipulationInProgress() const { return m_isManipulationInProgress; }
 
-    void manipulateDeleteSelection();
+    void performDeleteSelection();
 
     void startManipulation(PDFInteger pageIndex,
                            const QPointF& startPoint,
@@ -393,6 +394,9 @@ public:
 
     bool isActive() const;
     void setActive(bool newIsActive);
+
+    /// Returns set of all element ids
+    std::set<PDFInteger> getElementIds() const;
 
     /// Removes elements specified in selection
     /// \param selection Items to be removed

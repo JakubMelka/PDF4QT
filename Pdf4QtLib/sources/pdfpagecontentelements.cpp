@@ -361,13 +361,57 @@ void PDFPageContentScene::clear()
 void PDFPageContentScene::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
-    event->ignore();
+
+    constexpr QKeySequence::StandardKey acceptedKeys[] = { QKeySequence::Delete,
+                                                           QKeySequence::SelectAll,
+                                                           QKeySequence::Deselect,
+                                                           QKeySequence::Cancel };
+
+    if (std::any_of(std::begin(acceptedKeys), std::end(acceptedKeys), [event](QKeySequence::StandardKey standardKey) { return event == standardKey; }))
+    {
+        event->accept();
+        return;
+    }
 }
 
 void PDFPageContentScene::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
     event->ignore();
+
+    if (event == QKeySequence::Delete)
+    {
+        if (!m_manipulator.isSelectionEmpty())
+        {
+            m_manipulator.performDeleteSelection();
+            event->accept();
+        }
+    }
+    else if (event == QKeySequence::SelectAll)
+    {
+        if (!isEmpty())
+        {
+            m_manipulator.selectAll();
+            event->accept();
+        }
+    }
+    else if (event == QKeySequence::Deselect)
+    {
+        if (!m_manipulator.isSelectionEmpty())
+        {
+            m_manipulator.deselectAll();
+            event->accept();
+        }
+    }
+    else if (event == QKeySequence::Cancel)
+    {
+        if (m_manipulator.isManipulationInProgress())
+        {
+            m_manipulator.cancelManipulation();
+            m_manipulator.deselectAll();
+            event->accept();
+        }
+    }
 }
 
 void PDFPageContentScene::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
@@ -763,6 +807,18 @@ void PDFPageContentScene::setActive(bool newIsActive)
 
         emit sceneChanged(false);
     }
+}
+
+std::set<PDFInteger> PDFPageContentScene::getElementIds() const
+{
+    std::set<PDFInteger> result;
+
+    for (const auto& element : m_elements)
+    {
+        result.insert(element->getElementId());
+    }
+
+    return result;
 }
 
 void PDFPageContentScene::removeElementsById(const std::set<PDFInteger>& selection)
@@ -1356,6 +1412,12 @@ void PDFPageContentElementManipulator::deselect(const std::set<PDFInteger>& ids)
     update(ids, Deselect);
 }
 
+void PDFPageContentElementManipulator::selectAll()
+{
+    std::set<PDFInteger> ids = m_scene->getElementIds();
+    update(ids, Select);
+}
+
 void PDFPageContentElementManipulator::deselectAll()
 {
     update(-1, Clear);
@@ -1377,7 +1439,7 @@ bool PDFPageContentElementManipulator::isManipulationAllowed(PDFInteger pageInde
     return false;
 }
 
-void PDFPageContentElementManipulator::manipulateDeleteSelection()
+void PDFPageContentElementManipulator::performDeleteSelection()
 {
     cancelManipulation();
     m_scene->removeElementsById(m_selection);
