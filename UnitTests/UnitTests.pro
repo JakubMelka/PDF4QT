@@ -22,6 +22,8 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
+include(../Pdf4Qt.pri)
+
 INCLUDEPATH += $$PWD/../Pdf4QtLib/Sources
 
 DESTDIR = $$OUT_PWD/..
@@ -29,8 +31,6 @@ DESTDIR = $$OUT_PWD/..
 LIBS += -L$$OUT_PWD/..
 
 LIBS += -lPdf4QtLib
-
-QMAKE_CXXFLAGS += /std:c++latest
 
 SOURCES += \ 
     tst_lexicalanalyzertest.cpp

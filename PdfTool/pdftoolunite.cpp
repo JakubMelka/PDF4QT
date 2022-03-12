@@ -211,7 +211,7 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
             return ErrorFailedWriteToFile;
         }
     }
-    catch (pdf::PDFException exception)
+    catch (const pdf::PDFException &exception)
     {
         PDFConsole::writeError(exception.getMessage(), options.outputCodec);
         return ErrorUnknown;

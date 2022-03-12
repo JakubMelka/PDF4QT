@@ -707,7 +707,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
             m_operands.clear();
             m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
         }
-        catch (PDFRendererException exception)
+        catch (const PDFRendererException &exception)
         {
             m_operands.clear();
             m_errorList.append(exception.getError());
@@ -3401,7 +3401,7 @@ bool PDFPageContentProcessor::isContentSuppressedByOC(PDFObjectReference ocgOrOc
     {
         ocmd = PDFOptionalContentMembershipObject::create(m_document, PDFObject::createReference(ocgOrOcmd));
     }
-    catch (PDFException e)
+    catch (const PDFException &e)
     {
         m_errorList.push_back(PDFRenderError(RenderErrorType::Error, e.getMessage()));
     }

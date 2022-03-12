@@ -122,7 +122,7 @@ int PDFToolSeparate::execute(const PDFToolOptions& options)
                 }
             }
         }
-        catch (pdf::PDFException exception)
+        catch (const pdf::PDFException &exception)
         {
             PDFConsole::writeError(exception.getMessage(), options.outputCodec);
         }

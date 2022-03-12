@@ -61,7 +61,7 @@ int PDFToolInfoMetadataApplication::execute(const PDFToolOptions& options)
             QByteArray rawData = document.getDecodedStream(metadata.getStream());
             PDFConsole::writeData(rawData);
         }
-        catch (pdf::PDFException e)
+        catch (const pdf::PDFException &e)
         {
             PDFConsole::writeError(e.getMessage(), options.outputCodec);
         }

@@ -700,7 +700,7 @@ protected:
     /// Returns optional content activity
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
-    class PDFTransparencyGroupGuard
+    class PDF4QTLIBSHARED_EXPORT PDFTransparencyGroupGuard
     {
     public:
         explicit PDFTransparencyGroupGuard(PDFPageContentProcessor* processor, PDFTransparencyGroup&& group);

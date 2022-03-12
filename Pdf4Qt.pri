@@ -1,4 +1,4 @@
-#    Copyright (C) 2020-2021 Jakub Melka
+#    Copyright (C) 2018-2022 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -15,38 +15,20 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-TEMPLATE = lib
-DEFINES += REDACTPLUGIN_LIBRARY
+win32-msvc*: {
+    QMAKE_CXXFLAGS += /std:c++latest /utf-8 /bigobj
+}
 
-QT += gui widgets
+win32-*g++|unix: {
+    CONFIG += link_pkgconfig
+    QMAKE_CXXFLAGS += -std=c++20
+    win32: {
+        QMAKE_CXXFLAGS += -Wa,-mbig-obj
+    }
+}
 
-include(../../Pdf4Qt.pri)
-
-LIBS += -L$$OUT_PWD/../..
-
-LIBS += -lPdf4QtLib
-
-INCLUDEPATH += $$PWD/../../Pdf4QtLib/Sources
-
-DESTDIR = $$OUT_PWD/../../pdfplugins
-
-SOURCES += \
-    createredacteddocumentdialog.cpp \
-    redactplugin.cpp
-
-HEADERS += \
-    createredacteddocumentdialog.h \
-    redactplugin.h
-
-CONFIG += force_debug_info
-
-DISTFILES += \
-    RedactPlugin.json
-
-RESOURCES += \
-    icons.qrc
-
-FORMS += \
-    createredacteddocumentdialog.ui
-
-
+win32 {
+    CONFIG += skip_target_version_ext
+} else {
+    CONFIG += unversioned_libname
+}

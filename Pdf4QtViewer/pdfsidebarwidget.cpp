@@ -663,7 +663,7 @@ void PDFSidebarWidget::onAttachmentCustomContextMenuRequested(const QPoint& pos)
                             QMessageBox::critical(this, tr("Error"), tr("Failed to save attachment to file. %1").arg(file.errorString()));
                         }
                     }
-                    catch (pdf::PDFException e)
+                    catch (const pdf::PDFException &e)
                     {
                         QMessageBox::critical(this, tr("Error"), tr("Failed to save attachment to file. %1").arg(e.getMessage()));
                     }

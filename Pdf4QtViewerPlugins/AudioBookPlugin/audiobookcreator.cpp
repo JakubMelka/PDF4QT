@@ -18,6 +18,7 @@
 #include "audiobookcreator.h"
 
 #ifdef Q_OS_WIN
+#include <windows.h>
 #include <sapi.h>
 #if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "ole32")

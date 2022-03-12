@@ -1075,7 +1075,7 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
         rows.push_back(row);
     }
 
-    qSort(rows);
+    std::sort(rows.begin(), rows.end());
 
     // Sanity checks on rows
     if (rows.empty())

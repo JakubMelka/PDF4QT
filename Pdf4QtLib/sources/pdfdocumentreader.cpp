@@ -585,7 +585,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), qMove(m_securityHandler));
         return PDFDocument(std::move(storage), m_version);
     }
-    catch (PDFException parserException)
+    catch (const PDFException &parserException)
     {
         m_result = Result::Failed;
         m_errorMessage = parserException.getMessage();
@@ -770,7 +770,7 @@ PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& b
         PDFObjectStorage storage(std::move(objects), PDFObject(trailerDictionaryObject), qMove(m_securityHandler));
         return PDFDocument(std::move(storage), m_version);
     }
-    catch (PDFException parserException)
+    catch (const PDFException &parserException)
     {
         m_result = Result::Failed;
         m_warnings << parserException.getMessage();

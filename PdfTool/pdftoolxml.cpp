@@ -134,7 +134,7 @@ void PDFXmlExportVisitor::visitStream(const pdf::PDFStream* stream)
                 m_writer->writeTextElement("text", text);
             }
         }
-        catch (pdf::PDFException)
+        catch (const pdf::PDFException &)
         {
             // Do nothing
         }

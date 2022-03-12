@@ -246,7 +246,7 @@ std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
     libjpegInfo.library = tr("libjpeg");
     libjpegInfo.license = tr("permissive + ack.");
     libjpegInfo.url = tr("https://www.ijg.org/");
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(__MINGW32__)
     libjpegInfo.version = tr("%1").arg(JPEG_LIB_VERSION);
 #else
     libjpegInfo.version = tr("%1.%2").arg(JPEG_LIB_VERSION_MAJOR).arg(JPEG_LIB_VERSION_MINOR);
