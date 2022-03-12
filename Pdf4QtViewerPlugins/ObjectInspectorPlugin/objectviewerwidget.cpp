@@ -35,9 +35,9 @@ ObjectViewerWidget::ObjectViewerWidget(QWidget *parent) :
 ObjectViewerWidget::ObjectViewerWidget(bool isPinned, QWidget* parent) :
     QWidget(parent),
     ui(new Ui::ObjectViewerWidget),
-    m_isPinned(isPinned),
     m_cms(nullptr),
     m_document(nullptr),
+    m_isPinned(isPinned),
     m_isRootObject(false)
 {
     ui->setupUi(this);
@@ -252,7 +252,7 @@ void ObjectViewerWidget::updateUi()
                 ui->stackedWidget->setCurrentWidget(ui->contentTextBrowserPage);
             }
         }
-        catch (pdf::PDFException exception)
+        catch (const pdf::PDFException &exception)
         {
             ui->contentTextBrowser->setText(exception.getMessage());
             ui->stackedWidget->setCurrentWidget(ui->contentTextBrowserPage);

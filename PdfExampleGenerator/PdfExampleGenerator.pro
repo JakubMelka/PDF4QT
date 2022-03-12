@@ -17,7 +17,9 @@
 
 QT += gui widgets
 
-CONFIG += c++11 console
+include(../Pdf4Qt.pri)
+
+CONFIG += console
 CONFIG -= app_bundle
 
 # The following define makes your compiler emit warnings if you use
@@ -30,8 +32,6 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # In order to do so, uncomment the following line.
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
-
-QMAKE_CXXFLAGS += /std:c++latest /utf-8
 
 INCLUDEPATH += $$PWD/../PDF4QtLib/Sources
 

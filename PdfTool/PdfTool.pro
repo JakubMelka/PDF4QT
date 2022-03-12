@@ -15,8 +15,10 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-CONFIG += c++11 console
+CONFIG += console
 CONFIG -= app_bundle
+
+include(../Pdf4Qt.pri)
 
 TARGET = PdfTool
 VERSION = 1.1.0
@@ -28,7 +30,12 @@ QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
-QMAKE_CXXFLAGS += /std:c++latest /utf-8
+win32-*g++|unix: {
+    LIBS += -ltbb
+    win32: {
+        LIBS += -lole32 -lsapi
+    }
+}
 
 INCLUDEPATH += $$PWD/../PDF4QtLib/Sources
 

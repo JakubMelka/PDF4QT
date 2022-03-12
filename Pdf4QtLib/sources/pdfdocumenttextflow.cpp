@@ -548,9 +548,9 @@ private:
 
 void PDFStructureTreeTextFlowCollector::visitStructureTree(const PDFStructureTree* structureTree)
 {
-    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemStart});
+    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemStart, {} });
     acceptChildren(structureTree);
-    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemEnd});
+    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemEnd, {} });
 }
 
 void PDFStructureTreeTextFlowCollector::markHasContent()
@@ -564,7 +564,7 @@ void PDFStructureTreeTextFlowCollector::markHasContent()
 void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructureElement* structureElement)
 {
     size_t index = m_items->size();
-    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemStart});
+    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemStart, {} });
 
     // Mark stack so we can delete unused items
     m_hasContentStack.push_back(false);
@@ -579,37 +579,37 @@ void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructure
     if (!title.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureTitle});
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureTitle, {} });
     }
 
     if (!language.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, language, PDFDocumentTextFlow::StructureLanguage });
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, language, PDFDocumentTextFlow::StructureLanguage, {} });
     }
 
     if (!alternativeDescription.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, alternativeDescription, PDFDocumentTextFlow::StructureAlternativeDescription });
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, alternativeDescription, PDFDocumentTextFlow::StructureAlternativeDescription, {} });
     }
 
     if (!expandedForm.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, expandedForm, PDFDocumentTextFlow::StructureExpandedForm });
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, expandedForm, PDFDocumentTextFlow::StructureExpandedForm, {} });
     }
 
     if (!actualText.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, actualText, PDFDocumentTextFlow::StructureActualText });
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, actualText, PDFDocumentTextFlow::StructureActualText, {} });
     }
 
     if (!phoneme.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, phoneme, PDFDocumentTextFlow::StructurePhoneme });
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, phoneme, PDFDocumentTextFlow::StructurePhoneme, {} });
     }
 
     for (const auto& textItem : m_extractor->getText(structureElement))
@@ -623,7 +623,7 @@ void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructure
     const bool hasContent = m_hasContentStack.back();
     m_hasContentStack.pop_back();
 
-    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemEnd });
+    m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemEnd, {} });
 
     if (!hasContent)
     {
@@ -702,12 +702,12 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);
 
                 PDFDocumentTextFlow::Items flowItems;
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart });
+                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart, {} });
                 for (const PDFTextFlow& textFlow : textFlows)
                 {
                     flowItems.emplace_back(PDFDocumentTextFlow::Item{ textFlow.getBoundingBox(), pageIndex, textFlow.getText(), PDFDocumentTextFlow::Text, textFlow.getBoundingBoxes() });
                 }
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd });
+                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd, {} });
 
                 QMutexLocker lock(&mutex);
                 items[pageIndex] = qMove(flowItems);
@@ -760,7 +760,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             PDFDocumentTextFlow::Items flowItems;
             for (PDFInteger pageIndex : pageIndices)
             {
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart });
+                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart, {} });
                 for (const PDFStructureTreeTextItem& sequenceItem : extractor.getTextSequence(pageIndex))
                 {
                     if (sequenceItem.type == PDFStructureTreeTextItem::Type::Text)
@@ -768,7 +768,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                         flowItems.emplace_back(PDFDocumentTextFlow::Item{ sequenceItem.boundingRect, pageIndex, sequenceItem.text, PDFDocumentTextFlow::Text, sequenceItem.characterBoundingRects });
                     }
                 }
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd });
+                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd, {} });
             }
 
             result = PDFDocumentTextFlow(qMove(flowItems));

@@ -20,6 +20,8 @@ QT += core gui widgets winextras
 TARGET = Pdf4QtViewerLite
 TEMPLATE = app
 
+include(../Pdf4Qt.pri)
+
 VERSION = 1.1.0
 
 RC_ICONS = $$PWD/app-icon.ico
@@ -28,7 +30,10 @@ QMAKE_TARGET_DESCRIPTION = "PDF viewer for Qt, Lite version"
 QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"
 
 DEFINES += QT_DEPRECATED_WARNINGS
-QMAKE_CXXFLAGS += /std:c++latest /utf-8
+
+win32-*g++|unix: {
+    LIBS += -ltbb
+}
 
 INCLUDEPATH += $$PWD/../PDF4QtLib/Sources $$PWD/../PDF4QtViewer
 DESTDIR = $$OUT_PWD/..

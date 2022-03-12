@@ -254,7 +254,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
                                 }
                             }
                         }
-                        catch (pdf::PDFException)
+                        catch (const pdf::PDFException &)
                         {
                             // Do nothing, some error occured, continue with next font
                             continue;
@@ -263,7 +263,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
                 }
             }
         }
-        catch (pdf::PDFException)
+        catch (const pdf::PDFException &)
         {
             // Do nothing, some error occured
         }

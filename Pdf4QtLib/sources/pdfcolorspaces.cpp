@@ -293,7 +293,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                         fillRGBBuffer(inputColors, outputLine, intent, cms, reporter);
                     }
-                    catch (PDFException lineException)
+                    catch (const PDFException &lineException)
                     {
                         QMutexLocker lock(&exceptionMutex);
                         if (!exception)
@@ -396,7 +396,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                             *outputLine++ = *alphaLine++;
                         }
                     }
-                    catch (PDFException lineException)
+                    catch (const PDFException &lineException)
                     {
                         QMutexLocker lock(&exceptionMutex);
                         if (!exception)

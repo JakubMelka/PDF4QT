@@ -1415,7 +1415,7 @@ void PDFAnnotationManager::drawAnnotation(const PageAnnotation& annotation,
     {
         errors.push_back(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
     }
-    catch (PDFRendererException exception)
+    catch (const PDFRendererException &exception)
     {
         errors.push_back(exception.getError());
     }

@@ -189,7 +189,7 @@ int PDFToolAttachmentsApplication::execute(const PDFToolOptions& options)
                     return ErrorFailedWriteToFile;
                 }
             }
-            catch (pdf::PDFException e)
+            catch (const pdf::PDFException &e)
             {
                 PDFConsole::writeError(PDFToolTranslationContext::tr("Failed to save attachment to file. %1").arg(e.getMessage()), options.outputCodec);
                 return ErrorFailedWriteToFile;

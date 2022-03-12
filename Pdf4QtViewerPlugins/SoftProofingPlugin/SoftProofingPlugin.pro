@@ -20,17 +20,15 @@ DEFINES += SOFTPROOFINGPLUGIN_LIBRARY
 
 QT += gui widgets
 
+include(../../Pdf4Qt.pri)
+
 LIBS += -L$$OUT_PWD/../..
 
 LIBS += -lPdf4QtLib
 
-QMAKE_CXXFLAGS += /std:c++latest /utf-8
-
 INCLUDEPATH += $$PWD/../../Pdf4QtLib/Sources
 
 DESTDIR = $$OUT_PWD/../../pdfplugins
-
-CONFIG += c++11
 
 SOURCES += \
     softproofingplugin.cpp \

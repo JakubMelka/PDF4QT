@@ -361,7 +361,7 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
                                     }
                                 }
                             }
-                            catch (pdf::PDFException)
+                            catch (const pdf::PDFException &)
                             {
                                 // Do nothing, some error occured, continue with next font
                                 continue;
@@ -370,7 +370,7 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
                     }
                 }
             }
-            catch (pdf::PDFException)
+            catch (const pdf::PDFException &)
             {
                 // Do nothing, some error occured
             }

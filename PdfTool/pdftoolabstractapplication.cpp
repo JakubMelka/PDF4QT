@@ -95,7 +95,7 @@ int PDFToolHelpApplication::execute(const PDFToolOptions& options)
 
         infos.emplace_back(qMove(info));
     }
-    qSort(infos);
+    std::sort(infos.begin(), infos.end());
 
     for (const Info& info : infos)
     {

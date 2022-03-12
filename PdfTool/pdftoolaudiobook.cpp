@@ -21,6 +21,7 @@
 
 #include <QFileInfo>
 
+#include <windows.h>
 #include <sapi.h>
 
 #if defined(PDF4QT_USE_PRAGMA_LIB)

@@ -20,7 +20,8 @@ QT       += gui widgets xml
 TARGET = Pdf4QtLib
 TEMPLATE = lib
 
-win32:TARGET_EXT = .dll
+include(../Pdf4Qt.pri)
+
 VERSION = 1.1.0
 
 QMAKE_TARGET_DESCRIPTION = "PDF rendering / editing library for Qt"
@@ -205,46 +206,56 @@ CONFIG(debug, debug|release) {
 SUFFIX = d
 }
 
-# Link to freetype library
-LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/FreeType/ -lfreetype$${SUFFIX}
-INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/FreeType/include
-DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/FreeType/include
+win32-msvc*: {
+    # Link to freetype library
+    LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/FreeType/ -lfreetype$${SUFFIX}
+    INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/FreeType/include
+    DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/FreeType/include
 
-# Link to OpenJPEG library
-LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/OpenJPEG/lib/ -lopenjp2$${SUFFIX}
-INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
-DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
-DEFINES += OPJ_STATIC
+    # Link to OpenJPEG library
+    LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/OpenJPEG/lib/ -lopenjp2$${SUFFIX}
+    INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
+    DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/OpenJPEG/include/openjpeg-2.3
+    DEFINES += OPJ_STATIC
 
-# Link to Independent JPEG Groups libjpeg
-LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/libjpeg/bin/ -ljpeg$${SUFFIX}
-INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/libjpeg/include
-DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/libjpeg/include
+    # Link to Independent JPEG Groups libjpeg
+    LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/libjpeg/bin/ -ljpeg$${SUFFIX}
+    INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/libjpeg/include
+    DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/libjpeg/include
 
-# Link OpenSSL
-LIBS += -L$$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin -L$$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/lib -llibcrypto -llibssl
-INCLUDEPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
-DEPENDPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
+    # Link OpenSSL
+    LIBS += -L$$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin -L$$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/lib -llibcrypto -llibssl
+    INCLUDEPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
+    DEPENDPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
 
-# Add OpenSSL to installations
-openssl_lib.files = $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin/libcrypto-1_1-x64.dll $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin/libssl-1_1-x64.dll
-openssl_lib.path = $$DESTDIR/install
-INSTALLS += openssl_lib
+    # Add OpenSSL to installations
+    openssl_lib.files = $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin/libcrypto-1_1-x64.dll $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin/libssl-1_1-x64.dll
+    openssl_lib.path = $$DESTDIR/install
+    INSTALLS += openssl_lib
 
-# Link zlib
-LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/zlib/bin/ -lzlibstatic$${SUFFIX}
-INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/zlib/include
-DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/zlib/include
+    # Link zlib
+    LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/zlib/bin/ -lzlibstatic$${SUFFIX}
+    INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/zlib/include
+    DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/zlib/include
 
-# Link lcms2
-LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/lcms2/bin$${SUFFIX}/ -llcms2_static
-INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/lcms2/include
-DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/lcms2/include
+    # Link lcms2
+    LIBS += -L$$Pdf4Qt_DEPENDENCIES_PATH/lcms2/bin$${SUFFIX}/ -llcms2_static
+    INCLUDEPATH += $$Pdf4Qt_DEPENDENCIES_PATH/lcms2/include
+    DEPENDPATH += $$Pdf4Qt_DEPENDENCIES_PATH/lcms2/include
+}
+
+win32-*g++|unix: {
+    PKGCONFIG += freetype2 libopenjp2 libjpeg lcms2 libssl libcrypto zlib
+    LIBS += -ltbb
+    win32: {
+        LIBS += -lmscms -lcrypt32 -lsecur32
+    }
+}
 
 # ensure debug info even for RELEASE build
 CONFIG += force_debug_info
 
-QMAKE_CXXFLAGS += /std:c++latest /utf-8 /bigobj
+
 QMAKE_RESOURCE_FLAGS += -threshold 0 -compress 9
 
 PdfforQt_library.files = $$DESTDIR/Pdf4QtLib.dll
