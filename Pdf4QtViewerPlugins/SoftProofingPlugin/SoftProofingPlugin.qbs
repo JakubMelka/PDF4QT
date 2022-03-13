@@ -1,7 +1,7 @@
 import qbs
 
 Pdf4QtPlugin {
-    name: "SoftProofingPlugin.qbs"
+    name: "SoftProofingPlugin"
     files: [
         "*.h",
         "*.cpp",

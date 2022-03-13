@@ -1,7 +1,7 @@
 import qbs
 
 Pdf4QtPlugin {
-    name: "RedactPlugin.qbs"
+    name: "RedactPlugin"
     files: [
         "*.h",
         "*.cpp",

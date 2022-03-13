@@ -1,7 +1,7 @@
 import qbs
 
 Pdf4QtPlugin {
-    name: "OutputPreviewPlugin.qbs"
+    name: "OutputPreviewPlugin"
     files: [
         "*.h",
         "*.cpp",
