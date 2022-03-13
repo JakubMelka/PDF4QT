@@ -18,6 +18,7 @@
 #include "pdfpagecontenteditorwidget.h"
 #include "ui_pdfpagecontenteditorwidget.h"
 #include "pdfwidgetutils.h"
+#include "pdfpagecontentelements.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -39,7 +40,42 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget *parent) :
         button->setIconSize(m_toolButtonIconSize);
     }
 
+    m_operationMapper.setMapping(ui->alignVertTopButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignTop));
+    m_operationMapper.setMapping(ui->alignVertMiddleButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignCenterVertically));
+    m_operationMapper.setMapping(ui->alignVertBottomButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignBottom));
+    m_operationMapper.setMapping(ui->alignHorLeftButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignLeft));
+    m_operationMapper.setMapping(ui->alignHorMiddleButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignCenterHorizontally));
+    m_operationMapper.setMapping(ui->alignHorRightButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignRight));
+    m_operationMapper.setMapping(ui->setSameWidthButton, static_cast<int>(PDFPageContentElementManipulator::Operation::SetSameWidth));
+    m_operationMapper.setMapping(ui->setSameHeightButton, static_cast<int>(PDFPageContentElementManipulator::Operation::SetSameHeight));
+    m_operationMapper.setMapping(ui->setSameSizeButton, static_cast<int>(PDFPageContentElementManipulator::Operation::SetSameSize));
+    m_operationMapper.setMapping(ui->centerHorizontallyButton, static_cast<int>(PDFPageContentElementManipulator::Operation::CenterHorizontally));
+    m_operationMapper.setMapping(ui->centerVerticallyButton, static_cast<int>(PDFPageContentElementManipulator::Operation::CenterVertically));
+    m_operationMapper.setMapping(ui->centerRectButton, static_cast<int>(PDFPageContentElementManipulator::Operation::CenterHorAndVert));
+    m_operationMapper.setMapping(ui->layoutHorizontallyButton, static_cast<int>(PDFPageContentElementManipulator::Operation::LayoutHorizontally));
+    m_operationMapper.setMapping(ui->layoutVerticallyButton, static_cast<int>(PDFPageContentElementManipulator::Operation::LayoutVertically));
+    m_operationMapper.setMapping(ui->layoutFormButton, static_cast<int>(PDFPageContentElementManipulator::Operation::LayoutForm));
+    m_operationMapper.setMapping(ui->layoutGridButton, static_cast<int>(PDFPageContentElementManipulator::Operation::LayoutGrid));
+
+    connect(ui->alignVertTopButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->alignVertMiddleButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->alignVertBottomButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->alignHorLeftButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->alignHorMiddleButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->alignHorRightButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->setSameWidthButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->setSameHeightButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->setSameSizeButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->centerHorizontallyButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->centerVerticallyButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->centerRectButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->layoutHorizontallyButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->layoutVerticallyButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->layoutFormButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+    connect(ui->layoutGridButton, &QToolButton::clicked, &m_operationMapper, QOverload<>::of(&QSignalMapper::map));
+
     connect(&m_actionMapper, &QSignalMapper::mappedObject, this, &PDFPageContentEditorWidget::onActionTriggerRequest);
+    connect(&m_operationMapper, &QSignalMapper::mappedInt, this, &PDFPageContentEditorWidget::operationTriggered);
 }
 
 PDFPageContentEditorWidget::~PDFPageContentEditorWidget()

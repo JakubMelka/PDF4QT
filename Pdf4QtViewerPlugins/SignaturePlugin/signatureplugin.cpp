@@ -274,6 +274,7 @@ void SignaturePlugin::updateDockWidget()
     m_dataExchangeInterface->getMainWindow()->addDockWidget(Qt::RightDockWidgetArea, m_editorWidget, Qt::Vertical);
     m_editorWidget->setFloating(false);
     m_editorWidget->setWindowTitle(tr("Signature Toolbox"));
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::operationTriggered, &m_scene, &pdf::PDFPageContentScene::performOperation);
 
     for (QAction* action : m_actions)
     {

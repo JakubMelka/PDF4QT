@@ -42,12 +42,16 @@ public:
     /// Adds external action to the tool box
     void addAction(QAction* action);
 
+signals:
+    void operationTriggered(int operation);
+
 private:
     void onActionTriggerRequest(QObject* actionObject);
     void onActionChanged();
 
     Ui::PDFPageContentEditorWidget* ui;
     QSignalMapper m_actionMapper;
+    QSignalMapper m_operationMapper;
     int m_toolBoxColumnCount;
     QSize m_toolButtonIconSize;
 };

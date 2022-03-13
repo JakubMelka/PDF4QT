@@ -32,6 +32,7 @@ class QSvgRenderer;
 namespace pdf
 {
 class PDFWidget;
+class PDFDocument;
 class PDFPageContentScene;
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentElement
@@ -65,6 +66,10 @@ public:
     /// Returns bounding box of the element
     virtual QRectF getBoundingBox() const = 0;
 
+    /// Sets size to the elements that supports it. Does
+    /// nothing for elements, which does not support it.
+    virtual void setSize(QSizeF size) = 0;
+
     PDFInteger getPageIndex() const;
     void setPageIndex(PDFInteger newPageIndex);
 
@@ -74,8 +79,6 @@ public:
     /// Returns cursor shape for manipulation mode
     /// \param mode Manipulation mode
     static Qt::CursorShape getCursorShapeForManipulationMode(uint mode);
-
-protected:
 
     enum ManipulationModes : uint
     {
@@ -93,6 +96,7 @@ protected:
         Pt2
     };
 
+protected:
     uint getRectangleManipulationMode(const QRectF& rectangle,
                                       const QPointF& point,
                                       PDFReal snapPointDistanceThreshold) const;
@@ -100,6 +104,8 @@ protected:
     void performRectangleManipulation(QRectF& rectangle,
                                       uint mode,
                                       const QPointF& offset);
+
+    void performRectangleSetSize(QRectF& rectangle, QSizeF size);
 
     PDFInteger m_elementId = -1;
     PDFInteger m_pageIndex = -1;
@@ -147,6 +153,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size);
 
 private:
     bool m_rounded = false;
@@ -179,6 +186,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size);
 
     LineGeometry getGeometry() const;
     void setGeometry(LineGeometry newGeometry);
@@ -210,6 +218,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size);
 
     QPointF getPoint() const;
     void setPoint(QPointF newPoint);
@@ -237,6 +246,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size);
 
     QPainterPath getCurve() const;
     void setCurve(QPainterPath newCurve);
@@ -270,6 +280,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size);
 
     const QByteArray& getContent() const;
     void setContent(const QByteArray& newContent);
@@ -290,6 +301,26 @@ class PDF4QTLIBSHARED_EXPORT PDFPageContentElementManipulator : public QObject
 public:
     PDFPageContentElementManipulator(PDFPageContentScene* scene, QObject* parent);
 
+    enum class Operation
+    {
+        AlignTop,
+        AlignCenterVertically,
+        AlignBottom,
+        AlignLeft,
+        AlignCenterHorizontally,
+        AlignRight,
+        SetSameHeight,
+        SetSameWidth,
+        SetSameSize,
+        CenterHorizontally,
+        CenterVertically,
+        CenterHorAndVert,
+        LayoutVertically,
+        LayoutHorizontally,
+        LayoutForm,
+        LayoutGrid
+    };
+
     enum SelectionMode
     {
         NoUpdate = 0x0000,
@@ -302,7 +333,7 @@ public:
 
     /// Returns true, if element with given id is selected
     /// \param id Element id
-    bool isSelected(PDFInteger id) const { return m_selection.count(id); }
+    bool isSelected(PDFInteger id) const;
 
     /// Returns true, if selection is empty
     bool isSelectionEmpty() const { return m_selection.empty(); }
@@ -324,6 +355,7 @@ public:
     bool isManipulationAllowed(PDFInteger pageIndex) const;
     bool isManipulationInProgress() const { return m_isManipulationInProgress; }
 
+    void performOperation(Operation operation);
     void performDeleteSelection();
 
     void startManipulation(PDFInteger pageIndex,
@@ -349,13 +381,21 @@ public:
                   const QMatrix& pagePointToDevicePointMatrix,
                   QList<PDFRenderError>& errors) const;
 
+    /// Returns bounding box of whole selection
+    QRectF getSelectionBoundingRect() const;
+
+    /// Returns page rectangle for the page
+    QRectF getPageMediaBox(PDFInteger pageIndex) const;
+
 signals:
     void selectionChanged();
     void stateChanged();
 
 private:
+    void eraseSelectedElementById(PDFInteger id);
+
     PDFPageContentScene* m_scene;
-    std::set<PDFInteger> m_selection;
+    std::vector<PDFInteger> m_selection;
     bool m_isManipulationInProgress;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_manipulatedElements;
     std::map<PDFInteger, uint> m_manipulationModes;
@@ -371,6 +411,8 @@ class PDF4QTLIBSHARED_EXPORT PDFPageContentScene : public QObject,
 public:
     explicit PDFPageContentScene(QObject* parent);
     virtual ~PDFPageContentScene();
+
+    static constexpr PDFInteger INVALID_ELEMENT_ID = 0;
 
     /// Add new element to page content scene, scene
     /// takes ownership over the element.
@@ -400,7 +442,13 @@ public:
 
     /// Removes elements specified in selection
     /// \param selection Items to be removed
-    void removeElementsById(const std::set<PDFInteger>& selection);
+    void removeElementsById(const std::vector<PDFInteger>& selection);
+
+    /// Performs manipulation of selected elements with manipulator
+    void performOperation(int operation);
+
+    /// Returns document (or nullptr)
+    const PDFDocument* getDocument() const;
 
     // IDrawWidgetInputInterface interface
 public:

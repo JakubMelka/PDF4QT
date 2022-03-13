@@ -199,6 +199,13 @@ void PDFPageContentElement::performRectangleManipulation(QRectF& rectangle,
     }
 }
 
+void PDFPageContentElement::performRectangleSetSize(QRectF& rectangle, QSizeF size)
+{
+    const qreal offset = rectangle.size().height() - size.height();
+    rectangle.setSize(size);
+    rectangle.translate(0, offset);
+}
+
 const QPen& PDFPageContentStyledElement::getPen() const
 {
     return m_pen;
@@ -301,6 +308,11 @@ QRectF PDFPageContentElementRectangle::getBoundingBox() const
     return getRectangle();
 }
 
+void PDFPageContentElementRectangle::setSize(QSizeF size)
+{
+    performRectangleSetSize(m_rectangle, size);
+}
+
 PDFPageContentScene::PDFPageContentScene(QObject* parent) :
     QObject(parent),
     m_firstFreeId(1),
@@ -353,6 +365,7 @@ void PDFPageContentScene::clear()
 {
     if (!m_elements.empty())
     {
+        m_manipulator.reset();
         m_elements.clear();
         emit sceneChanged(false);
     }
@@ -821,16 +834,31 @@ std::set<PDFInteger> PDFPageContentScene::getElementIds() const
     return result;
 }
 
-void PDFPageContentScene::removeElementsById(const std::set<PDFInteger>& selection)
+void PDFPageContentScene::removeElementsById(const std::vector<PDFInteger>& selection)
 {
     const size_t oldSize = m_elements.size();
-    m_elements.erase(std::remove_if(m_elements.begin(), m_elements.end(), [&selection](const auto& element){ return selection.count(element->getElementId()); }), m_elements.end());
+    m_elements.erase(std::remove_if(m_elements.begin(), m_elements.end(), [&selection](const auto& element){ return std::find(selection.cbegin(), selection.cend(), element->getElementId()) != selection.cend(); }), m_elements.end());
     const size_t newSize = m_elements.size();
 
     if (newSize < oldSize)
     {
         emit sceneChanged(false);
     }
+}
+
+void PDFPageContentScene::performOperation(int operation)
+{
+    m_manipulator.performOperation(static_cast<PDFPageContentElementManipulator::Operation>(operation));
+}
+
+const PDFDocument* PDFPageContentScene::getDocument() const
+{
+    if (m_widget)
+    {
+        return m_widget->getDrawWidgetProxy()->getDocument();
+    }
+
+    return nullptr;
 }
 
 PDFPageContentElementLine* PDFPageContentElementLine::clone() const
@@ -945,6 +973,32 @@ QRectF PDFPageContentElementLine::getBoundingBox() const
     return QRectF();
 }
 
+void PDFPageContentElementLine::setSize(QSizeF size)
+{
+    QPointF p1 = m_line.p1();
+    QPointF p2 = m_line.p2();
+
+    if (p1.x() < p2.x())
+    {
+        p2.setX(p1.x() + size.width());
+    }
+    else
+    {
+        p1.setX(p2.x() + size.width());
+    }
+
+    if (p1.y() < p2.y())
+    {
+        p1.setY(p2.y() - size.height());
+    }
+    else
+    {
+        p2.setY(p1.y() - size.height());
+    }
+
+    m_line.setPoints(p1, p2);
+}
+
 PDFPageContentElementLine::LineGeometry PDFPageContentElementLine::getGeometry() const
 {
     return m_geometry;
@@ -1050,6 +1104,11 @@ QRectF PDFPageContentSvgElement::getBoundingBox() const
     return getRectangle();
 }
 
+void PDFPageContentSvgElement::setSize(QSizeF size)
+{
+    performRectangleSetSize(m_rectangle, size);
+}
+
 const QByteArray& PDFPageContentSvgElement::getContent() const
 {
     return m_content;
@@ -1142,6 +1201,11 @@ QRectF PDFPageContentElementDot::getBoundingBox() const
     return QRectF(m_point, QSizeF(0.001, 0.001));
 }
 
+void PDFPageContentElementDot::setSize(QSizeF size)
+{
+    Q_UNUSED(size);
+}
+
 QPointF PDFPageContentElementDot::getPoint() const
 {
     return m_point;
@@ -1227,6 +1291,11 @@ QRectF PDFPageContentElementFreehandCurve::getBoundingBox() const
     return m_curve.controlPointRect();
 }
 
+void PDFPageContentElementFreehandCurve::setSize(QSizeF size)
+{
+    Q_UNUSED(size);
+}
+
 QPainterPath PDFPageContentElementFreehandCurve::getCurve() const
 {
     return m_curve;
@@ -1261,6 +1330,11 @@ PDFPageContentElementManipulator::PDFPageContentElementManipulator(PDFPageConten
 
 }
 
+bool PDFPageContentElementManipulator::isSelected(PDFInteger id) const
+{
+    return std::find(m_selection.cbegin(), m_selection.cend(), id) != m_selection.cend();
+}
+
 void PDFPageContentElementManipulator::reset()
 {
     cancelManipulation();
@@ -1285,7 +1359,7 @@ void PDFPageContentElementManipulator::update(PDFInteger id, SelectionModes mode
             if (!isSelected(id))
             {
                 modified = true;
-                m_selection.insert(id);
+                m_selection.push_back(id);
             }
         }
 
@@ -1294,7 +1368,7 @@ void PDFPageContentElementManipulator::update(PDFInteger id, SelectionModes mode
             if (isSelected(id))
             {
                 modified = true;
-                m_selection.erase(id);
+                eraseSelectedElementById(id);
             }
         }
 
@@ -1302,11 +1376,11 @@ void PDFPageContentElementManipulator::update(PDFInteger id, SelectionModes mode
         {
             if (isSelected(id))
             {
-                m_selection.erase(id);
+                eraseSelectedElementById(id);
             }
             else
             {
-                m_selection.insert(id);
+                m_selection.push_back(id);
             }
 
             // When toggle is performed, selection is always changed
@@ -1340,7 +1414,7 @@ void PDFPageContentElementManipulator::update(const std::set<PDFInteger>& ids, S
                 if (!isSelected(id))
                 {
                     modified = true;
-                    m_selection.insert(id);
+                    m_selection.push_back(id);
                 }
             }
         }
@@ -1352,7 +1426,7 @@ void PDFPageContentElementManipulator::update(const std::set<PDFInteger>& ids, S
                 if (isSelected(id))
                 {
                     modified = true;
-                    m_selection.erase(id);
+                    eraseSelectedElementById(id);
                 }
             }
         }
@@ -1363,11 +1437,11 @@ void PDFPageContentElementManipulator::update(const std::set<PDFInteger>& ids, S
             {
                 if (isSelected(id))
                 {
-                    m_selection.erase(id);
+                    eraseSelectedElementById(id);
                 }
                 else
                 {
-                    m_selection.insert(id);
+                    m_selection.push_back(id);
                 }
 
                 // When toggle is performed, selection is always changed
@@ -1437,6 +1511,185 @@ bool PDFPageContentElementManipulator::isManipulationAllowed(PDFInteger pageInde
     }
 
     return false;
+}
+
+void PDFPageContentElementManipulator::performOperation(Operation operation)
+{
+    if (isSelectionEmpty())
+    {
+        // Jakub Melka: nothing selected
+        return;
+    }
+
+    QRectF representativeRect = getSelectionBoundingRect();
+    std::vector<PDFPageContentElement*> manipulatedElements;
+    for (const PDFInteger id : m_selection)
+    {
+        const PDFPageContentElement* element = m_scene->getElementById(id);
+        manipulatedElements.push_back(element->clone());
+    }
+
+    switch (operation)
+    {
+        case Operation::AlignTop:
+        {
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                const qreal offset = representativeRect.bottom() - boundingBox.bottom();
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(0.0, offset));
+            }
+            break;
+        }
+
+        case Operation::AlignCenterVertically:
+        {
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                const qreal offset = representativeRect.center().y() - boundingBox.center().y();
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(0.0, offset));
+            }
+            break;
+        }
+
+        case Operation::AlignBottom:
+        {
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                const qreal offset = representativeRect.top() - boundingBox.top();
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(0.0, offset));
+            }
+            break;
+        }
+
+        case Operation::AlignLeft:
+        {
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                const qreal offset = representativeRect.left() - boundingBox.left();
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(offset, 0.0));
+            }
+            break;
+        }
+
+        case Operation::AlignCenterHorizontally:
+        {
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                const qreal offset = representativeRect.center().x() - boundingBox.center().x();
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(offset, 0.0));
+            }
+            break;
+        }
+
+        case Operation::AlignRight:
+        {
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                const qreal offset = representativeRect.right() - boundingBox.right();
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(offset, 0.0));
+            }
+            break;
+        }
+
+        case Operation::SetSameHeight:
+        {
+            QSizeF size = manipulatedElements.front()->getBoundingBox().size();
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                size.setWidth(element->getBoundingBox().width());
+                element->setSize(size);
+            }
+            break;
+        }
+
+        case Operation::SetSameWidth:
+        {
+            QSizeF size = manipulatedElements.front()->getBoundingBox().size();
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                size.setHeight(element->getBoundingBox().height());
+                element->setSize(size);
+            }
+            break;
+        }
+
+        case Operation::SetSameSize:
+        {
+            QSizeF size = manipulatedElements.front()->getBoundingBox().size();
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                element->setSize(size);
+            }
+            break;
+        }
+
+        case Operation::CenterHorizontally:
+        {
+            const PDFInteger pageIndex = manipulatedElements.front()->getPageIndex();
+            QRectF pageMediaBox = getPageMediaBox(pageIndex);
+            const qreal offset = pageMediaBox.center().x() - representativeRect.center().x();
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(offset, 0.0));
+            }
+            break;
+        }
+
+        case Operation::CenterVertically:
+        {
+            const PDFInteger pageIndex = manipulatedElements.front()->getPageIndex();
+            QRectF pageMediaBox = getPageMediaBox(pageIndex);
+            const qreal offset = pageMediaBox.center().y() - representativeRect.center().y();
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                element->performManipulation(PDFPageContentElement::Translate, QPointF(0.0, offset));
+            }
+            break;
+        }
+
+        case Operation::CenterHorAndVert:
+        {
+            const PDFInteger pageIndex = manipulatedElements.front()->getPageIndex();
+            QRectF pageMediaBox = getPageMediaBox(pageIndex);
+            const qreal offsetX = pageMediaBox.center().x() - representativeRect.center().x();
+            const qreal offsetY = pageMediaBox.center().y() - representativeRect.center().y();
+            QPointF offset(offsetX, offsetY);
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                element->performManipulation(PDFPageContentElement::Translate, offset);
+            }
+            break;
+        }
+
+        case Operation::LayoutVertically:
+            break;
+
+        case Operation::LayoutHorizontally:
+            break;
+
+        case Operation::LayoutForm:
+            break;
+
+        case Operation::LayoutGrid:
+            break;
+    }
+
+    for (PDFPageContentElement* element : manipulatedElements)
+    {
+        m_scene->replaceElement(element);
+    }
 }
 
 void PDFPageContentElementManipulator::performDeleteSelection()
@@ -1590,6 +1843,50 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
         {
             manipulatedElement->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
         }
+    }
+}
+
+QRectF PDFPageContentElementManipulator::getSelectionBoundingRect() const
+{
+    QRectF rect;
+
+    for (const PDFInteger elementId : m_selection)
+    {
+        if (const PDFPageContentElement* element = m_scene->getElementById(elementId))
+        {
+            rect = rect.united(element->getBoundingBox());
+        }
+    }
+
+    return rect;
+}
+
+QRectF PDFPageContentElementManipulator::getPageMediaBox(PDFInteger pageIndex) const
+{
+    if (pageIndex < 0)
+    {
+        return QRectF();
+    }
+
+    if (const PDFDocument* document = m_scene->getDocument())
+    {
+        size_t pageCount = document->getCatalog()->getPageCount();
+        if (size_t(pageIndex) < pageCount)
+        {
+            const PDFPage* page = document->getCatalog()->getPage(pageIndex);
+            return page->getMediaBox();
+        }
+    }
+
+    return QRectF();
+}
+
+void PDFPageContentElementManipulator::eraseSelectedElementById(PDFInteger id)
+{
+    auto it = std::find(m_selection.begin(), m_selection.end(), id);
+    if (it != m_selection.end())
+    {
+        m_selection.erase(it);
     }
 }
 
