@@ -1674,10 +1674,50 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
         }
 
         case Operation::LayoutVertically:
+        {
+            auto comparator = [](PDFPageContentElement* left, PDFPageContentElement* right)
+            {
+                QRectF r1 = left->getBoundingBox();
+                QRectF r2 = right->getBoundingBox();
+
+                return r1.y() > r2.y();
+            };
+            std::stable_sort(manipulatedElements.begin(), manipulatedElements.end(), comparator);
+
+            qreal yTop = representativeRect.bottom();
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                QPointF offset(0.0, yTop - boundingBox.bottom());
+                element->performManipulation(PDFPageContentElement::Translate, offset);
+                yTop -= boundingBox.height();
+            }
+
             break;
+        }
 
         case Operation::LayoutHorizontally:
+        {
+            auto comparator = [](PDFPageContentElement* left, PDFPageContentElement* right)
+            {
+                QRectF r1 = left->getBoundingBox();
+                QRectF r2 = right->getBoundingBox();
+
+                return r1.x() < r2.x();
+            };
+            std::stable_sort(manipulatedElements.begin(), manipulatedElements.end(), comparator);
+
+            qreal x = representativeRect.left();
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+                QPointF offset(x - boundingBox.left(), 0.0);
+                element->performManipulation(PDFPageContentElement::Translate, offset);
+                x += boundingBox.width();
+            }
+
             break;
+        }
 
         case Operation::LayoutForm:
             break;
