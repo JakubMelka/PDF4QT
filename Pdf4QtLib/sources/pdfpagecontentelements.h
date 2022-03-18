@@ -335,6 +335,10 @@ public:
     /// \param id Element id
     bool isSelected(PDFInteger id) const;
 
+    /// Returns true, if all elements are selected
+    /// \param ids Element ids
+    bool isAllSelected(const std::set<PDFInteger>& elementIds) const;
+
     /// Returns true, if selection is empty
     bool isSelectionEmpty() const { return m_selection.empty(); }
 

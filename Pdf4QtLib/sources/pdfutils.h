@@ -465,6 +465,11 @@ constexpr bool isRectangleHorizontallyOverlapped(const QRectF& r1, const QRectF&
     return isIntervalOverlap(r1.left(), r1.right(), r2.left(), r2.right());
 }
 
+constexpr bool isRectangleVerticallyOverlapped(const QRectF& r1, const QRectF& r2)
+{
+    return isIntervalOverlap(r1.top(), r1.bottom(), r2.top(), r2.bottom());
+}
+
 inline QColor invertColor(QColor color)
 {
     qreal r = 0.0;

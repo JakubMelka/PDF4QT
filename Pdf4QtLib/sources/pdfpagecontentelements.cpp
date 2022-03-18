@@ -20,6 +20,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfwidgetutils.h"
+#include "pdfutils.h"
 
 #include <QPainter>
 #include <QKeyEvent>
@@ -464,7 +465,7 @@ void PDFPageContentScene::mousePressEvent(QWidget* widget, QMouseEvent* event)
                 {
                     m_manipulator.deselect(info.hoveredElementIds);
                 }
-                else
+                else if (!m_manipulator.isAllSelected(info.hoveredElementIds))
                 {
                     m_manipulator.selectNew(info.hoveredElementIds);
                 }
@@ -1335,6 +1336,11 @@ bool PDFPageContentElementManipulator::isSelected(PDFInteger id) const
     return std::find(m_selection.cbegin(), m_selection.cend(), id) != m_selection.cend();
 }
 
+bool PDFPageContentElementManipulator::isAllSelected(const std::set<PDFInteger>& elementIds) const
+{
+    return std::all_of(elementIds.cbegin(), elementIds.cend(), [this](PDFInteger id) { return isSelected(id); });
+}
+
 void PDFPageContentElementManipulator::reset()
 {
     cancelManipulation();
@@ -1720,7 +1726,150 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
         }
 
         case Operation::LayoutForm:
+        {
+            std::vector<std::pair<PDFPageContentElement*, PDFPageContentElement*>> formLayout;
+
+            // Divide elements to left/right side
+            std::vector<PDFPageContentElement*> elementsLeft;
+            std::vector<PDFPageContentElement*> elementsRight;
+
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                QRectF boundingBox = element->getBoundingBox();
+
+                const qreal distanceLeft = boundingBox.left() - representativeRect.left();
+                const qreal distanceRight = representativeRect.right() - boundingBox.right();
+
+                if (distanceLeft < distanceRight)
+                {
+                    elementsLeft.push_back(element);
+                }
+                else
+                {
+                    elementsRight.push_back(element);
+                }
+            }
+
+            // Create pairs of left/right elements
+            while (!elementsLeft.empty())
+            {
+                if (!elementsLeft.empty() && !elementsRight.empty())
+                {
+                    PDFPageContentElement* elementRight = nullptr;
+                    PDFPageContentElement* elementLeft = elementsLeft.back();
+                    QRectF leftBoundingBox = elementLeft->getBoundingBox();
+                    elementsLeft.pop_back();
+                    qreal overlap = 0.0;
+
+                    // Find matching element on the right
+                    for (PDFPageContentElement* elementRightCurrent : elementsRight)
+                    {
+                        QRectF rightBoundingBox = elementRightCurrent->getBoundingBox();
+                        if (isRectangleVerticallyOverlapped(leftBoundingBox, rightBoundingBox))
+                        {
+                            QRectF unitedRect = leftBoundingBox.united(rightBoundingBox);
+                            qreal currentOverlap = leftBoundingBox.height() + rightBoundingBox.height() - unitedRect.height();
+
+                            if (currentOverlap > overlap)
+                            {
+                                overlap = currentOverlap;
+                                elementRight = elementRightCurrent;
+                            }
+                        }
+                    }
+
+                    if (elementRight)
+                    {
+                        auto it = std::find(elementsRight.begin(), elementsRight.end(), elementRight);
+                        elementsRight.erase(it);
+                    }
+
+                    formLayout.emplace_back(elementLeft, elementRight);
+                    continue;
+                }
+            }
+
+            for (PDFPageContentElement* rightElement : elementsRight)
+            {
+                formLayout.emplace_back(nullptr, rightElement);
+            }
+
+            // Sort elements vertically
+            auto comparator = [](const auto& left, const auto& right)
+            {
+                const PDFPageContentElement* l1 = left.first ? left.first : left.second;
+                const PDFPageContentElement* l2 = left.second ? left.second : left.first;
+
+                const PDFPageContentElement* r1 = right.first ? right.first : right.second;
+                const PDFPageContentElement* r2 = right.second ? right.second : right.first;
+
+                QRectF lbb1 = l1->getBoundingBox();
+                QRectF lbb2 = l2->getBoundingBox();
+                QRectF rbb1 = r1->getBoundingBox();
+                QRectF rbb2 = r2->getBoundingBox();
+
+                const qreal ly = (lbb1.center().y() + lbb2.center().y()) * 0.5;
+                const qreal ry = (rbb1.center().y() + rbb2.center().y()) * 0.5;
+
+                return ly > ry;
+            };
+            std::stable_sort(formLayout.begin(), formLayout.end(), comparator);
+
+            // Calculate width
+            qreal leftWidth = 0.0;
+            qreal rightWidth = 0.0;
+
+            for (const auto& row : formLayout)
+            {
+                PDFPageContentElement* elementLeft = row.first;
+                PDFPageContentElement* elementRight = row.second;
+
+                if (elementLeft)
+                {
+                    qreal width = elementLeft->getBoundingBox().width();
+                    leftWidth = qMax(leftWidth, width);
+                }
+
+                if (elementRight)
+                {
+                    qreal width = elementRight->getBoundingBox().width();
+                    rightWidth = qMax(rightWidth, width);
+                }
+            }
+
+            // Now, perform layout
+            qreal yTop = representativeRect.bottom();
+            qreal xLeft = representativeRect.left();
+            qreal xRight = representativeRect.right() - rightWidth;
+
+            for (const auto& row : formLayout)
+            {
+                PDFPageContentElement* elementLeft = row.first;
+                PDFPageContentElement* elementRight = row.second;
+
+                qreal yHeight = 0.0;
+
+                if (elementLeft)
+                {
+                    QRectF boundingBoxLeft = elementLeft->getBoundingBox();
+                    QPointF offsetLeft(xLeft - boundingBoxLeft.x(), yTop - boundingBoxLeft.bottom());
+                    elementLeft->performManipulation(PDFPageContentElement::Translate, offsetLeft);
+                    yHeight = qMax(yHeight, boundingBoxLeft.height());
+                }
+
+                if (elementRight)
+                {
+                    QRectF boundingBoxRight = elementRight->getBoundingBox();
+                    QPointF offsetRight(xRight - boundingBoxRight.x(), yTop - boundingBoxRight.bottom());
+                    elementRight->performManipulation(PDFPageContentElement::Translate, offsetRight);
+                    yHeight = qMax(yHeight, boundingBoxRight.height());
+                }
+
+                yTop -= yHeight;
+            }
+
             break;
+        }
 
         case Operation::LayoutGrid:
             break;
