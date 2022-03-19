@@ -1889,7 +1889,123 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
         }
 
         case Operation::LayoutGrid:
+        {
+            std::map<PDFInteger, qreal> rowHeights;
+            std::map<PDFInteger, qreal> columnWidths;
+            std::map<PDFPageContentElement*, PDFInteger> elementToRow;
+            std::map<PDFPageContentElement*, PDFInteger> elementToColumn;
+
+            // Detect rows
+            auto comparatorRow = [](PDFPageContentElement* left, PDFPageContentElement* right)
+            {
+                QRectF r1 = left->getBoundingBox();
+                QRectF r2 = right->getBoundingBox();
+
+                return r1.top() < r2.top();
+            };
+            std::stable_sort(manipulatedElements.begin(), manipulatedElements.end(), comparatorRow);
+
+            PDFInteger row = 0;
+            std::vector<PDFPageContentElement*> rowElementsToProcess = manipulatedElements;
+            while (!rowElementsToProcess.empty())
+            {
+                PDFPageContentElement* sampleElement = rowElementsToProcess.back();
+                elementToRow[sampleElement] = row;
+                rowElementsToProcess.pop_back();
+                QRectF boundingBox = sampleElement->getBoundingBox();
+                qreal maxHeight = boundingBox.height();
+
+                for (auto it = rowElementsToProcess.begin(); it != rowElementsToProcess.end();)
+                {
+                    QRectF currentBoundingBox = (*it)->getBoundingBox();
+                    if (isRectangleVerticallyOverlapped(boundingBox, currentBoundingBox))
+                    {
+                        elementToRow[*it] = row;
+                        maxHeight = qMax(currentBoundingBox.height(), maxHeight);
+                        it = rowElementsToProcess.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+
+                rowHeights[row] = qMax(rowHeights[row], maxHeight);
+
+                ++row;
+            }
+
+            // Detect columns
+            auto comparatorColumn = [](PDFPageContentElement* left, PDFPageContentElement* right)
+            {
+                QRectF r1 = left->getBoundingBox();
+                QRectF r2 = right->getBoundingBox();
+
+                return r1.left() > r2.left();
+            };
+            std::stable_sort(manipulatedElements.begin(), manipulatedElements.end(), comparatorColumn);
+
+            PDFInteger column = 0;
+            std::vector<PDFPageContentElement*> columnElementsToProcess = manipulatedElements;
+            while (!columnElementsToProcess.empty())
+            {
+                PDFPageContentElement* sampleElement = columnElementsToProcess.back();
+                elementToColumn[sampleElement] = column;
+                columnElementsToProcess.pop_back();
+                QRectF boundingBox = sampleElement->getBoundingBox();
+                qreal maxWidth = boundingBox.width();
+
+                for (auto it = columnElementsToProcess.begin(); it != columnElementsToProcess.end();)
+                {
+                    QRectF currentBoundingBox = (*it)->getBoundingBox();
+                    if (isRectangleHorizontallyOverlapped(boundingBox, currentBoundingBox))
+                    {
+                        elementToColumn[*it] = column;
+                        maxWidth = qMax(currentBoundingBox.width(), maxWidth);
+                        it = columnElementsToProcess.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+
+                columnWidths[column] = qMax(columnWidths[column], maxWidth);
+
+                ++column;
+            }
+
+            // Calculate cell offsets
+            std::vector<qreal> cellOffsetX(column, 0.0);
+            std::vector<qreal> cellOffsetY(row, 0.0);
+
+            for (size_t i = 1; i < size_t(column); ++i)
+            {
+                cellOffsetX[i] = cellOffsetX[i - 1] + columnWidths[i - 1];
+            }
+            for (size_t i = 1; i < size_t(row); ++i)
+            {
+                cellOffsetY[i] = cellOffsetY[i - 1] + rowHeights[i - 1];
+            }
+
+            // Move elements
+            qreal xLeft = representativeRect.left();
+            qreal yTop = representativeRect.bottom();
+            for (PDFPageContentElement* element : manipulatedElements)
+            {
+                const PDFInteger row = elementToRow[element];
+                const PDFInteger column = elementToColumn[element];
+
+                const qreal xOffset = cellOffsetX[column];
+                const qreal yOffset = cellOffsetY[row];
+
+                QRectF boundingBox = element->getBoundingBox();
+                QPointF offset(xLeft + xOffset - boundingBox.left(), yTop - yOffset - boundingBox.bottom());
+                element->performManipulation(PDFPageContentElement::Translate, offset);
+            }
+
             break;
+        }
     }
 
     for (PDFPageContentElement* element : manipulatedElements)
