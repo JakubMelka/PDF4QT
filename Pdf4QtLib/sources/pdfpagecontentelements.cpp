@@ -1751,15 +1751,17 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
             }
 
             // Create pairs of left/right elements
-            while (!elementsLeft.empty())
+            while (!elementsLeft.empty() && !elementsRight.empty())
             {
-                if (!elementsLeft.empty() && !elementsRight.empty())
+                PDFPageContentElement* elementRight = nullptr;
+                PDFPageContentElement* elementLeft = nullptr;
+
+                qreal overlap = 0.0;
+
+                // Iterate trough element on the left
+                for (PDFPageContentElement* elementLeftCurrent : elementsLeft)
                 {
-                    PDFPageContentElement* elementRight = nullptr;
-                    PDFPageContentElement* elementLeft = elementsLeft.back();
-                    QRectF leftBoundingBox = elementLeft->getBoundingBox();
-                    elementsLeft.pop_back();
-                    qreal overlap = 0.0;
+                    QRectF leftBoundingBox = elementLeftCurrent->getBoundingBox();
 
                     // Find matching element on the right
                     for (PDFPageContentElement* elementRightCurrent : elementsRight)
@@ -1774,19 +1776,34 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
                             {
                                 overlap = currentOverlap;
                                 elementRight = elementRightCurrent;
+                                elementLeft = elementLeftCurrent;
                             }
                         }
                     }
+                }
 
-                    if (elementRight)
-                    {
-                        auto it = std::find(elementsRight.begin(), elementsRight.end(), elementRight);
-                        elementsRight.erase(it);
-                    }
+                Q_ASSERT((elementLeft != nullptr) == (elementRight != nullptr));
+
+                if (elementLeft && elementRight)
+                {
+                    auto itLeft = std::find(elementsLeft.begin(), elementsLeft.end(), elementLeft);
+                    elementsLeft.erase(itLeft);
+
+                    auto itRight = std::find(elementsRight.begin(), elementsRight.end(), elementRight);
+                    elementsRight.erase(itRight);
 
                     formLayout.emplace_back(elementLeft, elementRight);
                     continue;
                 }
+                else
+                {
+                    break;
+                }
+            }
+
+            for (PDFPageContentElement* leftElement : elementsLeft)
+            {
+                formLayout.emplace_back(leftElement, nullptr);
             }
 
             for (PDFPageContentElement* rightElement : elementsRight)
