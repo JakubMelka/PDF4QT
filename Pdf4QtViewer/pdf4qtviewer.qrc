@@ -74,5 +74,21 @@
         <file>resources/save.svg</file>
         <file>resources/save-as.svg</file>
         <file>resources/select-all-text.svg</file>
+        <file>resources/pce-align-bottom.svg</file>
+        <file>resources/pce-align-h-center.svg</file>
+        <file>resources/pce-align-left.svg</file>
+        <file>resources/pce-align-right.svg</file>
+        <file>resources/pce-align-top.svg</file>
+        <file>resources/pce-align-v-center.svg</file>
+        <file>resources/pce-center-h.svg</file>
+        <file>resources/pce-center-v.svg</file>
+        <file>resources/pce-center-vh.svg</file>
+        <file>resources/pce-layout-form.svg</file>
+        <file>resources/pce-layout-grid.svg</file>
+        <file>resources/pce-layout-h.svg</file>
+        <file>resources/pce-layout-v.svg</file>
+        <file>resources/pce-same-height.svg</file>
+        <file>resources/pce-same-size.svg</file>
+        <file>resources/pce-same-width.svg</file>
     </qresource>
 </RCC>

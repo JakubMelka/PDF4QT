@@ -23,6 +23,8 @@
 #include <QDockWidget>
 #include <QSignalMapper>
 
+class QToolButton;
+
 namespace Ui
 {
 class PDFPageContentEditorWidget;
@@ -41,6 +43,8 @@ public:
 
     /// Adds external action to the tool box
     void addAction(QAction* action);
+
+    QToolButton* getToolButtonForOperation(int operation) const;
 
 signals:
     void operationTriggered(int operation);

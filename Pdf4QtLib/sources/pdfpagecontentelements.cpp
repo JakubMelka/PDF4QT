@@ -1920,6 +1920,15 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
                     QRectF currentBoundingBox = (*it)->getBoundingBox();
                     if (isRectangleVerticallyOverlapped(boundingBox, currentBoundingBox))
                     {
+                        QRectF unitedRect = boundingBox.united(currentBoundingBox);
+                        qreal currentOverlap = boundingBox.height() + currentBoundingBox.height() - unitedRect.height();
+
+                        if (qFuzzyIsNull(currentOverlap))
+                        {
+                            ++it;
+                            continue;
+                        }
+
                         elementToRow[*it] = row;
                         maxHeight = qMax(currentBoundingBox.height(), maxHeight);
                         it = rowElementsToProcess.erase(it);
@@ -1960,6 +1969,15 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
                     QRectF currentBoundingBox = (*it)->getBoundingBox();
                     if (isRectangleHorizontallyOverlapped(boundingBox, currentBoundingBox))
                     {
+                        QRectF unitedRect = boundingBox.united(currentBoundingBox);
+                        qreal currentOverlap = boundingBox.width() + currentBoundingBox.width() - unitedRect.width();
+
+                        if (qFuzzyIsNull(currentOverlap))
+                        {
+                            ++it;
+                            continue;
+                        }
+
                         elementToColumn[*it] = column;
                         maxWidth = qMax(currentBoundingBox.width(), maxWidth);
                         it = columnElementsToProcess.erase(it);
@@ -2038,13 +2056,16 @@ void PDFPageContentElementManipulator::startManipulation(PDFInteger pageIndex,
             continue;
         }
 
-        const uint manipulationMode = element->getManipulationMode(startPoint, snapPointDistanceThreshold);
-        if (manipulationMode)
+        uint manipulationMode = element->getManipulationMode(startPoint, snapPointDistanceThreshold);
+
+        if (!manipulationMode)
         {
-            // Jakub Melka: yes, we can manipulate this element
-            m_manipulatedElements.emplace_back(element->clone());
-            m_manipulationModes[id] = manipulationMode;
+            manipulationMode = PDFPageContentElement::Translate;
         }
+
+        // Jakub Melka: manipulate this element
+        m_manipulatedElements.emplace_back(element->clone());
+        m_manipulationModes[id] = manipulationMode;
     }
 
     if (!m_manipulatedElements.empty())

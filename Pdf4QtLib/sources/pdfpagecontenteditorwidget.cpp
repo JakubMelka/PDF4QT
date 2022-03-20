@@ -121,6 +121,11 @@ void PDFPageContentEditorWidget::addAction(QAction* action)
     ui->toolGroupBoxLayout->addWidget(button, row, column, Qt::AlignCenter);
 }
 
+QToolButton* PDFPageContentEditorWidget::getToolButtonForOperation(int operation) const
+{
+    return qobject_cast<QToolButton*>(m_operationMapper.mapping(operation));
+}
+
 void PDFPageContentEditorWidget::onActionTriggerRequest(QObject* actionObject)
 {
     QAction* action = qobject_cast<QAction*>(actionObject);
