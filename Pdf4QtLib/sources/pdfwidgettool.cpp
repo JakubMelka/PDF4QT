@@ -106,6 +106,14 @@ void PDFWidgetTool::setActive(bool active)
     }
 }
 
+void PDFWidgetTool::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->shortcutOverrideEvent(widget, event);
+    }
+}
+
 void PDFWidgetTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     if (PDFWidgetTool* tool = getTopToolstackTool())
@@ -127,6 +135,14 @@ void PDFWidgetTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
     if (PDFWidgetTool* tool = getTopToolstackTool())
     {
         tool->mousePressEvent(widget, event);
+    }
+}
+
+void PDFWidgetTool::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
+{
+    if (PDFWidgetTool* tool = getTopToolstackTool())
+    {
+        tool->mouseDoubleClickEvent(widget, event);
     }
 }
 
@@ -194,11 +210,13 @@ PDFWidgetTool* PDFWidgetTool::getTopToolstackTool() const
 
 void PDFWidgetTool::addTool(PDFWidgetTool* tool)
 {
+    tool->setActive(isActive());
     m_toolStack.push_back(tool);
 }
 
 void PDFWidgetTool::removeTool()
 {
+    m_toolStack.back()->setActive(false);
     m_toolStack.pop_back();
 }
 
@@ -809,8 +827,12 @@ PDFMagnifierTool* PDFToolManager::getMagnifierTool() const
 
 void PDFToolManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->shortcutOverrideEvent(widget, event);
+    }
 }
 
 void PDFToolManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
@@ -854,8 +876,12 @@ void PDFToolManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
 
 void PDFToolManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
+    event->ignore();
+
+    if (PDFWidgetTool* activeTool = getActiveTool())
+    {
+        activeTool->mouseDoubleClickEvent(widget, event);
+    }
 }
 
 void PDFToolManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -1070,6 +1096,11 @@ void PDFPickTool::drawPage(QPainter* painter,
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
 
+    if (!isActive())
+    {
+        return;
+    }
+
     // If we are picking rectangles, then draw current selection rectangle
     if (m_mode == Mode::Rectangles && m_drawSelectionRectangle && m_pageIndex == pageIndex && !m_pickedPoints.empty())
     {
@@ -1097,6 +1128,11 @@ void PDFPickTool::drawPage(QPainter* painter,
 
 void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
 {
+    if (!isActive())
+    {
+        return;
+    }
+
     if (m_mode != Mode::Images)
     {
         m_snapper.drawSnapPoints(painter);

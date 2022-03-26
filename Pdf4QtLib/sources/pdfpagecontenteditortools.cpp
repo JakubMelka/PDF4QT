@@ -18,10 +18,12 @@
 #include "pdfpagecontenteditortools.h"
 #include "pdfpagecontentelements.h"
 #include "pdfpainterutils.h"
+#include "pdftexteditpseudowidget.h"
 
 #include <QPen>
 #include <QPainter>
 #include <QMouseEvent>
+#include <QGuiApplication>
 
 namespace pdf
 {
@@ -492,6 +494,263 @@ void PDFCreatePCElementFreehandCurveTool::setActiveImpl(bool active)
 void PDFCreatePCElementFreehandCurveTool::resetTool()
 {
     m_element->clear();
+}
+
+PDFCreatePCElementTextTool::PDFCreatePCElementTextTool(PDFDrawWidgetProxy* proxy,
+                                                       PDFPageContentScene* scene,
+                                                       QAction* action,
+                                                       QObject* parent) :
+    BaseClass(proxy, scene, action, parent),
+    m_pickTool(nullptr),
+    m_element(nullptr),
+    m_textEditWidget(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_pickTool->setDrawSelectionRectangle(true);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementTextTool::onRectanglePicked);
+
+    QFont font = QGuiApplication::font();
+    font.setPixelSize(16.0);
+
+    m_element = new PDFPageContentElementTextBox();
+    m_element->setBrush(Qt::NoBrush);
+    m_element->setPen(QPen(Qt::SolidLine));
+    m_element->setFont(font);
+
+    m_textEditWidget = new PDFTextEditPseudowidget(PDFFormField::FieldFlags());
+}
+
+PDFCreatePCElementTextTool::~PDFCreatePCElementTextTool()
+{
+    delete m_textEditWidget;
+    delete m_element;
+}
+
+void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
+                                          PDFInteger pageIndex,
+                                          const PDFPrecompiledPage* compiledPage,
+                                          PDFTextLayoutGetter& layoutGetter,
+                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (pageIndex != m_element->getPageIndex())
+    {
+        return;
+    }
+
+    if (isEditing())
+    {
+        PDFPainterStateGuard guard(painter);
+        AnnotationDrawParameters parameters;
+        parameters.painter = painter;
+        parameters.boundingRectangle = m_element->getRectangle();
+        parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
+        parameters.invertColors = getProxy()->getFeatures().testFlag(PDFRenderer::InvertColors);
+
+        painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+        m_textEditWidget->draw(parameters, true);
+    }
+}
+
+void PDFCreatePCElementTextTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active)
+    {
+        Q_ASSERT(!getTopToolstackTool());
+        addTool(m_pickTool);
+    }
+    else
+    {
+        m_textEditWidget->setText(QString());
+        m_element->setText(QString());
+
+        if (getTopToolstackTool())
+        {
+            removeTool();
+        }
+    }
+
+    m_pickTool->setActive(active);
+}
+
+void PDFCreatePCElementTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        return;
+    }
+
+    m_element->setPageIndex(pageIndex);
+    m_element->setRectangle(pageRectangle);
+
+    m_textEditWidget->setAppearance(m_element->getFont(),
+                                    m_element->getAlignment(),
+                                    m_element->getRectangle(),
+                                    std::numeric_limits<int>::max(),
+                                    m_element->getPen().color());
+
+    removeTool();
+}
+
+void PDFCreatePCElementTextTool::finishEditing()
+{
+    setActive(false);
+}
+
+std::optional<QPointF> PDFCreatePCElementTextTool::getPagePointUnderMouse(QMouseEvent* event) const
+{
+    QPointF pagePoint;
+    PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    if (pageIndex == m_element->getPageIndex() &&
+        m_element->getRectangle().contains(pagePoint))
+    {
+        return pagePoint;
+    }
+
+    return std::nullopt;
+}
+
+bool PDFCreatePCElementTextTool::isEditing() const
+{
+    return isActive() && !getTopToolstackTool();
+}
+
+void PDFCreatePCElementTextTool::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (isEditing())
+    {
+        m_textEditWidget->shortcutOverrideEvent(widget, event);
+    }
+}
+
+void PDFCreatePCElementTextTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    event->ignore();
+
+    if (!isEditing())
+    {
+        BaseClass::keyPressEvent(widget, event);
+        return;
+    }
+
+    if (event->key() == Qt::Key_Escape)
+    {
+        return;
+    }
+
+    if (!m_textEditWidget->isMultiline() && (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return))
+    {
+        // Commit the editor and create element
+        finishEditing();
+        event->accept();
+        return;
+    }
+
+    m_textEditWidget->keyPressEvent(widget, event);
+
+    if (event->isAccepted())
+    {
+        widget->update();
+    }
+}
+
+void PDFCreatePCElementTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    if (isEditing())
+    {
+        if (event->button() == Qt::LeftButton)
+        {
+            std::optional<QPointF> pagePoint = getPagePointUnderMouse(event);
+            if (pagePoint)
+            {
+                const int cursorPosition = m_textEditWidget->getCursorPositionFromWidgetPosition(pagePoint.value(), true);
+                m_textEditWidget->setCursorPosition(cursorPosition, event->modifiers() & Qt::ShiftModifier);
+            }
+            else
+            {
+                finishEditing();
+            }
+
+            event->accept();
+            widget->update();
+        }
+    }
+    else
+    {
+        BaseClass::mousePressEvent(widget, event);
+    }
+}
+
+void PDFCreatePCElementTextTool::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
+{
+    if (isEditing())
+    {
+        if (event->button() == Qt::LeftButton)
+        {
+            std::optional<QPointF> pagePoint = getPagePointUnderMouse(event);
+            if (pagePoint)
+            {
+                const int cursorPosition = m_textEditWidget->getCursorPositionFromWidgetPosition(pagePoint.value(), true);
+                m_textEditWidget->setCursorPosition(cursorPosition, false);
+                m_textEditWidget->setCursorPosition(m_textEditWidget->getCursorWordBackward(), false);
+                m_textEditWidget->setCursorPosition(m_textEditWidget->getCursorWordForward(), true);
+            }
+            else
+            {
+                finishEditing();
+            }
+
+            event->accept();
+            widget->update();
+        }
+    }
+    else
+    {
+        BaseClass::mousePressEvent(widget, event);
+    }
+}
+
+void PDFCreatePCElementTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    if (isEditing())
+    {
+        std::optional<QPointF> pagePoint = getPagePointUnderMouse(event);
+        if (pagePoint)
+        {
+            // We must test, if left mouse button is pressed while
+            // we are moving the mouse - if yes, then select the text.
+            if (event->buttons() & Qt::LeftButton)
+            {
+                const int cursorPosition = m_textEditWidget->getCursorPositionFromWidgetPosition(pagePoint.value(), true);
+                m_textEditWidget->setCursorPosition(cursorPosition, true);
+
+                event->accept();
+                widget->update();
+            }
+        }
+    }
+    else
+    {
+        BaseClass::mouseMoveEvent(widget, event);
+    }
+}
+
+void PDFCreatePCElementTextTool::wheelEvent(QWidget* widget, QWheelEvent* event)
+{
+    if (isEditing())
+    {
+
+    }
+    else
+    {
+        BaseClass::wheelEvent(widget, event);
+    }
 }
 
 }   // namespace pdf

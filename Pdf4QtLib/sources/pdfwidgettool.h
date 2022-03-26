@@ -62,6 +62,11 @@ public:
     /// Returns action for activating/deactivating this tool
     QAction* getAction() const { return m_action; }
 
+    /// Handles shortcut override event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
+
     /// Handles key press event from widget, over which tool operates
     /// \param widget Widget, over which tool operates
     /// \param event Event
@@ -76,6 +81,11 @@ public:
     /// \param widget Widget, over which tool operates
     /// \param event Event
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event);
+
+    /// Handles mouse double click event from widget, over which tool operates
+    /// \param widget Widget, over which tool operates
+    /// \param event Event
+    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event);
 
     /// Handles mouse release event from widget, over which tool operates
     /// \param widget Widget, over which tool operates

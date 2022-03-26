@@ -2233,4 +2233,114 @@ void PDFPageContentElementManipulator::eraseSelectedElementById(PDFInteger id)
     }
 }
 
+PDFPageContentElementTextBox* PDFPageContentElementTextBox::clone() const
+{
+    PDFPageContentElementTextBox* copy = new PDFPageContentElementTextBox();
+    copy->setElementId(getElementId());
+    copy->setPageIndex(getPageIndex());
+    copy->setPen(getPen());
+    copy->setBrush(getBrush());
+    copy->setRectangle(getRectangle());
+    copy->setText(getText());
+    copy->setFont(getFont());
+    copy->setAngle(getAngle());
+    copy->setAlignment(getAlignment());
+    return copy;
+}
+
+void PDFPageContentElementTextBox::drawPage(QPainter* painter,
+                                            PDFInteger pageIndex,
+                                            const PDFPrecompiledPage* compiledPage,
+                                            PDFTextLayoutGetter& layoutGetter,
+                                            const QMatrix& pagePointToDevicePointMatrix,
+                                            QList<PDFRenderError>& errors) const
+{
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    if (pageIndex != getPageIndex())
+    {
+        return;
+    }
+
+    QRectF rect = getRectangle();
+
+    PDFPainterStateGuard guard(painter);
+    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setPen(getPen());
+    painter->setBrush(getBrush());
+    painter->setFont(getFont());
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setClipRect(rect, Qt::IntersectClip);
+    painter->translate(rect.center());
+    painter->rotate(getAngle());
+
+    QTextOption option;
+    option.setAlignment(getAlignment());
+    QRectF textRect(-rect.width() * 0.5, -rect.height() * 0.5, rect.width(), rect.height());
+    painter->drawText(textRect, getText(), option);
+}
+
+uint PDFPageContentElementTextBox::getManipulationMode(const QPointF& point,
+                                                       PDFReal snapPointDistanceThreshold) const
+{
+    return getRectangleManipulationMode(getRectangle(), point, snapPointDistanceThreshold);
+}
+
+void PDFPageContentElementTextBox::performManipulation(uint mode, const QPointF& offset)
+{
+    performRectangleManipulation(m_rectangle, mode, offset);
+}
+
+QRectF PDFPageContentElementTextBox::getBoundingBox() const
+{
+    return m_rectangle;
+}
+
+void PDFPageContentElementTextBox::setSize(QSizeF size)
+{
+    performRectangleSetSize(m_rectangle, size);
+}
+
+const QString& PDFPageContentElementTextBox::getText() const
+{
+    return m_text;
+}
+
+void PDFPageContentElementTextBox::setText(const QString& newText)
+{
+    m_text = newText;
+}
+
+const QFont& PDFPageContentElementTextBox::getFont() const
+{
+    return m_font;
+}
+
+void PDFPageContentElementTextBox::setFont(const QFont& newFont)
+{
+    m_font = newFont;
+}
+
+PDFReal PDFPageContentElementTextBox::getAngle() const
+{
+    return m_angle;
+}
+
+void PDFPageContentElementTextBox::setAngle(PDFReal newAngle)
+{
+    m_angle = newAngle;
+}
+
+const Qt::Alignment& PDFPageContentElementTextBox::getAlignment() const
+{
+    return m_alignment;
+}
+
+void PDFPageContentElementTextBox::setAlignment(const Qt::Alignment& newAlignment)
+{
+    m_alignment = newAlignment;
+}
+
 }   // namespace pdf

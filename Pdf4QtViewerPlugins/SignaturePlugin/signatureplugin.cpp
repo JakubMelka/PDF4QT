@@ -122,6 +122,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
         rejectMarkFile.close();
     }
 
+    m_tools[TextTool] = new pdf::PDFCreatePCElementTextTool(widget->getDrawWidgetProxy(), &m_scene, createTextAction, this);
     m_tools[FreehandCurveTool] = new pdf::PDFCreatePCElementFreehandCurveTool(widget->getDrawWidgetProxy(), &m_scene, createFreehandCurveAction, this);
     m_tools[AcceptMarkTool] = new pdf::PDFCreatePCElementSvgTool(widget->getDrawWidgetProxy(), &m_scene, createAcceptMarkAction, acceptMarkContent, this);
     m_tools[RejectMarkTool] = new pdf::PDFCreatePCElementSvgTool(widget->getDrawWidgetProxy(), &m_scene, createRejectMarkAction, rejectMarkContent, this);

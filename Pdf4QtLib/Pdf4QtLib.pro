@@ -89,6 +89,7 @@ SOURCES += \
     sources/pdfsignaturehandler.cpp \
     sources/pdfsnapper.cpp \
     sources/pdfstructuretree.cpp \
+    sources/pdftexteditpseudowidget.cpp \
     sources/pdftextlayout.cpp \
     sources/pdftransparencyrenderer.cpp \
     sources/pdfutils.cpp \
@@ -170,6 +171,7 @@ HEADERS += \
     sources/pdfsignaturehandler_impl.h \
     sources/pdfsnapper.h \
     sources/pdfstructuretree.h \
+    sources/pdftexteditpseudowidget.h \
     sources/pdftextlayout.h \
     sources/pdftransparencyrenderer.h \
     sources/pdfwidgettool.h \

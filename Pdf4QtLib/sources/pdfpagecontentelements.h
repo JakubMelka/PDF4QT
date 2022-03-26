@@ -21,6 +21,7 @@
 #include "pdfdocumentdrawinterface.h"
 
 #include <QPen>
+#include <QFont>
 #include <QBrush>
 #include <QCursor>
 #include <QPainterPath>
@@ -292,6 +293,50 @@ private:
     QRectF m_rectangle;
     QByteArray m_content;
     std::unique_ptr<QSvgRenderer> m_renderer;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDFPageContentElementTextBox : public PDFPageContentStyledElement
+{
+public:
+    virtual ~PDFPageContentElementTextBox() = default;
+
+    virtual PDFPageContentElementTextBox* clone() const override;
+
+    const QRectF& getRectangle() const { return m_rectangle; }
+    void setRectangle(const QRectF& newRectangle) { m_rectangle = newRectangle; }
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    virtual uint getManipulationMode(const QPointF& point,
+                                     PDFReal snapPointDistanceThreshold) const override;
+
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size);
+
+    const QString& getText() const;
+    void setText(const QString& newText);
+
+    const QFont& getFont() const;
+    void setFont(const QFont& newFont);
+
+    PDFReal getAngle() const;
+    void setAngle(PDFReal newAngle);
+
+    const Qt::Alignment& getAlignment() const;
+    void setAlignment(const Qt::Alignment& newAlignment);
+
+private:
+    QString m_text;
+    QRectF m_rectangle;
+    QFont m_font;
+    PDFReal m_angle = 0.0;
+    Qt::Alignment m_alignment = Qt::AlignCenter;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentElementManipulator : public QObject
