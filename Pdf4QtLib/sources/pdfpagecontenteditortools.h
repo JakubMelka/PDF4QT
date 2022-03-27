@@ -237,6 +237,7 @@ private:
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     void finishEditing();
+    void resetTool();
     std::optional<QPointF> getPagePointUnderMouse(QMouseEvent* event) const;
 
     bool isEditing() const;

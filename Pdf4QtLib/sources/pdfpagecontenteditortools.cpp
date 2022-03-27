@@ -517,7 +517,7 @@ PDFCreatePCElementTextTool::PDFCreatePCElementTextTool(PDFDrawWidgetProxy* proxy
     m_element->setPen(QPen(Qt::SolidLine));
     m_element->setFont(font);
 
-    m_textEditWidget = new PDFTextEditPseudowidget(PDFFormField::FieldFlags());
+    m_textEditWidget = new PDFTextEditPseudowidget(PDFFormField::Multiline);
 }
 
 PDFCreatePCElementTextTool::~PDFCreatePCElementTextTool()
@@ -554,6 +554,18 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
     }
 }
 
+void PDFCreatePCElementTextTool::resetTool()
+{
+    m_textEditWidget->setText(QString());
+    m_element->setText(QString());
+    m_element->setPageIndex(-1);
+
+    if (getTopToolstackTool())
+    {
+        removeTool();
+    }
+}
+
 void PDFCreatePCElementTextTool::setActiveImpl(bool active)
 {
     BaseClass::setActiveImpl(active);
@@ -565,13 +577,7 @@ void PDFCreatePCElementTextTool::setActiveImpl(bool active)
     }
     else
     {
-        m_textEditWidget->setText(QString());
-        m_element->setText(QString());
-
-        if (getTopToolstackTool())
-        {
-            removeTool();
-        }
+        resetTool();
     }
 
     m_pickTool->setActive(active);
@@ -598,6 +604,14 @@ void PDFCreatePCElementTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF 
 
 void PDFCreatePCElementTextTool::finishEditing()
 {
+    m_element->setText(m_textEditWidget->getText());
+
+    if (!m_element->getText().isEmpty())
+    {
+        m_scene->addElement(m_element->clone());
+    }
+
+    resetTool();
     setActive(false);
 }
 
@@ -745,7 +759,7 @@ void PDFCreatePCElementTextTool::wheelEvent(QWidget* widget, QWheelEvent* event)
 {
     if (isEditing())
     {
-
+        event->ignore();
     }
     else
     {

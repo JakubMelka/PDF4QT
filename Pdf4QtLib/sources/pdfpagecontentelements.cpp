@@ -2274,6 +2274,7 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setClipRect(rect, Qt::IntersectClip);
     painter->translate(rect.center());
+    painter->scale(1.0, -1.0);
     painter->rotate(getAngle());
 
     QTextOption option;
