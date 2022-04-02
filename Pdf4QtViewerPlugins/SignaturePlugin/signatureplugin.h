@@ -49,6 +49,8 @@ public:
 
 private:
     void onSceneChanged(bool graphicsOnly);
+    void onSceneSelectionChanged();
+    void onWidgetSelectionChanged();
 
     enum Action
     {
@@ -103,6 +105,7 @@ private:
     pdf::PDFPageContentEditorWidget* m_editorWidget;
 
     pdf::PDFPageContentScene m_scene;
+    bool m_sceneSelectionChangeEnabled;
 };
 
 }   // namespace pdfplugin

@@ -17,6 +17,7 @@
 
 #include "signatureplugin.h"
 #include "pdfdrawwidget.h"
+#include "pdfutils.h"
 #include "pdfpagecontenteditorwidget.h"
 
 #include <QAction>
@@ -31,7 +32,8 @@ SignaturePlugin::SignaturePlugin() :
     m_actions({ }),
     m_tools({ }),
     m_editorWidget(nullptr),
-    m_scene(nullptr)
+    m_scene(nullptr),
+    m_sceneSelectionChangeEnabled(true)
 {
 
 }
@@ -143,6 +145,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     m_widget->getDrawWidgetProxy()->registerDrawInterface(&m_scene);
     m_scene.setWidget(m_widget);
     connect(&m_scene, &pdf::PDFPageContentScene::sceneChanged, this, &SignaturePlugin::onSceneChanged);
+    connect(&m_scene, &pdf::PDFPageContentScene::selectionChanged, this, &SignaturePlugin::onSceneSelectionChanged);
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);
 
@@ -179,7 +182,28 @@ void SignaturePlugin::onSceneChanged(bool graphicsOnly)
         updateActions();
     }
 
+    if (m_editorWidget)
+    {
+        m_editorWidget->updateItemsInListWidget();
+    }
+
     updateGraphics();
+}
+
+void SignaturePlugin::onSceneSelectionChanged()
+{
+    if (m_editorWidget && m_sceneSelectionChangeEnabled)
+    {
+        m_editorWidget->setSelection(m_scene.getSelectedElementIds());
+    }
+}
+
+void SignaturePlugin::onWidgetSelectionChanged()
+{
+    Q_ASSERT(m_editorWidget);
+
+    pdf::PDFTemporaryValueChange guard(&m_sceneSelectionChangeEnabled, false);
+    m_scene.setSelectedElementIds(m_editorWidget->getSelection());
 }
 
 void SignaturePlugin::setActive(bool active)
@@ -276,7 +300,9 @@ void SignaturePlugin::updateDockWidget()
     m_dataExchangeInterface->getMainWindow()->addDockWidget(Qt::RightDockWidgetArea, m_editorWidget, Qt::Vertical);
     m_editorWidget->setFloating(false);
     m_editorWidget->setWindowTitle(tr("Signature Toolbox"));
+    m_editorWidget->setScene(&m_scene);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::operationTriggered, &m_scene, &pdf::PDFPageContentScene::performOperation);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::itemSelectionChangedByUser, this, &SignaturePlugin::onWidgetSelectionChanged);
 
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignTop))->setIcon(QIcon(":/resources/pce-align-top.svg"));
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignCenterVertically))->setIcon(QIcon(":/resources/pce-align-v-center.svg"));

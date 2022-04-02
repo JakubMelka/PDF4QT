@@ -207,6 +207,11 @@ void PDFPageContentElement::performRectangleSetSize(QRectF& rectangle, QSizeF si
     rectangle.translate(0, offset);
 }
 
+QString PDFPageContentElement::formatDescription(const QString& description) const
+{
+    return PDFTranslationContext::tr("#%1: %2").arg(getElementId()).arg(description);
+}
+
 const QPen& PDFPageContentStyledElement::getPen() const
 {
     return m_pen;
@@ -312,6 +317,11 @@ QRectF PDFPageContentElementRectangle::getBoundingBox() const
 void PDFPageContentElementRectangle::setSize(QSizeF size)
 {
     performRectangleSetSize(m_rectangle, size);
+}
+
+QString PDFPageContentElementRectangle::getDescription() const
+{
+    return formatDescription(isRounded() ? PDFTranslationContext::tr("Rounded rectangle") : PDFTranslationContext::tr("Rectangle"));
 }
 
 PDFPageContentScene::PDFPageContentScene(QObject* parent) :
@@ -790,6 +800,7 @@ void PDFPageContentScene::updateMouseCursor(const MouseEventInfo& info, PDFReal 
 void PDFPageContentScene::onSelectionChanged()
 {
     emit sceneChanged(true);
+    emit selectionChanged();
 }
 
 PDFWidget* PDFPageContentScene::widget() const
@@ -833,6 +844,26 @@ std::set<PDFInteger> PDFPageContentScene::getElementIds() const
     }
 
     return result;
+}
+
+std::set<PDFInteger> PDFPageContentScene::getSelectedElementIds() const
+{
+    std::set<PDFInteger> result;
+
+    for (const auto& element : m_elements)
+    {
+        if (m_manipulator.isSelected(element->getElementId()))
+        {
+            result.insert(element->getElementId());
+        }
+    }
+
+    return result;
+}
+
+void PDFPageContentScene::setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds)
+{
+    m_manipulator.selectNew(selectedElementIds);
 }
 
 void PDFPageContentScene::removeElementsById(const std::vector<PDFInteger>& selection)
@@ -1000,6 +1031,11 @@ void PDFPageContentElementLine::setSize(QSizeF size)
     m_line.setPoints(p1, p2);
 }
 
+QString PDFPageContentElementLine::getDescription() const
+{
+    return formatDescription(PDFTranslationContext::tr("Line"));
+}
+
 PDFPageContentElementLine::LineGeometry PDFPageContentElementLine::getGeometry() const
 {
     return m_geometry;
@@ -1110,6 +1146,11 @@ void PDFPageContentSvgElement::setSize(QSizeF size)
     performRectangleSetSize(m_rectangle, size);
 }
 
+QString PDFPageContentSvgElement::getDescription() const
+{
+    return formatDescription(PDFTranslationContext::tr("SVG image"));
+}
+
 const QByteArray& PDFPageContentSvgElement::getContent() const
 {
     return m_content;
@@ -1207,6 +1248,11 @@ void PDFPageContentElementDot::setSize(QSizeF size)
     Q_UNUSED(size);
 }
 
+QString PDFPageContentElementDot::getDescription() const
+{
+    return formatDescription(PDFTranslationContext::tr("Dot"));
+}
+
 QPointF PDFPageContentElementDot::getPoint() const
 {
     return m_point;
@@ -1295,6 +1341,11 @@ QRectF PDFPageContentElementFreehandCurve::getBoundingBox() const
 void PDFPageContentElementFreehandCurve::setSize(QSizeF size)
 {
     Q_UNUSED(size);
+}
+
+QString PDFPageContentElementFreehandCurve::getDescription() const
+{
+    return formatDescription(PDFTranslationContext::tr("Freehand curve"));
 }
 
 QPainterPath PDFPageContentElementFreehandCurve::getCurve() const
@@ -2302,6 +2353,11 @@ QRectF PDFPageContentElementTextBox::getBoundingBox() const
 void PDFPageContentElementTextBox::setSize(QSizeF size)
 {
     performRectangleSetSize(m_rectangle, size);
+}
+
+QString PDFPageContentElementTextBox::getDescription() const
+{
+    return formatDescription(PDFTranslationContext::tr("Text box '%1'").arg(getText()));
 }
 
 const QString& PDFPageContentElementTextBox::getText() const

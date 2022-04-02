@@ -19,6 +19,7 @@
 #include "ui_pdfpagecontenteditorwidget.h"
 #include "pdfwidgetutils.h"
 #include "pdfpagecontentelements.h"
+#include "pdfutils.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -26,10 +27,12 @@
 namespace pdf
 {
 
-PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget *parent) :
+PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget* parent) :
     QDockWidget(parent),
     ui(new Ui::PDFPageContentEditorWidget),
-    m_toolBoxColumnCount(6)
+    m_toolBoxColumnCount(6),
+    m_scene(nullptr),
+    m_selectionChangeEnabled(true)
 {
     ui->setupUi(this);
 
@@ -76,6 +79,7 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget *parent) :
 
     connect(&m_actionMapper, &QSignalMapper::mappedObject, this, &PDFPageContentEditorWidget::onActionTriggerRequest);
     connect(&m_operationMapper, &QSignalMapper::mappedInt, this, &PDFPageContentEditorWidget::operationTriggered);
+    connect(ui->itemsListWidget->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFPageContentEditorWidget::onItemSelectionChanged);
 }
 
 PDFPageContentEditorWidget::~PDFPageContentEditorWidget()
@@ -126,6 +130,56 @@ QToolButton* PDFPageContentEditorWidget::getToolButtonForOperation(int operation
     return qobject_cast<QToolButton*>(m_operationMapper.mapping(operation));
 }
 
+void PDFPageContentEditorWidget::updateItemsInListWidget()
+{
+    ui->itemsListWidget->setUpdatesEnabled(false);
+
+    if (m_scene)
+    {
+        std::set<PDFInteger> presentElementIds;
+        std::set<PDFInteger> elementIds = m_scene->getElementIds();
+
+        // Remove items which are not here
+        for (int i = 0; i < ui->itemsListWidget->count();)
+        {
+            QListWidgetItem* item = ui->itemsListWidget->item(i);
+            const PDFInteger elementId = item->data(Qt::UserRole).toLongLong();
+            if (!elementIds.count(elementId))
+            {
+                delete ui->itemsListWidget->takeItem(i);
+            }
+            else
+            {
+                presentElementIds.insert(elementId);
+                ++i;
+            }
+        }
+
+        // Add items which are here
+        for (PDFInteger elementId : elementIds)
+        {
+            if (presentElementIds.count(elementId))
+            {
+                continue;
+            }
+
+            const PDFPageContentElement* element = m_scene->getElementById(elementId);
+            Q_ASSERT(element);
+
+            QListWidgetItem* item = new QListWidgetItem(element->getDescription());
+            item->setData(Qt::UserRole, elementId);
+
+            ui->itemsListWidget->addItem(item);
+        }
+    }
+    else
+    {
+        ui->itemsListWidget->clear();
+    }
+
+    ui->itemsListWidget->setUpdatesEnabled(true);
+}
+
 void PDFPageContentEditorWidget::onActionTriggerRequest(QObject* actionObject)
 {
     QAction* action = qobject_cast<QAction*>(actionObject);
@@ -144,6 +198,57 @@ void PDFPageContentEditorWidget::onActionChanged()
 
     button->setChecked(action->isChecked());
     button->setEnabled(action->isEnabled());
+}
+
+void PDFPageContentEditorWidget::onItemSelectionChanged()
+{
+    if (m_selectionChangeEnabled)
+    {
+        emit itemSelectionChangedByUser();
+    }
+}
+
+PDFPageContentScene* PDFPageContentEditorWidget::scene() const
+{
+    return m_scene;
+}
+
+void PDFPageContentEditorWidget::setScene(PDFPageContentScene* newScene)
+{
+    if (m_scene != newScene)
+    {
+        m_scene = newScene;
+        updateItemsInListWidget();
+    }
+}
+
+std::set<PDFInteger> PDFPageContentEditorWidget::getSelection() const
+{
+    std::set<PDFInteger> result;
+
+    for (int i = 0; i < ui->itemsListWidget->count(); ++i)
+    {
+        QListWidgetItem* item = ui->itemsListWidget->item(i);
+        if (item->isSelected())
+        {
+            const PDFInteger elementId = item->data(Qt::UserRole).toLongLong();
+            result.insert(elementId);
+        }
+    }
+
+    return result;
+}
+
+void PDFPageContentEditorWidget::setSelection(const std::set<PDFInteger>& selection)
+{
+    pdf::PDFTemporaryValueChange guard(&m_selectionChangeEnabled, false);
+
+    for (int i = 0; i < ui->itemsListWidget->count(); ++i)
+    {
+        QListWidgetItem* item = ui->itemsListWidget->item(i);
+        const PDFInteger elementId = item->data(Qt::UserRole).toLongLong();
+        item->setSelected(selection.count(elementId));
+    }
 }
 
 }   // namespace pdf

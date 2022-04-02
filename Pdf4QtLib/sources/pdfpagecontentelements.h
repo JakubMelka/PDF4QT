@@ -71,6 +71,9 @@ public:
     /// nothing for elements, which does not support it.
     virtual void setSize(QSizeF size) = 0;
 
+    /// Returns description of the element
+    virtual QString getDescription() const = 0;
+
     PDFInteger getPageIndex() const;
     void setPageIndex(PDFInteger newPageIndex);
 
@@ -107,6 +110,8 @@ protected:
                                       const QPointF& offset);
 
     void performRectangleSetSize(QRectF& rectangle, QSizeF size);
+
+    QString formatDescription(const QString& description) const;
 
     PDFInteger m_elementId = -1;
     PDFInteger m_pageIndex = -1;
@@ -155,6 +160,7 @@ public:
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
+    virtual QString getDescription() const override;
 
 private:
     bool m_rounded = false;
@@ -188,6 +194,7 @@ public:
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
+    virtual QString getDescription() const override;
 
     LineGeometry getGeometry() const;
     void setGeometry(LineGeometry newGeometry);
@@ -220,6 +227,7 @@ public:
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
+    virtual QString getDescription() const override;
 
     QPointF getPoint() const;
     void setPoint(QPointF newPoint);
@@ -248,6 +256,7 @@ public:
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
+    virtual QString getDescription() const override;
 
     QPainterPath getCurve() const;
     void setCurve(QPainterPath newCurve);
@@ -282,6 +291,7 @@ public:
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
+    virtual QString getDescription() const override;
 
     const QByteArray& getContent() const;
     void setContent(const QByteArray& newContent);
@@ -318,6 +328,7 @@ public:
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
+    virtual QString getDescription() const override;
 
     const QString& getText() const;
     void setText(const QString& newText);
@@ -489,6 +500,12 @@ public:
     /// Returns set of all element ids
     std::set<PDFInteger> getElementIds() const;
 
+    /// Returns set of selected element ids
+    std::set<PDFInteger> getSelectedElementIds() const;
+
+    /// Set selected items
+    void setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds);
+
     /// Removes elements specified in selection
     /// \param selection Items to be removed
     void removeElementsById(const std::vector<PDFInteger>& selection);
@@ -527,6 +544,8 @@ public:
 signals:
     /// This signal is emitted when scene has changed (including graphics)
     void sceneChanged(bool graphicsOnly);
+
+    void selectionChanged();
 
 private:
 

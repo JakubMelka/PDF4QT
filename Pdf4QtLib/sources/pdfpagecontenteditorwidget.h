@@ -23,6 +23,8 @@
 #include <QDockWidget>
 #include <QSignalMapper>
 
+#include <set>
+
 class QToolButton;
 
 namespace Ui
@@ -32,6 +34,7 @@ class PDFPageContentEditorWidget;
 
 namespace pdf
 {
+class PDFPageContentScene;
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
 {
@@ -46,18 +49,31 @@ public:
 
     QToolButton* getToolButtonForOperation(int operation) const;
 
+    /// Update items in list widget
+    void updateItemsInListWidget();
+
+    PDFPageContentScene* scene() const;
+    void setScene(PDFPageContentScene* newScene);
+
+    std::set<PDFInteger> getSelection() const;
+    void setSelection(const std::set<PDFInteger>& selection);
+
 signals:
     void operationTriggered(int operation);
+    void itemSelectionChangedByUser();
 
 private:
     void onActionTriggerRequest(QObject* actionObject);
     void onActionChanged();
+    void onItemSelectionChanged();
 
     Ui::PDFPageContentEditorWidget* ui;
     QSignalMapper m_actionMapper;
     QSignalMapper m_operationMapper;
     int m_toolBoxColumnCount;
     QSize m_toolButtonIconSize;
+    PDFPageContentScene* m_scene;
+    bool m_selectionChangeEnabled;
 };
 
 }   // namespace pdf
