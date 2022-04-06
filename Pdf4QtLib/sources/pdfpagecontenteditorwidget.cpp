@@ -16,6 +16,7 @@
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfpagecontenteditorwidget.h"
+#include "pdfpagecontenteditorstylesettings.h"
 #include "ui_pdfpagecontenteditorwidget.h"
 #include "pdfwidgetutils.h"
 #include "pdfpagecontentelements.h"

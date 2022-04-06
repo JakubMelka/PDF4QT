@@ -17,7 +17,7 @@
    <string>Content editor</string>
   </property>
   <widget class="QWidget" name="dockWidgetContents">
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,1">
     <item>
      <widget class="QGroupBox" name="toolGroupBox">
       <property name="title">
@@ -161,6 +161,11 @@
       <property name="title">
        <string>Appearance</string>
       </property>
+      <layout class="QVBoxLayout" name="appearanceLayout">
+       <item>
+        <widget class="pdf::PDFPageContentEditorStyleSettings" name="widget" native="true"/>
+       </item>
+      </layout>
      </widget>
     </item>
     <item>
@@ -182,6 +187,14 @@
    </layout>
   </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>pdf::PDFPageContentEditorStyleSettings</class>
+   <extends>QWidget</extends>
+   <header>pdfpagecontenteditorstylesettings.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

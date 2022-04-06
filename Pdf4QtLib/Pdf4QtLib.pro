@@ -71,6 +71,7 @@ SOURCES += \
     sources/pdfoptimizer.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
+    sources/pdfpagecontenteditorstylesettings.cpp \
     sources/pdfpagecontenteditortools.cpp \
     sources/pdfpagecontenteditorwidget.cpp \
     sources/pdfpagecontentelements.cpp \
@@ -150,6 +151,7 @@ HEADERS += \
     sources/pdfoptimizer.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
+    sources/pdfpagecontenteditorstylesettings.h \
     sources/pdfpagecontenteditortools.h \
     sources/pdfpagecontenteditorwidget.h \
     sources/pdfpagecontentelements.h \
@@ -201,6 +203,7 @@ HEADERS += \
     sources/pdfimage.h
 
 FORMS += \
+    sources/pdfpagecontenteditorstylesettings.ui \
     sources/pdfpagecontenteditorwidget.ui \
     sources/pdfrenderingerrorswidget.ui \
     sources/pdfselectpagesdialog.ui
