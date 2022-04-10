@@ -65,17 +65,27 @@ public:
     void setBrush(const QBrush& brush, bool forceUpdate);
     void setFont(const QFont& font, bool forceUpdate);
     void setFontAlignment(Qt::Alignment alignment, bool forceUpdate);
+    void setTextAngle(PDFReal angle, bool forceUpdate);
 
 signals:
     void penChanged(const QPen& pen);
     void brushChanged(const QBrush& brush);
     void fontChanged(const QFont& font);
     void alignmentChanged(Qt::Alignment alignment);
+    void textAngleChanged(pdf::PDFReal angle);
 
 private slots:
     void onSelectFontButtonClicked();
     void onSelectPenColorButtonClicked();
     void onSelectBrushColorButtonClicked();
+    void onPenWidthChanged(double value);
+    void onTextAngleChanged(double value);
+    void onAlignmentRadioButtonClicked(int alignment);
+    void onPenStyleChanged();
+    void onPenColorComboTextChanged();
+    void onPenColorComboIndexChanged();
+    void onBrushColorComboTextChanged();
+    void onBrushColorComboIndexChanged();
 
 private:
     Ui::PDFPageContentEditorStyleSettings* ui;

@@ -23,6 +23,7 @@
 
 #include <QFontDialog>
 #include <QColorDialog>
+#include <QLineEdit>
 
 namespace pdf
 {
@@ -53,6 +54,13 @@ PDFPageContentEditorStyleSettings::PDFPageContentEditorStyleSettings(QWidget* pa
     connect(ui->selectPenColorButton, &QToolButton::clicked, this, &PDFPageContentEditorStyleSettings::onSelectPenColorButtonClicked);
     connect(ui->selectBrushColorButton, &QToolButton::clicked, this, &PDFPageContentEditorStyleSettings::onSelectBrushColorButtonClicked);
     connect(ui->selectFontButton, &QToolButton::clicked, this, &PDFPageContentEditorStyleSettings::onSelectFontButtonClicked);
+    connect(ui->penWidthEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFPageContentEditorStyleSettings::onPenWidthChanged);
+    connect(ui->penStyleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFPageContentEditorStyleSettings::onPenStyleChanged);
+    connect(ui->textAngleEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFPageContentEditorStyleSettings::onTextAngleChanged);
+    connect(ui->penColorCombo->lineEdit(), &QLineEdit::editingFinished, this, &PDFPageContentEditorStyleSettings::onPenColorComboTextChanged);
+    connect(ui->penColorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFPageContentEditorStyleSettings::onPenColorComboIndexChanged);
+    connect(ui->brushColorCombo->lineEdit(), &QLineEdit::editingFinished, this, &PDFPageContentEditorStyleSettings::onBrushColorComboTextChanged);
+    connect(ui->brushColorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFPageContentEditorStyleSettings::onBrushColorComboIndexChanged);
 
     m_alignmentMapper.setMapping(ui->al11Button, int(Qt::AlignLeft | Qt::AlignTop));
     m_alignmentMapper.setMapping(ui->al12Button, int(Qt::AlignHCenter | Qt::AlignTop));
@@ -63,6 +71,12 @@ PDFPageContentEditorStyleSettings::PDFPageContentEditorStyleSettings(QWidget* pa
     m_alignmentMapper.setMapping(ui->al31Button, int(Qt::AlignLeft | Qt::AlignBottom));
     m_alignmentMapper.setMapping(ui->al32Button, int(Qt::AlignHCenter | Qt::AlignBottom));
     m_alignmentMapper.setMapping(ui->al33Button, int(Qt::AlignRight | Qt::AlignBottom));
+
+    for (QRadioButton* radioButton : findChildren<QRadioButton*>())
+    {
+        connect(radioButton, &QRadioButton::clicked, &m_alignmentMapper, QOverload<>::of(&QSignalMapper::map));
+    }
+    connect(&m_alignmentMapper, &QSignalMapper::mappedInt, this, &PDFPageContentEditorStyleSettings::onAlignmentRadioButtonClicked);
 
     loadFromElement(nullptr, true);
 }
@@ -121,10 +135,14 @@ void PDFPageContentEditorStyleSettings::loadFromElement(const PDFPageContentElem
     }
     ui->textAlignmentLabel->setEnabled(hasText);
 
+    ui->textAngleLabel->setEnabled(hasText);
+    ui->textAngleEdit->setEnabled(hasText);
+
     QPen pen(Qt::SolidLine);
     QBrush brush(Qt::transparent);
     QFont font = QGuiApplication::font();
     Qt::Alignment alignment = Qt::AlignCenter;
+    PDFReal textAngle = 0.0;
 
     if (styledElement)
     {
@@ -136,12 +154,14 @@ void PDFPageContentEditorStyleSettings::loadFromElement(const PDFPageContentElem
     {
         font = textElement->getFont();
         alignment = textElement->getAlignment();
+        textAngle = textElement->getAngle();
     }
 
     setPen(pen, forceUpdate);
     setBrush(brush, forceUpdate);
     setFont(font, forceUpdate);
     setFontAlignment(alignment, forceUpdate);
+    setTextAngle(textAngle, forceUpdate);
 }
 
 void PDFPageContentEditorStyleSettings::setPen(const QPen& pen, bool forceUpdate)
@@ -207,6 +227,17 @@ void PDFPageContentEditorStyleSettings::setFontAlignment(Qt::Alignment alignment
     }
 }
 
+void PDFPageContentEditorStyleSettings::setTextAngle(PDFReal angle, bool forceUpdate)
+{
+    if (ui->textAngleEdit->value() != angle || forceUpdate)
+    {
+        const bool oldBlockSignals = blockSignals(true);
+        ui->textAngleEdit->setValue(angle);
+        blockSignals(oldBlockSignals);
+        emit textAngleChanged(ui->textAngleEdit->value());
+    }
+}
+
 QIcon PDFPageContentEditorStyleSettings::getIconForColor(QColor color) const
 {
     QIcon icon;
@@ -229,7 +260,14 @@ void PDFPageContentEditorStyleSettings::setColorToComboBox(QComboBox* comboBox, 
 
     QString name = color.name(QColor::HexArgb);
 
-    const int index = comboBox->findText(name);
+    int index = comboBox->findData(color, Qt::UserRole, Qt::MatchExactly);
+
+    if (index == -1)
+    {
+        // Jakub Melka: try to find text (color name)
+        index = comboBox->findText(name);
+    }
+
     if (index != -1)
     {
         comboBox->setCurrentIndex(index);
@@ -284,6 +322,100 @@ void PDFPageContentEditorStyleSettings::onSelectBrushColorButtonClicked()
 {
     QColor color = QColorDialog::getColor(m_pen.color(), this, tr("Select Color for Brush"), QColorDialog::ShowAlphaChannel);
     setBrushColor(color);
+}
+
+void PDFPageContentEditorStyleSettings::onPenWidthChanged(double value)
+{
+    if (m_pen.widthF() != value)
+    {
+        m_pen.setWidthF(value);
+        emit penChanged(m_pen);
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onTextAngleChanged(double value)
+{
+    emit textAngleChanged(value);
+}
+
+void PDFPageContentEditorStyleSettings::onAlignmentRadioButtonClicked(int alignment)
+{
+    Qt::Alignment alignmentValue = static_cast<Qt::Alignment>(alignment);
+    if (m_alignment != alignmentValue)
+    {
+        m_alignment = alignmentValue;
+        emit alignmentChanged(m_alignment);
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onPenStyleChanged()
+{
+    Qt::PenStyle penStyle = static_cast<Qt::PenStyle>(ui->penStyleCombo->currentData().toInt());
+    if (m_pen.style() != penStyle)
+    {
+        m_pen.setStyle(penStyle);
+        emit penChanged(m_pen);
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onPenColorComboTextChanged()
+{
+    QColor color(ui->penColorCombo->currentText());
+    if (color.isValid())
+    {
+        setColorToComboBox(ui->penColorCombo, color);
+
+        if (m_pen.color() != color)
+        {
+            m_pen.setColor(color);
+            emit penChanged(m_pen);
+        }
+    }
+    else if (ui->penColorCombo->currentIndex() != -1)
+    {
+        ui->penColorCombo->setEditText(ui->penColorCombo->itemText(ui->penColorCombo->currentIndex()));
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onPenColorComboIndexChanged()
+{
+    const int index = ui->penColorCombo->currentIndex();
+    QColor color = ui->penColorCombo->itemData(index, Qt::UserRole).value<QColor>();
+    if (color.isValid() && m_pen.color() != color)
+    {
+        m_pen.setColor(color);
+        emit penChanged(m_pen);
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onBrushColorComboTextChanged()
+{
+    QColor color(ui->brushColorCombo->currentText());
+    if (color.isValid())
+    {
+        setColorToComboBox(ui->brushColorCombo, color);
+
+        if (m_brush.color() != color)
+        {
+            m_brush.setColor(color);
+            emit brushChanged(m_brush);
+        }
+    }
+    else if (ui->brushColorCombo->currentIndex() != -1)
+    {
+        ui->brushColorCombo->setEditText(ui->brushColorCombo->itemText(ui->brushColorCombo->currentIndex()));
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onBrushColorComboIndexChanged()
+{
+    const int index = ui->brushColorCombo->currentIndex();
+    QColor color = ui->brushColorCombo->itemData(index, Qt::UserRole).value<QColor>();
+    if (color.isValid() && m_brush.color() != color)
+    {
+        m_brush.setColor(color);
+        emit brushChanged(m_brush);
+    }
 }
 
 void PDFPageContentEditorStyleSettings::onFontChanged(const QFont& font)

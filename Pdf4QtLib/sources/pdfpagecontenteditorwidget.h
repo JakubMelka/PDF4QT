@@ -35,6 +35,7 @@ class PDFPageContentEditorWidget;
 namespace pdf
 {
 class PDFPageContentScene;
+class PDFPageContentElement;
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
 {
@@ -58,9 +59,19 @@ public:
     std::set<PDFInteger> getSelection() const;
     void setSelection(const std::set<PDFInteger>& selection);
 
+    /// Loads style from element, element can be nullptr
+    /// \param element Element
+    void loadStyleFromElement(const PDFPageContentElement* element);
+
 signals:
     void operationTriggered(int operation);
     void itemSelectionChangedByUser();
+
+    void penChanged(const QPen& pen);
+    void brushChanged(const QBrush& brush);
+    void fontChanged(const QFont& font);
+    void alignmentChanged(Qt::Alignment alignment);
+    void textAngleChanged(pdf::PDFReal angle);
 
 private:
     void onActionTriggerRequest(QObject* actionObject);
@@ -74,6 +85,7 @@ private:
     QSize m_toolButtonIconSize;
     PDFPageContentScene* m_scene;
     bool m_selectionChangeEnabled;
+    bool m_updatesEnabled;
 };
 
 }   // namespace pdf

@@ -428,6 +428,7 @@ void PDFTextEditPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance
 
     m_maxTextLength = maxTextLength;
     m_widgetRect = rect;
+    updateTextLayout();
 }
 
 void PDFTextEditPseudowidget::setAppearance(const QFont& font,
@@ -453,6 +454,7 @@ void PDFTextEditPseudowidget::setAppearance(const QFont& font,
 
     m_maxTextLength = maxTextLength;
     m_widgetRect = rect;
+    updateTextLayout();
 }
 
 void PDFTextEditPseudowidget::performCut()

@@ -24,6 +24,7 @@ namespace pdf
 {
 
 class PDFPageContentScene;
+class PDFPageContentElement;
 class PDFPageContentSvgElement;
 class PDFPageContentElementDot;
 class PDFPageContentElementLine;
@@ -32,13 +33,23 @@ class PDFPageContentElementRectangle;
 class PDFPageContentElementFreehandCurve;
 class PDFTextEditPseudowidget;
 
-class PDFCreatePCElementTool : public PDFWidgetTool
+class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementTool : public PDFWidgetTool
 {
+    Q_OBJECT
 public:
     PDFCreatePCElementTool(PDFDrawWidgetProxy* proxy,
                            PDFPageContentScene* scene,
                            QAction* action,
                            QObject* parent);
+
+    virtual const PDFPageContentElement* getElement() const = 0;
+    virtual PDFPageContentElement* getElement() = 0;
+
+    virtual void setPen(const QPen& pen);
+    virtual void setBrush(const QBrush& brush);
+    virtual void setFont(const QFont& font);
+    virtual void setAlignment(Qt::Alignment alignment);
+    virtual void setTextAngle(pdf::PDFReal angle);
 
 protected:
     static QRectF getRectangleFromPickTool(PDFPickTool* pickTool, const QMatrix& pagePointToDevicePointMatrix);
@@ -69,6 +80,9 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual const PDFPageContentElement* getElement() const override;
+    virtual PDFPageContentElement* getElement() override;
+
 private:
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
@@ -98,6 +112,9 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+
+    virtual const PDFPageContentElement* getElement() const override;
+    virtual PDFPageContentElement* getElement() override;
 
 private:
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
@@ -130,6 +147,9 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual const PDFPageContentElement* getElement() const override;
+    virtual PDFPageContentElement* getElement() override;
+
 private:
     void clear();
     void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
@@ -161,6 +181,9 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual const PDFPageContentElement* getElement() const override;
+    virtual PDFPageContentElement* getElement() override;
+
 private:
     void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
 
@@ -189,6 +212,9 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+
+    virtual const PDFPageContentElement* getElement() const override;
+    virtual PDFPageContentElement* getElement() override;
 
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
@@ -224,6 +250,13 @@ public:
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+
+    virtual const PDFPageContentElement* getElement() const override;
+    virtual PDFPageContentElement* getElement() override;
+
+    virtual void setPen(const QPen& pen);
+    virtual void setFont(const QFont& font) override;
+    virtual void setAlignment(Qt::Alignment alignment) override;
 
     virtual void setActiveImpl(bool active) override;
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;

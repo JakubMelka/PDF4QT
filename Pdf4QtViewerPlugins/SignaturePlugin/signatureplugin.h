@@ -51,6 +51,13 @@ private:
     void onSceneChanged(bool graphicsOnly);
     void onSceneSelectionChanged();
     void onWidgetSelectionChanged();
+    void onToolActivityChanged();
+
+    void onPenChanged(const QPen& pen);
+    void onBrushChanged(const QBrush& brush);
+    void onFontChanged(const QFont& font);
+    void onAlignmentChanged(Qt::Alignment alignment);
+    void onTextAngleChanged(pdf::PDFReal angle);
 
     enum Action
     {
@@ -106,6 +113,7 @@ private:
 
     pdf::PDFPageContentScene m_scene;
     bool m_sceneSelectionChangeEnabled;
+    pdf::PDFWidgetTool* getActiveTool();
 };
 
 }   // namespace pdfplugin

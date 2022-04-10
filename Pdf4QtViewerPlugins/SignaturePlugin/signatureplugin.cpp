@@ -139,6 +139,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     for (pdf::PDFWidgetTool* tool : m_tools)
     {
         toolManager->addTool(tool);
+        connect(tool, &pdf::PDFWidgetTool::toolActivityChanged, this, &SignaturePlugin::onToolActivityChanged);
     }
 
     m_widget->addInputInterface(&m_scene);
@@ -204,6 +205,76 @@ void SignaturePlugin::onWidgetSelectionChanged()
 
     pdf::PDFTemporaryValueChange guard(&m_sceneSelectionChangeEnabled, false);
     m_scene.setSelectedElementIds(m_editorWidget->getSelection());
+}
+
+pdf::PDFWidgetTool* SignaturePlugin::getActiveTool()
+{
+    for (pdf::PDFWidgetTool* currentTool : m_tools)
+    {
+        if (currentTool->isActive())
+        {
+            return currentTool;
+        }
+    }
+
+    return nullptr;
+}
+
+void SignaturePlugin::onToolActivityChanged()
+{
+    if (m_editorWidget)
+    {
+        pdf::PDFWidgetTool* activeTool = getActiveTool();
+
+        const pdf::PDFPageContentElement* element = nullptr;
+        pdf::PDFCreatePCElementTool* tool = qobject_cast<pdf::PDFCreatePCElementTool*>(activeTool);
+        if (tool)
+        {
+            element = tool->getElement();
+        }
+
+        m_editorWidget->loadStyleFromElement(element);
+    }
+}
+
+void SignaturePlugin::onPenChanged(const QPen& pen)
+{
+    if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
+    {
+        activeTool->setPen(pen);
+    }
+}
+
+void SignaturePlugin::onBrushChanged(const QBrush& brush)
+{
+    if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
+    {
+        activeTool->setBrush(brush);
+    }
+}
+
+void SignaturePlugin::onFontChanged(const QFont& font)
+{
+    if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
+    {
+        activeTool->setFont(font);
+    }
+}
+
+void SignaturePlugin::onAlignmentChanged(Qt::Alignment alignment)
+{
+    if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
+    {
+        activeTool->setAlignment(alignment);
+    }
+}
+
+void SignaturePlugin::onTextAngleChanged(pdf::PDFReal angle)
+{
+    if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
+    {
+        activeTool->setTextAngle(angle);
+    }
 }
 
 void SignaturePlugin::setActive(bool active)
@@ -325,6 +396,12 @@ void SignaturePlugin::updateDockWidget()
     {
         m_editorWidget->addAction(action);
     }
+
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::penChanged, this, &SignaturePlugin::onPenChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::brushChanged, this, &SignaturePlugin::onBrushChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::fontChanged, this, &SignaturePlugin::onFontChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::alignmentChanged, this, &SignaturePlugin::onAlignmentChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::textAngleChanged, this, &SignaturePlugin::onTextAngleChanged);
 }
 
 }

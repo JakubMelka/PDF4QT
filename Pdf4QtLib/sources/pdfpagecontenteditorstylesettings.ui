@@ -28,66 +28,8 @@
      </property>
     </widget>
    </item>
-   <item row="3" column="1">
-    <widget class="QComboBox" name="brushColorCombo">
-     <property name="editable">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="brushColorLabel">
-     <property name="text">
-      <string>Brush Color</string>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="0">
-    <widget class="QLabel" name="fontLabel">
-     <property name="text">
-      <string>Font</string>
-     </property>
-    </widget>
-   </item>
    <item row="4" column="1">
     <widget class="QFontComboBox" name="fontComboBox"/>
-   </item>
-   <item row="6" column="0">
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeType">
-      <enum>QSizePolicy::MinimumExpanding</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="textAlignmentLabel">
-     <property name="text">
-      <string>Text Alignment</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QComboBox" name="penColorCombo">
-     <property name="editable">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="penColorLabel">
-     <property name="text">
-      <string>Pen Color</string>
-     </property>
-    </widget>
    </item>
    <item row="4" column="2">
     <widget class="QToolButton" name="selectFontButton">
@@ -96,27 +38,20 @@
      </property>
     </widget>
    </item>
-   <item row="3" column="2">
-    <widget class="QToolButton" name="selectBrushColorButton">
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="2">
-    <widget class="QToolButton" name="selectPenColorButton">
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-   </item>
    <item row="0" column="1" colspan="2">
     <widget class="QDoubleSpinBox" name="penWidthEdit"/>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="brushColorLabel">
+     <property name="text">
+      <string>Brush Color</string>
+     </property>
+    </widget>
    </item>
    <item row="2" column="1" colspan="2">
     <widget class="QComboBox" name="penStyleCombo"/>
    </item>
-   <item row="5" column="1" colspan="2">
+   <item row="6" column="1" colspan="2">
     <layout class="QGridLayout" name="textAlignmentLayout">
      <item row="1" column="0">
       <widget class="QRadioButton" name="al21Button">
@@ -195,6 +130,88 @@
       </spacer>
      </item>
     </layout>
+   </item>
+   <item row="7" column="0">
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::MinimumExpanding</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="3" column="1">
+    <widget class="QComboBox" name="brushColorCombo">
+     <property name="editable">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="fontLabel">
+     <property name="text">
+      <string>Font</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QToolButton" name="selectPenColorButton">
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="penColorLabel">
+     <property name="text">
+      <string>Pen Color</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="2">
+    <widget class="QToolButton" name="selectBrushColorButton">
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="textAlignmentLabel">
+     <property name="text">
+      <string>Text Alignment</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QComboBox" name="penColorCombo">
+     <property name="editable">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="textAngleLabel">
+     <property name="text">
+      <string>Text Angle</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1" colspan="2">
+    <widget class="QDoubleSpinBox" name="textAngleEdit">
+     <property name="minimum">
+      <double>-90.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>90.000000000000000</double>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>

@@ -38,6 +38,51 @@ PDFCreatePCElementTool::PDFCreatePCElementTool(PDFDrawWidgetProxy* proxy,
 
 }
 
+void PDFCreatePCElementTool::setPen(const QPen& pen)
+{
+    if (PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(getElement()))
+    {
+        styledElement->setPen(pen);
+        emit getProxy()->repaintNeeded();
+    }
+}
+
+void PDFCreatePCElementTool::setBrush(const QBrush& brush)
+{
+    if (PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(getElement()))
+    {
+        styledElement->setBrush(brush);
+        emit getProxy()->repaintNeeded();
+    }
+}
+
+void PDFCreatePCElementTool::setFont(const QFont& font)
+{
+    if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
+    {
+        textBoxElement->setFont(font);
+        emit getProxy()->repaintNeeded();
+    }
+}
+
+void PDFCreatePCElementTool::setAlignment(Qt::Alignment alignment)
+{
+    if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
+    {
+        textBoxElement->setAlignment(alignment);
+        emit getProxy()->repaintNeeded();
+    }
+}
+
+void PDFCreatePCElementTool::setTextAngle(PDFReal angle)
+{
+    if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
+    {
+        textBoxElement->setAngle(angle);
+        emit getProxy()->repaintNeeded();
+    }
+}
+
 QRectF PDFCreatePCElementTool::getRectangleFromPickTool(PDFPickTool* pickTool,
                                                         const QMatrix& pagePointToDevicePointMatrix)
 {
@@ -118,6 +163,16 @@ void PDFCreatePCElementRectangleTool::drawPage(QPainter* painter,
     m_element->setRectangle(rectangle);
 
     m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+}
+
+const PDFPageContentElement* PDFCreatePCElementRectangleTool::getElement() const
+{
+    return m_element;
+}
+
+PDFPageContentElement* PDFCreatePCElementRectangleTool::getElement()
+{
+    return m_element;
 }
 
 void PDFCreatePCElementRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
@@ -204,6 +259,16 @@ void PDFCreatePCElementLineTool::drawPage(QPainter* painter,
     }
 
     m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+}
+
+const PDFPageContentElement* PDFCreatePCElementLineTool::getElement() const
+{
+    return m_element;
+}
+
+PDFPageContentElement* PDFCreatePCElementLineTool::getElement()
+{
+    return m_element;
 }
 
 void PDFCreatePCElementLineTool::clear()
@@ -298,6 +363,16 @@ void PDFCreatePCElementSvgTool::drawPage(QPainter* painter,
     m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
+const PDFPageContentElement* PDFCreatePCElementSvgTool::getElement() const
+{
+    return m_element;
+}
+
+PDFPageContentElement* PDFCreatePCElementSvgTool::getElement()
+{
+    return m_element;
+}
+
 void PDFCreatePCElementSvgTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
     if (pageRectangle.isEmpty())
@@ -360,6 +435,16 @@ void PDFCreatePCElementDotTool::drawPage(QPainter* painter,
     painter->drawPoint(point);
 }
 
+const PDFPageContentElement* PDFCreatePCElementDotTool::getElement() const
+{
+    return m_element;
+}
+
+PDFPageContentElement* PDFCreatePCElementDotTool::getElement()
+{
+    return m_element;
+}
+
 void PDFCreatePCElementDotTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 {
     m_element->setPageIndex(pageIndex);
@@ -407,6 +492,16 @@ void PDFCreatePCElementFreehandCurveTool::drawPage(QPainter* painter,
     }
 
     m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+}
+
+const PDFPageContentElement* PDFCreatePCElementFreehandCurveTool::getElement() const
+{
+    return m_element;
+}
+
+PDFPageContentElement* PDFCreatePCElementFreehandCurveTool::getElement()
+{
+    return m_element;
 }
 
 void PDFCreatePCElementFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -552,6 +647,16 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
         painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
         m_textEditWidget->draw(parameters, true);
     }
+}
+
+const PDFPageContentElement* PDFCreatePCElementTextTool::getElement() const
+{
+    return m_element;
+}
+
+PDFPageContentElement* PDFCreatePCElementTextTool::getElement()
+{
+    return m_element;
 }
 
 void PDFCreatePCElementTextTool::resetTool()
@@ -765,6 +870,27 @@ void PDFCreatePCElementTextTool::wheelEvent(QWidget* widget, QWheelEvent* event)
     {
         BaseClass::wheelEvent(widget, event);
     }
+}
+
+void PDFCreatePCElementTextTool::setFont(const QFont& font)
+{
+    BaseClass::setFont(font);
+    m_textEditWidget->setAppearance(font, m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), m_element->getPen().color());
+    emit getProxy()->repaintNeeded();
+}
+
+void PDFCreatePCElementTextTool::setAlignment(Qt::Alignment alignment)
+{
+    BaseClass::setAlignment(alignment);
+    m_textEditWidget->setAppearance(m_element->getFont(), alignment, m_element->getRectangle(), std::numeric_limits<int>::max(), m_element->getPen().color());
+    emit getProxy()->repaintNeeded();
+}
+
+void PDFCreatePCElementTextTool::setPen(const QPen& pen)
+{
+    BaseClass::setPen(pen);
+    m_textEditWidget->setAppearance(m_element->getFont(), m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), pen.color());
+    emit getProxy()->repaintNeeded();
 }
 
 }   // namespace pdf

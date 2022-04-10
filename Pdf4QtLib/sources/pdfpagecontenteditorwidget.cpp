@@ -33,7 +33,8 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget* parent) :
     ui(new Ui::PDFPageContentEditorWidget),
     m_toolBoxColumnCount(6),
     m_scene(nullptr),
-    m_selectionChangeEnabled(true)
+    m_selectionChangeEnabled(true),
+    m_updatesEnabled(true)
 {
     ui->setupUi(this);
 
@@ -81,6 +82,12 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget* parent) :
     connect(&m_actionMapper, &QSignalMapper::mappedObject, this, &PDFPageContentEditorWidget::onActionTriggerRequest);
     connect(&m_operationMapper, &QSignalMapper::mappedInt, this, &PDFPageContentEditorWidget::operationTriggered);
     connect(ui->itemsListWidget->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFPageContentEditorWidget::onItemSelectionChanged);
+
+    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::penChanged, this, &PDFPageContentEditorWidget::penChanged);
+    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::brushChanged, this, &PDFPageContentEditorWidget::brushChanged);
+    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::fontChanged, this, &PDFPageContentEditorWidget::fontChanged);
+    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::alignmentChanged, this, &PDFPageContentEditorWidget::alignmentChanged);
+    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::textAngleChanged, this, &PDFPageContentEditorWidget::textAngleChanged);
 }
 
 PDFPageContentEditorWidget::~PDFPageContentEditorWidget()
@@ -133,6 +140,12 @@ QToolButton* PDFPageContentEditorWidget::getToolButtonForOperation(int operation
 
 void PDFPageContentEditorWidget::updateItemsInListWidget()
 {
+    if (!m_updatesEnabled)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange guard(&m_updatesEnabled, false);
     ui->itemsListWidget->setUpdatesEnabled(false);
 
     if (m_scene)
@@ -250,6 +263,11 @@ void PDFPageContentEditorWidget::setSelection(const std::set<PDFInteger>& select
         const PDFInteger elementId = item->data(Qt::UserRole).toLongLong();
         item->setSelected(selection.count(elementId));
     }
+}
+
+void PDFPageContentEditorWidget::loadStyleFromElement(const PDFPageContentElement* element)
+{
+    ui->appearanceSettingsWidget->loadFromElement(element, false);
 }
 
 }   // namespace pdf
