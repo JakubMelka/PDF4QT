@@ -82,6 +82,7 @@ private slots:
     void onTextAngleChanged(double value);
     void onAlignmentRadioButtonClicked(int alignment);
     void onPenStyleChanged();
+    void onBrushStyleChanged();
     void onPenColorComboTextChanged();
     void onPenColorComboIndexChanged();
     void onBrushColorComboTextChanged();

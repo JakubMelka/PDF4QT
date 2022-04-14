@@ -1,59 +1,14 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   version="1.1"
-   id="Vrstva_1"
-   x="0px"
-   y="0px"
-   width="24px"
-   height="24px"
-   viewBox="0 0 24 24"
-   enable-background="new 0 0 24 24"
-   xml:space="preserve"
-   sodipodi:docname="settings.svg"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"><metadata
-   id="metadata855"><rdf:RDF><cc:Work
-       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
-         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
-   id="defs853" /><sodipodi:namedview
-   pagecolor="#ffffff"
-   bordercolor="#666666"
-   borderopacity="1"
-   objecttolerance="10"
-   gridtolerance="10"
-   guidetolerance="10"
-   inkscape:pageopacity="0"
-   inkscape:pageshadow="2"
-   inkscape:window-width="3840"
-   inkscape:window-height="2035"
-   id="namedview851"
-   showgrid="false"
-   inkscape:zoom="25.897786"
-   inkscape:cx="11.395365"
-   inkscape:cy="14.769276"
-   inkscape:window-x="-13"
-   inkscape:window-y="-13"
-   inkscape:window-maximized="1"
-   inkscape:current-layer="Vrstva_1" />
-
-
-
-<text
-   xml:space="preserve"
-   style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.33333397px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
-   x="5.7533879"
-   y="19.984211"
-   id="text859"><tspan
-     sodipodi:role="line"
-     id="tspan857"
-     x="5.7533879"
-     y="19.984211">?</tspan></text>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<path fill="none" stroke="#292D32" stroke-width="1.5" stroke-miterlimit="10" d="M2.219,16.916c0,0,1.829-5.375,9.253-3.27
+		c7.8,2.213,8.95,1.967,10.308-0.605"/>
+	<path fill="#292D32" d="M14.854,9.8c0,0.271,0.192,0.49,0.429,0.49h4.568c0.236,0,0.431-0.22,0.431-0.49l0,0
+		c0-0.27-0.193-0.489-0.431-0.489h-4.568C15.047,9.311,14.854,9.53,14.854,9.8L14.854,9.8z"/>
+	<path fill="#292D32" d="M17.567,12.516c0.27,0,0.489-0.196,0.489-0.433V7.517c0-0.237-0.22-0.432-0.489-0.432l0,0
+		c-0.269,0-0.488,0.194-0.488,0.432v4.565C17.079,12.322,17.299,12.516,17.567,12.516L17.567,12.516z"/>
+</g>
 </svg>

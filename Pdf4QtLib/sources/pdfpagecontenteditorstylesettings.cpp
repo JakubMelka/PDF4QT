@@ -50,12 +50,21 @@ PDFPageContentEditorStyleSettings::PDFPageContentEditorStyleSettings(QWidget* pa
     ui->penStyleCombo->addItem(tr("Dash-dot"), int(Qt::DashDotLine));
     ui->penStyleCombo->addItem(tr("Dash-dot-dot"), int(Qt::DashDotDotLine));
 
+    ui->brushStyleCombo->addItem(tr("None"), int(Qt::NoBrush));
+    ui->brushStyleCombo->addItem(tr("Solid"), int(Qt::SolidPattern));
+    ui->brushStyleCombo->addItem(tr("Horizontal"), int(Qt::HorPattern));
+    ui->brushStyleCombo->addItem(tr("Vertical"), int(Qt::VerPattern));
+    ui->brushStyleCombo->addItem(tr("B-Diagonal"), int(Qt::BDiagPattern));
+    ui->brushStyleCombo->addItem(tr("F-Diagonal"), int(Qt::FDiagPattern));
+    ui->brushStyleCombo->addItem(tr("Cross"), int(Qt::CrossPattern));
+
     connect(ui->fontComboBox, &QFontComboBox::currentFontChanged, this, &PDFPageContentEditorStyleSettings::onFontChanged);
     connect(ui->selectPenColorButton, &QToolButton::clicked, this, &PDFPageContentEditorStyleSettings::onSelectPenColorButtonClicked);
     connect(ui->selectBrushColorButton, &QToolButton::clicked, this, &PDFPageContentEditorStyleSettings::onSelectBrushColorButtonClicked);
     connect(ui->selectFontButton, &QToolButton::clicked, this, &PDFPageContentEditorStyleSettings::onSelectFontButtonClicked);
     connect(ui->penWidthEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFPageContentEditorStyleSettings::onPenWidthChanged);
     connect(ui->penStyleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFPageContentEditorStyleSettings::onPenStyleChanged);
+    connect(ui->brushStyleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFPageContentEditorStyleSettings::onBrushStyleChanged);
     connect(ui->textAngleEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFPageContentEditorStyleSettings::onTextAngleChanged);
     connect(ui->penColorCombo->lineEdit(), &QLineEdit::editingFinished, this, &PDFPageContentEditorStyleSettings::onPenColorComboTextChanged);
     connect(ui->penColorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFPageContentEditorStyleSettings::onPenColorComboIndexChanged);
@@ -120,6 +129,9 @@ void PDFPageContentEditorStyleSettings::loadFromElement(const PDFPageContentElem
     ui->penColorCombo->setEnabled(hasPenColor);
     ui->penColorLabel->setEnabled(hasPenColor);
     ui->selectPenColorButton->setEnabled(hasPenColor);
+
+    ui->brushStyleLabel->setEnabled(hasBrush);
+    ui->brushStyleCombo->setEnabled(hasBrush);
 
     ui->brushColorCombo->setEnabled(hasBrush);
     ui->brushColorLabel->setEnabled(hasBrush);
@@ -187,6 +199,7 @@ void PDFPageContentEditorStyleSettings::setBrush(const QBrush& brush, bool force
         const bool oldBlockSignals = blockSignals(true);
 
         m_brush = brush;
+        ui->brushStyleCombo->setCurrentIndex(ui->brushStyleCombo->findData(int(brush.style())));
         setColorToComboBox(ui->brushColorCombo, brush.color());
 
         blockSignals(oldBlockSignals);
@@ -355,6 +368,16 @@ void PDFPageContentEditorStyleSettings::onPenStyleChanged()
     {
         m_pen.setStyle(penStyle);
         emit penChanged(m_pen);
+    }
+}
+
+void PDFPageContentEditorStyleSettings::onBrushStyleChanged()
+{
+    Qt::BrushStyle brushStyle = static_cast<Qt::BrushStyle>(ui->brushStyleCombo->currentData().toInt());
+    if (m_brush.style() != brushStyle)
+    {
+        m_brush.setStyle(brushStyle);
+        emit brushChanged(m_brush);
     }
 }
 
