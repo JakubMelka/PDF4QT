@@ -232,6 +232,7 @@ void PDFPageContentEditorStyleSettings::setFontAlignment(Qt::Alignment alignment
             radioButton->setChecked(false);
         }
 
+        m_alignment = alignment;
         QRadioButton* radioButton = qobject_cast<QRadioButton*>(m_alignmentMapper.mapping(int(alignment)));
         radioButton->setChecked(true);
 

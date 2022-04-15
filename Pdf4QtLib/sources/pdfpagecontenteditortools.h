@@ -25,7 +25,7 @@ namespace pdf
 
 class PDFPageContentScene;
 class PDFPageContentElement;
-class PDFPageContentSvgElement;
+class PDFPageContentImageElement;
 class PDFPageContentElementDot;
 class PDFPageContentElementLine;
 class PDFPageContentElementTextBox;
@@ -90,8 +90,8 @@ private:
     PDFPageContentElementRectangle* m_element;
 };
 
-/// Tool that displays SVG image
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementSvgTool : public PDFCreatePCElementTool
+/// Tool that displays SVG image (or raster image)
+class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementImageTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 
@@ -99,12 +99,13 @@ private:
     using BaseClass = PDFCreatePCElementTool;
 
 public:
-    explicit PDFCreatePCElementSvgTool(PDFDrawWidgetProxy* proxy,
-                                       PDFPageContentScene* scene,
-                                       QAction* action,
-                                       QByteArray content,
-                                       QObject* parent);
-    virtual ~PDFCreatePCElementSvgTool() override;
+    explicit PDFCreatePCElementImageTool(PDFDrawWidgetProxy* proxy,
+                                         PDFPageContentScene* scene,
+                                         QAction* action,
+                                         QByteArray content,
+                                         bool askSelectImage,
+                                         QObject* parent);
+    virtual ~PDFCreatePCElementImageTool() override;
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
@@ -116,11 +117,17 @@ public:
     virtual const PDFPageContentElement* getElement() const override;
     virtual PDFPageContentElement* getElement() override;
 
+protected:
+    virtual void setActiveImpl(bool active) override;
+
 private:
+    void selectImage();
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     PDFPickTool* m_pickTool;
-    PDFPageContentSvgElement* m_element;
+    PDFPageContentImageElement* m_element;
+    bool m_askSelectImage;
+    QString m_imageDirectory;
 };
 
 /// Tool that creates line element.

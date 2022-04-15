@@ -270,13 +270,13 @@ private:
     QPainterPath m_curve;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentSvgElement : public PDFPageContentElement
+class PDF4QTLIBSHARED_EXPORT PDFPageContentImageElement : public PDFPageContentElement
 {
 public:
-    PDFPageContentSvgElement();
-    virtual ~PDFPageContentSvgElement();
+    PDFPageContentImageElement();
+    virtual ~PDFPageContentImageElement();
 
-    virtual PDFPageContentSvgElement* clone() const override;
+    virtual PDFPageContentImageElement* clone() const override;
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
@@ -302,6 +302,7 @@ public:
 private:
     QRectF m_rectangle;
     QByteArray m_content;
+    QImage m_image;
     std::unique_ptr<QSvgRenderer> m_renderer;
 };
 

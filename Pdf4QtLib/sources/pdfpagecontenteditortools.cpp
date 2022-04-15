@@ -19,10 +19,13 @@
 #include "pdfpagecontentelements.h"
 #include "pdfpainterutils.h"
 #include "pdftexteditpseudowidget.h"
+#include "pdfdrawwidget.h"
 
 #include <QPen>
 #include <QPainter>
 #include <QMouseEvent>
+#include <QFileDialog>
+#include <QImageReader>
 #include <QGuiApplication>
 
 namespace pdf
@@ -303,32 +306,34 @@ void PDFCreatePCElementLineTool::onPointPicked(PDFInteger pageIndex, QPointF pag
     setActive(false);
 }
 
-PDFCreatePCElementSvgTool::PDFCreatePCElementSvgTool(PDFDrawWidgetProxy* proxy,
+PDFCreatePCElementImageTool::PDFCreatePCElementImageTool(PDFDrawWidgetProxy* proxy,
                                                      PDFPageContentScene* scene,
                                                      QAction* action,
                                                      QByteArray content,
+                                                     bool askSelectImage,
                                                      QObject* parent) :
     BaseClass(proxy, scene, action, parent),
     m_pickTool(nullptr),
-    m_element(nullptr)
+    m_element(nullptr),
+    m_askSelectImage(askSelectImage)
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     m_pickTool->setDrawSelectionRectangle(false);
     addTool(m_pickTool);
-    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementSvgTool::onRectanglePicked);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementImageTool::onRectanglePicked);
 
-    m_element = new PDFPageContentSvgElement();
+    m_element = new PDFPageContentImageElement();
     m_element->setContent(content);
 
     updateActions();
 }
 
-PDFCreatePCElementSvgTool::~PDFCreatePCElementSvgTool()
+PDFCreatePCElementImageTool::~PDFCreatePCElementImageTool()
 {
     delete m_element;
 }
 
-void PDFCreatePCElementSvgTool::drawPage(QPainter* painter,
+void PDFCreatePCElementImageTool::drawPage(QPainter* painter,
                                          PDFInteger pageIndex,
                                          const PDFPrecompiledPage* compiledPage,
                                          PDFTextLayoutGetter& layoutGetter,
@@ -363,17 +368,76 @@ void PDFCreatePCElementSvgTool::drawPage(QPainter* painter,
     m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
-const PDFPageContentElement* PDFCreatePCElementSvgTool::getElement() const
+const PDFPageContentElement* PDFCreatePCElementImageTool::getElement() const
 {
     return m_element;
 }
 
-PDFPageContentElement* PDFCreatePCElementSvgTool::getElement()
+PDFPageContentElement* PDFCreatePCElementImageTool::getElement()
 {
     return m_element;
 }
 
-void PDFCreatePCElementSvgTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+void PDFCreatePCElementImageTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active && m_askSelectImage)
+    {
+        QTimer::singleShot(0, this, &PDFCreatePCElementImageTool::selectImage);
+    }
+}
+
+void PDFCreatePCElementImageTool::selectImage()
+{
+    if (m_imageDirectory.isEmpty())
+    {
+        QStringList pictureDirectiories = QStandardPaths::standardLocations(QStandardPaths::PicturesLocation);
+        if (!pictureDirectiories.isEmpty())
+        {
+            m_imageDirectory = pictureDirectiories.last();
+        }
+        else
+        {
+            m_imageDirectory = QDir::currentPath();
+        }
+    }
+
+    QList<QByteArray> mimeTypes = QImageReader::supportedMimeTypes();
+    QStringList mimeTypeFilters;
+    for (const QByteArray& mimeType : mimeTypes)
+    {
+        mimeTypeFilters.append(mimeType);
+    }
+
+    QFileDialog dialog(getProxy()->getWidget(), tr("Select Image"));
+    dialog.setDirectory(m_imageDirectory);
+    dialog.setMimeTypeFilters(mimeTypeFilters);
+    dialog.selectMimeTypeFilter("image/svg+xml");
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+
+    if (dialog.exec() == QFileDialog::Accepted)
+    {
+        QString fileName = dialog.selectedFiles().constFirst();
+        QFile file(fileName);
+        if (file.open(QFile::ReadOnly))
+        {
+            m_element->setContent(file.readAll());
+            file.close();
+        }
+        else
+        {
+            setActive(false);
+        }
+    }
+    else
+    {
+        setActive(false);
+    }
+}
+
+void PDFCreatePCElementImageTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
     if (pageRectangle.isEmpty())
     {

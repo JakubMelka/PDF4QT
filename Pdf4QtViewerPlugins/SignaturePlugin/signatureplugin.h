@@ -98,6 +98,7 @@ private:
         VerticalLineTool,
         LineTool,
         DotTool,
+        ImageTool,
         LastTool
     };
 

@@ -27,6 +27,7 @@
 #include <QMouseEvent>
 #include <QSvgRenderer>
 #include <QApplication>
+#include <QImageReader>
 
 namespace pdf
 {
@@ -1066,20 +1067,20 @@ void PDFPageContentElementLine::setLine(const QLineF& newLine)
     }
 }
 
-PDFPageContentSvgElement::PDFPageContentSvgElement() :
+PDFPageContentImageElement::PDFPageContentImageElement() :
     m_renderer(std::make_unique<QSvgRenderer>())
 {
 
 }
 
-PDFPageContentSvgElement::~PDFPageContentSvgElement()
+PDFPageContentImageElement::~PDFPageContentImageElement()
 {
 
 }
 
-PDFPageContentSvgElement* PDFPageContentSvgElement::clone() const
+PDFPageContentImageElement* PDFPageContentImageElement::clone() const
 {
-    PDFPageContentSvgElement* copy = new PDFPageContentSvgElement();
+    PDFPageContentImageElement* copy = new PDFPageContentImageElement();
     copy->setElementId(getElementId());
     copy->setPageIndex(getPageIndex());
     copy->setRectangle(getRectangle());
@@ -1087,7 +1088,7 @@ PDFPageContentSvgElement* PDFPageContentSvgElement::clone() const
     return copy;
 }
 
-void PDFPageContentSvgElement::drawPage(QPainter* painter,
+void PDFPageContentImageElement::drawPage(QPainter* painter,
                                         PDFInteger pageIndex,
                                         const PDFPrecompiledPage* compiledPage,
                                         PDFTextLayoutGetter& layoutGetter,
@@ -1107,70 +1108,98 @@ void PDFPageContentSvgElement::drawPage(QPainter* painter,
     painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
     painter->setRenderHint(QPainter::Antialiasing);
 
-    QRectF viewBox = m_renderer->viewBoxF();
-    if (!viewBox.isValid())
+    if (m_renderer->isValid())
     {
-        return;
+        QRectF viewBox = m_renderer->viewBoxF();
+        if (!viewBox.isValid())
+        {
+            return;
+        }
+
+        QRectF renderBox = getRectangle();
+        QSizeF viewBoxSize = viewBox.size();
+        QSizeF renderBoxSize = viewBoxSize.scaled(renderBox.size(), Qt::KeepAspectRatio);
+        QRectF targetRenderBox = QRectF(QPointF(), renderBoxSize);
+        targetRenderBox.moveCenter(renderBox.center());
+
+        painter->translate(targetRenderBox.bottomLeft());
+        painter->scale(1.0, -1.0);
+        targetRenderBox.moveTopLeft(QPointF(0, 0));
+
+        m_renderer->render(painter, targetRenderBox);
     }
+    else if (!m_image.isNull())
+    {
+        QRectF viewBox(QPointF(0, 0), m_image.size());
 
-    QRectF renderBox = getRectangle();
-    QSizeF viewBoxSize = viewBox.size();
-    QSizeF renderBoxSize = viewBoxSize.scaled(renderBox.size(), Qt::KeepAspectRatio);
-    QRectF targetRenderBox = QRectF(QPointF(), renderBoxSize);
-    targetRenderBox.moveCenter(renderBox.center());
+        QRectF renderBox = getRectangle();
+        QSizeF viewBoxSize = viewBox.size();
+        QSizeF renderBoxSize = viewBoxSize.scaled(renderBox.size(), Qt::KeepAspectRatio);
+        QRectF targetRenderBox = QRectF(QPointF(), renderBoxSize);
+        targetRenderBox.moveCenter(renderBox.center());
 
-    painter->translate(targetRenderBox.bottomLeft());
-    painter->scale(1.0, -1.0);
-    targetRenderBox.moveTopLeft(QPointF(0, 0));
+        painter->translate(targetRenderBox.bottomLeft());
+        painter->scale(1.0, -1.0);
+        targetRenderBox.moveTopLeft(QPointF(0, 0));
 
-    m_renderer->render(painter, targetRenderBox);
+        painter->drawImage(targetRenderBox, m_image);
+    }
 }
 
-uint PDFPageContentSvgElement::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
+uint PDFPageContentImageElement::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
 {
     return getRectangleManipulationMode(getRectangle(), point, snapPointDistanceThreshold);
 }
 
-void PDFPageContentSvgElement::performManipulation(uint mode, const QPointF& offset)
+void PDFPageContentImageElement::performManipulation(uint mode, const QPointF& offset)
 {
     performRectangleManipulation(m_rectangle, mode, offset);
 }
 
-QRectF PDFPageContentSvgElement::getBoundingBox() const
+QRectF PDFPageContentImageElement::getBoundingBox() const
 {
     return getRectangle();
 }
 
-void PDFPageContentSvgElement::setSize(QSizeF size)
+void PDFPageContentImageElement::setSize(QSizeF size)
 {
     performRectangleSetSize(m_rectangle, size);
 }
 
-QString PDFPageContentSvgElement::getDescription() const
+QString PDFPageContentImageElement::getDescription() const
 {
     return formatDescription(PDFTranslationContext::tr("SVG image"));
 }
 
-const QByteArray& PDFPageContentSvgElement::getContent() const
+const QByteArray& PDFPageContentImageElement::getContent() const
 {
     return m_content;
 }
 
-void PDFPageContentSvgElement::setContent(const QByteArray& newContent)
+void PDFPageContentImageElement::setContent(const QByteArray& newContent)
 {
     if (m_content != newContent)
     {
         m_content = newContent;
-        m_renderer->load(m_content);
+        if (!m_renderer->load(m_content))
+        {
+            QByteArray imageData = m_content;
+            QBuffer buffer(&imageData);
+            buffer.open(QBuffer::ReadOnly);
+
+            QImageReader reader(&buffer);
+            m_image = reader.read();
+            buffer.close();;
+        }
     }
 }
 
-const QRectF& PDFPageContentSvgElement::getRectangle() const
+const QRectF& PDFPageContentImageElement::getRectangle() const
 {
     return m_rectangle;
 }
 
-void PDFPageContentSvgElement::setRectangle(const QRectF& newRectangle)
+void PDFPageContentImageElement::setRectangle(const QRectF& newRectangle)
 {
     m_rectangle = newRectangle;
 }
