@@ -2355,12 +2355,67 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
     painter->setClipRect(rect, Qt::IntersectClip);
     painter->translate(rect.center());
     painter->scale(1.0, -1.0);
-    painter->rotate(getAngle());
 
     QTextOption option;
     option.setAlignment(getAlignment());
+
     QRectF textRect(-rect.width() * 0.5, -rect.height() * 0.5, rect.width(), rect.height());
-    painter->drawText(textRect, getText(), option);
+    if (qFuzzyIsNull(getAngle()))
+    {
+        painter->drawText(textRect, getText(), option);
+    }
+    else
+    {
+        QRectF textBoundingRect = painter->boundingRect(textRect, getText(), option);
+
+        QMatrix matrix;
+        matrix.rotate(getAngle());
+        QRectF mappedTextBoundingRect = matrix.mapRect(textBoundingRect);
+
+        switch (getAlignment() & Qt::AlignHorizontal_Mask)
+        {
+            case Qt::AlignLeft:
+                mappedTextBoundingRect.moveLeft(textRect.left());
+                break;
+
+            case Qt::AlignHCenter:
+                mappedTextBoundingRect.moveLeft(textRect.left() + textRect.width() * 0.5 - mappedTextBoundingRect.width() * 0.5);
+                break;
+
+            case Qt::AlignRight:
+                mappedTextBoundingRect.moveRight(textRect.right());
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        switch (getAlignment() & Qt::AlignVertical_Mask)
+        {
+            case Qt::AlignTop:
+                mappedTextBoundingRect.moveTop(textRect.top());
+                break;
+
+            case Qt::AlignVCenter:
+                mappedTextBoundingRect.moveTop(textRect.top() + textRect.height() * 0.5 - mappedTextBoundingRect.height() * 0.5);
+                break;
+
+            case Qt::AlignBottom:
+                mappedTextBoundingRect.moveBottom(textRect.bottom());
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        painter->translate(mappedTextBoundingRect.center());
+        painter->rotate(getAngle());
+
+        textBoundingRect.moveCenter(QPointF(0, 0));
+        painter->drawText(textBoundingRect, getText(), option);
+    }
 }
 
 uint PDFPageContentElementTextBox::getManipulationMode(const QPointF& point,
