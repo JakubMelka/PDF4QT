@@ -548,6 +548,9 @@ signals:
 
     void selectionChanged();
 
+    /// Request to edit the elements
+    void editElementRequest(const std::set<PDFInteger>& elements);
+
 private:
 
     struct MouseEventInfo

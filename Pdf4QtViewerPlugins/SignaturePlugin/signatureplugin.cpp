@@ -19,6 +19,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfutils.h"
 #include "pdfpagecontenteditorwidget.h"
+#include "pdfpagecontenteditorstylesettings.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -148,6 +149,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     m_scene.setWidget(m_widget);
     connect(&m_scene, &pdf::PDFPageContentScene::sceneChanged, this, &SignaturePlugin::onSceneChanged);
     connect(&m_scene, &pdf::PDFPageContentScene::selectionChanged, this, &SignaturePlugin::onSceneSelectionChanged);
+    connect(&m_scene, &pdf::PDFPageContentScene::editElementRequest, this, &SignaturePlugin::onSceneEditElement);
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);
 
@@ -235,6 +237,34 @@ void SignaturePlugin::onToolActivityChanged()
         }
 
         m_editorWidget->loadStyleFromElement(element);
+    }
+}
+
+void SignaturePlugin::onSceneEditElement(const std::set<pdf::PDFInteger>& elements)
+{
+    if (elements.empty())
+    {
+        return;
+    }
+
+    pdf::PDFPageContentElement* element = nullptr;
+    for (pdf::PDFInteger id : elements)
+    {
+        element = m_scene.getElementById(id);
+        if (element)
+        {
+            break;
+        }
+    }
+
+    if (!element)
+    {
+        return;
+    }
+
+    if (pdf::PDFPageContentEditorStyleSettings::showEditElementStyleDialog(m_dataExchangeInterface->getMainWindow(), element))
+    {
+        updateGraphics();
     }
 }
 

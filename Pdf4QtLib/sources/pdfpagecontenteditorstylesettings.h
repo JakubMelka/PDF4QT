@@ -38,7 +38,7 @@ namespace pdf
 {
 class PDFPageContentElement;
 
-class PDFPageContentEditorStyleSettings : public QWidget
+class PDF4QTLIBSHARED_EXPORT PDFPageContentEditorStyleSettings : public QWidget
 {
     Q_OBJECT
 
@@ -66,6 +66,14 @@ public:
     void setFont(const QFont& font, bool forceUpdate);
     void setFontAlignment(Qt::Alignment alignment, bool forceUpdate);
     void setTextAngle(PDFReal angle, bool forceUpdate);
+
+    static bool showEditElementStyleDialog(QWidget* parent, PDFPageContentElement* element);
+
+    const QPen& getPen() const;
+    const QBrush& getBrush() const;
+    const QFont& getFont() const;
+    Qt::Alignment getAlignment() const;
+    PDFReal getTextAngle() const;
 
 signals:
     void penChanged(const QPen& pen);

@@ -52,6 +52,7 @@ private:
     void onSceneSelectionChanged();
     void onWidgetSelectionChanged();
     void onToolActivityChanged();
+    void onSceneEditElement(const std::set<pdf::PDFInteger>& elements);
 
     void onPenChanged(const QPen& pen);
     void onBrushChanged(const QBrush& brush);

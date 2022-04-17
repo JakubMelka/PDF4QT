@@ -504,6 +504,12 @@ void PDFPageContentScene::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* ev
         return;
     }
 
+    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    if (info.isValid())
+    {
+        emit editElementRequest(info.hoveredElementIds);
+    }
+
     // If mouse is grabbed, then event is accepted always (because
     // we get Press event, when we grabbed the mouse, then we will
     // wait for corresponding release event while all mouse move events

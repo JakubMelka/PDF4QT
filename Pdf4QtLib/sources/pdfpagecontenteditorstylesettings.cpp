@@ -24,6 +24,10 @@
 #include <QFontDialog>
 #include <QColorDialog>
 #include <QLineEdit>
+#include <QVBoxLayout>
+#include <QGroupBox>
+#include <QDialogButtonBox>
+#include <QTextEdit>
 
 namespace pdf
 {
@@ -252,6 +256,71 @@ void PDFPageContentEditorStyleSettings::setTextAngle(PDFReal angle, bool forceUp
     }
 }
 
+bool PDFPageContentEditorStyleSettings::showEditElementStyleDialog(QWidget* parent,
+                                                                   PDFPageContentElement* element)
+{
+    QDialog dialog(parent);
+    dialog.setWindowTitle(tr("Edit Item"));
+    dialog.setLayout(new QVBoxLayout());
+
+    QTextEdit* textEdit = nullptr;
+    PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(element);
+    PDFPageContentElementTextBox* textElement = dynamic_cast<PDFPageContentElementTextBox*>(element);
+    if (textElement)
+    {
+        QGroupBox* contentGroupBox = new QGroupBox(&dialog);
+        textEdit = new QTextEdit(textElement->getText(), contentGroupBox);
+        textEdit->setFont(textElement->getFont());
+        textEdit->setAlignment(textElement->getAlignment());
+        textEdit->setTextColor(textElement->getPen().color());
+        contentGroupBox->setTitle(tr("Content"));
+        contentGroupBox->setLayout(new QVBoxLayout());
+        contentGroupBox->layout()->addWidget(textEdit);
+        dialog.layout()->addWidget(contentGroupBox);
+    }
+
+    PDFPageContentEditorStyleSettings* appearanceWidget = new PDFPageContentEditorStyleSettings(&dialog);
+    appearanceWidget->loadFromElement(element, true);
+    if (textEdit)
+    {
+        connect(appearanceWidget, &PDFPageContentEditorStyleSettings::alignmentChanged, textEdit, &QTextEdit::setAlignment);
+        connect(appearanceWidget, &PDFPageContentEditorStyleSettings::fontChanged, textEdit, &QTextEdit::setFont);
+        connect(appearanceWidget, &PDFPageContentEditorStyleSettings::penChanged, textEdit, [textEdit](const QPen& pen) { textEdit->setTextColor(pen.color()); });
+    }
+
+    QGroupBox* appearanceGroupBox = new QGroupBox(&dialog);
+    appearanceGroupBox->setTitle(tr("Appearance"));
+    appearanceGroupBox->setLayout(new QVBoxLayout());
+    appearanceGroupBox->layout()->addWidget(appearanceWidget);
+    dialog.layout()->addWidget(appearanceGroupBox);
+
+    QDialogButtonBox* dialogButtonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(dialogButtonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(dialogButtonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    dialog.layout()->addWidget(dialogButtonBox);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        if (styledElement)
+        {
+            styledElement->setPen(appearanceWidget->getPen());
+            styledElement->setBrush(appearanceWidget->getBrush());
+        }
+
+        if (textElement)
+        {
+            textElement->setText(textEdit->toPlainText());
+            textElement->setFont(appearanceWidget->getFont());
+            textElement->setAlignment(appearanceWidget->getAlignment());
+            textElement->setAngle(appearanceWidget->getTextAngle());
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 QIcon PDFPageContentEditorStyleSettings::getIconForColor(QColor color) const
 {
     QIcon icon;
@@ -330,6 +399,31 @@ void PDFPageContentEditorStyleSettings::setBrushColor(QColor color)
         setColorToComboBox(ui->brushColorCombo, color);
         emit brushChanged(m_brush);
     }
+}
+
+Qt::Alignment PDFPageContentEditorStyleSettings::getAlignment() const
+{
+    return m_alignment;
+}
+
+PDFReal PDFPageContentEditorStyleSettings::getTextAngle() const
+{
+    return ui->textAngleEdit->value();
+}
+
+const QFont& PDFPageContentEditorStyleSettings::getFont() const
+{
+    return m_font;
+}
+
+const QBrush& PDFPageContentEditorStyleSettings::getBrush() const
+{
+    return m_brush;
+}
+
+const QPen& PDFPageContentEditorStyleSettings::getPen() const
+{
+    return m_pen;
 }
 
 void PDFPageContentEditorStyleSettings::onSelectBrushColorButtonClicked()
