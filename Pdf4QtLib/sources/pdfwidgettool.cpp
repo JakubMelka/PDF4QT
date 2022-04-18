@@ -101,7 +101,7 @@ void PDFWidgetTool::setActive(bool active)
         setActiveImpl(active);
         updateActions();
 
-        m_proxy->repaintNeeded();
+        emit m_proxy->repaintNeeded();
         emit toolActivityChanged(active);
     }
 }

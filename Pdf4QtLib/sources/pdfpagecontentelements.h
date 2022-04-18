@@ -504,6 +504,9 @@ public:
     /// Returns set of selected element ids
     std::set<PDFInteger> getSelectedElementIds() const;
 
+    /// Returns set of involved pages
+    std::set<PDFInteger> getPageIndices() const;
+
     /// Set selected items
     void setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds);
 

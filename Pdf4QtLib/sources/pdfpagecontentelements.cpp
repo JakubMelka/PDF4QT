@@ -868,6 +868,18 @@ std::set<PDFInteger> PDFPageContentScene::getSelectedElementIds() const
     return result;
 }
 
+std::set<PDFInteger> PDFPageContentScene::getPageIndices() const
+{
+    std::set<PDFInteger> result;
+
+    for (const auto& element : m_elements)
+    {
+        result.insert(element->getPageIndex());
+    }
+
+    return result;
+}
+
 void PDFPageContentScene::setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds)
 {
     m_manipulator.selectNew(selectedElementIds);

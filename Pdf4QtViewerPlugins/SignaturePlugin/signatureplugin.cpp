@@ -20,10 +20,12 @@
 #include "pdfutils.h"
 #include "pdfpagecontenteditorwidget.h"
 #include "pdfpagecontenteditorstylesettings.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QAction>
 #include <QToolButton>
 #include <QMainWindow>
+#include <QMessageBox>
 
 namespace pdfplugin
 {
@@ -152,6 +154,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     connect(&m_scene, &pdf::PDFPageContentScene::editElementRequest, this, &SignaturePlugin::onSceneEditElement);
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);
+    connect(signElectronicallyAction, &QAction::triggered, this, &SignaturePlugin::onSignElectronically);
 
     updateActions();
 }
@@ -265,6 +268,36 @@ void SignaturePlugin::onSceneEditElement(const std::set<pdf::PDFInteger>& elemen
     if (pdf::PDFPageContentEditorStyleSettings::showEditElementStyleDialog(m_dataExchangeInterface->getMainWindow(), element))
     {
         updateGraphics();
+    }
+}
+
+void SignaturePlugin::onSignElectronically()
+{
+    Q_ASSERT(m_document);
+    Q_ASSERT(!m_scene.isEmpty());
+
+    if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Signature"), tr("Document will be signed electronically. Do you want to continue?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+    {
+        pdf::PDFDocumentModifier modifier(m_document);
+
+        std::set<pdf::PDFInteger> pageIndices = m_scene.getPageIndices();
+        for (pdf::PDFInteger pageIndex : pageIndices)
+        {
+            const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+            pdf::PDFPageContentStreamBuilder pageContentStreamBuilder(modifier.getBuilder(),
+                                                                      pdf::PDFContentStreamBuilder::CoordinateSystem::PDF,
+                                                                      pdf::PDFPageContentStreamBuilder::Mode::PlaceAfter);
+            QPainter* painter = pageContentStreamBuilder.begin(page->getPageReference());
+            QList<pdf::PDFRenderError> errors;
+            pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
+            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QMatrix(), errors);
+            pageContentStreamBuilder.end(painter);
+        }
+
+        if (modifier.finalize())
+        {
+            emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
     }
 }
 

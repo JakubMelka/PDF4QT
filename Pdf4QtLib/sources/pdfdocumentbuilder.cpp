@@ -703,9 +703,13 @@ std::array<PDFReal, 4> PDFDocumentBuilder::getAnnotationReductionRectangle(const
     return { qAbs(innerRect.left() - boundingRect.left()), qAbs(boundingRect.bottom() - innerRect.bottom()), qAbs(boundingRect.right() - innerRect.right()), qAbs(boundingRect.top() - innerRect.top()) };
 }
 
-PDFPageContentStreamBuilder::PDFPageContentStreamBuilder(PDFDocumentBuilder* builder) :
+PDFPageContentStreamBuilder::PDFPageContentStreamBuilder(PDFDocumentBuilder* builder,
+                                                         PDFContentStreamBuilder::CoordinateSystem coordinateSystem,
+                                                         Mode mode) :
     m_documentBuilder(builder),
-    m_contentStreamBuilder(nullptr)
+    m_contentStreamBuilder(nullptr),
+    m_coordinateSystem(coordinateSystem),
+    m_mode(mode)
 {
 
 }
@@ -733,7 +737,7 @@ QPainter* PDFPageContentStreamBuilder::begin(PDFObjectReference page)
     }
 
     m_pageReference = page;
-    m_contentStreamBuilder = new PDFContentStreamBuilder(mediaBox.size(), PDFContentStreamBuilder::CoordinateSystem::Qt);
+    m_contentStreamBuilder = new PDFContentStreamBuilder(mediaBox.size(), m_coordinateSystem);
     return m_contentStreamBuilder->begin();
 }
 
@@ -762,21 +766,86 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
     PDFObjectReference resourcesReference = copiedObjects[0].getReference();
     PDFObjectReference contentsReference = copiedObjects[1].getReference();
 
-    PDFObjectFactory pageUpdateFactory;
+    if (m_mode == Mode::Replace)
+    {
+        PDFObjectFactory pageUpdateFactory;
 
-    pageUpdateFactory.beginDictionary();
+        pageUpdateFactory.beginDictionary();
 
-    pageUpdateFactory.beginDictionaryItem("Contents");
-    pageUpdateFactory << contentsReference;
-    pageUpdateFactory.endDictionaryItem();
+        pageUpdateFactory.beginDictionaryItem("Contents");
+        pageUpdateFactory << contentsReference;
+        pageUpdateFactory.endDictionaryItem();
 
-    pageUpdateFactory.beginDictionaryItem("Resources");
-    pageUpdateFactory << resourcesReference;
-    pageUpdateFactory.endDictionaryItem();
+        pageUpdateFactory.beginDictionaryItem("Resources");
+        pageUpdateFactory << resourcesReference;
+        pageUpdateFactory.endDictionaryItem();
 
-    pageUpdateFactory.endDictionary();
+        pageUpdateFactory.endDictionary();
 
-    m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
+        m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
+    }
+    else
+    {
+        std::vector<PDFObjectReference> contentReferences;
+        PDFObject pageObject = m_documentBuilder->getObjectByReference(m_pageReference);
+
+        if (pageObject.isDictionary())
+        {
+            const PDFDictionary* pageDictionary = pageObject.getDictionary();
+            const PDFObject& oldContents = pageDictionary->get("Contents");
+            const PDFObject& oldContentsObject = m_documentBuilder->getObject(oldContents);
+
+            if (oldContentsObject.isStream())
+            {
+                if (oldContents.isReference())
+                {
+                    contentReferences.push_back(oldContents.getReference());
+                }
+            }
+            else if (oldContentsObject.isArray())
+            {
+                const PDFArray* contentsArray = oldContentsObject.getArray();
+                for (const PDFObject& object : *contentsArray)
+                {
+                    if (object.isReference())
+                    {
+                        contentReferences.push_back(object.getReference());
+                    }
+                }
+            }
+        }
+
+        switch (m_mode)
+        {
+            case Mode::PlaceBefore:
+                contentReferences.insert(contentReferences.begin(), contentsReference);
+                break;
+
+            case Mode::PlaceAfter:
+                contentReferences.push_back(contentsReference);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        PDFObjectFactory pageUpdateFactory;
+
+        pageUpdateFactory.beginDictionary();
+
+        pageUpdateFactory.beginDictionaryItem("Contents");
+        pageUpdateFactory << contentReferences;
+        pageUpdateFactory.endDictionaryItem();
+
+        pageUpdateFactory.beginDictionaryItem("Resources");
+        pageUpdateFactory << resourcesReference;
+        pageUpdateFactory.endDictionaryItem();
+
+        pageUpdateFactory.endDictionary();
+
+        m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
+    }
 }
 
 void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference annotationReference)

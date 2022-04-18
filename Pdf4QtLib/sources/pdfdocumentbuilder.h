@@ -261,9 +261,20 @@ private:
 class PDF4QTLIBSHARED_EXPORT PDFPageContentStreamBuilder
 {
 public:
-    PDFPageContentStreamBuilder(PDFDocumentBuilder* builder);
 
-    /// Starts painting onto the page. Old page content is erased. This
+    enum class Mode
+    {
+        Replace,
+        PlaceBefore,
+        PlaceAfter
+    };
+
+    /// Vytvoří nový builder, který vytváří obsah stránek.
+    PDFPageContentStreamBuilder(PDFDocumentBuilder* builder,
+                                PDFContentStreamBuilder::CoordinateSystem coordinateSystem = PDFContentStreamBuilder::CoordinateSystem::Qt,
+                                Mode mode = Mode::Replace);
+
+    /// Starts painting onto the page. Old page content is erased (in Replace mode). This
     /// function returns painter, onto which can be graphics drawn. Painter
     /// uses Qt's coordinate system. Calling begin multiple times, without
     /// subsequent calls to end function, is invalid and can result
@@ -287,6 +298,8 @@ private:
     PDFDocumentBuilder* m_documentBuilder;
     PDFContentStreamBuilder* m_contentStreamBuilder;
     PDFObjectReference m_pageReference;
+    PDFContentStreamBuilder::CoordinateSystem m_coordinateSystem;
+    Mode m_mode;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFDocumentBuilder
