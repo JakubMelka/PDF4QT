@@ -488,8 +488,8 @@ void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document)
     if (getDocument() != document)
     {
         m_cacheClearTimer->stop();
-        m_compiler->stop(document.hasReset());
-        m_textLayoutCompiler->stop(document.hasReset());
+        m_compiler->stop(document.hasReset() || document.hasPageContentsChanged());
+        m_textLayoutCompiler->stop(document.hasReset() || document.hasPageContentsChanged());
         m_controller->setDocument(document);
 
         if (PDFOptionalContentActivity* optionalContentActivity = document.getOptionalContentActivity())

@@ -292,7 +292,9 @@ void SignaturePlugin::onSignElectronically()
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
             m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QMatrix(), errors);
             pageContentStreamBuilder.end(painter);
+            modifier.markPageContentsChanged();
         }
+        m_scene.clear();
 
         if (modifier.finalize())
         {

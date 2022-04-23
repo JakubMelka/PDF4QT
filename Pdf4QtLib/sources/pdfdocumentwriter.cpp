@@ -192,7 +192,10 @@ PDFOperationResult PDFDocumentWriter::write(const QString& fileName, const PDFDo
             PDFOperationResult result = write(&file, document);
             if (result)
             {
-                file.commit();
+                if (!file.commit())
+                {
+                    return tr("File '%1' can't be opened for writing. %2").arg(fileName, file.errorString());
+                }
             }
             else
             {

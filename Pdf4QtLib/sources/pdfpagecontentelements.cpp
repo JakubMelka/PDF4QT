@@ -2363,12 +2363,18 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
     }
 
     QRectF rect = getRectangle();
+    QFont font = getFont();
+    font.setHintingPreference(QFont::PreferNoHinting);
+    if (font.pointSizeF() > 0.0)
+    {
+        font.setPixelSize(qCeil(font.pointSizeF()));
+    }
 
     PDFPainterStateGuard guard(painter);
     painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
     painter->setPen(getPen());
     painter->setBrush(getBrush());
-    painter->setFont(getFont());
+    painter->setFont(font);
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setClipRect(rect, Qt::IntersectClip);
     painter->translate(rect.center());

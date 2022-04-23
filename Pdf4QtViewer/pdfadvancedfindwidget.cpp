@@ -58,7 +58,7 @@ void PDFAdvancedFindWidget::setDocument(const pdf::PDFModifiedDocument& document
 
         // If document is not being reset, then page text should remain the same,
         // so, there is no need to clear the results.
-        if (document.hasReset())
+        if (document.hasReset() || document.hasPageContentsChanged())
         {
             m_findResults.clear();
             updateUI();

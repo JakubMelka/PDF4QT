@@ -22,6 +22,8 @@
 #include "pdfobjectutils.h"
 #include "pdfnametreeloader.h"
 #include "pdfdbgheap.h"
+#include "pdfparser.h"
+#include "pdfstreamfilters.h"
 
 #include <QBuffer>
 #include <QPainter>
@@ -698,6 +700,11 @@ PDFDocument PDFDocumentBuilder::build()
     return PDFDocument(PDFObjectStorage(m_storage), m_version);
 }
 
+QByteArray PDFDocumentBuilder::getDecodedStream(const PDFStream* stream) const
+{
+    return m_storage.getDecodedStream(stream);
+}
+
 std::array<PDFReal, 4> PDFDocumentBuilder::getAnnotationReductionRectangle(const QRectF& boundingRect, const QRectF& innerRect) const
 {
     return { qAbs(innerRect.left() - boundingRect.left()), qAbs(boundingRect.bottom() - innerRect.bottom()), qAbs(boundingRect.right() - innerRect.right()), qAbs(boundingRect.top() - innerRect.top()) };
@@ -813,6 +820,10 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
                     }
                 }
             }
+
+            PDFObject oldResourcesObject = pageDictionary->get("Resources");
+            replaceResources(contentsReference, resourcesReference, oldResourcesObject);
+            m_documentBuilder->mergeTo(resourcesReference, m_documentBuilder->getObject(oldResourcesObject));
         }
 
         switch (m_mode)
@@ -845,6 +856,139 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
         pageUpdateFactory.endDictionary();
 
         m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
+    }
+}
+
+void PDFPageContentStreamBuilder::replaceResources(PDFObjectReference contentStreamReference,
+                                                   PDFObjectReference resourcesReference,
+                                                   PDFObject oldResources)
+{
+    PDFObject newResources = m_documentBuilder->getObjectByReference(resourcesReference);
+    oldResources = m_documentBuilder->getObject(oldResources);
+    PDFObject contentStreamObject = m_documentBuilder->getObjectByReference(contentStreamReference);
+
+    std::vector<std::pair<QByteArray, QByteArray>> renamings;
+
+    if (oldResources.isDictionary() && newResources.isDictionary())
+    {
+        PDFObjectFactory renamedResourcesDictionary;
+
+        renamedResourcesDictionary.beginDictionary();
+
+        const PDFDictionary* oldResourcesDictionary = oldResources.getDictionary();
+        const PDFDictionary* newResourcesDictionary = newResources.getDictionary();
+        const size_t count = newResourcesDictionary->getCount();
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFInplaceOrMemoryString& key = newResourcesDictionary->getKey(i);
+            QByteArray keyString = key.getString();
+
+            // Process current resource key
+            renamedResourcesDictionary.beginDictionaryItem(keyString);
+
+            if (oldResourcesDictionary->hasKey(keyString))
+            {
+                const PDFObject& newResourcesSubdictionaryObject = m_documentBuilder->getObject(newResourcesDictionary->getValue(i));
+                const PDFObject& oldResourcesSubdictionaryObject = m_documentBuilder->getObject(oldResourcesDictionary->get(keyString));
+                if (oldResourcesSubdictionaryObject.isDictionary() && newResourcesSubdictionaryObject.isDictionary())
+                {
+                    // Jakub Melka: Rename items, which are in both dictionaries
+                    const PDFDictionary* oldSd = oldResourcesSubdictionaryObject.getDictionary();
+                    const PDFDictionary* newSd = newResourcesSubdictionaryObject.getDictionary();
+
+                    renamedResourcesDictionary.beginDictionary();
+
+                    const size_t subcount = newSd->getCount();
+                    for (size_t j = 0; j < subcount; ++j)
+                    {
+                        const PDFInplaceOrMemoryString& subkey = newSd->getKey(j);
+                        QByteArray subkeyString = subkey.getString();
+                        if (oldSd->hasKey(subkeyString))
+                        {
+                            // Jakub Melka: we must rename the item
+                            QByteArray newSubkeyString = subkeyString;
+                            PDFInteger k = 0;
+                            while (oldSd->hasKey(newSubkeyString))
+                            {
+                                newSubkeyString = subkeyString + "_" + QByteArray::number(++k);
+                            }
+                            renamings.emplace_back(std::make_pair(subkeyString, newSubkeyString));
+                            subkeyString = newSubkeyString;
+                        }
+
+                        renamedResourcesDictionary.beginDictionaryItem(subkeyString);
+                        renamedResourcesDictionary << newSd->getValue(j);
+                        renamedResourcesDictionary.endDictionaryItem();
+                    }
+
+                    renamedResourcesDictionary.endDictionary();
+                }
+                else
+                {
+                    renamedResourcesDictionary << newResourcesDictionary->getValue(i);
+                }
+            }
+            else
+            {
+                renamedResourcesDictionary << newResourcesDictionary->getValue(i);
+            }
+
+            renamedResourcesDictionary.endDictionaryItem();
+        }
+
+        renamedResourcesDictionary.endDictionary();
+        m_documentBuilder->setObject(resourcesReference, renamedResourcesDictionary.takeObject());
+    }
+
+    if (contentStreamObject.isStream())
+    {
+        QByteArray decodedStream = m_documentBuilder->getDecodedStream(contentStreamObject.getStream());
+        decodedStream = decodedStream.trimmed();
+
+        // Append save/restore state
+        if (!decodedStream.startsWith("q "))
+        {
+            decodedStream.prepend("q ");
+            decodedStream.append(" Q");
+        }
+
+        // Replace all occurences in the stream
+        for (const auto& item : renamings)
+        {
+            QByteArray oldName = item.first;
+            QByteArray newName = item.second;
+
+            oldName.prepend('/');
+            newName.prepend('/');
+
+            int currentPos = 0;
+            int oldNameIndex = decodedStream.indexOf(oldName, currentPos);
+            while (oldNameIndex != -1)
+            {
+                const int whiteSpacePosition = oldNameIndex + oldName.size();
+                if (whiteSpacePosition < decodedStream.size() && !PDFLexicalAnalyzer::isWhitespace(decodedStream[whiteSpacePosition]))
+                {
+                    currentPos = oldNameIndex + 1;
+                    oldNameIndex = decodedStream.indexOf(oldName, currentPos);
+                    continue;
+                }
+
+                decodedStream.replace(oldNameIndex, oldName.length(), newName);
+                currentPos = oldNameIndex + 1;
+                oldNameIndex = decodedStream.indexOf(oldName, currentPos);
+            }
+        }
+
+        PDFArray array;
+        array.appendItem(PDFObject::createName("FlateDecode"));
+
+        // Compress the content stream
+        QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
+        PDFDictionary updatedDictionary = *contentStreamObject.getStream()->getDictionary();
+        updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
+        updatedDictionary.setEntry(PDFInplaceOrMemoryString("Filters"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
+        PDFObject newContentStream = PDFObject::createStream(std::make_shared<PDFStream>(qMove(updatedDictionary), qMove(compressedData)));
+        m_documentBuilder->setObject(contentStreamReference, std::move(newContentStream));
     }
 }
 

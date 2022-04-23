@@ -295,6 +295,10 @@ public:
     void end(QPainter* painter);
 
 private:
+    void replaceResources(PDFObjectReference contentStreamReference,
+                          PDFObjectReference resourcesReference,
+                          PDFObject oldResources);
+
     PDFDocumentBuilder* m_documentBuilder;
     PDFContentStreamBuilder* m_contentStreamBuilder;
     PDFObjectReference m_pageReference;
@@ -340,6 +344,11 @@ public:
     /// Returns object by reference. If dereference attempt fails, then null object
     /// is returned (no exception is thrown).
     const PDFObject& getObjectByReference(PDFObjectReference reference) const;
+
+    /// Returns the decoded stream. If stream data cannot be decoded,
+    /// then empty byte array is returned.
+    /// \param stream Stream to be decoded
+    QByteArray getDecodedStream(const PDFStream* stream) const;
 
     /// Returns annotation bounding rectangle
     std::array<PDFReal, 4> getAnnotationReductionRectangle(const QRectF& boundingRect, const QRectF& innerRect) const;
@@ -1526,6 +1535,7 @@ public:
     PDFModifiedDocument::ModificationFlags getFlags() const { return m_modificationFlags; }
 
     void markReset() { m_modificationFlags.setFlag(PDFModifiedDocument::Reset); }
+    void markPageContentsChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::PageContents); }
     void markAnnotationsChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::Annotation); }
     void markFormFieldChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::FormField); }
     void markXFAPagination() { m_modificationFlags.setFlag(PDFModifiedDocument::XFA_Pagination); }
