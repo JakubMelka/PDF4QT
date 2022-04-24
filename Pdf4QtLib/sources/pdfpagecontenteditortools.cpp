@@ -953,7 +953,15 @@ void PDFCreatePCElementTextTool::setAlignment(Qt::Alignment alignment)
 void PDFCreatePCElementTextTool::setPen(const QPen& pen)
 {
     BaseClass::setPen(pen);
-    m_textEditWidget->setAppearance(m_element->getFont(), m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), pen.color());
+
+    QFont font = m_element->getFont();
+    font.setHintingPreference(QFont::PreferNoHinting);
+    if (font.pointSizeF() > 0.0)
+    {
+        font.setPixelSize(qRound(font.pointSizeF()));
+    }
+
+    m_textEditWidget->setAppearance(font, m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), pen.color());
     emit getProxy()->repaintNeeded();
 }
 

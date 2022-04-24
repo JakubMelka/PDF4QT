@@ -638,6 +638,24 @@ int PDFPageContentScene::getInputPriority() const
     return ToolPriority + 1;
 }
 
+void PDFPageContentScene::drawElements(QPainter* painter,
+                                       PDFInteger pageIndex,
+                                       PDFTextLayoutGetter& layoutGetter,
+                                       const QMatrix& pagePointToDevicePointMatrix,
+                                       const PDFPrecompiledPage* compiledPage,
+                                       QList<PDFRenderError>& errors) const
+{
+    for (const auto& element : m_elements)
+    {
+        if (element->getPageIndex() != pageIndex)
+        {
+            continue;
+        }
+
+        element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    }
+}
+
 void PDFPageContentScene::drawPage(QPainter* painter,
                                    PDFInteger pageIndex,
                                    const PDFPrecompiledPage* compiledPage,
@@ -650,16 +668,7 @@ void PDFPageContentScene::drawPage(QPainter* painter,
         return;
     }
 
-    for (const auto& element : m_elements)
-    {
-        if (element->getPageIndex() != pageIndex)
-        {
-            continue;
-        }
-
-        element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
-    }
-
+    drawElements(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, compiledPage, errors);
     m_manipulator.drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
@@ -2367,7 +2376,7 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
     font.setHintingPreference(QFont::PreferNoHinting);
     if (font.pointSizeF() > 0.0)
     {
-        font.setPixelSize(qCeil(font.pointSizeF()));
+        font.setPixelSize(qRound(font.pointSizeF()));
     }
 
     PDFPainterStateGuard guard(painter);

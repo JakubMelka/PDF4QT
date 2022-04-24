@@ -534,16 +534,22 @@ public:
     virtual const std::optional<QCursor>& getCursor() const override;
     virtual int getInputPriority() const override;
 
-    // IDocumentDrawInterface interface
-public:
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
+
     PDFWidget* widget() const;
     void setWidget(PDFWidget* newWidget);
+
+    void drawElements(QPainter* painter,
+                      PDFInteger pageIndex,
+                      PDFTextLayoutGetter& layoutGetter,
+                      const QMatrix& pagePointToDevicePointMatrix,
+                      const PDFPrecompiledPage* compiledPage,
+                      QList<PDFRenderError>& errors) const;
 
 signals:
     /// This signal is emitted when scene has changed (including graphics)
