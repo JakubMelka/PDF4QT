@@ -32,10 +32,23 @@ DESTDIR = $$OUT_PWD/../../pdfplugins
 
 CONFIG += c++11
 
+Pdf4Qt_OPENSSL_PATH = $$absolute_path(../../Tools, $$[QT_INSTALL_PREFIX])
+
+# Link OpenSSL
+LIBS += -L$$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/bin -L$$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/lib -llibcrypto -llibssl
+INCLUDEPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
+DEPENDPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
+
 SOURCES += \
+    certificatemanager.cpp \
+    certificatemanagerdialog.cpp \
+    createcertificatedialog.cpp \
     signatureplugin.cpp
 	
 HEADERS += \
+    certificatemanager.h \
+    certificatemanagerdialog.h \
+    createcertificatedialog.h \
     signatureplugin.h
 
 CONFIG += force_debug_info
@@ -45,4 +58,8 @@ DISTFILES += \
 
 RESOURCES += \
     icons.qrc
+
+FORMS += \
+    certificatemanagerdialog.ui \
+    createcertificatedialog.ui
 

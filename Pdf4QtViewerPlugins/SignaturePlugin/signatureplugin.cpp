@@ -21,6 +21,7 @@
 #include "pdfpagecontenteditorwidget.h"
 #include "pdfpagecontenteditorstylesettings.h"
 #include "pdfdocumentbuilder.h"
+#include "certificatemanagerdialog.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -155,6 +156,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);
     connect(signElectronicallyAction, &QAction::triggered, this, &SignaturePlugin::onSignElectronically);
+    connect(certificatesAction, &QAction::triggered, this, &SignaturePlugin::onOpenCertificatesManager);
 
     updateActions();
 }
@@ -301,6 +303,12 @@ void SignaturePlugin::onSignElectronically()
             emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
+}
+
+void SignaturePlugin::onOpenCertificatesManager()
+{
+    CertificateManagerDialog dialog(m_dataExchangeInterface->getMainWindow());
+    dialog.exec();
 }
 
 void SignaturePlugin::onPenChanged(const QPen& pen)
