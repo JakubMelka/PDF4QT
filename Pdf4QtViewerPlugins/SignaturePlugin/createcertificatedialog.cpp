@@ -18,6 +18,8 @@
 #include "createcertificatedialog.h"
 #include "ui_createcertificatedialog.h"
 
+#include "certificatemanager.h"
+
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QDate>
@@ -113,6 +115,7 @@ void CreateCertificateDialog::accept()
         int days = currentDate.daysTo(date);
 
         // Fill certificate info
+        m_newCertificateInfo.fileName = CertificateManager::generateCertificateFileName();
         m_newCertificateInfo.privateKeyPasword = password1;
         m_newCertificateInfo.certCountryCode = ui->countryCombo->currentData().toString();
         m_newCertificateInfo.certOrganization = ui->organizationEdit->text();

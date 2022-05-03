@@ -17,6 +17,10 @@
 
 #include "certificatemanager.h"
 
+#include <QDir>
+#include <QFile>
+#include <QStandardPaths>
+
 #include <openssl/bio.h>
 #include <openssl/rsa.h>
 #include <openssl/rsaerr.h>
@@ -24,6 +28,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
+#include <openssl/pkcs12.h>
 
 #include <memory>
 
@@ -40,10 +45,9 @@ using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
 void CertificateManager::createCertificate(const NewCertificateInfo& info)
 {
-    openssl_ptr<BIO> certificateBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-    openssl_ptr<BIO> privateKeyBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+    openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
 
-    if (certificateBuffer && privateKeyBuffer)
+    if (pksBuffer)
     {
         openssl_ptr<BIGNUM> bignumber(BN_new(), &BN_free);
         openssl_ptr<RSA> rsaKey(RSA_new(), &RSA_free);
@@ -83,10 +87,12 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
             addString("E", info.certEmail);
 
             X509_EXTENSION* extension = nullptr;
-            X509V3_CTX context;
+            X509V3_CTX context = { };
             X509V3_set_ctx_nodb(&context);
             X509V3_set_ctx(&context, certificate.get(), certificate.get(), nullptr, nullptr, 0);
             extension = X509V3_EXT_conf_nid (NULL, &context, NID_key_usage, "digitalSignature, keyAgreement");
+            X509_add_ext(certificate.get(), extension, -1);
+            X509_EXTENSION_free(extension);
 
             X509_set_issuer_name(certificate.get(), name);
 
@@ -98,15 +104,57 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
             QByteArray privateKeyPaswordUtf8 = info.privateKeyPasword.toUtf8();
 
             // Write the data
-            const int retWritePrivateKey = PEM_write_bio_PKCS8PrivateKey(privateKeyBuffer.get(), privateKey.get(), EVP_aes_256_cbc(), privateKeyPaswordUtf8.data(), privateKeyPaswordUtf8.size(), nullptr, nullptr);
-            const int retWriteCertificate = PEM_write_bio_X509(certificateBuffer.get(), certificate.get());
+            PKCS12* pkcs12 = PKCS12_create(privateKeyPaswordUtf8.constData(),
+                                           nullptr,
+                                           privateKey.get(),
+                                           certificate.get(),
+                                           nullptr,
+                                           0,
+                                           0,
+                                           PKCS12_DEFAULT_ITER,
+                                           PKCS12_DEFAULT_ITER,
+                                           0);
+            i2d_PKCS12_bio(pksBuffer.get(), pkcs12);
+            PKCS12_free(pkcs12);
 
-            if (retWritePrivateKey == 1 && retWriteCertificate == 1)
+            BUF_MEM* pksMemoryBuffer = nullptr;
+            BIO_get_mem_ptr(pksBuffer.get(), &pksMemoryBuffer);
+
+            if (!info.fileName.isEmpty())
             {
-
+                QFile file(info.fileName);
+                if (file.open(QFile::WriteOnly | QFile::Truncate))
+                {
+                    int datac = file.write(pksMemoryBuffer->data, pksMemoryBuffer->length);
+                    file.close();
+                }
             }
         }
     }
+}
+
+QString CertificateManager::getCertificateDirectory()
+{
+    QDir directory(QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front() + "/certificates/");
+    return directory.absolutePath();
+}
+
+QString CertificateManager::generateCertificateFileName()
+{
+    QString directoryString = getCertificateDirectory();
+    QDir directory(directoryString);
+
+    int certificateIndex = 1;
+    while (true)
+    {
+        QString fileName = directory.absoluteFilePath(QString("cert_%1.pfx").arg(certificateIndex++));
+        if (!QFile::exists(fileName))
+        {
+            return fileName;
+        }
+    }
+
+    return QString();
 }
 
 }   // namespace pdfplugin

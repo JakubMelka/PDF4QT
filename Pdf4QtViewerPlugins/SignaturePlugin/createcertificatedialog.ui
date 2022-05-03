@@ -20,42 +20,42 @@
       <string>Create Self Signed Certificate</string>
      </property>
      <layout class="QFormLayout" name="formLayout">
-      <item row="0" column="0">
+      <item row="1" column="0">
        <widget class="QLabel" name="nameLabel">
         <property name="text">
          <string>Name</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
+      <item row="1" column="1">
        <widget class="QLineEdit" name="commonNameEdit">
         <property name="clearButtonEnabled">
          <bool>true</bool>
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="organizationLabel">
         <property name="text">
          <string>Organization</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="organizationUnitLabel">
         <property name="text">
          <string>Organization Unit</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="emailLabel">
         <property name="text">
          <string>Email</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
+      <item row="8" column="0">
        <spacer name="verticalSpacer">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -68,56 +68,66 @@
         </property>
        </spacer>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="QLineEdit" name="organizationEdit">
         <property name="clearButtonEnabled">
          <bool>true</bool>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="3" column="1">
        <widget class="QLineEdit" name="organizationUnitEdit">
         <property name="clearButtonEnabled">
          <bool>true</bool>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="5" column="1">
        <widget class="QLineEdit" name="emailEdit">
         <property name="clearButtonEnabled">
          <bool>true</bool>
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="countryLabel">
         <property name="text">
          <string>Country</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="keyLengthLabel">
         <property name="text">
          <string>Key length</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="validityLabel">
         <property name="text">
          <string>Valid till</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="7" column="1">
        <widget class="QCalendarWidget" name="validTillEdit"/>
       </item>
-      <item row="5" column="1">
+      <item row="6" column="1">
        <widget class="QComboBox" name="keyLengthCombo"/>
       </item>
-      <item row="3" column="1">
+      <item row="4" column="1">
        <widget class="QComboBox" name="countryCombo"/>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="fileNameEdit"/>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="certificateFileLabel">
+        <property name="text">
+         <string>Certificate file</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

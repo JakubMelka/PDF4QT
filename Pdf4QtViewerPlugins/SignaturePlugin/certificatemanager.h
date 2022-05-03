@@ -30,8 +30,7 @@ public:
 
     struct NewCertificateInfo
     {
-        QString certificateFileName;
-        QString privateKeyFileName;
+        QString fileName;
         QString privateKeyPasword;
 
         QString certCountryCode;
@@ -46,6 +45,9 @@ public:
     };
 
     void createCertificate(const NewCertificateInfo& info);
+
+    static QString getCertificateDirectory();
+    static QString generateCertificateFileName();
 };
 
 } // namespace pdfplugin

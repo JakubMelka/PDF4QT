@@ -53,6 +53,8 @@ void CertificateManagerDialog::onNewCertificateClicked()
     CreateCertificateDialog dialog(this);
     if (dialog.exec() == CreateCertificateDialog::Accepted)
     {
+        QDir::root().mkpath(CertificateManager::getCertificateDirectory());
+
         const CertificateManager::NewCertificateInfo info = dialog.getNewCertificateInfo();
         m_certificateManager.createCertificate(info);
     }
