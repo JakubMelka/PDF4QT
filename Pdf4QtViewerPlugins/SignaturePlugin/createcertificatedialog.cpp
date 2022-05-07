@@ -34,6 +34,9 @@ CreateCertificateDialog::CreateCertificateDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    ui->fileNameEdit->setReadOnly(true);
+    ui->fileNameEdit->setText(CertificateManager::generateCertificateFileName());
+
     ui->keyLengthCombo->addItem(tr("1024 bits"), 1024);
     ui->keyLengthCombo->addItem(tr("2048 bits"), 2048);
     ui->keyLengthCombo->addItem(tr("4096 bits"), 4096);
@@ -115,7 +118,7 @@ void CreateCertificateDialog::accept()
         int days = currentDate.daysTo(date);
 
         // Fill certificate info
-        m_newCertificateInfo.fileName = CertificateManager::generateCertificateFileName();
+        m_newCertificateInfo.fileName = ui->fileNameEdit->text();
         m_newCertificateInfo.privateKeyPasword = password1;
         m_newCertificateInfo.certCountryCode = ui->countryCombo->currentData().toString();
         m_newCertificateInfo.certOrganization = ui->organizationEdit->text();

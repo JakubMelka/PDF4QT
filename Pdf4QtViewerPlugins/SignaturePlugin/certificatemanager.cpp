@@ -65,7 +65,7 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
 
             // Set validity of the certificate
             X509_gmtime_adj(X509_getm_notBefore(certificate.get()), 0);
-            X509_gmtime_adj(X509_getm_notBefore(certificate.get()), info.validityInSeconds);
+            X509_gmtime_adj(X509_getm_notAfter(certificate.get()), info.validityInSeconds);
 
             // Set name
             X509_NAME* name = X509_get_subject_name(certificate.get());
@@ -104,18 +104,17 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
             QByteArray privateKeyPaswordUtf8 = info.privateKeyPasword.toUtf8();
 
             // Write the data
-            PKCS12* pkcs12 = PKCS12_create(privateKeyPaswordUtf8.constData(),
-                                           nullptr,
-                                           privateKey.get(),
-                                           certificate.get(),
-                                           nullptr,
-                                           0,
-                                           0,
-                                           PKCS12_DEFAULT_ITER,
-                                           PKCS12_DEFAULT_ITER,
-                                           0);
-            i2d_PKCS12_bio(pksBuffer.get(), pkcs12);
-            PKCS12_free(pkcs12);
+            openssl_ptr<PKCS12> pkcs12(PKCS12_create(privateKeyPaswordUtf8.constData(),
+                                                     nullptr,
+                                                     privateKey.get(),
+                                                     certificate.get(),
+                                                     nullptr,
+                                                     0,
+                                                     0,
+                                                     PKCS12_DEFAULT_ITER,
+                                                     PKCS12_DEFAULT_ITER,
+                                                     0), &PKCS12_free);
+            i2d_PKCS12_bio(pksBuffer.get(), pkcs12.get());
 
             BUF_MEM* pksMemoryBuffer = nullptr;
             BIO_get_mem_ptr(pksBuffer.get(), &pksMemoryBuffer);
@@ -125,7 +124,7 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
                 QFile file(info.fileName);
                 if (file.open(QFile::WriteOnly | QFile::Truncate))
                 {
-                    int datac = file.write(pksMemoryBuffer->data, pksMemoryBuffer->length);
+                    file.write(pksMemoryBuffer->data, pksMemoryBuffer->length);
                     file.close();
                 }
             }

@@ -23,6 +23,7 @@
 #include <QDialog>
 
 class QAction;
+class QFileSystemModel;
 
 namespace Ui
 {
@@ -42,11 +43,17 @@ public:
 
 private:
     void onNewCertificateClicked();
+    void onOpenCertificateDirectoryClicked();
+    void onDeleteCertificateClicked();
+    void onImportCertificateClicked();
 
     Ui::CertificateManagerDialog* ui;
     CertificateManager m_certificateManager;
     QPushButton* m_newCertificateButton;
     QPushButton* m_openCertificateDirectoryButton;
+    QPushButton* m_deleteCertificateButton;
+    QPushButton* m_importCertificateButton;
+    QFileSystemModel* m_certificateFileModel;
 };
 
 }   // namespace pdfplugin
