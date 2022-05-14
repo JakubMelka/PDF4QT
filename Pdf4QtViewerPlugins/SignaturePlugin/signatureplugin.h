@@ -54,6 +54,7 @@ private:
     void onToolActivityChanged();
     void onSceneEditElement(const std::set<pdf::PDFInteger>& elements);
     void onSignElectronically();
+    void onSignDigitally();
     void onOpenCertificatesManager();
 
     void onPenChanged(const QPen& pen);

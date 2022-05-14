@@ -132,6 +132,12 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
     }
 }
 
+QFileInfoList CertificateManager::getCertificates()
+{
+    QDir directory(getCertificateDirectory());
+    return directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+}
+
 QString CertificateManager::getCertificateDirectory()
 {
     QDir directory(QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front() + "/certificates/");
@@ -154,6 +160,34 @@ QString CertificateManager::generateCertificateFileName()
     }
 
     return QString();
+}
+
+bool CertificateManager::isCertificateValid(QString fileName, QString password)
+{
+    QFile file(fileName);
+    if (file.open(QFile::ReadOnly))
+    {
+        QByteArray data = file.readAll();
+        file.close();
+
+        openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+        BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+        if (pkcs12)
+        {
+            const char* passwordPointer = nullptr;
+            QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
+            if (!passwordByteArray.isEmpty())
+            {
+                passwordPointer = passwordByteArray.constData();
+            }
+
+            return PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
+        }
+    }
+
+    return false;
 }
 
 }   // namespace pdfplugin

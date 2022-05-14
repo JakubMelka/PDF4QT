@@ -43,13 +43,15 @@ SOURCES += \
     certificatemanager.cpp \
     certificatemanagerdialog.cpp \
     createcertificatedialog.cpp \
-    signatureplugin.cpp
+    signatureplugin.cpp \
+    signdialog.cpp
 	
 HEADERS += \
     certificatemanager.h \
     certificatemanagerdialog.h \
     createcertificatedialog.h \
-    signatureplugin.h
+    signatureplugin.h \
+    signdialog.h
 
 CONFIG += force_debug_info
 
@@ -61,5 +63,6 @@ RESOURCES += \
 
 FORMS += \
     certificatemanagerdialog.ui \
-    createcertificatedialog.ui
+    createcertificatedialog.ui \
+    signdialog.ui
 

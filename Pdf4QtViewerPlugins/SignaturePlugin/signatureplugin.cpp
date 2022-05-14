@@ -22,6 +22,7 @@
 #include "pdfpagecontenteditorstylesettings.h"
 #include "pdfdocumentbuilder.h"
 #include "certificatemanagerdialog.h"
+#include "signdialog.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -156,6 +157,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &SignaturePlugin::setActive);
     connect(signElectronicallyAction, &QAction::triggered, this, &SignaturePlugin::onSignElectronically);
+    connect(signDigitallyAction, &QAction::triggered, this, &SignaturePlugin::onSignDigitally);
     connect(certificatesAction, &QAction::triggered, this, &SignaturePlugin::onOpenCertificatesManager);
 
     updateActions();
@@ -305,6 +307,28 @@ void SignaturePlugin::onSignElectronically()
     }
 }
 
+void SignaturePlugin::onSignDigitally()
+{
+    // Jakub Melka: do we have certificates? If not,
+    // open certificate dialog, so the user can create
+    // a new one.
+    if (CertificateManager::getCertificates().isEmpty())
+    {
+        onOpenCertificatesManager();
+
+        if (CertificateManager::getCertificates().isEmpty())
+        {
+            return;
+        }
+    }
+
+    SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
+    if (dialog.exec() == SignDialog::Accepted)
+    {
+
+    }
+}
+
 void SignaturePlugin::onOpenCertificatesManager()
 {
     CertificateManagerDialog dialog(m_dataExchangeInterface->getMainWindow());
@@ -422,7 +446,7 @@ void SignaturePlugin::updateActions()
     QAction* signElectronicallyAction = m_actions[SignElectronically];
     signElectronicallyAction->setEnabled(isSceneNonempty);
     QAction* signDigitallyAction = m_actions[SignDigitally];
-    signDigitallyAction->setEnabled(isSceneNonempty);
+    signDigitallyAction->setEnabled(m_document);
 }
 
 void SignaturePlugin::updateGraphics()

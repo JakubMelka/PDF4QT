@@ -19,6 +19,7 @@
 #define CERTIFICATEMANAGER_H
 
 #include <QString>
+#include <QFileInfoList>
 
 namespace pdfplugin
 {
@@ -46,8 +47,10 @@ public:
 
     void createCertificate(const NewCertificateInfo& info);
 
+    static QFileInfoList getCertificates();
     static QString getCertificateDirectory();
     static QString generateCertificateFileName();
+    static bool isCertificateValid(QString fileName, QString password);
 };
 
 } // namespace pdfplugin
