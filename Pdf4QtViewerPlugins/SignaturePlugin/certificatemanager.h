@@ -53,6 +53,12 @@ public:
     static bool isCertificateValid(QString fileName, QString password);
 };
 
+class SignatureFactory
+{
+public:
+    static bool sign(QString certificateName, QString password, QByteArray data, QByteArray& result);
+};
+
 } // namespace pdfplugin
 
 #endif // CERTIFICATEMANAGER_H

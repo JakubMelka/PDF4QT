@@ -190,4 +190,61 @@ bool CertificateManager::isCertificateValid(QString fileName, QString password)
     return false;
 }
 
+bool SignatureFactory::sign(QString certificateName, QString password, QByteArray data, QByteArray& result)
+{
+    QFile file(certificateName);
+    if (file.open(QFile::ReadOnly))
+    {
+        QByteArray certificateData = file.readAll();
+        file.close();
+
+        openssl_ptr<BIO> certificateBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+        BIO_write(certificateBuffer.get(), certificateData.constData(), certificateData.length());
+
+        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(certificateBuffer.get(), nullptr), &PKCS12_free);
+        if (pkcs12)
+        {
+            const char* passwordPointer = nullptr;
+            QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
+            if (!passwordByteArray.isEmpty())
+            {
+                passwordPointer = passwordByteArray.constData();
+            }
+
+            EVP_PKEY* key = nullptr;
+            X509* certificate = nullptr;
+            STACK_OF(X509)* certificates = nullptr;
+            if (PKCS12_parse(pkcs12.get(), passwordPointer, &key, &certificate, &certificates) == 1)
+            {
+                openssl_ptr<BIO> signedDataBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+                BIO_write(signedDataBuffer.get(), data.constData(), data.length());
+
+                PKCS7* signature = PKCS7_sign(certificate, key, certificates, signedDataBuffer.get(), PKCS7_DETACHED | PKCS7_BINARY);
+                if (signature)
+                {
+                    openssl_ptr<BIO> outputBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+                    i2d_PKCS7_bio(outputBuffer.get(), signature);
+
+                    BUF_MEM* pksMemoryBuffer = nullptr;
+                    BIO_get_mem_ptr(outputBuffer.get(), &pksMemoryBuffer);
+
+                    result = QByteArray(pksMemoryBuffer->data, int(pksMemoryBuffer->length));
+
+                    EVP_PKEY_free(key);
+                    X509_free(certificate);
+                    sk_X509_free(certificates);
+                    return true;
+                }
+
+                EVP_PKEY_free(key);
+                X509_free(certificate);
+                sk_X509_free(certificates);
+                return false;
+            }
+        }
+    }
+
+    return false;
+}
+
 }   // namespace pdfplugin

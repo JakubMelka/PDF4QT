@@ -63,6 +63,11 @@ QString SignDialog::getCertificatePath() const
     return ui->certificateCombo->currentData().toString();
 }
 
+QString SignDialog::getPassword() const
+{
+    return ui->certificatePasswordEdit->text();
+}
+
 void SignDialog::accept()
 {
     // Check certificate

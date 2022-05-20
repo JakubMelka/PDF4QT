@@ -325,7 +325,16 @@ void SignaturePlugin::onSignDigitally()
     SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
     if (dialog.exec() == SignDialog::Accepted)
     {
+        QByteArray data = "xxgaghre";
+        QByteArray result;
+        SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, result);
 
+        for (int i = 1; i < 15; ++i)
+        {
+            data.append(data);
+        }
+
+        SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, result);
     }
 }
 
