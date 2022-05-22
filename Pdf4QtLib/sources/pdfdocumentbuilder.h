@@ -1226,6 +1226,15 @@ public:
     PDFObjectReference createFileSpecification(QString fileName);
 
 
+    /// Creates form field of type signature.
+    /// \param fieldName Field name
+    /// \param kids Kids of the signature field.
+    /// \param signatureValue Signature value
+    PDFObjectReference createFormFieldSignature(QString fieldName,
+                                                PDFObjectReferenceVector kids,
+                                                PDFObjectReference signatureValue);
+
+
     /// Creates signature dictionary used for preparation in signing process. Can define parameters of the 
     /// signature.
     /// \param filter Filter (for example, Adobe.PPKLite, Entrust.PPKEF, CiCi.SignIt, ...)
@@ -1442,15 +1451,15 @@ public:
 
 
     /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
+
+
+    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
-
-
-    /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
 
 
     /// Set document outline.

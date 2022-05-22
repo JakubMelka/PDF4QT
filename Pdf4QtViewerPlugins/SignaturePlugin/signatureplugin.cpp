@@ -23,6 +23,7 @@
 #include "pdfdocumentbuilder.h"
 #include "certificatemanagerdialog.h"
 #include "signdialog.h"
+#include "pdfdocumentwriter.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -325,16 +326,77 @@ void SignaturePlugin::onSignDigitally()
     SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
     if (dialog.exec() == SignDialog::Accepted)
     {
-        QByteArray data = "xxgaghre";
-        QByteArray result;
-        SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, result);
-
-        for (int i = 1; i < 15; ++i)
+        QByteArray data = "SampleDataToBeSigned" + QByteArray::number(QDateTime::currentMSecsSinceEpoch());
+        QByteArray signature;
+        if (!SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, signature))
         {
-            data.append(data);
+            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
+            return;
         }
 
-        SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, result);
+        pdf::PDFInteger offsetMark = 123456789123;
+        constexpr const char* offsetMarkString = "123456789123";
+        const auto offsetMarkStringLength = std::strlen(offsetMarkString);
+
+        pdf::PDFDocumentBuilder builder(m_document);
+        pdf::PDFObjectReference signatureDictionary = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", signature, QDateTime::currentDateTime(), offsetMark);
+        pdf::PDFObjectReference formField = builder.createFormFieldSignature("signature", { }, signatureDictionary);
+        builder.createAcroForm({ formField });
+
+        pdf::PDFDocument signedDocument = builder.build();
+
+        // 1) Save the document with incorrect signature
+        QBuffer buffer;
+        pdf::PDFDocumentWriter writer(m_widget->getDrawWidgetProxy()->getProgress());
+        buffer.open(QBuffer::ReadWrite);
+        writer.write(&buffer, &signedDocument);
+
+        const int indexOfSignature = buffer.data().indexOf(signature.toHex());
+        if (indexOfSignature == -1)
+        {
+            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
+            buffer.close();
+            return;
+        }
+
+        // 2) Write ranges to be checked
+        const pdf::PDFInteger i1 = 0;
+        const pdf::PDFInteger i2 = indexOfSignature;
+        const pdf::PDFInteger i3 = i2 + signature.size() * 2;
+        const pdf::PDFInteger i4 = buffer.data().size() - i3;
+
+        auto writeInt = [&](pdf::PDFInteger offset)
+        {
+            QString offsetString = QString::number(offset);
+            offsetString = offsetString.leftJustified(static_cast<int>(offsetMarkStringLength), ' ', true);
+            const auto index = buffer.data().lastIndexOf(QString(offsetMarkString), indexOfSignature);
+            buffer.seek(index);
+            buffer.write(offsetString.toLocal8Bit());
+        };
+
+        writeInt(i4);
+        writeInt(i3);
+        writeInt(i2);
+        writeInt(i1);
+
+        // 3) Sign the data
+        QByteArray dataToBeSigned;
+        buffer.seek(i1);
+        dataToBeSigned.append(buffer.read(i2));
+        buffer.seek(i3);
+        dataToBeSigned.append(buffer.read(i4));
+
+        if (!SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), dataToBeSigned, signature))
+        {
+            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
+            buffer.close();
+            return;
+        }
+
+        buffer.seek(i2);
+        buffer.write(signature.toHex());
+
+        buffer.close();
     }
 }
 

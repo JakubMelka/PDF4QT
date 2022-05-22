@@ -4542,6 +4542,31 @@ PDFObjectReference PDFDocumentBuilder::createFileSpecification(QString fileName)
 }
 
 
+PDFObjectReference PDFDocumentBuilder::createFormFieldSignature(QString fieldName,
+                                                                PDFObjectReferenceVector kids,
+                                                                PDFObjectReference signatureValue)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("FT");
+    objectBuilder << WrapName("Sig");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Kids");
+    objectBuilder << kids;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("T");
+    objectBuilder << fieldName;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("V");
+    objectBuilder << signatureValue;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObjectReference formFieldSignature = addObject(objectBuilder.takeObject());
+    return formFieldSignature;
+}
+
+
 PDFObjectReference PDFDocumentBuilder::createSignatureDictionary(QByteArray filter,
                                                                  QByteArray subfilter,
                                                                  QByteArray contents,
@@ -5075,6 +5100,14 @@ void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
 }
 
 
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
+}
+
+
 void PDFDocumentBuilder::setLanguage(QString language)
 {
     PDFObjectFactory objectBuilder;
@@ -5086,14 +5119,6 @@ void PDFDocumentBuilder::setLanguage(QString language)
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
     mergeTo(getCatalogReference(), updatedCatalog);
-}
-
-
-void PDFDocumentBuilder::setLanguage(QLocale locale)
-{
-    PDFObjectFactory objectBuilder;
-
-    setLanguage(locale.name());
 }
 
 
