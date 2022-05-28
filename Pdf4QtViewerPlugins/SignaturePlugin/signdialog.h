@@ -47,6 +47,8 @@ public:
     SignMethod getSignMethod() const;
     QString getCertificatePath() const;
     QString getPassword() const;
+    QString getReasonText() const;
+    QString getContactInfoText() const;
 
 private:
     Ui::SignDialog* ui;

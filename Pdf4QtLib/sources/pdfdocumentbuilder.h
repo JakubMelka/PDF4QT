@@ -1235,6 +1235,13 @@ public:
                                                 PDFObjectReference signatureValue);
 
 
+    /// 
+    /// \param formField Form field reference
+    /// \param page Page reference
+    void createInvisibleFormFieldWidget(PDFObjectReference formField,
+                                        PDFObjectReference page);
+
+
     /// Creates signature dictionary used for preparation in signing process. Can define parameters of the 
     /// signature.
     /// \param filter Filter (for example, Adobe.PPKLite, Entrust.PPKEF, CiCi.SignIt, ...)
@@ -1451,15 +1458,15 @@ public:
 
 
     /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
-
-
-    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
+
+
+    /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
 
 
     /// Set document outline.
@@ -1525,6 +1532,20 @@ public:
     /// \param unit Unit (multiple of 1pt = 1 / 72 inch)
     void setPageUserUnit(PDFObjectReference page,
                          PDFReal unit);
+
+
+    /// Sets signature contact info field.
+    /// \param signatureDictionary Signature dictionary reference
+    /// \param contactInfoText Contact info text
+    void setSignatureContactInfo(PDFObjectReference signatureDictionary,
+                                 QString contactInfoText);
+
+
+    /// Sets signature reason field.
+    /// \param signatureDictionary Signature dictionary reference
+    /// \param reasonText Reason text
+    void setSignatureReason(PDFObjectReference signatureDictionary,
+                            QString reasonText);
 
 
     /// This function is used to update trailer dictionary. Must be called each time the final document is 

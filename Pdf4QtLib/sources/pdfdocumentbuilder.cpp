@@ -4567,6 +4567,37 @@ PDFObjectReference PDFDocumentBuilder::createFormFieldSignature(QString fieldNam
 }
 
 
+void PDFDocumentBuilder::createInvisibleFormFieldWidget(PDFObjectReference formField,
+                                                        PDFObjectReference page)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << std::array{ 0.0, 0.0, 0.0, 0.0 };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Widget");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject widgetObject = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder << std::array{ formField };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageObject = objectBuilder.takeObject();
+    mergeTo(formField, widgetObject);
+    appendTo(page, pageObject);
+}
+
+
 PDFObjectReference PDFDocumentBuilder::createSignatureDictionary(QByteArray filter,
                                                                  QByteArray subfilter,
                                                                  QByteArray contents,
@@ -4589,7 +4620,7 @@ PDFObjectReference PDFDocumentBuilder::createSignatureDictionary(QByteArray filt
     objectBuilder << std::array{ byteRangeItem, byteRangeItem, byteRangeItem, byteRangeItem };
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Contents");
-    objectBuilder << contents;
+    objectBuilder << WrapString(contents);
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("M");
     objectBuilder << signingTime;
@@ -5100,14 +5131,6 @@ void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
 }
 
 
-void PDFDocumentBuilder::setLanguage(QLocale locale)
-{
-    PDFObjectFactory objectBuilder;
-
-    setLanguage(locale.name());
-}
-
-
 void PDFDocumentBuilder::setLanguage(QString language)
 {
     PDFObjectFactory objectBuilder;
@@ -5119,6 +5142,14 @@ void PDFDocumentBuilder::setLanguage(QString language)
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
     mergeTo(getCatalogReference(), updatedCatalog);
+}
+
+
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
 }
 
 
@@ -5253,6 +5284,36 @@ void PDFDocumentBuilder::setPageUserUnit(PDFObjectReference page,
     objectBuilder.endDictionary();
     PDFObject updatedPageObject = objectBuilder.takeObject();
     mergeTo(page, updatedPageObject);
+}
+
+
+void PDFDocumentBuilder::setSignatureContactInfo(PDFObjectReference signatureDictionary,
+                                                 QString contactInfoText)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("ContactInfo");
+    objectBuilder << contactInfoText;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedSignatureDictionary = objectBuilder.takeObject();
+    mergeTo(signatureDictionary, updatedSignatureDictionary);
+}
+
+
+void PDFDocumentBuilder::setSignatureReason(PDFObjectReference signatureDictionary,
+                                            QString reasonText)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Reason");
+    objectBuilder << reasonText;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedSignatureDictionary = objectBuilder.takeObject();
+    mergeTo(signatureDictionary, updatedSignatureDictionary);
 }
 
 

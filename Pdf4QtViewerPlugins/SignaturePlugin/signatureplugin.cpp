@@ -29,6 +29,7 @@
 #include <QToolButton>
 #include <QMainWindow>
 #include <QMessageBox>
+#include <QFileDialog>
 
 namespace pdfplugin
 {
@@ -334,14 +335,38 @@ void SignaturePlugin::onSignDigitally()
             return;
         }
 
+        QString signatureName = QString("pdf4qt_signature_%1").arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
+
         pdf::PDFInteger offsetMark = 123456789123;
         constexpr const char* offsetMarkString = "123456789123";
         const auto offsetMarkStringLength = std::strlen(offsetMarkString);
 
         pdf::PDFDocumentBuilder builder(m_document);
         pdf::PDFObjectReference signatureDictionary = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", signature, QDateTime::currentDateTime(), offsetMark);
-        pdf::PDFObjectReference formField = builder.createFormFieldSignature("signature", { }, signatureDictionary);
+        pdf::PDFObjectReference formField = builder.createFormFieldSignature(signatureName, { }, signatureDictionary);
         builder.createAcroForm({ formField });
+
+        if (dialog.getSignMethod() == SignDialog::SignDigitallyInvisible)
+        {
+            const pdf::PDFCatalog* catalog = m_document->getCatalog();
+            if (catalog->getPageCount() > 0)
+            {
+                const pdf::PDFObjectReference pageReference = catalog->getPage(0)->getPageReference();
+                builder.createInvisibleFormFieldWidget(formField, pageReference);
+            }
+        }
+
+        QString reasonText = dialog.getReasonText();
+        if (!reasonText.isEmpty())
+        {
+            builder.setSignatureReason(signatureDictionary, reasonText);
+        }
+
+        QString contactInfoText = dialog.getContactInfoText();
+        if (!contactInfoText.isEmpty())
+        {
+            builder.setSignatureContactInfo(signatureDictionary, contactInfoText);
+        }
 
         pdf::PDFDocument signedDocument = builder.build();
 
@@ -361,8 +386,8 @@ void SignaturePlugin::onSignDigitally()
 
         // 2) Write ranges to be checked
         const pdf::PDFInteger i1 = 0;
-        const pdf::PDFInteger i2 = indexOfSignature;
-        const pdf::PDFInteger i3 = i2 + signature.size() * 2;
+        const pdf::PDFInteger i2 = indexOfSignature - 1;
+        const pdf::PDFInteger i3 = i2 + signature.size() * 2 + 2;
         const pdf::PDFInteger i4 = buffer.data().size() - i3;
 
         auto writeInt = [&](pdf::PDFInteger offset)
@@ -393,11 +418,29 @@ void SignaturePlugin::onSignDigitally()
             return;
         }
 
-        buffer.seek(i2);
+        buffer.seek(i2 + 1);
         buffer.write(signature.toHex());
 
         buffer.close();
+
+        QString fileName = QFileDialog::getSaveFileName(m_dataExchangeInterface->getMainWindow(), tr("Save Signed Document"), getSignedFileName(), tr("Portable Document (*.pdf);;All files (*.*)"));
+        if (!fileName.isEmpty())
+        {
+            QFile signedFile(fileName);
+            if (signedFile.open(QFile::WriteOnly | QFile::Truncate))
+            {
+                signedFile.write(buffer.data());
+                signedFile.close();
+            }
+        }
     }
+}
+
+QString SignaturePlugin::getSignedFileName() const
+{
+    QFileInfo fileInfo(m_dataExchangeInterface->getOriginalFileName());
+
+    return fileInfo.path() + "/" + fileInfo.baseName() + "_SIGNED.pdf";
 }
 
 void SignaturePlugin::onOpenCertificatesManager()

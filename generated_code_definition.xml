@@ -103,7 +103,7 @@
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(getPageTreeRoot(), updatedTreeRoot);
+          <property name="code">appendTo(getPageTreeRoot(), updatedTreeRoot);&#xd;
 return pageReference;</property>
         </QObject>
       </property>
@@ -182,7 +182,7 @@ return pageReference;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">setCatalogAcroForm(acroForm);
+          <property name="code">setCatalogAcroForm(acroForm);&#xd;
 return acroForm;</property>
         </QObject>
       </property>
@@ -2386,8 +2386,8 @@ return acroForm;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -2610,8 +2610,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -2785,8 +2785,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationReference);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationReference);&#xd;
 return annotationReference;</property>
         </QObject>
       </property>
@@ -3067,8 +3067,8 @@ return annotationReference;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3270,8 +3270,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3545,8 +3545,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3749,8 +3749,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -3904,8 +3904,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -4044,8 +4044,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -4269,8 +4269,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -4486,8 +4486,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -4768,8 +4768,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -5120,8 +5120,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -5321,8 +5321,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationReference);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationReference);&#xd;
 return annotationReference;</property>
         </QObject>
       </property>
@@ -5552,8 +5552,8 @@ return annotationReference;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -5812,8 +5812,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -5951,8 +5951,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">mergeTo(parentAnnotation, upgradedParentAnnotation);
-updateAnnotationAppearanceStreams(popupAnnotation);
+          <property name="code">mergeTo(parentAnnotation, upgradedParentAnnotation);&#xd;
+updateAnnotationAppearanceStreams(popupAnnotation);&#xd;
 return popupAnnotation;</property>
         </QObject>
       </property>
@@ -6106,8 +6106,8 @@ return popupAnnotation;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -6246,8 +6246,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -6470,8 +6470,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -6625,8 +6625,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -6765,8 +6765,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -6969,8 +6969,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -7158,8 +7158,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -7362,8 +7362,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -7517,8 +7517,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -7657,8 +7657,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -7899,9 +7899,9 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">mergeTo(annotationObject, updateAnnotationPopup);
-appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">mergeTo(annotationObject, updateAnnotationPopup);&#xd;
+appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -8055,8 +8055,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -8195,8 +8195,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -8399,8 +8399,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">appendTo(page, pageAnnots);
-updateAnnotationAppearanceStreams(annotationObject);
+          <property name="code">appendTo(page, pageAnnots);&#xd;
+updateAnnotationAppearanceStreams(annotationObject);&#xd;
 return annotationObject;</property>
         </QObject>
       </property>
@@ -8716,8 +8716,8 @@ return annotationObject;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">mergeTo(rootNodeReference, updatedRootNode);
-mergeTo(getCatalogReference(), updatedCatalog);
+          <property name="code">mergeTo(rootNodeReference, updatedRootNode);&#xd;
+mergeTo(getCatalogReference(), updatedCatalog);&#xd;
 return rootNodeReference;</property>
         </QObject>
       </property>
@@ -8955,6 +8955,116 @@ return rootNodeReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
+              <property name="parameterName">formField</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Form field reference</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">page</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Page reference</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">P</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">page</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Rect</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">std::array{ 0.0, 0.0, 0.0, 0.0 }</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Subtype</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Widget")</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Type</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">WrapName("Annot")</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">widgetObject</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Annots</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">std::array{ formField }</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">pageObject</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(formField, widgetObject);
+appendTo(page, pageObject);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">createInvisibleFormFieldWidget</property>
+      <property name="functionDescription"></property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
               <property name="parameterName">filter</property>
               <property name="parameterType">_QByteArray</property>
               <property name="parameterDescription">Filter (for example, Adobe.PPKLite, Entrust.PPKEF, CiCi.SignIt, ...)</property>
@@ -9032,7 +9142,7 @@ return rootNodeReference;</property>
                   <property name="items"/>
                   <property name="dictionaryItemName">Contents</property>
                   <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">contents</property>
+                  <property name="value">WrapString(contents)</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
@@ -11039,39 +11149,6 @@ return rootNodeReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
-              <property name="parameterName">locale</property>
-              <property name="parameterType">_QLocale</property>
-              <property name="parameterDescription">Locale, from which is language determined</property>
-            </QObject>
-          </property>
-          <property name="actionType">Parameters</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code"></property>
-        </QObject>
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items"/>
-          <property name="actionType">Code</property>
-          <property name="variableName"></property>
-          <property name="variableType">_void</property>
-          <property name="code">setLanguage(locale.name());</property>
-        </QObject>
-      </property>
-      <property name="functionType">Structure</property>
-      <property name="functionName">setLanguage</property>
-      <property name="functionDescription">Set document language.</property>
-      <property name="returnType">_void</property>
-    </QObject>
-    <QObject class="codegen::GeneratedFunction">
-      <property name="objectName"></property>
-      <property name="items">
-        <QObject class="codegen::GeneratedAction">
-          <property name="objectName"></property>
-          <property name="items">
-            <QObject class="codegen::GeneratedParameter">
-              <property name="objectName"></property>
-              <property name="items"/>
               <property name="parameterName">language</property>
               <property name="parameterType">_QString</property>
               <property name="parameterDescription">Document language. It should be a language identifier, as defined in ISO 639 and ISO 3166. For example, "en-US", where first two letter means language code (en = english), and the latter two is country code (US - United States).</property>
@@ -11113,6 +11190,39 @@ return rootNodeReference;</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
           <property name="code">mergeTo(getCatalogReference(), updatedCatalog);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">setLanguage</property>
+      <property name="functionDescription">Set document language.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">locale</property>
+              <property name="parameterType">_QLocale</property>
+              <property name="parameterDescription">Locale, from which is language determined</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">setLanguage(locale.name());</property>
         </QObject>
       </property>
       <property name="functionType">Structure</property>
@@ -11698,6 +11808,134 @@ return rootNodeReference;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
+              <property name="parameterName">signatureDictionary</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Signature dictionary reference</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">contactInfoText</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Contact info text</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">ContactInfo</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">contactInfoText</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedSignatureDictionary</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(signatureDictionary, updatedSignatureDictionary);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">setSignatureContactInfo</property>
+      <property name="functionDescription">Sets signature contact info field.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">signatureDictionary</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Signature dictionary reference</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">reasonText</property>
+              <property name="parameterType">_QString</property>
+              <property name="parameterDescription">Reason text</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Reason</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">reasonText</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedSignatureDictionary</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(signatureDictionary, updatedSignatureDictionary);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">setSignatureReason</property>
+      <property name="functionDescription">Sets signature reason field.</property>
+      <property name="returnType">_void</property>
+    </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
               <property name="parameterName">objectCount</property>
               <property name="parameterType">_PDFInteger</property>
               <property name="parameterDescription">Number of objects (including empty ones)</property>
@@ -11769,7 +12007,7 @@ return rootNodeReference;</property>
           <property name="actionType">Code</property>
           <property name="variableName"></property>
           <property name="variableType">_void</property>
-          <property name="code">m_storage.updateTrailerDictionary(qMove(trailerDictionary));
+          <property name="code">m_storage.updateTrailerDictionary(qMove(trailerDictionary));&#xd;
 updateDocumentInfo(qMove(updatedInfoDictionary));</property>
         </QObject>
       </property>

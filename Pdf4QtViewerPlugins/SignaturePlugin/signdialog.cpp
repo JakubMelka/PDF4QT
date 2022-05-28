@@ -68,6 +68,16 @@ QString SignDialog::getPassword() const
     return ui->certificatePasswordEdit->text();
 }
 
+QString SignDialog::getReasonText() const
+{
+    return ui->reasonEdit->text();
+}
+
+QString SignDialog::getContactInfoText() const
+{
+    return ui->contactInfoEdit->text();
+}
+
 void SignDialog::accept()
 {
     // Check certificate
