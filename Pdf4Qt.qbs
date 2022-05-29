@@ -21,6 +21,7 @@ Project {
                    "Pdf4QtViewerPlugins/OutputPreviewPlugin/OutputPreviewPlugin.qbs",
                    "Pdf4QtViewerPlugins/RedactPlugin/RedactPlugin.qbs",
                    "Pdf4QtViewerPlugins/SoftProofingPlugin/SoftProofingPlugin.qbs",
+				   "Pdf4QtViewerPlugins/SignaturePlugin/SignaturePlugin.qbs",
                 ];
         ref.push(conan.generatedFilesPath + "/conanbuildinfo.qbs");
         return ref;
