@@ -10,6 +10,6 @@ Pdf4QtPlugin {
     ]
     Properties {
         condition: qbs.hostOS.contains("windows")
-        cpp.defines: "DIMENTIONPLUGIN_LIBRARY"
+        cpp.defines: "DIMENSIONPLUGIN_LIBRARY"
     }
 }

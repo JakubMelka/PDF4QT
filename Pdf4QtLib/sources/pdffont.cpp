@@ -1836,7 +1836,7 @@ void PDFFontCache::setDocument(const PDFModifiedDocument& document)
 
         // Jakub Melka: If document has not reset flag, then fonts of the
         // document remains the same. So it is not needed to clear font cache.
-        if (document.hasReset())
+        if (document.hasReset() || document.hasPageContentsChanged())
         {
             m_fontCache.clear();
             m_realizedFontCache.clear();

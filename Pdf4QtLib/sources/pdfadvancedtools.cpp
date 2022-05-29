@@ -659,7 +659,7 @@ void PDFCreateFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* e
         resetTool();
     }
 
-    getProxy()->repaintNeeded();
+    emit getProxy()->repaintNeeded();
 }
 
 void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -1063,7 +1063,7 @@ void PDFCreateHighlightTextTool::setSelection(PDFTextSelection&& textSelection)
     if (m_textSelection != textSelection)
     {
         m_textSelection = qMove(textSelection);
-        getProxy()->repaintNeeded();
+        emit getProxy()->repaintNeeded();
     }
 }
 

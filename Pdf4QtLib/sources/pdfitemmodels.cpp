@@ -738,7 +738,7 @@ void PDFThumbnailsItemModel::setDocument(const PDFModifiedDocument& document)
 {
     if (m_document != document)
     {
-        if (document.hasReset() || document.hasFlag(PDFModifiedDocument::Annotation))
+        if (document.hasReset() || document.hasPageContentsChanged() || document.hasFlag(PDFModifiedDocument::Annotation))
         {
             beginResetModel();
             m_thumbnailCache.clear();

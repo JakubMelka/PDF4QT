@@ -348,6 +348,15 @@ void PDFSignatureVerificationResult::addCertificateQualifiedStatementNotVerified
     }
 }
 
+void PDFSignatureVerificationResult::addCertificateUnableToGetCRLWarning()
+{
+    if (!m_flags.testFlag(Warning_Certificate_UnableToGetCRL))
+    {
+        m_flags.setFlag(Warning_Certificate_UnableToGetCRL);
+        m_warnings << PDFTranslationContext::tr("Unable to get CRL.");
+    }
+}
+
 void PDFSignatureVerificationResult::setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName)
 {
     m_signatureFieldQualifiedName = signatureFieldQualifiedName;
@@ -973,6 +982,15 @@ int PDFSignatureHandler_ETSI_base::verifyCallback(int ok, X509_STORE_CTX* contex
         {
             // We will treat this as only warning
             s_ETSI_currentResult->addCertificateCRLValidityTimeExpiredWarning();
+            X509_STORE_CTX_set_error(context, X509_V_OK);
+            return 1;
+        }
+
+        case X509_V_ERR_UNABLE_TO_GET_CRL:
+        {
+            // We will treat this as only warning. It means that
+            // CRL cannot be downloaded or other error occured.
+            s_ETSI_currentResult->addCertificateUnableToGetCRLWarning();
             X509_STORE_CTX_set_error(context, X509_V_OK);
             return 1;
         }

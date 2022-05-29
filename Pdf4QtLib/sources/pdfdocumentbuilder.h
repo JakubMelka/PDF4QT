@@ -39,6 +39,12 @@ struct WrapName
 
     }
 
+    WrapName(QByteArray name) :
+        name(std::move(name))
+    {
+
+    }
+
     QByteArray name;
 };
 
@@ -86,7 +92,7 @@ struct WrapEmptyArray { };
 
 /// Factory for creating various PDF objects, such as simple objects,
 /// dictionaries, arrays etc.
-class PDFObjectFactory
+class PDF4QTLIBSHARED_EXPORT PDFObjectFactory
 {
 public:
     inline explicit PDFObjectFactory() = default;
@@ -261,9 +267,20 @@ private:
 class PDF4QTLIBSHARED_EXPORT PDFPageContentStreamBuilder
 {
 public:
-    PDFPageContentStreamBuilder(PDFDocumentBuilder* builder);
 
-    /// Starts painting onto the page. Old page content is erased. This
+    enum class Mode
+    {
+        Replace,
+        PlaceBefore,
+        PlaceAfter
+    };
+
+    /// Vytvoří nový builder, který vytváří obsah stránek.
+    PDFPageContentStreamBuilder(PDFDocumentBuilder* builder,
+                                PDFContentStreamBuilder::CoordinateSystem coordinateSystem = PDFContentStreamBuilder::CoordinateSystem::Qt,
+                                Mode mode = Mode::Replace);
+
+    /// Starts painting onto the page. Old page content is erased (in Replace mode). This
     /// function returns painter, onto which can be graphics drawn. Painter
     /// uses Qt's coordinate system. Calling begin multiple times, without
     /// subsequent calls to end function, is invalid and can result
@@ -284,9 +301,15 @@ public:
     void end(QPainter* painter);
 
 private:
+    void replaceResources(PDFObjectReference contentStreamReference,
+                          PDFObjectReference resourcesReference,
+                          PDFObject oldResources);
+
     PDFDocumentBuilder* m_documentBuilder;
     PDFContentStreamBuilder* m_contentStreamBuilder;
     PDFObjectReference m_pageReference;
+    PDFContentStreamBuilder::CoordinateSystem m_coordinateSystem;
+    Mode m_mode;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFDocumentBuilder
@@ -327,6 +350,11 @@ public:
     /// Returns object by reference. If dereference attempt fails, then null object
     /// is returned (no exception is thrown).
     const PDFObject& getObjectByReference(PDFObjectReference reference) const;
+
+    /// Returns the decoded stream. If stream data cannot be decoded,
+    /// then empty byte array is returned.
+    /// \param stream Stream to be decoded
+    QByteArray getDecodedStream(const PDFStream* stream) const;
 
     /// Returns annotation bounding rectangle
     std::array<PDFReal, 4> getAnnotationReductionRectangle(const QRectF& boundingRect, const QRectF& innerRect) const;
@@ -444,6 +472,11 @@ public:
     /// Appends a new page after last page.
     /// \param mediaBox Media box of the page (size of paper)
     PDFObjectReference appendPage(QRectF mediaBox);
+
+
+    /// Creates AcroForm dictionary. Erases XFA form if present.
+    /// \param fields Fields
+    PDFObjectReference createAcroForm(PDFObjectReferenceVector fields);
 
 
     /// Creates GoTo action. This action changes view to a specific destination in the same document.
@@ -676,36 +709,6 @@ public:
     /// \param contents Contents (text displayed)
     /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
     /// \param startPoint Start point of callout line
-    /// \param endPoint End point of callout line
-    /// \param startLineType Line ending at the start point
-    /// \param endLineType Line ending at the end point
-    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
-                                                QRectF boundingRectangle,
-                                                QRectF textRectangle,
-                                                QString title,
-                                                QString subject,
-                                                QString contents,
-                                                TextAlignment textAlignment,
-                                                QPointF startPoint,
-                                                QPointF endPoint,
-                                                AnnotationLineEnding startLineType,
-                                                AnnotationLineEnding endLineType);
-
-
-    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
-    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
-    /// the document. Free text annotation can also have callout line, with, or without a knee. Specify 
-    /// start/end point parameters of this function to get callout line.
-    /// \param page Page to which is annotation added
-    /// \param boundingRectangle Bounding rectangle of free text annotation. It must contain both 
-    ///        callout line and text rectangle.
-    /// \param textRectangle Rectangle with text, in absolute coordinates. They are then recomputed to 
-    ///        match bounding rectangle.
-    /// \param title Title
-    /// \param subject Subject
-    /// \param contents Contents (text displayed)
-    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
-    /// \param startPoint Start point of callout line
     /// \param kneePoint Knee point of callout line
     /// \param endPoint End point of callout line
     /// \param startLineType Line ending at the start point
@@ -739,6 +742,36 @@ public:
                                                 QString subject,
                                                 QString contents,
                                                 TextAlignment textAlignment);
+
+
+    /// Free text annotation displays text directly on a page. Text appears directly on the page, in the 
+    /// same way, as standard text in PDF document. Free text annotations are usually used to comment 
+    /// the document. Free text annotation can also have callout line, with, or without a knee. Specify 
+    /// start/end point parameters of this function to get callout line.
+    /// \param page Page to which is annotation added
+    /// \param boundingRectangle Bounding rectangle of free text annotation. It must contain both 
+    ///        callout line and text rectangle.
+    /// \param textRectangle Rectangle with text, in absolute coordinates. They are then recomputed to 
+    ///        match bounding rectangle.
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents (text displayed)
+    /// \param textAlignment Text alignment. Only horizontal alignment flags are valid.
+    /// \param startPoint Start point of callout line
+    /// \param endPoint End point of callout line
+    /// \param startLineType Line ending at the start point
+    /// \param endLineType Line ending at the end point
+    PDFObjectReference createAnnotationFreeText(PDFObjectReference page,
+                                                QRectF boundingRectangle,
+                                                QRectF textRectangle,
+                                                QString title,
+                                                QString subject,
+                                                QString contents,
+                                                TextAlignment textAlignment,
+                                                QPointF startPoint,
+                                                QPointF endPoint,
+                                                AnnotationLineEnding startLineType,
+                                                AnnotationLineEnding endLineType);
 
 
     /// Text markup annotation is used to highlight text. It is a markup annotation, so it can contain 
@@ -1027,6 +1060,16 @@ public:
     /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
     /// contain window to be opened (and commented).
     /// \param page Page to which is annotation added
+    /// \param quadrilaterals Area in which is markup displayed
+    /// \param color Color
+    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
+                                                QPolygonF quadrilaterals,
+                                                QColor color);
+
+
+    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
+    /// contain window to be opened (and commented).
+    /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
     /// \param title Title
@@ -1038,16 +1081,6 @@ public:
                                                 QString title,
                                                 QString subject,
                                                 QString contents);
-
-
-    /// Text markup annotation is used to squiggly underline text. It is a markup annotation, so it can 
-    /// contain window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param quadrilaterals Area in which is markup displayed
-    /// \param color Color
-    PDFObjectReference createAnnotationSquiggly(PDFObjectReference page,
-                                                QPolygonF quadrilaterals,
-                                                QColor color);
 
 
     /// Stamp annotation
@@ -1127,22 +1160,6 @@ public:
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is markup displayed
     /// \param color Color
-    /// \param title Title
-    /// \param subject Subject
-    /// \param contents Contents
-    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
-                                                 QRectF rectangle,
-                                                 QColor color,
-                                                 QString title,
-                                                 QString subject,
-                                                 QString contents);
-
-
-    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
-    /// window to be opened (and commented).
-    /// \param page Page to which is annotation added
-    /// \param rectangle Area in which is markup displayed
-    /// \param color Color
     PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
                                                  QRectF rectangle,
                                                  QColor color);
@@ -1156,6 +1173,22 @@ public:
     PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
                                                  QPolygonF quadrilaterals,
                                                  QColor color);
+
+
+    /// Text markup annotation is used to underline text. It is a markup annotation, so it can contain 
+    /// window to be opened (and commented).
+    /// \param page Page to which is annotation added
+    /// \param rectangle Area in which is markup displayed
+    /// \param color Color
+    /// \param title Title
+    /// \param subject Subject
+    /// \param contents Contents
+    PDFObjectReference createAnnotationUnderline(PDFObjectReference page,
+                                                 QRectF rectangle,
+                                                 QColor color,
+                                                 QString title,
+                                                 QString subject,
+                                                 QString contents);
 
 
     /// Creates empty catalog. This function is used, when a new document is being created. Do not call 
@@ -1191,6 +1224,48 @@ public:
     /// Creates file specification for external file.
     /// \param fileName File name
     PDFObjectReference createFileSpecification(QString fileName);
+
+
+    /// Creates form field of type signature.
+    /// \param fieldName Field name
+    /// \param kids Kids of the signature field.
+    /// \param signatureValue Signature value
+    PDFObjectReference createFormFieldSignature(QString fieldName,
+                                                PDFObjectReferenceVector kids,
+                                                PDFObjectReference signatureValue);
+
+
+    /// Creates visible form field widget without contents.
+    /// \param formField Form field reference
+    /// \param page Page reference
+    /// \param appearanceStream Appearance stream
+    /// \param rect Widget rectangle
+    void createFormFieldWidget(PDFObjectReference formField,
+                               PDFObjectReference page,
+                               PDFObjectReference appearanceStream,
+                               QRectF rect);
+
+
+    /// 
+    /// \param formField Form field reference
+    /// \param page Page reference
+    void createInvisibleFormFieldWidget(PDFObjectReference formField,
+                                        PDFObjectReference page);
+
+
+    /// Creates signature dictionary used for preparation in signing process. Can define parameters of the 
+    /// signature.
+    /// \param filter Filter (for example, Adobe.PPKLite, Entrust.PPKEF, CiCi.SignIt, ...)
+    /// \param subfilter Subfilter (for example, adbe.pkcs7.detached, adbe.pkcs7.sha1, 
+    ///        ETSI.CAdES.detached, ...)
+    /// \param contents Contents (reserved data for signature).
+    /// \param signingTime Signing date/time
+    /// \param byteRangeItem Item which will fill byte range array.
+    PDFObjectReference createSignatureDictionary(QByteArray filter,
+                                                 QByteArray subfilter,
+                                                 QByteArray contents,
+                                                 QDateTime signingTime,
+                                                 PDFInteger byteRangeItem);
 
 
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not 
@@ -1394,15 +1469,15 @@ public:
 
 
     /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
+
+
+    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
-
-
-    /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
 
 
     /// Set document outline.
@@ -1470,6 +1545,20 @@ public:
                          PDFReal unit);
 
 
+    /// Sets signature contact info field.
+    /// \param signatureDictionary Signature dictionary reference
+    /// \param contactInfoText Contact info text
+    void setSignatureContactInfo(PDFObjectReference signatureDictionary,
+                                 QString contactInfoText);
+
+
+    /// Sets signature reason field.
+    /// \param signatureDictionary Signature dictionary reference
+    /// \param reasonText Reason text
+    void setSignatureReason(PDFObjectReference signatureDictionary,
+                            QString reasonText);
+
+
     /// This function is used to update trailer dictionary. Must be called each time the final document is 
     /// being built.
     /// \param objectCount Number of objects (including empty ones)
@@ -1513,6 +1602,7 @@ public:
     PDFModifiedDocument::ModificationFlags getFlags() const { return m_modificationFlags; }
 
     void markReset() { m_modificationFlags.setFlag(PDFModifiedDocument::Reset); }
+    void markPageContentsChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::PageContents); }
     void markAnnotationsChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::Annotation); }
     void markFormFieldChanged() { m_modificationFlags.setFlag(PDFModifiedDocument::FormField); }
     void markXFAPagination() { m_modificationFlags.setFlag(PDFModifiedDocument::XFA_Pagination); }

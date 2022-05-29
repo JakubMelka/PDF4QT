@@ -501,10 +501,11 @@ public:
     {
         None            = 0x0000,   ///< No flag
         Reset           = 0x0001,   ///< Whole document content is changed (for example, new document is being set)
-        Annotation      = 0x0002,   ///< Annotations changed
-        FormField       = 0x0004,   ///< Form field content changed
-        Authorization   = 0x0008,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
-        XFA_Pagination  = 0x0010,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
+        PageContents    = 0x0002,   ///< Page contents changed (page graphics, not annotations)
+        Annotation      = 0x0004,   ///< Annotations changed
+        FormField       = 0x0008,   ///< Form field content changed
+        Authorization   = 0x0010,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
+        XFA_Pagination  = 0x0020,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
     };
 
     Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)
@@ -550,6 +551,7 @@ public:
     ModificationFlags getFlags() const { return m_flags; }
 
     bool hasReset() const { return m_flags.testFlag(Reset); }
+    bool hasPageContentsChanged() const { return m_flags.testFlag(PageContents); }
     bool hasFlag(ModificationFlag flag) const { return m_flags.testFlag(flag); }
 
     operator PDFDocument*() const { return m_document; }

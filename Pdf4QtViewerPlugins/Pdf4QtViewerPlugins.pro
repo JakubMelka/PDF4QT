@@ -24,6 +24,7 @@ SUBDIRS += \
     RedactPlugin \
     OutputPreviewPlugin \
     ObjectInspectorPlugin \
-    AudioBookPlugin
+    AudioBookPlugin \
+	SignaturePlugin
 
 

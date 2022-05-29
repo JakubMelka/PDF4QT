@@ -15,7 +15,7 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-QT       += gui widgets xml
+QT       += gui widgets xml svg
 
 TARGET = Pdf4QtLib
 TEMPLATE = lib
@@ -72,6 +72,10 @@ SOURCES += \
     sources/pdfoptimizer.cpp \
     sources/pdfoptionalcontent.cpp \
     sources/pdfoutline.cpp \
+    sources/pdfpagecontenteditorstylesettings.cpp \
+    sources/pdfpagecontenteditortools.cpp \
+    sources/pdfpagecontenteditorwidget.cpp \
+    sources/pdfpagecontentelements.cpp \
     sources/pdfpagenavigation.cpp \
     sources/pdfpagetransition.cpp \
     sources/pdfpainterutils.cpp \
@@ -87,6 +91,7 @@ SOURCES += \
     sources/pdfsignaturehandler.cpp \
     sources/pdfsnapper.cpp \
     sources/pdfstructuretree.cpp \
+    sources/pdftexteditpseudowidget.cpp \
     sources/pdftextlayout.cpp \
     sources/pdftransparencyrenderer.cpp \
     sources/pdfutils.cpp \
@@ -147,6 +152,10 @@ HEADERS += \
     sources/pdfoptimizer.h \
     sources/pdfoptionalcontent.h \
     sources/pdfoutline.h \
+    sources/pdfpagecontenteditorstylesettings.h \
+    sources/pdfpagecontenteditortools.h \
+    sources/pdfpagecontenteditorwidget.h \
+    sources/pdfpagecontentelements.h \
     sources/pdfpagenavigation.h \
     sources/pdfpagetransition.h \
     sources/pdfpainterutils.h \
@@ -165,6 +174,7 @@ HEADERS += \
     sources/pdfsignaturehandler_impl.h \
     sources/pdfsnapper.h \
     sources/pdfstructuretree.h \
+    sources/pdftexteditpseudowidget.h \
     sources/pdftextlayout.h \
     sources/pdftransparencyrenderer.h \
     sources/pdfwidgettool.h \
@@ -194,6 +204,8 @@ HEADERS += \
     sources/pdfimage.h
 
 FORMS += \
+    sources/pdfpagecontenteditorstylesettings.ui \
+    sources/pdfpagecontenteditorwidget.ui \
     sources/pdfrenderingerrorswidget.ui \
     sources/pdfselectpagesdialog.ui
 

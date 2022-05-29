@@ -215,6 +215,10 @@ public:
 
     /// Recompresses data. So, first, data are decompressed, and then
     /// recompressed again with maximal compress ratio possible.
+    /// \param data Uncompressed data to be compressed
+    static QByteArray compress(const QByteArray& decompressedData);
+
+    /// Compress data with maximal compress ratio possible.
     /// \param data Compressed data to be recompressed
     static QByteArray recompress(const QByteArray& data);
 

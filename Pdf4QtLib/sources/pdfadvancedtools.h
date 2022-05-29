@@ -166,7 +166,8 @@ private:
 public:
     explicit PDFCreateEllipseTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
 
-    virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QMatrix& pagePointToDevicePointMatrix,

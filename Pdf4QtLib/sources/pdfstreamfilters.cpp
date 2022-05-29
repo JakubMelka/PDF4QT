@@ -383,10 +383,9 @@ QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data,
     return predictor.apply(uncompress(data));
 }
 
-QByteArray PDFFlateDecodeFilter::recompress(const QByteArray& data)
+QByteArray PDFFlateDecodeFilter::compress(const QByteArray& decompressedData)
 {
     QByteArray result;
-    QByteArray decompressedData = uncompress(data);
 
     z_stream stream = { };
     stream.next_in = const_cast<Bytef*>(convertByteArrayToUcharPtr(decompressedData));
@@ -431,11 +430,17 @@ QByteArray PDFFlateDecodeFilter::recompress(const QByteArray& data)
                 errorMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
             }
 
-            throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+            throw PDFException(PDFTranslationContext::tr("Error compressing by flate method: %1").arg(errorMessage));
         }
     }
 
     return result;
+}
+
+QByteArray PDFFlateDecodeFilter::recompress(const QByteArray& data)
+{
+    QByteArray decompressedData = uncompress(data);
+    return compress(decompressedData);
 }
 
 PDFInteger PDFFlateDecodeFilter::getStreamDataLength(const QByteArray& data, PDFInteger offset) const
