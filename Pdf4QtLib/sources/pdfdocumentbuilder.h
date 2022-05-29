@@ -92,7 +92,7 @@ struct WrapEmptyArray { };
 
 /// Factory for creating various PDF objects, such as simple objects,
 /// dictionaries, arrays etc.
-class PDFObjectFactory
+class PDF4QTLIBSHARED_EXPORT PDFObjectFactory
 {
 public:
     inline explicit PDFObjectFactory() = default;
@@ -1235,6 +1235,17 @@ public:
                                                 PDFObjectReference signatureValue);
 
 
+    /// Creates visible form field widget without contents.
+    /// \param formField Form field reference
+    /// \param page Page reference
+    /// \param appearanceStream Appearance stream
+    /// \param rect Widget rectangle
+    void createFormFieldWidget(PDFObjectReference formField,
+                               PDFObjectReference page,
+                               PDFObjectReference appearanceStream,
+                               QRectF rect);
+
+
     /// 
     /// \param formField Form field reference
     /// \param page Page reference
@@ -1458,15 +1469,15 @@ public:
 
 
     /// Set document language.
+    /// \param locale Locale, from which is language determined
+    void setLanguage(QLocale locale);
+
+
+    /// Set document language.
     /// \param language Document language. It should be a language identifier, as defined in ISO 639 
     ///        and ISO 3166. For example, "en-US", where first two letter means language code (en = 
     ///        english), and the latter two is country code (US - United States).
     void setLanguage(QString language);
-
-
-    /// Set document language.
-    /// \param locale Locale, from which is language determined
-    void setLanguage(QLocale locale);
 
 
     /// Set document outline.

@@ -346,14 +346,61 @@ void SignaturePlugin::onSignDigitally()
         pdf::PDFObjectReference formField = builder.createFormFieldSignature(signatureName, { }, signatureDictionary);
         builder.createAcroForm({ formField });
 
+        const pdf::PDFCatalog* catalog = m_document->getCatalog();
         if (dialog.getSignMethod() == SignDialog::SignDigitallyInvisible)
         {
-            const pdf::PDFCatalog* catalog = m_document->getCatalog();
             if (catalog->getPageCount() > 0)
             {
                 const pdf::PDFObjectReference pageReference = catalog->getPage(0)->getPageReference();
                 builder.createInvisibleFormFieldWidget(formField, pageReference);
             }
+        }
+        else if (dialog.getSignMethod() == SignDialog::SignDigitally)
+        {
+            Q_ASSERT(!m_scene.isEmpty());
+            const pdf::PDFInteger pageIndex = *m_scene.getPageIndices().begin();
+            const pdf::PDFPage* page = catalog->getPage(pageIndex);
+
+            pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
+            QPainter* painter = contentBuilder.begin();
+            QList<pdf::PDFRenderError> errors;
+            pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
+            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QMatrix(), errors);
+            pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
+
+            QRectF boundingRect = m_scene.getBoundingBox(pageIndex);
+            std::vector<pdf::PDFObject> copiedObjects = builder.copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
+            Q_ASSERT(copiedObjects.size() == 2);
+
+            pdf::PDFObjectReference resourcesReference = copiedObjects[0].getReference();
+            pdf::PDFObjectReference formReference = copiedObjects[1].getReference();
+
+            // Create form object
+            pdf::PDFObjectFactory formFactory;
+
+            formFactory.beginDictionary();
+
+            formFactory.beginDictionaryItem("Type");
+            formFactory << pdf::WrapName("XObject");
+            formFactory.endDictionaryItem();
+
+            formFactory.beginDictionaryItem("Subtype");
+            formFactory << pdf::WrapName("Form");
+            formFactory.endDictionaryItem();
+
+            formFactory.beginDictionaryItem("BBox");
+            formFactory << boundingRect;
+            formFactory.endDictionaryItem();
+
+            formFactory.beginDictionaryItem("Resources");
+            formFactory << resourcesReference;
+            formFactory.endDictionaryItem();
+
+            formFactory.endDictionary();
+
+            builder.mergeTo(formReference, formFactory.takeObject());
+
+            builder.createFormFieldWidget(formField, page->getPageReference(), formReference, boundingRect);
         }
 
         QString reasonText = dialog.getReasonText();

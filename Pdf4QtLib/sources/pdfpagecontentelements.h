@@ -507,6 +507,9 @@ public:
     /// Returns set of involved pages
     std::set<PDFInteger> getPageIndices() const;
 
+    /// Returns bounding box of elements on page
+    QRectF getBoundingBox(PDFInteger pageIndex) const;
+
     /// Set selected items
     void setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds);
 

@@ -889,6 +889,21 @@ std::set<PDFInteger> PDFPageContentScene::getPageIndices() const
     return result;
 }
 
+QRectF PDFPageContentScene::getBoundingBox(PDFInteger pageIndex) const
+{
+    QRectF rect;
+
+    for (const auto& element : m_elements)
+    {
+        if (element->getPageIndex() == pageIndex)
+        {
+            rect = rect.united(element->getBoundingBox());
+        }
+    }
+
+    return rect;
+}
+
 void PDFPageContentScene::setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds)
 {
     m_manipulator.selectNew(selectedElementIds);

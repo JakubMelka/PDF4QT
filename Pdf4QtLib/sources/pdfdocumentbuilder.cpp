@@ -4567,6 +4567,46 @@ PDFObjectReference PDFDocumentBuilder::createFormFieldSignature(QString fieldNam
 }
 
 
+void PDFDocumentBuilder::createFormFieldWidget(PDFObjectReference formField,
+                                               PDFObjectReference page,
+                                               PDFObjectReference appearanceStream,
+                                               QRectF rect)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Type");
+    objectBuilder << WrapName("Annot");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Subtype");
+    objectBuilder << WrapName("Widget");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("P");
+    objectBuilder << page;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << rect;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("AP");
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("N");
+    objectBuilder << appearanceStream;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject widgetObject = objectBuilder.takeObject();
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Annots");
+    objectBuilder << std::array{ formField };
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject pageObject = objectBuilder.takeObject();
+    mergeTo(formField, widgetObject);
+    appendTo(page, pageObject);
+}
+
+
 void PDFDocumentBuilder::createInvisibleFormFieldWidget(PDFObjectReference formField,
                                                         PDFObjectReference page)
 {
@@ -5131,6 +5171,14 @@ void PDFDocumentBuilder::setFormFieldValue(PDFObjectReference formField,
 }
 
 
+void PDFDocumentBuilder::setLanguage(QLocale locale)
+{
+    PDFObjectFactory objectBuilder;
+
+    setLanguage(locale.name());
+}
+
+
 void PDFDocumentBuilder::setLanguage(QString language)
 {
     PDFObjectFactory objectBuilder;
@@ -5142,14 +5190,6 @@ void PDFDocumentBuilder::setLanguage(QString language)
     objectBuilder.endDictionary();
     PDFObject updatedCatalog = objectBuilder.takeObject();
     mergeTo(getCatalogReference(), updatedCatalog);
-}
-
-
-void PDFDocumentBuilder::setLanguage(QLocale locale)
-{
-    PDFObjectFactory objectBuilder;
-
-    setLanguage(locale.name());
 }
 
 
