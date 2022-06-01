@@ -1,7 +1,9 @@
 CURRENT:
 
  - Issue #10: Performance optimization
+ - Issue #14: Incorrect text drawing for vertical writing systems
  - static XFA support (readonly, simple XFA only)
+ - electronically/digitally sign documents
 
 V: 1.1.0, 19.12.2021
  - DocDiff application (compare similar PDF documents)

@@ -995,6 +995,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
         impl->m_parentFont = font;
         impl->m_pixelSize = pixelSize;
 
+        const PDFFontCMap* cmap = font->getCMap();
         const FontDescriptor* descriptor = font->getFontDescriptor();
         if (descriptor->isEmbedded())
         {
@@ -1009,7 +1010,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_embeddedFontData.constData()), impl->m_embeddedFontData.size(), 0, &impl->m_face));
             FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
             PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
-            impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
+            impl->m_isVertical = cmap ? cmap->isVertical() : false;
             impl->m_isEmbedded = true;
             result.reset(new PDFRealizedFont(implPtr.release()));
         }
@@ -1035,7 +1036,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             PDFRealizedFontImpl::checkFreeTypeError(FT_New_Memory_Face(impl->m_library, reinterpret_cast<const FT_Byte*>(impl->m_systemFontData.constData()), impl->m_systemFontData.size(), 0, &impl->m_face));
             FT_Select_Charmap(impl->m_face, FT_ENCODING_UNICODE); // We try to select unicode encoding, but if it fails, we don't do anything (use glyph indices instead)
             PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
-            impl->m_isVertical = impl->m_face->face_flags & FT_FACE_FLAG_VERTICAL;
+            impl->m_isVertical = cmap ? cmap->isVertical() : false;
             impl->m_isEmbedded = false;
             if (const char* postScriptName = FT_Get_Postscript_Name(impl->m_face))
             {

@@ -51,9 +51,9 @@ Software have following features (the list is not complete):
 - [x] internal structure inspector
 - [x] compare documents
 - [x] static XFA support (readonly, simple XFA only)
-- [ ] create fillable forms *(planned in year 2022)*
-- [ ] electronically/digitally sign documents *(planned in year 2022)*
-- [ ] 3D PDF support *(planned in year 2023)*
+- [x] electronically/digitally sign documents
+- [ ] 3D PDF support *(planned in year 2022)*
+- [ ] create fillable forms *(planned in year 2023)*
 - [ ] watermarks / headers / footers *(planned in year 2023)*
 - [ ] presentation application *(planned in year 2023)*
 - [ ] public key security encryption *(planned in year 2023)*

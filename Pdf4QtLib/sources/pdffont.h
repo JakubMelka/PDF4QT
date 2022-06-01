@@ -276,6 +276,9 @@ public:
     /// Returns ToUnicode mapping (or nullptr, if font has no mapping to unicode)
     virtual const PDFFontCMap* getToUnicode() const { return nullptr; }
 
+    /// Returns cmap for font character encoding
+    virtual const PDFFontCMap* getCMap() const { return nullptr; }
+
     /// Returns font descriptor
     const FontDescriptor* getFontDescriptor() const { return &m_fontDescriptor; }
 
@@ -488,6 +491,9 @@ public:
     /// Returns true, if mapping is valid
     bool isValid() const { return !m_entries.empty(); }
 
+    /// Returns true, if vertical writing mode is on
+    bool isVertical() const { return m_vertical; }
+
     /// Creates mapping from name (name must be one of predefined names)
     static PDFFontCMap createFromName(const QByteArray& name);
 
@@ -612,7 +618,7 @@ public:
     virtual FontType getFontType() const override { return FontType::Type0; }
     virtual const PDFFontCMap* getToUnicode() const override { return &m_toUnicode; }
 
-    const PDFFontCMap* getCMap() const { return &m_cmap; }
+    virtual const PDFFontCMap* getCMap() const override { return &m_cmap; }
     const PDFCIDtoGIDMapper* getCIDtoGIDMapper() const { return &m_mapper; }
 
     /// Returns the glyph advance, if it can be obtained, or zero, if it cannot
