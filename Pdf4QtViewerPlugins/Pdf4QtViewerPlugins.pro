@@ -25,6 +25,6 @@ SUBDIRS += \
     OutputPreviewPlugin \
     ObjectInspectorPlugin \
     AudioBookPlugin \
-	SignaturePlugin
+    SignaturePlugin
 
 
