@@ -1,4 +1,4 @@
-#    Copyright (C) 2020-2021 Jakub Melka
+#    Copyright (C) 2020-2022 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -21,10 +21,9 @@ CONFIG -= app_bundle
 include(../Pdf4Qt.pri)
 
 TARGET = PdfTool
-VERSION = 1.1.0
 
 QMAKE_TARGET_DESCRIPTION = "PDF tool for Qt"
-QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"
+QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2022"
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.

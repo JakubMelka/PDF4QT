@@ -1,7 +1,9 @@
 CURRENT:
 
+V: 1.2.0
  - Issue #10: Performance optimization
  - Issue #14: Incorrect text drawing for vertical writing systems
+ - Issue #15: .msi installer
  - static XFA support (readonly, simple XFA only)
  - electronically/digitally sign documents
 

@@ -1,4 +1,4 @@
-#    Copyright (C) 2021 Jakub Melka
+#    Copyright (C) 2022 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -22,12 +22,10 @@ TEMPLATE = app
 
 include(../Pdf4Qt.pri)
 
-VERSION = 1.1.0
-
 RC_ICONS = $$PWD/app-icon.ico
 
 QMAKE_TARGET_DESCRIPTION = "PDF Document Page Organizer"
-QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2021"
+QMAKE_TARGET_COPYRIGHT = "(c) Jakub Melka 2018-2022"
 
 DEFINES += QT_DEPRECATED_WARNINGS
 

@@ -1,4 +1,4 @@
-//    Copyright (C) 2018-2021 Jakub Melka
+//    Copyright (C) 2018-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -24,9 +24,12 @@
 namespace pdf
 {
 
+#define PDF4QT_STRINGIFY(x) PDF4QT_STRINGIFY_IMPL(x)
+#define PDF4QT_STRINGIFY_IMPL(x) #x
+
 // Name of the library, together with version
-static constexpr const char* PDF_LIBRARY_NAME = "PDF4QT 1.1.0";
-static constexpr const char* PDF_LIBRARY_VERSION = "1.1.0";
+static constexpr const char* PDF_LIBRARY_NAME = "PDF4QT " PDF4QT_STRINGIFY(PDF4QT_PROJECT_VERSION);
+static constexpr const char* PDF_LIBRARY_VERSION = PDF4QT_STRINGIFY(PDF4QT_PROJECT_VERSION);
 
 // Structure file constants
 static constexpr const char* PDF_END_OF_FILE_MARK = "%%EOF";
