@@ -159,7 +159,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
-    virtual void setSize(QSizeF size);
+    virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
 
 private:
@@ -193,7 +193,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
-    virtual void setSize(QSizeF size);
+    virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
 
     LineGeometry getGeometry() const;
@@ -226,7 +226,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
-    virtual void setSize(QSizeF size);
+    virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
 
     QPointF getPoint() const;
@@ -328,7 +328,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
-    virtual void setSize(QSizeF size);
+    virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
 
     const QString& getText() const;

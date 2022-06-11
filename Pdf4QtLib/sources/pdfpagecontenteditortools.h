@@ -228,7 +228,7 @@ public:
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
 protected:
-    virtual void setActiveImpl(bool active);
+    virtual void setActiveImpl(bool active) override;
 
 private:
     void resetTool();
@@ -261,7 +261,7 @@ public:
     virtual const PDFPageContentElement* getElement() const override;
     virtual PDFPageContentElement* getElement() override;
 
-    virtual void setPen(const QPen& pen);
+    virtual void setPen(const QPen& pen) override;
     virtual void setFont(const QFont& font) override;
     virtual void setAlignment(Qt::Alignment alignment) override;
 
