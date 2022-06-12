@@ -179,6 +179,10 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
             modeString = PDFToolTranslationContext::tr("Standard");
             break;
 
+        case pdf::EncryptionMode::PublicKey:
+            modeString = PDFToolTranslationContext::tr("Public Key");
+            break;
+
         case pdf::EncryptionMode::Custom:
             modeString = PDFToolTranslationContext::tr("Custom");
             break;

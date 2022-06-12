@@ -15,22 +15,22 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef CREATECERTIFICATEDIALOG_H
-#define CREATECERTIFICATEDIALOG_H
+#ifndef PDFCREATECERTIFICATEDIALOG_H
+#define PDFCREATECERTIFICATEDIALOG_H
 
-#include "certificatemanager.h"
+#include "pdfcertificatemanager.h"
 
 #include <QDialog>
 
 namespace Ui
 {
-class CreateCertificateDialog;
+class PDFCreateCertificateDialog;
 }
 
-namespace pdfplugin
+namespace pdf
 {
 
-class CreateCertificateDialog : public QDialog
+class PDF4QTLIBSHARED_EXPORT PDFCreateCertificateDialog : public QDialog
 {
     Q_OBJECT
 
@@ -38,10 +38,10 @@ private:
     using BaseClass = QDialog;
 
 public:
-    explicit CreateCertificateDialog(QWidget* parent);
-    virtual ~CreateCertificateDialog() override;
+    explicit PDFCreateCertificateDialog(QWidget* parent);
+    virtual ~PDFCreateCertificateDialog() override;
 
-    const CertificateManager::NewCertificateInfo& getNewCertificateInfo() const { return m_newCertificateInfo; }
+    const PDFCertificateManager::NewCertificateInfo& getNewCertificateInfo() const { return m_newCertificateInfo; }
 
 public slots:
     virtual void accept() override;
@@ -49,11 +49,11 @@ public slots:
 private:
     bool validate();
 
-    CertificateManager::NewCertificateInfo m_newCertificateInfo;
+    PDFCertificateManager::NewCertificateInfo m_newCertificateInfo;
 
-    Ui::CreateCertificateDialog* ui;
+    Ui::PDFCreateCertificateDialog* ui;
 };
 
-} // namespace plugin
+} // namespace pdf
 
-#endif // CREATECERTIFICATEDIALOG_H
+#endif // PDFCREATECERTIFICATEDIALOG_H

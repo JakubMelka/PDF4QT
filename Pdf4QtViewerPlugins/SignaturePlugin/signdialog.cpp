@@ -18,7 +18,7 @@
 #include "signdialog.h"
 #include "ui_signdialog.h"
 
-#include "certificatemanager.h"
+#include "pdfcertificatemanager.h"
 
 #include <openssl/pkcs7.h>
 
@@ -41,7 +41,7 @@ SignDialog::SignDialog(QWidget* parent, bool isSceneEmpty) :
     ui->methodCombo->addItem(tr("Sign digitally (invisible signature)"), SignDigitallyInvisible);
     ui->methodCombo->setCurrentIndex(0);
 
-    QFileInfoList certificates = CertificateManager::getCertificates();
+    QFileInfoList certificates = pdf::PDFCertificateManager::getCertificates();
     for (const QFileInfo& certificateFileInfo : certificates)
     {
         ui->certificateCombo->addItem(certificateFileInfo.fileName(), certificateFileInfo.absoluteFilePath());
@@ -89,7 +89,7 @@ void SignDialog::accept()
     }
 
     // Check we can access the certificate
-    if (!CertificateManager::isCertificateValid(getCertificatePath(), ui->certificatePasswordEdit->text()))
+    if (!pdf::PDFCertificateManager::isCertificateValid(getCertificatePath(), ui->certificatePasswordEdit->text()))
     {
         QMessageBox::critical(this, tr("Error"), tr("Password to open certificate is invalid."));
         ui->certificatePasswordEdit->setFocus();

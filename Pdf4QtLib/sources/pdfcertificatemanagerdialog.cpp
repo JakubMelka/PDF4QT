@@ -15,9 +15,9 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "certificatemanagerdialog.h"
-#include "ui_certificatemanagerdialog.h"
-#include "createcertificatedialog.h"
+#include "pdfcertificatemanagerdialog.h"
+#include "ui_pdfcertificatemanagerdialog.h"
+#include "pdfcreatecertificatedialog.h"
 
 #include "pdfwidgetutils.h"
 
@@ -28,12 +28,12 @@
 #include <QMessageBox>
 #include <QFileDialog>
 
-namespace pdfplugin
+namespace pdf
 {
 
-CertificateManagerDialog::CertificateManagerDialog(QWidget *parent) :
+PDFCertificateManagerDialog::PDFCertificateManagerDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::CertificateManagerDialog),
+    ui(new Ui::PDFCertificateManagerDialog),
     m_newCertificateButton(nullptr),
     m_openCertificateDirectoryButton(nullptr),
     m_deleteCertificateButton(nullptr),
@@ -42,10 +42,10 @@ CertificateManagerDialog::CertificateManagerDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    QDir::root().mkpath(CertificateManager::getCertificateDirectory());
+    QDir::root().mkpath(PDFCertificateManager::getCertificateDirectory());
 
     m_certificateFileModel = new QFileSystemModel(this);
-    QModelIndex rootIndex = m_certificateFileModel->setRootPath(CertificateManager::getCertificateDirectory());
+    QModelIndex rootIndex = m_certificateFileModel->setRootPath(PDFCertificateManager::getCertificateDirectory());
     ui->fileView->setModel(m_certificateFileModel);
     ui->fileView->setRootIndex(rootIndex);
 
@@ -54,35 +54,35 @@ CertificateManagerDialog::CertificateManagerDialog(QWidget *parent) :
     m_deleteCertificateButton = ui->buttonBox->addButton(tr("Delete"), QDialogButtonBox::ActionRole);
     m_importCertificateButton = ui->buttonBox->addButton(tr("Import"), QDialogButtonBox::ActionRole);
 
-    connect(m_newCertificateButton, &QPushButton::clicked, this, &CertificateManagerDialog::onNewCertificateClicked);
-    connect(m_openCertificateDirectoryButton, &QPushButton::clicked, this, &CertificateManagerDialog::onOpenCertificateDirectoryClicked);
-    connect(m_deleteCertificateButton, &QPushButton::clicked, this, &CertificateManagerDialog::onDeleteCertificateClicked);
-    connect(m_importCertificateButton, &QPushButton::clicked, this, &CertificateManagerDialog::onImportCertificateClicked);
+    connect(m_newCertificateButton, &QPushButton::clicked, this, &PDFCertificateManagerDialog::onNewCertificateClicked);
+    connect(m_openCertificateDirectoryButton, &QPushButton::clicked, this, &PDFCertificateManagerDialog::onOpenCertificateDirectoryClicked);
+    connect(m_deleteCertificateButton, &QPushButton::clicked, this, &PDFCertificateManagerDialog::onDeleteCertificateClicked);
+    connect(m_importCertificateButton, &QPushButton::clicked, this, &PDFCertificateManagerDialog::onImportCertificateClicked);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(640, 480)));
 }
 
-CertificateManagerDialog::~CertificateManagerDialog()
+PDFCertificateManagerDialog::~PDFCertificateManagerDialog()
 {
     delete ui;
 }
 
-void CertificateManagerDialog::onNewCertificateClicked()
+void PDFCertificateManagerDialog::onNewCertificateClicked()
 {
-    CreateCertificateDialog dialog(this);
-    if (dialog.exec() == CreateCertificateDialog::Accepted)
+    PDFCreateCertificateDialog dialog(this);
+    if (dialog.exec() == PDFCreateCertificateDialog::Accepted)
     {
-        const CertificateManager::NewCertificateInfo info = dialog.getNewCertificateInfo();
+        const PDFCertificateManager::NewCertificateInfo info = dialog.getNewCertificateInfo();
         m_certificateManager.createCertificate(info);
     }
 }
 
-void CertificateManagerDialog::onOpenCertificateDirectoryClicked()
+void PDFCertificateManagerDialog::onOpenCertificateDirectoryClicked()
 {
-    QDesktopServices::openUrl(QString("file:///%1").arg(CertificateManager::getCertificateDirectory(), QUrl::TolerantMode));
+    QDesktopServices::openUrl(QString("file:///%1").arg(PDFCertificateManager::getCertificateDirectory(), QUrl::TolerantMode));
 }
 
-void CertificateManagerDialog::onDeleteCertificateClicked()
+void PDFCertificateManagerDialog::onDeleteCertificateClicked()
 {
     QFileInfo fileInfo = m_certificateFileModel->fileInfo(ui->fileView->currentIndex());
     if (fileInfo.exists())
@@ -98,7 +98,7 @@ void CertificateManagerDialog::onDeleteCertificateClicked()
     }
 }
 
-void CertificateManagerDialog::onImportCertificateClicked()
+void PDFCertificateManagerDialog::onImportCertificateClicked()
 {
     QString selectedFile = QFileDialog::getOpenFileName(this, tr("Import Certificate"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation), tr("Certificate file (*.pfx);;All files (*.*)"));
 
@@ -110,7 +110,7 @@ void CertificateManagerDialog::onImportCertificateClicked()
     QFile file(selectedFile);
     if (file.exists())
     {
-        QString path = CertificateManager::getCertificateDirectory();
+        QString path = PDFCertificateManager::getCertificateDirectory();
         QString targetFile = QString("%1/%2").arg(path, QFileInfo(file).fileName());
         if (QFile::exists(targetFile))
         {
@@ -130,4 +130,4 @@ void CertificateManagerDialog::onImportCertificateClicked()
     }
 }
 
-}   // namespace pdfplugin
+}   // namespace pdf

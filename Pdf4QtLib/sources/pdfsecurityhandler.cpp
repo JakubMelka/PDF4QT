@@ -266,201 +266,49 @@ PDFObject PDFSecurityHandler::encryptObject(const PDFObject& object, PDFObjectRe
     return visitor.getProcessedObject();
 }
 
-PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id)
+void PDFSecurityHandler::parseCryptFilters(const PDFDictionary* dictionary, PDFSecurityHandler& handler, int Length)
 {
-    if (encryptionDictionaryObject.isNull())
+    const PDFObject& cryptFilterObjects = dictionary->get("CF");
+    if (cryptFilterObjects.isDictionary())
     {
-        return PDFSecurityHandlerPointer(new PDFNoneSecurityHandler());
+        const PDFDictionary* cryptFilters = cryptFilterObjects.getDictionary();
+        for (size_t i = 0, cryptFilterCount = cryptFilters->getCount(); i < cryptFilterCount; ++i)
+        {
+            handler.m_cryptFilters[cryptFilters->getKey(i).getString()] = parseCryptFilter(Length, cryptFilters->getValue(i));
+        }
     }
 
-    if (!encryptionDictionaryObject.isDictionary())
+    // Now, add standard filters
+    auto resolveFilter = [&handler](const QByteArray& name)
     {
-        throw PDFException(PDFTranslationContext::tr("Invalid encryption dictionary."));
-    }
+        auto it = handler.m_cryptFilters.find(name);
 
-    const PDFDictionary* dictionary = encryptionDictionaryObject.getDictionary();
-
-    auto getName = [](const PDFDictionary* dictionary, const char* key, bool required, const char* defaultValue = nullptr) -> QByteArray
-    {
-        const PDFObject& nameObject = dictionary->get(key);
-
-        if (nameObject.isNull())
+        if (it == handler.m_cryptFilters.cend())
         {
-            return defaultValue ? QByteArray(defaultValue) : QByteArray();
+            throw PDFException(PDFTranslationContext::tr("Unknown crypt filter '%1'.").arg(QString::fromLatin1(name)));
         }
 
-        if (!nameObject.isName())
-        {
-            if (required)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Name expected.").arg(QString::fromLatin1(key)));
-            }
-
-            return defaultValue ? QByteArray(defaultValue) : QByteArray();
-        }
-
-        return nameObject.getString();
+        return it->second;
     };
 
-    auto getInt = [](const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue = -1) -> PDFInteger
+    handler.m_filterStreams = resolveFilter(parseName(dictionary, "StmF", false, IDENTITY_FILTER_NAME));
+    handler.m_filterStrings = resolveFilter(parseName(dictionary, "StrF", false, IDENTITY_FILTER_NAME));
+
+    if (dictionary->hasKey("EFF"))
     {
-        const PDFObject& intObject = dictionary->get(key);
-        if (!intObject.isInt())
-        {
-            if (required)
-            {
-                throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Integer expected.").arg(QString::fromLatin1(key)));
-            }
-
-            return defaultValue;
-        }
-
-        return intObject.getInteger();
-    };
-
-    QByteArray filterName = getName(dictionary, "Filter", true);
-    if (filterName != "Standard")
-    {
-        throw PDFException(PDFTranslationContext::tr("Unknown security handler."));
+        handler.m_filterEmbeddedFiles = resolveFilter(parseName(dictionary, "EFF", true));
     }
-
-    const int V = getInt(dictionary, "V", true);
-
-    // Check V
-    if (V < 1 || V > 5)
+    else
     {
-        throw PDFException(PDFTranslationContext::tr("Unsupported version of document encryption (V = %1).").arg(V));
+        // According to the PDF specification, if 'EFF' entry is omitted, then filter
+        // for streams is used.
+        handler.m_filterEmbeddedFiles = handler.m_filterStreams;
     }
+}
 
-    // Only valid for V == 2 or V == 3, otherwise we set file encryption key length manually
-    int Length = 40;
-
-    switch (V)
-    {
-        case 1:
-            Length = 40;
-            break;
-
-        case 2:
-        case 3:
-            Length = getInt(dictionary, "Length", false, 40);
-            break;
-
-        case 4:
-            Length = 128;
-            break;
-
-        case 5:
-            Length = 256;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    // Create standard security handler
-    PDFStandardSecurityHandler handler;
-    handler.m_V = V;
-    handler.m_keyLength = Length;
-
-    // Add "Identity" filter to the filters
-    CryptFilter identityFilter;
-    identityFilter.type = CryptFilterType::Identity;
-    handler.m_cryptFilters[IDENTITY_FILTER_NAME] = identityFilter;
-
-    if (V == 4 || V == 5)
-    {
-        const PDFObject& cryptFilterObjects = dictionary->get("CF");
-        if (cryptFilterObjects.isDictionary())
-        {
-            auto parseCryptFilter = [Length, &getName, &getInt](const PDFObject& object) -> CryptFilter
-            {
-                if (!object.isDictionary())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Crypt filter is not a dictionary!"));
-                }
-                const PDFDictionary* cryptFilterDictionary = object.getDictionary();
-
-                CryptFilter filter;
-
-                QByteArray CFMName = getName(cryptFilterDictionary, "CFM", false, "None");
-                if (CFMName == "None")
-                {
-                    filter.type = CryptFilterType::None;
-                }
-                else if (CFMName == "V2")
-                {
-                    filter.type = CryptFilterType::V2;
-                }
-                else if (CFMName == "AESV2")
-                {
-                    filter.type = CryptFilterType::AESV2;
-                }
-                else if (CFMName == "AESV3")
-                {
-                    filter.type = CryptFilterType::AESV3;
-                }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Unsupported encryption algorithm '%1'.").arg(QString::fromLatin1(CFMName)));
-                }
-
-                QByteArray authEventName = getName(cryptFilterDictionary, "AuthEvent", false, "DocOpen");
-                if (authEventName == "DocOpen")
-                {
-                    filter.authEvent = AuthEvent::DocOpen;
-                }
-                else if (authEventName == "EFOpen")
-                {
-                    filter.authEvent = AuthEvent::EFOpen;
-                }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Unsupported authorization event '%1'.").arg(QString::fromLatin1(authEventName)));
-                }
-
-                filter.keyLength = getInt(cryptFilterDictionary, "Length", false, Length / 8);
-
-                return filter;
-            };
-
-            const PDFDictionary* cryptFilters = cryptFilterObjects.getDictionary();
-            for (size_t i = 0, cryptFilterCount = cryptFilters->getCount(); i < cryptFilterCount; ++i)
-            {
-                handler.m_cryptFilters[cryptFilters->getKey(i).getString()] = parseCryptFilter(cryptFilters->getValue(i));
-            }
-        }
-
-        // Now, add standard filters
-        auto resolveFilter = [&handler](const QByteArray& name)
-        {
-            auto it = handler.m_cryptFilters.find(name);
-
-            if (it == handler.m_cryptFilters.cend())
-            {
-                throw PDFException(PDFTranslationContext::tr("Unknown crypt filter '%1'.").arg(QString::fromLatin1(name)));
-            }
-
-            return it->second;
-        };
-
-        handler.m_filterStreams = resolveFilter(getName(dictionary, "StmF", false, IDENTITY_FILTER_NAME));
-        handler.m_filterStrings = resolveFilter(getName(dictionary, "StrF", false, IDENTITY_FILTER_NAME));
-
-        if (dictionary->hasKey("EFF"))
-        {
-            handler.m_filterEmbeddedFiles = resolveFilter(getName(dictionary, "EFF", true));
-        }
-        else
-        {
-            // According to the PDF specification, if 'EFF' entry is omitted, then filter
-            // for streams is used.
-            handler.m_filterEmbeddedFiles = handler.m_filterStreams;
-        }
-    }
-
-    int R = getInt(dictionary, "R", true);
+void PDFSecurityHandler::parseDataStandardSecurityHandler(const PDFDictionary* dictionary, const QByteArray& id, int Length, PDFStandardSecurityHandler& handler)
+{
+    int R = parseInt(dictionary, "R", true);
     if (R < 2 || R > 6)
     {
         throw PDFException(PDFTranslationContext::tr("Revision %1 of standard security handler is not supported.").arg(R));
@@ -496,7 +344,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     handler.m_O = readByteArray("O", (R != 6 && R != 5) ? 32 : 48);
     handler.m_U = readByteArray("U", (R != 6 && R != 5) ? 32 : 48);
 
-    handler.m_permissions = static_cast<uint32_t>(static_cast<int>(getInt(dictionary, "P", true)));
+    handler.m_permissions = static_cast<uint32_t>(static_cast<int>(parseInt(dictionary, "P", true)));
 
     if (R == 6 || R == 5)
     {
@@ -512,8 +360,103 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     }
 
     handler.m_ID = id;
+}
 
-    return PDFSecurityHandlerPointer(new PDFStandardSecurityHandler(qMove(handler)));
+PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id)
+{
+    if (encryptionDictionaryObject.isNull())
+    {
+        return PDFSecurityHandlerPointer(new PDFNoneSecurityHandler());
+    }
+
+    if (!encryptionDictionaryObject.isDictionary())
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid encryption dictionary."));
+    }
+
+    const PDFDictionary* dictionary = encryptionDictionaryObject.getDictionary();
+    PDFSecurityHandlerPointer handler = createSecurityHandlerInstance(dictionary);
+
+    if (!handler)
+    {
+        throw PDFException(PDFTranslationContext::tr("Unknown security handler."));
+    }
+
+    const int V = parseInt(dictionary, "V", true);
+
+    // Check V
+    if (V < 1 || V > 5)
+    {
+        throw PDFException(PDFTranslationContext::tr("Unsupported version of document encryption (V = %1).").arg(V));
+    }
+
+    // Only valid for V == 2 or V == 3, otherwise we set file encryption key length manually
+    int Length = 40;
+
+    switch (V)
+    {
+        case 1:
+            Length = 40;
+            break;
+
+        case 2:
+        case 3:
+            Length = parseInt(dictionary, "Length", false, 40);
+            break;
+
+        case 4:
+            Length = 128;
+            break;
+
+        case 5:
+            Length = 256;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    // Create security handler
+    handler->m_V = V;
+    handler->m_keyLength = Length;
+
+    // Add "Identity" filter to the filters
+    CryptFilter identityFilter;
+    identityFilter.type = CryptFilterType::Identity;
+    handler->m_cryptFilters[IDENTITY_FILTER_NAME] = identityFilter;
+
+    if (V == 4 || V == 5)
+    {
+        parseCryptFilters(dictionary, *handler, Length);
+    }
+
+    switch (handler->getMode())
+    {
+        case EncryptionMode::Standard:
+        {
+            auto typedHandler = qSharedPointerDynamicCast<PDFStandardSecurityHandler>(handler);
+            parseDataStandardSecurityHandler(dictionary, id, Length, *typedHandler);
+            break;
+        }
+
+        case EncryptionMode::PublicKey:
+        {
+            auto typedHandler = qSharedPointerDynamicCast<PDFPublicKeySecurityHandler>(handler);
+            typedHandler->m_filterDefault.recipients = parseRecipients(dictionary);
+            break;
+        }
+
+        case EncryptionMode::None:
+        case EncryptionMode::Custom:
+            Q_ASSERT(false);
+            break;
+
+        default:
+            Q_ASSERT(false);
+    }
+
+    return handler;
 }
 
 void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) const
@@ -636,6 +579,472 @@ void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) con
         factory << WrapName(effName);
         factory.endDictionaryItem();
     }
+}
+
+QByteArray PDFSecurityHandler::parseName(const PDFDictionary* dictionary, const char* key, bool required, const char* defaultValue)
+{
+    const PDFObject& nameObject = dictionary->get(key);
+
+    if (nameObject.isNull())
+    {
+        return defaultValue ? QByteArray(defaultValue) : QByteArray();
+    }
+
+    if (!nameObject.isName())
+    {
+        if (required)
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Name expected.").arg(QString::fromLatin1(key)));
+        }
+
+        return defaultValue ? QByteArray(defaultValue) : QByteArray();
+    }
+
+    return nameObject.getString();
+}
+
+PDFInteger PDFSecurityHandler::parseInt(const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue)
+{
+    const PDFObject& intObject = dictionary->get(key);
+    if (!intObject.isInt())
+    {
+        if (required)
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Integer expected.").arg(QString::fromLatin1(key)));
+        }
+
+        return defaultValue;
+    }
+
+    return intObject.getInteger();
+}
+
+CryptFilter PDFSecurityHandler::parseCryptFilter(PDFInteger length, const PDFObject& object)
+{
+    if (!object.isDictionary())
+    {
+        throw PDFException(PDFTranslationContext::tr("Crypt filter is not a dictionary!"));
+    }
+    const PDFDictionary* cryptFilterDictionary = object.getDictionary();
+
+    CryptFilter filter;
+
+    QByteArray CFMName = parseName(cryptFilterDictionary, "CFM", false, "None");
+    if (CFMName == "None")
+    {
+        filter.type = CryptFilterType::None;
+    }
+    else if (CFMName == "V2")
+    {
+        filter.type = CryptFilterType::V2;
+    }
+    else if (CFMName == "AESV2")
+    {
+        filter.type = CryptFilterType::AESV2;
+    }
+    else if (CFMName == "AESV3")
+    {
+        filter.type = CryptFilterType::AESV3;
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("Unsupported encryption algorithm '%1'.").arg(QString::fromLatin1(CFMName)));
+    }
+
+    QByteArray authEventName = parseName(cryptFilterDictionary, "AuthEvent", false, "DocOpen");
+    if (authEventName == "DocOpen")
+    {
+        filter.authEvent = AuthEvent::DocOpen;
+    }
+    else if (authEventName == "EFOpen")
+    {
+        filter.authEvent = AuthEvent::EFOpen;
+    }
+    else
+    {
+        throw PDFException(PDFTranslationContext::tr("Unsupported authorization event '%1'.").arg(QString::fromLatin1(authEventName)));
+    }
+
+    filter.keyLength = parseInt(cryptFilterDictionary, "Length", false, length / 8);
+
+    // Recipients
+    filter.recipients = parseRecipients(cryptFilterDictionary);
+
+    return filter;
+}
+
+PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandlerInstance(const PDFDictionary* dictionary)
+{
+    QByteArray filterName = parseName(dictionary, "Filter", true);
+
+    if (filterName == "Standard")
+    {
+        return PDFSecurityHandlerPointer(new PDFStandardSecurityHandler());
+    }
+
+    if (filterName == "Entrust.PPKEF" || filterName == "Adobe.PPKLite" || filterName == "Adobe.PubSec")
+    {
+        QByteArray subFilter = parseName(dictionary, "SubFilter", true);
+        if (subFilter == "adbe.pkcs7.s3" || subFilter == "adbe.pkcs7.s4" || subFilter == "adbe.pkcs7.s5")
+        {
+            return PDFSecurityHandlerPointer(new PDFPublicKeySecurityHandler());
+        }
+    }
+
+    return PDFSecurityHandlerPointer();
+}
+
+QByteArrayList PDFSecurityHandler::parseRecipients(const PDFDictionary* dictionary)
+{
+    QByteArrayList result;
+
+    const PDFObject& recipients = dictionary->get("Recipients");
+    if (recipients.isArray())
+    {
+        for (const PDFObject& object : *recipients.getArray())
+        {
+            if (object.isString())
+            {
+                result << object.getString();
+            }
+        }
+    }
+
+    return result;
+}
+
+std::vector<uint8_t> PDFStandardOrPublicSecurityHandler::createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const
+{
+    std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
+    uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
+    uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
+    inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF) });
+    std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
+    MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
+
+    // Use up to (n + 5) bytes, maximally 16, from the digest as object encryption key
+    size_t objectEncryptionKeySize = qMin(filter.keyLength + 5, MD5_DIGEST_LENGTH);
+    objectEncryptionKey.resize(objectEncryptionKeySize);
+
+    return objectEncryptionKey;
+}
+
+std::vector<uint8_t> PDFStandardOrPublicSecurityHandler::createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const
+{
+    std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
+    uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
+    uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
+    inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF), 0x73, 0x41, 0x6C, 0x54 });
+    std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
+    MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
+
+    return objectEncryptionKey;
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
+{
+    QByteArray decryptedData;
+
+    Q_ASSERT(m_authorizationData.isAuthorized());
+
+    struct AES_data
+    {
+        QByteArray initializationVector;
+        QByteArray paddedData;
+    };
+
+    auto prepareAES_data = [](const QByteArray& data)
+    {
+        AES_data result;
+
+        result.initializationVector = data.left(AES_BLOCK_SIZE);
+
+        // This is an error. But to handle it, we resize the vector
+        // with arbitrary data.
+        if (result.initializationVector.size() < AES_BLOCK_SIZE)
+        {
+            result.initializationVector.resize(AES_BLOCK_SIZE);
+        }
+
+        result.paddedData = data.mid(AES_BLOCK_SIZE);
+
+        // Remove errorneous data - we must have a data of multiple of AES_BLOCK_SIZE
+        const int remainder = result.paddedData.size() % AES_BLOCK_SIZE;
+        if (remainder != 0)
+        {
+            result.paddedData = result.paddedData.left(result.paddedData.size() - remainder);
+        }
+
+        return result;
+    };
+
+    auto removeAES_padding = [](const QByteArray& data)
+    {
+        if (data.isEmpty())
+        {
+            return data;
+        }
+
+        // If padding doesnt fit from 1 to AES_BLOCK_SIZE, then it is
+        // an error, but just clamp the value.
+        const int padding = data.back();
+        const int clampedPadding = qBound(1, padding, AES_BLOCK_SIZE);
+
+        return data.left(data.size() - clampedPadding);
+    };
+
+    switch (filter.type)
+    {
+        case CryptFilterType::None:       // The application shall decrypt the data using the security handler
+        {
+            // This shouldn't occur, because in case the used filter has None value, then default filter
+            // is used and default filter can't have this value.
+            Q_ASSERT(false);
+            break;
+        }
+
+        case CryptFilterType::V2:         // Use file encryption key for RC4 algorithm
+        {
+            std::vector<uint8_t> objectEncryptionKey = createV2_ObjectEncryptionKey(reference, filter);
+            decryptedData.resize(data.size());
+
+            RC4_KEY key = { };
+            RC4_set_key(&key, static_cast<int>(objectEncryptionKey.size()), objectEncryptionKey.data());
+            RC4(&key, data.size(), convertByteArrayToUcharPtr(data), convertByteArrayToUcharPtr(decryptedData));
+
+            break;
+        }
+
+        case CryptFilterType::AESV2:      // Use file encryption key for AES algorithm
+        {
+            std::vector<uint8_t> objectEncryptionKey = createAESV2_ObjectEncryptionKey(reference);
+
+            // For AES algorithm, always use 16 bytes key (128 bit encryption mode)
+
+            AES_KEY key = { };
+            AES_set_decrypt_key(objectEncryptionKey.data(), static_cast<int>(objectEncryptionKey.size()) * 8, &key);
+
+            AES_data aes_data = prepareAES_data(data);
+            if (!aes_data.paddedData.isEmpty())
+            {
+                decryptedData.resize(aes_data.paddedData.size());
+                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(decryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_DECRYPT);
+                decryptedData = removeAES_padding(decryptedData);
+            }
+
+            break;
+        }
+
+        case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
+        {
+            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
+            AES_KEY key = { };
+            AES_set_decrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
+
+            AES_data aes_data = prepareAES_data(data);
+            if (!aes_data.paddedData.isEmpty())
+            {
+                decryptedData.resize(aes_data.paddedData.size());
+                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(decryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_DECRYPT);
+                decryptedData = removeAES_padding(decryptedData);
+            }
+
+            break;
+        }
+
+        case CryptFilterType::Identity:   // Don't decrypt anything, use identity function
+        {
+            decryptedData = data;
+            break;
+        }
+    }
+
+    return decryptedData;
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
+{
+    QByteArray encryptedData;
+
+    Q_ASSERT(m_authorizationData.isAuthorized());
+
+    struct AES_data
+    {
+        QByteArray initializationVector;
+        QByteArray paddedData;
+    };
+
+    auto prepareAES_data = [](const QByteArray& data)
+    {
+        AES_data result;
+
+        QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+
+        result.initializationVector.resize(AES_BLOCK_SIZE);
+        for (int i = 0; i < AES_BLOCK_SIZE; ++i)
+        {
+            result.initializationVector[i] = uint8_t(randomNumberGenerator.generate());
+        }
+
+        result.paddedData = data;
+
+        // Add padding remainder according to the specification
+        int size = data.size();
+        const int paddingRemainder = AES_BLOCK_SIZE - (size % AES_BLOCK_SIZE);
+
+        result.initializationVector.reserve(result.initializationVector.size() + paddingRemainder);
+        for (int i = 0; i < paddingRemainder; ++i)
+        {
+            result.paddedData.push_back(paddingRemainder);
+        }
+
+        return result;
+    };
+
+    switch (filter.type)
+    {
+        case CryptFilterType::None:       // The application shall encrypt the data using the security handler
+        {
+            // This shouldn't occur, because in case the used filter has None value, then default filter
+            // is used and default filter can't have this value.
+            Q_ASSERT(false);
+            break;
+        }
+
+        case CryptFilterType::V2:         // Use file encryption key for RC4 algorithm
+        {
+            // This algorithm is same as the encrypt algorithm, because RC4 cipher is symmetrical
+            std::vector<uint8_t> objectEncryptionKey = createV2_ObjectEncryptionKey(reference, filter);
+            encryptedData.resize(data.size());
+
+            RC4_KEY key = { };
+            RC4_set_key(&key, static_cast<int>(objectEncryptionKey.size()), objectEncryptionKey.data());
+            RC4(&key, data.size(), convertByteArrayToUcharPtr(data), convertByteArrayToUcharPtr(encryptedData));
+
+            break;
+        }
+
+        case CryptFilterType::AESV2:      // Use file encryption key for AES algorithm
+        {
+            std::vector<uint8_t> objectEncryptionKey = createAESV2_ObjectEncryptionKey(reference);
+
+            // For AES algorithm, always use 16 bytes key (128 bit encryption mode)
+
+            AES_KEY key = { };
+            AES_set_encrypt_key(objectEncryptionKey.data(), static_cast<int>(objectEncryptionKey.size()) * 8, &key);
+
+            AES_data aes_data = prepareAES_data(data);
+            if (!aes_data.paddedData.isEmpty())
+            {
+                QByteArray initializationVectorCopy = aes_data.initializationVector;
+                encryptedData.resize(aes_data.paddedData.size());
+                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(encryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_ENCRYPT);
+                encryptedData.prepend(initializationVectorCopy);
+            }
+
+            break;
+        }
+
+        case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
+        {
+            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
+            AES_KEY key = { };
+            AES_set_encrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
+
+            AES_data aes_data = prepareAES_data(data);
+            if (!aes_data.paddedData.isEmpty())
+            {
+                QByteArray initializationVectorCopy = aes_data.initializationVector;
+                encryptedData.resize(aes_data.paddedData.size());
+                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(encryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_ENCRYPT);
+                encryptedData.prepend(initializationVectorCopy);
+            }
+
+            break;
+        }
+
+        case CryptFilterType::Identity:   // Don't decrypt anything, use identity function
+        {
+            encryptedData = data;
+            break;
+        }
+    }
+
+    return encryptedData;
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const
+{
+    CryptFilter filter = getCryptFilter(encryptionScope);
+    return decryptUsingFilter(data, filter, reference);
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
+{
+    auto it = m_cryptFilters.find(filterName);
+    if (it == m_cryptFilters.cend())
+    {
+        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
+    }
+
+    return decryptUsingFilter(data, it->second, reference);
+}
+
+CryptFilter PDFStandardOrPublicSecurityHandler::getCryptFilter(EncryptionScope encryptionScope) const
+{
+    CryptFilter filter = m_filterDefault;
+
+    switch (encryptionScope)
+    {
+        case EncryptionScope::String:
+        {
+            if (m_filterStrings.type != CryptFilterType::None)
+            {
+                filter = m_filterStrings;
+            }
+
+            break;
+        }
+
+        case EncryptionScope::Stream:
+        {
+            if (m_filterStreams.type != CryptFilterType::None)
+            {
+                filter = m_filterStreams;
+            }
+
+            break;
+        }
+
+        case EncryptionScope::EmbeddedFile:
+        {
+            if (m_filterEmbeddedFiles.type != CryptFilterType::None)
+            {
+                filter = m_filterEmbeddedFiles;
+            }
+
+            break;
+        }
+    }
+
+    return filter;
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::encrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const
+{
+    CryptFilter filter = getCryptFilter(encryptionScope);
+    return encryptUsingFilter(data, filter, reference);
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
+{
+    auto it = m_cryptFilters.find(filterName);
+    if (it == m_cryptFilters.cend())
+    {
+        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
+    }
+
+    return encryptUsingFilter(data, it->second, reference);
 }
 
 PDFSecurityHandler* PDFStandardSecurityHandler::clone() const
@@ -803,340 +1212,6 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
     }
 
     return AuthorizationResult::Cancelled;
-}
-
-std::vector<uint8_t> PDFStandardSecurityHandler::createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const
-{
-    std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
-    uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
-    uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
-    inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF) });
-    std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
-    MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
-
-    // Use up to (n + 5) bytes, maximally 16, from the digest as object encryption key
-    size_t objectEncryptionKeySize = qMin(filter.keyLength + 5, MD5_DIGEST_LENGTH);
-    objectEncryptionKey.resize(objectEncryptionKeySize);
-
-    return objectEncryptionKey;
-}
-
-std::vector<uint8_t> PDFStandardSecurityHandler::createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const
-{
-    std::vector<uint8_t> inputKeyData = convertByteArrayToVector(m_authorizationData.fileEncryptionKey);
-    uint32_t objectNumber = qToLittleEndian(static_cast<uint32_t>(reference.objectNumber));
-    uint32_t generation = qToLittleEndian(static_cast<uint32_t>(reference.generation));
-    inputKeyData.insert(inputKeyData.cend(), { uint8_t(objectNumber & 0xFF), uint8_t((objectNumber >> 8) & 0xFF), uint8_t((objectNumber >> 16) & 0xFF), uint8_t(generation & 0xFF), uint8_t((generation >> 8) & 0xFF), 0x73, 0x41, 0x6C, 0x54 });
-    std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
-    MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
-
-    return objectEncryptionKey;
-}
-
-QByteArray PDFStandardSecurityHandler::decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
-{
-    QByteArray decryptedData;
-
-    Q_ASSERT(m_authorizationData.isAuthorized());
-
-    struct AES_data
-    {
-        QByteArray initializationVector;
-        QByteArray paddedData;
-    };
-
-    auto prepareAES_data = [](const QByteArray& data)
-    {
-        AES_data result;
-
-        result.initializationVector = data.left(AES_BLOCK_SIZE);
-
-        // This is an error. But to handle it, we resize the vector
-        // with arbitrary data.
-        if (result.initializationVector.size() < AES_BLOCK_SIZE)
-        {
-            result.initializationVector.resize(AES_BLOCK_SIZE);
-        }
-
-        result.paddedData = data.mid(AES_BLOCK_SIZE);
-
-        // Remove errorneous data - we must have a data of multiple of AES_BLOCK_SIZE
-        const int remainder = result.paddedData.size() % AES_BLOCK_SIZE;
-        if (remainder != 0)
-        {
-            result.paddedData = result.paddedData.left(result.paddedData.size() - remainder);
-        }
-
-        return result;
-    };
-
-    auto removeAES_padding = [](const QByteArray& data)
-    {
-        if (data.isEmpty())
-        {
-            return data;
-        }
-
-        // If padding doesnt fit from 1 to AES_BLOCK_SIZE, then it is
-        // an error, but just clamp the value.
-        const int padding = data.back();
-        const int clampedPadding = qBound(1, padding, AES_BLOCK_SIZE);
-
-        return data.left(data.size() - clampedPadding);
-    };
-
-    switch (filter.type)
-    {
-        case CryptFilterType::None:       // The application shall decrypt the data using the security handler
-        {
-            // This shouldn't occur, because in case the used filter has None value, then default filter
-            // is used and default filter can't have this value.
-            Q_ASSERT(false);
-            break;
-        }
-
-        case CryptFilterType::V2:         // Use file encryption key for RC4 algorithm
-        {
-            std::vector<uint8_t> objectEncryptionKey = createV2_ObjectEncryptionKey(reference, filter);
-            decryptedData.resize(data.size());
-
-            RC4_KEY key = { };
-            RC4_set_key(&key, static_cast<int>(objectEncryptionKey.size()), objectEncryptionKey.data());
-            RC4(&key, data.size(), convertByteArrayToUcharPtr(data), convertByteArrayToUcharPtr(decryptedData));
-
-            break;
-        }
-
-        case CryptFilterType::AESV2:      // Use file encryption key for AES algorithm
-        {
-            std::vector<uint8_t> objectEncryptionKey = createAESV2_ObjectEncryptionKey(reference);
-
-            // For AES algorithm, always use 16 bytes key (128 bit encryption mode)
-
-            AES_KEY key = { };
-            AES_set_decrypt_key(objectEncryptionKey.data(), static_cast<int>(objectEncryptionKey.size()) * 8, &key);
-
-            AES_data aes_data = prepareAES_data(data);
-            if (!aes_data.paddedData.isEmpty())
-            {
-                decryptedData.resize(aes_data.paddedData.size());
-                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(decryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_DECRYPT);
-                decryptedData = removeAES_padding(decryptedData);
-            }
-
-            break;
-        }
-
-        case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
-        {
-            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
-            AES_KEY key = { };
-            AES_set_decrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
-
-            AES_data aes_data = prepareAES_data(data);
-            if (!aes_data.paddedData.isEmpty())
-            {
-                decryptedData.resize(aes_data.paddedData.size());
-                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(decryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_DECRYPT);
-                decryptedData = removeAES_padding(decryptedData);
-            }
-
-            break;
-        }
-
-        case CryptFilterType::Identity:   // Don't decrypt anything, use identity function
-        {
-            decryptedData = data;
-            break;
-        }
-    }
-
-    return decryptedData;
-}
-
-QByteArray PDFStandardSecurityHandler::encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
-{
-    QByteArray encryptedData;
-
-    Q_ASSERT(m_authorizationData.isAuthorized());
-
-    struct AES_data
-    {
-        QByteArray initializationVector;
-        QByteArray paddedData;
-    };
-
-    auto prepareAES_data = [](const QByteArray& data)
-    {
-        AES_data result;
-
-        QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
-
-        result.initializationVector.resize(AES_BLOCK_SIZE);
-        for (int i = 0; i < AES_BLOCK_SIZE; ++i)
-        {
-            result.initializationVector[i] = uint8_t(randomNumberGenerator.generate());
-        }
-
-        result.paddedData = data;
-
-        // Add padding remainder according to the specification
-        int size = data.size();
-        const int paddingRemainder = AES_BLOCK_SIZE - (size % AES_BLOCK_SIZE);
-
-        result.initializationVector.reserve(result.initializationVector.size() + paddingRemainder);
-        for (int i = 0; i < paddingRemainder; ++i)
-        {
-            result.paddedData.push_back(paddingRemainder);
-        }
-
-        return result;
-    };
-
-    switch (filter.type)
-    {
-        case CryptFilterType::None:       // The application shall encrypt the data using the security handler
-        {
-            // This shouldn't occur, because in case the used filter has None value, then default filter
-            // is used and default filter can't have this value.
-            Q_ASSERT(false);
-            break;
-        }
-
-        case CryptFilterType::V2:         // Use file encryption key for RC4 algorithm
-        {
-            // This algorithm is same as the encrypt algorithm, because RC4 cipher is symmetrical
-            std::vector<uint8_t> objectEncryptionKey = createV2_ObjectEncryptionKey(reference, filter);
-            encryptedData.resize(data.size());
-
-            RC4_KEY key = { };
-            RC4_set_key(&key, static_cast<int>(objectEncryptionKey.size()), objectEncryptionKey.data());
-            RC4(&key, data.size(), convertByteArrayToUcharPtr(data), convertByteArrayToUcharPtr(encryptedData));
-
-            break;
-        }
-
-        case CryptFilterType::AESV2:      // Use file encryption key for AES algorithm
-        {
-            std::vector<uint8_t> objectEncryptionKey = createAESV2_ObjectEncryptionKey(reference);
-
-            // For AES algorithm, always use 16 bytes key (128 bit encryption mode)
-
-            AES_KEY key = { };
-            AES_set_encrypt_key(objectEncryptionKey.data(), static_cast<int>(objectEncryptionKey.size()) * 8, &key);
-
-            AES_data aes_data = prepareAES_data(data);
-            if (!aes_data.paddedData.isEmpty())
-            {
-                QByteArray initializationVectorCopy = aes_data.initializationVector;
-                encryptedData.resize(aes_data.paddedData.size());
-                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(encryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_ENCRYPT);
-                encryptedData.prepend(initializationVectorCopy);
-            }
-
-            break;
-        }
-
-        case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
-        {
-            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
-            AES_KEY key = { };
-            AES_set_encrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
-
-            AES_data aes_data = prepareAES_data(data);
-            if (!aes_data.paddedData.isEmpty())
-            {
-                QByteArray initializationVectorCopy = aes_data.initializationVector;
-                encryptedData.resize(aes_data.paddedData.size());
-                AES_cbc_encrypt(convertByteArrayToUcharPtr(aes_data.paddedData), convertByteArrayToUcharPtr(encryptedData), aes_data.paddedData.length(), &key, convertByteArrayToUcharPtr(aes_data.initializationVector), AES_ENCRYPT);
-                encryptedData.prepend(initializationVectorCopy);
-            }
-
-            break;
-        }
-
-        case CryptFilterType::Identity:   // Don't decrypt anything, use identity function
-        {
-            encryptedData = data;
-            break;
-        }
-    }
-
-    return encryptedData;
-}
-
-QByteArray PDFStandardSecurityHandler::decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const
-{
-    CryptFilter filter = getCryptFilter(encryptionScope);
-    return decryptUsingFilter(data, filter, reference);
-}
-
-QByteArray PDFStandardSecurityHandler::decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
-{
-    auto it = m_cryptFilters.find(filterName);
-    if (it == m_cryptFilters.cend())
-    {
-        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
-    }
-
-    return decryptUsingFilter(data, it->second, reference);
-}
-
-CryptFilter PDFStandardSecurityHandler::getCryptFilter(EncryptionScope encryptionScope) const
-{
-    CryptFilter filter = m_filterDefault;
-
-    switch (encryptionScope)
-    {
-        case EncryptionScope::String:
-        {
-            if (m_filterStrings.type != CryptFilterType::None)
-            {
-                filter = m_filterStrings;
-            }
-
-            break;
-        }
-
-        case EncryptionScope::Stream:
-        {
-            if (m_filterStreams.type != CryptFilterType::None)
-            {
-                filter = m_filterStreams;
-            }
-
-            break;
-        }
-
-        case EncryptionScope::EmbeddedFile:
-        {
-            if (m_filterEmbeddedFiles.type != CryptFilterType::None)
-            {
-                filter = m_filterEmbeddedFiles;
-            }
-
-            break;
-        }
-    }
-
-    return filter;
-}
-
-QByteArray PDFStandardSecurityHandler::encrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const
-{
-    CryptFilter filter = getCryptFilter(encryptionScope);
-    return encryptUsingFilter(data, filter, reference);
-}
-
-QByteArray PDFStandardSecurityHandler::encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
-{
-    auto it = m_cryptFilters.find(filterName);
-    if (it == m_cryptFilters.cend())
-    {
-        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' not found.").arg(QString::fromLatin1(filterName)));
-    }
-
-    return encryptUsingFilter(data, it->second, reference);
 }
 
 PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
@@ -2040,6 +2115,32 @@ bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QStri
     }
 
     return true;
+}
+
+
+PDFSecurityHandler* PDFPublicKeySecurityHandler::clone() const
+{
+    return new PDFPublicKeySecurityHandler(*this);
+}
+
+PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticate(const std::function<QString (bool*)>& getPasswordCallback, bool authorizeOwnerOnly)
+{
+    return AuthorizationResult::Failed;
+}
+
+bool PDFPublicKeySecurityHandler::isMetadataEncrypted() const
+{
+    return true;
+}
+
+bool PDFPublicKeySecurityHandler::isAllowed(Permission permission) const
+{
+    return false;
+}
+
+PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
+{
+    return PDFObject();
 }
 
 }   // namespace pdf

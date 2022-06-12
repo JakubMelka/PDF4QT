@@ -15,27 +15,27 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "createcertificatedialog.h"
-#include "ui_createcertificatedialog.h"
+#include "pdfcreatecertificatedialog.h"
+#include "ui_pdfcreatecertificatedialog.h"
 
-#include "certificatemanager.h"
+#include "pdfcertificatemanager.h"
 
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QDate>
 #include <QCalendar>
 
-namespace pdfplugin
+namespace pdf
 {
 
-CreateCertificateDialog::CreateCertificateDialog(QWidget *parent) :
+PDFCreateCertificateDialog::PDFCreateCertificateDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::CreateCertificateDialog)
+    ui(new Ui::PDFCreateCertificateDialog)
 {
     ui->setupUi(this);
 
     ui->fileNameEdit->setReadOnly(true);
-    ui->fileNameEdit->setText(CertificateManager::generateCertificateFileName());
+    ui->fileNameEdit->setText(PDFCertificateManager::generateCertificateFileName());
 
     ui->keyLengthCombo->addItem(tr("1024 bits"), 1024);
     ui->keyLengthCombo->addItem(tr("2048 bits"), 2048);
@@ -88,12 +88,12 @@ CreateCertificateDialog::CreateCertificateDialog(QWidget *parent) :
     ui->validTillEdit->setSelectedDate(selectedDate);
 }
 
-CreateCertificateDialog::~CreateCertificateDialog()
+PDFCreateCertificateDialog::~PDFCreateCertificateDialog()
 {
     delete ui;
 }
 
-void CreateCertificateDialog::accept()
+void PDFCreateCertificateDialog::accept()
 {
     if (validate())
     {
@@ -132,7 +132,7 @@ void CreateCertificateDialog::accept()
     }
 }
 
-bool CreateCertificateDialog::validate()
+bool PDFCreateCertificateDialog::validate()
 {
     // validate empty text fields
     if (ui->commonNameEdit->text().isEmpty())
@@ -159,4 +159,4 @@ bool CreateCertificateDialog::validate()
     return true;
 }
 
-} // namespace plugin
+} // namespace pdf

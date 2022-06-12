@@ -47,8 +47,11 @@ SOURCES += \
     sources/pdfannotation.cpp \
     sources/pdfblendfunction.cpp \
     sources/pdfccittfaxdecoder.cpp \
+    sources/pdfcertificatemanager.cpp \
+    sources/pdfcertificatemanagerdialog.cpp \
     sources/pdfcms.cpp \
     sources/pdfcompiler.cpp \
+    sources/pdfcreatecertificatedialog.cpp \
     sources/pdfdiff.cpp \
     sources/pdfdocumentbuilder.cpp \
     sources/pdfdocumentmanipulator.cpp \
@@ -121,8 +124,11 @@ HEADERS += \
     sources/pdfannotation.h \
     sources/pdfblendfunction.h \
     sources/pdfccittfaxdecoder.h \
+    sources/pdfcertificatemanager.h \
+    sources/pdfcertificatemanagerdialog.h \
     sources/pdfcms.h \
     sources/pdfcompiler.h \
+    sources/pdfcreatecertificatedialog.h \
     sources/pdfdbgheap.h \
     sources/pdfdiff.h \
     sources/pdfdocumentbuilder.h \
@@ -202,6 +208,8 @@ HEADERS += \
     sources/pdfimage.h
 
 FORMS += \
+    sources/pdfcertificatemanagerdialog.ui \
+    sources/pdfcreatecertificatedialog.ui \
     sources/pdfpagecontenteditorstylesettings.ui \
     sources/pdfpagecontenteditorwidget.ui \
     sources/pdfrenderingerrorswidget.ui \

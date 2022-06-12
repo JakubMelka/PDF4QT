@@ -35,6 +35,7 @@ enum class EncryptionMode
 {
     None,       ///< Document is not encrypted
     Standard,   ///< Document is encrypted and using standard security handler
+    PublicKey,  ///< Document is encrypted and using public key security handler
     Custom      ///< Document is encrypted and using custom security handler. Custom handlers must return this value.
 };
 
@@ -68,10 +69,13 @@ struct CryptFilter
     CryptFilterType type = CryptFilterType::None;
     AuthEvent authEvent = AuthEvent::DocOpen;
     int keyLength = 0; ///< Key length in bytes
+    QByteArrayList recipients; ///< Recipients for public key security handler
 };
 
 class PDFSecurityHandler;
 using PDFSecurityHandlerPointer = QSharedPointer<PDFSecurityHandler>;
+
+class PDFStandardSecurityHandler;
 
 class PDFSecurityHandler
 {
@@ -196,6 +200,14 @@ public:
     static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
 protected:
+    static QByteArray parseName(const PDFDictionary* dictionary, const char* key, bool required, const char* defaultValue = nullptr);
+    static PDFInteger parseInt(const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue = -1);
+    static CryptFilter parseCryptFilter(PDFInteger length, const PDFObject& object);
+    static PDFSecurityHandlerPointer createSecurityHandlerInstance(const PDFDictionary* dictionary);
+    static QByteArrayList parseRecipients(const PDFDictionary* dictionary);
+
+    static void parseCryptFilters(const PDFDictionary* dictionary, PDFSecurityHandler& handler, int Length);
+    static void parseDataStandardSecurityHandler(const PDFDictionary* dictionary, const QByteArray& id, int Length, PDFStandardSecurityHandler& handler);
 
     /// Fills encryption dictionary with basic data
     /// \param factory Factory
@@ -242,23 +254,15 @@ public:
     virtual PDFObject createEncryptionDictionaryObject() const override { return PDFObject(); }
 };
 
-/// Specifies the security using standard security handler (see PDF specification
-/// for details).
-class PDFStandardSecurityHandler : public PDFSecurityHandler
+class PDFStandardOrPublicSecurityHandler : public PDFSecurityHandler
 {
 public:
-    virtual EncryptionMode getMode() const override { return EncryptionMode::Standard; }
-    virtual PDFSecurityHandler* clone() const override;
-    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) override;
     virtual QByteArray decrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
     virtual QByteArray decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
     virtual QByteArray encrypt(const QByteArray& data, PDFObjectReference reference, EncryptionScope encryptionScope) const override;
     virtual QByteArray encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const override;
-    virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
-    virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
-    virtual bool isEncryptionAllowed() const override { return m_authorizationData.isAuthorized(); }
     virtual AuthorizationResult getAuthorizationResult() const override { return m_authorizationData.authorizationResult; }
-    virtual PDFObject createEncryptionDictionaryObject() const override;
+    virtual bool isEncryptionAllowed() const override { return m_authorizationData.isAuthorized(); }
 
     struct AuthorizationData
     {
@@ -268,10 +272,46 @@ public:
         QByteArray fileEncryptionKey;
     };
 
+protected:
+    /// Decrypts data using specified filter. This function can be called only, if authorization was successfull.
+    /// \param data Data to be decrypted
+    /// \param filter Filter to be used for decryption
+    /// \param reference Object reference for key generation
+    /// \returns Decrypted data
+    QByteArray decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
+
+    /// Encrypts data using specified filter. This function can be called only, if authorization was successfull.
+    /// \param data Data to be encrypted
+    /// \param filter Filter to be used for encryption
+    /// \param reference Object reference for key generation
+    /// \returns Encrypted data
+    QByteArray encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
+
+    std::vector<uint8_t> createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const;
+    std::vector<uint8_t> createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const;
+    CryptFilter getCryptFilter(EncryptionScope encryptionScope) const;
+
+    /// Authorization data
+    AuthorizationData m_authorizationData;
+};
+
+/// Specifies the security using standard security handler (see PDF specification
+/// for details).
+class PDFStandardSecurityHandler : public PDFStandardOrPublicSecurityHandler
+{
+public:
+    virtual EncryptionMode getMode() const override { return EncryptionMode::Standard; }
+    virtual PDFSecurityHandler* clone() const override;
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) override;
+    virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
+    virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
+    virtual PDFObject createEncryptionDictionaryObject() const override;
+
     /// Adjusts the password according to the PDF specification
     static QByteArray adjustPassword(const QString& password, int revision);
 
 private:
+    friend class PDFSecurityHandler;
     friend class PDFSecurityHandlerFactory;
     friend PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
@@ -310,25 +350,6 @@ private:
 
     /// Parses parts of the user/owner data (U/O values of the encryption dictionary)
     UserOwnerData_r6 parseParts(const QByteArray& data) const;
-
-
-    /// Decrypts data using specified filter. This function can be called only, if authorization was successfull.
-    /// \param data Data to be decrypted
-    /// \param filter Filter to be used for decryption
-    /// \param reference Object reference for key generation
-    /// \returns Decrypted data
-    QByteArray decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
-
-    /// Encrypts data using specified filter. This function can be called only, if authorization was successfull.
-    /// \param data Data to be encrypted
-    /// \param filter Filter to be used for encryption
-    /// \param reference Object reference for key generation
-    /// \returns Encrypted data
-    QByteArray encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
-
-    std::vector<uint8_t> createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const;
-    std::vector<uint8_t> createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const;
-    CryptFilter getCryptFilter(EncryptionScope encryptionScope) const;
 
     /// Returns true, if character with unicode code is non-ascii space character
     /// according the RFC 3454, section C.1.2
@@ -372,9 +393,19 @@ private:
 
     /// First part of the id of the document
     QByteArray m_ID;
+};
 
-    /// Authorization data
-    AuthorizationData m_authorizationData;
+/// Specifies the security using public key security handler (see PDF specification
+/// for details).
+class PDFPublicKeySecurityHandler : public PDFStandardOrPublicSecurityHandler
+{
+public:
+    virtual EncryptionMode getMode() const override { return EncryptionMode::PublicKey; }
+    virtual PDFSecurityHandler* clone() const override;
+    virtual AuthorizationResult authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly) override;
+    virtual bool isMetadataEncrypted() const override;
+    virtual bool isAllowed(Permission permission) const override;
+    virtual PDFObject createEncryptionDictionaryObject() const override;
 };
 
 /// Factory, which creates security handler based on settings.

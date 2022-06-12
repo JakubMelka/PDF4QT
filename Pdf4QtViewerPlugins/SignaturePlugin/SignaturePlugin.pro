@@ -40,16 +40,10 @@ INCLUDEPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
 DEPENDPATH += $$Pdf4Qt_OPENSSL_PATH/OpenSSL/Win_x64/include
 
 SOURCES += \
-    certificatemanager.cpp \
-    certificatemanagerdialog.cpp \
-    createcertificatedialog.cpp \
     signatureplugin.cpp \
     signdialog.cpp
 	
 HEADERS += \
-    certificatemanager.h \
-    certificatemanagerdialog.h \
-    createcertificatedialog.h \
     signatureplugin.h \
     signdialog.h
 
@@ -62,7 +56,5 @@ RESOURCES += \
     icons.qrc
 
 FORMS += \
-    certificatemanagerdialog.ui \
-    createcertificatedialog.ui \
     signdialog.ui
 
