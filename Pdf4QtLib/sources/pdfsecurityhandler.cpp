@@ -460,6 +460,22 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
                     typedHandler->m_filterDefault = it->second;
                 }
             }
+
+            QString name = parseName(dictionary, "SubFilter", true, nullptr);
+            if (name == "adbe.pkcs7.s3")
+            {
+                typedHandler->m_pkcs7Type = PDFPublicKeySecurityHandler::PKCS7_Type::PKCS7_S3;
+            }
+            if (name == "adbe.pkcs7.s4")
+            {
+                typedHandler->m_pkcs7Type = PDFPublicKeySecurityHandler::PKCS7_Type::PKCS7_S4;
+            }
+            if (name == "adbe.pkcs7.s5")
+            {
+                typedHandler->m_pkcs7Type = PDFPublicKeySecurityHandler::PKCS7_Type::PKCS7_S5;
+            }
+
+            typedHandler->m_permissions = static_cast<uint32_t>(static_cast<int>(parseInt(dictionary, "P", false, 0)));
             break;
         }
 
@@ -619,6 +635,22 @@ QByteArray PDFSecurityHandler::parseName(const PDFDictionary* dictionary, const 
     return nameObject.getString();
 }
 
+bool PDFSecurityHandler::parseBool(const PDFDictionary* dictionary, const char* key, bool required, bool defaultValue)
+{
+    const PDFObject& intObject = dictionary->get(key);
+    if (!intObject.isBool())
+    {
+        if (required)
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid value for entry '%1' in encryption dictionary. Boolean expected.").arg(QString::fromLatin1(key)));
+        }
+
+        return defaultValue;
+    }
+
+    return intObject.getBool();
+}
+
 PDFInteger PDFSecurityHandler::parseInt(const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue)
 {
     const PDFObject& intObject = dictionary->get(key);
@@ -685,6 +717,9 @@ CryptFilter PDFSecurityHandler::parseCryptFilter(PDFInteger length, const PDFObj
 
     // Recipients
     filter.recipients = parseRecipients(cryptFilterDictionary);
+
+    // Encrypt metadata
+    filter.encryptMetadata = parseBool(cryptFilterDictionary, "EncryptMetadata", false, true);
 
     return filter;
 }
@@ -1310,7 +1345,7 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                     }
 
                     // 2) Verify, that bytes 0-3 are valid permissions entry
-                    const uint32_t permissions = qFromLittleEndian(*reinterpret_cast<const uint32_t*>(decodedPerms.data()));
+                    const uint32_t permissions = qFromLittleEndian<uint32_t>(decodedPerms.data());
                     if (permissions != m_permissions)
                     {
                         throw PDFException(PDFTranslationContext::tr("Security permissions are manipulated. Can't open the document."));
@@ -2282,6 +2317,12 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
                             EVP_DigestFinal_ex(context, convertByteArrayToUcharPtr(digestBuffer), &size);
                             EVP_MD_CTX_free(context);
 
+                            if (decryptedData.size() == 20 + sizeof(uint32_t))
+                            {
+                                // We shall set permissions
+                                m_permissions = qFromLittleEndian<uint32_t>(decryptedData.data() + 20);
+                            }
+
                             m_authorizationData.fileEncryptionKey = digestBuffer.left(m_keyLength / 8);
                             m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
                             return AuthorizationResult::UserAuthorized;
@@ -2299,11 +2340,64 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
 
 bool PDFPublicKeySecurityHandler::isMetadataEncrypted() const
 {
-    return true;
+    return m_filterDefault.encryptMetadata;
 }
 
 bool PDFPublicKeySecurityHandler::isAllowed(Permission permission) const
 {
+    if (m_pkcs7Type == PKCS7_Type::PKCS7_S3)
+    {
+        // Jakub Melka: for S3, default standard permissions applies
+        return m_permissions & static_cast<uint32_t>(permission);
+    }
+
+    enum PermissionFlag : uint32_t
+    {
+        PKSH_Owner = 1 << 1,
+        PKSH_PrintLowResolution = 1 << 2,
+        PKSH_Modify = 1 << 3,
+        PKSH_CopyContent = 1 << 4,
+        PKSH_ModifyAnnotationsFillFormFields = 1 << 5,
+        PKSH_FillFormFields = 1 << 8,
+        PKSH_Assemble = 1 << 10,
+        PKSH_PrintHighResolution = 1 << 11
+    };
+
+    if (m_permissions & PKSH_Owner)
+    {
+        return true;
+    }
+
+    switch (permission)
+    {
+        case Permission::PrintLowResolution:
+            return m_permissions & PKSH_PrintLowResolution;
+
+        case Permission::Modify:
+            return m_permissions & PKSH_Modify;
+
+        case Permission::CopyContent:
+            return m_permissions & PKSH_CopyContent;
+
+        case Permission::ModifyInteractiveItems:
+            return m_permissions & PKSH_ModifyAnnotationsFillFormFields;
+
+        case Permission::ModifyFormFields:
+            return m_permissions & PKSH_FillFormFields;
+
+        case Permission::Accessibility:
+            return m_permissions & PKSH_CopyContent;
+
+        case Permission::Assemble:
+            return m_permissions & PKSH_Assemble;
+
+        case Permission::PrintHighResolution:
+            return m_permissions & PKSH_PrintHighResolution;
+
+        default:
+            break;
+    }
+
     return false;
 }
 

@@ -70,6 +70,7 @@ struct CryptFilter
     AuthEvent authEvent = AuthEvent::DocOpen;
     int keyLength = 0; ///< Key length in bytes
     QByteArrayList recipients; ///< Recipients for public key security handler
+    bool encryptMetadata = true; ///< Encrypt metadata (for public key encryption)
 };
 
 class PDFSecurityHandler;
@@ -200,6 +201,7 @@ public:
     static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
 protected:
+    static bool parseBool(const PDFDictionary* dictionary, const char* key, bool required, bool defaultValue = true);
     static QByteArray parseName(const PDFDictionary* dictionary, const char* key, bool required, const char* defaultValue = nullptr);
     static PDFInteger parseInt(const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue = -1);
     static CryptFilter parseCryptFilter(PDFInteger length, const PDFObject& object);
@@ -406,6 +408,24 @@ public:
     virtual bool isMetadataEncrypted() const override;
     virtual bool isAllowed(Permission permission) const override;
     virtual PDFObject createEncryptionDictionaryObject() const override;
+
+private:
+    friend class PDFSecurityHandler;
+    friend class PDFSecurityHandlerFactory;
+
+    enum class PKCS7_Type
+    {
+        Unknown,
+        PKCS7_S3,
+        PKCS7_S4,
+        PKCS7_S5
+    };
+
+    /// What operations shall be permitted, when document is opened with user access.
+    uint32_t m_permissions = 0;
+
+    /// Type of the PKCS7 subfilter
+    PKCS7_Type m_pkcs7Type = PKCS7_Type::Unknown;
 };
 
 /// Factory, which creates security handler based on settings.
