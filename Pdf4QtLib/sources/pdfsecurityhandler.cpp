@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+﻿//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -22,6 +22,7 @@
 #include "pdfutils.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdbgheap.h"
+#include "pdfcertificatemanager.h"
 
 #include <QRandomGenerator>
 
@@ -29,11 +30,17 @@
 #include <openssl/md5.h>
 #include <openssl/aes.h>
 #include <openssl/sha.h>
+#include <openssl/pkcs7.h>
+#include <openssl/pkcs12.h>
+#include <openssl/evp.h>
 
 #include <array>
 
 namespace pdf
 {
+
+template<typename T>
+using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
 // Padding password
 static constexpr std::array<uint8_t, 32> PDFPasswordPadding = {
@@ -444,6 +451,15 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
         {
             auto typedHandler = qSharedPointerDynamicCast<PDFPublicKeySecurityHandler>(handler);
             typedHandler->m_filterDefault.recipients = parseRecipients(dictionary);
+
+            if (typedHandler->m_filterDefault.recipients.isEmpty())
+            {
+                auto it = typedHandler->m_cryptFilters.find("DefaultCryptFilter");
+                if (it != typedHandler->m_cryptFilters.end())
+                {
+                    typedHandler->m_filterDefault = it->second;
+                }
+            }
             break;
         }
 
@@ -1045,6 +1061,118 @@ QByteArray PDFStandardOrPublicSecurityHandler::encryptByFilter(const QByteArray&
     }
 
     return encryptUsingFilter(data, it->second, reference);
+}
+
+bool PDFStandardOrPublicSecurityHandler::isUnicodeNonAsciiSpaceCharacter(ushort unicode)
+{
+    switch (unicode)
+    {
+        case 0x00A0:
+        case 0x1680:
+        case 0x2000:
+        case 0x2001:
+        case 0x2002:
+        case 0x2003:
+        case 0x2004:
+        case 0x2005:
+        case 0x2006:
+        case 0x2007:
+        case 0x2008:
+        case 0x2009:
+        case 0x200A:
+        case 0x200B:
+        case 0x202F:
+        case 0x205F:
+        case 0x3000:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+bool PDFStandardOrPublicSecurityHandler::isUnicodeMappedToNothing(ushort unicode)
+{
+    switch (unicode)
+    {
+        case 0x00AD:
+        case 0x034F:
+        case 0x1806:
+        case 0x180B:
+        case 0x180C:
+        case 0x180D:
+        case 0x200B:
+        case 0x200C:
+        case 0x200D:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+QByteArray PDFStandardOrPublicSecurityHandler::adjustPassword(const QString& password, int revision)
+{
+    QByteArray result;
+
+    switch (revision)
+    {
+        case 2:
+        case 3:
+        case 4:
+        {
+            // According to the PDF specification, convert string to PDFDocEncoding encoding
+            result = PDFEncoding::convertToEncoding(password, PDFEncoding::Encoding::PDFDoc);
+            break;
+        }
+
+        case 5:
+        case 6:
+        {
+            // According to the PDF specification, use SASLprep profile for stringprep RFC 4013, please see these websites:
+            //      - RFC 4013: https://tools.ietf.org/html/rfc4013 (SASLprep profile for stringprep algorithm)
+            //      - RFC 3454: https://tools.ietf.org/html/rfc3454 (stringprep algorithm - preparation of internationalized strings)
+            //
+            // Note: we don't do checks according the RFC 4013, just use the mapping and normalize string in KC
+
+            QString preparedPassword;
+            preparedPassword.reserve(password.size());
+
+            // RFC 4013 Section 2.1, use mapping
+
+            for (const QChar character : password)
+            {
+                if (isUnicodeMappedToNothing(character.unicode()))
+                {
+                    // Mapped to nothing
+                    continue;
+                }
+
+                if (isUnicodeNonAsciiSpaceCharacter(character.unicode()))
+                {
+                    // Map to space character
+                    preparedPassword += QChar(QChar::Space);
+                }
+                else
+                {
+                    preparedPassword += character;
+                }
+            }
+
+            // RFC 4013, Section 2.2, normalization to KC
+            preparedPassword = preparedPassword.normalized(QString::NormalizationForm_KC);
+
+            // We don't do other checks. We will transform password to the UTF-8 encoding
+            // and according the PDF specification, we take only first 127 characters.
+            result = preparedPassword.toUtf8().left(127);
+        }
+
+        default:
+            result = password.toLatin1();
+            break;
+    }
+
+    return result;
 }
 
 PDFSecurityHandler* PDFStandardSecurityHandler::clone() const
@@ -1653,117 +1781,6 @@ PDFStandardSecurityHandler::UserOwnerData_r6 PDFStandardSecurityHandler::parsePa
     return result;
 }
 
-QByteArray PDFStandardSecurityHandler::adjustPassword(const QString& password, int revision)
-{
-    QByteArray result;
-
-    switch (revision)
-    {
-        case 2:
-        case 3:
-        case 4:
-        {
-            // According to the PDF specification, convert string to PDFDocEncoding encoding
-            result = PDFEncoding::convertToEncoding(password, PDFEncoding::Encoding::PDFDoc);
-            break;
-        }
-
-        case 5:
-        case 6:
-        {
-            // According to the PDF specification, use SASLprep profile for stringprep RFC 4013, please see these websites:
-            //      - RFC 4013: https://tools.ietf.org/html/rfc4013 (SASLprep profile for stringprep algorithm)
-            //      - RFC 3454: https://tools.ietf.org/html/rfc3454 (stringprep algorithm - preparation of internationalized strings)
-            //
-            // Note: we don't do checks according the RFC 4013, just use the mapping and normalize string in KC
-
-            QString preparedPassword;
-            preparedPassword.reserve(password.size());
-
-            // RFC 4013 Section 2.1, use mapping
-
-            for (const QChar character : password)
-            {
-                if (isUnicodeMappedToNothing(character.unicode()))
-                {
-                    // Mapped to nothing
-                    continue;
-                }
-
-                if (isUnicodeNonAsciiSpaceCharacter(character.unicode()))
-                {
-                    // Map to space character
-                    preparedPassword += QChar(QChar::Space);
-                }
-                else
-                {
-                    preparedPassword += character;
-                }
-            }
-
-            // RFC 4013, Section 2.2, normalization to KC
-            preparedPassword = preparedPassword.normalized(QString::NormalizationForm_KC);
-
-            // We don't do other checks. We will transform password to the UTF-8 encoding
-            // and according the PDF specification, we take only first 127 characters.
-            result = preparedPassword.toUtf8().left(127);
-        }
-
-        default:
-            break;
-    }
-
-    return result;
-}
-
-bool PDFStandardSecurityHandler::isUnicodeNonAsciiSpaceCharacter(ushort unicode)
-{
-    switch (unicode)
-    {
-        case 0x00A0:
-        case 0x1680:
-        case 0x2000:
-        case 0x2001:
-        case 0x2002:
-        case 0x2003:
-        case 0x2004:
-        case 0x2005:
-        case 0x2006:
-        case 0x2007:
-        case 0x2008:
-        case 0x2009:
-        case 0x200A:
-        case 0x200B:
-        case 0x202F:
-        case 0x205F:
-        case 0x3000:
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-bool PDFStandardSecurityHandler::isUnicodeMappedToNothing(ushort unicode)
-{
-    switch (unicode)
-    {
-        case 0x00AD:
-        case 0x034F:
-        case 0x1806:
-        case 0x180B:
-        case 0x180C:
-        case 0x180D:
-        case 0x200B:
-        case 0x200C:
-        case 0x200D:
-            return true;
-
-        default:
-            return false;
-    }
-}
-
 PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const SecuritySettings& settings)
 {
     if (settings.algorithm == Algorithm::None)
@@ -2125,7 +2142,159 @@ PDFSecurityHandler* PDFPublicKeySecurityHandler::clone() const
 
 PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticate(const std::function<QString (bool*)>& getPasswordCallback, bool authorizeOwnerOnly)
 {
-    return AuthorizationResult::Failed;
+    // Clear the authorization data
+    m_authorizationData = AuthorizationData();
+
+    if (authorizeOwnerOnly)
+    {
+        return AuthorizationResult::Failed;
+    }
+
+    switch (m_keyLength)
+    {
+        case 128:
+        case 256:
+            break;
+
+        default:
+            return AuthorizationResult::Failed;
+    }
+
+    bool passwordObtained = true;
+    constexpr int revision = 0;
+    QByteArray password = adjustPassword(getPasswordCallback(&passwordObtained), revision);
+
+    QFileInfoList certificates = PDFCertificateManager::getCertificates();
+    if (certificates.isEmpty())
+    {
+        return AuthorizationResult::Failed;
+    }
+
+    std::vector<openssl_ptr<PKCS7>> recipients;
+
+    for (const QByteArray& recipient : m_filterDefault.recipients)
+    {
+        const unsigned char* data = convertByteArrayToUcharPtr(recipient);
+        if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, recipient.size()))
+        {
+            recipients.emplace_back(pkcs7, PKCS7_free);
+        }
+    }
+
+    while (passwordObtained)
+    {
+        // We will iterate trough all certificates
+        for (const QFileInfo& certificateFileInfo : certificates)
+        {
+            if (!PDFCertificateManager::isCertificateValid(certificateFileInfo.absoluteFilePath(), password))
+            {
+                continue;
+            }
+
+            QFile file(certificateFileInfo.absoluteFilePath());
+            if (file.open(QFile::ReadOnly))
+            {
+                QByteArray data = file.readAll();
+                file.close();
+
+                openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+                BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+                openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+                if (pkcs12)
+                {
+                    const char* passwordPointer = nullptr;
+                    if (!password.isEmpty())
+                    {
+                        passwordPointer = password.constData();
+                    }
+
+                    EVP_PKEY* keyPtr = nullptr;
+                    X509* certificatePtr = nullptr;
+                    STACK_OF(X509)* certificatesPtr = nullptr;
+
+                    // Parse PKCS12 with password
+                    bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+
+                    if (!isParsed)
+                    {
+                        continue;
+                    }
+
+                    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+                    openssl_ptr<X509> certificate(certificatePtr, X509_free);
+                    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_X509_free);
+
+                    for (const auto& recipientItem : recipients)
+                    {
+                        PKCS7* pkcs7 = recipientItem.get();
+
+                        openssl_ptr<BIO> dataBuffer(BIO_new(BIO_s_mem()), BIO_free_all);
+                        if (PKCS7_decrypt(pkcs7, keyPtr, certificatePtr, dataBuffer.get(), 0) == 1)
+                        {
+                            BUF_MEM* memoryBuffer = nullptr;
+                            BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
+
+                            // Acc. to chapter 7.6.5.3 - decrypted data
+                            QByteArray decryptedData(memoryBuffer->data, int(memoryBuffer->length));
+
+                            // Calculate file encryption key
+                            EVP_MD_CTX* context = EVP_MD_CTX_new();
+                            Q_ASSERT(context);
+
+                            switch (m_keyLength)
+                            {
+                                case 128:
+                                    EVP_DigestInit(context, EVP_sha1());
+                                    break;
+
+                                case 256:
+                                    EVP_DigestInit(context, EVP_sha256());
+                                    break;
+
+                                default:
+                                    Q_ASSERT(false);
+                                    EVP_DigestInit(context, EVP_sha256());
+                                    break;
+                            }
+
+                            QByteArray seed = decryptedData.left(20);
+
+                            // 7.6.5.3 a)
+                            EVP_DigestUpdate(context, seed.constData(), seed.size());
+
+                            // 7.6.5.3 b)
+                            for (const QByteArray& recipient : m_filterDefault.recipients)
+                            {
+                                EVP_DigestUpdate(context, recipient.constData(), recipient.size());
+                            }
+
+                            // 7.6.5.3 c)
+                            if (!isMetadataEncrypted())
+                            {
+                                constexpr uint32_t value = 0xFFFFFFFF;
+                                EVP_DigestUpdate(context, &value, sizeof(value));
+                            }
+
+                            unsigned int size = EVP_MD_size(EVP_MD_CTX_md(context));
+                            QByteArray digestBuffer(size, char());
+
+                            EVP_DigestFinal_ex(context, convertByteArrayToUcharPtr(digestBuffer), &size);
+                            EVP_MD_CTX_free(context);
+
+                            m_authorizationData.fileEncryptionKey = digestBuffer.left(m_keyLength / 8);
+                            m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+                            return AuthorizationResult::UserAuthorized;
+                        }
+                    }
+                }
+            }
+        }
+
+        password = adjustPassword(getPasswordCallback(&passwordObtained), revision);
+    }
+
+    return AuthorizationResult::Cancelled;
 }
 
 bool PDFPublicKeySecurityHandler::isMetadataEncrypted() const

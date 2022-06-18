@@ -140,7 +140,8 @@ QFileInfoList PDFCertificateManager::getCertificates()
 
 QString PDFCertificateManager::getCertificateDirectory()
 {
-    QDir directory(QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front() + "/certificates/");
+    QString standardDataLocation = QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front();
+    QDir directory(standardDataLocation + "/certificates/");
     return directory.absolutePath();
 }
 

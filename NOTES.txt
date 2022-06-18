@@ -10,7 +10,6 @@ Section 6: OK
 
 Section 7: Issues
  - 7.4.7 JBIG2 decoder ammendments 1 and 2 not implemented
- - 7.6.5 Public-key security handlers not implemented
  - 7.6.7 Unencrypted wrapper document not implemented
  - 7.10.2 Only linear interpolation for sampled function is performed
 
@@ -71,7 +70,7 @@ Section 12: Issues
    to PDF specification, but all unicode characters can be used.
  - 12.7.5.5 Signature field locking not implemented and signature
    seed dictionary is ignored
- - 12.7.6.2 Sumbit form action not implemented in viewer
+ - 12.7.6.2 Submit form action not implemented in viewer
  - 12.7.6.4 Import data action not implemented in viewer
  - 12.7.8 Form data format not implemented
  - 12.8 Modification detection using UR3/DocMDP method is not

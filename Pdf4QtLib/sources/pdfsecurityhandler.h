@@ -264,6 +264,9 @@ public:
     virtual AuthorizationResult getAuthorizationResult() const override { return m_authorizationData.authorizationResult; }
     virtual bool isEncryptionAllowed() const override { return m_authorizationData.isAuthorized(); }
 
+    /// Adjusts the password according to the PDF specification
+    static QByteArray adjustPassword(const QString& password, int revision);
+
     struct AuthorizationData
     {
         bool isAuthorized() const { return authorizationResult == AuthorizationResult::UserAuthorized || authorizationResult == AuthorizationResult::OwnerAuthorized; }
@@ -287,6 +290,16 @@ protected:
     /// \returns Encrypted data
     QByteArray encryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const;
 
+    /// Returns true, if character with unicode code is non-ascii space character
+    /// according the RFC 3454, section C.1.2
+    /// \param unicode Unicode code to be tested
+    static bool isUnicodeNonAsciiSpaceCharacter(ushort unicode);
+
+    /// Returns true, if character with unicode code is mapped to nothing,
+    /// according the RFC 3454, section B.1
+    /// \param unicode Unicode code to be tested
+    static bool isUnicodeMappedToNothing(ushort unicode);
+
     std::vector<uint8_t> createV2_ObjectEncryptionKey(PDFObjectReference reference, CryptFilter filter) const;
     std::vector<uint8_t> createAESV2_ObjectEncryptionKey(PDFObjectReference reference) const;
     CryptFilter getCryptFilter(EncryptionScope encryptionScope) const;
@@ -306,9 +319,6 @@ public:
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
     virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
     virtual PDFObject createEncryptionDictionaryObject() const override;
-
-    /// Adjusts the password according to the PDF specification
-    static QByteArray adjustPassword(const QString& password, int revision);
 
 private:
     friend class PDFSecurityHandler;
@@ -350,16 +360,6 @@ private:
 
     /// Parses parts of the user/owner data (U/O values of the encryption dictionary)
     UserOwnerData_r6 parseParts(const QByteArray& data) const;
-
-    /// Returns true, if character with unicode code is non-ascii space character
-    /// according the RFC 3454, section C.1.2
-    /// \param unicode Unicode code to be tested
-    static bool isUnicodeNonAsciiSpaceCharacter(ushort unicode);
-
-    /// Returns true, if character with unicode code is mapped to nothing,
-    /// according the RFC 3454, section B.1
-    /// \param unicode Unicode code to be tested
-    static bool isUnicodeMappedToNothing(ushort unicode);
 
     /// Revision number of standard security number
     int m_R = 0;
