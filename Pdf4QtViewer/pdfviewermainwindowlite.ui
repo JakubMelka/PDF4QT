@@ -97,6 +97,7 @@
     <addaction name="actionRendering_Errors"/>
     <addaction name="separator"/>
     <addaction name="actionOptions"/>
+    <addaction name="actionCertificateManager"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -440,6 +441,15 @@
   <action name="actionGetSource">
    <property name="text">
     <string>Get Source</string>
+   </property>
+  </action>
+  <action name="actionCertificateManager">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/certificate-manager.svg</normaloff>:/resources/certificate-manager.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Certificates...</string>
    </property>
   </action>
  </widget>

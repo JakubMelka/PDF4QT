@@ -26,6 +26,7 @@
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdbgheap.h"
+#include "pdfcertificatemanagerdialog.h"
 
 #include "pdfviewersettings.h"
 #include "pdfundoredomanager.h"
@@ -493,6 +494,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Options))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptionsTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CertificateManager))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionCertificateManagerTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Open))
     {
@@ -1919,6 +1924,12 @@ void PDFProgramController::onActionOptionsTriggered()
             QMessageBox::information(m_mainWindow, tr("Plugins"), tr("Plugin on/off state has been changed. Please restart application to apply settings."));
         }
     }
+}
+
+void PDFProgramController::onActionCertificateManagerTriggered()
+{
+    pdf::PDFCertificateManagerDialog dialog(getMainWindow());
+    dialog.exec();
 }
 
 void PDFProgramController::onDrawSpaceChanged()
