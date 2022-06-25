@@ -43,6 +43,9 @@
 namespace pdf
 {
 
+template<typename T>
+using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
+
 static QMutex s_globalOpenSSLMutex(QMutex::Recursive);
 
 /// OpenSSL is not thread safe.
@@ -1444,46 +1447,44 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSACertificate(PDFSignatureV
 void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVerificationResult& result) const
 {
     // Jakub Melka: we will use first certificate to validate signature
-    X509* certificate = createCertificate(0);
+    openssl_ptr<X509> certificate(createCertificate(0), X509_free);
     if (!certificate)
     {
         result.addSignatureCertificateMissingError();
         return;
     }
 
-    EVP_PKEY* evpKey = X509_get0_pubkey(certificate);
+    EVP_PKEY* evpKey = X509_get0_pubkey(certificate.get());
     if (!evpKey)
     {
-        X509_free(certificate);
         result.addSignatureCertificateMissingError();
         return;
     }
 
-    RSA* rsa = EVP_PKEY_get0_RSA(evpKey);
+    openssl_ptr<RSA> rsa(EVP_PKEY_get1_RSA(evpKey), RSA_free);
     if (!rsa)
     {
-        X509_free(certificate);
         result.addSignatureCertificateMissingError();
         return;
     }
 
     QByteArray outputBuffer;
-    if (BIO* bio = this->getSignedDataBuffer(result, outputBuffer))
+    openssl_ptr<BIO> bio(this->getSignedDataBuffer(result, outputBuffer), BIO_free_all);
+    if (bio)
     {
         const PDFSignature& signature = m_signatureField->getSignature();
         const QByteArray& signKey = signature.getContents();
 
         const unsigned char* encryptedSign = convertByteArrayToUcharPtr(signKey);
         const unsigned int encryptedSignLength = signKey.length();
-        if (ASN1_OCTET_STRING* encryptedString = d2i_ASN1_OCTET_STRING(nullptr, &encryptedSign, encryptedSignLength))
+
+        openssl_ptr<ASN1_OCTET_STRING> encryptedString(d2i_ASN1_OCTET_STRING(nullptr, &encryptedSign, encryptedSignLength), ASN1_OCTET_STRING_free);
+        if (encryptedString)
         {
             int algorithmNID = NID_undef;
             QByteArray digestBuffer;
-            if (!getMessageDigest(outputBuffer, encryptedString, rsa, algorithmNID, digestBuffer))
+            if (!getMessageDigest(outputBuffer, encryptedString.get(), rsa.get(), algorithmNID, digestBuffer))
             {
-                BIO_free(bio);
-                X509_free(certificate);
-                ASN1_OCTET_STRING_free(encryptedString);
                 result.addSignatureDataOtherError();
                 return;
             }
@@ -1495,8 +1496,7 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVer
             OBJ_obj2txt(buffer.data(), int(buffer.size() - 1), OBJ_nid2obj(algorithmNID), 0);
             result.addHashAlgorithm(QString::fromLatin1(buffer.data()));
 
-            const int verifyValue = RSA_verify(algorithmNID, digest, digestLength, encryptedString->data, encryptedString->length, rsa);
-            ASN1_OCTET_STRING_free(encryptedString);
+            const int verifyValue = RSA_verify(algorithmNID, digest, digestLength, encryptedString->data, encryptedString->length, rsa.get());
 
             if (verifyValue == 0)
             {
@@ -1519,11 +1519,7 @@ void PDFSignatureHandler_adbe_pkcs7_rsa_sha1::verifyRSASignature(PDFSignatureVer
         {
             result.addSignatureDataOtherError();
         }
-
-        BIO_free(bio);
     }
-
-    X509_free(certificate);
 
     if (!result.hasSignatureError())
     {
