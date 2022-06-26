@@ -1823,9 +1823,26 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         return PDFSecurityHandlerPointer(new PDFNoneSecurityHandler);
     }
 
-    // Jakub Melka: create standard security handler, with given settings
-    PDFStandardSecurityHandler* handler = new PDFStandardSecurityHandler();
-    handler->m_ID = settings.id;
+    // Jakub Melka: create standard security or public key handler, with given settings
+    PDFStandardSecurityHandler* standardHandler = nullptr;
+    PDFPublicKeySecurityHandler* publicKeyHandler = nullptr;
+    PDFStandardOrPublicSecurityHandler* handler = nullptr;
+
+    if (settings.algorithm != Algorithm::Certificate)
+    {
+        standardHandler = new PDFStandardSecurityHandler();
+        handler = standardHandler;
+    }
+    else
+    {
+        publicKeyHandler = new PDFPublicKeySecurityHandler();
+        handler = publicKeyHandler;
+    }
+
+    if (standardHandler)
+    {
+        standardHandler->m_ID = settings.id;
+    }
 
     const bool isEncryptingEmbeddedFilesOnly = settings.encryptContents == EncryptContents::EmbeddedFiles;
 
@@ -1858,6 +1875,7 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         }
 
         case AES_256:
+        case Certificate:
         {
             handler->m_V = 5;
             handler->m_keyLength = 256;
@@ -1878,27 +1896,122 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
     CryptFilter identityFilter;
     identityFilter.type = CryptFilterType::Identity;
 
+    if (standardHandler)
+    {
+        standardHandler->m_encryptMetadata = settings.encryptContents == All;
+    }
+
+    if (publicKeyHandler)
+    {
+        publicKeyHandler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
+        publicKeyHandler->m_pkcs7Type = PDFPublicKeySecurityHandler::PKCS7_Type::PKCS7_S5;
+        publicKeyHandler->m_permissions = 0;
+
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::PrintLowResolution))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_PrintLowResolution;
+        }
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::Modify))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_Modify;
+        }
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::CopyContent))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_CopyContent;
+        }
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::ModifyInteractiveItems))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_ModifyAnnotationsFillFormFields;
+        }
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::ModifyFormFields))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_FillFormFields;
+        }
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::Assemble))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_Assemble;
+        }
+        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::PrintHighResolution))
+        {
+            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_PrintHighResolution;
+        }
+
+        QFile file(settings.certificateFileName);
+        if (file.open(QFile::ReadOnly))
+        {
+            QByteArray data = file.readAll();
+            file.close();
+
+            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+            BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+            if (pkcs12)
+            {
+                QByteArray password = PDFStandardOrPublicSecurityHandler::adjustPassword(settings.userPassword, 0);
+                const char* passwordPointer = nullptr;
+                if (!password.isEmpty())
+                {
+                    passwordPointer = password.constData();
+                }
+
+                EVP_PKEY* keyPtr = nullptr;
+                X509* certificatePtr = nullptr;
+                STACK_OF(X509)* certificatesPtr = nullptr;
+
+                // Parse PKCS12 with password
+                bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+
+                if (isParsed)
+                {
+                    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+                    openssl_ptr<X509> certificate(certificatePtr, X509_free);
+                    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_X509_free);
+                    openssl_ptr<BIO> dataToBeSigned(BIO_new(BIO_s_mem()), BIO_free_all);
+
+                    uint32_t permissions = qToLittleEndian(publicKeyHandler->m_permissions);
+                    QRandomGenerator generator = QRandomGenerator::securelySeeded();
+                    QByteArray randomKey = generateRandomByteArray(generator, 20);
+                    BIO_write(dataToBeSigned.get(), randomKey.data(), randomKey.length());
+                    BIO_write(dataToBeSigned.get(), &permissions, sizeof(permissions));
+
+                    openssl_ptr<PKCS7> pkcs7(PKCS7_sign(certificate.get(), key.get(), certificates.get(), dataToBeSigned.get(), PKCS7_BINARY), PKCS7_free);
+                    if (pkcs7)
+                    {
+                        openssl_ptr<BIO> storedData(BIO_new(BIO_s_mem()), BIO_free_all);
+
+                        if (i2d_PKCS7_bio(storedData.get(), pkcs7.get()))
+                        {
+                            BUF_MEM* memoryBuffer = nullptr;
+                            BIO_get_mem_ptr(storedData.get(), &memoryBuffer);
+
+                            QByteArray recipient(memoryBuffer->data, int(memoryBuffer->length));
+                            publicKeyHandler->m_filterDefault.recipients << recipient;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     switch (settings.encryptContents)
     {
         case All:
             handler->m_filterStrings = handler->m_filterDefault;
             handler->m_filterStreams = handler->m_filterDefault;
             handler->m_filterEmbeddedFiles = handler->m_filterDefault;
-            handler->m_encryptMetadata = true;
             break;
 
         case AllExceptMetadata:
             handler->m_filterStrings = handler->m_filterDefault;
             handler->m_filterStreams = handler->m_filterDefault;
             handler->m_filterEmbeddedFiles = handler->m_filterDefault;
-            handler->m_encryptMetadata = false;
             break;
 
         case EmbeddedFiles:
             handler->m_filterStrings = identityFilter;
             handler->m_filterStreams = identityFilter;
             handler->m_filterEmbeddedFiles = handler->m_filterDefault;
-            handler->m_encryptMetadata = false;
             break;
 
         default:
@@ -1906,135 +2019,148 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
             break;
     }
 
+    handler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
     handler->m_cryptFilters["StdCF"] = handler->m_filterDefault;
-    handler->m_R = getRevisionFromAlgorithm(settings.algorithm);
-    handler->m_permissions = settings.permissions | 0xFFFFF000;
 
-    QByteArray adjustedOwnerPassword = handler->adjustPassword(settings.ownerPassword, handler->m_R);
-    QByteArray adjustedUserPassword = handler->adjustPassword(settings.userPassword, handler->m_R);
-
-    // Generate encryption entries
-    switch (handler->m_R)
+    if (standardHandler)
     {
-        case 2:
-        case 3:
-        case 4:
+        standardHandler->m_R = getRevisionFromAlgorithm(settings.algorithm);
+        standardHandler->m_permissions = settings.permissions | 0xFFFFF000;
+
+        QByteArray adjustedOwnerPassword = handler->adjustPassword(settings.ownerPassword, standardHandler->m_R);
+        QByteArray adjustedUserPassword = handler->adjustPassword(settings.userPassword, standardHandler->m_R);
+
+        // Generate encryption entries
+        switch (standardHandler->m_R)
         {
-            // Trick for computing "O" entry for revisions 2,3,4: in O entry, there is stored
-            // user password encrypted by owner password. Because RC4 cipher is symmetric, we
-            // can store user password in "O" entry and then use standard function to retrieve
-            // user password, which in fact will be encrypted user password.
-
-            std::array<uint8_t, 32> paddedUserPasswordArray = handler->createPaddedPassword32(adjustedUserPassword);
-            QByteArray paddedUserPassword;
-            paddedUserPassword.resize(int(paddedUserPasswordArray.size()));
-            std::copy(paddedUserPasswordArray.cbegin(), paddedUserPasswordArray.cend(), paddedUserPassword.data());
-            handler->m_O = paddedUserPassword;
-            QByteArray entryO = handler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword);
-            handler->m_O = entryO;
-            Q_ASSERT(handler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword) == paddedUserPassword);
-
-            handler->m_U.resize(32);
-            QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
-            for (int i = 0; i < handler->m_U.size(); ++i)
+            case 2:
+            case 3:
+            case 4:
             {
-                handler->m_U[i] = char(randomNumberGenerator.generate());
+                // Trick for computing "O" entry for revisions 2,3,4: in O entry, there is stored
+                // user password encrypted by owner password. Because RC4 cipher is symmetric, we
+                // can store user password in "O" entry and then use standard function to retrieve
+                // user password, which in fact will be encrypted user password.
+
+                std::array<uint8_t, 32> paddedUserPasswordArray = standardHandler->createPaddedPassword32(adjustedUserPassword);
+                QByteArray paddedUserPassword;
+                paddedUserPassword.resize(int(paddedUserPasswordArray.size()));
+                std::copy(paddedUserPasswordArray.cbegin(), paddedUserPasswordArray.cend(), paddedUserPassword.data());
+                standardHandler->m_O = paddedUserPassword;
+                QByteArray entryO = standardHandler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword);
+                standardHandler->m_O = entryO;
+                Q_ASSERT(standardHandler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword) == paddedUserPassword);
+
+                standardHandler->m_U.resize(32);
+                QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+                for (int i = 0; i < standardHandler->m_U.size(); ++i)
+                {
+                    standardHandler->m_U[i] = char(randomNumberGenerator.generate());
+                }
+
+                QByteArray fileEncryptionKey = standardHandler->createFileEncryptionKey(paddedUserPassword);
+                QByteArray U = standardHandler->createEntryValueU_r234(fileEncryptionKey);
+                standardHandler->m_U = U;
+
+                break;
             }
 
-            QByteArray fileEncryptionKey = handler->createFileEncryptionKey(paddedUserPassword);
-            QByteArray U = handler->createEntryValueU_r234(fileEncryptionKey);
-            handler->m_U = U;
+            case 6:
+            {
+                PDFStandardSecurityHandler::UserOwnerData_r6 userData;
+                PDFStandardSecurityHandler::UserOwnerData_r6 ownerData;
 
-            break;
-        }
+                QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
 
-        case 6:
-        {
-            PDFStandardSecurityHandler::UserOwnerData_r6 userData;
-            PDFStandardSecurityHandler::UserOwnerData_r6 ownerData;
+                // Generate file encryption key
+                handler->m_authorizationData.fileEncryptionKey = generateRandomByteArray(randomNumberGenerator, 32);
+                handler->m_authorizationData.authorizationResult = PDFSecurityHandler::AuthorizationResult::OwnerAuthorized;
 
-            QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+                // Compute m_U entry
+                userData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
+                userData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
+                userData.hash = standardHandler->createHash_r6(adjustedUserPassword + userData.validationSalt, adjustedUserPassword, false);
+                standardHandler->m_U = userData.hash + userData.validationSalt + userData.keySalt;
 
-            // Generate file encryption key
-            handler->m_authorizationData.fileEncryptionKey = generateRandomByteArray(randomNumberGenerator, 32);
-            handler->m_authorizationData.authorizationResult = PDFSecurityHandler::AuthorizationResult::OwnerAuthorized;
+                // Compute m_UE entry
+                QByteArray userFileEncryptionKeyInputData = adjustedUserPassword + userData.keySalt;
+                QByteArray userFileEncryptionKey = standardHandler->createHash_r6(userFileEncryptionKeyInputData, adjustedUserPassword, false);
 
-            // Compute m_U entry
-            userData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
-            userData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
-            userData.hash = handler->createHash_r6(adjustedUserPassword + userData.validationSalt, adjustedUserPassword, false);
-            handler->m_U = userData.hash + userData.validationSalt + userData.keySalt;
+                Q_ASSERT(userFileEncryptionKey.size() == 32);
+                AES_KEY userKey = { };
+                AES_set_encrypt_key(convertByteArrayToUcharPtr(userFileEncryptionKey), userFileEncryptionKey.size() * 8, &userKey);
+                unsigned char aesUserInitializationVector[AES_BLOCK_SIZE] = { };
+                standardHandler->m_UE.resize(handler->m_authorizationData.fileEncryptionKey.size());
+                unsigned char* userInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
+                unsigned char* userTargetBuffer = convertByteArrayToUcharPtr(standardHandler->m_UE);
+                AES_cbc_encrypt(userInputBuffer, userTargetBuffer, standardHandler->m_UE.size(), &userKey, aesUserInitializationVector, AES_ENCRYPT);
 
-            // Compute m_UE entry
-            QByteArray userFileEncryptionKeyInputData = adjustedUserPassword + userData.keySalt;
-            QByteArray userFileEncryptionKey = handler->createHash_r6(userFileEncryptionKeyInputData, adjustedUserPassword, false);
+                // Compute m_O entry
+                ownerData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
+                ownerData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
+                ownerData.hash = standardHandler->createHash_r6(adjustedOwnerPassword + ownerData.validationSalt + standardHandler->m_U, adjustedOwnerPassword, true);
+                standardHandler->m_O = ownerData.hash + ownerData.validationSalt + ownerData.keySalt;
 
-            Q_ASSERT(userFileEncryptionKey.size() == 32);
-            AES_KEY userKey = { };
-            AES_set_encrypt_key(convertByteArrayToUcharPtr(userFileEncryptionKey), userFileEncryptionKey.size() * 8, &userKey);
-            unsigned char aesUserInitializationVector[AES_BLOCK_SIZE] = { };
-            handler->m_UE.resize(handler->m_authorizationData.fileEncryptionKey.size());
-            unsigned char* userInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
-            unsigned char* userTargetBuffer = convertByteArrayToUcharPtr(handler->m_UE);
-            AES_cbc_encrypt(userInputBuffer, userTargetBuffer, handler->m_UE.size(), &userKey, aesUserInitializationVector, AES_ENCRYPT);
+                // Compute m_OE entry
+                QByteArray ownerFileEncryptionKeyInputData = adjustedOwnerPassword + ownerData.keySalt + standardHandler->m_U;
+                QByteArray ownerFileEncryptionKey = standardHandler->createHash_r6(ownerFileEncryptionKeyInputData, adjustedOwnerPassword, true);
 
-            // Compute m_O entry
-            ownerData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
-            ownerData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
-            ownerData.hash = handler->createHash_r6(adjustedOwnerPassword + ownerData.validationSalt + handler->m_U, adjustedOwnerPassword, true);
-            handler->m_O = ownerData.hash + ownerData.validationSalt + ownerData.keySalt;
+                AES_KEY ownerKey = { };
+                AES_set_encrypt_key(convertByteArrayToUcharPtr(ownerFileEncryptionKey), ownerFileEncryptionKey.size() * 8, &ownerKey);
+                unsigned char aesOwnerInitializationVector[AES_BLOCK_SIZE] = { };
+                standardHandler->m_OE.resize(handler->m_authorizationData.fileEncryptionKey.size());
+                unsigned char* ownerInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
+                unsigned char* ownerTargetBuffer = convertByteArrayToUcharPtr(standardHandler->m_OE);
+                AES_cbc_encrypt(ownerInputBuffer, ownerTargetBuffer, standardHandler->m_OE.size(), &ownerKey, aesOwnerInitializationVector, AES_ENCRYPT);
 
-            // Compute m_OE entry
-            QByteArray ownerFileEncryptionKeyInputData = adjustedOwnerPassword + ownerData.keySalt + handler->m_U;
-            QByteArray ownerFileEncryptionKey = handler->createHash_r6(ownerFileEncryptionKeyInputData, adjustedOwnerPassword, true);
+                // Perms entry
+                standardHandler->m_Perms = QByteArray(AES_BLOCK_SIZE, char(0));
+                unsigned char* permsData = convertByteArrayToUcharPtr(standardHandler->m_Perms);
+                permsData[0] = standardHandler->m_permissions & 0xFF;
+                permsData[1] = (standardHandler->m_permissions >> 8) & 0xFF;
+                permsData[2] = (standardHandler->m_permissions >> 16) & 0xFF;
+                permsData[3] = (standardHandler->m_permissions >> 24) & 0xFF;
+                permsData[4] = 0xFF;
+                permsData[5] = 0xFF;
+                permsData[6] = 0xFF;
+                permsData[7] = 0xFF;
+                permsData[8] = standardHandler->m_encryptMetadata ? 'T' : 'F';
+                permsData[9] = 'a';
+                permsData[10] = 'd';
+                permsData[11] = 'b';
+                permsData[12] = randomNumberGenerator.generate() & 0xFF;
+                permsData[13] = randomNumberGenerator.generate() & 0xFF;
+                permsData[14] = randomNumberGenerator.generate() & 0xFF;
+                permsData[15] = randomNumberGenerator.generate() & 0xFF;
 
-            AES_KEY ownerKey = { };
-            AES_set_encrypt_key(convertByteArrayToUcharPtr(ownerFileEncryptionKey), ownerFileEncryptionKey.size() * 8, &ownerKey);
-            unsigned char aesOwnerInitializationVector[AES_BLOCK_SIZE] = { };
-            handler->m_OE.resize(handler->m_authorizationData.fileEncryptionKey.size());
-            unsigned char* ownerInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
-            unsigned char* ownerTargetBuffer = convertByteArrayToUcharPtr(handler->m_OE);
-            AES_cbc_encrypt(ownerInputBuffer, ownerTargetBuffer, handler->m_OE.size(), &ownerKey, aesOwnerInitializationVector, AES_ENCRYPT);
+                Q_ASSERT(standardHandler->m_Perms.size() == AES_BLOCK_SIZE);
+                AES_KEY key = { };
+                AES_set_encrypt_key(convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey), handler->m_authorizationData.fileEncryptionKey.size() * 8, &key);
+                AES_ecb_encrypt(convertByteArrayToUcharPtr(standardHandler->m_Perms), convertByteArrayToUcharPtr(standardHandler->m_Perms), &key, AES_ENCRYPT);
 
-            // Perms entry
-            handler->m_Perms = QByteArray(AES_BLOCK_SIZE, char(0));
-            unsigned char* permsData = convertByteArrayToUcharPtr(handler->m_Perms);
-            permsData[0] = handler->m_permissions & 0xFF;
-            permsData[1] = (handler->m_permissions >> 8) & 0xFF;
-            permsData[2] = (handler->m_permissions >> 16) & 0xFF;
-            permsData[3] = (handler->m_permissions >> 24) & 0xFF;
-            permsData[4] = 0xFF;
-            permsData[5] = 0xFF;
-            permsData[6] = 0xFF;
-            permsData[7] = 0xFF;
-            permsData[8] = handler->m_encryptMetadata ? 'T' : 'F';
-            permsData[9] = 'a';
-            permsData[10] = 'd';
-            permsData[11] = 'b';
-            permsData[12] = randomNumberGenerator.generate() & 0xFF;
-            permsData[13] = randomNumberGenerator.generate() & 0xFF;
-            permsData[14] = randomNumberGenerator.generate() & 0xFF;
-            permsData[15] = randomNumberGenerator.generate() & 0xFF;
+                break;
+            }
 
-            Q_ASSERT(handler->m_Perms.size() == AES_BLOCK_SIZE);
-            AES_KEY key = { };
-            AES_set_encrypt_key(convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey), handler->m_authorizationData.fileEncryptionKey.size() * 8, &key);
-            AES_ecb_encrypt(convertByteArrayToUcharPtr(handler->m_Perms), convertByteArrayToUcharPtr(handler->m_Perms), &key, AES_ENCRYPT);
-
-            break;
-        }
-
-        default:
-        {
-            Q_ASSERT(false);
-            break;
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
         }
     }
 
+    PDFSecurityHandlerPointer handlerPointer(handler);
+
     bool firstTry = true;
-    handler->authenticate([&settings, &firstTry](bool* b) { *b = firstTry; firstTry = false; return settings.ownerPassword; }, true);
-    Q_ASSERT(handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized);
-    return PDFSecurityHandlerPointer(handler);
+    const bool isPublicKeySecurity = settings.algorithm == Algorithm::Certificate;
+    auto passwordCallback = [isPublicKeySecurity, &settings, &firstTry](bool* b) { *b = firstTry; firstTry = false; return !isPublicKeySecurity ? settings.ownerPassword : settings.userPassword; };
+    handler->authenticate(passwordCallback, !isPublicKeySecurity);
+    if (handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized ||
+        (isPublicKeySecurity && handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::UserAuthorized))
+    {
+       return handlerPointer;
+    }
+    return nullptr;
 }
 
 int PDFSecurityHandlerFactory::getPasswordOptimalEntropy()
@@ -2104,6 +2230,9 @@ int PDFSecurityHandlerFactory::getRevisionFromAlgorithm(Algorithm algorithm)
         case AES_256:
             return 6;
 
+        case Certificate:
+            return 0;
+
         default:
             Q_ASSERT(false);
             break;
@@ -2160,6 +2289,17 @@ bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QStri
         case pdf::PDFSecurityHandlerFactory::None:
         case pdf::PDFSecurityHandlerFactory::AES_256:
             break;
+
+        case pdf::PDFSecurityHandlerFactory::Certificate:
+        {
+            if (!pdf::PDFCertificateManager::isCertificateValid(settings.certificateFileName, settings.userPassword))
+            {
+                *errorMessage = tr("Invalid certificate or password.");
+                return false;
+            }
+
+            break;
+        }
 
         default:
             Q_ASSERT(false);
@@ -2265,7 +2405,7 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
                         PKCS7* pkcs7 = recipientItem.get();
 
                         openssl_ptr<BIO> dataBuffer(BIO_new(BIO_s_mem()), BIO_free_all);
-                        if (PKCS7_decrypt(pkcs7, keyPtr, certificatePtr, dataBuffer.get(), 0) == 1)
+                        if (PKCS7_decrypt(pkcs7, keyPtr, certificatePtr, dataBuffer.get(), PKCS7_BINARY) == 1)
                         {
                             BUF_MEM* memoryBuffer = nullptr;
                             BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
@@ -2350,18 +2490,6 @@ bool PDFPublicKeySecurityHandler::isAllowed(Permission permission) const
         // Jakub Melka: for S3, default standard permissions applies
         return m_permissions & static_cast<uint32_t>(permission);
     }
-
-    enum PermissionFlag : uint32_t
-    {
-        PKSH_Owner = 1 << 1,
-        PKSH_PrintLowResolution = 1 << 2,
-        PKSH_Modify = 1 << 3,
-        PKSH_CopyContent = 1 << 4,
-        PKSH_ModifyAnnotationsFillFormFields = 1 << 5,
-        PKSH_FillFormFields = 1 << 8,
-        PKSH_Assemble = 1 << 10,
-        PKSH_PrintHighResolution = 1 << 11
-    };
 
     if (m_permissions & PKSH_Owner)
     {

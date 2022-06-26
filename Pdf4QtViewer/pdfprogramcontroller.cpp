@@ -1202,6 +1202,12 @@ void PDFProgramController::onActionEncryptionTriggered()
     {
         pdf::PDFSecurityHandlerPointer updatedSecurityHandler = dialog.getUpdatedSecurityHandler();
 
+        if (!updatedSecurityHandler)
+        {
+            QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Failed to create security handler."));
+            return;
+        }
+
         // Jakub Melka: If we changed encryption (password), recheck, that user doesn't
         // forgot (or accidentally entered wrong) password. So, we require owner authentization
         // to continue.

@@ -201,6 +201,8 @@ public:
     static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
 
 protected:
+    friend class PDFSecurityHandlerFactory;
+
     static bool parseBool(const PDFDictionary* dictionary, const char* key, bool required, bool defaultValue = true);
     static QByteArray parseName(const PDFDictionary* dictionary, const char* key, bool required, const char* defaultValue = nullptr);
     static PDFInteger parseInt(const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue = -1);
@@ -278,6 +280,8 @@ public:
     };
 
 protected:
+    friend class PDFSecurityHandlerFactory;
+
     /// Decrypts data using specified filter. This function can be called only, if authorization was successfull.
     /// \param data Data to be decrypted
     /// \param filter Filter to be used for decryption
@@ -421,6 +425,18 @@ private:
         PKCS7_S5
     };
 
+    enum PermissionFlag : uint32_t
+    {
+        PKSH_Owner = 1 << 1,
+        PKSH_PrintLowResolution = 1 << 2,
+        PKSH_Modify = 1 << 3,
+        PKSH_CopyContent = 1 << 4,
+        PKSH_ModifyAnnotationsFillFormFields = 1 << 5,
+        PKSH_FillFormFields = 1 << 8,
+        PKSH_Assemble = 1 << 10,
+        PKSH_PrintHighResolution = 1 << 11
+    };
+
     /// What operations shall be permitted, when document is opened with user access.
     uint32_t m_permissions = 0;
 
@@ -440,7 +456,8 @@ public:
         None,
         RC4,
         AES_128,
-        AES_256
+        AES_256,
+        Certificate
     };
 
     enum EncryptContents
@@ -458,6 +475,7 @@ public:
         QString ownerPassword;
         uint32_t permissions = 0;
         QByteArray id;
+        QString certificateFileName;
     };
 
     /// Creates security handler based on given settings. If security handler cannot
