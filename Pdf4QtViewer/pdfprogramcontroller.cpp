@@ -1211,13 +1211,36 @@ void PDFProgramController::onActionEncryptionTriggered()
         // Jakub Melka: If we changed encryption (password), recheck, that user doesn't
         // forgot (or accidentally entered wrong) password. So, we require owner authentization
         // to continue.
-        if (updatedSecurityHandler->getMode() != pdf::EncryptionMode::None)
+        switch (updatedSecurityHandler->getMode())
         {
-            if (updatedSecurityHandler->authenticate(queryPassword, true) != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
+            case pdf::EncryptionMode::Standard:
             {
-                QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
-                return;
+                if (updatedSecurityHandler->authenticate(queryPassword, true) != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
+                {
+                    QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
+                    return;
+                }
+
+                break;
             }
+
+            case pdf::EncryptionMode::PublicKey:
+            {
+                if (updatedSecurityHandler->authenticate(queryPassword, false) != pdf::PDFSecurityHandler::AuthorizationResult::UserAuthorized)
+                {
+                    QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
+                    return;
+                }
+
+                break;
+            }
+
+            case pdf::EncryptionMode::None:
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
         }
 
         pdf::PDFDocumentBuilder builder(m_pdfDocument.data());

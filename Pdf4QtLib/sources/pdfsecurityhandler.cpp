@@ -491,7 +491,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     return handler;
 }
 
-void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) const
+void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory, bool publicKeyHandler) const
 {
     factory.beginDictionaryItem("V");
     factory << PDFInteger(m_V);
@@ -585,9 +585,36 @@ void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory) con
 
             factory.endDictionaryItem();
 
+            // Jakub Melka: Warning! According to the PDF 2.0 specification,
+            // standard security handler expresses key length in bytes (32
+            // for 256 bit key), but public key security handler in bits (value
+            // 256 for 256 bit key).
             factory.beginDictionaryItem("Length");
-            factory << cryptFilter.second.keyLength;
+            if (!publicKeyHandler)
+            {
+                factory << cryptFilter.second.keyLength;
+            }
+            else
+            {
+                factory << PDFInteger(cryptFilter.second.keyLength * 8);
+            }
             factory.endDictionaryItem();
+
+            if (publicKeyHandler)
+            {
+                factory.beginDictionaryItem("Recipients");
+                factory.beginArray();
+                for (const auto& recipient : cryptFilter.second.recipients)
+                {
+                    factory << WrapString(recipient);
+                }
+                factory.endArray();
+                factory.endDictionaryItem();
+
+                factory.beginDictionaryItem("EncryptMetadata");
+                factory << cryptFilter.second.encryptMetadata;
+                factory.endDictionaryItem();
+            }
 
             factory.endDictionary();
 
@@ -1383,7 +1410,7 @@ PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
 
     factory.beginDictionary();
 
-    fillEncryptionDictionary(factory);
+    fillEncryptionDictionary(factory, false);
 
     factory.beginDictionaryItem("Filter");
     factory << WrapName("Standard");
@@ -1975,7 +2002,11 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                     BIO_write(dataToBeSigned.get(), randomKey.data(), randomKey.length());
                     BIO_write(dataToBeSigned.get(), &permissions, sizeof(permissions));
 
-                    openssl_ptr<PKCS7> pkcs7(PKCS7_sign(certificate.get(), key.get(), certificates.get(), dataToBeSigned.get(), PKCS7_BINARY), PKCS7_free);
+                    openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_X509_free);
+                    sk_X509_push(recipientCertificates.get(), certificate.get());
+
+                    openssl_ptr<PKCS7> pkcs7(PKCS7_encrypt(recipientCertificates.get(), dataToBeSigned.get(), EVP_aes_256_cbc(), PKCS7_BINARY), PKCS7_free);
+
                     if (pkcs7)
                     {
                         openssl_ptr<BIO> storedData(BIO_new(BIO_s_mem()), BIO_free_all);
@@ -2020,7 +2051,22 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
     }
 
     handler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
-    handler->m_cryptFilters["StdCF"] = handler->m_filterDefault;
+
+    if (standardHandler)
+    {
+        handler->m_cryptFilters["StdCF"] = handler->m_filterDefault;
+    }
+    if (publicKeyHandler)
+    {
+        if (settings.encryptContents != EmbeddedFiles)
+        {
+            handler->m_cryptFilters["DefaultCryptFilter"] = handler->m_filterDefault;
+        }
+        else
+        {
+            handler->m_cryptFilters["DefEmbeddedFile"] = handler->m_filterDefault;
+        }
+    }
 
     if (standardHandler)
     {
@@ -2531,7 +2577,33 @@ bool PDFPublicKeySecurityHandler::isAllowed(Permission permission) const
 
 PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
 {
-    return PDFObject();
+    PDFObjectFactory factory;
+
+    factory.beginDictionary();
+
+    fillEncryptionDictionary(factory, true);
+
+    factory.beginDictionaryItem("Filter");
+    factory << WrapName("Adobe.PubSec");
+    factory.endDictionaryItem();
+
+    factory.beginDictionaryItem("SubFilter");
+    factory << WrapName("adbe.pkcs7.s5");
+    factory.endDictionaryItem();
+
+    factory.beginDictionaryItem("P");
+    factory << PDFInteger(int32_t(m_permissions));
+    factory.endDictionaryItem();
+
+    // Jakub Melka: 131105 is mysterious value set by Adobe Acrobat Pro
+    // when using public key security
+    factory.beginDictionaryItem("R");
+    factory << PDFInteger(131105);
+    factory.endDictionaryItem();
+
+    factory.endDictionary();
+
+    return factory.takeObject();
 }
 
 }   // namespace pdf

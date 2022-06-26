@@ -215,7 +215,7 @@ protected:
 
     /// Fills encryption dictionary with basic data
     /// \param factory Factory
-    void fillEncryptionDictionary(PDFObjectFactory& factory) const;
+    void fillEncryptionDictionary(PDFObjectFactory& factory, bool publicKeyHandler) const;
 
     /// Version of the encryption, shall be a number from 1 to 5, according the
     /// PDF specification. Other values are invalid.
