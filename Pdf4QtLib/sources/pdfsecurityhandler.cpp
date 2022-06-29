@@ -2025,6 +2025,8 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         }
     }
 
+    handler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
+
     switch (settings.encryptContents)
     {
         case All:
@@ -2049,8 +2051,6 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
             Q_ASSERT(false);
             break;
     }
-
-    handler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
 
     if (standardHandler)
     {
