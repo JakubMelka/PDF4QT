@@ -21,6 +21,7 @@
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
 #include "pdfsecurityhandler.h"
+#include "pdfcertificatemanager.h"
 #include "pdfdbgheap.h"
 
 #include <QMessageBox>
@@ -40,6 +41,7 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
     ui->algorithmComboBox->addItem(tr("RC4 128-bit | R4"), int(pdf::PDFSecurityHandlerFactory::RC4));
     ui->algorithmComboBox->addItem(tr("AES 128-bit | R4"), int(pdf::PDFSecurityHandlerFactory::AES_128));
     ui->algorithmComboBox->addItem(tr("AES 256-bit | R6"), int(pdf::PDFSecurityHandlerFactory::AES_256));
+    ui->algorithmComboBox->addItem(tr("Certificate Encryption"), int(pdf::PDFSecurityHandlerFactory::Certificate));
 
     ui->algorithmComboBox->setCurrentIndex(0);
 
@@ -73,6 +75,7 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
     m_checkBoxToPermission[ui->permAssembleCheckBox] = pdf::PDFSecurityHandler::Permission::Assemble;
     m_checkBoxToPermission[ui->permPrintHighResolutionCheckBox] = pdf::PDFSecurityHandler::Permission::PrintHighResolution;
 
+    updateCertificates();
     updateUi();
     updatePasswordScore();
 
@@ -95,6 +98,7 @@ void PDFEncryptionSettingsDialog::updateUi()
 
     const pdf::PDFSecurityHandlerFactory::Algorithm algorithm = static_cast<const pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
     const bool encrypted = algorithm != pdf::PDFSecurityHandlerFactory::None;
+    const bool isEncryptedUsingCertificate = algorithm == pdf::PDFSecurityHandlerFactory::Certificate;
 
     switch (algorithm)
     {
@@ -108,6 +112,7 @@ void PDFEncryptionSettingsDialog::updateUi()
             ui->algorithmHintWidget->setCurrentValue(4);
             break;
         case pdf::PDFSecurityHandlerFactory::AES_256:
+        case pdf::PDFSecurityHandlerFactory::Certificate:
             ui->algorithmHintWidget->setCurrentValue(5);
             break;
 
@@ -116,20 +121,40 @@ void PDFEncryptionSettingsDialog::updateUi()
             break;
     }
 
-    ui->userPasswordEnableCheckBox->setEnabled(encrypted);
-    ui->ownerPasswordEnableCheckBox->setEnabled(false);
+    ui->certificateComboBox->setEnabled(isEncryptedUsingCertificate);
 
-    if (!encrypted)
+    if (!isEncryptedUsingCertificate)
     {
-        ui->userPasswordEnableCheckBox->setChecked(false);
-        ui->ownerPasswordEnableCheckBox->setChecked(false);
+        ui->userPasswordEnableCheckBox->setEnabled(encrypted);
+        ui->ownerPasswordEnableCheckBox->setEnabled(false);
 
-        ui->userPasswordEdit->clear();
-        ui->ownerPasswordEdit->clear();
+        if (!encrypted)
+        {
+            ui->userPasswordEnableCheckBox->setChecked(false);
+            ui->ownerPasswordEnableCheckBox->setChecked(false);
+
+            ui->userPasswordEdit->clear();
+            ui->ownerPasswordEdit->clear();
+        }
+        else
+        {
+            ui->ownerPasswordEnableCheckBox->setChecked(true);
+        }
+
+        ui->certificateComboBox->setCurrentIndex(-1);
     }
     else
     {
-        ui->ownerPasswordEnableCheckBox->setChecked(true);
+        ui->userPasswordEnableCheckBox->setEnabled(false);
+        ui->ownerPasswordEnableCheckBox->setEnabled(false);
+
+        ui->userPasswordEnableCheckBox->setChecked(true);
+        ui->ownerPasswordEnableCheckBox->setChecked(false);
+
+        if (ui->certificateComboBox->currentIndex() == -1 && ui->certificateComboBox->count() > 0)
+        {
+            ui->certificateComboBox->setCurrentIndex(0);
+        }
     }
 
     ui->userPasswordEdit->setEnabled(ui->userPasswordEnableCheckBox->isChecked());
@@ -156,6 +181,21 @@ void PDFEncryptionSettingsDialog::updateUi()
     {
         permissionItem.first->setEnabled(encrypted);
     }
+}
+
+void PDFEncryptionSettingsDialog::updateCertificates()
+{
+    QFileInfoList certificates = pdf::PDFCertificateManager::getCertificates();
+
+    QVariant currentCertificate = ui->certificateComboBox->currentData();
+
+    ui->certificateComboBox->clear();
+    for (const QFileInfo& certificateItem : certificates)
+    {
+        ui->certificateComboBox->addItem(certificateItem.fileName(), certificateItem.absoluteFilePath());
+    }
+
+    ui->certificateComboBox->setCurrentIndex(ui->certificateComboBox->findData(currentCertificate));
 }
 
 void PDFEncryptionSettingsDialog::updatePasswordScore()
@@ -188,6 +228,7 @@ void PDFEncryptionSettingsDialog::accept()
     settings.userPassword = ui->userPasswordEdit->text();
     settings.ownerPassword = ui->ownerPasswordEdit->text();
     settings.permissions = 0;
+    settings.certificateFileName = ui->certificateComboBox->currentData().toString();
 
     for (auto item : m_checkBoxToPermission)
     {

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>705</width>
-    <height>609</height>
+    <width>843</width>
+    <height>620</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -20,8 +20,8 @@
       <string>Encryption Method</string>
      </property>
      <layout class="QGridLayout" name="methodGroupBoxLayout">
-      <item row="0" column="1">
-       <widget class="QComboBox" name="algorithmComboBox"/>
+      <item row="0" column="2">
+       <widget class="pdfviewer::PDFEncryptionStrengthHintWidget" name="algorithmHintWidget" native="true"/>
       </item>
       <item row="0" column="0">
        <widget class="QLabel" name="encryptionAlgorithm">
@@ -30,18 +30,28 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="2">
-       <widget class="pdfviewer::PDFEncryptionStrengthHintWidget" name="algorithmHintWidget" native="true"/>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="algorithmComboBox"/>
       </item>
-      <item row="1" column="0" colspan="3">
+      <item row="2" column="0" colspan="3">
        <widget class="QLabel" name="encryptionMethodHintLabel">
         <property name="text">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select encryption algorithm. AES-256 is strongly recommended, because older encryption algorithm can be potentially broken. Select older algorithms (as AES-128 or RC4) only, if you need backward compatibility. Also, choose a strong password to ensure strong encryption.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select encryption algorithm. AES-256 is strongly recommended, because older encryption algorithm can be potentially broken. Select older algorithms (as AES-128 or RC4) only, if you need backward compatibility. Also, choose a strong password to ensure strong encryption.&lt;/p&gt;&lt;p&gt;Public key security using certificate is also supported. In that case, you must select a certificate with private key, and this certificate is then used to encrypt data. User, which wants to open document encrypted with certificate, must have a private key to the certificae.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
         </property>
        </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="certificateLabel">
+        <property name="text">
+         <string>Certificate</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="certificateComboBox"/>
       </item>
      </layout>
     </widget>

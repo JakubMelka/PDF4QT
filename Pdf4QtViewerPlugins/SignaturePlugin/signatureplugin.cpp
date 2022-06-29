@@ -21,7 +21,7 @@
 #include "pdfpagecontenteditorwidget.h"
 #include "pdfpagecontenteditorstylesettings.h"
 #include "pdfdocumentbuilder.h"
-#include "certificatemanagerdialog.h"
+#include "pdfcertificatemanagerdialog.h"
 #include "signdialog.h"
 #include "pdfdocumentwriter.h"
 
@@ -314,11 +314,11 @@ void SignaturePlugin::onSignDigitally()
     // Jakub Melka: do we have certificates? If not,
     // open certificate dialog, so the user can create
     // a new one.
-    if (CertificateManager::getCertificates().isEmpty())
+    if (pdf::PDFCertificateManager::getCertificates().isEmpty())
     {
         onOpenCertificatesManager();
 
-        if (CertificateManager::getCertificates().isEmpty())
+        if (pdf::PDFCertificateManager::getCertificates().isEmpty())
         {
             return;
         }
@@ -329,7 +329,7 @@ void SignaturePlugin::onSignDigitally()
     {
         QByteArray data = "SampleDataToBeSigned" + QByteArray::number(QDateTime::currentMSecsSinceEpoch());
         QByteArray signature;
-        if (!SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, signature))
+        if (!pdf::PDFSignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, signature))
         {
             QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
             return;
@@ -458,7 +458,7 @@ void SignaturePlugin::onSignDigitally()
         buffer.seek(i3);
         dataToBeSigned.append(buffer.read(i4));
 
-        if (!SignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), dataToBeSigned, signature))
+        if (!pdf::PDFSignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), dataToBeSigned, signature))
         {
             QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
             buffer.close();
@@ -492,7 +492,7 @@ QString SignaturePlugin::getSignedFileName() const
 
 void SignaturePlugin::onOpenCertificatesManager()
 {
-    CertificateManagerDialog dialog(m_dataExchangeInterface->getMainWindow());
+    pdf::PDFCertificateManagerDialog dialog(m_dataExchangeInterface->getMainWindow());
     dialog.exec();
 }
 

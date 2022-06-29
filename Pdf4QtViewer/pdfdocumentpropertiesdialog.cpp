@@ -189,6 +189,10 @@ void PDFDocumentPropertiesDialog::initializeSecurity(const pdf::PDFDocument* doc
             modeString = tr("Standard");
             break;
 
+        case pdf::EncryptionMode::PublicKey:
+            modeString = tr("Public Key");
+            break;
+
         case pdf::EncryptionMode::Custom:
             modeString = tr("Custom");
             break;

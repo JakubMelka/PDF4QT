@@ -26,6 +26,7 @@
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdbgheap.h"
+#include "pdfcertificatemanagerdialog.h"
 
 #include "pdfviewersettings.h"
 #include "pdfundoredomanager.h"
@@ -493,6 +494,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Options))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptionsTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CertificateManager))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionCertificateManagerTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Open))
     {
@@ -1197,16 +1202,45 @@ void PDFProgramController::onActionEncryptionTriggered()
     {
         pdf::PDFSecurityHandlerPointer updatedSecurityHandler = dialog.getUpdatedSecurityHandler();
 
+        if (!updatedSecurityHandler)
+        {
+            QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Failed to create security handler."));
+            return;
+        }
+
         // Jakub Melka: If we changed encryption (password), recheck, that user doesn't
         // forgot (or accidentally entered wrong) password. So, we require owner authentization
         // to continue.
-        if (updatedSecurityHandler->getMode() != pdf::EncryptionMode::None)
+        switch (updatedSecurityHandler->getMode())
         {
-            if (updatedSecurityHandler->authenticate(queryPassword, true) != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
+            case pdf::EncryptionMode::Standard:
             {
-                QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
-                return;
+                if (updatedSecurityHandler->authenticate(queryPassword, true) != pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized)
+                {
+                    QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
+                    return;
+                }
+
+                break;
             }
+
+            case pdf::EncryptionMode::PublicKey:
+            {
+                if (updatedSecurityHandler->authenticate(queryPassword, false) != pdf::PDFSecurityHandler::AuthorizationResult::UserAuthorized)
+                {
+                    QMessageBox::critical(m_mainWindow, QApplication::applicationDisplayName(), tr("Reauthorization is required to change document encryption."));
+                    return;
+                }
+
+                break;
+            }
+
+            case pdf::EncryptionMode::None:
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
         }
 
         pdf::PDFDocumentBuilder builder(m_pdfDocument.data());
@@ -1919,6 +1953,12 @@ void PDFProgramController::onActionOptionsTriggered()
             QMessageBox::information(m_mainWindow, tr("Plugins"), tr("Plugin on/off state has been changed. Please restart application to apply settings."));
         }
     }
+}
+
+void PDFProgramController::onActionCertificateManagerTriggered()
+{
+    pdf::PDFCertificateManagerDialog dialog(getMainWindow());
+    dialog.exec();
 }
 
 void PDFProgramController::onDrawSpaceChanged()

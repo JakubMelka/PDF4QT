@@ -50,6 +50,7 @@ private:
     Ui::PDFEncryptionSettingsDialog* ui;
 
     void updateUi();
+    void updateCertificates();
     void updatePasswordScore();
 
     bool m_isUpdatingUi;

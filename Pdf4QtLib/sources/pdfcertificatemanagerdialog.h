@@ -15,10 +15,10 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef CERTIFICATEMANAGERDIALOG_H
-#define CERTIFICATEMANAGERDIALOG_H
+#ifndef PDFCERTIFICATEMANAGERDIALOG_H
+#define PDFCERTIFICATEMANAGERDIALOG_H
 
-#include "certificatemanager.h"
+#include "pdfcertificatemanager.h"
 
 #include <QDialog>
 
@@ -27,19 +27,19 @@ class QFileSystemModel;
 
 namespace Ui
 {
-class CertificateManagerDialog;
+class PDFCertificateManagerDialog;
 }
 
-namespace pdfplugin
+namespace pdf
 {
 
-class CertificateManagerDialog : public QDialog
+class PDF4QTLIBSHARED_EXPORT PDFCertificateManagerDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit CertificateManagerDialog(QWidget* parent);
-    virtual ~CertificateManagerDialog() override;
+    explicit PDFCertificateManagerDialog(QWidget* parent);
+    virtual ~PDFCertificateManagerDialog() override;
 
 private:
     void onNewCertificateClicked();
@@ -47,8 +47,8 @@ private:
     void onDeleteCertificateClicked();
     void onImportCertificateClicked();
 
-    Ui::CertificateManagerDialog* ui;
-    CertificateManager m_certificateManager;
+    Ui::PDFCertificateManagerDialog* ui;
+    PDFCertificateManager m_certificateManager;
     QPushButton* m_newCertificateButton;
     QPushButton* m_openCertificateDirectoryButton;
     QPushButton* m_deleteCertificateButton;
@@ -56,6 +56,6 @@ private:
     QFileSystemModel* m_certificateFileModel;
 };
 
-}   // namespace pdfplugin
+}   // namespace pdf
 
-#endif // CERTIFICATEMANAGERDIALOG_H
+#endif // PDFCERTIFICATEMANAGERDIALOG_H

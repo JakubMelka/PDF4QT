@@ -15,7 +15,7 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "certificatemanager.h"
+#include "pdfcertificatemanager.h"
 
 #include <QDir>
 #include <QFile>
@@ -32,10 +32,10 @@
 
 #include <memory>
 
-namespace pdfplugin
+namespace pdf
 {
 
-CertificateManager::CertificateManager()
+PDFCertificateManager::PDFCertificateManager()
 {
 
 }
@@ -43,7 +43,7 @@ CertificateManager::CertificateManager()
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
-void CertificateManager::createCertificate(const NewCertificateInfo& info)
+void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
 {
     openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
 
@@ -132,19 +132,20 @@ void CertificateManager::createCertificate(const NewCertificateInfo& info)
     }
 }
 
-QFileInfoList CertificateManager::getCertificates()
+QFileInfoList PDFCertificateManager::getCertificates()
 {
     QDir directory(getCertificateDirectory());
     return directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
 }
 
-QString CertificateManager::getCertificateDirectory()
+QString PDFCertificateManager::getCertificateDirectory()
 {
-    QDir directory(QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front() + "/certificates/");
+    QString standardDataLocation = QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front();
+    QDir directory(standardDataLocation + "/certificates/");
     return directory.absolutePath();
 }
 
-QString CertificateManager::generateCertificateFileName()
+QString PDFCertificateManager::generateCertificateFileName()
 {
     QString directoryString = getCertificateDirectory();
     QDir directory(directoryString);
@@ -162,7 +163,7 @@ QString CertificateManager::generateCertificateFileName()
     return QString();
 }
 
-bool CertificateManager::isCertificateValid(QString fileName, QString password)
+bool PDFCertificateManager::isCertificateValid(QString fileName, QString password)
 {
     QFile file(fileName);
     if (file.open(QFile::ReadOnly))
@@ -190,7 +191,7 @@ bool CertificateManager::isCertificateValid(QString fileName, QString password)
     return false;
 }
 
-bool SignatureFactory::sign(QString certificateName, QString password, QByteArray data, QByteArray& result)
+bool PDFSignatureFactory::sign(QString certificateName, QString password, QByteArray data, QByteArray& result)
 {
     QFile file(certificateName);
     if (file.open(QFile::ReadOnly))
@@ -247,4 +248,4 @@ bool SignatureFactory::sign(QString certificateName, QString password, QByteArra
     return false;
 }
 
-}   // namespace pdfplugin
+}   // namespace pdf

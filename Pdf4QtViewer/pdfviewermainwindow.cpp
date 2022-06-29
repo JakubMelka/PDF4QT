@@ -164,6 +164,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::RenderOptionShowTextLines, ui->actionShow_Text_Lines);
     m_actionManager->setAction(PDFActionManager::Properties, ui->actionProperties);
     m_actionManager->setAction(PDFActionManager::Options, ui->actionOptions);
+    m_actionManager->setAction(PDFActionManager::CertificateManager, ui->actionCertificateManager);
     m_actionManager->setAction(PDFActionManager::GetSource, ui->actionGetSource);
     m_actionManager->setAction(PDFActionManager::About, ui->actionAbout);
     m_actionManager->setAction(PDFActionManager::SendByMail, ui->actionSend_by_E_Mail);

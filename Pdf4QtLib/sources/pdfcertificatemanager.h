@@ -15,19 +15,21 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef CERTIFICATEMANAGER_H
-#define CERTIFICATEMANAGER_H
+#ifndef PDFCERTIFICATEMANAGER_H
+#define PDFCERTIFICATEMANAGER_H
+
+#include "pdfglobal.h"
 
 #include <QString>
 #include <QFileInfoList>
 
-namespace pdfplugin
+namespace pdf
 {
 
-class CertificateManager
+class PDF4QTLIBSHARED_EXPORT PDFCertificateManager
 {
 public:
-    CertificateManager();
+    PDFCertificateManager();
 
     struct NewCertificateInfo
     {
@@ -53,12 +55,12 @@ public:
     static bool isCertificateValid(QString fileName, QString password);
 };
 
-class SignatureFactory
+class PDF4QTLIBSHARED_EXPORT PDFSignatureFactory
 {
 public:
     static bool sign(QString certificateName, QString password, QByteArray data, QByteArray& result);
 };
 
-} // namespace pdfplugin
+} // namespace pdf
 
-#endif // CERTIFICATEMANAGER_H
+#endif // PDFCERTIFICATEMANAGER_H

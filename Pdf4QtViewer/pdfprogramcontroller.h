@@ -98,6 +98,7 @@ public:
         SaveAs,
         Properties,
         Options,
+        CertificateManager,
         GetSource,
         About,
         SendByMail,
@@ -333,6 +334,7 @@ private:
     void onActionFirstPageOnRightSideTriggered();
     void onActionFindTriggered();
     void onActionOptionsTriggered();
+    void onActionCertificateManagerTriggered();
     void onActionOpenTriggered();
     void onActionCloseTriggered();
     void onActionDeveloperCreateInstaller();
