@@ -1,5 +1,7 @@
 CURRENT:
 
+ - Issue #17: Public key security handler
+
 V: 1.2.0 5.6.2022
  - Issue #10: Performance optimization
  - Issue #14: Incorrect text drawing for vertical writing systems
