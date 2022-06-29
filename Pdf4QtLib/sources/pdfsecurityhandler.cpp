@@ -273,7 +273,7 @@ PDFObject PDFSecurityHandler::encryptObject(const PDFObject& object, PDFObjectRe
     return visitor.getProcessedObject();
 }
 
-void PDFSecurityHandler::parseCryptFilters(const PDFDictionary* dictionary, PDFSecurityHandler& handler, int Length)
+void PDFSecurityHandler::parseCryptFilters(const PDFDictionary* dictionary, PDFSecurityHandler& handler, int Length, bool publicKey)
 {
     const PDFObject& cryptFilterObjects = dictionary->get("CF");
     if (cryptFilterObjects.isDictionary())
@@ -281,7 +281,7 @@ void PDFSecurityHandler::parseCryptFilters(const PDFDictionary* dictionary, PDFS
         const PDFDictionary* cryptFilters = cryptFilterObjects.getDictionary();
         for (size_t i = 0, cryptFilterCount = cryptFilters->getCount(); i < cryptFilterCount; ++i)
         {
-            handler.m_cryptFilters[cryptFilters->getKey(i).getString()] = parseCryptFilter(Length, cryptFilters->getValue(i));
+            handler.m_cryptFilters[cryptFilters->getKey(i).getString()] = parseCryptFilter(Length, cryptFilters->getValue(i), publicKey);
         }
     }
 
@@ -435,7 +435,7 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
 
     if (V == 4 || V == 5)
     {
-        parseCryptFilters(dictionary, *handler, Length);
+        parseCryptFilters(dictionary, *handler, Length, handler->getMode() == EncryptionMode::PublicKey);
     }
 
     switch (handler->getMode())
@@ -694,7 +694,7 @@ PDFInteger PDFSecurityHandler::parseInt(const PDFDictionary* dictionary, const c
     return intObject.getInteger();
 }
 
-CryptFilter PDFSecurityHandler::parseCryptFilter(PDFInteger length, const PDFObject& object)
+CryptFilter PDFSecurityHandler::parseCryptFilter(PDFInteger length, const PDFObject& object, bool publicKey)
 {
     if (!object.isDictionary())
     {
@@ -740,7 +740,7 @@ CryptFilter PDFSecurityHandler::parseCryptFilter(PDFInteger length, const PDFObj
         throw PDFException(PDFTranslationContext::tr("Unsupported authorization event '%1'.").arg(QString::fromLatin1(authEventName)));
     }
 
-    filter.keyLength = parseInt(cryptFilterDictionary, "Length", false, length / 8);
+    filter.keyLength = parseInt(cryptFilterDictionary, "Length", false, publicKey ? length : length / 8);
 
     // Recipients
     filter.recipients = parseRecipients(cryptFilterDictionary);

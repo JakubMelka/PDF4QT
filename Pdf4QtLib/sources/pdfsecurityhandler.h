@@ -206,11 +206,11 @@ protected:
     static bool parseBool(const PDFDictionary* dictionary, const char* key, bool required, bool defaultValue = true);
     static QByteArray parseName(const PDFDictionary* dictionary, const char* key, bool required, const char* defaultValue = nullptr);
     static PDFInteger parseInt(const PDFDictionary* dictionary, const char* key, bool required, PDFInteger defaultValue = -1);
-    static CryptFilter parseCryptFilter(PDFInteger length, const PDFObject& object);
+    static CryptFilter parseCryptFilter(PDFInteger length, const PDFObject& object, bool publicKey);
     static PDFSecurityHandlerPointer createSecurityHandlerInstance(const PDFDictionary* dictionary);
     static QByteArrayList parseRecipients(const PDFDictionary* dictionary);
 
-    static void parseCryptFilters(const PDFDictionary* dictionary, PDFSecurityHandler& handler, int Length);
+    static void parseCryptFilters(const PDFDictionary* dictionary, PDFSecurityHandler& handler, int Length, bool publicKey);
     static void parseDataStandardSecurityHandler(const PDFDictionary* dictionary, const QByteArray& id, int Length, PDFStandardSecurityHandler& handler);
 
     /// Fills encryption dictionary with basic data
