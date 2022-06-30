@@ -52,11 +52,11 @@ Software have following features (the list is not complete):
 - [x] compare documents
 - [x] static XFA support (readonly, simple XFA only)
 - [x] electronically/digitally sign documents
+- [x] public key security encryption
 - [ ] 3D PDF support *(planned in year 2022)*
 - [ ] create fillable forms *(planned in year 2023)*
 - [ ] watermarks / headers / footers *(planned in year 2023)*
 - [ ] presentation application *(planned in year 2023)*
-- [ ] public key security encryption *(planned in year 2023)*
 
 ## 4. THIRD PARTY LIBRARIES
 
