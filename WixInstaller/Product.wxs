@@ -136,6 +136,33 @@
 			<Component Id="cmpAF41975820F68671CC4EF8EDCC9B3135" Directory="dir_texttospeech" Guid="{305900CC-4483-4E0F-B611-C32FD9E01021}">
 				<File Id="fil06D2402D329F17F0309E6FB70C194C77" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_sapi.dll" />
 			</Component>
+			<Component Id="vcredist1" Directory="INSTALLFOLDER" Guid="{737E5322-B760-4B1B-BCB9-04A590449A91}">
+				<File Id="fvcredist1" KeyPath="yes" Source="$(var.MyInstallDir)\concrt140.dll" />
+			</Component>
+			<Component Id="vcredist2" Directory="INSTALLFOLDER" Guid="{A5090D1F-8A58-4E66-9582-5E5F6B5CC039}">
+				<File Id="fvcredist2" KeyPath="yes" Source="$(var.MyInstallDir)\msvcp140.dll" />
+			</Component>
+			<Component Id="vcredist3" Directory="INSTALLFOLDER" Guid="{31368A99-D43C-490C-ACC4-E9463CFBECE8}">
+				<File Id="fvcredist3" KeyPath="yes" Source="$(var.MyInstallDir)\msvcp140_1.dll" />
+			</Component>
+			<Component Id="vcredist4" Directory="INSTALLFOLDER" Guid="{5F088E9B-4B29-4555-BAB6-D202F47733E0}">
+				<File Id="fvcredist4" KeyPath="yes" Source="$(var.MyInstallDir)\msvcp140_2.dll" />
+			</Component>
+			<Component Id="vcredist5" Directory="INSTALLFOLDER" Guid="{B4D706C6-7A7F-42AA-A17B-805DECAC4CFD}">
+				<File Id="fvcredist5" KeyPath="yes" Source="$(var.MyInstallDir)\msvcp140_atomic_wait.dll" />
+			</Component>
+			<Component Id="vcredist6" Directory="INSTALLFOLDER" Guid="{B2A3B733-8EC6-4CE7-A53C-6C8F08D051C2}">
+				<File Id="fvcredist6" KeyPath="yes" Source="$(var.MyInstallDir)\msvcp140_codecvt_ids.dll" />
+			</Component>
+			<Component Id="vcredist7" Directory="INSTALLFOLDER" Guid="{BB162C0D-DF65-4AE3-8092-0C20C6F5B5F7}">
+				<File Id="fvcredist7" KeyPath="yes" Source="$(var.MyInstallDir)\vccorlib140.dll" />
+			</Component>
+			<Component Id="vcredist8" Directory="INSTALLFOLDER" Guid="{EFA4E0DC-3168-41E2-9DFE-17E1D3CA9EBF}">
+				<File Id="fvcredist8" KeyPath="yes" Source="$(var.MyInstallDir)\vcruntime140.dll" />
+			</Component>
+			<Component Id="vcredist9" Directory="INSTALLFOLDER" Guid="{6DCE4807-C0E6-4B9C-AD10-0974A93CF833}">
+				<File Id="fvcredist9" KeyPath="yes" Source="$(var.MyInstallDir)\vcruntime140_1.dll" />
+			</Component>
 		</ComponentGroup>
 	</Fragment>
 

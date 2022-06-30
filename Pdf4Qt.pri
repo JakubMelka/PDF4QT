@@ -33,5 +33,5 @@ win32 {
     CONFIG += unversioned_libname
 }
 
-VERSION = 1.2.0
+VERSION = 1.2.1
 DEFINES += PDF4QT_PROJECT_VERSION=$$VERSION

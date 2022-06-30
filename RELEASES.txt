@@ -1,6 +1,8 @@
 CURRENT:
 
+V: 1.2.1 30.6.2022
  - Issue #17: Public key security handler
+ - Issue #19: Remove dependency on MS Visual Studio Redistributable Packages
 
 V: 1.2.0 5.6.2022
  - Issue #10: Performance optimization

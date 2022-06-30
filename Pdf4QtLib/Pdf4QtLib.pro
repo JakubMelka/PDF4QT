@@ -326,3 +326,13 @@ qt_plugin_texttospeech.files = $$[QT_INSTALL_PLUGINS]/texttospeech/qtexttospeech
 qt_plugin_texttospeech.path = $$DESTDIR/install/texttospeech
 INSTALLS += qt_plugin_texttospeech
 
+VC_REDIST_FILES = $$files($$(VCToolsRedistDir)/$$(VSCMD_ARG_TGT_ARCH)/Microsoft.VC143.CRT/*.dll)
+vc_redist.files = $$VC_REDIST_FILES
+vc_redist.path = $$DESTDIR/install
+INSTALLS += vc_redist
+
+# Debug code for list of all variables and its  values
+#for(var, $$list($$enumerate_vars())) {
+#    value = $$eval($$var)
+#    message($$var = $$value)
+#}
