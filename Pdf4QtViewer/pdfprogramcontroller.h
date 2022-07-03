@@ -172,6 +172,7 @@ public:
         ToolScreenshot,
         ToolExtractImage,
         DeveloperCreateInstaller,
+        DeveloperShow3DWindowDemo,
         LastAction
     };
 
@@ -353,6 +354,7 @@ private:
     void onActionOpenTriggered();
     void onActionCloseTriggered();
     void onActionDeveloperCreateInstaller();
+    void onActionDeveloperShow3DWindowDemo();
     void onActionGetSource();
     void onActionBecomeSponsor();
     void onActionAutomaticDocumentRefresh();

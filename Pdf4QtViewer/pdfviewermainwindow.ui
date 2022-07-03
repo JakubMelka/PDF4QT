@@ -123,6 +123,7 @@
     <addaction name="actionShow_Text_Blocks"/>
     <addaction name="actionShow_Text_Lines"/>
     <addaction name="actionDeveloperCreateInstaller"/>
+    <addaction name="actionDeveloperShow3DWindowDemo"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -977,6 +978,11 @@
    </property>
    <property name="text">
     <string>Become a Sponsor</string>
+   </property>
+  </action>
+  <action name="actionDeveloperShow3DWindowDemo">
+   <property name="text">
+    <string>Show 3D Window Demo</string>
    </property>
   </action>
  </widget>

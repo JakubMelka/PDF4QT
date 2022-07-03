@@ -40,6 +40,7 @@
 #include "pdfrecentfilemanager.h"
 #include "pdftexttospeech.h"
 #include "pdfencryptionsettingsdialog.h"
+#include "pdfmediaviewerdialog.h"
 
 #include <QMenu>
 #include <QPrinter>
@@ -525,6 +526,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::DeveloperCreateInstaller))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionDeveloperCreateInstaller);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::DeveloperShow3DWindowDemo))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionDeveloperShow3DWindowDemo);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::GetSource))
     {
@@ -2457,6 +2462,13 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
         QDir().mkpath(componentDataDirectory);
         QFile::copy(info.pluginFileWithPath, QString("%1/%2").arg(componentDataDirectory, info.pluginFile));
     }
+}
+
+void PDFProgramController::onActionDeveloperShow3DWindowDemo()
+{
+    PDFMediaViewerDialog* dialog = new PDFMediaViewerDialog(getMainWindow());
+    dialog->initDemo();
+    dialog->open();
 }
 
 void PDFProgramController::onActionGetSource()

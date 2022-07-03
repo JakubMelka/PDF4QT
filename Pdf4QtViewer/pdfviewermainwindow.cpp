@@ -180,6 +180,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::ToolScreenshot, ui->actionScreenshot);
     m_actionManager->setAction(PDFActionManager::ToolExtractImage, ui->actionExtractImage);
     m_actionManager->setAction(PDFActionManager::DeveloperCreateInstaller, ui->actionDeveloperCreateInstaller);
+    m_actionManager->setAction(PDFActionManager::DeveloperShow3DWindowDemo, ui->actionDeveloperShow3DWindowDemo);
     m_actionManager->initActions(pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24)), true);
 
     for (QAction* action : m_programController->getRecentFileManager()->getActions())
