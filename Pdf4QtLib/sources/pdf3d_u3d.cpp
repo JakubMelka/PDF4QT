@@ -434,6 +434,11 @@ const PDF3D_U3D_ContextManager::ContextData* PDF3D_U3D_ContextManager::getContex
     return nullptr;
 }
 
+PDF3D_U3D PDF3D_U3D::parse(QByteArray data)
+{
+    return PDF3D_U3D();
+}
+
 }   // namespace u3d
 
 }   // namespace pdf

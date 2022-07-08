@@ -601,6 +601,10 @@ public:
     /// \param type Annotation type
     static bool isTypeEditable(AnnotationType type);
 
+    /// Returns true, if annotation is multimedia
+    /// \param type Annotation type
+    static bool isTypeMultimedia(AnnotationType type);
+
 protected:
     virtual QColor getStrokeColor() const;
     virtual QColor getFillColor() const;
@@ -1655,8 +1659,9 @@ public:
     virtual int getInputPriority() const override { return AnnotationPriority; }
 
 signals:
-    void actionTriggered(const PDFAction* action);
-    void documentModified(PDFModifiedDocument document);
+    void actionTriggered(const pdf::PDFAction* action);
+    void multimediaTriggered(const pdf::PDFAnnotation* annotation);
+    void documentModified(pdf::PDFModifiedDocument document);
 
 private:
     void updateFromMouseEvent(QMouseEvent* event);

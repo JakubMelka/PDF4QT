@@ -43,6 +43,7 @@ class PDFWidget;
 class PDFCMSManager;
 class PDFToolManager;
 class PDFFormManager;
+class PDFAnnotation;
 class PDFWidgetAnnotationManager;
 }
 
@@ -289,6 +290,7 @@ public:
 
     void onActionTriggered(const pdf::PDFAction* action);
     void onDocumentModified(pdf::PDFModifiedDocument document);
+    void onMultimediaTriggered(const pdf::PDFAnnotation* annotation);
     void updateActionsAvailability();
 
     bool getIsBusy() const;

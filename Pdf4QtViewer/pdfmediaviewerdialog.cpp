@@ -18,6 +18,9 @@
 #include "pdfmediaviewerdialog.h"
 #include "ui_pdfmediaviewerdialog.h"
 #include "pdfwidgetutils.h"
+#include "pdfdocument.h"
+#include "pdfannotation.h"
+#include "pdf3d_u3d.h"
 #include "pdfdbgheap.h"
 
 #include <QColor>
@@ -159,6 +162,50 @@ void PDFMediaViewerDialog::initDemo()
     Qt3DCore::QTransform* lightTransform = new Qt3DCore::QTransform(lightEntity);
     lightTransform->setTranslation(QVector3D(10.0f, 10.0f, 10.0f));
     lightEntity->addComponent(lightTransform);
+}
+
+void PDFMediaViewerDialog::initFromAnnotation(const pdf::PDFDocument* document,
+                                              const pdf::PDFAnnotation* annotation)
+{
+    Q_ASSERT(document);
+    Q_ASSERT(annotation);
+
+    switch (annotation->getType())
+    {
+        case pdf::AnnotationType::_3D:
+        {
+            const pdf::PDF3DAnnotation* typedAnnotation = dynamic_cast<const pdf::PDF3DAnnotation*>(annotation);
+            initFrom3DAnnotation(document, typedAnnotation);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document,
+                                                const pdf::PDF3DAnnotation* annotation)
+{
+    const pdf::PDF3DStream& stream = annotation->getStream();
+
+    pdf::PDFObject object = document->getObject(stream.getStream());
+    if (object.isStream())
+    {
+        QByteArray data = document->getDecodedStream(object.getStream());
+
+        switch (stream.getType())
+        {
+            case pdf::PDF3DStream::Type::U3D:
+                break;
+
+            case pdf::PDF3DStream::Type::PRC:
+                break;
+
+            default:
+                break;
+        }
+    }
 }
 
 }   // namespace pdfviewer

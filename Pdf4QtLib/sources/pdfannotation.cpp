@@ -1039,6 +1039,23 @@ bool PDFAnnotation::isTypeEditable(AnnotationType type)
     return false;
 }
 
+bool PDFAnnotation::isTypeMultimedia(AnnotationType type)
+{
+    switch (type)
+    {
+        case AnnotationType::Sound:
+        case AnnotationType::Movie:
+        case AnnotationType::_3D:
+        case AnnotationType::RichMedia:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
 QPen PDFAnnotation::getPen() const
 {
     QColor strokeColor = getStrokeColor();
@@ -1816,7 +1833,8 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
 void PDFWidgetAnnotationManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
-    Q_UNUSED(event);
+
+    updateFromMouseEvent(event);
 }
 
 void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -1965,6 +1983,16 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     if (linkAction)
                     {
                         Q_EMIT actionTriggered(linkAction);
+                    }
+                }
+
+                // Execute multimedia annotation
+                if (event->type() == QEvent::MouseButtonDblClick && event->button() == Qt::LeftButton)
+                {
+                    const PDFAnnotation* annotation = pageAnnotation.annotation.get();
+                    if (PDFAnnotation::isTypeMultimedia(annotation->getType()))
+                    {
+                        emit multimediaTriggered(annotation);
                     }
                 }
             }

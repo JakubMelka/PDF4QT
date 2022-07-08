@@ -352,6 +352,7 @@ void PDFProgramController::initializeAnnotationManager()
 {
     m_annotationManager = new pdf::PDFWidgetAnnotationManager(m_pdfWidget->getDrawWidgetProxy(), this);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::actionTriggered, this, &PDFProgramController::onActionTriggered);
+    connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::multimediaTriggered, this, &PDFProgramController::onMultimediaTriggered);
     connect(m_annotationManager, &pdf::PDFWidgetAnnotationManager::documentModified, this, &PDFProgramController::onDocumentModified);
     m_pdfWidget->setAnnotationManager(m_annotationManager);
 }
@@ -959,6 +960,13 @@ void PDFProgramController::onActionTriggered(const pdf::PDFAction* action)
                 break;
         }
     }
+}
+
+void PDFProgramController::onMultimediaTriggered(const pdf::PDFAnnotation* annotation)
+{
+    PDFMediaViewerDialog* dialog = new PDFMediaViewerDialog(getMainWindow());
+    dialog->initFromAnnotation(getDocument(), annotation);
+    dialog->open();
 }
 
 void PDFProgramController::initializeToolManager()

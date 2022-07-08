@@ -31,6 +31,8 @@ namespace u3d
 class PDF3D_U3D
 {
 public:
+
+    static PDF3D_U3D parse(QByteArray data);
 };
 
 class PDF3D_U3D_ContextManager

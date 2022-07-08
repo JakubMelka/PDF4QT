@@ -18,6 +18,8 @@
 #ifndef PDFMEDIAVIEWERDIALOG_H
 #define PDFMEDIAVIEWERDIALOG_H
 
+#include "pdfglobal.h"
+
 #include <QDialog>
 
 namespace Qt3DCore
@@ -35,6 +37,13 @@ namespace Ui
 class PDFMediaViewerDialog;
 }
 
+namespace pdf
+{
+class PDFDocument;
+class PDFAnnotation;
+class PDF3DAnnotation;
+}
+
 namespace pdfviewer
 {
 
@@ -47,8 +56,11 @@ public:
     virtual ~PDFMediaViewerDialog() override;
 
     void initDemo();
+    void initFromAnnotation(const pdf::PDFDocument* document, const pdf::PDFAnnotation* annotation);
 
 private:
+    void initFrom3DAnnotation(const pdf::PDFDocument* document, const pdf::PDF3DAnnotation* annotation);
+
     Ui::PDFMediaViewerDialog* ui;
     Qt3DExtras::Qt3DWindow* m_3dWindow = nullptr;
     Qt3DCore::QEntity* m_rootEntity = nullptr;
