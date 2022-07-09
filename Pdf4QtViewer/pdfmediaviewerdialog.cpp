@@ -197,7 +197,10 @@ void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document
         switch (stream.getType())
         {
             case pdf::PDF3DStream::Type::U3D:
+            {
+                pdf::u3d::PDF3D_U3D u3d = pdf::u3d::PDF3D_U3D::parse(data);
                 break;
+            }
 
             case pdf::PDF3DStream::Type::PRC:
                 break;
