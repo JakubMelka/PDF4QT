@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 
+#include <QUuid>
 #include <QByteArray>
 #include <QSharedPointer>
 
@@ -31,6 +32,12 @@ namespace pdf
 namespace u3d
 {
 
+class PDF3D_U3D;
+class PDF3D_U3D_DataReader;
+
+class PDF3D_U3D_AbstractBlock;
+using PDF3D_U3D_AbstractBlockPtr = QSharedPointer<PDF3D_U3D_AbstractBlock>;
+
 class PDF3D_U3D_AbstractBlock
 {
 public:
@@ -40,20 +47,22 @@ public:
     void parseMetadata(QByteArray metaData);
 };
 
-using PDF3D_U3D_AbstractBlockPtr = QSharedPointer<PDF3D_U3D_AbstractBlock>;
-
 // Bounding sphere - x, y, z position and radius
 using PDF3D_U3D_BoundingSphere = std::array<float, 4>;
 
 // Bounding box - min (x,y,z), max (x,y,z) - six values
 using PDF3D_U3D_AxisAlignedBoundingBox = std::array<float, 4>;
 
+// -------------------------------------------------------------------------------
+//                            FILE STRUCTURE BLOCKS
+// -------------------------------------------------------------------------------
+
 class PDF3D_U3D_FileBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
     static constexpr uint32_t ID = 0x00443355;
 
-    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, bool isCompressed);
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
 
     bool isExtensibleProfile() const { return m_profileIdentifier & 0x00000002; }
     bool isNoCompressionMode() const { return m_profileIdentifier & 0x00000004; }
@@ -85,7 +94,7 @@ public:
     bool isBoundingSpherePresent() const { return m_fileReferenceAttributes & 0x00000001; }
     bool isAxisAlignedBoundingBoxPresent() const { return m_fileReferenceAttributes & 0x00000002; }
 
-    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, bool isCompressed, QTextCodec* textCodec);
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
 
     struct Filter
     {
@@ -118,6 +127,120 @@ private:
     QString m_worldAliasName;
 };
 
+class PDF3D_U3D_ModifierChainBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF14;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    bool isBoundingSpherePresent() const { return m_modifierChainAttributes & 0x00000001; }
+    bool isAxisAlignedBoundingBoxPresent() const { return m_modifierChainAttributes & 0x00000002; }
+
+    bool isNodeModifierChain() const { return m_modifierChainType == 0; }
+    bool isModelResourceModifierChain() const { return m_modifierChainType == 1; }
+    bool isTextureModifierChain() const { return m_modifierChainType == 2; }
+
+    const QString& getModifierChainName() const;
+    uint32_t getModifierChainType() const;
+    uint32_t getModifierChainAttributes() const;
+    const PDF3D_U3D_BoundingSphere& getBoundingSphere() const;
+    const PDF3D_U3D_AxisAlignedBoundingBox& getBoundingBox() const;
+    uint32_t getModifierCount() const;
+    const std::vector<PDF3D_U3D_AbstractBlockPtr>& getModifierDeclarationBlocks() const;
+
+private:
+    QString m_modifierChainName;
+    uint32_t m_modifierChainType = 0;
+    uint32_t m_modifierChainAttributes = 0;
+    PDF3D_U3D_BoundingSphere m_boundingSphere = PDF3D_U3D_BoundingSphere();
+    PDF3D_U3D_AxisAlignedBoundingBox m_boundingBox = PDF3D_U3D_AxisAlignedBoundingBox();
+    // Padding 0-3 bytes
+    uint32_t m_modifierCount = 0;
+    std::vector<PDF3D_U3D_AbstractBlockPtr> m_modifierDeclarationBlocks;
+};
+
+class PDF3D_U3D_PriorityUpdateBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF15;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    uint32_t getNewPriority() const;
+
+private:
+    uint32_t m_newPriority = 0;
+};
+
+class PDF3D_U3D_NewObjectTypeBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF16;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    const QString& getNewObjectTypeName() const;
+    uint32_t getModifierType() const;
+    const QUuid& getExtensionId() const;
+    uint32_t getNewDeclarationBlockType() const;
+    uint32_t getContinuationBlockTypeCount() const;
+    const std::vector<uint32_t>& getContinuationBlockTypes() const;
+    const QString& getExtensionVendorName() const;
+    uint32_t getUrlCount() const;
+    const QStringList& getUrls() const;
+    const QString& getExtensionInformationString() const;
+
+private:
+    QString m_newObjectTypeName;
+    uint32_t m_modifierType = 0;
+    QUuid m_extensionId;
+    uint32_t m_newDeclarationBlockType = 0;
+    uint32_t m_continuationBlockTypeCount = 0;
+    std::vector<uint32_t> m_continuationBlockTypes;
+    QString m_extensionVendorName;
+    uint32_t m_urlCount = 0;
+    QStringList m_urls;
+    QString m_extensionInformationString;
+};
+
+class PDF3D_U3D_NewObjectBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID_MIN = 0x00000100;
+    static constexpr uint32_t ID_MAX = 0x00FFFFFF;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    const QString& getObjectName() const;
+    uint32_t getChainIndex() const;
+    const QByteArray& getData() const;
+
+private:
+    QString m_objectName;
+    uint32_t m_chainIndex = 0;
+    QByteArray m_data;
+};
+
+// -------------------------------------------------------------------------------
+//                                 NODE BLOCKS
+// -------------------------------------------------------------------------------
+
+class PDF3D_U3D_NewObjectBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF21;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+private:
+
+};
+
+// -------------------------------------------------------------------------------
+//                                  PDF3D_U3D
+// -------------------------------------------------------------------------------
+
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D
 {
 public:
@@ -128,6 +251,8 @@ public:
 
     static PDF3D_U3D parse(QByteArray data);
 
+    PDF3D_U3D_AbstractBlockPtr parseBlockWithDeclaration(PDF3D_U3D_DataReader& reader);
+
 private:
     PDF3D_U3D_AbstractBlockPtr parseBlock(uint32_t blockType, const QByteArray& data, const QByteArray& metaData);
     static uint32_t getBlockPadding(uint32_t blockSize);
@@ -137,6 +262,10 @@ private:
     QTextCodec* m_textCodec = nullptr;
     bool m_isCompressed = true;
 };
+
+// -------------------------------------------------------------------------------
+//                                  READER OBJECTS
+// -------------------------------------------------------------------------------
 
 class PDF3D_U3D_ContextManager
 {
@@ -210,8 +339,11 @@ public:
     uint32_t readCompressedU32(uint32_t context);
 
     QByteArray readByteArray(uint32_t size);
+    QByteArray readRemainingData();
     void skipBytes(uint32_t size);
+    void padTo32Bits();
 
+    QUuid readUuid();
     QString readString(QTextCodec* textCodec);
     QStringList readStringList(uint32_t count, QTextCodec* textCodec);
 

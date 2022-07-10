@@ -179,9 +179,43 @@ QByteArray PDF3D_U3D_DataReader::readByteArray(uint32_t size)
     return data;
 }
 
+QByteArray PDF3D_U3D_DataReader::readRemainingData()
+{
+    Q_ASSERT(m_position % 8 == 0);
+    uint32_t bytePosition = m_position / 8;
+    QByteArray data = m_data.mid(bytePosition, -1);
+    m_position = m_data.size() * 8;
+    return data;
+}
+
 void PDF3D_U3D_DataReader::skipBytes(uint32_t size)
 {
     m_position += size * 8;
+}
+
+void PDF3D_U3D_DataReader::padTo32Bits()
+{
+    uint32_t padBits = m_position % 32;
+
+    if (padBits > 0)
+    {
+        m_position += 32 - padBits;
+    }
+}
+
+QUuid PDF3D_U3D_DataReader::readUuid()
+{
+    uint32_t A = readU32();
+    uint16_t B = readU16();
+    uint16_t C = readU16();
+
+    std::array<uint8_t, 8> D = { };
+    for (uint8_t& value : D)
+    {
+        value = readU8();
+    }
+
+    return QUuid(A, B, C, D[0], D[1], D[2], D[3], D[4], D[5], D[6], D[7]);
 }
 
 QString PDF3D_U3D_DataReader::readString(QTextCodec* textCodec)
@@ -503,6 +537,23 @@ PDF3D_U3D::PDF3D_U3D()
     m_textCodec = QTextCodec::codecForMib(106);
 }
 
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlockWithDeclaration(PDF3D_U3D_DataReader& reader)
+{
+    uint32_t blockType = reader.readU32();
+    uint32_t dataSize = reader.readU32();
+    uint32_t metaDataSize = reader.readU32();
+
+    // Read block data
+    QByteArray blockData = reader.readByteArray(dataSize);
+    reader.skipBytes(getBlockPadding(dataSize));
+
+    // Read block metadata
+    QByteArray metaData = reader.readByteArray(metaDataSize);
+    reader.skipBytes(getBlockPadding(metaDataSize));
+
+    return parseBlock(blockType, blockData, metaData);
+}
+
 PDF3D_U3D PDF3D_U3D::parse(QByteArray data)
 {
     PDF3D_U3D object;
@@ -510,19 +561,10 @@ PDF3D_U3D PDF3D_U3D::parse(QByteArray data)
 
     while (!reader.isAtEnd())
     {
-        uint32_t blockType = reader.readU32();
-        uint32_t dataSize = reader.readU32();
-        uint32_t metaDataSize = reader.readU32();
-
-        // Read block data
-        QByteArray blockData = reader.readByteArray(dataSize);
-        reader.skipBytes(getBlockPadding(dataSize));
-
-        // Read block metadata
-        QByteArray metaData = reader.readByteArray(metaDataSize);
-        reader.skipBytes(getBlockPadding(metaDataSize));
-
-        object.m_blocks.emplace_back(object.parseBlock(blockType, blockData, metaData));
+        if (auto block = object.parseBlockWithDeclaration(reader))
+        {
+            object.m_blocks.emplace_back(std::move(block));
+        }
     }
 
     return object;
@@ -540,7 +582,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
             // it can be disambiguation with other block type
             if (m_blocks.empty())
             {
-                PDF3D_U3D_AbstractBlockPtr fileBlockPtr = PDF3D_U3D_FileBlock::parse(data, metaData, isCompressed());
+                PDF3D_U3D_AbstractBlockPtr fileBlockPtr = PDF3D_U3D_FileBlock::parse(data, metaData, this);
 
                 if (const PDF3D_U3D_FileBlock* fileBlock = dynamic_cast<const PDF3D_U3D_FileBlock*>(fileBlockPtr.get()))
                 {
@@ -555,10 +597,24 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
         }
 
         case PDF3D_U3D_FileReferenceBlock::ID:
-            return PDF3D_U3D_FileReferenceBlock::parse(data, metaData, isCompressed(), getTextCodec());
+            return PDF3D_U3D_FileReferenceBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_ModifierChainBlock::ID:
+            return PDF3D_U3D_ModifierChainBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_PriorityUpdateBlock::ID:
+            return PDF3D_U3D_PriorityUpdateBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_NewObjectTypeBlock::ID:
+            return PDF3D_U3D_NewObjectTypeBlock::parse(data, metaData, this);
 
         default:
             break;
+    }
+
+    if (blockType >= PDF3D_U3D_NewObjectBlock::ID_MIN && blockType <= PDF3D_U3D_NewObjectBlock::ID_MAX)
+    {
+        return PDF3D_U3D_NewObjectBlock::parse(data, metaData, this);
     }
 
     return PDF3D_U3D_AbstractBlockPtr();
@@ -576,12 +632,12 @@ uint32_t PDF3D_U3D::getBlockPadding(uint32_t blockSize)
     return 0;
 }
 
-PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileBlock::parse(QByteArray data, QByteArray metaData, bool isCompressed)
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
 {
     PDF3D_U3D_FileBlock* block = new PDF3D_U3D_FileBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, isCompressed);
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
     block->m_majorVersion = reader.readI16();
@@ -647,15 +703,15 @@ void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData)
     Q_ASSERT(false);
 }
 
-PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, QByteArray metaData, bool isCompressed, QTextCodec* textCodec)
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
 {
     PDF3D_U3D_FileReferenceBlock* block = new PDF3D_U3D_FileReferenceBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, isCompressed);
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_scopeName = reader.readString(textCodec);
+    block->m_scopeName = reader.readString(object->getTextCodec());
     block->m_fileReferenceAttributes = reader.readU32();
     if (block->isBoundingSpherePresent())
     {
@@ -666,7 +722,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
         reader.readFloats32(block->m_boundingBox);
     }
     block->m_urlCount = reader.readU32();
-    block->m_urls = reader.readStringList(block->m_urlCount, textCodec);
+    block->m_urls = reader.readStringList(block->m_urlCount, object->getTextCodec());
     block->m_filterCount = reader.readU32();
 
     for (uint32_t i = 0; i < block->m_filterCount; ++i)
@@ -677,7 +733,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
         switch (filter.filterType)
         {
             case 0x00:
-                filter.objectNameFilter = reader.readString(textCodec);
+                filter.objectNameFilter = reader.readString(object->getTextCodec());
                 break;
 
             case 0x01:
@@ -692,7 +748,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
     }
 
     block->m_nameCollisionPolicy = reader.readU8();
-    block->m_worldAliasName = reader.readString(textCodec);
+    block->m_worldAliasName = reader.readString(object->getTextCodec());
 
     block->parseMetadata(metaData);
 
@@ -747,6 +803,203 @@ uint8_t PDF3D_U3D_FileReferenceBlock::getNameCollisionPolicy() const
 const QString& PDF3D_U3D_FileReferenceBlock::getWorldAliasName() const
 {
     return m_worldAliasName;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModifierChainBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_ModifierChainBlock* block = new PDF3D_U3D_ModifierChainBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_modifierChainName = reader.readString(object->getTextCodec());
+    block->m_modifierChainType = reader.readU32();
+    block->m_modifierChainAttributes = reader.readU32();
+    if (block->isBoundingSpherePresent())
+    {
+        reader.readFloats32(block->m_boundingSphere);
+    }
+    if (block->isAxisAlignedBoundingBoxPresent())
+    {
+        reader.readFloats32(block->m_boundingBox);
+    }
+
+    reader.padTo32Bits();
+    const uint32_t modifierCount = reader.readU32();
+    for (uint32_t i = 0; i < modifierCount; ++i)
+    {
+        if (auto parsedBlock = object->parseBlockWithDeclaration(reader))
+        {
+            block->m_modifierDeclarationBlocks.emplace_back(std::move(parsedBlock));
+        }
+    }
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_ModifierChainBlock::getModifierChainName() const
+{
+    return m_modifierChainName;
+}
+
+uint32_t PDF3D_U3D_ModifierChainBlock::getModifierChainType() const
+{
+    return m_modifierChainType;
+}
+
+uint32_t PDF3D_U3D_ModifierChainBlock::getModifierChainAttributes() const
+{
+    return m_modifierChainAttributes;
+}
+
+const PDF3D_U3D_BoundingSphere& PDF3D_U3D_ModifierChainBlock::getBoundingSphere() const
+{
+    return m_boundingSphere;
+}
+
+const PDF3D_U3D_AxisAlignedBoundingBox& PDF3D_U3D_ModifierChainBlock::getBoundingBox() const
+{
+    return m_boundingBox;
+}
+
+uint32_t PDF3D_U3D_ModifierChainBlock::getModifierCount() const
+{
+    return m_modifierCount;
+}
+
+const std::vector<PDF3D_U3D_AbstractBlockPtr>& PDF3D_U3D_ModifierChainBlock::getModifierDeclarationBlocks() const
+{
+    return m_modifierDeclarationBlocks;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PriorityUpdateBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_PriorityUpdateBlock* block = new PDF3D_U3D_PriorityUpdateBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_newPriority = reader.readU32();
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+uint32_t PDF3D_U3D_PriorityUpdateBlock::getNewPriority() const
+{
+    return m_newPriority;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectTypeBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_NewObjectTypeBlock* block = new PDF3D_U3D_NewObjectTypeBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_newObjectTypeName = reader.readString(object->getTextCodec());
+    block->m_modifierType = reader.readU32();
+    block->m_extensionId = reader.readUuid();
+    block->m_newDeclarationBlockType = reader.readU32();
+    block->m_continuationBlockTypeCount = reader.readU32();
+
+    for (uint32_t i = 0; i < block->m_continuationBlockTypeCount; ++i)
+    {
+        block->m_continuationBlockTypes.push_back(reader.readU32());
+    }
+
+    block->m_extensionVendorName = reader.readString(object->getTextCodec());
+    block->m_urlCount = reader.readU32();
+    block->m_urls = reader.readStringList(block->m_urlCount, object->getTextCodec());
+    block->m_extensionInformationString = reader.readString(object->getTextCodec());
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_NewObjectTypeBlock::getNewObjectTypeName() const
+{
+    return m_newObjectTypeName;
+}
+
+uint32_t PDF3D_U3D_NewObjectTypeBlock::getModifierType() const
+{
+    return m_modifierType;
+}
+
+const QUuid& PDF3D_U3D_NewObjectTypeBlock::getExtensionId() const
+{
+    return m_extensionId;
+}
+
+uint32_t PDF3D_U3D_NewObjectTypeBlock::getNewDeclarationBlockType() const
+{
+    return m_newDeclarationBlockType;
+}
+
+uint32_t PDF3D_U3D_NewObjectTypeBlock::getContinuationBlockTypeCount() const
+{
+    return m_continuationBlockTypeCount;
+}
+
+const std::vector<uint32_t>& PDF3D_U3D_NewObjectTypeBlock::getContinuationBlockTypes() const
+{
+    return m_continuationBlockTypes;
+}
+
+const QString& PDF3D_U3D_NewObjectTypeBlock::getExtensionVendorName() const
+{
+    return m_extensionVendorName;
+}
+
+uint32_t PDF3D_U3D_NewObjectTypeBlock::getUrlCount() const
+{
+    return m_urlCount;
+}
+
+const QStringList& PDF3D_U3D_NewObjectTypeBlock::getUrls() const
+{
+    return m_urls;
+}
+
+const QString& PDF3D_U3D_NewObjectTypeBlock::getExtensionInformationString() const
+{
+    return m_extensionInformationString;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_NewObjectBlock* block = new PDF3D_U3D_NewObjectBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_objectName = reader.readString(object->getTextCodec());
+    block->m_chainIndex = reader.readU32();
+    block->m_data = reader.readRemainingData();
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_NewObjectBlock::getObjectName() const
+{
+    return m_objectName;
+}
+
+uint32_t PDF3D_U3D_NewObjectBlock::getChainIndex() const
+{
+    return m_chainIndex;
+}
+
+const QByteArray& PDF3D_U3D_NewObjectBlock::getData() const
+{
+    return m_data;
 }
 
 }   // namespace u3d
