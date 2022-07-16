@@ -177,9 +177,6 @@
        <property name="bottomMargin">
         <number>0</number>
        </property>
-       <item>
-        <widget class="pdf::PDFPageContentEditorStyleSettings" name="appearanceSettingsWidget" native="true"/>
-       </item>
       </layout>
      </widget>
     </item>
@@ -202,14 +199,6 @@
    </layout>
   </widget>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>pdf::PDFPageContentEditorStyleSettings</class>
-   <extends>QWidget</extends>
-   <header>pdfpagecontenteditorstylesettings.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

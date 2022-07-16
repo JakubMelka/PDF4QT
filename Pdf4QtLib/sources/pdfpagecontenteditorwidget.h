@@ -36,6 +36,7 @@ namespace pdf
 {
 class PDFPageContentScene;
 class PDFPageContentElement;
+class PDFPageContentEditorStyleSettings;
 
 class PDF4QTLIBSHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
 {
@@ -79,6 +80,7 @@ private:
     void onItemSelectionChanged();
 
     Ui::PDFPageContentEditorWidget* ui;
+    PDFPageContentEditorStyleSettings* m_settingsWidget;
     QSignalMapper m_actionMapper;
     QSignalMapper m_operationMapper;
     int m_toolBoxColumnCount;

@@ -45,6 +45,9 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget* parent) :
         button->setIconSize(m_toolButtonIconSize);
     }
 
+    m_settingsWidget = new PDFPageContentEditorStyleSettings(this);
+    ui->appearanceLayout->addWidget(m_settingsWidget);
+
     m_operationMapper.setMapping(ui->alignVertTopButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignTop));
     m_operationMapper.setMapping(ui->alignVertMiddleButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignCenterVertically));
     m_operationMapper.setMapping(ui->alignVertBottomButton, static_cast<int>(PDFPageContentElementManipulator::Operation::AlignBottom));
@@ -83,11 +86,11 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget* parent) :
     connect(&m_operationMapper, &QSignalMapper::mappedInt, this, &PDFPageContentEditorWidget::operationTriggered);
     connect(ui->itemsListWidget->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFPageContentEditorWidget::onItemSelectionChanged);
 
-    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::penChanged, this, &PDFPageContentEditorWidget::penChanged);
-    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::brushChanged, this, &PDFPageContentEditorWidget::brushChanged);
-    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::fontChanged, this, &PDFPageContentEditorWidget::fontChanged);
-    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::alignmentChanged, this, &PDFPageContentEditorWidget::alignmentChanged);
-    connect(ui->appearanceSettingsWidget, &PDFPageContentEditorStyleSettings::textAngleChanged, this, &PDFPageContentEditorWidget::textAngleChanged);
+    connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::penChanged, this, &PDFPageContentEditorWidget::penChanged);
+    connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::brushChanged, this, &PDFPageContentEditorWidget::brushChanged);
+    connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::fontChanged, this, &PDFPageContentEditorWidget::fontChanged);
+    connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::alignmentChanged, this, &PDFPageContentEditorWidget::alignmentChanged);
+    connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::textAngleChanged, this, &PDFPageContentEditorWidget::textAngleChanged);
 }
 
 PDFPageContentEditorWidget::~PDFPageContentEditorWidget()
@@ -267,7 +270,7 @@ void PDFPageContentEditorWidget::setSelection(const std::set<PDFInteger>& select
 
 void PDFPageContentEditorWidget::loadStyleFromElement(const PDFPageContentElement* element)
 {
-    ui->appearanceSettingsWidget->loadFromElement(element, false);
+    m_settingsWidget->loadFromElement(element, false);
 }
 
 }   // namespace pdf
