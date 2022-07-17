@@ -3,6 +3,7 @@
 **(c) Jakub Melka 2018-2022**
 
 **Mgr.Jakub.Melka@gmail.com**
+
 **https://jakubmelka.github.io/**
 
 This software is consisting of PDF rendering library, and several
