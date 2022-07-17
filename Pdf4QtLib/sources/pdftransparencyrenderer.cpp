@@ -628,9 +628,9 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
         return channelBlendModes[channel];
     };
 
-    for (size_t x = blendRegion.left(); x <= blendRegion.right(); ++x)
+    for (int x = blendRegion.left(); x <= blendRegion.right(); ++x)
     {
-        for (size_t y = blendRegion.top(); y <= blendRegion.bottom(); ++y)
+        for (int y = blendRegion.top(); y <= blendRegion.bottom(); ++y)
         {
             PDFConstColorBuffer sourceColor = source.getPixel(x, y);
             PDFColorBuffer targetColor = target.getPixel(x, y);
@@ -2187,7 +2187,8 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         const PDFLineDashPattern& lineDashPattern = getGraphicState()->getLineDashPattern();
         if (!lineDashPattern.isSolid())
         {
-            stroker.setDashPattern(QVector<PDFReal>::fromStdVector(lineDashPattern.getDashArray()));
+            const auto& dashArray = lineDashPattern.getDashArray();
+            stroker.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
             stroker.setDashOffset(lineDashPattern.getDashOffset());
         }
         QPainterPath strokedPath = stroker.createStroke(path);

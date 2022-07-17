@@ -96,7 +96,7 @@ void PDFEncryptionSettingsDialog::updateUi()
 
     pdf::PDFTemporaryValueChange guard(&m_isUpdatingUi, true);
 
-    const pdf::PDFSecurityHandlerFactory::Algorithm algorithm = static_cast<const pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
+    const pdf::PDFSecurityHandlerFactory::Algorithm algorithm = static_cast<pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
     const bool encrypted = algorithm != pdf::PDFSecurityHandlerFactory::None;
     const bool isEncryptedUsingCertificate = algorithm == pdf::PDFSecurityHandlerFactory::Certificate;
 
@@ -200,7 +200,7 @@ void PDFEncryptionSettingsDialog::updateCertificates()
 
 void PDFEncryptionSettingsDialog::updatePasswordScore()
 {
-    const pdf::PDFSecurityHandlerFactory::Algorithm algorithm = static_cast<const pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
+    const pdf::PDFSecurityHandlerFactory::Algorithm algorithm = static_cast<pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
     const int userPasswordScore = pdf::PDFSecurityHandlerFactory::getPasswordEntropy(ui->userPasswordEdit->text(), algorithm);
     const int ownerPasswordScore = pdf::PDFSecurityHandlerFactory::getPasswordEntropy(ui->ownerPasswordEdit->text(), algorithm);
 
@@ -223,7 +223,7 @@ void PDFEncryptionSettingsDialog::accept()
     }
 
     settings.id = m_documentId;
-    settings.algorithm = static_cast<const pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
+    settings.algorithm = static_cast<pdf::PDFSecurityHandlerFactory::Algorithm>(ui->algorithmComboBox->currentData().toInt());
     settings.encryptContents = encryptContents;
     settings.userPassword = ui->userPasswordEdit->text();
     settings.ownerPassword = ui->ownerPasswordEdit->text();

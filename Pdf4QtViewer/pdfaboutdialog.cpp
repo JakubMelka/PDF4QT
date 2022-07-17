@@ -44,7 +44,7 @@ PDFAboutDialog::PDFAboutDialog(QWidget* parent) :
     ui->tableWidget->setSelectionMode(QTableView::SingleSelection);
     ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
-    for (int i = 0; i < infos.size(); ++i)
+    for (size_t i = 0; i < infos.size(); ++i)
     {
         const pdf::PDFDependentLibraryInfo& info = infos[i];
         ui->tableWidget->setItem(i, 0, new QTableWidgetItem(info.library));

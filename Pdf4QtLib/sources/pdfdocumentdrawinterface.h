@@ -21,6 +21,8 @@
 #include "pdfglobal.h"
 #include "pdfexception.h"
 
+#include <optional>
+
 class QPainter;
 class QKeyEvent;
 class QMouseEvent;

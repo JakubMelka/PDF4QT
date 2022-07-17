@@ -73,7 +73,7 @@ void PDFRecentFileManager::update()
         m_recentFiles.pop_back();
     }
 
-    for (int i = 0; i < m_actions.size(); ++i)
+    for (int i = 0; i < static_cast<int>(m_actions.size()); ++i)
     {
         QAction* recentFileAction = m_actions[i];
         if (i < m_recentFiles.size())

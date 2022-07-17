@@ -268,7 +268,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                                 int octalNumber = -1;
                                 if (fetchOctalNumber(3, &octalNumber))
                                 {
-                                    string += static_cast<const char>(octalNumber);
+                                    string += static_cast<char>(octalNumber);
                                 }
                                 else
                                 {

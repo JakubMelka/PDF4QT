@@ -1,8 +1,9 @@
 
 # PDF4QT
-**(c) Jakub Melka 2018-2021**
+**(c) Jakub Melka 2018-2022**
 
 **Mgr.Jakub.Melka@gmail.com**
+**https://jakubmelka.github.io/**
 
 This software is consisting of PDF rendering library, and several
 applications, such as advanced document viewer, command line tool,
@@ -87,17 +88,17 @@ On Windows, you can use Visual Studio 2019, clang or mingw. On linux, only GCC 1
 was tested.
 
 ### Compilation instructions (.pro file, Windows, Visual Studio):
-1. Download Visual Studio 2019
-2. Download Qt, minimal supported version is 5.14.2
+1. Download Visual Studio 2022
+2. Download Qt, minimal supported version is 5.15.2
 3. Download [precompiled libraries](https://github.com/JakubMelka/PdfForQt-Dependencies),
    or compile them yourself. Libraries must be in same root directory as this project,
    so root folder of this project will have a sibling folder with these libraries
 4. Open Qt Creator and root project Pdf4Qt.pro
-5. Create target for Microsoft Visual Studio 2019 and compile the project
+5. Create target for Microsoft Visual Studio 2022 and compile the project
 
 ### Compilation instructions (.qbs file, Windows/Linux)
 For QBS build, you will need to install [Conan](https://conan.io/), a C++ package manager, Qt framework
-(minimal supported version is 5.14.2), and compiler supporting C++20 (Visual Studio 2019, Clang, Mingw,
+(minimal supported version is 5.15.2), and compiler supporting C++20 (Visual Studio 2022, Clang, Mingw,
 GCC).
 1. Prepare prerequisites (Conan, Qt, compiler)
 2. Open QBS project file

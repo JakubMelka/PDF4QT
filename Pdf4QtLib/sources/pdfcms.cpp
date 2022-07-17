@@ -23,16 +23,22 @@
 #include <QApplication>
 #include <QReadWriteLock>
 
+#ifdef PDF4QT_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable:5033)
+#endif
 #define CMS_NO_REGISTER_KEYWORD
 #include <lcms2.h>
 #include <lcms2_plugin.h>
+#ifdef PDF4QT_COMPILER_MSVC
 #pragma warning(pop)
+#endif
 
 
 #ifdef Q_OS_WIN
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <Windows.h>
 #include <Icm.h>
 #if defined(PDF4QT_USE_PRAGMA_LIB)

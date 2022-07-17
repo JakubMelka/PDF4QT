@@ -1858,7 +1858,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     {
         uint16_t huffmanFlags = m_reader.readUnsignedWord();
 
-        auto readHuffmanTableSelection = [&huffmanFlags]() -> const uint8_t
+        auto readHuffmanTableSelection = [&huffmanFlags]() -> uint8_t
         {
             const uint8_t result = huffmanFlags & 0x03;
             huffmanFlags = huffmanFlags >> 2;
@@ -2049,7 +2049,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     {
         // Read run code lengths
         std::vector<PDFJBIG2HuffmanTableEntry> rangeLengthTable(35, PDFJBIG2HuffmanTableEntry());
-        for (int32_t i = 0; i < rangeLengthTable.size(); ++i)
+        for (int32_t i = 0; i < static_cast<int32_t>(rangeLengthTable.size()); ++i)
         {
             rangeLengthTable[i].value = i;
             rangeLengthTable[i].prefixBitLength = m_reader.read(4);
