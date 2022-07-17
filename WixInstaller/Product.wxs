@@ -6,7 +6,7 @@
 		<MajorUpgrade DowngradeErrorMessage="A newer version of PDF4QT is already installed." />
 		<MediaTemplate EmbedCab="yes" />
 
-		<WixVariable Id="WixUILicenseRtf" Value="..\LICENSE.rtf" />
+		<WixVariable Id="WixUILicenseRtf" Value="..\explic.rtf" />
 
 		<Feature Id="feature_PDF4QT_Framework" Title="PDF4QT" Level="1" ConfigurableDirectory="INSTALLFOLDER" Absent="disallow" AllowAdvertise="no" Display="expand" Description="Framework libraries and other data files required to run all other programs.">
 			<ComponentGroupRef Id="PDF4QT_Framework" />
