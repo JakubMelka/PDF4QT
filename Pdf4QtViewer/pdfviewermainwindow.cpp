@@ -181,6 +181,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::PageLayoutTwoColumns, ui->actionPageLayoutTwoColumns);
     m_actionManager->setAction(PDFActionManager::PageLayoutFirstPageOnRightSide, ui->actionFirstPageOnRightSide);
     m_actionManager->setAction(PDFActionManager::ToolSelectText, ui->actionSelectText);
+    m_actionManager->setAction(PDFActionManager::ToolSelectTable, ui->actionSelectTable);
     m_actionManager->setAction(PDFActionManager::ToolMagnifier, ui->actionMagnifier);
     m_actionManager->setAction(PDFActionManager::ToolScreenshot, ui->actionScreenshot);
     m_actionManager->setAction(PDFActionManager::ToolExtractImage, ui->actionExtractImage);
@@ -238,6 +239,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
     // Tools
     ui->mainToolBar->addAction(ui->actionSelectText);
+    ui->mainToolBar->addAction(ui->actionSelectTable);
     ui->mainToolBar->addAction(ui->actionCreateTextHighlight);
     ui->mainToolBar->addAction(ui->actionCreateTextUnderline);
     ui->mainToolBar->addAction(ui->actionCreateTextStrikeout);

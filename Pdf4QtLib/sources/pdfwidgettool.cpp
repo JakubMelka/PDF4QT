@@ -19,6 +19,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfcompiler.h"
 #include "pdfwidgetutils.h"
+#include "pdfpainterutils.h"
 #include "pdfdbgheap.h"
 
 #include <QLabel>
@@ -745,6 +746,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     m_predefinedTools[PickRectangleTool] = pickTool;
     m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
+    m_predefinedTools[SelectTableTool] = new PDFSelectTableTool(proxy, actions.selectTableToolAction, this);
     m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
     m_predefinedTools[ScreenshotTool] = new PDFScreenshotTool(proxy, actions.screenshotToolAction, this);
     m_predefinedTools[ExtractImageTool] = new PDFExtractImageTool(proxy, actions.extractImageAction, this);
@@ -1365,6 +1367,210 @@ void PDFExtractImageTool::onImagePicked(const QImage& image)
         QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
         emit messageDisplayRequest(tr("Image of size %1 x %2 pixels was copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
     }
+}
+
+PDFSelectTableTool::PDFSelectTableTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_pickTool(nullptr),
+    m_pageIndex(-1)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFSelectTableTool::onRectanglePicked);
+
+    setCursor(Qt::CrossCursor);
+    updateActions();
+}
+
+void PDFSelectTableTool::drawPage(QPainter* painter,
+                                  PDFInteger pageIndex,
+                                  const PDFPrecompiledPage* compiledPage,
+                                  PDFTextLayoutGetter& layoutGetter,
+                                  const QMatrix& pagePointToDevicePointMatrix,
+                                  QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (isTablePicked() && pageIndex == m_pageIndex)
+    {
+        PDFPainterStateGuard guard(painter);
+        QColor color = QColor::fromRgbF(0.0, 0.0, 0.5, 0.2);
+        QRectF rectangle = pagePointToDevicePointMatrix.mapRect(m_pickedRectangle);
+
+        const PDFReal lineWidth = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 2.0);
+        QPen pen(Qt::SolidLine);
+        pen.setWidthF(lineWidth);
+
+        painter->setPen(std::move(pen));
+        painter->setBrush(QBrush(color));
+        painter->drawRect(rectangle);
+
+        for (const PDFReal columnPosition : m_horizontalBreaks)
+        {
+            QPointF startPoint(columnPosition, m_pickedRectangle.top());
+            QPointF endPoint(columnPosition, m_pickedRectangle.bottom());
+
+            painter->drawLine(pagePointToDevicePointMatrix.map(startPoint), pagePointToDevicePointMatrix.map(endPoint));
+        }
+
+        for (const PDFReal rowPosition : m_verticalBreaks)
+        {
+            QPointF startPoint(m_pickedRectangle.left(), rowPosition);
+            QPointF endPoint(m_pickedRectangle.right(), rowPosition);
+
+            painter->drawLine(pagePointToDevicePointMatrix.map(startPoint), pagePointToDevicePointMatrix.map(endPoint));
+        }
+    }
+}
+
+void PDFSelectTableTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    BaseClass::mousePressEvent(widget, event);
+
+    if (event->isAccepted() || !isTablePicked())
+    {
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 && pageIndex == m_pageIndex && m_pickedRectangle.contains(pagePoint))
+        {
+            const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
+            bool isSelectingColumns = false;
+
+            const PageRotation rotation = getPageRotationCombined(page->getPageRotation(), getProxy()->getPageRotation());
+            switch (rotation)
+            {
+                case pdf::PageRotation::None:
+                case pdf::PageRotation::Rotate180:
+                    isSelectingColumns = event->button() == Qt::LeftButton;
+                    break;
+
+                case pdf::PageRotation::Rotate90:
+                case pdf::PageRotation::Rotate270:
+                    isSelectingColumns = event->button() == Qt::RightButton;
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            const PDFReal distanceThresholdPixels = PDFWidgetUtils::scaleDPI_x(widget, 7.0);
+            const PDFReal distanceThreshold = getProxy()->transformPixelToDeviceSpace(distanceThresholdPixels);
+
+            if (isSelectingColumns)
+            {
+                auto it = std::find_if(m_horizontalBreaks.begin(), m_horizontalBreaks.end(), [distanceThreshold, pagePoint](const PDFReal value) { return qAbs(value - pagePoint.x()) < distanceThreshold; });
+                if (it != m_horizontalBreaks.end())
+                {
+                    m_horizontalBreaks.erase(it);
+                }
+                else if (pagePoint.x() > m_pickedRectangle.left() + distanceThreshold && pagePoint.x() < m_pickedRectangle.right() - distanceThreshold)
+                {
+                    m_horizontalBreaks.insert(std::lower_bound(m_horizontalBreaks.begin(), m_horizontalBreaks.end(), pagePoint.x()), pagePoint.x());
+                }
+            }
+            else
+            {
+                auto it = std::find_if(m_verticalBreaks.begin(), m_verticalBreaks.end(), [distanceThreshold, pagePoint](const PDFReal value) { return qAbs(value - pagePoint.y()) < distanceThreshold; });
+                if (it != m_verticalBreaks.end())
+                {
+                    m_verticalBreaks.erase(it);
+                }
+                else if (pagePoint.y() > m_pickedRectangle.top() + distanceThreshold && pagePoint.y() < m_pickedRectangle.bottom() - distanceThreshold)
+                {
+                    m_verticalBreaks.insert(std::lower_bound(m_verticalBreaks.begin(), m_verticalBreaks.end(), pagePoint.y()), pagePoint.y());
+                }
+            }
+
+            emit getProxy()->repaintNeeded();
+            event->accept();
+        }
+    }
+}
+
+void PDFSelectTableTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    BaseClass::mouseMoveEvent(widget, event);
+
+    if (!event->isAccepted() && isTablePicked())
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 && pageIndex == m_pageIndex && m_pickedRectangle.contains(pagePoint))
+        {
+            setCursor(Qt::CrossCursor);
+        }
+        else
+        {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+}
+
+void PDFSelectTableTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active)
+    {
+        addTool(m_pickTool);
+    }
+    else
+    {
+        // Clear all data
+        setPageIndex(-1);
+        setPickedRectangle(QRectF());
+        setTextLayout(PDFTextLayout());
+
+        m_horizontalBreaks.clear();
+        m_verticalBreaks.clear();
+
+        if (getTopToolstackTool())
+        {
+            removeTool();
+        }
+    }
+}
+
+void PDFSelectTableTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    removeTool();
+
+    setPageIndex(pageIndex);
+    setPickedRectangle(pageRectangle);
+    setTextLayout(getProxy()->getTextLayoutCompiler()->createTextLayout(pageIndex));
+    autodetectTableGeometry();
+
+    emit messageDisplayRequest(tr("Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table."), 5000);
+}
+
+void PDFSelectTableTool::autodetectTableGeometry()
+{
+
+}
+
+bool PDFSelectTableTool::isTablePicked() const
+{
+    return m_pageIndex != -1 && !m_pickedRectangle.isEmpty();
+}
+
+void PDFSelectTableTool::setTextLayout(PDFTextLayout&& newTextLayout)
+{
+    m_textLayout = std::move(newTextLayout);
+}
+
+void PDFSelectTableTool::setPageIndex(PDFInteger newPageIndex)
+{
+    m_pageIndex = newPageIndex;
+}
+
+void PDFSelectTableTool::setPickedRectangle(const QRectF& newPickedRectangle)
+{
+    m_pickedRectangle = newPickedRectangle;
 }
 
 }   // namespace pdf

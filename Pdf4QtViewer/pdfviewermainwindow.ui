@@ -136,6 +136,8 @@
     <addaction name="actionSelectTextAll"/>
     <addaction name="actionDeselectText"/>
     <addaction name="separator"/>
+    <addaction name="actionSelectTable"/>
+    <addaction name="separator"/>
     <addaction name="actionEncryption"/>
     <addaction name="actionOptimize"/>
     <addaction name="separator"/>
@@ -468,6 +470,18 @@
    </property>
    <property name="text">
     <string>Select text</string>
+   </property>
+  </action>
+  <action name="actionSelectTable">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/select-table.svg</normaloff>:/resources/select-table.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select table</string>
    </property>
   </action>
   <action name="actionSelectTextAll">

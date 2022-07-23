@@ -161,6 +161,7 @@ public:
         PageLayoutTwoColumns,
         PageLayoutFirstPageOnRightSide,
         ToolSelectText,
+        ToolSelectTable,
         ToolMagnifier,
         ToolScreenshot,
         ToolExtractImage,

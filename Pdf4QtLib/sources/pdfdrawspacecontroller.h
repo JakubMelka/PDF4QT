@@ -351,6 +351,7 @@ public:
     PDFWidget* getWidget() const { return m_widget; }
     bool isUsingOpenGL() const { return m_useOpenGL; }
     const QSurfaceFormat& getSurfaceFormat() const { return m_surfaceFormat; }
+    PageRotation getPageRotation() const { return m_controller->getPageRotation(); }
 
     void setFeatures(PDFRenderer::Features features);
     void setPreferredMeshResolutionRatio(PDFReal ratio);

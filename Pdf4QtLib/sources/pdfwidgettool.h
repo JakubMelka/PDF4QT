@@ -373,6 +373,53 @@ private:
     QColor m_selectionRectangleColor;
 };
 
+/// Tool for selection of table in document. Rows and columns
+/// are automatically detected and are modifiable by the user.
+class PDFSelectTableTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    /// Construct new table selection tool
+    /// \param proxy Draw widget proxy
+    /// \param action Tool activation action
+    /// \param parent Parent object
+    explicit PDFSelectTableTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent);
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QMatrix& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+protected:
+    virtual void setActiveImpl(bool active) override;
+
+private:
+    void setPickedRectangle(const QRectF& newPickedRectangle);
+    void setPageIndex(PDFInteger newPageIndex);
+    void setTextLayout(PDFTextLayout&& newTextLayout);
+    void autodetectTableGeometry();
+
+    bool isTablePicked() const;
+
+    void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
+
+    PDFPickTool* m_pickTool;
+    PDFInteger m_pageIndex;
+    QRectF m_pickedRectangle;
+    PDFTextLayout m_textLayout;
+    std::vector<PDFReal> m_horizontalBreaks;
+    std::vector<PDFReal> m_verticalBreaks;
+};
+
 /// Tool that makes screenshot of page area and copies it to the clipboard,
 /// using current client area to determine image size.
 class PDF4QTLIBSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
@@ -436,6 +483,7 @@ public:
         QAction* findPrevAction = nullptr;  ///< Action for navigating to previous result
         QAction* findNextAction = nullptr;  ///< Action for navigating to next result
         QAction* selectTextToolAction = nullptr;
+        QAction* selectTableToolAction = nullptr;
         QAction* selectAllAction = nullptr;
         QAction* deselectAction = nullptr;
         QAction* copyTextAction = nullptr;
@@ -460,6 +508,7 @@ public:
         PickRectangleTool,
         FindTextTool,
         SelectTextTool,
+        SelectTableTool,
         MagnifierTool,
         ScreenshotTool,
         ExtractImageTool,
