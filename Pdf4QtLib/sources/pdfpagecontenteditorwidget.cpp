@@ -184,7 +184,7 @@ void PDFPageContentEditorWidget::updateItemsInListWidget()
             Q_ASSERT(element);
 
             QListWidgetItem* item = new QListWidgetItem(element->getDescription());
-            item->setData(Qt::UserRole, elementId);
+            item->setData(Qt::UserRole, int(elementId));
 
             ui->itemsListWidget->addItem(item);
         }

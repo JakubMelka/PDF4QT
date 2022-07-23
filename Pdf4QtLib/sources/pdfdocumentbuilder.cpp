@@ -907,7 +907,7 @@ void PDFPageContentStreamBuilder::replaceResources(PDFObjectReference contentStr
                         {
                             // Jakub Melka: we must rename the item
                             QByteArray newSubkeyString = subkeyString;
-                            PDFInteger k = 0;
+                            int k = 0;
                             while (oldSd->hasKey(newSubkeyString))
                             {
                                 newSubkeyString = subkeyString + "_" + QByteArray::number(++k);
