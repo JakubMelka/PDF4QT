@@ -1550,7 +1550,161 @@ void PDFSelectTableTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRect
 
 void PDFSelectTableTool::autodetectTableGeometry()
 {
+    // Strategy: for horizontal/vertical direction,
+    // detect columns/rows as follow: create overlap
+    // graph for each direction, detect overlap components.
+    // Then, remove "bridges" - rectangles overlapping
+    // two other rectangles, and these two rectangles
+    // does not overlap. These bridges are often header
+    // rows / columns.
 
+    // Detect text rectangles - divide them by lines
+    std::vector<QRectF> rectangles;
+
+    for (const PDFTextBlock& textBlock : m_textLayout.getTextBlocks())
+    {
+        for (const PDFTextLine& textLine : textBlock.getLines())
+        {
+            QRectF boundingRect = textLine.getBoundingBox().boundingRect();
+
+            if (!m_pickedRectangle.contains(boundingRect))
+            {
+                continue;
+            }
+
+            rectangles.push_back(boundingRect);
+        }
+    }
+
+    auto createComponents = [&](bool isHorizontal) -> std::vector<QRectF>
+    {
+        std::vector<QRectF> resultComponents;
+        std::map<size_t, std::set<size_t>> isOverlappedGraph;
+
+        // Create graph of overlapped rectangles
+        for (size_t i = 0; i < rectangles.size(); ++i)
+        {
+            isOverlappedGraph[i].insert(i);
+
+            for (size_t j = i + 1; j < rectangles.size(); ++j)
+            {
+                const QRectF& leftRect = rectangles[i];
+                const QRectF& rightRect = rectangles[j];
+
+                if ((isHorizontal && isRectangleHorizontallyOverlapped(leftRect, rightRect)) ||
+                    (!isHorizontal && isRectangleVerticallyOverlapped(leftRect, rightRect)))
+                {
+                    isOverlappedGraph[i].insert(j);
+                    isOverlappedGraph[j].insert(i);
+                }
+            }
+        }
+
+        std::set<size_t> bridges;
+
+        // Detect bridges, i bridge <=> exist k,j, where isOverlappedGraph[i] has { k, j },
+        // and isOverlappedGraph[k] has not j. Second check is not neccessary, because
+        // graph is undirectional - if j is in isOverlappedGraph[k], then k is in isOverlappedGraph[j].
+
+        for (size_t i = 0; i < rectangles.size(); ++i)
+        {
+            bool isBridge = false;
+
+            for (size_t k : isOverlappedGraph[i])
+            {
+                if (k == i)
+                {
+                    continue;
+                }
+
+                for (size_t j : isOverlappedGraph[i])
+                {
+                    if (k == j)
+                    {
+                        continue;
+                    }
+
+                    if (!isOverlappedGraph[k].count(j))
+                    {
+                        isBridge = true;
+                        break;
+                    }
+                }
+
+                if (isBridge)
+                {
+                    break;
+                }
+            }
+
+            if (isBridge)
+            {
+                bridges.insert(i);
+            }
+        }
+
+        // Remove bridges from overlapped graph
+        for (const size_t i : bridges)
+        {
+            isOverlappedGraph.erase(i);
+        }
+
+        for (auto& item : isOverlappedGraph)
+        {
+            std::set<size_t> result;
+            std::set_difference(item.second.begin(), item.second.end(), bridges.begin(), bridges.end(), std::inserter(result, result.end()));
+            item.second = std::move(result);
+        }
+
+        // Now, each component is a clique
+        std::set<size_t> visited;
+
+        for (auto& item : isOverlappedGraph)
+        {
+            if (visited.count(item.first))
+            {
+                continue;
+            }
+            visited.insert(item.second.begin(), item.second.end());
+
+            QRectF boundingRectangle;
+            for (size_t i : item.second)
+            {
+                boundingRectangle = boundingRectangle.united(rectangles[i]);
+            }
+
+            if (!boundingRectangle.isEmpty())
+            {
+                resultComponents.push_back(boundingRectangle);
+            }
+        }
+
+        return resultComponents;
+    };
+
+    // Columns
+    m_horizontalBreaks.clear();
+    std::vector<QRectF> columnComponents = createComponents(true);
+    std::sort(columnComponents.begin(), columnComponents.end(), [](const auto& left, const auto& right) { return left.center().x() < right.center().x(); });
+    for (size_t i = 1; i < columnComponents.size(); ++i)
+    {
+        const qreal start = columnComponents[i - 1].right();
+        const qreal end = columnComponents[i].left();
+        const qreal middle = (start + end) * 0.5;
+        m_horizontalBreaks.push_back(middle);
+    }
+
+    // Rows
+    m_verticalBreaks.clear();
+    std::vector<QRectF> rowComponents = createComponents(false);
+    std::sort(rowComponents.begin(), rowComponents.end(), [](const auto& left, const auto& right) { return left.center().y() < right.center().y(); });
+    for (size_t i = 1; i < rowComponents.size(); ++i)
+    {
+        const qreal start = rowComponents[i - 1].bottom();
+        const qreal end = rowComponents[i].top();
+        const qreal middle = (start + end) * 0.5;
+        m_verticalBreaks.push_back(middle);
+    }
 }
 
 bool PDFSelectTableTool::isTablePicked() const
