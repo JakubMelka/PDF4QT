@@ -469,6 +469,70 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
     return selection;
 }
 
+PDFTextSelection PDFTextLayout::selectBlock(const size_t blockIndex, PDFInteger pageIndex, QColor color) const
+{
+    PDFTextSelection selection;
+    if (blockIndex >= m_blocks.size())
+    {
+        return selection;
+    }
+
+    const PDFTextBlock& textBlock = m_blocks[blockIndex];
+    if (textBlock.getLines().empty())
+    {
+        return selection;
+    }
+
+    PDFCharacterPointer ptrA;
+    PDFCharacterPointer ptrB;
+
+    ptrA.pageIndex = pageIndex;
+    ptrA.blockIndex = blockIndex;
+    ptrA.lineIndex = 0;
+    ptrA.characterIndex = 0;
+
+    ptrB.pageIndex = pageIndex;
+    ptrB.blockIndex = blockIndex;
+    ptrB.lineIndex = textBlock.getLines().size() - 1;
+    ptrB.characterIndex = textBlock.getLines().back().getCharacters().size() - 1;
+
+    selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, color);
+    selection.build();
+    return selection;
+}
+
+PDFTextSelection PDFTextLayout::selectLineInBlock(const size_t blockIndex, const size_t lineIndex, PDFInteger pageIndex, QColor color) const
+{
+    PDFTextSelection selection;
+    if (blockIndex >= m_blocks.size())
+    {
+        return selection;
+    }
+
+    const PDFTextBlock& textBlock = m_blocks[blockIndex];
+    if (lineIndex >= textBlock.getLines().size())
+    {
+        return selection;
+    }
+
+    PDFCharacterPointer ptrA;
+    PDFCharacterPointer ptrB;
+
+    ptrA.pageIndex = pageIndex;
+    ptrA.blockIndex = blockIndex;
+    ptrA.lineIndex = lineIndex;
+    ptrA.characterIndex = 0;
+
+    ptrB.pageIndex = pageIndex;
+    ptrB.blockIndex = blockIndex;
+    ptrB.lineIndex = lineIndex;
+    ptrB.characterIndex = textBlock.getLines()[lineIndex].getCharacters().size() - 1;
+
+    selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, color);
+    selection.build();
+    return selection;
+}
+
 QString PDFTextLayout::getTextFromSelection(PDFTextSelection::iterator itBegin, PDFTextSelection::iterator itEnd, PDFInteger pageIndex) const
 {
     QStringList text;

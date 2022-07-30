@@ -1372,7 +1372,8 @@ void PDFExtractImageTool::onImagePicked(const QImage& image)
 PDFSelectTableTool::PDFSelectTableTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
     BaseClass(proxy, action, parent),
     m_pickTool(nullptr),
-    m_pageIndex(-1)
+    m_pageIndex(-1),
+    m_isTransposed(false)
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFSelectTableTool::onRectanglePicked);
@@ -1511,6 +1512,141 @@ void PDFSelectTableTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     }
 }
 
+void PDFSelectTableTool::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event == QKeySequence::Copy)
+    {
+        event->accept();
+        return;
+    }
+}
+
+void PDFSelectTableTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event == QKeySequence::Copy ||
+        event->key() == Qt::Key_Return ||
+        event->key() == Qt::Key_Enter)
+    {
+        // Create table cells
+        struct TableCell
+        {
+            size_t row = 0;
+            size_t column = 0;
+            QRectF rectangle;
+            QString text;
+        };
+
+        std::vector<TableCell> tableCells;
+        std::vector<PDFReal> horizontalBreaks = m_horizontalBreaks;
+        std::vector<PDFReal> verticalBreaks = m_verticalBreaks;
+
+        horizontalBreaks.insert(horizontalBreaks.begin(), m_pickedRectangle.left());
+        horizontalBreaks.push_back(m_pickedRectangle.right());
+
+        verticalBreaks.insert(verticalBreaks.begin(), m_pickedRectangle.top());
+        verticalBreaks.push_back(m_pickedRectangle.bottom());
+
+        tableCells.reserve((horizontalBreaks.size() - 1) * (verticalBreaks.size() - 1));
+        for (size_t rowIndex = 1; rowIndex < verticalBreaks.size(); ++rowIndex)
+        {
+            const PDFReal top = verticalBreaks[rowIndex - 1];
+            const PDFReal bottom = verticalBreaks[rowIndex];
+            const PDFReal height = bottom - top;
+
+            for (size_t columnIndex = 1; columnIndex < horizontalBreaks.size(); ++columnIndex)
+            {
+                const PDFReal left = horizontalBreaks[columnIndex - 1];
+                const PDFReal right = horizontalBreaks[columnIndex];
+                const PDFReal width = right - left;
+
+                TableCell cell;
+                cell.row = rowIndex;
+                cell.column = columnIndex;
+                cell.rectangle = QRectF(left, top, width, height);
+                tableCells.push_back(cell);
+            }
+        }
+
+        const PDFTextBlocks& textBlocks = m_textLayout.getTextBlocks();
+        for (size_t i = 0; i < textBlocks.size(); ++i)
+        {
+            // Detect, if whole block can be in some text cell
+            const PDFTextBlock& textBlock = textBlocks[i];
+            QRectF textRect = textBlock.getBoundingBox().boundingRect();
+            auto it = std::find_if(tableCells.begin(), tableCells.end(), [textRect](const auto& cell) { return cell.rectangle.contains(textRect); });
+            if (it != tableCells.end())
+            {
+                // Jakub Melka: whole block is contained in the cell
+                PDFTextSelection blockSelection = m_textLayout.selectBlock(i, m_pageIndex, QColor());
+                QString text = m_textLayout.getTextFromSelection(blockSelection, m_pageIndex);
+                TableCell& cell = *it;
+                cell.text = QString("%1 %2").arg(cell.text, text).trimmed();
+                continue;
+            }
+
+            const PDFTextLines& textLines = textBlock.getLines();
+            for (size_t j = 0; j < textLines.size(); ++j)
+            {
+                const PDFTextLine& textLine = textLines[j];
+                QRectF boundingRect = textLine.getBoundingBox().boundingRect();
+
+                auto it = std::find_if(tableCells.begin(), tableCells.end(), [boundingRect](const auto& cell) { return cell.rectangle.contains(boundingRect); });
+                if (it != tableCells.end())
+                {
+                    // Jakub Melka: whole block is contained in the cell
+                    PDFTextSelection blockSelection = m_textLayout.selectLineInBlock(i, j, m_pageIndex, QColor());
+                    QString text = m_textLayout.getTextFromSelection(blockSelection, m_pageIndex);
+                    TableCell& cell = *it;
+                    cell.text = QString("%1 %2").arg(cell.text, text).trimmed();
+                    continue;
+                }
+            }
+        }
+
+        if (m_isTransposed)
+        {
+            auto comparator = [](const TableCell& left, const TableCell right)
+            {
+                return std::make_pair(left.column, left.row) < std::make_pair(right.column, right.row);
+            };
+            std::sort(tableCells.begin(), tableCells.end(), comparator);
+        }
+
+        // Make CSV string
+        QString string;
+        {
+            QTextStream stream(&string, QIODevice::WriteOnly | QIODevice::Text);
+
+            bool isFirst = true;
+            for (const TableCell& tableCell : tableCells)
+            {
+                if ((!m_isTransposed && tableCell.column == 1) ||
+                    (m_isTransposed && tableCell.row == 1))
+                {
+                    if (isFirst)
+                    {
+                        isFirst = false;
+                    }
+                    else
+                    {
+                        stream << Qt::endl;
+                    }
+                }
+
+                stream << tableCell.text << ";";
+            }
+        }
+        QApplication::clipboard()->setText(string);
+
+        setActive(false);
+        event->accept();
+    }
+}
+
 void PDFSelectTableTool::setActiveImpl(bool active)
 {
     BaseClass::setActiveImpl(active);
@@ -1526,6 +1662,7 @@ void PDFSelectTableTool::setActiveImpl(bool active)
         setPickedRectangle(QRectF());
         setTextLayout(PDFTextLayout());
 
+        m_isTransposed = false;
         m_horizontalBreaks.clear();
         m_verticalBreaks.clear();
 
@@ -1543,6 +1680,26 @@ void PDFSelectTableTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRect
     setPageIndex(pageIndex);
     setPickedRectangle(pageRectangle);
     setTextLayout(getProxy()->getTextLayoutCompiler()->createTextLayout(pageIndex));
+
+    const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
+    const PageRotation rotation = getPageRotationCombined(page->getPageRotation(), getProxy()->getPageRotation());
+    switch (rotation)
+    {
+        case pdf::PageRotation::None:
+        case pdf::PageRotation::Rotate180:
+            m_isTransposed = false;
+            break;
+
+        case pdf::PageRotation::Rotate90:
+        case pdf::PageRotation::Rotate270:
+            m_isTransposed = true;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
     autodetectTableGeometry();
 
     emit messageDisplayRequest(tr("Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table."), 5000);

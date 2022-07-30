@@ -396,6 +396,8 @@ public:
                           const QMatrix& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
@@ -416,6 +418,7 @@ private:
     PDFInteger m_pageIndex;
     QRectF m_pickedRectangle;
     PDFTextLayout m_textLayout;
+    bool m_isTransposed;
     std::vector<PDFReal> m_horizontalBreaks;
     std::vector<PDFReal> m_verticalBreaks;
 };
