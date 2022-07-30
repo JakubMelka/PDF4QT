@@ -19,6 +19,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfcompiler.h"
 #include "pdfwidgetutils.h"
+#include "pdfpainterutils.h"
 #include "pdfdbgheap.h"
 
 #include <QLabel>
@@ -745,6 +746,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     m_predefinedTools[PickRectangleTool] = pickTool;
     m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
+    m_predefinedTools[SelectTableTool] = new PDFSelectTableTool(proxy, actions.selectTableToolAction, this);
     m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
     m_predefinedTools[ScreenshotTool] = new PDFScreenshotTool(proxy, actions.screenshotToolAction, this);
     m_predefinedTools[ExtractImageTool] = new PDFExtractImageTool(proxy, actions.extractImageAction, this);
@@ -1365,6 +1367,521 @@ void PDFExtractImageTool::onImagePicked(const QImage& image)
         QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
         emit messageDisplayRequest(tr("Image of size %1 x %2 pixels was copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
     }
+}
+
+PDFSelectTableTool::PDFSelectTableTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_pickTool(nullptr),
+    m_pageIndex(-1),
+    m_isTransposed(false)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFSelectTableTool::onRectanglePicked);
+
+    setCursor(Qt::CrossCursor);
+    updateActions();
+}
+
+void PDFSelectTableTool::drawPage(QPainter* painter,
+                                  PDFInteger pageIndex,
+                                  const PDFPrecompiledPage* compiledPage,
+                                  PDFTextLayoutGetter& layoutGetter,
+                                  const QMatrix& pagePointToDevicePointMatrix,
+                                  QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+
+    if (isTablePicked() && pageIndex == m_pageIndex)
+    {
+        PDFPainterStateGuard guard(painter);
+        QColor color = QColor::fromRgbF(0.0, 0.0, 0.5, 0.2);
+        QRectF rectangle = pagePointToDevicePointMatrix.mapRect(m_pickedRectangle);
+
+        const PDFReal lineWidth = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 2.0);
+        QPen pen(Qt::SolidLine);
+        pen.setWidthF(lineWidth);
+
+        painter->setPen(std::move(pen));
+        painter->setBrush(QBrush(color));
+        painter->drawRect(rectangle);
+
+        for (const PDFReal columnPosition : m_horizontalBreaks)
+        {
+            QPointF startPoint(columnPosition, m_pickedRectangle.top());
+            QPointF endPoint(columnPosition, m_pickedRectangle.bottom());
+
+            painter->drawLine(pagePointToDevicePointMatrix.map(startPoint), pagePointToDevicePointMatrix.map(endPoint));
+        }
+
+        for (const PDFReal rowPosition : m_verticalBreaks)
+        {
+            QPointF startPoint(m_pickedRectangle.left(), rowPosition);
+            QPointF endPoint(m_pickedRectangle.right(), rowPosition);
+
+            painter->drawLine(pagePointToDevicePointMatrix.map(startPoint), pagePointToDevicePointMatrix.map(endPoint));
+        }
+    }
+}
+
+void PDFSelectTableTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
+{
+    BaseClass::mousePressEvent(widget, event);
+
+    if (event->isAccepted() || !isTablePicked())
+    {
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 && pageIndex == m_pageIndex && m_pickedRectangle.contains(pagePoint))
+        {
+            const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
+            bool isSelectingColumns = false;
+
+            const PageRotation rotation = getPageRotationCombined(page->getPageRotation(), getProxy()->getPageRotation());
+            switch (rotation)
+            {
+                case pdf::PageRotation::None:
+                case pdf::PageRotation::Rotate180:
+                    isSelectingColumns = event->button() == Qt::LeftButton;
+                    break;
+
+                case pdf::PageRotation::Rotate90:
+                case pdf::PageRotation::Rotate270:
+                    isSelectingColumns = event->button() == Qt::RightButton;
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            const PDFReal distanceThresholdPixels = PDFWidgetUtils::scaleDPI_x(widget, 7.0);
+            const PDFReal distanceThreshold = getProxy()->transformPixelToDeviceSpace(distanceThresholdPixels);
+
+            if (isSelectingColumns)
+            {
+                auto it = std::find_if(m_horizontalBreaks.begin(), m_horizontalBreaks.end(), [distanceThreshold, pagePoint](const PDFReal value) { return qAbs(value - pagePoint.x()) < distanceThreshold; });
+                if (it != m_horizontalBreaks.end())
+                {
+                    m_horizontalBreaks.erase(it);
+                }
+                else if (pagePoint.x() > m_pickedRectangle.left() + distanceThreshold && pagePoint.x() < m_pickedRectangle.right() - distanceThreshold)
+                {
+                    m_horizontalBreaks.insert(std::lower_bound(m_horizontalBreaks.begin(), m_horizontalBreaks.end(), pagePoint.x()), pagePoint.x());
+                }
+            }
+            else
+            {
+                auto it = std::find_if(m_verticalBreaks.begin(), m_verticalBreaks.end(), [distanceThreshold, pagePoint](const PDFReal value) { return qAbs(value - pagePoint.y()) < distanceThreshold; });
+                if (it != m_verticalBreaks.end())
+                {
+                    m_verticalBreaks.erase(it);
+                }
+                else if (pagePoint.y() > m_pickedRectangle.top() + distanceThreshold && pagePoint.y() < m_pickedRectangle.bottom() - distanceThreshold)
+                {
+                    m_verticalBreaks.insert(std::lower_bound(m_verticalBreaks.begin(), m_verticalBreaks.end(), pagePoint.y()), pagePoint.y());
+                }
+            }
+
+            emit getProxy()->repaintNeeded();
+            event->accept();
+        }
+    }
+}
+
+void PDFSelectTableTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
+{
+    BaseClass::mouseMoveEvent(widget, event);
+
+    if (!event->isAccepted() && isTablePicked())
+    {
+        QPointF pagePoint;
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        if (pageIndex != -1 && pageIndex == m_pageIndex && m_pickedRectangle.contains(pagePoint))
+        {
+            setCursor(Qt::CrossCursor);
+        }
+        else
+        {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+}
+
+void PDFSelectTableTool::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event == QKeySequence::Copy)
+    {
+        event->accept();
+        return;
+    }
+}
+
+void PDFSelectTableTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event == QKeySequence::Copy ||
+        event->key() == Qt::Key_Return ||
+        event->key() == Qt::Key_Enter)
+    {
+        // Create table cells
+        struct TableCell
+        {
+            size_t row = 0;
+            size_t column = 0;
+            QRectF rectangle;
+            QString text;
+        };
+
+        std::vector<TableCell> tableCells;
+        std::vector<PDFReal> horizontalBreaks = m_horizontalBreaks;
+        std::vector<PDFReal> verticalBreaks = m_verticalBreaks;
+
+        horizontalBreaks.insert(horizontalBreaks.begin(), m_pickedRectangle.left());
+        horizontalBreaks.push_back(m_pickedRectangle.right());
+
+        verticalBreaks.insert(verticalBreaks.begin(), m_pickedRectangle.top());
+        verticalBreaks.push_back(m_pickedRectangle.bottom());
+
+        tableCells.reserve((horizontalBreaks.size() - 1) * (verticalBreaks.size() - 1));
+        for (size_t rowIndex = 1; rowIndex < verticalBreaks.size(); ++rowIndex)
+        {
+            const PDFReal top = verticalBreaks[rowIndex - 1];
+            const PDFReal bottom = verticalBreaks[rowIndex];
+            const PDFReal height = bottom - top;
+
+            for (size_t columnIndex = 1; columnIndex < horizontalBreaks.size(); ++columnIndex)
+            {
+                const PDFReal left = horizontalBreaks[columnIndex - 1];
+                const PDFReal right = horizontalBreaks[columnIndex];
+                const PDFReal width = right - left;
+
+                TableCell cell;
+                cell.row = rowIndex;
+                cell.column = columnIndex;
+                cell.rectangle = QRectF(left, top, width, height);
+                tableCells.push_back(cell);
+            }
+        }
+
+        const PDFTextBlocks& textBlocks = m_textLayout.getTextBlocks();
+        for (size_t i = 0; i < textBlocks.size(); ++i)
+        {
+            // Detect, if whole block can be in some text cell
+            const PDFTextBlock& textBlock = textBlocks[i];
+            QRectF textRect = textBlock.getBoundingBox().boundingRect();
+            auto it = std::find_if(tableCells.begin(), tableCells.end(), [textRect](const auto& cell) { return cell.rectangle.contains(textRect); });
+            if (it != tableCells.end())
+            {
+                // Jakub Melka: whole block is contained in the cell
+                PDFTextSelection blockSelection = m_textLayout.selectBlock(i, m_pageIndex, QColor());
+                QString text = m_textLayout.getTextFromSelection(blockSelection, m_pageIndex);
+                TableCell& cell = *it;
+                cell.text = QString("%1 %2").arg(cell.text, text).trimmed();
+                continue;
+            }
+
+            const PDFTextLines& textLines = textBlock.getLines();
+            for (size_t j = 0; j < textLines.size(); ++j)
+            {
+                const PDFTextLine& textLine = textLines[j];
+                QRectF boundingRect = textLine.getBoundingBox().boundingRect();
+
+                auto it = std::find_if(tableCells.begin(), tableCells.end(), [boundingRect](const auto& cell) { return cell.rectangle.contains(boundingRect); });
+                if (it != tableCells.end())
+                {
+                    // Jakub Melka: whole block is contained in the cell
+                    PDFTextSelection blockSelection = m_textLayout.selectLineInBlock(i, j, m_pageIndex, QColor());
+                    QString text = m_textLayout.getTextFromSelection(blockSelection, m_pageIndex);
+                    TableCell& cell = *it;
+                    cell.text = QString("%1 %2").arg(cell.text, text).trimmed();
+                    continue;
+                }
+            }
+        }
+
+        if (m_isTransposed)
+        {
+            auto comparator = [](const TableCell& left, const TableCell right)
+            {
+                return std::make_pair(left.column, left.row) < std::make_pair(right.column, right.row);
+            };
+            std::sort(tableCells.begin(), tableCells.end(), comparator);
+        }
+
+        // Make CSV string
+        QString string;
+        {
+            QTextStream stream(&string, QIODevice::WriteOnly | QIODevice::Text);
+
+            bool isFirst = true;
+            for (const TableCell& tableCell : tableCells)
+            {
+                if ((!m_isTransposed && tableCell.column == 1) ||
+                    (m_isTransposed && tableCell.row == 1))
+                {
+                    if (isFirst)
+                    {
+                        isFirst = false;
+                    }
+                    else
+                    {
+                        stream << Qt::endl;
+                    }
+                }
+
+                stream << tableCell.text << ";";
+            }
+        }
+        QApplication::clipboard()->setText(string);
+
+        setActive(false);
+        event->accept();
+    }
+}
+
+void PDFSelectTableTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active)
+    {
+        addTool(m_pickTool);
+    }
+    else
+    {
+        // Clear all data
+        setPageIndex(-1);
+        setPickedRectangle(QRectF());
+        setTextLayout(PDFTextLayout());
+
+        m_isTransposed = false;
+        m_horizontalBreaks.clear();
+        m_verticalBreaks.clear();
+
+        if (getTopToolstackTool())
+        {
+            removeTool();
+        }
+    }
+}
+
+void PDFSelectTableTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    removeTool();
+
+    setPageIndex(pageIndex);
+    setPickedRectangle(pageRectangle);
+    setTextLayout(getProxy()->getTextLayoutCompiler()->createTextLayout(pageIndex));
+
+    const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
+    const PageRotation rotation = getPageRotationCombined(page->getPageRotation(), getProxy()->getPageRotation());
+    switch (rotation)
+    {
+        case pdf::PageRotation::None:
+        case pdf::PageRotation::Rotate180:
+            m_isTransposed = false;
+            break;
+
+        case pdf::PageRotation::Rotate90:
+        case pdf::PageRotation::Rotate270:
+            m_isTransposed = true;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    autodetectTableGeometry();
+
+    emit messageDisplayRequest(tr("Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table."), 5000);
+}
+
+void PDFSelectTableTool::autodetectTableGeometry()
+{
+    // Strategy: for horizontal/vertical direction,
+    // detect columns/rows as follow: create overlap
+    // graph for each direction, detect overlap components.
+    // Then, remove "bridges" - rectangles overlapping
+    // two other rectangles, and these two rectangles
+    // does not overlap. These bridges are often header
+    // rows / columns.
+
+    // Detect text rectangles - divide them by lines
+    std::vector<QRectF> rectangles;
+
+    for (const PDFTextBlock& textBlock : m_textLayout.getTextBlocks())
+    {
+        for (const PDFTextLine& textLine : textBlock.getLines())
+        {
+            QRectF boundingRect = textLine.getBoundingBox().boundingRect();
+
+            if (!m_pickedRectangle.contains(boundingRect))
+            {
+                continue;
+            }
+
+            rectangles.push_back(boundingRect);
+        }
+    }
+
+    auto createComponents = [&](bool isHorizontal) -> std::vector<QRectF>
+    {
+        std::vector<QRectF> resultComponents;
+        std::map<size_t, std::set<size_t>> isOverlappedGraph;
+
+        // Create graph of overlapped rectangles
+        for (size_t i = 0; i < rectangles.size(); ++i)
+        {
+            isOverlappedGraph[i].insert(i);
+
+            for (size_t j = i + 1; j < rectangles.size(); ++j)
+            {
+                const QRectF& leftRect = rectangles[i];
+                const QRectF& rightRect = rectangles[j];
+
+                if ((isHorizontal && isRectangleHorizontallyOverlapped(leftRect, rightRect)) ||
+                    (!isHorizontal && isRectangleVerticallyOverlapped(leftRect, rightRect)))
+                {
+                    isOverlappedGraph[i].insert(j);
+                    isOverlappedGraph[j].insert(i);
+                }
+            }
+        }
+
+        std::set<size_t> bridges;
+
+        // Detect bridges, i bridge <=> exist k,j, where isOverlappedGraph[i] has { k, j },
+        // and isOverlappedGraph[k] has not j. Second check is not neccessary, because
+        // graph is undirectional - if j is in isOverlappedGraph[k], then k is in isOverlappedGraph[j].
+
+        for (size_t i = 0; i < rectangles.size(); ++i)
+        {
+            bool isBridge = false;
+
+            for (size_t k : isOverlappedGraph[i])
+            {
+                if (k == i)
+                {
+                    continue;
+                }
+
+                for (size_t j : isOverlappedGraph[i])
+                {
+                    if (k == j)
+                    {
+                        continue;
+                    }
+
+                    if (!isOverlappedGraph[k].count(j))
+                    {
+                        isBridge = true;
+                        break;
+                    }
+                }
+
+                if (isBridge)
+                {
+                    break;
+                }
+            }
+
+            if (isBridge)
+            {
+                bridges.insert(i);
+            }
+        }
+
+        // Remove bridges from overlapped graph
+        for (const size_t i : bridges)
+        {
+            isOverlappedGraph.erase(i);
+        }
+
+        for (auto& item : isOverlappedGraph)
+        {
+            std::set<size_t> result;
+            std::set_difference(item.second.begin(), item.second.end(), bridges.begin(), bridges.end(), std::inserter(result, result.end()));
+            item.second = std::move(result);
+        }
+
+        // Now, each component is a clique
+        std::set<size_t> visited;
+
+        for (auto& item : isOverlappedGraph)
+        {
+            if (visited.count(item.first))
+            {
+                continue;
+            }
+            visited.insert(item.second.begin(), item.second.end());
+
+            QRectF boundingRectangle;
+            for (size_t i : item.second)
+            {
+                boundingRectangle = boundingRectangle.united(rectangles[i]);
+            }
+
+            if (!boundingRectangle.isEmpty())
+            {
+                resultComponents.push_back(boundingRectangle);
+            }
+        }
+
+        return resultComponents;
+    };
+
+    // Columns
+    m_horizontalBreaks.clear();
+    std::vector<QRectF> columnComponents = createComponents(true);
+    std::sort(columnComponents.begin(), columnComponents.end(), [](const auto& left, const auto& right) { return left.center().x() < right.center().x(); });
+    for (size_t i = 1; i < columnComponents.size(); ++i)
+    {
+        const qreal start = columnComponents[i - 1].right();
+        const qreal end = columnComponents[i].left();
+        const qreal middle = (start + end) * 0.5;
+        m_horizontalBreaks.push_back(middle);
+    }
+
+    // Rows
+    m_verticalBreaks.clear();
+    std::vector<QRectF> rowComponents = createComponents(false);
+    std::sort(rowComponents.begin(), rowComponents.end(), [](const auto& left, const auto& right) { return left.center().y() < right.center().y(); });
+    for (size_t i = 1; i < rowComponents.size(); ++i)
+    {
+        const qreal start = rowComponents[i - 1].bottom();
+        const qreal end = rowComponents[i].top();
+        const qreal middle = (start + end) * 0.5;
+        m_verticalBreaks.push_back(middle);
+    }
+}
+
+bool PDFSelectTableTool::isTablePicked() const
+{
+    return m_pageIndex != -1 && !m_pickedRectangle.isEmpty();
+}
+
+void PDFSelectTableTool::setTextLayout(PDFTextLayout&& newTextLayout)
+{
+    m_textLayout = std::move(newTextLayout);
+}
+
+void PDFSelectTableTool::setPageIndex(PDFInteger newPageIndex)
+{
+    m_pageIndex = newPageIndex;
+}
+
+void PDFSelectTableTool::setPickedRectangle(const QRectF& newPickedRectangle)
+{
+    m_pickedRectangle = newPickedRectangle;
 }
 
 }   // namespace pdf

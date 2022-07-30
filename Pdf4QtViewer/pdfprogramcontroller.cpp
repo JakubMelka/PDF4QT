@@ -939,6 +939,7 @@ void PDFProgramController::initializeToolManager()
     actions.findPrevAction = m_actionManager->getAction(PDFActionManager::FindPrevious);
     actions.findNextAction = m_actionManager->getAction(PDFActionManager::FindNext);
     actions.selectTextToolAction = m_actionManager->getAction(PDFActionManager::ToolSelectText);
+    actions.selectTableToolAction = m_actionManager->getAction(PDFActionManager::ToolSelectTable);
     actions.selectAllAction = m_actionManager->getAction(PDFActionManager::SelectTextAll);
     actions.deselectAction = m_actionManager->getAction(PDFActionManager::DeselectText);
     actions.copyTextAction = m_actionManager->getAction(PDFActionManager::CopyText);

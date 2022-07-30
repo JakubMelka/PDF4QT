@@ -91,5 +91,6 @@
         <file>resources/pce-same-size.svg</file>
         <file>resources/pce-same-width.svg</file>
         <file>resources/certificate-manager.svg</file>
+        <file>resources/select-table.svg</file>
     </qresource>
 </RCC>

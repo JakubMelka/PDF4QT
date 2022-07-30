@@ -381,6 +381,19 @@ public:
     /// \param pageIndex Index of the page
     QString getTextFromSelection(const PDFTextSelection& selection, PDFInteger pageIndex) const;
 
+    /// Creates text selection for whole block
+    /// \param blockIndex Text block index
+    /// \param pageIndex pageIndex
+    /// \param color Selection color
+    PDFTextSelection selectBlock(const size_t blockIndex, PDFInteger pageIndex, QColor color) const;
+
+    /// Creates text selection for signle line of text block
+    /// \param blockIndex Text block index
+    /// \param lineIndex Line index
+    /// \param pageIndex pageIndex
+    /// \param color Selection color
+    PDFTextSelection selectLineInBlock(const size_t blockIndex, const size_t lineIndex, PDFInteger pageIndex, QColor color) const;
+
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);
 
