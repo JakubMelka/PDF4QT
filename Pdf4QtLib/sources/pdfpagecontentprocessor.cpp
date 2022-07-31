@@ -627,7 +627,6 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                             dataLength = -1;
 
                             // We will try to use stream filter hint
-                            PDFDocumentDataLoaderDecorator loader(m_document);
                             QByteArray filterName = loader.readNameFromDictionary(dictionary, "Filter");
                             if (!filterName.isEmpty())
                             {
@@ -1088,14 +1087,14 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     {
         for (PDFInteger row = 0; row < rows; ++row)
         {
-            PDFPageContentProcessorGraphicStateSaveRestoreGuard guard(this);
+            PDFPageContentProcessorGraphicStateSaveRestoreGuard guard3(this);
 
             QMatrix transformationMatrix = baseTransformationMatrix;
             transformationMatrix.translate(tilingArea.left(), tilingArea.top());
             transformationMatrix.translate(column * xStep, row * yStep);
 
-            QMatrix patternMatrix = transformationMatrix * m_pagePointToDevicePointMatrix;
-            PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, patternMatrix);
+            QMatrix currentPatternMatrix = transformationMatrix * m_pagePointToDevicePointMatrix;
+            PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, currentPatternMatrix);
 
             m_graphicState.setCurrentTransformationMatrix(transformationMatrix);
             updateGraphicState();
@@ -1611,8 +1610,6 @@ QPointF PDFPageContentProcessor::getCurrentPoint() const
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Current point of path is not set. Path is empty."));
     }
-
-    return QPointF();
 }
 
 void PDFPageContentProcessor::updateGraphicState()
@@ -2129,8 +2126,6 @@ PDFReal PDFPageContentProcessor::readOperand<PDFReal>(size_t index) const
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (real number) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
     }
-
-    return 0.0;
 }
 
 template<>
@@ -2153,8 +2148,6 @@ PDFInteger PDFPageContentProcessor::readOperand<PDFInteger>(size_t index) const
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (integer) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
     }
-
-    return 0;
 }
 
 template<>
@@ -2177,8 +2170,6 @@ PDFPageContentProcessor::PDFOperandName PDFPageContentProcessor::readOperand<PDF
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (name) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
     }
-
-    return PDFOperandName();
 }
 
 
@@ -2202,8 +2193,6 @@ PDFPageContentProcessor::PDFOperandString PDFPageContentProcessor::readOperand<P
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Can't read operand (string) on index %1. Only %2 operands provided.").arg(index + 1).arg(m_operands.size()));
     }
-
-    return PDFOperandString();
 }
 
 void PDFPageContentProcessor::operatorMoveCurrentPoint(PDFReal x, PDFReal y)
@@ -3051,10 +3040,10 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFOperandName name)
             // According to the specification, XObjects are skipped entirely, as no operator was invoked.
             if (streamDictionary->hasKey("OC"))
             {
-                const PDFObject& object = streamDictionary->get("OC");
-                if (object.isReference())
+                const PDFObject& optionalContentObject = streamDictionary->get("OC");
+                if (optionalContentObject.isReference())
                 {
-                    if (isContentSuppressedByOC(object.getReference()))
+                    if (isContentSuppressedByOC(optionalContentObject.getReference()))
                     {
                         return;
                     }
@@ -3304,7 +3293,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
                 if (item.characterContentStream && (fill || stroke))
                 {
-                    PDFPageContentProcessorStateGuard guard(this);
+                    PDFPageContentProcessorStateGuard guard2(this);
 
                     // We must clear operands, because we are processing a new content stream
                     m_operands.clear();

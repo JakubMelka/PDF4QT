@@ -102,9 +102,9 @@ QObject* Serializer::load(const QDomElement& element, QObject* parent)
                 // Find, if property was serialized
                 QDomElement propertyElement;
                 QDomNodeList children = element.childNodes();
-                for (int i = 0; i < children.count(); ++i)
+                for (int iChild = 0; iChild < children.count(); ++iChild)
                 {
-                    QDomNode child = children.item(i);
+                    QDomNode child = children.item(iChild);
                     if (child.isElement())
                     {
                         QDomElement childElement = child.toElement();
@@ -129,14 +129,14 @@ QObject* Serializer::load(const QDomElement& element, QObject* parent)
                     else if (property.userType() == qMetaTypeId<QObjectList>())
                     {
                         QObjectList objectList;
-                        QDomNodeList children = propertyElement.childNodes();
-                        for (int i = 0; i < children.count(); ++i)
+                        QDomNodeList subChildren = propertyElement.childNodes();
+                        for (int iChild = 0; iChild < subChildren.count(); ++iChild)
                         {
-                            QDomNode node = children.item(i);
+                            QDomNode node = subChildren.item(iChild);
                             if (node.isElement())
                             {
-                                QDomElement element = node.toElement();
-                                if (QObject* object = Serializer::load(element, deserializedObject))
+                                QDomElement nodeElement = node.toElement();
+                                if (QObject* object = Serializer::load(nodeElement, deserializedObject))
                                 {
                                     objectList.append(object);
                                 }
@@ -1481,12 +1481,12 @@ void XFACodeGenerator::loadClasses(const QDomDocument& document)
 
         Class myClass;
 
-        QDomElement element = child.toElement();
+        QDomElement childElement = child.toElement();
 
         // Class name
-        myClass.className = element.attribute("name");
+        myClass.className = childElement.attribute("name");
 
-        QDomElement valueElement = element.firstChildElement("value");
+        QDomElement valueElement = childElement.firstChildElement("value");
         if (!valueElement.isNull())
         {
             QString valueType = valueElement.attribute("type");
@@ -1494,7 +1494,7 @@ void XFACodeGenerator::loadClasses(const QDomDocument& document)
         }
 
         // Attributes
-        QDomNodeList attributes = element.elementsByTagName("property");
+        QDomNodeList attributes = childElement.elementsByTagName("property");
         const int attributeCount = attributes.size();
         for (int ai = 0; ai < attributeCount; ++ai)
         {
@@ -1513,7 +1513,7 @@ void XFACodeGenerator::loadClasses(const QDomDocument& document)
         }
 
         // Subnodes
-        QDomNodeList subnodes = element.elementsByTagName("item");
+        QDomNodeList subnodes = childElement.elementsByTagName("item");
         const int subnodeCount = subnodes.size();
         for (int ai = 0; ai < subnodeCount; ++ai)
         {
@@ -1613,11 +1613,11 @@ const XFACodeGenerator::Type* XFACodeGenerator::createType(QString id, QString n
     auto it = m_types.find(adjustedId);
     if (it == m_types.end())
     {
-        Type type;
-        type.id = adjustedId;
-        type.typeName = simpleType;
+        Type typeObject;
+        typeObject.id = adjustedId;
+        typeObject.typeName = simpleType;
 
-        if (type.typeName.isEmpty())
+        if (typeObject.typeName.isEmpty())
         {
             QString typeName = name.toUpper();
             QString finalTypeName = typeName;
@@ -1631,12 +1631,12 @@ const XFACodeGenerator::Type* XFACodeGenerator::createType(QString id, QString n
             m_usedTypes.insert(finalTypeName);
 
             QString enumValues = enumValuesString.remove(QChar::Space);
-            type.enumValues = enumValues.split("|");
+            typeObject.enumValues = enumValues.split("|");
 
-            type.typeName = finalTypeName;
+            typeObject.typeName = finalTypeName;
         }
 
-        it = m_types.insert(std::make_pair(type.id, type)).first;
+        it = m_types.insert(std::make_pair(typeObject.id, typeObject)).first;
     }
 
     return &it->second;

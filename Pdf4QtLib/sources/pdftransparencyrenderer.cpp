@@ -2036,35 +2036,35 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
         softMaskRenderer.setGraphicsState(graphicState);
         softMaskRenderer.processForm(softMaskDefinition.getFormStream());
         const PDFFloatBitmap& renderedSoftMask = softMaskRenderer.endPaint();
-        PDFFloatBitmap softMask;
+        PDFFloatBitmap createdSoftMask;
 
         switch (softMaskDefinition.getType())
         {
             case pdf::PDFPageContentProcessor::PDFSoftMaskDefinition::Type::Alpha:
-                softMask = renderedSoftMask.extractOpacityChannel();
+                createdSoftMask = renderedSoftMask.extractOpacityChannel();
                 break;
 
             case pdf::PDFPageContentProcessor::PDFSoftMaskDefinition::Type::Luminosity:
-                softMask = renderedSoftMask.extractLuminosityChannel();
+                createdSoftMask = renderedSoftMask.extractLuminosityChannel();
                 break;
 
             default:
             case pdf::PDFPageContentProcessor::PDFSoftMaskDefinition::Type::Invalid:
                 reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid soft mask type."));
-                softMask = renderedSoftMask.extractOpacityChannel();
+                createdSoftMask = renderedSoftMask.extractOpacityChannel();
                 break;
         }
 
         if (const PDFFunction* function = softMaskDefinition.getTransferFunction())
         {
-            const size_t width = softMask.getWidth();
-            const size_t height = softMask.getHeight();
+            const size_t width = createdSoftMask.getWidth();
+            const size_t height = createdSoftMask.getHeight();
 
             for (size_t y = 0; y < height; ++y)
             {
                 for (size_t x = 0; x < width; ++x)
                 {
-                    PDFColorBuffer pixel = softMask.getPixel(x, y);
+                    PDFColorBuffer pixel = createdSoftMask.getPixel(x, y);
                     PDFReal sourceValue = pixel[0];
                     PDFReal targetValue = sourceValue;
 
@@ -2080,7 +2080,7 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
             }
         }
 
-        getPainterState()->softMask = PDFTransparencySoftMask(false, qMove(softMask));
+        getPainterState()->softMask = PDFTransparencySoftMask(false, qMove(createdSoftMask));
     }
 }
 
@@ -3274,19 +3274,19 @@ void PDFInkMapper::createSpotColors(bool activate)
                             if (!deviceNColorSpace->isNone())
                             {
                                 const PDFDeviceNColorSpace::Colorants& colorants = deviceNColorSpace->getColorants();
-                                for (size_t i = 0; i < colorants.size(); ++i)
+                                for (size_t ii = 0; ii < colorants.size(); ++ii)
                                 {
-                                    const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[i];
+                                    const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[ii];
                                     if (!containsSpotColor(colorantInfo.name) && !containsProcessColor(colorantInfo.name))
                                     {
                                         PDFColor color;
                                         color.resize(deviceNColorSpace->getColorComponentCount());
-                                        color[i] = 1.0f;
+                                        color[ii] = 1.0f;
 
                                         ColorInfo info;
                                         info.name = colorantInfo.name;
                                         info.textName = PDFEncoding::convertTextString(info.name);
-                                        info.colorSpaceIndex = uint32_t(i);
+                                        info.colorSpaceIndex = uint32_t(ii);
                                         info.colorSpace = colorSpacePointer;
                                         info.spotColorIndex = uint32_t(m_spotColors.size());
                                         info.color = cms ? deviceNColorSpace->getColor(color, cms.get(), pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : nullptr;

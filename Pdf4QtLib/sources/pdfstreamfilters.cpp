@@ -112,14 +112,14 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
             scannedChars.fill(84);
             scannedChars[0] = scannedChar - 33;
             int validBytes = 0;
-            for (auto it = std::next(scannedChars.begin()); it != scannedChars.end(); ++it)
+            for (auto it2 = std::next(scannedChars.begin()); it2 != scannedChars.end(); ++it2)
             {
                 uint32_t character = getChar();
                 if (character == STREAM_END)
                 {
                     break;
                 }
-                *it = character - 33;
+                *it2 = character - 33;
                 ++validBytes;
             }
 
@@ -762,7 +762,6 @@ PDFStreamPredictor PDFStreamPredictor::createPredictor(const PDFObjectFetcher& o
             }
 
             throw PDFException(PDFTranslationContext::tr("Invalid property '%1' of the stream predictor parameters.").arg(QString::fromLatin1(key)));
-            return 0;
         };
 
         int predictor = getInteger("Predictor", 1, 15, 1);
@@ -797,7 +796,6 @@ QByteArray PDFStreamPredictor::apply(const QByteArray& data) const
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid predictor algorithm."));
-    return QByteArray();
 }
 
 QByteArray PDFStreamPredictor::applyPNGPredictor(const QByteArray& data) const

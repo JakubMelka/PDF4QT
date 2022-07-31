@@ -577,11 +577,11 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
                     if (dereferencedObject.isArray())
                     {
                         std::vector<PDFObjectReference> references;
-                        for (const PDFObject& object : *dereferencedObject.getArray())
+                        for (const PDFObject& objectInArray : *dereferencedObject.getArray())
                         {
-                            if (object.isReference())
+                            if (objectInArray.isReference())
                             {
-                                references.emplace_back(object.getReference());
+                                references.emplace_back(objectInArray.getReference());
                             }
                         }
 

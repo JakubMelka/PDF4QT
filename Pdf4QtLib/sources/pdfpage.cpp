@@ -35,22 +35,22 @@ PDFPageInheritableAttributes PDFPageInheritableAttributes::parse(const PDFPageIn
     {
         PDFDocumentDataLoaderDecorator loader(storage);
 
-        const PDFDictionary* dictionary = dereferencedDictionary.getDictionary();
-        if (dictionary->hasKey("MediaBox"))
+        const PDFDictionary* pageAttributesDictionary = dereferencedDictionary.getDictionary();
+        if (pageAttributesDictionary->hasKey("MediaBox"))
         {
-            result.m_mediaBox = loader.readRectangle(dictionary->get("MediaBox"), result.getMediaBox());
+            result.m_mediaBox = loader.readRectangle(pageAttributesDictionary->get("MediaBox"), result.getMediaBox());
         }
-        if (dictionary->hasKey("CropBox"))
+        if (pageAttributesDictionary->hasKey("CropBox"))
         {
-            result.m_cropBox = loader.readRectangle(dictionary->get("CropBox"), result.getCropBox());
+            result.m_cropBox = loader.readRectangle(pageAttributesDictionary->get("CropBox"), result.getCropBox());
         }
-        if (dictionary->hasKey("Resources"))
+        if (pageAttributesDictionary->hasKey("Resources"))
         {
-            result.m_resources = dictionary->get("Resources");
+            result.m_resources = pageAttributesDictionary->get("Resources");
         }
-        if (dictionary->hasKey("Rotate"))
+        if (pageAttributesDictionary->hasKey("Rotate"))
         {
-            PDFInteger rotation = loader.readInteger(dictionary->get("Rotate"), 0);
+            PDFInteger rotation = loader.readInteger(pageAttributesDictionary->get("Rotate"), 0);
 
             // PDF specification says, that angle can be multiple of 90, so we can have here
             // for example, 450° (90° * 5), or even negative angles. We must get rid of them.

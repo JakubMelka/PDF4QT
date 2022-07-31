@@ -139,9 +139,9 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
                                     if (plusPos == 6)
                                     {
                                         isSubset = true;
-                                        for (int i = 0; i < 6; ++i)
+                                        for (int iFontName = 0; iFontName < 6; ++iFontName)
                                         {
-                                            QChar character = fontName[i];
+                                            QChar character = fontName[iFontName];
                                             if (!character.isLetter() || !character.isUpper())
                                             {
                                                 isSubset = false;

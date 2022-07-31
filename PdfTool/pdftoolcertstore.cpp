@@ -111,12 +111,12 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
 
         if (notValidBefore.isValid())
         {
-            notValidBeforeText = notValidBefore.toString(options.outputDateFormat);
+            notValidBeforeText = convertDateTimeToString(notValidBefore, options.outputDateFormat);
         }
 
         if (notValidAfter.isValid())
         {
-            notValidAfterText = notValidAfter.toString(options.outputDateFormat);
+            notValidAfterText = convertDateTimeToString(notValidAfter, options.outputDateFormat);
         }
 
         formatter.beginTableRow("certificate", ref);

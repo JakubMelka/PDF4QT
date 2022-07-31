@@ -98,7 +98,7 @@ private:
 
     Statistics m_statistics;
     std::vector<QRect> m_colorBoxes;
-    size_t m_selectedColorBox = -1;
+    size_t m_selectedColorBox = std::numeric_limits<size_t>::max();
 };
 
 }   // namespace pdfplugin

@@ -17,6 +17,8 @@
 
 win32-msvc*: {
     QMAKE_CXXFLAGS += /std:c++latest /utf-8 /bigobj
+    QMAKE_CXXFLAGS_WARN_ON -= -W3
+    QMAKE_CXXFLAGS_WARN_ON += -W4 -wd5054 -wd4127 -wd4702
 }
 
 win32-*g++|unix: {

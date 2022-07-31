@@ -2408,7 +2408,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
             }
         }
 
-        if (PLANE.getWidth() != HGW || PLANE.getHeight() != HGH)
+        if (uint32_t(PLANE.getWidth()) != HGW || uint32_t(PLANE.getHeight()) != HGH)
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 invalid halftone grayscale bit plane image."));
         }
@@ -2508,8 +2508,8 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
         QByteArray endSequence(2, 0);
         if (!parameters.MMR)
         {
-            endSequence[0] = char(0xFF);
-            endSequence[1] = char(0xAC);
+            endSequence[0] = unsigned char(0xFF);
+            endSequence[1] = unsigned char(0xAC);
         }
 
         int endPosition = stream->indexOf(endSequence);
@@ -2610,7 +2610,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
             throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid referred segments (%1) for generic refinement region.").arg(referredSegments.size()));
     }
 
-    if (GRREFERENCE.getWidth() != field.width || GRREFERENCE.getHeight() != field.height)
+    if (uint32_t(GRREFERENCE.getWidth()) != field.width || uint32_t(GRREFERENCE.getHeight()) != field.height)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid referred bitmap size [%1 x %2] instead of [%3 x %4] for generic refinement region.").arg(GRREFERENCE.getWidth()).arg(GRREFERENCE.getHeight()).arg(field.width).arg(field.height));
     }
@@ -2843,7 +2843,6 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::getBitmap(const uint32_t segmentIndex, bool remo
     }
 
     throw PDFException(PDFTranslationContext::tr("JBIG2 bitmap segment %1 not found.").arg(segmentIndex));
-    return result;
 }
 
 PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& parameters)
@@ -3147,8 +3146,6 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
 
         return bitmap;
     }
-
-    return PDFJBIG2Bitmap();
 }
 
 PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDecodingParameters& parameters)
@@ -3635,8 +3632,6 @@ int32_t PDFJBIG2Decoder::checkInteger(std::optional<int32_t> value)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 can't read integer."));
     }
-
-    return 0;
 }
 
 PDFJBIG2Bitmap::PDFJBIG2Bitmap() :
@@ -3942,9 +3937,9 @@ std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getSymbolBitmaps(
 
     for (const PDFJBIG2SymbolDictionary* dictionary  : symbolDictionaries)
     {
-        const std::vector<PDFJBIG2Bitmap>& bitmaps = dictionary->getBitmaps();
-        result.reserve(result.size() + bitmaps.size());
-        for (const PDFJBIG2Bitmap& bitmap : bitmaps)
+        const std::vector<PDFJBIG2Bitmap>& dictionaryBitmaps = dictionary->getBitmaps();
+        result.reserve(result.size() + dictionaryBitmaps.size());
+        for (const PDFJBIG2Bitmap& bitmap : dictionaryBitmaps)
         {
             result.push_back(&bitmap);
         }
@@ -3959,9 +3954,9 @@ std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getPatternBitmaps
 
     for (const PDFJBIG2PatternDictionary* dictionary  : patternDictionaries)
     {
-        const std::vector<PDFJBIG2Bitmap>& bitmaps = dictionary->getBitmaps();
-        result.reserve(result.size() + bitmaps.size());
-        for (const PDFJBIG2Bitmap& bitmap : bitmaps)
+        const std::vector<PDFJBIG2Bitmap>& dictionaryBitmaps = dictionary->getBitmaps();
+        result.reserve(result.size() + dictionaryBitmaps.size());
+        for (const PDFJBIG2Bitmap& bitmap : dictionaryBitmaps)
         {
             result.push_back(&bitmap);
         }
@@ -3980,8 +3975,6 @@ PDFJBIG2HuffmanDecoder PDFJBIG2ReferencedSegments::getUserTable(PDFBitReader* re
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
     }
-
-    return PDFJBIG2HuffmanDecoder();
 }
 
 }   // namespace pdf

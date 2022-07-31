@@ -669,7 +669,6 @@ uint32_t PDFCCITTFaxDecoder::getCode(const PDFCCITTCode* codes, size_t codeCount
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid CCITT run length code word."));
-    return 0;
 }
 
 CCITT_2D_Code_Mode PDFCCITTFaxDecoder::get2DMode()
@@ -692,7 +691,6 @@ CCITT_2D_Code_Mode PDFCCITTFaxDecoder::get2DMode()
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid CCITT 2D mode."));
-    return Invalid;
 }
 
 }   // namespace pdf

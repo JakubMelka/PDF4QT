@@ -381,19 +381,19 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         QString dateFormat = parser->value("date-format");
         if (dateFormat == "short")
         {
-            options.outputDateFormat = Qt::DefaultLocaleShortDate;
+            options.outputDateFormat = PDFToolOptions::LocaleShortDate;
         }
         else if (dateFormat == "long")
         {
-            options.outputDateFormat = Qt::DefaultLocaleLongDate;
+            options.outputDateFormat = PDFToolOptions::LocaleLongDate;
         }
         else if (dateFormat == "iso")
         {
-            options.outputDateFormat = Qt::ISODate;
+            options.outputDateFormat = PDFToolOptions::ISODate;
         }
         else if (dateFormat == "rfc2822")
         {
-            options.outputDateFormat = Qt::RFC2822Date;
+            options.outputDateFormat = PDFToolOptions::RFC2822Date;
         }
         else if (!dateFormat.isEmpty())
         {
@@ -970,6 +970,26 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     }
 
     return options;
+}
+
+QString PDFToolAbstractApplication::convertDateTimeToString(const QDateTime& dateTime, PDFToolOptions::DateFormat dateFormat)
+{
+    switch (dateFormat)
+    {
+        case PDFToolOptions::LocaleShortDate:
+            return QLocale::system().toString(dateTime, QLocale::ShortFormat);
+        case PDFToolOptions::LocaleLongDate:
+            return QLocale::system().toString(dateTime, QLocale::LongFormat);
+        case PDFToolOptions::ISODate:
+            return dateTime.toString(Qt::ISODate);
+        case PDFToolOptions::RFC2822Date:
+            return dateTime.toString(Qt::RFC2822Date);
+        default:
+            break;
+    }
+
+    Q_ASSERT(false);
+    return QLocale::system().toString(dateTime, QLocale::ShortFormat);
 }
 
 bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly)

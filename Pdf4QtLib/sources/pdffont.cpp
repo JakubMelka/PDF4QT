@@ -1330,24 +1330,24 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                         // Try to load data from the encoding
                                         if (!FT_Set_Charmap(face, charMap))
                                         {
-                                            for (size_t i = 0; i < simpleFontEncodingTable.size(); ++i)
+                                            for (size_t iTable = 0; iTable < simpleFontEncodingTable.size(); ++iTable)
                                             {
-                                                FT_UInt glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(i));
+                                                FT_UInt glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(iTable));
 
                                                 if (glyphIndex == 0)
                                                 {
-                                                    glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(i + 0xF000));
+                                                    glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(iTable + 0xF000));
                                                 }
 
                                                 if (glyphIndex == 0)
                                                 {
-                                                    glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(i + 0xF100));
+                                                    glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(iTable + 0xF100));
                                                 }
 
                                                 if (glyphIndex > 0)
                                                 {
                                                     // Fill the glyph index array
-                                                    glyphIndexArray[i] = glyphIndex;
+                                                    glyphIndexArray[iTable] = glyphIndex;
 
                                                     // Set mapping to unicode
                                                     char buffer[128] = { };
@@ -1362,7 +1362,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                                         if (!character.isNull())
                                                         {
                                                             encoding = PDFEncoding::Encoding::Custom;
-                                                            simpleFontEncodingTable[i] = character;
+                                                            simpleFontEncodingTable[iTable] = character;
                                                         }
                                                     }
                                                 }
@@ -1563,21 +1563,21 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             }
             const PDFDictionary* charProcsDictionary = charProcs.getDictionary();
 
-            PDFInteger firstChar = fontLoader.readIntegerFromDictionary(fontDictionary, "FirstChar", -1);
-            PDFInteger lastChar = fontLoader.readIntegerFromDictionary(fontDictionary, "LastChar", -1);
+            const PDFInteger firstCharF3 = fontLoader.readIntegerFromDictionary(fontDictionary, "FirstChar", -1);
+            const PDFInteger lastCharF3 = fontLoader.readIntegerFromDictionary(fontDictionary, "LastChar", -1);
 
-            if (firstChar < 0 || lastChar > 255 || firstChar > lastChar)
+            if (firstCharF3 < 0 || lastCharF3 > 255 || firstCharF3 > lastCharF3)
             {
-                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font character range (from %1 to %2).").arg(firstChar).arg(lastChar));
+                throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font character range (from %1 to %2).").arg(firstCharF3).arg(lastCharF3));
             }
 
-            const PDFObject& encoding = document->getObject(fontDictionary->get("Encoding"));
-            if (!encoding.isDictionary())
+            const PDFObject& encodingF3 = document->getObject(fontDictionary->get("Encoding"));
+            if (!encodingF3.isDictionary())
             {
                 throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font encoding."));
             }
 
-            const PDFDictionary* encodingDictionary = encoding.getDictionary();
+            const PDFDictionary* encodingDictionary = encodingF3.getDictionary();
             const PDFObject& differences = document->getObject(encodingDictionary->get("Differences"));
             if (!differences.isArray())
             {
@@ -1631,8 +1631,8 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                 toUnicodeCMap = PDFFontCMap::createFromData(decodedStream);
             }
 
-            std::vector<PDFReal> widths = fontLoader.readNumberArrayFromDictionary(fontDictionary, "Widths");
-            return PDFFontPointer(new PDFType3Font(qMove(fontDescriptor), firstChar, lastChar, fontMatrix, qMove(characterContentStreams), qMove(widths), document->getObject(fontDictionary->get("Resources")), qMove(toUnicodeCMap)));
+            std::vector<PDFReal> widthsF3 = fontLoader.readNumberArrayFromDictionary(fontDictionary, "Widths");
+            return PDFFontPointer(new PDFType3Font(qMove(fontDescriptor), firstCharF3, lastCharF3, fontMatrix, qMove(characterContentStreams), qMove(widthsF3), document->getObject(fontDictionary->get("Resources")), qMove(toUnicodeCMap)));
         }
 
         default:
@@ -1974,7 +1974,6 @@ PDFFontCMap PDFFontCMap::createFromName(const QByteArray& name)
     }
 
     throw PDFException(PDFTranslationContext::tr("Can't load CID font mapping named '%1'.").arg(QString::fromLatin1(name)));
-    return PDFFontCMap();
 }
 
 PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
@@ -2014,7 +2013,6 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
             }
 
             throw PDFException(PDFTranslationContext::tr("Can't fetch code from CMap definition."));
-            return std::pair<unsigned int, unsigned int>();
         };
 
         auto fetchCID = [] (const PDFLexicalAnalyzer::Token& currentToken) -> CID
@@ -2025,7 +2023,6 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
             }
 
             throw PDFException(PDFTranslationContext::tr("Can't fetch CID from CMap definition."));
-            return 0;
         };
 
         auto fetchUnicode = [](const PDFLexicalAnalyzer::Token& currentToken) -> CID
@@ -2213,7 +2210,7 @@ std::vector<CID> PDFFontCMap::interpret(const QByteArray& byteArray) const
     result.reserve(byteArray.size() / m_maxKeyLength);
 
     unsigned int value = 0;
-    int scannedBytes = 0;
+    unsigned int scannedBytes = 0;
 
     for (int i = 0, size = byteArray.size(); i < size; ++i)
     {

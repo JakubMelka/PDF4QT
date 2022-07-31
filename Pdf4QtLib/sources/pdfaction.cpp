@@ -181,18 +181,18 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
         std::vector<PDFObjectReference> annotations;
         std::vector<QString> fieldNames;
 
-        const PDFObject& object = dictionary->get("T");
-        if (object.isReference())
+        const PDFObject& objectT = dictionary->get("T");
+        if (objectT.isReference())
         {
-            annotations = { object.getReference() };
+            annotations = { objectT.getReference() };
         }
-        else if (object.isString())
+        else if (objectT.isString())
         {
-            fieldNames = { loader.readTextString(object, QString()) };
+            fieldNames = { loader.readTextString(objectT, QString()) };
         }
-        else if (object.isArray())
+        else if (objectT.isArray())
         {
-            const PDFArray* items = object.getArray();
+            const PDFArray* items = objectT.getArray();
             for (size_t i = 0; i < items->getCount(); ++i)
             {
                 const PDFObject& itemObject = items->getItem(i);
@@ -219,9 +219,9 @@ PDFActionPtr PDFAction::parseImpl(const PDFObjectStorage* storage, PDFObject obj
             std::pair<const char*, PDFActionNamed::NamedActionType>{ "LastPage", PDFActionNamed::NamedActionType::LastPage }
         };
 
-        QByteArray name = loader.readNameFromDictionary(dictionary, "N");
+        QByteArray actionNamed = loader.readNameFromDictionary(dictionary, "N");
         PDFActionNamed::NamedActionType actionType = loader.readEnumByName(dictionary->get("N"), types.cbegin(), types.cend(), PDFActionNamed::NamedActionType::Custom);
-        return PDFActionPtr(new PDFActionNamed(actionType, qMove(name)));
+        return PDFActionPtr(new PDFActionNamed(actionType, qMove(actionNamed)));
     }
     else if (name == "SetOCGState")
     {

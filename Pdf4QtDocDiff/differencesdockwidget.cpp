@@ -142,11 +142,11 @@ QModelIndex DifferencesDockWidget::findResultIndex(size_t index) const
             const int childCount = model->rowCount(parentIndex);
             for (int j = 0; j < childCount; ++j)
             {
-                QModelIndex childIndex = parentIndex.child(j, 0);
-                QVariant data = childIndex.data(Qt::UserRole);
-                if (data.isValid())
+                QModelIndex childIndex = model->index(j, 0, parentIndex);
+                QVariant childUserData = childIndex.data(Qt::UserRole);
+                if (childUserData.isValid())
                 {
-                    if (data.toULongLong() == index)
+                    if (childUserData.toULongLong() == index)
                     {
                         return childIndex;
                     }
@@ -294,11 +294,11 @@ void DifferencesDockWidget::onCurrentItemChanged(QTreeWidgetItem* current, QTree
     }
 
     pdf::PDFTemporaryValueChange guard(&m_disableChangeSelectedResultIndex, true);
-    QVariant data = current->data(0, Qt::UserRole);
+    QVariant childUserData = current->data(0, Qt::UserRole);
 
-    if (data.isValid())
+    if (childUserData.isValid())
     {
-        m_diffNavigator->select(data.toULongLong());
+        m_diffNavigator->select(childUserData.toULongLong());
     }
 }
 

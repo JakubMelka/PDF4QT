@@ -138,7 +138,7 @@ QSize PDFEncryptionStrengthHintWidget::getTextSizeHint() const
 
     for (const auto& levelItem : m_levels)
     {
-        width = qMax(width, fontMetrics.width(levelItem.text));
+        width = qMax(width, fontMetrics.horizontalAdvance(levelItem.text));
     }
 
     return QSize(width, height);

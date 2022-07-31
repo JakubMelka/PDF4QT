@@ -149,7 +149,7 @@ MainWindow::MainWindow(QWidget* parent) :
         ui->menuToolbars->addAction(toolbar->toggleViewAction());
     }
 
-    connect(&m_mapper, QOverload<int>::of(&QSignalMapper::mapped), this, &MainWindow::onMappedActionTriggered);
+    connect(&m_mapper, &QSignalMapper::mappedInt, this, &MainWindow::onMappedActionTriggered);
 
     QList<QAction*> actions = findChildren<QAction*>();
     for (QAction* action : actions)

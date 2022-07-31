@@ -284,11 +284,11 @@ void PDFXRefTable::readXRefTable(PDFParsingContext* context, const QByteArray& b
                         PDFInteger count = indexArray[2 * i + 1];
 
                         const PDFInteger lastObjectIndex = firstObjectNumber + count - 1;
-                        const PDFInteger desiredSize = lastObjectIndex + 1;
+                        const PDFInteger currentDesiredSize = lastObjectIndex + 1;
 
-                        if (static_cast<PDFInteger>(m_entries.size()) < desiredSize)
+                        if (static_cast<PDFInteger>(m_entries.size()) < currentDesiredSize)
                         {
-                            m_entries.resize(desiredSize);
+                            m_entries.resize(currentDesiredSize);
                         }
 
                         for (PDFInteger objectNumber = firstObjectNumber; objectNumber <= lastObjectIndex; ++ objectNumber)

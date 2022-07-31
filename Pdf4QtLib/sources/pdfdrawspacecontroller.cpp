@@ -758,7 +758,7 @@ QColor PDFDrawWidgetProxy::getPaperColor()
 void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features)
 {
     painter->fillRect(rect, Qt::lightGray);
-    QMatrix baseMatrix = painter->worldMatrix();
+    QTransform baseMatrix = painter->worldTransform();
 
     // Use current paper color (it can be a bit different from white)
     QColor paperColor = getPaperColor();
@@ -787,8 +787,8 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                 timer.start();
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
+                QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
+                compiledPage->draw(painter, page->getCropBox(), matrix.toAffine(), features, groupInfo.transparency);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 // Draw text blocks/text lines, if it is enabled
@@ -848,7 +848,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
                     {
                         painter->save();
-                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, drawInterfaceErrors);
+                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix.toAffine(), drawInterfaceErrors);
                         painter->restore();
                     }
                 }

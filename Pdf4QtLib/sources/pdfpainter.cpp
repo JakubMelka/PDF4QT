@@ -329,9 +329,9 @@ void PDFPainter::performImagePainting(const QImage& image)
         //  1) Transformed rectangle is not skewed or deformed (so vectors (0, 1) and (1, 0) are orthogonal)
         //  2) We are shrinking the image
 
-        QMatrix matrix = m_painter->worldMatrix();
-        QLineF mappedWidthVector = matrix.map(QLineF(0, 0, 1, 0));
-        QLineF mappedHeightVector = matrix.map(QLineF(0, 0, 0, 1));
+        QTransform transform = m_painter->worldTransform();
+        QLineF mappedWidthVector = transform.map(QLineF(0, 0, 1, 0));
+        QLineF mappedHeightVector = transform.map(QLineF(0, 0, 0, 1));
         qreal angle = mappedWidthVector.angleTo(mappedHeightVector);
         if (qFuzzyCompare(angle, 90.0))
         {
@@ -351,15 +351,15 @@ void PDFPainter::performImagePainting(const QImage& image)
         }
     }
 
-    QMatrix imageTransform(1.0 / adjustedImage.width(), 0, 0, 1.0 / adjustedImage.height(), 0, 0);
-    QMatrix worldMatrix = imageTransform * m_painter->worldMatrix();
+    QTransform imageTransform(1.0 / adjustedImage.width(), 0, 0, 1.0 / adjustedImage.height(), 0, 0);
+    QTransform worldTransform = imageTransform * m_painter->worldTransform();
 
     // Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
     // to the opposite (so the image is then unchanged)
-    worldMatrix.translate(0, adjustedImage.height());
-    worldMatrix.scale(1, -1);
+    worldTransform.translate(0, adjustedImage.height());
+    worldTransform.scale(1, -1);
 
-    m_painter->setWorldMatrix(worldMatrix);
+    m_painter->setWorldTransform(worldTransform);
     m_painter->drawImage(0, 0, adjustedImage);
 
     m_painter->restore();
@@ -368,7 +368,7 @@ void PDFPainter::performImagePainting(const QImage& image)
 void PDFPainter::performMeshPainting(const PDFMesh& mesh)
 {
     m_painter->save();
-    m_painter->setWorldMatrix(QMatrix());
+    m_painter->setWorldTransform(QTransform());
     mesh.paint(m_painter, getEffectiveFillingAlpha());
     m_painter->restore();
 }
@@ -391,7 +391,7 @@ void PDFPainter::performRestoreGraphicState(ProcessOrder order)
 
 void PDFPainter::setWorldMatrix(const QMatrix& matrix)
 {
-    m_painter->setWorldMatrix(matrix, false);
+    m_painter->setWorldTransform(QTransform(matrix), false);
 }
 
 void PDFPainter::setCompositionMode(QPainter::CompositionMode mode)
@@ -514,7 +514,7 @@ void PDFPrecompiledPage::draw(QPainter* painter,
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
 
     painter->save();
-    painter->setWorldMatrix(QMatrix());
+    painter->setWorldTransform(QTransform());
     painter->setOpacity(opacity);
 
     if (features.testFlag(PDFRenderer::ClipToCropBox))
@@ -554,15 +554,15 @@ void PDFPrecompiledPage::draw(QPainter* painter,
 
                 painter->save();
 
-                QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
-                QMatrix worldMatrix = imageTransform * painter->worldMatrix();
+                QTransform imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+                QTransform worldTransform = imageTransform * painter->worldTransform();
 
                 // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
                 // to the opposite (so the image is then unchanged)
-                worldMatrix.translate(0, image.height());
-                worldMatrix.scale(1, -1);
+                worldTransform.translate(0, image.height());
+                worldTransform.scale(1, -1);
 
-                painter->setWorldMatrix(worldMatrix);
+                painter->setWorldTransform(worldTransform);
                 painter->drawImage(0, 0, image);
                 painter->restore();
                 break;
@@ -573,7 +573,7 @@ void PDFPrecompiledPage::draw(QPainter* painter,
                 const MeshPaintData& data = m_meshes[instruction.dataIndex];
 
                 painter->save();
-                painter->setWorldMatrix(pagePointToDevicePointMatrix);
+                painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix));
                 data.mesh.paint(painter, data.alpha);
                 painter->restore();
                 break;
@@ -599,7 +599,7 @@ void PDFPrecompiledPage::draw(QPainter* painter,
 
             case InstructionType::SetWorldMatrix:
             {
-                painter->setWorldMatrix(m_matrices[instruction.dataIndex] * pagePointToDevicePointMatrix);
+                painter->setWorldTransform(QTransform(m_matrices[instruction.dataIndex] * pagePointToDevicePointMatrix));
                 break;
             }
 
@@ -643,8 +643,8 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, 
         {
             case InstructionType::DrawPath:
             {
-                QMatrix matrix = worldMatrixStack.top().inverted();
-                QPainterPath mappedRedactPath = matrix.map(redactPath);
+                QMatrix currentMatrix = worldMatrixStack.top().inverted();
+                QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
                 PathPaintData& path = m_paths[instruction.dataIndex];
                 path.path = path.path.subtracted(mappedRedactPath);
                 break;
@@ -655,16 +655,16 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, 
                 ImageData& data = m_images[instruction.dataIndex];
                 QImage& image = data.image;
 
-                QMatrix imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
-                QMatrix worldMatrix = imageTransform * worldMatrixStack.top();
+                QTransform imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+                QTransform worldTransform = imageTransform * QTransform(worldMatrixStack.top());
 
                 // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
                 // to the opposite (so the image is then unchanged)
-                worldMatrix.translate(0, image.height());
-                worldMatrix.scale(1, -1);
+                worldTransform.translate(0, image.height());
+                worldTransform.scale(1, -1);
 
                 QPainter painter(&image);
-                painter.setWorldMatrix(worldMatrix.inverted());
+                painter.setWorldTransform(worldTransform.inverted());
                 painter.drawPath(redactPath);
                 painter.end();
                 break;
@@ -676,8 +676,8 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, 
 
             case InstructionType::Clip:
             {
-                QMatrix matrix = worldMatrixStack.top().inverted();
-                QPainterPath mappedRedactPath = matrix.map(redactPath);
+                QMatrix currentMatrix = worldMatrixStack.top().inverted();
+                QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
                 m_clips[instruction.dataIndex].clipPath = m_clips[instruction.dataIndex].clipPath.subtracted(mappedRedactPath);
                 break;
             }
@@ -982,12 +982,12 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
                 shadingTestImage.fill(Qt::transparent);
 
-                QMatrix pagePointToDevicePointMatrix;
+                QTransform pagePointToDevicePointMatrix;
                 pagePointToDevicePointMatrix.scale(shadingTestImage.width() / mediaBox.width(), -shadingTestImage.height() / mediaBox.height());
 
                 {
                     QPainter painter(&shadingTestImage);
-                    painter.setWorldMatrix(pagePointToDevicePointMatrix);
+                    painter.setWorldTransform(pagePointToDevicePointMatrix);
                     data.mesh.paint(&painter, data.alpha);
                 }
 

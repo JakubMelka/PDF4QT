@@ -249,14 +249,14 @@ QRectF PDFDocumentDataLoaderDecorator::readRectangle(const PDFObject& object, co
             std::array<PDFReal, 4> items;
             for (size_t i = 0; i < 4; ++i)
             {
-                const PDFObject& object = m_storage->getObject(array->getItem(i));
-                if (object.isReal())
+                const PDFObject& currentObject = m_storage->getObject(array->getItem(i));
+                if (currentObject.isReal())
                 {
-                    items[i] = object.getReal();
+                    items[i] = currentObject.getReal();
                 }
-                else if (object.isInt())
+                else if (currentObject.isInt())
                 {
-                    items[i] = object.getInteger();
+                    items[i] = currentObject.getInteger();
                 }
                 else
                 {

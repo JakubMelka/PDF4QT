@@ -44,12 +44,20 @@ struct PDFToolTranslationContext
 
 struct PDFToolOptions
 {
+    enum DateFormat
+    {
+        LocaleShortDate,
+        LocaleLongDate,
+        ISODate,
+        RFC2822Date
+    };
+
     // For option 'ConsoleFormat'
     PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
     QString outputCodec = "UTF-8";
 
     // For option 'DateFormat'
-    Qt::DateFormat outputDateFormat = Qt::DefaultLocaleShortDate;
+    DateFormat outputDateFormat = LocaleShortDate;
 
     // For option 'OpenDocument'
     QString document;
@@ -251,6 +259,8 @@ public:
 
     void initializeCommandLineParser(QCommandLineParser* parser) const;
     PDFToolOptions getOptions(QCommandLineParser* parser) const;
+
+    static QString convertDateTimeToString(const QDateTime& dateTime, PDFToolOptions::DateFormat dateFormat);
 
 protected:
     /// Tries to read the document. If document is successfully read, true is returned,

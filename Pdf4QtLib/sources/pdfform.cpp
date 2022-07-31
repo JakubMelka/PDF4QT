@@ -1355,7 +1355,7 @@ void PDFFormManager::wheelEvent(QWidget* widget, QWheelEvent* event)
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    MouseEventInfo info = getMouseEventInfo(widget, event->position().toPoint());
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
@@ -1965,13 +1965,13 @@ void PDFFormFieldAbstractButtonEditor::mousePressEvent(QWidget* widget, QMouseEv
 
 void PDFFormFieldPushButtonEditor::click()
 {
-    if (const PDFAction* action = m_formManager->getAction(PDFAnnotationAdditionalActions::MousePressed, getFormWidget()))
+    if (const PDFAction* mousePressAction = m_formManager->getAction(PDFAnnotationAdditionalActions::MousePressed, getFormWidget()))
     {
-        emit m_formManager->actionTriggered(action);
+        emit m_formManager->actionTriggered(mousePressAction);
     }
-    else if (const PDFAction* action = m_formManager->getAction(PDFAnnotationAdditionalActions::Default, getFormWidget()))
+    else if (const PDFAction* defaultAction = m_formManager->getAction(PDFAnnotationAdditionalActions::Default, getFormWidget()))
     {
-        emit m_formManager->actionTriggered(action);
+        emit m_formManager->actionTriggered(defaultAction);
     }
 }
 
@@ -2707,14 +2707,14 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
 
     if (edit)
     {
-        pdf::PDFPainterStateGuard guard(painter);
+        pdf::PDFPainterStateGuard guard2(painter);
         painter->setPen(getAdjustedColor(Qt::black));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(parameters.boundingRectangle);
     }
 
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
-    painter->setWorldMatrix(matrix, true);
+    painter->setWorldTransform(QTransform(matrix), true);
     painter->setPen(getAdjustedColor(m_textColor));
     painter->setFont(m_font);
 
@@ -2739,7 +2739,7 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
 
         if (edit && m_currentIndex == i)
         {
-            pdf::PDFPainterStateGuard guard(painter);
+            pdf::PDFPainterStateGuard guard2(painter);
             painter->setBrush(Qt::NoBrush);
             painter->setPen(Qt::DotLine);
             painter->drawRect(rect);

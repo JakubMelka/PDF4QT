@@ -1468,7 +1468,7 @@ void PDFAnnotationManager::drawAnnotationDirect(const PageAnnotation& annotation
     {
         PDFPainterStateGuard guard(painter);
         painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+        painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
         AnnotationDrawParameters parameters;
         parameters.painter = painter;
         parameters.annotation = annotation.annotation.data();
@@ -1758,8 +1758,8 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
     // Show context menu?
     if (event->button() == Qt::RightButton)
     {
-        PDFWidget* widget = m_proxy->getWidget();
-        std::vector<PDFInteger> currentPages = widget->getDrawWidget()->getCurrentPages();
+        PDFWidget* pdfWidget = m_proxy->getWidget();
+        std::vector<PDFInteger> currentPages = pdfWidget->getDrawWidget()->getCurrentPages();
 
         if (!hasAnyPageAnnotation(currentPages))
         {
@@ -1797,7 +1797,7 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
 
         if (m_editableAnnotation.isValid())
         {
-            QMenu menu(tr("Annotation"), widget);
+            QMenu menu(tr("Annotation"), pdfWidget);
             QAction* showPopupAction = menu.addAction(tr("Show Popup Window"));
             QAction* copyAction = menu.addAction(tr("Copy to Multiple Pages"));
             QAction* editAction = menu.addAction(tr("Edit"));
@@ -1807,7 +1807,7 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
             connect(editAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onEditAnnotation);
             connect(deleteAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onDeleteAnnotation);
 
-            m_editableAnnotationGlobalPosition = widget->mapToGlobal(event->pos());
+            m_editableAnnotationGlobalPosition = pdfWidget->mapToGlobal(event->pos());
             menu.exec(m_editableAnnotationGlobalPosition);
         }
     }
@@ -2167,7 +2167,7 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
             title = markupAnnotation->getSubject();
         }
 
-        QString dateTimeString = markupAnnotation->getCreationDate().toLocalTime().toString(Qt::SystemLocaleLongDate);
+        QString dateTimeString = QLocale::system().toString(markupAnnotation->getCreationDate().toLocalTime(), QLocale::LongFormat);
         title = QString("%1 (%2)").arg(title, dateTimeString).trimmed();
 
         groupBox->setStyleSheet(style);
@@ -2899,18 +2899,18 @@ void PDFHighlightAnnotation::draw(AnnotationDrawParameters& parameters) const
                 bool leadingEdge = true;
                 for (PDFReal x = lineGeometryInfo.transformedLine.p1().x(); x < lineGeometryInfo.transformedLine.p2().x(); x+= markSize)
                 {
-                    QLineF line;
+                    QLineF edgeLine;
                     if (leadingEdge)
                     {
-                        line = QLineF(x, 0.0, x + markSize, markSize);
+                        edgeLine = QLineF(x, 0.0, x + markSize, markSize);
                     }
                     else
                     {
                         // Falling edge
-                        line = QLineF(x, markSize, x + markSize, 0.0);
+                        edgeLine = QLineF(x, markSize, x + markSize, 0.0);
                     }
 
-                    QLineF transformedLine = lineGeometryInfo.LCStoGCS.map(line);
+                    QLineF transformedLine = lineGeometryInfo.LCStoGCS.map(edgeLine);
                     painter.drawLine(transformedLine);
                     leadingEdge = !leadingEdge;
                 }

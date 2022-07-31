@@ -614,18 +614,18 @@ void PDFPublicKeySignatureHandler::verifyCertificate(PDFSignatureVerificationRes
 
                     // We will add certificate info for all certificates
                     const int count = sk_X509_num(certificates);
-                    for (int i = 0; i < count; ++i)
+                    for (int ii = 0; ii < count; ++ii)
                     {
-                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(certificates, i)));
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(certificates, ii)));
                     }
                 }
                 else
                 {
                     STACK_OF(X509)* validChain = X509_STORE_CTX_get0_chain(context);
                     const int count = sk_X509_num(validChain);
-                    for (int i = 0; i < count; ++i)
+                    for (int ii = 0; ii < count; ++ii)
                     {
-                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, i)));
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, ii)));
                     }
                 }
                 X509_STORE_CTX_cleanup(context);
@@ -754,11 +754,11 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
             if (BIO* dataBio = PKCS7_dataInit(pkcs7, inputBuffer))
             {
                 // Now, we must read from bio to calculate digests (digest is returned)
-                std::array<char, 16384> buffer = { };
+                std::array<char, 16384> bioReadBuffer = { };
                 int bytesRead = 0;
                 do
                 {
-                    bytesRead = BIO_read(dataBio, buffer.data(), int(buffer.size()));
+                    bytesRead = BIO_read(dataBio, bioReadBuffer.data(), int(bioReadBuffer.size()));
                 } while (bytesRead > 0);
 
                 STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
@@ -1185,18 +1185,18 @@ void PDFSignatureHandler_ETSI_base::verifyCertificateCAdES(PDFSignatureVerificat
 
                     // We will add certificate info for all certificates
                     const int count = sk_X509_num(usedCertificates);
-                    for (int i = 0; i < count; ++i)
+                    for (int ii = 0; ii < count; ++ii)
                     {
-                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(usedCertificates, i)));
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(usedCertificates, ii)));
                     }
                 }
                 else
                 {
                     STACK_OF(X509)* validChain = X509_STORE_CTX_get0_chain(context);
                     const int count = sk_X509_num(validChain);
-                    for (int i = 0; i < count; ++i)
+                    for (int ii = 0; ii < count; ++ii)
                     {
-                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, i)));
+                        result.addCertificateInfo(getCertificateInfo(sk_X509_value(validChain, ii)));
                     }
                 }
                 X509_STORE_CTX_cleanup(context);
@@ -1702,8 +1702,8 @@ void PDFCertificateInfo::serialize(QDataStream& stream) const
 
 void PDFCertificateInfo::deserialize(QDataStream& stream)
 {
-    int persist_version = 0;
-    stream >> persist_version;
+    int persistVersionDeserialized = 0;
+    stream >> persistVersionDeserialized;
     stream >> m_version;
     stream >> m_keySize;
     stream >> m_publicKey;
@@ -1808,8 +1808,8 @@ void PDFCertificateStore::CertificateEntry::serialize(QDataStream& stream) const
 
 void PDFCertificateStore::CertificateEntry::deserialize(QDataStream& stream)
 {
-    int persist_version = 0;
-    stream >> persist_version;
+    int persistVersionDeserialized = 0;
+    stream >> persistVersionDeserialized;
     stream >> type;
     stream >> info;
 }
@@ -1932,8 +1932,8 @@ void PDFCertificateStore::serialize(QDataStream& stream) const
 
 void PDFCertificateStore::deserialize(QDataStream& stream)
 {
-    int persist_version = 0;
-    stream >> persist_version;
+    int persistVersionDeserialized = 0;
+    stream >> persistVersionDeserialized;
     stream >> m_certificates;
 }
 

@@ -9945,9 +9945,9 @@ private:
     {
         void translate(PDFReal dx, PDFReal dy) { nominalExtent.translate(dx, dy); }
 
-        void updatePresence(xfa::XFA_BaseNode::PRESENCE presence)
+        void updatePresence(xfa::XFA_BaseNode::PRESENCE nodePresence)
         {
-            switch (presence)
+            switch (nodePresence)
             {
                 case xfa::XFA_BaseNode::PRESENCE::Visible:
                     break;
@@ -11670,10 +11670,10 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
                         xfaData["template"] = m_document->getDecodedStream(xfaObject.getStream());
                     }
 
-                    QDomDocument document;
-                    if (document.setContent(xfaData["template"]))
+                    QDomDocument templateDocument;
+                    if (templateDocument.setContent(xfaData["template"]))
                     {
-                        m_template = xfa::XFA_template::parse(document.firstChildElement("template"));
+                        m_template = xfa::XFA_template::parse(templateDocument.firstChildElement("template"));
                     }
                 }
                 catch (const PDFException&)
@@ -11715,7 +11715,7 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
 
     PDFPainterStateGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->translate(0, page->getMediaBox().height());
     painter->scale(1.0, -1.0);
     painter->fillRect(page->getMediaBox(), Qt::white);
@@ -11723,7 +11723,7 @@ void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
     const LayoutItems& items = it->second;
     for (const LayoutItem& item : items)
     {
-        PDFPainterStateGuard guard(painter);
+        PDFPainterStateGuard guard2(painter);
         drawItemDraw(item.draw, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
         drawItemField(item.field, errors, item.nominalExtent, item.paragraphSettingsIndex, item.captionParagraphSettingsIndex, painter);
         drawItemSubform(item.subform, errors, item.nominalExtent, painter);
@@ -12296,10 +12296,10 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
                     font.setHintingPreference(QFont::PreferNoHinting);
                     charFormat.setFont(font, QTextCharFormat::FontPropertiesAll);
 
-                    QTextCursor cursor(block);
-                    cursor.setPosition(block.position() + formatRange.start, QTextCursor::MoveAnchor);
-                    cursor.setPosition(block.position() + formatRange.start + formatRange.length, QTextCursor::KeepAnchor);
-                    cursor.mergeCharFormat(charFormat);
+                    QTextCursor blockCursor(block);
+                    blockCursor.setPosition(block.position() + formatRange.start, QTextCursor::MoveAnchor);
+                    blockCursor.setPosition(block.position() + formatRange.start + formatRange.length, QTextCursor::KeepAnchor);
+                    blockCursor.mergeCharFormat(charFormat);
                 }
 
                 block = block.next();
@@ -12336,8 +12336,8 @@ void PDFXFAEngineImpl::drawUiTextEdit(const xfa::XFA_textEdit* textEdit,
                 break;
             }
 
-            QString text = QString(text[i]);
-            painter->drawText(combRect, Qt::AlignCenter, text);
+            QString textLine = QString(text[i]);
+            painter->drawText(combRect, Qt::AlignCenter, textLine);
 
             combRect.translate(combWidth, 0.0);
         }

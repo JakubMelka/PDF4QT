@@ -358,7 +358,7 @@ void PDFCreatePCElementImageTool::drawPage(QPainter* painter,
 
     {
         PDFPainterStateGuard guard(painter);
-        painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+        painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setPen(Qt::DotLine);
         painter->setBrush(Qt::NoBrush);
@@ -492,7 +492,7 @@ void PDFCreatePCElementDotTool::drawPage(QPainter* painter,
     QPointF point = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(m_element->getPen());
     painter->setBrush(m_element->getBrush());
@@ -708,7 +708,7 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
         parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
         parameters.invertColors = getProxy()->getFeatures().testFlag(PDFRenderer::InvertColors);
 
-        painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+        painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
         m_textEditWidget->draw(parameters, true);
     }
 }

@@ -371,17 +371,17 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
                     std::swap(pointA, pointB);
                 }
 
-                QRectF rect = boundingBoxPath.controlPointRect();
+                QRectF boundingBoxPathBBRect = boundingBoxPath.controlPointRect();
 
                 // If start point is above the text block, move start point to the left.
-                if (rect.bottom() < pointA.y())
+                if (boundingBoxPathBBRect.bottom() < pointA.y())
                 {
-                    pointA.setX(rect.left());
+                    pointA.setX(boundingBoxPathBBRect.left());
                     isTopPointAboveText = true;
                 }
-                if (rect.top() > pointB.y())
+                if (boundingBoxPathBBRect.top() > pointB.y())
                 {
-                    pointB.setX(rect.right());
+                    pointB.setX(boundingBoxPathBBRect.right());
                     isBottomPointBelowText = true;
                 }
             }

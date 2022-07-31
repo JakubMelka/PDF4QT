@@ -244,7 +244,7 @@ void PDFDiff::performPageMatching(const std::vector<PDFDiffPageContext>& leftPre
         auto it = pageMatches.find(left.pageIndex);
         if (it != pageMatches.cend())
         {
-            return it->second == right.pageIndex;
+            return it->second == static_cast<size_t>(right.pageIndex);
         }
 
         return false;

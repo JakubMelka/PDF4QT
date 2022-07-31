@@ -202,10 +202,10 @@ void PDFAlgorithmLongestCommonSubsequence<Iterator, Comparator>::perform()
         const size_t index1 = i1 - 1;
         const size_t index2 = i2 - 1;
 
-        auto it1 = std::next(m_it1, index1);
-        auto it2 = std::next(m_it2, index2);
+        auto cit1 = std::next(m_it1, index1);
+        auto cit2 = std::next(m_it2, index2);
 
-        if (m_comparator(*it1, *it2))
+        if (m_comparator(*cit1, *cit2))
         {
             item.index1 = index1;
             item.index2 = index2;

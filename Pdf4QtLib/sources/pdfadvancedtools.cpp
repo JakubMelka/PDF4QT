@@ -439,7 +439,7 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
 
     QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
 
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
     QPen pen(m_strokeColor);
     QBrush brush(m_fillColor, Qt::SolidPattern);
@@ -552,7 +552,7 @@ void PDFCreateEllipseTool::drawPage(QPainter* painter,
 
     QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
 
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
     QPen pen(m_strokeColor);
     QBrush brush(m_fillColor, Qt::SolidPattern);
@@ -624,7 +624,7 @@ void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
         return;
     }
 
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
     QPen pen(m_strokeColor);
     pen.setWidthF(m_penWidth);
@@ -791,7 +791,7 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
     const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
     QRectF rectangle = m_stampAnnotation.getRectangle();
     QMatrix matrix = getProxy()->getAnnotationManager()->prepareTransformations(pagePointToDevicePointMatrix, painter->device(), m_stampAnnotation.getFlags(), page, rectangle);
-    painter->setWorldMatrix(matrix, true);
+    painter->setWorldTransform(QTransform(matrix), true);
 
     AnnotationDrawParameters parameters;
     parameters.painter = painter;

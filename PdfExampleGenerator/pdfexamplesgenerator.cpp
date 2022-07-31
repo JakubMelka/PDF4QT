@@ -154,45 +154,45 @@ void PDFExamplesGenerator::generateAnnotationsExample()
     builder.createAnnotationSquare(page5, QRectF(50, 250, 50, 50), 3.0, Qt::green, QColor(), "Title3", "Subject3", "Contents - green filling");
 
     {
-        pdf::PDFObjectReference page5 = builder.appendPage(QRectF(0, 0, 400, 400));
+        pdf::PDFObjectReference page5a = builder.appendPage(QRectF(0, 0, 400, 400));
 
         {
-            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(50, 50, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
+            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5a, QRectF(50, 50, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
             builder.setAnnotationBorderStyle(annotation, pdf::PDFAnnotationBorder::Style::Solid, 2.718);
             builder.setAnnotationColor(annotation, Qt::black);
             builder.updateAnnotationAppearanceStreams(annotation);
         }
 
         {
-            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(50, 150, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
+            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5a, QRectF(50, 150, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
             builder.setAnnotationBorderStyle(annotation, pdf::PDFAnnotationBorder::Style::Underline, 2.718);
             builder.setAnnotationColor(annotation, Qt::black);
             builder.updateAnnotationAppearanceStreams(annotation);
         }
 
         {
-            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(50, 250, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
+            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5a, QRectF(50, 250, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
             builder.setAnnotationBorderStyle(annotation, pdf::PDFAnnotationBorder::Style::Inset, 2.718);
             builder.setAnnotationColor(annotation, Qt::black);
             builder.updateAnnotationAppearanceStreams(annotation);
         }
 
         {
-            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(150, 50, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
+            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5a, QRectF(150, 50, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
             builder.setAnnotationBorderStyle(annotation, pdf::PDFAnnotationBorder::Style::Beveled, 2.718);
             builder.setAnnotationColor(annotation, Qt::black);
             builder.updateAnnotationAppearanceStreams(annotation);
         }
 
         {
-            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(150, 150, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
+            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5a, QRectF(150, 150, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
             builder.setAnnotationBorderStyle(annotation, pdf::PDFAnnotationBorder::Style::Dashed, 2.718);
             builder.setAnnotationColor(annotation, Qt::black);
             builder.updateAnnotationAppearanceStreams(annotation);
         }
 
         {
-            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5, QRectF(150, 250, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
+            pdf::PDFObjectReference annotation = builder.createAnnotationSquare(page5a, QRectF(150, 250, 50, 50), 3.0, Qt::green, Qt::red, "Title1", "Subject1", "Contents - green filling, red boundary");
             builder.setAnnotationBorder(annotation, 5.0, 3.0, 2.0);
             builder.setAnnotationColor(annotation, Qt::black);
             builder.updateAnnotationAppearanceStreams(annotation);
@@ -244,33 +244,33 @@ void PDFExamplesGenerator::generateAnnotationsExample()
 
     pdf::PDFObjectReference page13 = builder.appendPage(QRectF(0, 0, 400, 400));
     {
-        QPolygonF polygon;
-        polygon << QPointF(50, 50);
-        polygon << QPointF(50, 100);
-        polygon << QPointF(100, 50);
-        builder.createAnnotationInk(page13, polygon, 2.0, Qt::red, "Title", "Subject", "Contents");
+        QPolygonF polygonInk;
+        polygonInk << QPointF(50, 50);
+        polygonInk << QPointF(50, 100);
+        polygonInk << QPointF(100, 50);
+        builder.createAnnotationInk(page13, polygonInk, 2.0, Qt::red, "Title", "Subject", "Contents");
     }
     {
-        QPolygonF polygon;
-        polygon << QPointF(50, 50);
-        polygon << QPointF(50, 100);
-        polygon << QPointF(100, 50);
-        polygon.translate(150, 0);
-        builder.createAnnotationInk(page13, polygon, 2.0, Qt::red, "Title", "Subject", "Contents");
+        QPolygonF polygonInk;
+        polygonInk << QPointF(50, 50);
+        polygonInk << QPointF(50, 100);
+        polygonInk << QPointF(100, 50);
+        polygonInk.translate(150, 0);
+        builder.createAnnotationInk(page13, polygonInk, 2.0, Qt::red, "Title", "Subject", "Contents");
     }
 
     {
-        pdf::Polygons polygons;
-        QPolygonF polygon;
-        polygon << QPointF(50, 50);
-        polygon << QPointF(50, 100);
-        polygon << QPointF(100, 50);
-        polygon << QPointF(50, 50);
-        polygon.translate(0, 150);
-        polygons.push_back(polygon);
-        polygon.translate(150, 0);
-        polygons.push_back(polygon);
-        builder.createAnnotationInk(page13, polygons, 2.0, Qt::red, "Title", "Subject", "Contents");
+        pdf::Polygons polygonInk;
+        QPolygonF polygonPart;
+        polygonPart << QPointF(50, 50);
+        polygonPart << QPointF(50, 100);
+        polygonPart << QPointF(100, 50);
+        polygonPart << QPointF(50, 50);
+        polygonPart.translate(0, 150);
+        polygonInk.push_back(polygonPart);
+        polygonPart.translate(150, 0);
+        polygonInk.push_back(polygonPart);
+        builder.createAnnotationInk(page13, polygonInk, 2.0, Qt::red, "Title", "Subject", "Contents");
     }
 
     pdf::PDFObjectReference page14 = builder.appendPage(QRectF(0, 0, 400, 400));

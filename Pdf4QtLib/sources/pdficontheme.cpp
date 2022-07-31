@@ -82,7 +82,7 @@ void PDFIconTheme::prepareTheme()
                     stream.setGenerateByteOrderMark(true);
                     for (const QString& text : infoList)
                     {
-                        stream << text << endl;
+                        stream << text << Qt::endl;
                     }
                 }
                 file.close();

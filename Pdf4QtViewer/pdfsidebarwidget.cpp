@@ -441,14 +441,14 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
         QDateTime signingDate = signature.getSignatureDate();
         if (signingDate.isValid())
         {
-            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(QString("Signing date/time: %2").arg(signingDate.toString(Qt::DefaultLocaleShortDate))));
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(QString("Signing date/time: %2").arg(QLocale::system().toString(signingDate, QLocale::ShortFormat))));
             item->setIcon(0, infoIcon);
         }
 
         QDateTime timestampDate = signature.getTimestampDate();
         if (timestampDate.isValid())
         {
-            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(QString("Timestamp: %2").arg(timestampDate.toString(Qt::DefaultLocaleShortDate))));
+            QTreeWidgetItem* item = new QTreeWidgetItem(rootItem, QStringList(QString("Timestamp: %2").arg(QLocale::system().toString(timestampDate, QLocale::ShortFormat))));
             item->setIcon(0, infoIcon);
         }
 
@@ -529,13 +529,13 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
 
                 if (notValidBefore.isValid())
                 {
-                    QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("Valid from: %2").arg(notValidBefore.toString(Qt::DefaultLocaleShortDate))));
+                    QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("Valid from: %2").arg(QLocale::system().toString(notValidBefore, QLocale::ShortFormat))));
                     item->setIcon(0, infoIcon);
                 }
 
                 if (notValidAfter.isValid())
                 {
-                    QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("Valid to: %2").arg(notValidAfter.toString(Qt::DefaultLocaleShortDate))));
+                    QTreeWidgetItem* item = new QTreeWidgetItem(certRoot, QStringList(QString("Valid to: %2").arg(QLocale::system().toString(notValidAfter, QLocale::ShortFormat))));
                     item->setIcon(0, infoIcon);
                 }
 
@@ -693,10 +693,10 @@ void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
 {
     if (QTreeWidgetItem* item = ui->signatureTreeWidget->itemAt(pos))
     {
-        QVariant data = item->data(0, Qt::UserRole);
-        if (data.isValid())
+        QVariant itemData = item->data(0, Qt::UserRole);
+        if (itemData.isValid())
         {
-            const pdf::PDFCertificateInfo& info = m_certificateInfos.at(data.toInt());
+            const pdf::PDFCertificateInfo& info = m_certificateInfos.at(itemData.toInt());
             if (!m_certificateStore->contains(info))
             {
                 QMenu menu;

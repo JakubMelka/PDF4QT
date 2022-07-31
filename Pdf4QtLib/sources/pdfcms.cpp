@@ -825,10 +825,10 @@ cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent
                         s2.x0 = low;
                         s2.x1 = high;
 
-                        for (cmsUInt32Number i = 0; i < gridPoints; ++i)
+                        for (cmsUInt32Number iPt = 0; iPt < gridPoints; ++iPt)
                         {
-                            const cmsFloat32Number x = i * factor;
-                            s2.SampledPoints[i] = cmsEvalToneCurveFloat(curve, interpolate(x, 0.0, 1.0, low, high));
+                            const cmsFloat32Number x = iPt * factor;
+                            s2.SampledPoints[iPt] = cmsEvalToneCurveFloat(curve, interpolate(x, 0.0, 1.0, low, high));
                         }
 
                         s3.Type = type;

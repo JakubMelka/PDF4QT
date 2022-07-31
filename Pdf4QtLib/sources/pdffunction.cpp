@@ -326,8 +326,6 @@ PDFFunctionPtr PDFFunction::createFunctionImpl(const PDFDocument* document, cons
             throw PDFException(PDFParsingContext::tr("Invalid function type: %1.").arg(functionType));
         }
     }
-
-    return nullptr;
 }
 
 PDFSampledFunction::PDFSampledFunction(uint32_t m, uint32_t n,

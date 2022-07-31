@@ -343,9 +343,9 @@ void PDFObjectClassifier::classify(const PDFDocument* document)
             if (const PDFDictionary* xobjectDictionary = document->getDictionaryFromObject(resourcesDictionary->get("XObject")))
             {
                 const size_t count = xobjectDictionary->getCount();
-                for (size_t i = 0; i < count; ++i)
+                for (size_t xObjectIndex = 0; xObjectIndex < count; ++xObjectIndex)
                 {
-                    const PDFObject& item = xobjectDictionary->getValue(i);
+                    const PDFObject& item = xobjectDictionary->getValue(xObjectIndex);
                     if (item.isReference() && hasObject(item.getReference()))
                     {
                         if (const PDFDictionary* xobjectItemDictionary = document->getDictionaryFromObject(item))

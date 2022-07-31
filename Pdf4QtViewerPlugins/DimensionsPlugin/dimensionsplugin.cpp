@@ -236,7 +236,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 painter->setPen(qMove(pen));
                 painter->setBrush(QBrush(brushColor, isArea ? Qt::SolidPattern : Qt::DiagCrossPattern));
 
-                painter->setMatrix(pagePointToDevicePointMatrix, true);
+                painter->setTransform(QTransform(pagePointToDevicePointMatrix), true);
                 painter->drawPolygon(polygon.data(), int(polygon.size()), Qt::OddEvenFill);
                 painter->restore();
 

@@ -358,9 +358,9 @@ void OutputPreviewWidget::paintEvent(QPaintEvent* event)
                         const int textWidth = painter.fontMetrics().horizontalAdvance(textCoverage);
                         const int textStart = textRight - textWidth;
 
-                        QRect textRect(textStart, yCoordinate - halfHeight, textWidth + 1, rowHeight);
+                        QRect currentTextRect(textStart, yCoordinate - halfHeight, textWidth + 1, rowHeight);
                         painter.setPen(Qt::black);
-                        painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, textCoverage);
+                        painter.drawText(currentTextRect, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, textCoverage);
                     }
                 }
 

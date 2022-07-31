@@ -655,14 +655,14 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
 
     if (edit)
     {
-        pdf::PDFPainterStateGuard guard(painter);
+        pdf::PDFPainterStateGuard guard2(painter);
         painter->setPen(getAdjustedColor(Qt::black));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(parameters.boundingRectangle);
     }
 
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
-    painter->setWorldMatrix(createTextBoxTransformMatrix(edit), true);
+    painter->setWorldTransform(QTransform(createTextBoxTransformMatrix(edit)), true);
     painter->setPen(getAdjustedColor(Qt::black));
 
     if (isComb())

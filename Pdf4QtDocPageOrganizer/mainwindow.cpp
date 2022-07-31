@@ -173,7 +173,7 @@ MainWindow::MainWindow(QWidget* parent) :
         ui->menuToolbars->addAction(toolbar->toggleViewAction());
     }
 
-    connect(&m_mapper, QOverload<int>::of(&QSignalMapper::mapped), this, &MainWindow::onMappedActionTriggered);
+    connect(&m_mapper, &QSignalMapper::mappedInt, this, &MainWindow::onMappedActionTriggered);
     connect(ui->documentItemsView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::updateActions);
 
     QList<QAction*> actions = findChildren<QAction*>();
@@ -743,11 +743,11 @@ void MainWindow::performOperation(Operation operation)
                     }
 
                     pdf::PDFDocumentWriter writer(nullptr);
-                    pdf::PDFOperationResult result = writer.write(filename, document, isDocumentFileAlreadyExisting);
+                    pdf::PDFOperationResult writeResult = writer.write(filename, document, isDocumentFileAlreadyExisting);
 
-                    if (!result)
+                    if (!writeResult)
                     {
-                        QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
+                        QMessageBox::critical(this, tr("Error"), writeResult.getErrorMessage());
                         return;
                     }
                 }
@@ -808,11 +808,14 @@ void MainWindow::performOperation(Operation operation)
         {
             QModelIndex rootIndex = ui->documentItemsView->rootIndex();
 
-            QModelIndex firstIndex = rootIndex.child(0, 0);
-            QModelIndex lastIndex = rootIndex.child(rootIndex.model()->rowCount() - 1, 0);
-            QItemSelection selection(firstIndex, lastIndex);
+            if (rootIndex.isValid())
+            {
+                QModelIndex firstIndex = rootIndex.model()->index(0, 0, rootIndex);
+                QModelIndex lastIndex = rootIndex.model()->index(rootIndex.model()->rowCount() - 1, 0, rootIndex);
+                QItemSelection selection(firstIndex, lastIndex);
 
-            ui->documentItemsView->selectionModel()->select(selection, QItemSelectionModel::Toggle);
+                ui->documentItemsView->selectionModel()->select(selection, QItemSelectionModel::Toggle);
+            }
             break;
         }
 

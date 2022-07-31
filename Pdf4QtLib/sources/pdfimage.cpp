@@ -139,18 +139,18 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             }
 
             // We must alter decode, because it has opposite meaning (it is transparency)
-            std::vector<PDFReal> decode = softMaskImage.m_imageData.getDecode();
-            if (decode.size() < 2)
+            std::vector<PDFReal> adjustedDecode = softMaskImage.m_imageData.getDecode();
+            if (adjustedDecode.size() < 2)
             {
-                decode = { 0.0, 1.0};
+                adjustedDecode = { 0.0, 1.0};
             }
-            std::swap(decode[0], decode[1]);
+            std::swap(adjustedDecode[0], adjustedDecode[1]);
 
             // Create soft mask from image
             maskingType = PDFImageData::MaskingType::SoftMask;
             image.m_softMask = qMove(softMaskImage.m_imageData);
             image.m_softMask.setMaskingType(PDFImageData::MaskingType::None);
-            image.m_softMask.setDecode(qMove(decode));
+            image.m_softMask.setDecode(qMove(adjustedDecode));
         }
     }
     else if (dictionary->hasKey("SMask"))
@@ -409,12 +409,12 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             opj_set_warning_handler(codec, warningCallback, &imageData);
             opj_set_error_handler(codec, errorCallback, &imageData);
 
-            opj_stream_t* stream = opj_stream_create(content.size(), OPJ_TRUE);
-            opj_stream_set_user_data(stream, &imageData, nullptr);
-            opj_stream_set_user_data_length(stream, content.size());
-            opj_stream_set_read_function(stream, &PDFJPEG2000ImageData::read);
-            opj_stream_set_seek_function(stream, &PDFJPEG2000ImageData::seek);
-            opj_stream_set_skip_function(stream, &PDFJPEG2000ImageData::skip);
+            opj_stream_t* opjStream = opj_stream_create(content.size(), OPJ_TRUE);
+            opj_stream_set_user_data(opjStream, &imageData, nullptr);
+            opj_stream_set_user_data_length(opjStream, content.size());
+            opj_stream_set_read_function(opjStream, &PDFJPEG2000ImageData::read);
+            opj_stream_set_seek_function(opjStream, &PDFJPEG2000ImageData::seek);
+            opj_stream_set_skip_function(opjStream, &PDFJPEG2000ImageData::skip);
 
             // Reset the stream position, clear the data
             imageData.position = 0;
@@ -427,13 +427,13 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             {
                 // Try to read the header
 
-                if (opj_read_header(stream, codec, &jpegImage))
+                if (opj_read_header(opjStream, codec, &jpegImage))
                 {
                     if (opj_set_decode_area(codec, jpegImage, decompressParameters.DA_x0, decompressParameters.DA_y0, decompressParameters.DA_x1, decompressParameters.DA_y1))
                     {
-                        if (opj_decode(codec, stream, jpegImage))
+                        if (opj_decode(codec, opjStream, jpegImage))
                         {
-                            if (opj_end_decompress(codec, stream))
+                            if (opj_end_decompress(codec, opjStream))
                             {
 
                             }
@@ -442,10 +442,10 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                 }
             }
 
-            opj_stream_destroy(stream);
+            opj_stream_destroy(opjStream);
             opj_destroy_codec(codec);
 
-            stream = nullptr;
+            opjStream = nullptr;
             codec = nullptr;
 
             // If we have a valid image, then adjust it

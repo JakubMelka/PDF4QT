@@ -676,12 +676,12 @@ void PDFViewerSettingsDialog::updateTrustedCertificatesTable()
 
         if (notValidBefore.isValid())
         {
-            ui->trustedCertificateStoreTableWidget->setItem(i, 3, new QTableWidgetItem(notValidBefore.toString(Qt::DefaultLocaleShortDate)));
+            ui->trustedCertificateStoreTableWidget->setItem(i, 3, new QTableWidgetItem(QLocale::system().toString(notValidBefore, QLocale::ShortFormat)));
         }
 
         if (notValidAfter.isValid())
         {
-            ui->trustedCertificateStoreTableWidget->setItem(i, 4, new QTableWidgetItem(notValidAfter.toString(Qt::DefaultLocaleShortDate)));
+            ui->trustedCertificateStoreTableWidget->setItem(i, 4, new QTableWidgetItem(QLocale::system().toString(notValidAfter, QLocale::ShortFormat)));
         }
     }
 

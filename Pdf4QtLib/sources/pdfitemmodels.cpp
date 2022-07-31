@@ -678,11 +678,11 @@ QVariant PDFThumbnailsItemModel::data(const QModelIndex& index, int role) const
         return QVariant();
     }
 
-    const int page = index.row();
+    const int pageIndex = index.row();
     switch (role)
     {
         case Qt::DisplayRole:
-            return QString::number(page + 1);
+            return QString::number(pageIndex + 1);
 
         case Qt::DecorationRole:
         {

@@ -476,11 +476,11 @@ PDFObject PDFObjectManipulator::removeDuplicitReferencesInArrays(PDFObject objec
             PDFArray array;
             std::set<PDFObjectReference> usedReferences;
 
-            for (const PDFObject& object : *object.getArray())
+            for (const PDFObject& arrayObject : *object.getArray())
             {
-                if (object.isReference())
+                if (arrayObject.isReference())
                 {
-                    PDFObjectReference reference = object.getReference();
+                    PDFObjectReference reference = arrayObject.getReference();
                     if (!usedReferences.count(reference))
                     {
                         usedReferences.insert(reference);
@@ -489,7 +489,7 @@ PDFObject PDFObjectManipulator::removeDuplicitReferencesInArrays(PDFObject objec
                 }
                 else
                 {
-                    array.appendItem(removeDuplicitReferencesInArrays(object));
+                    array.appendItem(removeDuplicitReferencesInArrays(arrayObject));
                 }
             }
 

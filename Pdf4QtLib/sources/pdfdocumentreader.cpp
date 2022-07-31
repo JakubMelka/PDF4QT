@@ -368,7 +368,6 @@ PDFDocumentReader::Result PDFDocumentReader::processSecurityHandler(const PDFObj
     if (encryptObject.isReference())
     {
         encryptObjectReference = encryptObject.getReference();
-        PDFObjectReference encryptObjectReference = encryptObject.getReference();
         if (static_cast<size_t>(encryptObjectReference.objectNumber) < objects.size() && objects[encryptObjectReference.objectNumber].generation == encryptObjectReference.generation)
         {
             encryptObject = objects[encryptObjectReference.objectNumber].object;
@@ -506,12 +505,12 @@ void PDFDocumentReader::processObjectStreams(PDFXRefTable* xrefTable, PDFObjectS
                 const PDFInteger offset = objectNumberAndOffset[i].second;
                 parser.seek(offset);
 
-                PDFObject object = parser.getObject();
+                PDFObject currentObject = parser.getObject();
                 auto predicate = [objectNumber, objectStreamReference](const PDFXRefTable::Entry& entry) -> bool { return entry.reference.objectNumber == objectNumber && entry.objectStream == objectStreamReference; };
                 if (std::find_if(objectStreamEntries.cbegin(), objectStreamEntries.cend(), predicate) != objectStreamEntries.cend())
                 {
                     QMutexLocker lock(&m_mutex);
-                    objects[objectNumber].object = qMove(object);
+                    objects[objectNumber].object = qMove(currentObject);
                 }
                 else
                 {

@@ -1775,9 +1775,9 @@ QByteArray PDFStandardSecurityHandler::createHash_r6(const QByteArray& input, co
             uint8_t byte = E[i];
 
             int currentRemainder = 1;
-            for (uint8_t i = 0; i < 8; ++i)
+            for (uint8_t iRemainder = 0; iRemainder < 8; ++iRemainder)
             {
-                if ((byte >> i) & 1)
+                if ((byte >> iRemainder) & 1)
                 {
                     remainderAccumulator += currentRemainder;
                 }
@@ -2444,7 +2444,7 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
 
                     openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
                     openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_X509_free);
+                    openssl_ptr<STACK_OF(X509)> certificates2(certificatesPtr, sk_X509_free);
 
                     for (const auto& recipientItem : recipients)
                     {

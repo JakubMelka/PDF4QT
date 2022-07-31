@@ -380,7 +380,7 @@ int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDoc
 
             if (showText)
             {
-                textStream << item.text << endl;
+                textStream << item.text << Qt::endl;
             }
         }
     }

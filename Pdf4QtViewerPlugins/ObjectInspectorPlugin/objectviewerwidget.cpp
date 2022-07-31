@@ -245,9 +245,9 @@ void ObjectViewerWidget::updateUi()
             }
             else
             {
-                QByteArray data = m_document->getDecodedStream(stream);
-                data.replace('\r', ' ');
-                QByteArray percentEncodedData = data.toPercentEncoding(m_printableCharacters);
+                QByteArray dataToBeAdjusted = m_document->getDecodedStream(stream);
+                dataToBeAdjusted.replace('\r', ' ');
+                QByteArray percentEncodedData = dataToBeAdjusted.toPercentEncoding(m_printableCharacters);
                 ui->contentTextBrowser->setText(QString::fromLatin1(percentEncodedData));
                 ui->stackedWidget->setCurrentWidget(ui->contentTextBrowserPage);
             }

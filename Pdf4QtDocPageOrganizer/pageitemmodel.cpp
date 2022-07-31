@@ -1070,9 +1070,9 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
     QDataStream stream(&serializedData, QIODevice::ReadOnly);
     while (!stream.atEnd())
     {
-        int row = -1;
-        stream >> row;
-        rows.push_back(row);
+        int currentRow = -1;
+        stream >> currentRow;
+        rows.push_back(currentRow);
     }
 
     std::sort(rows.begin(), rows.end());

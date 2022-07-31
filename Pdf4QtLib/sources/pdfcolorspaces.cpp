@@ -32,21 +32,6 @@
 namespace pdf
 {
 
-static PDFColorComponent getDeterminant(const PDFColorComponentMatrix_3x3& matrix)
-{
-    const PDFColorComponent a_11 = matrix.getValue(0, 0);
-    const PDFColorComponent a_12 = matrix.getValue(0, 1);
-    const PDFColorComponent a_13 = matrix.getValue(0, 2);
-    const PDFColorComponent a_21 = matrix.getValue(1, 0);
-    const PDFColorComponent a_22 = matrix.getValue(1, 1);
-    const PDFColorComponent a_23 = matrix.getValue(1, 2);
-    const PDFColorComponent a_31 = matrix.getValue(2, 0);
-    const PDFColorComponent a_32 = matrix.getValue(2, 1);
-    const PDFColorComponent a_33 = matrix.getValue(2, 2);
-
-    return -a_13* a_22 * a_31 + a_12 * a_23 * a_31 + a_13 * a_21 * a_32 - a_11 * a_23 * a_32 - a_12 * a_21 * a_33 + a_11 * a_22 * a_33;
-}
-
 PDFColorComponentMatrix_3x3 getInverseMatrix(const PDFColorComponentMatrix_3x3& matrix)
 {
     const PDFColorComponent a_11 = matrix.getValue(0, 0);
@@ -388,7 +373,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                         fillRGBBuffer(inputColors, outputColors.data(), intent, cms, reporter);
 
                         const unsigned char* transformedLine = outputColors.data();
-                        for (unsigned int i = 0; i < imageWidth; ++i)
+                        for (unsigned int ii = 0; ii < imageWidth; ++ii)
                         {
                             *outputLine++ = *transformedLine++;
                             *outputLine++ = *transformedLine++;
@@ -1144,7 +1129,6 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid color space."));
-    return PDFColorSpacePointer();
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
@@ -1210,7 +1194,6 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid color space."));
-    return PDFColorSpacePointer();
 }
 
 /// Conversion matrix from XYZ space to RGB space. Values are taken from this article:
@@ -2168,9 +2151,9 @@ QColor PDFSeparationColorSpace::getColor(const PDFColor& color, const PDFCMS* cm
 
     if (result)
     {
-        PDFColor color;
-        std::for_each(outputColor.cbegin(), outputColor.cend(), [&color](double value) { color.push_back(static_cast<float>(value)); });
-        return m_alternateColorSpace->getColor(color, cms, intent, reporter, false);
+        PDFColor inputColor;
+        std::for_each(outputColor.cbegin(), outputColor.cend(), [&inputColor](double value) { inputColor.push_back(static_cast<float>(value)); });
+        return m_alternateColorSpace->getColor(inputColor, cms, intent, reporter, false);
     }
     else
     {
@@ -2403,9 +2386,9 @@ QColor PDFDeviceNColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, 
 
     if (result)
     {
-        PDFColor color;
-        std::for_each(outputColor.cbegin(), outputColor.cend(), [&color](double value) { color.push_back(static_cast<float>(value)); });
-        return m_alternateColorSpace->getColor(color, cms, intent, reporter, false);
+        PDFColor inputColor2;
+        std::for_each(outputColor.cbegin(), outputColor.cend(), [&inputColor2](double value) { inputColor2.push_back(static_cast<float>(value)); });
+        return m_alternateColorSpace->getColor(inputColor2, cms, intent, reporter, false);
     }
     else
     {

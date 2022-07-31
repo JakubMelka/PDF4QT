@@ -282,7 +282,7 @@ void PDFPageContentElementRectangle::drawPage(QPainter* painter,
     }
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setPen(getPen());
     painter->setBrush(getBrush());
     painter->setRenderHint(QPainter::Antialiasing);
@@ -965,7 +965,7 @@ void PDFPageContentElementLine::drawPage(QPainter* painter,
     }
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setPen(getPen());
     painter->setBrush(getBrush());
     painter->setRenderHint(QPainter::Antialiasing);
@@ -1147,7 +1147,7 @@ void PDFPageContentImageElement::drawPage(QPainter* painter,
     }
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setRenderHint(QPainter::Antialiasing);
 
     if (m_renderer->isValid())
@@ -1274,7 +1274,7 @@ void PDFPageContentElementDot::drawPage(QPainter* painter,
     }
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(getPen());
     painter->setBrush(getBrush());
@@ -1362,7 +1362,7 @@ void PDFPageContentElementFreehandCurve::drawPage(QPainter* painter,
     }
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setPen(getPen());
     painter->setBrush(getBrush());
     painter->setRenderHint(QPainter::Antialiasing);
@@ -2133,11 +2133,11 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
             qreal yTop = representativeRect.bottom();
             for (PDFPageContentElement* element : manipulatedElements)
             {
-                const PDFInteger row = elementToRow[element];
-                const PDFInteger column = elementToColumn[element];
+                const PDFInteger currentRow = elementToRow[element];
+                const PDFInteger currentColumn = elementToColumn[element];
 
-                const qreal xOffset = cellOffsetX[column];
-                const qreal yOffset = cellOffsetY[row];
+                const qreal xOffset = cellOffsetX[currentColumn];
+                const qreal yOffset = cellOffsetY[currentRow];
 
                 QRectF boundingBox = element->getBoundingBox();
                 QPointF offset(xLeft + xOffset - boundingBox.left(), yTop - yOffset - boundingBox.bottom());
@@ -2395,7 +2395,7 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
     }
 
     PDFPainterStateGuard guard(painter);
-    painter->setWorldMatrix(pagePointToDevicePointMatrix, true);
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setPen(getPen());
     painter->setBrush(getBrush());
     painter->setFont(font);

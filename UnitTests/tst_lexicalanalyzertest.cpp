@@ -30,6 +30,11 @@
 
 #include <regex>
 
+#ifdef PDF4QT_COMPILER_MSVC
+#pragma warning(push)
+#pragma warning(disable:4125)
+#endif
+
 class LexicalAnalyzerTest : public QObject
 {
     Q_OBJECT
@@ -1152,6 +1157,10 @@ QString LexicalAnalyzerTest::getStringFromTokens(const std::vector<pdf::PDFLexic
 
     return QString("{ %1 }").arg(stringTokens.join(", "));
 }
+
+#ifdef PDF4QT_COMPILER_MSVC
+#pragma warning(pop)
+#endif
 
 QTEST_APPLESS_MAIN(LexicalAnalyzerTest)
 

@@ -87,8 +87,8 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     writeProperty("author", PDFToolTranslationContext::tr("Author"), info->author);
     writeProperty("creator", PDFToolTranslationContext::tr("Creator"), info->creator);
     writeProperty("producer", PDFToolTranslationContext::tr("Producer"), info->producer);
-    writeProperty("creation-date", PDFToolTranslationContext::tr("Creation date"), info->creationDate.toLocalTime().toString(options.outputDateFormat));
-    writeProperty("modified-date", PDFToolTranslationContext::tr("Modified date"), info->modifiedDate.toLocalTime().toString(options.outputDateFormat));
+    writeProperty("creation-date", PDFToolTranslationContext::tr("Creation date"), convertDateTimeToString(info->creationDate.toLocalTime(), options.outputDateFormat));
+    writeProperty("modified-date", PDFToolTranslationContext::tr("Modified date"), convertDateTimeToString(info->modifiedDate.toLocalTime(), options.outputDateFormat));
     writeProperty("version", PDFToolTranslationContext::tr("Version"), QString::fromLatin1(document.getVersion()));
 
     QString trapped;
@@ -155,7 +155,7 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
         {
             QString key = QString::fromLatin1(item.first);
             QVariant valueVariant = item.second;
-            QString value = (valueVariant.type() == QVariant::DateTime) ? valueVariant.toDateTime().toLocalTime().toString(options.outputDateFormat) : valueVariant.toString();
+            QString value = (valueVariant.type() == QVariant::DateTime) ? convertDateTimeToString(valueVariant.toDateTime().toLocalTime(), options.outputDateFormat) : valueVariant.toString();
             writeProperty("custom-property", key, value);
         }
     }

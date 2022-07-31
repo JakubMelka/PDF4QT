@@ -672,7 +672,7 @@ void PDFProgramController::performPrint()
             Q_ASSERT(page);
 
             QRectF mediaBox = page->getRotatedMediaBox();
-            QRectF paperRect = printer.paperRect();
+            QRectF paperRect = printer.pageLayout().fullRectPixels(printer.resolution());
             QSizeF scaledSize = mediaBox.size().scaled(paperRect.size(), Qt::KeepAspectRatio);
             mediaBox.setSize(scaledSize);
             mediaBox.moveCenter(paperRect.center());
@@ -1518,7 +1518,7 @@ void PDFProgramController::updateFileInfo(const QString& fileName)
     m_fileInfo.path = fileInfo.path();
     m_fileInfo.fileSize = fileInfo.size();
     m_fileInfo.writable = fileInfo.isWritable();
-    m_fileInfo.creationTime = fileInfo.created();
+    m_fileInfo.creationTime = fileInfo.birthTime();
     m_fileInfo.lastModifiedTime = fileInfo.lastModified();
     m_fileInfo.lastReadTime = fileInfo.lastRead();
 }
@@ -2050,13 +2050,13 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
         if (configFile.open(QFile::WriteOnly | QFile::Truncate))
         {
             QTextStream stream(&configFile);
-            stream << "TEMPLATE = aux" << endl << endl;
-            stream << "INSTALLER_NAME = $$PWD/instpdf4qt" << endl;
-            stream << "INPUT = $$PWD/config/config.xml $$PWD/packages" << endl;
-            stream << "pdfforqtinstaller.input = INPUT" << endl;
-            stream << "pdfforqtinstaller.output = $$INSTALLER_NAME" << endl;
-            stream << QString("pdfforqtinstaller.commands = %1/binarycreator -c $$PWD/config/config.xml -p $$PWD/packages ${QMAKE_FILE_OUT}").arg(binaryCreatorDirectory) << endl;
-            stream << "pdfforqtinstaller.CONFIG += target_predeps no_link combine" << endl << endl;
+            stream << "TEMPLATE = aux" << Qt::endl << Qt::endl;
+            stream << "INSTALLER_NAME = $$PWD/instpdf4qt" << Qt::endl;
+            stream << "INPUT = $$PWD/config/config.xml $$PWD/packages" << Qt::endl;
+            stream << "pdfforqtinstaller.input = INPUT" << Qt::endl;
+            stream << "pdfforqtinstaller.output = $$INSTALLER_NAME" << Qt::endl;
+            stream << QString("pdfforqtinstaller.commands = %1/binarycreator -c $$PWD/config/config.xml -p $$PWD/packages ${QMAKE_FILE_OUT}").arg(binaryCreatorDirectory) << Qt::endl;
+            stream << "pdfforqtinstaller.CONFIG += target_predeps no_link combine" << Qt::endl << Qt::endl;
             stream << "QMAKE_EXTRA_COMPILERS += pdfforqtinstaller";
             configFile.close();
         }

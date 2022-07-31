@@ -613,8 +613,6 @@ PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFObjectStorage* s
     {
         throw PDFException(PDFTranslationContext::tr("Expected page label dictionary."));
     }
-
-    return PDFPageLabel();
 }
 
 const PDFDocumentSecurityStore::SecurityStoreItem* PDFDocumentSecurityStore::getItem(const QByteArray& hash) const
@@ -646,10 +644,10 @@ PDFDocumentSecurityStore PDFDocumentSecurityStore::parse(const PDFObject& object
                 result.reserve(references.size());
                 for (const PDFObjectReference& reference : references)
                 {
-                    PDFObject object = document->getObjectByReference(reference);
-                    if (object.isStream())
+                    PDFObject objectWithStream = document->getObjectByReference(reference);
+                    if (objectWithStream.isStream())
                     {
-                        result.emplace_back(document->getDecodedStream(object.getStream()));
+                        result.emplace_back(document->getDecodedStream(objectWithStream.getStream()));
                     }
                 }
 

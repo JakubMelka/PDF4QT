@@ -85,12 +85,12 @@ void MainWindow::on_actionAdd_JBIG2_image_triggered()
         if (file.open(QFile::ReadOnly))
         {
             m_directory = QFileInfo(file).filePath();
-            QByteArray data = file.readAll();
+            QByteArray fileContentData = file.readAll();
             file.close();
 
             try
             {
-                pdf::PDFJBIG2Decoder decoder(data, QByteArray(), this);
+                pdf::PDFJBIG2Decoder decoder(fileContentData, QByteArray(), this);
 
                 QElapsedTimer timer;
                 timer.start();

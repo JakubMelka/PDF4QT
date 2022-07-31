@@ -37,10 +37,10 @@ PDFOptionalContentProperties PDFOptionalContentProperties::create(const PDFDocum
 
         for (const PDFObjectReference& reference : properties.m_allOptionalContentGroups)
         {
-            const PDFObject& object = document->getStorage().getObject(reference);
-            if (!object.isNull())
+            const PDFObject& currentObject = document->getStorage().getObject(reference);
+            if (!currentObject.isNull())
             {
-                properties.m_optionalContentGroups[reference] = PDFOptionalContentGroup::create(document, object);
+                properties.m_optionalContentGroups[reference] = PDFOptionalContentGroup::create(document, currentObject);
             }
         }
 
@@ -548,7 +548,6 @@ PDFOptionalContentMembershipObject PDFOptionalContentMembershipObject::create(co
                 {
                     // Something strange occured - either we should have an array, or we should have a reference to the OCG
                     throw PDFException(PDFTranslationContext::tr("Invalid optional content visibility expression."));
-                    return std::unique_ptr<Node>(nullptr);
                 }
             };
 

@@ -312,12 +312,12 @@ QVariant InkCoverageStatisticsModel::data(const QModelIndex& index, int role) co
             break;
         }
 
-        case Qt::BackgroundColorRole:
+        case Qt::BackgroundRole:
         {
             if (index.column() >= LastStandardColumn && getChannelColumn(index.column()) == ChannelColumnColorant)
             {
                 const int channelIndex = getChannelIndex(index.column());
-                return m_inkCoverageResults.sumInfo[channelIndex].color;
+                return QBrush(m_inkCoverageResults.sumInfo[channelIndex].color);
             }
 
             break;

@@ -170,14 +170,14 @@ PDFFileSpecification PDFFileSpecification::parse(const PDFObjectStorage* storage
                         const PDFArray* relatedFileArray = relatedFileArrayObject.getArray();
                         const size_t relatedFilesCount = relatedFileArray->getCount() / 2;
 
-                        RelatedFiles& relatedFiles = result.m_relatedFiles[key];
-                        relatedFiles.reserve(relatedFilesCount);
-                        for (size_t i = 0; i < relatedFilesCount; ++i)
+                        RelatedFiles& currentRelatedFiles = result.m_relatedFiles[key];
+                        currentRelatedFiles.reserve(relatedFilesCount);
+                        for (size_t ii = 0; ii < relatedFilesCount; ++ii)
                         {
                             RelatedFile relatedFile;
-                            relatedFile.name = loader.readString(relatedFileArray->getItem(2 * i));
-                            relatedFile.fileReference = loader.readReference(relatedFileArray->getItem(2 * i + 1));
-                            relatedFiles.emplace_back(qMove(relatedFile));
+                            relatedFile.name = loader.readString(relatedFileArray->getItem(2 * ii));
+                            relatedFile.fileReference = loader.readReference(relatedFileArray->getItem(2 * ii + 1));
+                            currentRelatedFiles.emplace_back(qMove(relatedFile));
                         }
                     }
                 }
@@ -499,9 +499,9 @@ PDFCollectionNavigator PDFCollectionNavigator::parse(const PDFObjectStorage* sto
         PDFObject layoutObject = storage->getObject(dictionary->get("Layout"));
         if (layoutObject.isArray())
         {
-            for (const PDFObject& object : *layoutObject.getArray())
+            for (const PDFObject& objectInLayourObjects : *layoutObject.getArray())
             {
-                result.m_layouts |= getLayout(object);
+                result.m_layouts |= getLayout(objectInLayourObjects);
             }
         }
         else

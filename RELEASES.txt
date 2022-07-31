@@ -1,4 +1,6 @@
 CURRENT:
+ - Issue #21: Table selection tool
+ - Issue #22: Solve compilation warnings
 
 V: 1.2.1 30.6.2022
  - Issue #17: Public key security handler

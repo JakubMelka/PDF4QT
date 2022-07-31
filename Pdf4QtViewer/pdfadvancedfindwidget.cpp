@@ -258,7 +258,7 @@ void PDFAdvancedFindWidget::performSearch()
     else
     {
         // Use regular expression search
-        QRegularExpression::PatternOptions patternOptions = QRegularExpression::UseUnicodePropertiesOption | QRegularExpression::OptimizeOnFirstUsageOption;
+        QRegularExpression::PatternOptions patternOptions = QRegularExpression::UseUnicodePropertiesOption;
         if (!m_parameters.isCaseSensitive)
         {
             patternOptions |= QRegularExpression::CaseInsensitiveOption;

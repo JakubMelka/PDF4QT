@@ -143,12 +143,9 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
             default:
                 throw PDFException(PDFTranslationContext::tr("Invalid pattern."));
         }
-
-        return PDFPatternPtr();
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid pattern."));
-    return PDFPatternPtr();
 }
 
 PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDictionary,
@@ -503,9 +500,6 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
             throw PDFException(PDFTranslationContext::tr("Invalid shading pattern type (%1).").arg(static_cast<PDFInteger>(shadingType)));
         }
     }
-
-    throw PDFException(PDFTranslationContext::tr("Invalid shading."));
-    return PDFPatternPtr();
 }
 
 class PDFFunctionShadingSampler : public PDFShadingSampler
@@ -1682,8 +1676,8 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
             const PDFReal x1 = rightItem.first;
             const PDFColor mixedColor = PDFAbstractColorSpace::mixColors(leftItem.second, rightItem.second, 0.5);
             const PDFReal angleStep = 2 * M_PI / SLICES;
-            const PDFReal r0 = rLine.pointAt((x0 - p1m.x()) / rlength).y();
-            const PDFReal r1 = rLine.pointAt((x1 - p1m.x()) / rlength).y();
+            const PDFReal cr0 = rLine.pointAt((x0 - p1m.x()) / rlength).y();
+            const PDFReal cr1 = rLine.pointAt((x1 - p1m.x()) / rlength).y();
 
             PDFReal angle0 = 0;
             for (int i = 0; i < SLICES; ++i)
@@ -1694,15 +1688,15 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
                 const PDFReal cos1 = std::cos(angle1);
                 const PDFReal sin1 = std::sin(angle1);
 
-                QPointF p1(x0 + cos0 * r0, sin0 * r0);
-                QPointF p2(x1 + cos0 * r1, sin0 * r1);
-                QPointF p3(x1 + cos1 * r1, sin1 * r1);
-                QPointF p4(x0 + cos1 * r0, sin1 * r0);
+                QPointF cp1(x0 + cos0 * cr0, sin0 * cr0);
+                QPointF cp2(x1 + cos0 * cr1, sin0 * cr1);
+                QPointF cp3(x1 + cos1 * cr1, sin1 * cr1);
+                QPointF cp4(x0 + cos1 * cr0, sin1 * cr0);
 
-                uint32_t v1 = mesh.addVertex(p1);
-                uint32_t v2 = mesh.addVertex(p2);
-                uint32_t v3 = mesh.addVertex(p3);
-                uint32_t v4 = mesh.addVertex(p4);
+                uint32_t v1 = mesh.addVertex(cp1);
+                uint32_t v2 = mesh.addVertex(cp2);
+                uint32_t v3 = mesh.addVertex(cp3);
+                uint32_t v4 = mesh.addVertex(cp4);
 
                 QColor color = m_colorSpace->getColor(mixedColor, cms, intent, reporter, true);
                 mesh.addQuad(v1, v2, v3, v4, color.rgb());

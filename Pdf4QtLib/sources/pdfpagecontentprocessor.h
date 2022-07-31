@@ -863,8 +863,6 @@ private:
         {
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color component count. Provided %1, required %2.").arg(operandCount).arg(colorSpaceComponentCount));
         }
-
-        return QColor();
     }
 
     /// Converts PDF line cap to Qt's pen cap style. Function always succeeds,

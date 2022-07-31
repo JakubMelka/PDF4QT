@@ -538,7 +538,7 @@ void PDFDocumentPropertiesDialog::onFontsFinished()
 {
     if (!m_fontTreeWidgetItems.empty())
     {
-        std::sort(m_fontTreeWidgetItems.begin(), m_fontTreeWidgetItems.end(), [](QTreeWidgetItem* left, QTreeWidgetItem* right) { return left->data(0, Qt::DisplayRole) < right->data(0, Qt::DisplayRole); });
+        std::sort(m_fontTreeWidgetItems.begin(), m_fontTreeWidgetItems.end(), [](QTreeWidgetItem* left, QTreeWidgetItem* right) { return left->data(0, Qt::DisplayRole).toString() < right->data(0, Qt::DisplayRole).toString(); });
         for (QTreeWidgetItem* item : m_fontTreeWidgetItems)
         {
             ui->fontsTreeWidget->addTopLevelItem(item);

@@ -363,7 +363,7 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
             documentBuilder.mergeNames(m_mergedObjects[MOT_Names], namesReference);
             m_outlines[documentIndex] = outlineReference;
 
-            Q_ASSERT(references.size() == std::distance(it, itEnd));
+            Q_ASSERT(references.size() == size_t(std::distance(it, itEnd)));
 
             auto referenceIt = references.begin();
             for (auto currentIt = it; currentIt != itEnd; ++currentIt, ++referenceIt)
