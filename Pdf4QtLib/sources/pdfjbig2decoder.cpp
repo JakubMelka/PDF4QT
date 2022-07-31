@@ -2508,8 +2508,8 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
         QByteArray endSequence(2, 0);
         if (!parameters.MMR)
         {
-            endSequence[0] = unsigned char(0xFF);
-            endSequence[1] = unsigned char(0xAC);
+            endSequence[0] = (unsigned char)(0xFF);
+            endSequence[1] = (unsigned char)(0xAC);
         }
 
         int endPosition = stream->indexOf(endSequence);

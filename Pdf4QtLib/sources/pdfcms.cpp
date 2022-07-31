@@ -23,6 +23,11 @@
 #include <QApplication>
 #include <QReadWriteLock>
 
+#ifdef PDF4QT_COMPILER_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wregister"
+#endif
+
 #ifdef PDF4QT_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable:5033)
@@ -34,6 +39,9 @@
 #pragma warning(pop)
 #endif
 
+#ifdef PDF4QT_COMPILER_CLANG
+#pragma clang diagnostic pop
+#endif
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX

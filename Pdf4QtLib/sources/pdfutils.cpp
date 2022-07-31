@@ -38,11 +38,20 @@
 #endif
 #endif
 
+#ifdef PDF4QT_COMPILER_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wregister"
+#endif
+
 #pragma warning(push)
 #pragma warning(disable:5033)
 #define CMS_NO_REGISTER_KEYWORD
 #include <lcms2.h>
 #pragma warning(pop)
+
+#ifdef PDF4QT_COMPILER_CLANG
+#pragma clang diagnostic pop
+#endif
 
 namespace pdf
 {

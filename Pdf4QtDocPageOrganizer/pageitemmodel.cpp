@@ -923,6 +923,10 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
                 hasEmptyPage = true;
                 ++emptyPageCount;
                 break;
+
+            case pdfdocpage::PT_Last:
+                Q_ASSERT(false);
+                break;
         }
     }
 
