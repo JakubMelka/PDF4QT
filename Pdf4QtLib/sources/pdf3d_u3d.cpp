@@ -608,6 +608,18 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
         case PDF3D_U3D_NewObjectTypeBlock::ID:
             return PDF3D_U3D_NewObjectTypeBlock::parse(data, metaData, this);
 
+        case PDF3D_U3D_GroupNodeBlock::ID:
+            return PDF3D_U3D_GroupNodeBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_ModelNodeBlock::ID:
+            return PDF3D_U3D_ModelNodeBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_LightNodeBlock::ID:
+            return PDF3D_U3D_LightNodeBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_ViewNodeBlock::ID:
+            return PDF3D_U3D_ViewNodeBlock::parse(data, metaData, this);
+
         default:
             break;
     }
@@ -701,6 +713,29 @@ void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData)
 
     // TODO: MelkaJ - parse meta data
     Q_ASSERT(false);
+}
+
+PDF3D_U3D_AbstractBlock::ParentNodesData PDF3D_U3D_AbstractBlock::parseParentNodeData(PDF3D_U3D_DataReader& reader, PDF3D_U3D* object)
+{
+    ParentNodesData result;
+
+    uint32_t parentNodeCount = reader.readU32();
+    result.reserve(parentNodeCount);
+
+    for (uint32_t i = 0; i < parentNodeCount; ++i)
+    {
+        ParentNodeData data;
+        data.parentNodeName = reader.readString(object->getTextCodec());
+
+        std::array<float, 16> transformMatrix = { };
+        reader.readFloats32(transformMatrix);
+
+        QMatrix4x4 matrix(transformMatrix.data());
+        data.transformMatrix = matrix.transposed();
+        result.emplace_back(std::move(data));
+    }
+
+    return result;
 }
 
 PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
@@ -1000,6 +1035,245 @@ uint32_t PDF3D_U3D_NewObjectBlock::getChainIndex() const
 const QByteArray& PDF3D_U3D_NewObjectBlock::getData() const
 {
     return m_data;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_GroupNodeBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_GroupNodeBlock* block = new PDF3D_U3D_GroupNodeBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_groupNodeName = reader.readString(object->getTextCodec());
+    block->m_parentNodesData = parseParentNodeData(reader, object);
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_GroupNodeBlock::getGroupNodeName() const
+{
+    return m_groupNodeName;
+}
+
+const PDF3D_U3D_GroupNodeBlock::ParentNodesData& PDF3D_U3D_GroupNodeBlock::getParentNodesData() const
+{
+    return m_parentNodesData;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModelNodeBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_ModelNodeBlock* block = new PDF3D_U3D_ModelNodeBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_modelNodeName = reader.readString(object->getTextCodec());
+    block->m_parentNodesData = parseParentNodeData(reader, object);
+    block->m_modelResourceName = reader.readString(object->getTextCodec());
+    block->m_modelVisibility = reader.readU32();
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_ModelNodeBlock::getModelNodeName() const
+{
+    return m_modelNodeName;
+}
+
+const PDF3D_U3D_ModelNodeBlock::ParentNodesData& PDF3D_U3D_ModelNodeBlock::getParentNodesData() const
+{
+    return m_parentNodesData;
+}
+
+const QString& PDF3D_U3D_ModelNodeBlock::getModelResourceName() const
+{
+    return m_modelResourceName;
+}
+
+uint32_t PDF3D_U3D_ModelNodeBlock::getModelVisibility() const
+{
+    return m_modelVisibility;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LightNodeBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_LightNodeBlock* block = new PDF3D_U3D_LightNodeBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_lightNodeName = reader.readString(object->getTextCodec());
+    block->m_parentNodesData = parseParentNodeData(reader, object);
+    block->m_lightResourceName = reader.readString(object->getTextCodec());
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_LightNodeBlock::getLightNodeName() const
+{
+    return m_lightNodeName;
+}
+
+const PDF3D_U3D_LightNodeBlock::ParentNodesData& PDF3D_U3D_LightNodeBlock::getParentNodesData() const
+{
+    return m_parentNodesData;
+}
+
+const QString& PDF3D_U3D_LightNodeBlock::getLightResourceName() const
+{
+    return m_lightResourceName;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewNodeBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_ViewNodeBlock* block = new PDF3D_U3D_ViewNodeBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_viewNodeName = reader.readString(object->getTextCodec());
+    block->m_parentNodesData = parseParentNodeData(reader, object);
+    block->m_viewResourceName = reader.readString(object->getTextCodec());
+    block->m_viewNodeAttributes = reader.readU32();
+    block->m_viewNearFlipping = reader.readF32();
+    block->m_viewFarFlipping = reader.readF32();
+
+    if (block->isProjectionThreePointPerspective())
+    {
+        block->m_viewProjection = reader.readF32();
+    }
+    if (block->isProjectionOrthographic())
+    {
+        block->m_viewOrthographicHeight = reader.readF32();
+    }
+    if (block->isProjectionOnePointPerspective() || block->isProjectionTwoPointPerspective())
+    {
+        reader.readFloats32(block->m_viewProjectionVector);
+    }
+
+    // Viewport
+    block->m_viewPortWidth = reader.readF32();
+    block->m_viewPortHeight = reader.readF32();
+    block->m_viewPortHorizontalPosition = reader.readF32();
+    block->m_viewPortVerticalPosition = reader.readF32();
+
+    auto readBackdropOrOverlayItems = [&reader, object]()
+    {
+        std::vector<BackdropOrOverlay> items;
+
+        uint32_t count = reader.readU32();
+        items.reserve(count);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            BackdropOrOverlay item;
+
+            item.m_textureName = reader.readString(object->getTextCodec());
+            item.m_textureBlend = reader.readF32();
+            item.m_rotation = reader.readF32();
+            item.m_locationX = reader.readF32();
+            item.m_locationY = reader.readF32();
+            item.m_registrationPointX = reader.readI32();
+            item.m_registrationPointY = reader.readI32();
+            item.m_scaleX = reader.readF32();
+            item.m_scaleY = reader.readF32();
+
+            items.emplace_back(std::move(item));
+        }
+
+        return items;
+    };
+
+    // Backdrop
+    block->m_backdrop = readBackdropOrOverlayItems();
+
+    // Overlay
+    block->m_overlay = readBackdropOrOverlayItems();
+
+    block->parseMetadata(metaData);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_ViewNodeBlock::getViewNodeName() const
+{
+    return m_viewNodeName;
+}
+
+const PDF3D_U3D_ViewNodeBlock::ParentNodesData& PDF3D_U3D_ViewNodeBlock::getParentNodesData() const
+{
+    return m_parentNodesData;
+}
+
+const QString& PDF3D_U3D_ViewNodeBlock::getViewResourceName() const
+{
+    return m_viewResourceName;
+}
+
+uint32_t PDF3D_U3D_ViewNodeBlock::getViewNodeAttributes() const
+{
+    return m_viewNodeAttributes;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewNearFlipping() const
+{
+    return m_viewNearFlipping;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewFarFlipping() const
+{
+    return m_viewFarFlipping;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewProjection() const
+{
+    return m_viewProjection;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewOrthographicHeight() const
+{
+    return m_viewOrthographicHeight;
+}
+
+const PDF3D_U3D_Vec3& PDF3D_U3D_ViewNodeBlock::getViewProjectionVector() const
+{
+    return m_viewProjectionVector;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewPortWidth() const
+{
+    return m_viewPortWidth;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewPortHeight() const
+{
+    return m_viewPortHeight;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewPortHorizontalPosition() const
+{
+    return m_viewPortHorizontalPosition;
+}
+
+float PDF3D_U3D_ViewNodeBlock::getViewPortVerticalPosition() const
+{
+    return m_viewPortVerticalPosition;
+}
+
+const std::vector<PDF3D_U3D_ViewNodeBlock::BackdropItem>& PDF3D_U3D_ViewNodeBlock::getBackdrop() const
+{
+    return m_backdrop;
+}
+
+const std::vector<PDF3D_U3D_ViewNodeBlock::OverlayItem>& PDF3D_U3D_ViewNodeBlock::getOverlay() const
+{
+    return m_overlay;
 }
 
 }   // namespace u3d

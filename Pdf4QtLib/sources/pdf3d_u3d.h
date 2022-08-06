@@ -23,6 +23,9 @@
 #include <QUuid>
 #include <QByteArray>
 #include <QSharedPointer>
+#include <QMatrix4x4>
+
+#include <array>
 
 class QTextCodec;
 
@@ -38,6 +41,8 @@ class PDF3D_U3D_DataReader;
 class PDF3D_U3D_AbstractBlock;
 using PDF3D_U3D_AbstractBlockPtr = QSharedPointer<PDF3D_U3D_AbstractBlock>;
 
+using PDF3D_U3D_Vec3 = std::array<float, 3>;
+
 class PDF3D_U3D_AbstractBlock
 {
 public:
@@ -45,6 +50,16 @@ public:
     virtual ~PDF3D_U3D_AbstractBlock() = default;
 
     void parseMetadata(QByteArray metaData);
+
+    struct ParentNodeData
+    {
+        QString parentNodeName;
+        QMatrix4x4 transformMatrix;
+    };
+
+    using ParentNodesData = std::vector<ParentNodeData>;
+
+    static ParentNodesData parseParentNodeData(PDF3D_U3D_DataReader& reader, PDF3D_U3D* object);
 };
 
 // Bounding sphere - x, y, z position and radius
@@ -226,15 +241,129 @@ private:
 //                                 NODE BLOCKS
 // -------------------------------------------------------------------------------
 
-class PDF3D_U3D_NewObjectBlock : public PDF3D_U3D_AbstractBlock
+class PDF3D_U3D_GroupNodeBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
     static constexpr uint32_t ID = 0xFFFFFF21;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
 
-private:
+    const QString& getGroupNodeName() const;
+    const ParentNodesData& getParentNodesData() const;
 
+private:
+    QString m_groupNodeName;
+    ParentNodesData m_parentNodesData;
+};
+
+class PDF3D_U3D_ModelNodeBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF22;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    bool isHidden() const { return m_modelVisibility == 0; }
+    bool isFrontVisible() const { return m_modelVisibility == 1; }
+    bool isBackVisible() const { return m_modelVisibility == 2; }
+    bool isFrontAndBackVisible() const { return m_modelVisibility == 3; }
+
+    const QString& getModelNodeName() const;
+    const ParentNodesData& getParentNodesData() const;
+    const QString& getModelResourceName() const;
+    uint32_t getModelVisibility() const;
+
+private:
+    QString m_modelNodeName;
+    ParentNodesData m_parentNodesData;
+    QString m_modelResourceName;
+    uint32_t m_modelVisibility;
+};
+
+class PDF3D_U3D_LightNodeBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF23;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    const QString& getLightNodeName() const;
+    const ParentNodesData& getParentNodesData() const;
+    const QString& getLightResourceName() const;
+
+private:
+    QString m_lightNodeName;
+    ParentNodesData m_parentNodesData;
+    QString m_lightResourceName;
+};
+
+class PDF3D_U3D_ViewNodeBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF24;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    struct BackdropOrOverlay
+    {
+        QString m_textureName;
+        float m_textureBlend = 0.0;
+        float m_rotation = 0.0;
+        float m_locationX = 0.0;
+        float m_locationY = 0.0;
+        int32_t m_registrationPointX = 0;
+        int32_t m_registrationPointY = 0;
+        float m_scaleX = 0.0;
+        float m_scaleY = 0.0;
+    };
+
+    using BackdropItem = BackdropOrOverlay;
+    using OverlayItem = BackdropOrOverlay;
+
+    bool isScreenPositionRelative() const { return m_viewNodeAttributes & 0x00000001; }
+    bool isProjectionOrthographic() const { return m_viewNodeAttributes & 0x00000002; }
+    bool isProjectionTwoPointPerspective() const { return m_viewNodeAttributes & 0x00000004; }
+    bool isProjectionOnePointPerspective() const { return (m_viewNodeAttributes & 0x00000002) && (m_viewNodeAttributes & 0x00000004); }
+    bool isProjectionThreePointPerspective() const { return !isProjectionOrthographic() && !isProjectionTwoPointPerspective() && !isProjectionOnePointPerspective(); }
+
+    const QString& getViewNodeName() const;
+    const ParentNodesData& getParentNodesData() const;
+    const QString& getViewResourceName() const;
+    uint32_t getViewNodeAttributes() const;
+    float getViewNearFlipping() const;
+    float getViewFarFlipping() const;
+    float getViewProjection() const;
+    float getViewOrthographicHeight() const;
+    const PDF3D_U3D_Vec3& getViewProjectionVector() const;
+    float getViewPortWidth() const;
+    float getViewPortHeight() const;
+    float getViewPortHorizontalPosition() const;
+    float getViewPortVerticalPosition() const;
+    const std::vector<BackdropItem>& getBackdrop() const;
+    const std::vector<OverlayItem>& getOverlay() const;
+
+private:
+    QString m_viewNodeName;
+    ParentNodesData m_parentNodesData;
+    QString m_viewResourceName;
+    uint32_t m_viewNodeAttributes = 0;
+    float m_viewNearFlipping = 0.0;
+    float m_viewFarFlipping = 0.0;
+    float m_viewProjection = 0.0;
+    float m_viewOrthographicHeight = 0.0;
+    PDF3D_U3D_Vec3 m_viewProjectionVector = PDF3D_U3D_Vec3();
+
+    // Viewport
+    float m_viewPortWidth = 0.0;
+    float m_viewPortHeight = 0.0;
+    float m_viewPortHorizontalPosition = 0.0;
+    float m_viewPortVerticalPosition = 0.0;
+
+    // Backdrop
+    std::vector<BackdropItem> m_backdrop;
+
+    // Overlay
+    std::vector<OverlayItem> m_overlay;
 };
 
 // -------------------------------------------------------------------------------
