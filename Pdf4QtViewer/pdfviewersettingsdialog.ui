@@ -35,7 +35,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>5</number>
+        <number>10</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -1346,13 +1346,6 @@
                 </property>
                </widget>
               </item>
-              <item>
-               <widget class="QPushButton" name="trustedCertificateStoreDownloadEUTLButton">
-                <property name="text">
-                 <string>Download EUTL</string>
-                </property>
-               </widget>
-              </item>
              </layout>
             </item>
             <item>
@@ -1365,7 +1358,7 @@
             <item>
              <widget class="QLabel" name="signatureInfoLabel">
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Settings for verification of digital signatures. Digital signatures are verified as strict, as possible, to avoid any malicious content or signature manipulation. Verification can also be turned off, if it is not wanted. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is turned on, every warning is treated as error. You can also ignore certificate expiration date, but do this only, if you know what you are doing, because it is dangerous. For verification, list of trusted certificates is used. System certificates can be inserted into the list, and also you can manage your own list of trusted certificates. Also, certificates from EUTL (EU trusted list) can be downloaded into the trusted certificate storage.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Settings for verification of digital signatures. Digital signatures are verified as strict, as possible, to avoid any malicious content or signature manipulation. Verification can also be turned off, if it is not wanted. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is turned on, every warning is treated as error. You can also ignore certificate expiration date, but do this only, if you know what you are doing, because it is dangerous. For verification, list of trusted certificates is used. System certificates can be inserted into the list, and also you can manage your own list of trusted certificates. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="wordWrap">
                <bool>true</bool>

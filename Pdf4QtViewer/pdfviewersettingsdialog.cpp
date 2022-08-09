@@ -30,8 +30,6 @@
 #include <QFileDialog>
 #include <QListWidgetItem>
 #include <QTextToSpeech>
-#include <QNetworkReply>
-#include <QNetworkAccessManager>
 #include <QDomDocument>
 #include <QStyledItemDelegate>
 
@@ -73,9 +71,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     m_isLoadingData(false),
     m_certificateStore(certificateStore),
     m_enabledPlugins(enabledPlugins),
-    m_plugins(plugins),
-    m_networkAccessManager(nullptr),
-    m_downloadCertificatesFromEUTLReply(nullptr)
+    m_plugins(plugins)
 {
     ui->setupUi(this);
 
@@ -830,12 +826,6 @@ void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine)
 
 bool PDFViewerSettingsDialog::canCloseDialog()
 {
-    if (m_downloadCertificatesFromEUTLReply)
-    {
-        QMessageBox::warning(this, tr("Download"), tr("Downloading certificates from EUTL didn't finish yet. Can't close the dialog."));
-        return false;
-    }
-
     return true;
 }
 
@@ -868,62 +858,6 @@ void PDFViewerSettingsDialog::on_cmsProfileDirectoryButton_clicked()
     {
         m_cmsSettings.profileDirectory = directory;
         loadData();
-    }
-}
-
-void PDFViewerSettingsDialog::on_trustedCertificateStoreDownloadEUTLButton_clicked()
-{
-    if (m_downloadCertificatesFromEUTLReply)
-    {
-        // Jakub Melka: We are already downloading the data
-        return;
-    }
-
-    if (QMessageBox::question(this, tr("Download EUTL"), tr("Do you want do download EU trusted certificates list from https://ec.europa.eu/information_society/policy/esignature/trusted-list/tl-mp.xml ?")) == QMessageBox::Yes)
-    {
-        if (!m_networkAccessManager)
-        {
-            m_networkAccessManager = new QNetworkAccessManager(this);
-        }
-
-        m_downloadCertificatesFromEUTLReply = m_networkAccessManager->get(QNetworkRequest(QUrl("https://ec.europa.eu/information_society/policy/esignature/trusted-list/tl-mp.xml")));
-
-        auto onFinished = [this]()
-        {
-            QNetworkReply::NetworkError error = m_downloadCertificatesFromEUTLReply->error();
-
-            if (error == QNetworkReply::NoError)
-            {
-                QByteArray data = m_downloadCertificatesFromEUTLReply->readAll();
-
-                QDomDocument document;
-                QString errorMessage;
-                if (document.setContent(data, &errorMessage))
-                {
-                    QDomNodeList certificateElements = document.elementsByTagName("X509Certificate");
-                    for (int i = 0; i < certificateElements.count(); ++i)
-                    {
-                        QDomElement certificateElement = certificateElements.at(i).toElement();
-                        QString certificateBase64Encoded = certificateElement.text();
-                        QByteArray certificateData = QByteArray::fromBase64(certificateBase64Encoded.toLatin1(), QByteArray::Base64Encoding);
-                        m_certificateStore.add(pdf::PDFCertificateStore::EntryType::EUTL, certificateData);
-                    }
-                    updateTrustedCertificatesTable();
-                }
-                else
-                {
-                    QMessageBox::critical(this, tr("Error"), errorMessage);
-                }
-            }
-            else
-            {
-                QMessageBox::critical(this, tr("Error"), m_downloadCertificatesFromEUTLReply->errorString());
-            }
-
-            m_downloadCertificatesFromEUTLReply->deleteLater();
-            m_downloadCertificatesFromEUTLReply = nullptr;
-        };
-        connect(m_downloadCertificatesFromEUTLReply, &QNetworkReply::finished, this, onFinished);
     }
 }
 

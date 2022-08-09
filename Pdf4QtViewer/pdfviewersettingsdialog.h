@@ -24,8 +24,6 @@
 #include <QDialog>
 
 class QListWidgetItem;
-class QNetworkReply;
-class QNetworkAccessManager;
 
 namespace Ui
 {
@@ -93,9 +91,6 @@ public:
 private slots:
     void on_optionsPagesWidget_currentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
     void on_cmsProfileDirectoryButton_clicked();
-
-    void on_trustedCertificateStoreDownloadEUTLButton_clicked();
-
     void on_removeCertificateButton_clicked();
 
 private:
@@ -129,8 +124,6 @@ private:
     pdf::PDFCertificateStore m_certificateStore;
     QStringList m_enabledPlugins;
     pdf::PDFPluginInfos m_plugins;
-    QNetworkAccessManager* m_networkAccessManager;
-    QNetworkReply* m_downloadCertificatesFromEUTLReply;
 };
 
 }   // namespace pdfviewer
