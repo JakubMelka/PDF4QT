@@ -314,7 +314,7 @@ bool PDFTextLayout::isHoveringOverTextBlock(const QPointF& point) const
     return false;
 }
 
-PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2, QColor selectionColor)
+PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2, QColor selectionColor, bool strictSelection)
 {
     PDFTextSelection selection;
 
@@ -374,12 +374,12 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
                 QRectF boundingBoxPathBBRect = boundingBoxPath.controlPointRect();
 
                 // If start point is above the text block, move start point to the left.
-                if (boundingBoxPathBBRect.bottom() < pointA.y())
+                if (!strictSelection && boundingBoxPathBBRect.bottom() < pointA.y())
                 {
                     pointA.setX(boundingBoxPathBBRect.left());
                     isTopPointAboveText = true;
                 }
-                if (boundingBoxPathBBRect.top() > pointB.y())
+                if (!strictSelection && boundingBoxPathBBRect.top() > pointB.y())
                 {
                     pointB.setX(boundingBoxPathBBRect.right());
                     isBottomPointBelowText = true;
@@ -399,6 +399,16 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
             for (size_t lineId = 0, linesCount = lines.size(); lineId < linesCount; ++lineId)
             {
                 const PDFTextLine& line = lines[lineId];
+                QRectF lineBoundingRect = line.getBoundingBox().boundingRect();
+
+                // We skip lines, which are not in the range (pointB.y(), pointA.y),
+                // i.e. are above or below.
+                if (lineBoundingRect.bottom() < pointB.y() ||
+                    lineBoundingRect.top() > pointA.y())
+                {
+                    continue;
+                }
+
                 const TextCharacters& characters = line.getCharacters();
                 for (size_t characterId = 0, characterCount = characters.size(); characterId < characterCount; ++characterId)
                 {

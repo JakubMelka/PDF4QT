@@ -368,7 +368,12 @@ public:
     /// \param point1 First point
     /// \param point2 Second point
     /// \param selectionColor Selection color
-    PDFTextSelection createTextSelection(PDFInteger pageIndex, const QPointF& point1, const QPointF& point2, QColor selectionColor = Qt::yellow);
+    /// \param strictSelection If true, does not adjust horizontal range when above/below text block
+    PDFTextSelection createTextSelection(PDFInteger pageIndex,
+                                         const QPointF& point1,
+                                         const QPointF& point2,
+                                         QColor selectionColor = Qt::yellow,
+                                         bool strictSelection = false);
 
     /// Returns string from text selection
     /// \param itBegin Iterator (begin range)

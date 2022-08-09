@@ -1567,43 +1567,12 @@ void PDFSelectTableTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
                 cell.row = rowIndex;
                 cell.column = columnIndex;
                 cell.rectangle = QRectF(left, top, width, height);
+
+                PDFTextSelection textSelection = m_textLayout.createTextSelection(m_pageIndex, cell.rectangle.topLeft(), cell.rectangle.bottomRight(), Qt::yellow, true);
+                cell.text = m_textLayout.getTextFromSelection(textSelection, m_pageIndex).trimmed();
+                cell.text = cell.text.remove(QChar('\n'));
+
                 tableCells.push_back(cell);
-            }
-        }
-
-        const PDFTextBlocks& textBlocks = m_textLayout.getTextBlocks();
-        for (size_t i = 0; i < textBlocks.size(); ++i)
-        {
-            // Detect, if whole block can be in some text cell
-            const PDFTextBlock& textBlock = textBlocks[i];
-            QRectF textRect = textBlock.getBoundingBox().boundingRect();
-            auto itBlockCell = std::find_if(tableCells.begin(), tableCells.end(), [textRect](const auto& cell) { return cell.rectangle.contains(textRect); });
-            if (itBlockCell != tableCells.end())
-            {
-                // Jakub Melka: whole block is contained in the cell
-                PDFTextSelection blockSelection = m_textLayout.selectBlock(i, m_pageIndex, QColor());
-                QString text = m_textLayout.getTextFromSelection(blockSelection, m_pageIndex);
-                TableCell& cell = *itBlockCell;
-                cell.text = QString("%1 %2").arg(cell.text, text).trimmed();
-                continue;
-            }
-
-            const PDFTextLines& textLines = textBlock.getLines();
-            for (size_t j = 0; j < textLines.size(); ++j)
-            {
-                const PDFTextLine& textLine = textLines[j];
-                QRectF boundingRect = textLine.getBoundingBox().boundingRect();
-
-                auto itLineCell = std::find_if(tableCells.begin(), tableCells.end(), [boundingRect](const auto& cell) { return cell.rectangle.contains(boundingRect); });
-                if (itLineCell != tableCells.end())
-                {
-                    // Jakub Melka: whole block is contained in the cell
-                    PDFTextSelection blockSelection = m_textLayout.selectLineInBlock(i, j, m_pageIndex, QColor());
-                    QString text = m_textLayout.getTextFromSelection(blockSelection, m_pageIndex);
-                    TableCell& cell = *itLineCell;
-                    cell.text = QString("%1 %2").arg(cell.text, text).trimmed();
-                    continue;
-                }
             }
         }
 
