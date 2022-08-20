@@ -306,7 +306,7 @@ QString CodeGenerator::generateHeader(int indent) const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 
@@ -324,7 +324,7 @@ QString CodeGenerator::generateSource(QString className, int indent) const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 
@@ -1647,7 +1647,7 @@ QString XFACodeGenerator::generateSource() const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 
@@ -1898,7 +1898,7 @@ QString XFACodeGenerator::generateHeader() const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 

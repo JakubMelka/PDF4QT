@@ -62,7 +62,7 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     const pdf::PDFDocumentInfo* info = document.getInfo();
     const pdf::PDFCatalog* catalog = document.getCatalog();
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info", PDFToolTranslationContext::tr("Information about document %1").arg(options.document));
     formatter.endl();
 

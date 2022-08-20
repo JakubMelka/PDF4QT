@@ -324,7 +324,7 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
     size_t blockId = 0;
     for (PDFTextBlock& block : m_blocks)
     {
-        QMatrix angleMatrix;
+        QTransform angleMatrix;
         angleMatrix.rotate(block.getAngle());
         block.applyTransform(angleMatrix);
 
@@ -613,7 +613,7 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     TextCharacters characters = getCharactersForAngle(angle);
 
     // Step 1) - rotate blocks
-    QMatrix angleMatrix;
+    QTransform angleMatrix;
     angleMatrix.rotate(angle);
     applyTransform(characters, angleMatrix);
 
@@ -840,7 +840,7 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     }
 
     // Topological sort
-    QMatrix invertedAngleMatrix = angleMatrix.inverted();
+    QTransform invertedAngleMatrix = angleMatrix.inverted();
     while (!workBlocks.empty())
     {
         auto it = std::min_element(workBlocks.begin(), workBlocks.end(), [&orderingEdges](const size_t l, const size_t r) { return orderingEdges[l].size() < orderingEdges[r].size(); });
@@ -863,7 +863,7 @@ TextCharacters PDFTextLayout::getCharactersForAngle(PDFReal angle) const
     return result;
 }
 
-void PDFTextLayout::applyTransform(TextCharacters& characters, const QMatrix& matrix)
+void PDFTextLayout::applyTransform(TextCharacters& characters, const QTransform& matrix)
 {
     for (TextCharacter& character : characters)
     {
@@ -896,7 +896,7 @@ PDFReal PDFTextLine::getAngle() const
     return 0.0;
 }
 
-void PDFTextLine::applyTransform(const QMatrix& matrix)
+void PDFTextLine::applyTransform(const QTransform& matrix)
 {
     m_boundingBox = matrix.map(m_boundingBox);
     m_topLeft = matrix.map(m_topLeft);
@@ -956,7 +956,7 @@ PDFReal PDFTextBlock::getAngle() const
     return 0.0;
 }
 
-void PDFTextBlock::applyTransform(const QMatrix& matrix)
+void PDFTextBlock::applyTransform(const QTransform& matrix)
 {
     m_boundingBox = matrix.map(m_boundingBox);
     m_topLeft = matrix.map(m_topLeft);
@@ -982,7 +982,7 @@ QDataStream& operator<<(QDataStream& stream, const PDFTextBlock& block)
     return stream;
 }
 
-void TextCharacter::applyTransform(const QMatrix& matrix)
+void TextCharacter::applyTransform(const QTransform& matrix)
 {
     position = matrix.map(position);
     boundingBox = matrix.map(boundingBox);
@@ -1427,7 +1427,7 @@ PDFTextLayout PDFTextLayoutStorageGetter::getTextLayoutImpl() const
     return m_storage ? m_storage->getTextLayout(m_pageIndex) : PDFTextLayout();
 }
 
-void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix)
+void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix)
 {
     Q_ASSERT(painter);
 
@@ -1462,7 +1462,7 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
         PDFTextBlock block = blocks[start.blockIndex];
 
         // Fix angle of block, so we will get correct selection rectangles (parallel to lines)
-        QMatrix angleMatrix;
+        QTransform angleMatrix;
         angleMatrix.rotate(block.getAngle());
         block.applyTransform(angleMatrix);
 
@@ -1524,7 +1524,7 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
             }
         }
 
-        QMatrix transformMatrix = angleMatrix.inverted() * matrix;
+        QTransform transformMatrix = angleMatrix.inverted() * matrix;
         path = transformMatrix.map(path);
 
         QColor penColor = item.color.darker();
@@ -1539,7 +1539,7 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
     painter->restore();
 }
 
-QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix, QPolygonF* quadrilaterals)
+QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix, QPolygonF* quadrilaterals)
 {
     QPainterPath path;
 
@@ -1572,7 +1572,7 @@ QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFT
         PDFTextBlock block = blocks[start.blockIndex];
 
         // Fix angle of block, so we will get correct selection rectangles (parallel to lines)
-        QMatrix angleMatrix;
+        QTransform angleMatrix;
         angleMatrix.rotate(block.getAngle());
         block.applyTransform(angleMatrix);
 
@@ -1640,7 +1640,7 @@ QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFT
             }
         }
 
-        QMatrix transformMatrix = angleMatrix.inverted() * matrix;
+        QTransform transformMatrix = angleMatrix.inverted() * matrix;
         currentPath = transformMatrix.map(currentPath);
 
         if (quadrilaterals)

@@ -646,7 +646,7 @@ public:
                             const PDFOptionalContentActivity* optionalContentActivity,
                             const PDFInkMapper* inkMapper,
                             PDFTransparencyRendererSettings settings,
-                            QMatrix pagePointToDevicePointMatrix);
+                            QTransform pagePointToDevicePointMatrix);
 
     /// Sets device color space. This is final color space, to which
     /// is painted page transformed.
@@ -879,7 +879,7 @@ private:
                                         const uint8_t colorChannelEnd,
                                         int x,
                                         int y,
-                                        const QMatrix& worldToTextureMatrix,
+                                        const QTransform& worldToTextureMatrix,
                                         const PDFFloatBitmap& texture,
                                         const PDFPainterPathSampler& clipSampler);
 

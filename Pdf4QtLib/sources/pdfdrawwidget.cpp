@@ -52,7 +52,7 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
     layout->addWidget(m_drawWidget->getWidget(), 0, 0);
     layout->addWidget(m_horizontalScrollBar, 1, 0);
     layout->addWidget(m_verticalScrollBar, 0, 1);
-    layout->setMargin(0);
+    layout->setContentsMargins(QMargins());
 
     setLayout(layout);
     setFocusProxy(m_drawWidget->getWidget());

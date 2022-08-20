@@ -211,7 +211,7 @@ QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect re
                         QRect drawRect(QPoint(0, 0), rect.size());
                         QRect mediaBox(QPoint(0, 0), image.size());
                         QRectF rotatedMediaBox = pdf::PDFPage::getRotatedBox(mediaBox, groupItem.pageAdditionalRotation);
-                        QMatrix matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, groupItem.pageAdditionalRotation);
+                        QTransform matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, groupItem.pageAdditionalRotation);
 
                         QPainter painter(&pixmap);
                         painter.setWorldTransform(QTransform(matrix));

@@ -166,7 +166,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
 protected:
@@ -233,7 +233,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
@@ -326,7 +326,7 @@ public:
     virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
@@ -393,7 +393,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;

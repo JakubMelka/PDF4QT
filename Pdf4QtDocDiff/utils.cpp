@@ -301,7 +301,7 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                                         pdf::PDFInteger pageIndex,
                                         const pdf::PDFPrecompiledPage* compiledPage,
                                         pdf::PDFTextLayoutGetter& layoutGetter,
-                                        const QMatrix& pagePointToDevicePointMatrix,
+                                        const QTransform& pagePointToDevicePointMatrix,
                                         QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -490,7 +490,7 @@ void DifferencesDrawInterface::drawAnnotations(const pdf::PDFDocument* document,
 }
 
 void DifferencesDrawInterface::drawRectangle(QPainter* painter,
-                                             const QMatrix& pagePointToDevicePointMatrix,
+                                             const QTransform& pagePointToDevicePointMatrix,
                                              const QRectF& rect,
                                              QColor color) const
 {
@@ -501,7 +501,7 @@ void DifferencesDrawInterface::drawRectangle(QPainter* painter,
 }
 
 void DifferencesDrawInterface::drawMarker(QPainter* painter,
-                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QTransform& pagePointToDevicePointMatrix,
                                           const QRectF& rect,
                                           QColor color,
                                           bool isLeft) const

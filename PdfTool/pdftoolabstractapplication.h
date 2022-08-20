@@ -29,6 +29,7 @@
 #include <QString>
 #include <QDateTime>
 #include <QCoreApplication>
+#include <QStringConverter>
 
 #include <vector>
 
@@ -54,7 +55,7 @@ struct PDFToolOptions
 
     // For option 'ConsoleFormat'
     PDFOutputFormatter::Style outputStyle = PDFOutputFormatter::Style::Text;
-    QString outputCodec = "UTF-8";
+    QStringConverter::Encoding outputCodec = QStringConverter::Utf8;
 
     // For option 'DateFormat'
     DateFormat outputDateFormat = LocaleShortDate;
@@ -271,6 +272,15 @@ protected:
     /// \param[out] sourceData Pointer, to which source data are stored
     /// \param authorizeOwnerOnly Require to authorize as owner
     bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly);
+
+    /// Returns a list of available encodings
+    static QList<QByteArray> getAvailableEncodings();
+
+    /// Returns default encoding
+    static QByteArray getDefaultEncoding();
+
+    /// Converts string to encoding
+    static QStringConverter::Encoding getEncoding(const QString& encodingName);
 };
 
 /// This class stores information about all applications available. Application

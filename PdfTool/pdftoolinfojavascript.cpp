@@ -67,7 +67,7 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
 
     QLocale locale;
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-javascripts", PDFToolTranslationContext::tr("JavaScript used in document %1").arg(options.document));
     formatter.endl();
 

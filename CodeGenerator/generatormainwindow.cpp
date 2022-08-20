@@ -73,7 +73,7 @@ void GeneratorMainWindow::load(const QString& fileName)
     if (file.open(QFile::ReadOnly | QFile::Truncate))
     {
         QTextStream stream(&file);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
 
         QDomDocument document;
         document.setContent(stream.readAll());
@@ -370,7 +370,7 @@ void GeneratorMainWindow::save(const QString& fileName)
     if (file.open(QFile::WriteOnly | QFile::Truncate))
     {
         QTextStream stream(&file);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
 
         QDomDocument document;
         m_generator->store(document);

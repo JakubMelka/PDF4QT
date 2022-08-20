@@ -473,7 +473,7 @@ PDFTextLayout PDFAsynchronousTextLayoutCompiler::createTextLayout(PDFInteger pag
         m_proxy->getFontCache()->setCacheShrinkEnabled(&guard, false);
 
         PDFCMSPointer cms = m_proxy->getCMSManager()->getCurrentCMS();
-        PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QMatrix(), m_proxy->getMeshQualitySettings());
+        PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QTransform(), m_proxy->getMeshQualitySettings());
         generator.processContents();
         result = generator.createTextLayout();
         m_proxy->getFontCache()->setCacheShrinkEnabled(&guard, true);
@@ -605,7 +605,7 @@ void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
             const PDFPage* page = catalog->getPage(pageIndex);
             Q_ASSERT(page);
 
-            PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QMatrix(), m_proxy->getMeshQualitySettings());
+            PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QTransform(), m_proxy->getMeshQualitySettings());
             generator.processContents();
             result.setTextLayout(pageIndex, generator.createTextLayout(), &mutex);
             m_proxy->getProgress()->step();

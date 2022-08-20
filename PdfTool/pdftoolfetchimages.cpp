@@ -37,7 +37,7 @@ public:
                                                const pdf::PDFFontCache* fontCache,
                                                const pdf::PDFCMS* cms,
                                                const pdf::PDFOptionalContentActivity* optionalContentActivity,
-                                               QMatrix pagePointToDevicePointMatrix,
+                                               QTransform pagePointToDevicePointMatrix,
                                                const pdf::PDFMeshQualitySettings& meshQualitySettings,
                                                pdf::PDFInteger pageIndex,
                                                PDFToolFetchImages* tool) :
@@ -173,7 +173,7 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
         Q_ASSERT(page);
 
         PDFImageContentExtractorProcessor processor(page, &document, &fontCache, cms.data(), &optionalContentActivity,
-                                                    QMatrix(), meshQualitySettings, pageIndex, this);
+                                                    QTransform(), meshQualitySettings, pageIndex, this);
         processor.processContents();
     };
 
@@ -187,7 +187,7 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
     std::sort(m_images.begin(), m_images.end(), comparator);
 
     // Write information about images
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("images", PDFToolTranslationContext::tr("Images fetched from document %1").arg(options.document));
     formatter.endl();
 
@@ -235,7 +235,6 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
         imageWriter.setSubType(options.imageWriterSettings.getCurrentSubtype());
         imageWriter.setCompression(options.imageWriterSettings.getCompression());
         imageWriter.setQuality(options.imageWriterSettings.getQuality());
-        imageWriter.setGamma(options.imageWriterSettings.getGamma());
         imageWriter.setOptimizedWrite(options.imageWriterSettings.hasOptimizedWrite());
         imageWriter.setProgressiveScanWrite(options.imageWriterSettings.hasProgressiveScanWrite());
 

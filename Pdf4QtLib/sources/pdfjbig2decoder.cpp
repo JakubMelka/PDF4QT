@@ -3915,7 +3915,7 @@ std::optional<int32_t> PDFJBIG2HuffmanDecoder::readSignedInteger()
             }
             else if (it->isLowValue())
             {
-                return it->value - m_reader->read(32);
+                return it->value - int32_t(m_reader->read(32));
             }
             else if (it->rangeBitLength == 0)
             {
@@ -3923,7 +3923,7 @@ std::optional<int32_t> PDFJBIG2HuffmanDecoder::readSignedInteger()
             }
             else
             {
-                return it->value + m_reader->read(it->rangeBitLength);
+                return it->value + int32_t(m_reader->read(it->rangeBitLength));
             }
         }
     }

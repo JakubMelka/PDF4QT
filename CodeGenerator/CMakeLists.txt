@@ -22,7 +22,7 @@ add_executable(CodeGenerator
 	generatormainwindow.ui
 )
 
-target_link_libraries(CodeGenerator PRIVATE Pdf4QtLib Qt6::Core Qt6::Widgets Qt6::Gui)
+target_link_libraries(CodeGenerator PRIVATE Pdf4QtLib Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Xml)
 
 set_target_properties(CodeGenerator PROPERTIES
     WIN32_EXECUTABLE ON

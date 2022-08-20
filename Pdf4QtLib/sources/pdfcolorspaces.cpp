@@ -807,7 +807,7 @@ bool PDFAbstractColorSpace::transform(const PDFAbstractColorSpace* source,
                 Q_ASSERT(sourceIt + 1 != input.end());
                 Q_ASSERT(sourceIt + 2 != input.end());
 
-                PDFColorComponent LStar = qBound<PDFColorComponent>(0.0, interpolate(*sourceIt, 0.0, 1.0, 0.0, 100.0), 100.0);
+                PDFColorComponent LStar = qBound<PDFColorComponent>(PDFColorComponent(0.0), interpolate(*sourceIt, 0.0, 1.0, 0.0, 100.0), PDFColorComponent(100.0));
                 PDFColorComponent aStar = qBound<PDFColorComponent>(aMin, interpolate(*std::next(sourceIt, 1), 0.0, 1.0, aMin, aMax), aMax);
                 PDFColorComponent bStar = qBound<PDFColorComponent>(bMin, interpolate(*std::next(sourceIt, 2), 0.0, 1.0, bMin, bMax), bMax);
 
@@ -1473,13 +1473,13 @@ QColor PDFLabColorSpace::getColor(const PDFColor& color, const PDFCMS* cms, Rend
 
     if (isRange01)
     {
-        LStar = qBound(0.0, interpolate(color[0], 0.0, 1.0, 0.0, 100.0), 100.0);
+        LStar = qBound<PDFColorComponent>(PDFColorComponent(0.0), interpolate(color[0], 0.0, 1.0, 0.0, 100.0), PDFColorComponent(100.0));
         aStar = qBound<PDFColorComponent>(m_aMin, interpolate(color[1], 0.0, 1.0, m_aMin, m_aMax), m_aMax);
         bStar = qBound<PDFColorComponent>(m_bMin, interpolate(color[2], 0.0, 1.0, m_bMin, m_bMax), m_bMax);
     }
     else
     {
-        LStar = qBound<PDFColorComponent>(0.0, color[0], 100.0);
+        LStar = qBound<PDFColorComponent>(PDFColorComponent(0.0), color[0], PDFColorComponent(100.0));
         aStar = qBound<PDFColorComponent>(m_aMin, color[1], m_aMax);
         bStar = qBound<PDFColorComponent>(m_bMin, color[2], m_bMax);
     }

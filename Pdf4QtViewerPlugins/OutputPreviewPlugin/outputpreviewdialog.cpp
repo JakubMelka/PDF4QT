@@ -360,7 +360,7 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
     settings.flags.setFlag(pdf::PDFTransparencyRendererSettings::SeparationSimulation, m_inkMapperForRendering.getActiveSpotColorCount() > 0);
     settings.activeColorMask = activeColorMask;
 
-    QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
+    QTransform pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
     pdf::PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
     pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(),

@@ -16,10 +16,20 @@
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 add_executable(Pdf4QtDocDiff
+    aboutdialog.cpp
+    differencesdockwidget.cpp
     main.cpp
+    mainwindow.cpp
+    settingsdockwidget.cpp
+    utils.cpp
+    aboutdialog.ui
+    differencesdockwidget.ui
+    mainwindow.ui
+    settingsdockwidget.ui
+    resources.qrc
 )
 
-target_link_libraries(Pdf4QtDocDiff PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtDocDiff PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets)
 
 set_target_properties(Pdf4QtDocDiff PROPERTIES
     WIN32_EXECUTABLE ON

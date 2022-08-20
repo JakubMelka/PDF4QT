@@ -340,7 +340,6 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
                     imageWriter.setSubType(m_imageWriterSettings.getCurrentSubtype());
                     imageWriter.setCompression(m_imageWriterSettings.getCompression());
                     imageWriter.setQuality(m_imageWriterSettings.getQuality());
-                    imageWriter.setGamma(m_imageWriterSettings.getGamma());
                     imageWriter.setOptimizedWrite(m_imageWriterSettings.hasOptimizedWrite());
                     imageWriter.setProgressiveScanWrite(m_imageWriterSettings.hasProgressiveScanWrite());
 

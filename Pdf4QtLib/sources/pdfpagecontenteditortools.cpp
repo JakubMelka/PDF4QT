@@ -87,7 +87,7 @@ void PDFCreatePCElementTool::setTextAngle(PDFReal angle)
 }
 
 QRectF PDFCreatePCElementTool::getRectangleFromPickTool(PDFPickTool* pickTool,
-                                                        const QMatrix& pagePointToDevicePointMatrix)
+                                                        const QTransform& pagePointToDevicePointMatrix)
 {
     const std::vector<QPointF>& points = pickTool->getPickedPoints();
     if (points.empty())
@@ -146,7 +146,7 @@ void PDFCreatePCElementRectangleTool::drawPage(QPainter* painter,
                                                PDFInteger pageIndex,
                                                const PDFPrecompiledPage* compiledPage,
                                                PDFTextLayoutGetter& layoutGetter,
-                                               const QMatrix& pagePointToDevicePointMatrix,
+                                               const QTransform& pagePointToDevicePointMatrix,
                                                QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -240,7 +240,7 @@ void PDFCreatePCElementLineTool::drawPage(QPainter* painter,
                                           PDFInteger pageIndex,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
-                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QTransform& pagePointToDevicePointMatrix,
                                           QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -337,7 +337,7 @@ void PDFCreatePCElementImageTool::drawPage(QPainter* painter,
                                          PDFInteger pageIndex,
                                          const PDFPrecompiledPage* compiledPage,
                                          PDFTextLayoutGetter& layoutGetter,
-                                         const QMatrix& pagePointToDevicePointMatrix,
+                                         const QTransform& pagePointToDevicePointMatrix,
                                          QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -484,7 +484,7 @@ void PDFCreatePCElementDotTool::drawPage(QPainter* painter,
                                          PDFInteger pageIndex,
                                          const PDFPrecompiledPage* compiledPage,
                                          PDFTextLayoutGetter& layoutGetter,
-                                         const QMatrix& pagePointToDevicePointMatrix,
+                                         const QTransform& pagePointToDevicePointMatrix,
                                          QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -545,7 +545,7 @@ void PDFCreatePCElementFreehandCurveTool::drawPage(QPainter* painter,
                                                    PDFInteger pageIndex,
                                                    const PDFPrecompiledPage* compiledPage,
                                                    PDFTextLayoutGetter& layoutGetter,
-                                                   const QMatrix& pagePointToDevicePointMatrix,
+                                                   const QTransform& pagePointToDevicePointMatrix,
                                                    QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -689,7 +689,7 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
                                           PDFInteger pageIndex,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
-                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QTransform& pagePointToDevicePointMatrix,
                                           QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);

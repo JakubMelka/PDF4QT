@@ -24,8 +24,27 @@ project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech)
+include(GNUInstallDirs)
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech OpenGLWidgets Test)
 qt_standard_project_setup()
+
+find_package(openssl REQUIRED)
+find_package(lcms REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(freetype CONFIG REQUIRED)
+find_package(OpenJPEG CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
+set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
+
+if (MSVC)
+  add_compile_options(/bigobj)
+endif ()
 
 add_subdirectory(Pdf4QtLib)
 add_subdirectory(CodeGenerator)
@@ -54,3 +73,4 @@ message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 #endmacro()
 #
 #dump_variables()
+

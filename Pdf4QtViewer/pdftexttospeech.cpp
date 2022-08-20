@@ -490,7 +490,7 @@ void PDFTextToSpeech::updatePlay()
             m_state = Ready;
         }
     }
-    else if (state == QTextToSpeech::BackendError)
+    else if (state == QTextToSpeech::Error)
     {
         m_state = Error;
     }

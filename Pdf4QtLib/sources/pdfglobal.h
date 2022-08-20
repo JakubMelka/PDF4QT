@@ -25,10 +25,14 @@
 #include <tuple>
 #include <array>
 
+#include <pdf4qtlib_export.h>
+
+#if !defined(PDF4QTLIBSHARED_EXPORT)
 #if defined(PDF4QTLIB_LIBRARY)
 #  define PDF4QTLIBSHARED_EXPORT Q_DECL_EXPORT
 #else
 #  define PDF4QTLIBSHARED_EXPORT Q_DECL_IMPORT
+#endif
 #endif
 
 // Compiler detection

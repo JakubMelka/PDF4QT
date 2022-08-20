@@ -237,7 +237,7 @@ public:
                                     const PDFFontCache* fontCache,
                                     const PDFCMS* cms,
                                     const PDFOptionalContentActivity* optionalContentActivity,
-                                    QMatrix pagePointToDevicePointMatrix,
+                                    QTransform pagePointToDevicePointMatrix,
                                     const PDFMeshQualitySettings& meshQualitySettings) :
         BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
         m_features(features)

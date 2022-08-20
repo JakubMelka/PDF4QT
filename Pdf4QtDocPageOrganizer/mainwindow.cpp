@@ -30,7 +30,6 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QInputDialog>
-#include <QDesktopWidget>
 #include <QClipboard>
 #include <QToolBar>
 #include <QDesktopServices>
@@ -259,7 +258,7 @@ void MainWindow::loadSettings()
     QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
     if (geometry.isEmpty())
     {
-        QRect availableGeometry = QApplication::desktop()->availableGeometry(this);
+        QRect availableGeometry = QApplication::primaryScreen()->availableGeometry();
         QRect windowRect(0, 0, availableGeometry.width() / 2, availableGeometry.height() / 2);
         windowRect = windowRect.translated(availableGeometry.center() - windowRect.center());
         setGeometry(windowRect);

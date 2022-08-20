@@ -296,7 +296,7 @@ void SignaturePlugin::onSignElectronically()
             QPainter* painter = pageContentStreamBuilder.begin(page->getPageReference());
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawElements(painter, pageIndex, nullGetter, QMatrix(), nullptr, errors);
+            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, errors);
             pageContentStreamBuilder.end(painter);
             modifier.markPageContentsChanged();
         }
@@ -365,7 +365,7 @@ void SignaturePlugin::onSignDigitally()
             QPainter* painter = contentBuilder.begin();
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QMatrix(), errors);
+            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), errors);
             pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
 
             QRectF boundingRect = m_scene.getBoundingBox(pageIndex);

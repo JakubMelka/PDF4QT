@@ -35,7 +35,7 @@ PDFTextEditPseudowidget::PDFTextEditPseudowidget(PDFFormField::FieldFlags flags)
     m_maxTextLength(0)
 {
     m_textLayout.setCacheEnabled(true);
-    m_passwordReplacementCharacter = QApplication::style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter);
+    m_passwordReplacementCharacter = QChar(QApplication::style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter));
 }
 
 void PDFTextEditPseudowidget::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
@@ -559,9 +559,9 @@ void PDFTextEditPseudowidget::performInsertText(const QString& text)
     updateTextLayout();
 }
 
-QMatrix PDFTextEditPseudowidget::createTextBoxTransformMatrix(bool edit) const
+QTransform PDFTextEditPseudowidget::createTextBoxTransformMatrix(bool edit) const
 {
-    QMatrix matrix;
+    QTransform matrix;
 
     matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
     matrix.scale(1.0, -1.0);
@@ -759,8 +759,8 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
 
 int PDFTextEditPseudowidget::getCursorPositionFromWidgetPosition(const QPointF& point, bool edit) const
 {
-    QMatrix textBoxSpaceToPageSpace = createTextBoxTransformMatrix(edit);
-    QMatrix pageSpaceToTextBoxSpace = textBoxSpaceToPageSpace.inverted();
+    QTransform textBoxSpaceToPageSpace = createTextBoxTransformMatrix(edit);
+    QTransform pageSpaceToTextBoxSpace = textBoxSpaceToPageSpace.inverted();
 
     QPointF textBoxPoint = pageSpaceToTextBoxSpace.map(point);
 

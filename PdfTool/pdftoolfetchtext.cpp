@@ -71,7 +71,7 @@ int PDFToolFetchTextApplication::execute(const PDFToolOptions& options)
     pdf::PDFDocumentTextFlowFactory factory;
     pdf::PDFDocumentTextFlow documentTextFlow = factory.create(&document, pages, options.textAnalysisAlgorithm);
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("text-extraction", QString());
     formatter.endl();
 

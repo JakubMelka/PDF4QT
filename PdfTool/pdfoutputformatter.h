@@ -19,6 +19,7 @@
 #define PDFOUTPUTFORMATTER_H
 
 #include <QString>
+#include <QStringConverter>
 
 namespace pdftool
 {
@@ -37,7 +38,7 @@ public:
         Html
     };
 
-    explicit PDFOutputFormatter(Style style, QString codecName);
+    explicit PDFOutputFormatter(Style style);
     ~PDFOutputFormatter();
 
     enum class Element
@@ -97,10 +98,10 @@ class PDFConsole
 public:
 
     /// Writes text to the console
-    static void writeText(QString text, QString codecName);
+    static void writeText(QString text, QStringConverter::Encoding encoding);
 
     /// Writes error to the console
-    static void writeError(QString text, QString codecName);
+    static void writeError(QString text, QStringConverter::Encoding encoding);
 
     /// Writes binary data to the console
     static void writeData(const QByteArray& data);

@@ -616,11 +616,11 @@ protected:
         /// Matrix LCStoGCS is local coordinate system of line originalLine. It transforms
         /// points on the line to the global coordinate system. So, point (0, 0) will
         /// map onto p1 and point (originalLine.length(), 0) will map onto p2.
-        QMatrix LCStoGCS;
+        QTransform LCStoGCS;
 
         /// Inverted matrix of LCStoGCS. It maps global coordinate system to local
         /// coordinate system of the original line.
-        QMatrix GCStoLCS;
+        QTransform GCStoLCS;
 
         static LineGeometryInfo create(QLineF line);
     };
@@ -652,7 +652,7 @@ protected:
                         PDFReal arrowAxisLength,
                         AnnotationLineEnding ending,
                         bool flipAxis,
-                        const QMatrix& LCStoGCS,
+                        const QTransform& LCStoGCS,
                         QPainterPath& boundingPath) const;
 
     /// Draw line using given parameters and painter. Line is specified
@@ -1326,14 +1326,14 @@ public:
 
     virtual AnnotationType getType() const override { return AnnotationType::Watermark; }
 
-    const QMatrix& getMatrix() const { return m_matrix; }
+    const QTransform& getMatrix() const { return m_matrix; }
     PDFReal getRelativeHorizontalOffset() const { return m_relativeHorizontalOffset; }
     PDFReal getRelativeVerticalOffset() const { return m_relativeVerticalOffset; }
 
 private:
     friend PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
 
-    QMatrix m_matrix;
+    QTransform m_matrix;
     PDFReal m_relativeHorizontalOffset = 0.0;
     PDFReal m_relativeVerticalOffset = 0.0;
 };
@@ -1439,7 +1439,7 @@ class PDF4QTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocu
 private:
     using BaseClass = QObject;
 
-    void drawWidgetAnnotationHighlight(QRectF annotationRectangle, PDFObjectReference annotationReference, QPainter* painter, QMatrix userSpaceToDeviceSpace) const;
+    void drawWidgetAnnotationHighlight(QRectF annotationRectangle, PDFObjectReference annotationReference, QPainter* painter, QTransform userSpaceToDeviceSpace) const;
 
 public:
 
@@ -1462,7 +1462,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     /// Set document
@@ -1523,7 +1523,7 @@ public:
     /// \param annotationFlags Annotation flags
     /// \param page Page
     /// \param[in,out] annotationRectangle Input/output annotation rectangle
-    QMatrix prepareTransformations(const QMatrix& pagePointToDevicePointMatrix,
+    QTransform prepareTransformations(const QTransform& pagePointToDevicePointMatrix,
                                    QPaintDevice* device,
                                    const PDFAnnotation::Flags annotationFlags,
                                    const PDFPage* page,
@@ -1553,7 +1553,7 @@ protected:
     void drawWidgetAnnotationHighlight(QRectF annotationRectangle,
                                        const PDFAnnotation* annotation,
                                        QPainter* painter,
-                                       QMatrix userSpaceToDeviceSpace) const;
+                                       QTransform userSpaceToDeviceSpace) const;
 
     /// Returns true, if given annotation should be drawn
     /// \param annotation Annotation
@@ -1572,7 +1572,7 @@ protected:
     /// \param errors Errors list (where draw errors are stored)
     /// \param painter Painter
     void drawAnnotation(const PageAnnotation& annotation,
-                        const QMatrix& pagePointToDevicePointMatrix,
+                        const QTransform& pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         const PDFCMS* cms,
                         bool isEditorDrawEnabled,
@@ -1588,7 +1588,7 @@ protected:
     /// \param isEditorDrawEnabled Is annotation drawn by form widget editor?
     /// \param painter Painter
     void drawAnnotationDirect(const PageAnnotation& annotation,
-                              const QMatrix& pagePointToDevicePointMatrix,
+                              const QTransform& pagePointToDevicePointMatrix,
                               const PDFPage* page,
                               const PDFCMS* cms,
                               bool isEditorDrawEnabled,
@@ -1603,7 +1603,7 @@ protected:
     /// \param painter Painter
     void drawAnnotationUsingAppearanceStream(const PageAnnotation& annotation,
                                              const PDFObject& appearanceStreamObject,
-                                             const QMatrix& pagePointToDevicePointMatrix,
+                                             const QTransform& pagePointToDevicePointMatrix,
                                              const PDFPage* page,
                                              const PDFCMS* cms,
                                              QPainter* painter) const;

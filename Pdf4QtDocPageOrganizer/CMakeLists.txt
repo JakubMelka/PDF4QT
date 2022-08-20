@@ -16,7 +16,18 @@
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 add_executable(Pdf4QtDocPageOrganizer
+    aboutdialog.cpp
+    assembleoutputsettingsdialog.cpp
     main.cpp
+    mainwindow.cpp
+    pageitemdelegate.cpp
+    pageitemmodel.cpp
+    selectbookmarkstoregroupdialog.cpp
+    aboutdialog.ui
+    assembleoutputsettingsdialog.ui
+    mainwindow.ui
+    selectbookmarkstoregroupdialog.ui
+    resources.qrc
 )
 
 target_link_libraries(Pdf4QtDocPageOrganizer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)

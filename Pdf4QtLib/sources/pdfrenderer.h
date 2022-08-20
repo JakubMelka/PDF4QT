@@ -85,7 +85,7 @@ public:
     /// Paints desired page onto the painter. Page is painted using \p matrix, which maps page coordinates
     /// to the device coordinates. If the page doesn't exist, then error is returned. No exception is thrown.
     /// Rendering errors are reported and returned in the error list. If no error occured, empty list is returned.
-    QList<PDFRenderError> render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const;
+    QList<PDFRenderError> render(QPainter* painter, const QTransform& matrix, size_t pageIndex) const;
 
     /// Compiles page (i.e. prepares compiled page). \p page should be empty page, onto which
     /// are graphics commands written. No exception is thrown. Rendering errors are reported and written
@@ -99,17 +99,17 @@ public:
     /// \param page Page, for which we want to create matrix
     /// \param rectangle Page rectangle, to which is page media box transformed
     /// \param extraRotation Extra rotation applied to the page rotation
-    static QMatrix createPagePointToDevicePointMatrix(const PDFPage* page,
-                                                      const QRectF& rectangle,
-                                                      PageRotation extraRotation = PageRotation::None);
+    static QTransform createPagePointToDevicePointMatrix(const PDFPage* page,
+                                                         const QRectF& rectangle,
+                                                         PageRotation extraRotation = PageRotation::None);
 
     /// Creates media box to device point matrix for the given media box.
     /// \param mediaBox Media box
     /// \param rectangle Page rectangle, to which is page media box transformed
     /// \param rotation Rotation
-    static QMatrix createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
-                                                     const QRectF& rectangle,
-                                                     PageRotation rotation);
+    static QTransform createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
+                                                        const QRectF& rectangle,
+                                                        PageRotation rotation);
 
     /// Returns default renderer features
     static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations); }

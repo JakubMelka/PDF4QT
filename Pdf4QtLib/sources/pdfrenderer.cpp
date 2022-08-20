@@ -50,7 +50,7 @@ PDFRenderer::PDFRenderer(const PDFDocument* document,
     Q_ASSERT(document);
 }
 
-QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page,
+QTransform PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page,
                                                         const QRectF& rectangle,
                                                         PageRotation extraRotation)
 {
@@ -60,11 +60,11 @@ QMatrix PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page,
     return createMediaBoxToDevicePointMatrix(mediaBox, rectangle, pageRotation);
 }
 
-QMatrix PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
+QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
                                                        const QRectF& rectangle,
                                                        PageRotation rotation)
 {
-    QMatrix matrix;
+    QTransform matrix;
     switch (rotation)
     {
         case PageRotation::None:
@@ -130,14 +130,14 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
     const PDFPage* page = catalog->getPage(pageIndex);
     Q_ASSERT(page);
 
-    QMatrix matrix = createPagePointToDevicePointMatrix(page, rectangle);
+    QTransform matrix = createPagePointToDevicePointMatrix(page, rectangle);
 
     PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     processor.setOperationControl(m_operationControl);
     return processor.processContents();
 }
 
-QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QMatrix& matrix, size_t pageIndex) const
+QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QTransform& matrix, size_t pageIndex) const
 {
     const PDFCatalog* catalog = m_document->getCatalog();
     if (pageIndex >= catalog->getPageCount() || !catalog->getPage(pageIndex))
@@ -229,7 +229,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
 {
     QImage image;
 
-    QMatrix matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
+    QTransform matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
     if (m_features.testFlag(UseOpenGL) && m_features.testFlag(ValidOpenGL))
     {
         // We have valid OpenGL context, try to select it and possibly create framebuffer object

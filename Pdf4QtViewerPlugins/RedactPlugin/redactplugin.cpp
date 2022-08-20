@@ -121,7 +121,7 @@ void RedactPlugin::onRedactTextSelectionTriggered()
 
         QPolygonF quadrilaterals;
         pdf::PDFTextSelectionPainter textSelectionPainter(&selectedText);
-        QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+        QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QTransform(), &quadrilaterals);
 
         if (!path.isEmpty())
         {

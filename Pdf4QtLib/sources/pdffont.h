@@ -23,7 +23,7 @@
 #include "pdfobject.h"
 
 #include <QFont>
-#include <QMatrix>
+#include <QTransform>
 #include <QSharedPointer>
 
 #include <set>
@@ -563,7 +563,7 @@ public:
     explicit PDFType3Font(FontDescriptor fontDescriptor,
                           int firstCharacterIndex,
                           int lastCharacterIndex,
-                          QMatrix fontMatrix,
+                          QTransform fontMatrix,
                           std::map<int, QByteArray>&& characterContentStreams,
                           std::vector<double>&& widths,
                           const PDFObject& resources,
@@ -580,7 +580,7 @@ public:
     /// is returned.
     const QByteArray* getContentStream(int characterIndex) const;
 
-    const QMatrix& getFontMatrix() const { return m_fontMatrix; }
+    const QTransform& getFontMatrix() const { return m_fontMatrix; }
     const PDFObject& getResources() const { return m_resources; }
     const std::map<int, QByteArray>& getContentStreams() const { return m_characterContentStreams; }
 
@@ -591,7 +591,7 @@ public:
 private:
     int m_firstCharacterIndex;
     int m_lastCharacterIndex;
-    QMatrix m_fontMatrix;
+    QTransform m_fontMatrix;
     std::map<int, QByteArray> m_characterContentStreams;
     std::vector<double> m_widths;
     PDFObject m_resources;

@@ -97,8 +97,26 @@ add_library(Pdf4QtLib SHARED
     sources/pdfpagecontenteditorwidget.ui
     sources/pdfrenderingerrorswidget.ui
     sources/pdfselectpagesdialog.ui
+    sources/pdfobjecteditorwidget_impl.h
     cmaps.qrc
 )
 
-target_link_libraries(Pdf4QtLib PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Xml Qt6::Svg)
+include(GenerateExportHeader)
+
+GENERATE_EXPORT_HEADER(Pdf4QtLib
+                       EXPORT_MACRO_NAME
+                       PDF4QTLIBSHARED_EXPORT
+                       EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlib_export.h")
+
+target_link_libraries(Pdf4QtLib PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Xml Qt6::Svg Qt6::OpenGLWidgets)
+target_link_libraries(Pdf4QtLib PRIVATE lcms2::lcms2)
+target_link_libraries(Pdf4QtLib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(Pdf4QtLib PRIVATE ZLIB::ZLIB)
+target_link_libraries(Pdf4QtLib PRIVATE freetype)
+target_link_libraries(Pdf4QtLib PRIVATE openjp2)
+target_link_libraries(Pdf4QtLib PRIVATE JPEG::JPEG)
+
 target_include_directories(Pdf4QtLib INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
+target_include_directories(Pdf4QtLib PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
+
+

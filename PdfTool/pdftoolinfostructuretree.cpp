@@ -274,7 +274,7 @@ int PDFToolInfoStructureTreeApplication::execute(const PDFToolOptions& options)
     pdf::PDFStructureTree structureTree = pdf::PDFStructureTree::parse(&document.getStorage(), document.getCatalog()->getStructureTreeRoot());
     if (structureTree.isValid())
     {
-        PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+        PDFOutputFormatter formatter(options.outputStyle);
         formatter.beginDocument("info-structure-tree", PDFToolTranslationContext::tr("Structure tree in document %1").arg(options.document));
 
         PDFStructureTreePrintVisitor visitor(&document, &structureTree, &formatter);

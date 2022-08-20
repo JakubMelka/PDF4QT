@@ -32,7 +32,7 @@ PDFPainterBase::PDFPainterBase(PDFRenderer::Features features,
                                const PDFFontCache* fontCache,
                                const PDFCMS* cms,
                                const PDFOptionalContentActivity* optionalContentActivity,
-                               QMatrix pagePointToDevicePointMatrix,
+                               QTransform pagePointToDevicePointMatrix,
                                const PDFMeshQualitySettings& meshQualitySettings) :
     BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
     m_features(features)
@@ -240,7 +240,7 @@ void PDFPainterBase::performEndTransparencyGroup(ProcessOrder order, const PDFTr
 
 PDFPainter::PDFPainter(QPainter* painter,
                        PDFRenderer::Features features,
-                       QMatrix pagePointToDevicePointMatrix,
+                       QTransform pagePointToDevicePointMatrix,
                        const PDFPage* page,
                        const PDFDocument* document,
                        const PDFFontCache* fontCache,
@@ -389,7 +389,7 @@ void PDFPainter::performRestoreGraphicState(ProcessOrder order)
     }
 }
 
-void PDFPainter::setWorldMatrix(const QMatrix& matrix)
+void PDFPainter::setWorldMatrix(const QTransform& matrix)
 {
     m_painter->setWorldTransform(QTransform(matrix), false);
 }
@@ -407,7 +407,7 @@ PDFPrecompiledPageGenerator::PDFPrecompiledPageGenerator(PDFPrecompiledPage* pre
                                                          const PDFCMS* cms,
                                                          const PDFOptionalContentActivity* optionalContentActivity,
                                                          const PDFMeshQualitySettings& meshQualitySettings) :
-    BaseClass(features, page, document, fontCache, cms, optionalContentActivity, QMatrix(), meshQualitySettings),
+    BaseClass(features, page, document, fontCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
     m_precompiledPage(precompiledPage)
 {
     m_precompiledPage->setPaperColor(cms->getPaperColor());
@@ -439,7 +439,7 @@ void PDFPrecompiledPageGenerator::performImagePainting(const QImage& image)
     }
 
     // Add snap info for image to the snapper
-    QMatrix matrix = getCurrentWorldMatrix();
+    QTransform matrix = getCurrentWorldMatrix();
     PDFSnapInfo* snapInfo = m_precompiledPage->getSnapInfo();
     snapInfo->addImage({
                            matrix.map(QPointF(0.0, 0.0)),
@@ -494,7 +494,7 @@ void PDFPrecompiledPageGenerator::performRestoreGraphicState(PDFPageContentProce
     }
 }
 
-void PDFPrecompiledPageGenerator::setWorldMatrix(const QMatrix& matrix)
+void PDFPrecompiledPageGenerator::setWorldMatrix(const QTransform& matrix)
 {
     m_precompiledPage->addSetWorldMatrix(matrix);
 }
@@ -506,7 +506,7 @@ void PDFPrecompiledPageGenerator::setCompositionMode(QPainter::CompositionMode m
 
 void PDFPrecompiledPage::draw(QPainter* painter,
                               const QRectF& cropBox,
-                              const QMatrix& pagePointToDevicePointMatrix,
+                              const QTransform& pagePointToDevicePointMatrix,
                               PDFRenderer::Features features,
                               PDFReal opacity) const
 {
@@ -620,7 +620,7 @@ void PDFPrecompiledPage::draw(QPainter* painter,
     painter->restore();
 }
 
-void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, QColor color)
+void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matrix, QColor color)
 {
     if (redactPath.isEmpty())
     {
@@ -628,7 +628,7 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, 
         return;
     }
 
-    std::stack<QMatrix> worldMatrixStack;
+    std::stack<QTransform> worldMatrixStack;
     worldMatrixStack.push(matrix);
 
     if (color.isValid())
@@ -643,7 +643,7 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, 
         {
             case InstructionType::DrawPath:
             {
-                QMatrix currentMatrix = worldMatrixStack.top().inverted();
+                QTransform currentMatrix = worldMatrixStack.top().inverted();
                 QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
                 PathPaintData& path = m_paths[instruction.dataIndex];
                 path.path = path.path.subtracted(mappedRedactPath);
@@ -676,7 +676,7 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QMatrix& matrix, 
 
             case InstructionType::Clip:
             {
-                QMatrix currentMatrix = worldMatrixStack.top().inverted();
+                QTransform currentMatrix = worldMatrixStack.top().inverted();
                 QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
                 m_clips[instruction.dataIndex].clipPath = m_clips[instruction.dataIndex].clipPath.subtracted(mappedRedactPath);
                 break;
@@ -743,7 +743,7 @@ void PDFPrecompiledPage::addMesh(PDFMesh mesh, PDFReal alpha)
     m_meshes.emplace_back(qMove(mesh), alpha);
 }
 
-void PDFPrecompiledPage::addSetWorldMatrix(const QMatrix& matrix)
+void PDFPrecompiledPage::addSetWorldMatrix(const QTransform& matrix)
 {
     m_instructions.emplace_back(InstructionType::SetWorldMatrix, m_matrices.size());
     m_matrices.push_back(matrix);
@@ -810,7 +810,7 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     m_memoryConsumptionEstimate += sizeof(ClipData) * m_clips.capacity();
     m_memoryConsumptionEstimate += sizeof(ImageData) * m_images.capacity();
     m_memoryConsumptionEstimate += sizeof(MeshPaintData) * m_meshes.capacity();
-    m_memoryConsumptionEstimate += sizeof(QMatrix) * m_matrices.capacity();
+    m_memoryConsumptionEstimate += sizeof(QTransform) * m_matrices.capacity();
     m_memoryConsumptionEstimate += sizeof(QPainter::CompositionMode) * m_compositionModes.capacity();
     m_memoryConsumptionEstimate += sizeof(PDFRenderError) * m_errors.size();
 
@@ -843,7 +843,7 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
 
     struct State
     {
-        QMatrix matrix;
+        QTransform matrix;
     };
     std::stack<State> stateStack;
     stateStack.emplace();
@@ -925,7 +925,7 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
                     QDataStream streamImage(&serializedImage, QIODevice::WriteOnly);
 
                     // Jakub Melka: serialize image position
-                    QMatrix worldMatrix = stateStack.top().matrix;
+                    QTransform worldMatrix = stateStack.top().matrix;
 
                     QPainterPath pagePath;
                     pagePath.addRect(0, 0, 1, 1);

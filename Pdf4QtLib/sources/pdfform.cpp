@@ -232,7 +232,7 @@ private:
     bool hasContinuousSelection() const;
 
     /// Creates transformation matrix, which transforms widget coordinates to page coordinates
-    QMatrix createListBoxTransformMatrix() const;
+    QTransform createListBoxTransformMatrix() const;
 
     PDFFormField::FieldFlags m_flags;
 
@@ -1464,7 +1464,7 @@ PDFFormManager::MouseEventInfo PDFFormManager::getMouseEventInfo(QWidget* widget
                 {
                     annotationRect = pageAnnotation.annotation->getRectangle();
                 }
-                QMatrix widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+                QTransform widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
 
                 QPainterPath path;
                 path.addRect(annotationRect);
@@ -1490,7 +1490,7 @@ const std::optional<QCursor>& PDFFormManager::getCursor() const
     return m_mouseCursor;
 }
 
-void PDFFormManager::drawXFAForm(const QMatrix& pagePointToDevicePointMatrix,
+void PDFFormManager::drawXFAForm(const QTransform& pagePointToDevicePointMatrix,
                                  const PDFPage* page,
                                  QList<PDFRenderError>& errors,
                                  QPainter* painter)
@@ -2672,9 +2672,9 @@ void PDFListBoxPseudowidget::setAppearance(const PDFAnnotationDefaultAppearance&
     initialize(font, fontColor, textAlignment, rect, options, topIndex, qMove(selection));
 }
 
-QMatrix PDFListBoxPseudowidget::createListBoxTransformMatrix() const
+QTransform PDFListBoxPseudowidget::createListBoxTransformMatrix() const
 {
-    QMatrix matrix;
+    QTransform matrix;
     matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
     matrix.scale(1.0, -1.0);
     return matrix;
@@ -2701,7 +2701,7 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
         return color;
     };
 
-    QMatrix matrix = createListBoxTransformMatrix();
+    QTransform matrix = createListBoxTransformMatrix();
 
     QPainter* painter = parameters.painter;
 
@@ -2869,8 +2869,8 @@ int PDFListBoxPseudowidget::getValidIndex(int index) const
 
 int PDFListBoxPseudowidget::getIndexFromWidgetPosition(const QPointF& point) const
 {
-    QMatrix widgetToPageMatrix = createListBoxTransformMatrix();
-    QMatrix pageToWidgetMatrix = widgetToPageMatrix.inverted();
+    QTransform widgetToPageMatrix = createListBoxTransformMatrix();
+    QTransform pageToWidgetMatrix = widgetToPageMatrix.inverted();
 
     QPointF widgetPoint = pageToWidgetMatrix.map(point);
     const qreal y = widgetPoint.y();

@@ -59,7 +59,7 @@ int PDFToolStatisticsApplication::execute(const PDFToolOptions& options)
 
     QLocale locale;
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info", PDFToolTranslationContext::tr("Information about document %1").arg(options.document));
     formatter.endl();
 

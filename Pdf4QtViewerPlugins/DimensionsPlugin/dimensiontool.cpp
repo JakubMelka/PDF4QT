@@ -40,7 +40,7 @@ void DimensionTool::drawPage(QPainter* painter,
                              pdf::PDFInteger pageIndex,
                              const pdf::PDFPrecompiledPage* compiledPage,
                              pdf::PDFTextLayoutGetter& layoutGetter,
-                             const QMatrix& pagePointToDevicePointMatrix,
+                             const QTransform& pagePointToDevicePointMatrix,
                              QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -68,7 +68,7 @@ void DimensionTool::drawPage(QPainter* painter,
 
     if (!points.empty())
     {
-        QMatrix inverted = pagePointToDevicePointMatrix.inverted();
+        QTransform inverted = pagePointToDevicePointMatrix.inverted();
         QPointF adjustedPoint = adjustPagePoint(inverted.map(m_pickTool->getSnappedPoint()));
         painter->drawLine(pagePointToDevicePointMatrix.map(points.back()), pagePointToDevicePointMatrix.map(adjustedPoint));
     }

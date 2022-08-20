@@ -51,7 +51,7 @@ public:
                           pdf::PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const;
 
     /// Performs drawing of additional graphics after all pages are drawn onto the painter.

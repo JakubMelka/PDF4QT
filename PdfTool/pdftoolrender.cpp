@@ -55,7 +55,7 @@ PDFToolAbstractApplication::Options PDFToolRender::getOptionsFlags() const
 
 void PDFToolRender::finish(const PDFToolOptions& options)
 {
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("render", PDFToolTranslationContext::tr("Render document %1").arg(options.document));
     formatter.endl();
 
@@ -82,7 +82,6 @@ void PDFToolRender::onPageRendered(const PDFToolOptions& options, pdf::PDFRender
     imageWriter.setSubType(options.imageWriterSettings.getCurrentSubtype());
     imageWriter.setCompression(options.imageWriterSettings.getCompression());
     imageWriter.setQuality(options.imageWriterSettings.getQuality());
-    imageWriter.setGamma(options.imageWriterSettings.getGamma());
     imageWriter.setOptimizedWrite(options.imageWriterSettings.hasOptimizedWrite());
     imageWriter.setProgressiveScanWrite(options.imageWriterSettings.hasProgressiveScanWrite());
 
@@ -122,7 +121,7 @@ PDFToolAbstractApplication::Options PDFToolBenchmark::getOptionsFlags() const
 
 void PDFToolBenchmark::finish(const PDFToolOptions& options)
 {
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("benchmark", PDFToolTranslationContext::tr("Benchmark rendering of document %1").arg(options.document));
     formatter.endl();
 

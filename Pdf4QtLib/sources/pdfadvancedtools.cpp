@@ -416,7 +416,7 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
                                      PDFInteger pageIndex,
                                      const PDFPrecompiledPage* compiledPage,
                                      PDFTextLayoutGetter& layoutGetter,
-                                     const QMatrix& pagePointToDevicePointMatrix,
+                                     const QTransform& pagePointToDevicePointMatrix,
                                      QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(pageIndex);
@@ -534,7 +534,7 @@ void PDFCreateEllipseTool::drawPage(QPainter* painter,
                                     PDFInteger pageIndex,
                                     const PDFPrecompiledPage* compiledPage,
                                     PDFTextLayoutGetter& layoutGetter,
-                                    const QMatrix& pagePointToDevicePointMatrix,
+                                    const QTransform& pagePointToDevicePointMatrix,
                                     QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -614,7 +614,7 @@ void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
                                           PDFInteger pageIndex,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
-                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QTransform& pagePointToDevicePointMatrix,
                                           QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
@@ -775,7 +775,7 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
                                   PDFInteger pageIndex,
                                   const PDFPrecompiledPage* compiledPage,
                                   PDFTextLayoutGetter& layoutGetter,
-                                  const QMatrix& pagePointToDevicePointMatrix,
+                                  const QTransform& pagePointToDevicePointMatrix,
                                   QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -790,7 +790,7 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
 
     const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
     QRectF rectangle = m_stampAnnotation.getRectangle();
-    QMatrix matrix = getProxy()->getAnnotationManager()->prepareTransformations(pagePointToDevicePointMatrix, painter->device(), m_stampAnnotation.getFlags(), page, rectangle);
+    QTransform matrix = getProxy()->getAnnotationManager()->prepareTransformations(pagePointToDevicePointMatrix, painter->device(), m_stampAnnotation.getFlags(), page, rectangle);
     painter->setWorldTransform(QTransform(matrix), true);
 
     AnnotationDrawParameters parameters;
@@ -874,7 +874,7 @@ void PDFCreateHighlightTextTool::drawPage(QPainter* painter,
                                           PDFInteger pageIndex,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
-                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QTransform& pagePointToDevicePointMatrix,
                                           QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -928,7 +928,7 @@ void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
 
                 QPolygonF quadrilaterals;
                 PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-                QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+                QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QTransform(), &quadrilaterals);
 
                 if (!path.isEmpty())
                 {
@@ -1114,7 +1114,7 @@ void PDFCreateRedactTextTool::drawPage(QPainter* painter,
                                        PDFInteger pageIndex,
                                        const PDFPrecompiledPage* compiledPage,
                                        PDFTextLayoutGetter& layoutGetter,
-                                       const QMatrix& pagePointToDevicePointMatrix,
+                                       const QTransform& pagePointToDevicePointMatrix,
                                        QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1168,7 +1168,7 @@ void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
 
                 QPolygonF quadrilaterals;
                 PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-                QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+                QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QTransform(), &quadrilaterals);
 
                 if (!path.isEmpty())
                 {

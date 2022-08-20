@@ -50,7 +50,6 @@
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QApplication>
-#include <QDesktopWidget>
 #include <QStandardPaths>
 #include <QDockWidget>
 #include <QTreeView>
@@ -89,7 +88,7 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     m_pageZoomSpinBox(nullptr),
     m_isLoadingUI(false),
     m_progress(new pdf::PDFProgress(this)),
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
 #endif
@@ -105,7 +104,7 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     ui->mainToolBar->setWindowTitle(tr("Standard"));
 
     // Initialize task bar progress
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator = m_taskbarButton->progress();
 #endif
 
@@ -278,7 +277,7 @@ void PDFViewerMainWindowLite::onProgressStarted(pdf::ProgressStartupInfo info)
         m_progressDialog->setCancelButton(nullptr);
     }
 
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
@@ -302,7 +301,7 @@ void PDFViewerMainWindowLite::onProgressStep(int percentage)
         m_progressDialog->setValue(percentage);
     }
 
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->setValue(percentage);
 #endif
 }
@@ -315,7 +314,7 @@ void PDFViewerMainWindowLite::onProgressFinished()
         m_progressDialog->deleteLater();
         m_progressDialog = nullptr;
     }
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->hide();
 #endif
 
@@ -423,7 +422,7 @@ void PDFViewerMainWindowLite::closeEvent(QCloseEvent* event)
 void PDFViewerMainWindowLite::showEvent(QShowEvent* event)
 {
     Q_UNUSED(event);
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_taskbarButton->setWindow(windowHandle());
 #endif
 }

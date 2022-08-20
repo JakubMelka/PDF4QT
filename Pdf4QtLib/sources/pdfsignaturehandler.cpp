@@ -46,7 +46,7 @@ namespace pdf
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
-static QMutex s_globalOpenSSLMutex(QMutex::Recursive);
+static QRecursiveMutex s_globalOpenSSLMutex;
 
 /// OpenSSL is not thread safe.
 class PDFOpenSSLGlobalLock
@@ -56,7 +56,7 @@ public:
     inline ~PDFOpenSSLGlobalLock() = default;
 
 private:
-    QMutexLocker m_mutexLocker;
+    QMutexLocker<QRecursiveMutex> m_mutexLocker;
 };
 
 PDFSignatureReference PDFSignatureReference::parse(const PDFObjectStorage* storage, PDFObject object)

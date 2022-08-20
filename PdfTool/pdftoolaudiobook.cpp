@@ -228,7 +228,7 @@ int PDFToolAudioBookBase::showVoiceList(const PDFToolOptions& options)
     PDFVoiceInfoList voices;
     int result = fillVoices(options, voices, false);
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("voices", PDFToolTranslationContext::tr("Available voices for given settings:"));
     formatter.endl();
 

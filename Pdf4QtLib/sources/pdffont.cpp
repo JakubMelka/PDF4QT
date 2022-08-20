@@ -1554,7 +1554,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             {
                 throw PDFException(PDFTranslationContext::tr("Invalid Type 3 font matrix."));
             }
-            QMatrix fontMatrix(fontMatrixValues[0], fontMatrixValues[1], fontMatrixValues[2], fontMatrixValues[3], fontMatrixValues[4], fontMatrixValues[5]);
+            QTransform fontMatrix(fontMatrixValues[0], fontMatrixValues[1], fontMatrixValues[2], fontMatrixValues[3], fontMatrixValues[4], fontMatrixValues[5]);
 
             PDFObject charProcs = document->getObject(fontDictionary->get("CharProcs"));
             if (!charProcs.isDictionary())
@@ -2365,7 +2365,7 @@ PDFReal PDFType0Font::getGlyphAdvance(CID cid) const
 PDFType3Font::PDFType3Font(FontDescriptor fontDescriptor,
                            int firstCharacterIndex,
                            int lastCharacterIndex,
-                           QMatrix fontMatrix,
+                           QTransform fontMatrix,
                            std::map<int, QByteArray>&& characterContentStreams,
                            std::vector<double>&& widths,
                            const PDFObject& resources,

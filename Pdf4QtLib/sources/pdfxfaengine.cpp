@@ -9688,7 +9688,7 @@ public:
     inline void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
     inline void setParagraphSettings(std::vector<xfa::XFA_ParagraphSettings> paragraphSettings) { m_layout.paragraphSettings = std::move(paragraphSettings); }
 
-    void draw(const QMatrix& pagePointToDevicePointMatrix,
+    void draw(const QTransform& pagePointToDevicePointMatrix,
               const PDFPage* page,
               QList<PDFRenderError>& errors,
               QPainter* painter);
@@ -11609,7 +11609,7 @@ std::vector<QSizeF> PDFXFAEngine::getPageSizes() const
     return m_impl->getPageSizes();
 }
 
-void PDFXFAEngine::draw(const QMatrix& pagePointToDevicePointMatrix,
+void PDFXFAEngine::draw(const QTransform& pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         QList<PDFRenderError>& errors,
                         QPainter* painter)
@@ -11694,7 +11694,7 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
     }
 }
 
-void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
+void PDFXFAEngineImpl::draw(const QTransform& pagePointToDevicePointMatrix,
                             const PDFPage* page,
                             QList<PDFRenderError>& errors,
                             QPainter* painter)

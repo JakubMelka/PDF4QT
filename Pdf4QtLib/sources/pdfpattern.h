@@ -23,7 +23,7 @@
 #include "pdfcolorspaces.h"
 #include "pdfmeshqualitysettings.h"
 
-#include <QMatrix>
+#include <QTransform>
 #include <QPainterPath>
 
 #include <memory>
@@ -95,7 +95,7 @@ public:
 
     /// Transforms the mesh according to the matrix transform
     /// \param matrix Matrix transform to be performed
-    void transform(const QMatrix& matrix);
+    void transform(const QTransform& matrix);
 
     /// Reserves memory for meshing - both number of vertices and triangles.
     /// Use this function, if number of vertices and triangles is known.
@@ -172,7 +172,7 @@ public:
 
     /// Returns transformation matrix from pattern space to the default
     /// target space.
-    const QMatrix& getMatrix() const { return m_matrix; }
+    const QTransform& getMatrix() const { return m_matrix; }
 
     /// Create pattern from the object. If error occurs, exception is thrown
     /// \param colorSpaceDictionary Color space dictionary
@@ -201,7 +201,7 @@ public:
     static PDFPatternPtr createShadingPattern(const PDFDictionary* colorSpaceDictionary,
                                               const PDFDocument* document,
                                               const PDFObject& shadingObject,
-                                              const QMatrix& matrix,
+                                              const QTransform& matrix,
                                               const PDFObject& patternGraphicState,
                                               const PDFCMS* cms,
                                               RenderingIntent intent,
@@ -210,7 +210,7 @@ public:
 
 protected:
     QRectF m_boundingBox;
-    QMatrix m_matrix;
+    QTransform m_matrix;
 };
 
 class PDFInvalidPattern : public PDFPattern
@@ -338,16 +338,16 @@ public:
     bool isAntialiasing() const { return m_antiAlias; }
 
     /// Returns matrix transforming pattern space to device space
-    QMatrix getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const;
+    QTransform getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const;
 
     /// Returns matrix transforming pattern space to device space
-    QMatrix getPatternSpaceToDeviceSpaceMatrix(const QMatrix& userSpaceToDeviceSpaceMatrix) const;
+    QTransform getPatternSpaceToDeviceSpaceMatrix(const QTransform& userSpaceToDeviceSpaceMatrix) const;
 
     /// Create sampler which can compute shading colors in device space coordinates. If sampler can't
     /// be created (or shading is invalid), then nullptr is returned.
     /// \param userSpaceToDeviceSpaceMatrix Matrix, which transforms user space points
     ///        (user space is target space of the shading) to the device space of the paint device.
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const;
 
 protected:
     friend class PDFPattern;
@@ -395,17 +395,17 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
     const QRectF& getDomain() const { return m_domain; }
-    const QMatrix& getDomainToTargetTransform() const { return m_domainToTargetTransform; }
+    const QTransform& getDomainToTargetTransform() const { return m_domainToTargetTransform; }
     const std::vector<PDFFunctionPtr>& getFunctions() const { return m_functions; }
 
 private:
     friend class PDFPattern;
 
     QRectF m_domain; ///< Domain of the color function
-    QMatrix m_domainToTargetTransform; ///< Transformation mapping from domain to shading coordinate space
+    QTransform m_domainToTargetTransform; ///< Transformation mapping from domain to shading coordinate space
     std::vector<PDFFunctionPtr> m_functions; ///< Color functions
 };
 
@@ -420,7 +420,7 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
 private:
     friend class PDFPattern;
@@ -437,7 +437,7 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
     PDFReal getR0() const { return m_r0; }
     PDFReal getR1() const { return m_r1; }
@@ -501,7 +501,7 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
 private:
     struct VertexData
@@ -519,7 +519,7 @@ private:
 
     bool processTriangles(InitializeFunction initializeMeshFunction,
                           AddTriangleFunction addTriangle,
-                          const QMatrix& userSpaceToDeviceSpaceMatrix,
+                          const QTransform& userSpaceToDeviceSpaceMatrix,
                           bool convertColors) const;
 };
 
@@ -534,7 +534,7 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
 private:
     friend class PDFPattern;
@@ -551,7 +551,7 @@ private:
 
     bool processTriangles(InitializeFunction initializeMeshFunction,
                           AddTriangleFunction addTriangle,
-                          const QMatrix& userSpaceToDeviceSpaceMatrix,
+                          const QTransform& userSpaceToDeviceSpaceMatrix,
                           bool convertColors) const;
 
     PDFInteger m_verticesPerRow = 0;
@@ -693,14 +693,14 @@ class PDFTensorProductPatchShadingBase : public PDFType4567Shading
 public:
     explicit inline PDFTensorProductPatchShadingBase() = default;
 
-    virtual PDFShadingSampler* createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const override;
-    virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const = 0;
+    virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
+    virtual PDFTensorPatches createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const = 0;
 
 protected:
     struct Triangle;
 
     void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool fastAlgorithm, const PDFOperationControl* operationControl) const;
-    void fillMesh(PDFMesh& mesh, const QMatrix& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, const PDFOperationControl* operationControl) const;
+    void fillMesh(PDFMesh& mesh, const QTransform& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, const PDFOperationControl* operationControl) const;
     static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
 
 private:
@@ -718,7 +718,7 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
+    virtual PDFTensorPatches createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:
     friend class PDFPattern;
@@ -735,7 +735,7 @@ public:
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
                                const PDFOperationControl* operationControl) const override;
-    virtual PDFTensorPatches createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
+    virtual PDFTensorPatches createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:
     friend class PDFPattern;

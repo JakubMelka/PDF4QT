@@ -46,5 +46,15 @@ add_library(Pdf4QtViewer SHARED
     pdf4qtviewer.qrc
 )
 
-target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml)
+add_compile_definitions(QT_INSTALL_DIRECTORY="${QT6_INSTALL_PREFIX}")
+
+include(GenerateExportHeader)
+
+GENERATE_EXPORT_HEADER(Pdf4QtViewer
+                       EXPORT_MACRO_NAME
+                       PDF4QTVIEWERLIBSHARED_EXPORT
+                       EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtviewer_export.h")
+
+target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::OpenGLWidgets)
 target_include_directories(Pdf4QtViewer INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(Pdf4QtViewer PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})

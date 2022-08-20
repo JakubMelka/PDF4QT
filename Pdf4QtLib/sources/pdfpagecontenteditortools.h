@@ -52,7 +52,7 @@ public:
     virtual void setTextAngle(pdf::PDFReal angle);
 
 protected:
-    static QRectF getRectangleFromPickTool(PDFPickTool* pickTool, const QMatrix& pagePointToDevicePointMatrix);
+    static QRectF getRectangleFromPickTool(PDFPickTool* pickTool, const QTransform& pagePointToDevicePointMatrix);
 
     PDFPageContentScene* m_scene;
 };
@@ -77,7 +77,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -111,7 +111,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -151,7 +151,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -185,7 +185,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -217,7 +217,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -255,7 +255,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;

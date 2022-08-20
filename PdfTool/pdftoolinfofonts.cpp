@@ -276,7 +276,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
         directFonts.emplace_back(qMove(item.second));
     }
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-fonts", PDFToolTranslationContext::tr("Fonts used in document %1").arg(options.document));
     formatter.endl();
 

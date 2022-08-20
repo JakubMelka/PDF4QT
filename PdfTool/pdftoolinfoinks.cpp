@@ -57,7 +57,7 @@ int PDFToolInfoInksApplication::execute(const PDFToolOptions& options)
     cmsManager.setDocument(&document);
     cmsManager.setSettings(options.cmsSettings);
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-inks", PDFToolTranslationContext::tr("Inks"));
     formatter.endl();
 

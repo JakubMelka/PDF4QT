@@ -94,7 +94,7 @@ public:
     virtual void drawPage(QPainter* painter, pdf::PDFInteger pageIndex,
                           const pdf::PDFPrecompiledPage* compiledPage,
                           pdf::PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<pdf::PDFRenderError>& errors) const override;
 
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
@@ -106,12 +106,12 @@ public:
 
 private:
     void drawRectangle(QPainter* painter,
-                       const QMatrix& pagePointToDevicePointMatrix,
+                       const QTransform& pagePointToDevicePointMatrix,
                        const QRectF& rect,
                        QColor color) const;
 
     void drawMarker(QPainter* painter,
-                    const QMatrix& pagePointToDevicePointMatrix,
+                    const QTransform& pagePointToDevicePointMatrix,
                     const QRectF& rect,
                     QColor color,
                     bool isLeft) const;

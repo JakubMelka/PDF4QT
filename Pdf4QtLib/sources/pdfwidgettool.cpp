@@ -246,7 +246,7 @@ void PDFFindTextTool::drawPage(QPainter* painter,
                                PDFInteger pageIndex,
                                const PDFPrecompiledPage* compiledPage,
                                PDFTextLayoutGetter& layoutGetter,
-                               const QMatrix& pagePointToDevicePointMatrix,
+                               const QTransform& pagePointToDevicePointMatrix,
                                QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -542,7 +542,7 @@ void PDFSelectTextTool::drawPage(QPainter* painter,
                                  PDFInteger pageIndex,
                                  const PDFPrecompiledPage* compiledPage,
                                  PDFTextLayoutGetter& layoutGetter,
-                                 const QMatrix& pagePointToDevicePointMatrix,
+                                 const QTransform& pagePointToDevicePointMatrix,
                                  QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1091,7 +1091,7 @@ void PDFPickTool::drawPage(QPainter* painter,
                            PDFInteger pageIndex,
                            const PDFPrecompiledPage* compiledPage,
                            PDFTextLayoutGetter& layoutGetter,
-                           const QMatrix& pagePointToDevicePointMatrix,
+                           const QTransform& pagePointToDevicePointMatrix,
                            QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1386,7 +1386,7 @@ void PDFSelectTableTool::drawPage(QPainter* painter,
                                   PDFInteger pageIndex,
                                   const PDFPrecompiledPage* compiledPage,
                                   PDFTextLayoutGetter& layoutGetter,
-                                  const QMatrix& pagePointToDevicePointMatrix,
+                                  const QTransform& pagePointToDevicePointMatrix,
                                   QList<PDFRenderError>& errors) const
 {
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);

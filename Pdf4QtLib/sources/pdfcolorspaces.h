@@ -457,7 +457,7 @@ public:
 
 protected:
     /// Clips the color component to range [0, 1]
-    static constexpr PDFColorComponent clip01(PDFColorComponent component) { return qBound<PDFColorComponent>(0.0, component, 1.0); }
+    static constexpr PDFColorComponent clip01(PDFColorComponent component) { return qBound<PDFColorComponent>(PDFColorComponent(0.0), component, PDFColorComponent(1.0)); }
 
     /// Clips the color to range [0 1] in all components
     static constexpr PDFColor3 clip01(const PDFColor3& color)

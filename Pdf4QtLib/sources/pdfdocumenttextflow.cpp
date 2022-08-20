@@ -183,7 +183,7 @@ public:
                                                   const PDFFontCache* fontCache,
                                                   const PDFCMS* cms,
                                                   const PDFOptionalContentActivity* optionalContentActivity,
-                                                  QMatrix pagePointToDevicePointMatrix,
+                                                  QTransform pagePointToDevicePointMatrix,
                                                   const PDFMeshQualitySettings& meshQualitySettings,
                                                   const PDFStructureTree* tree,
                                                   const std::map<PDFObjectReference, const PDFStructureItem*>* mapping,
@@ -449,7 +449,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
         const PDFPage* page = catalog->getPage(pageIndex);
         Q_ASSERT(page);
 
-        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QMatrix(), mqs, m_tree, &mapping, m_options);
+        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QTransform(), mqs, m_tree, &mapping, m_options);
         QList<PDFRenderError> errors = processor.processContents();
 
         QMutexLocker lock(&mutex);
@@ -696,7 +696,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 const PDFPage* page = catalog->getPage(pageIndex);
                 Q_ASSERT(page);
 
-                PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &cms, &oca, QMatrix(), mqs);
+                PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &cms, &oca, QTransform(), mqs);
                 QList<PDFRenderError> errors = generator.processContents();
                 PDFTextLayout textLayout = generator.createTextLayout();
                 PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);

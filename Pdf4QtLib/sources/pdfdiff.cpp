@@ -677,8 +677,11 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
             const auto& aItem = a.left ? context.leftTextFlow : context.rightTextFlow;
             const auto& bItem = b.left ? context.leftTextFlow : context.rightTextFlow;
 
-            QStringRef aText(&aItem.getItem(a.index)->text, a.charIndex, a.charCount);
-            QStringRef bText(&bItem.getItem(b.index)->text, b.charIndex, b.charCount);
+            QStringView aText(aItem.getItem(a.index)->text);
+            aText = aText.mid(a.charIndex, a.charCount);
+
+            QStringView bText(bItem.getItem(b.index)->text);
+            bText = bText.mid(b.charIndex, b.charCount);
 
             return aText == bText;
         };
@@ -758,7 +761,10 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                     const TextCompareItem& textCompareItem = leftItems[item.index1];
                     const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
                     const PDFDocumentTextFlow::Item* textItem = textFlow.getItem(textCompareItem.index);
-                    QStringRef text(&textItem->text, textCompareItem.charIndex, textCompareItem.charCount);
+
+                    QStringView text(textItem->text);
+                    text = text.mid(textCompareItem.charIndex, textCompareItem.charCount);
+
                     leftStrings << text.toString();
 
                     if (pageIndex1 == -1)
@@ -783,7 +789,10 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                     const TextCompareItem& textCompareItem = rightItems[item.index2];
                     const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
                     const PDFDocumentTextFlow::Item* textItem = textFlow.getItem(textCompareItem.index);
-                    QStringRef text(&textItem->text, textCompareItem.charIndex, textCompareItem.charCount);
+
+                    QStringView text(textItem->text);
+                    text = text.mid(textCompareItem.charIndex, textCompareItem.charCount);
+
                     rightStrings << text.toString();
 
                     if (pageIndex2 == -1)

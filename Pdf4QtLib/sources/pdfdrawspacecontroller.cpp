@@ -679,9 +679,9 @@ void PDFDrawWidgetProxy::update()
     emit drawSpaceChanged();
 }
 
-QMatrix PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
+QTransform PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
 {
-    QMatrix matrix;
+    QTransform matrix;
 
     // We want to create transformation from unrotated rectangle
     // to rotated page rectangle.
@@ -788,7 +788,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix.toAffine(), features, groupInfo.transparency);
+                compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 // Draw text blocks/text lines, if it is enabled
@@ -810,7 +810,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                         QString blockNumber = QString::number(blockIndex++);
 
                         painter->drawPath(matrix.map(block.getBoundingBox()));
-                        painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.width(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
+                        painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
                     }
 
                     painter->restore();
@@ -835,7 +835,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                             QString lineNumber = QString::number(lineIndex++);
 
                             painter->drawPath(matrix.map(line.getBoundingBox()));
-                            painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.width(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
+                            painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
                         }
                     }
 
@@ -848,7 +848,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
                     {
                         painter->save();
-                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix.toAffine(), drawInterfaceErrors);
+                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, drawInterfaceErrors);
                         painter->restore();
                     }
                 }
@@ -998,7 +998,7 @@ PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoin
             if (pagePoint)
             {
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect).inverted();
+                QTransform matrix = createPagePointToDevicePointMatrix(page, placedRect).inverted();
                 *pagePoint = matrix.map(point);
             }
 
@@ -1534,7 +1534,7 @@ void IDocumentDrawInterface::drawPage(QPainter* painter,
                                       PDFInteger pageIndex,
                                       const PDFPrecompiledPage* compiledPage,
                                       PDFTextLayoutGetter& layoutGetter,
-                                      const QMatrix& pagePointToDevicePointMatrix,
+                                      const QTransform& pagePointToDevicePointMatrix,
                                       QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(painter);

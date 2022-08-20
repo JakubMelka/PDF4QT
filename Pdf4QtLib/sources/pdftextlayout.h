@@ -53,7 +53,7 @@ struct PDFTextCharacterInfo
     PDFReal fontSize = 0.0;
 
     /// Transformation matrix from character space to device space
-    QMatrix matrix;
+    QTransform matrix;
 };
 
 struct PDFTextLayoutSettings
@@ -99,7 +99,7 @@ struct TextCharacter
 
     size_t index = 0; // Just temporary index, it is not serialized, just for text layout algorithm
 
-    void applyTransform(const QMatrix& matrix);
+    void applyTransform(const QTransform& matrix);
 
     friend QDataStream& operator<<(QDataStream& stream, const TextCharacter& character);
     friend QDataStream& operator>>(QDataStream& stream, TextCharacter& character);
@@ -125,7 +125,7 @@ public:
     /// Get angle inclination of block
     PDFReal getAngle() const;
 
-    void applyTransform(const QMatrix& matrix);
+    void applyTransform(const QTransform& matrix);
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLine& line);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLine& line);
@@ -152,7 +152,7 @@ public:
     /// Get angle inclination of block
     PDFReal getAngle() const;
 
-    void applyTransform(const QMatrix& matrix);
+    void applyTransform(const QTransform& matrix);
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextBlock& block);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextBlock& block);
@@ -414,7 +414,7 @@ private:
     /// Applies transform to text characters (positions and bounding boxes)
     /// \param characters Characters
     /// \param matrix Transform matrix
-    static void applyTransform(TextCharacters& characters, const QMatrix& matrix);
+    static void applyTransform(TextCharacters& characters, const QTransform& matrix);
 
     TextCharacters m_characters;
     std::set<PDFReal> m_angles;
@@ -507,14 +507,14 @@ public:
     /// \param pageIndex Page index
     /// \param textLayoutGetter Text layout getter
     /// \param matrix Matrix which translates from page space to device space
-    void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix);
+    void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix);
 
     /// Prepares geometry for text selection drawing, using text layout and matrix.  If current text selection
     /// doesn't contain items from active page, then text layout is not accessed.
     /// \param pageIndex Page index
     /// \param textLayoutGetter Text layout getter
     /// \param matrix Matrix which translates from page space to device space
-    QPainterPath prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QMatrix& matrix, QPolygonF* quadrilaterals);
+    QPainterPath prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix, QPolygonF* quadrilaterals);
 
 private:
     static constexpr const PDFReal HEIGHT_INCREASE_FACTOR = 0.40;

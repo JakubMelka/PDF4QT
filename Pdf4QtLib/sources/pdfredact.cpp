@@ -101,7 +101,7 @@ PDFDocument PDFRedact::perform(Options options)
             redactPath.addPath(redactAnnotation->getRedactionRegion().getPath());
         }
 
-        QMatrix matrix;
+        QTransform matrix;
         matrix.translate(0, page->getMediaBox().height());
         matrix.scale(1.0, -1.0);
 

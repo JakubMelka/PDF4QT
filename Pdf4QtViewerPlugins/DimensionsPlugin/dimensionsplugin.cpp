@@ -144,7 +144,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                                 pdf::PDFInteger pageIndex,
                                 const pdf::PDFPrecompiledPage* compiledPage,
                                 pdf::PDFTextLayoutGetter& layoutGetter,
-                                const QMatrix& pagePointToDevicePointMatrix,
+                                const QTransform& pagePointToDevicePointMatrix,
                                 QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -306,7 +306,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 painter->drawPoint(line1.p2());
                 painter->drawPoint(line2.p2());
 
-                QMatrix textMatrix;
+                QTransform textMatrix;
                 textMatrix.translate(line1.x1(), line1.y1());
                 textMatrix.rotate(-line1.angle() + dimension.getMeasuredValue() * 0.5);
 
