@@ -17,6 +17,7 @@
 
 add_executable(Pdf4QtViewerLite
     main.cpp
+    icon.rc
 )
 
 target_link_libraries(Pdf4QtViewerLite PRIVATE Pdf4QtLib Pdf4QtViewer Qt6::Core Qt6::Gui Qt6::Widgets)

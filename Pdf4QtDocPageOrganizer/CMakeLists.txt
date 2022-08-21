@@ -28,6 +28,7 @@ add_executable(Pdf4QtDocPageOrganizer
     mainwindow.ui
     selectbookmarkstoregroupdialog.ui
     resources.qrc
+    icon.rc
 )
 
 target_link_libraries(Pdf4QtDocPageOrganizer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)

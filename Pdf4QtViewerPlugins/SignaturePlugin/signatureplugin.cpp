@@ -441,7 +441,7 @@ void SignaturePlugin::onSignDigitally()
         {
             QString offsetString = QString::number(offset);
             offsetString = offsetString.leftJustified(static_cast<int>(offsetMarkStringLength), ' ', true);
-            const auto index = buffer.data().lastIndexOf(QString(offsetMarkString), indexOfSignature);
+            const auto index = buffer.data().lastIndexOf(QByteArray(offsetMarkString, offsetMarkStringLength), indexOfSignature);
             buffer.seek(index);
             buffer.write(offsetString.toLocal8Bit());
         };

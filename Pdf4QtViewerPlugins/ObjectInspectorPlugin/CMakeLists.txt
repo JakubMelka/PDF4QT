@@ -15,16 +15,25 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-add_executable(Pdf4QtViewerProfi
-    main.cpp
-    icon.rc
+add_library(ObjectInspectorPlugin SHARED
+    objectinspectordialog.cpp
+    objectinspectorplugin.cpp
+    objectstatisticsdialog.cpp
+    objectviewerwidget.cpp
+    pdfobjectinspectortreeitemmodel.cpp
+    statisticsgraphwidget.cpp
+    objectinspectordialog.ui
+    objectstatisticsdialog.ui
+    objectviewerwidget.ui
+    statisticsgraphwidget.ui
+    icons.qrc
 )
 
-target_link_libraries(Pdf4QtViewerProfi PRIVATE Pdf4QtLib Pdf4QtViewer Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(ObjectInspectorPlugin PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets)
 
-set_target_properties(Pdf4QtViewerProfi PROPERTIES
-    WIN32_EXECUTABLE ON
-    MACOSX_BUNDLE ON
-)
-
+set_target_properties(ObjectInspectorPlugin PROPERTIES
+                      VERSION ${PDF4QT_VERSION}
+                      SOVERSION ${PDF4QT_VERSION}
+                      LIBRARY_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR}
+                      RUNTIME_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR})
 

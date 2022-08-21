@@ -27,6 +27,7 @@ add_executable(Pdf4QtDocDiff
     mainwindow.ui
     settingsdockwidget.ui
     resources.qrc
+    icon.rc
 )
 
 target_link_libraries(Pdf4QtDocDiff PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets)
