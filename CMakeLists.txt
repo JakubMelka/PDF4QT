@@ -22,7 +22,9 @@ set(PDF4QT_VERSION 1.2.2)
 project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 
 option(PDF4QT_INSTALL_DEPENDENCIES "Install dependencies" ON)
-option(PDF4QT_INSTALL_QT_DEPENDENCIES "Instal Qt dependencies" ON)
+option(PDF4QT_INSTALL_QT_DEPENDENCIES "Install Qt dependencies" ON)
+
+add_compile_definitions(PDF4QT_PROJECT_VERSION="${PDF4QT_VERSION}")
 
 if(WIN32 AND MSVC)
     option(PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE "Install MSVC redistributable package" ON)
@@ -135,6 +137,14 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
     endif()
 
     if(WIN32 AND MSVC AND PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE)
+        get_filename_component(MSVC_REDISTRIBUTABLES_PATH $ENV{VCToolsRedistDir}/$ENV{VSCMD_ARG_TGT_ARCH}/Microsoft.VC${MSVC_TOOLSET_VERSION}.CRT/ ABSOLUTE)
+        message(STATUS "MSVC Redistributable Package Path = ${MSVC_REDISTRIBUTABLES_PATH}")
+
+        install(DIRECTORY ${MSVC_REDISTRIBUTABLES_PATH}/
+            RUNTIME DESTINATION bin/
+            FILES_MATCHING
+            PATTERN "*.dll"
+        )
     endif()
 endif()
 
