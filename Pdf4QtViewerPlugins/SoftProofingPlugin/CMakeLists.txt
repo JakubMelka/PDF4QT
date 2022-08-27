@@ -29,3 +29,5 @@ set_target_properties(SoftProofingPlugin PROPERTIES
                       SOVERSION ${PDF4QT_VERSION}
                       LIBRARY_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR}
                       RUNTIME_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR})
+
+install(TARGETS SoftProofingPlugin RUNTIME DESTINATION bin/pdfplugins/)

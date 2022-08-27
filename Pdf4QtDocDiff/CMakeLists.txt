@@ -37,3 +37,4 @@ set_target_properties(Pdf4QtDocDiff PROPERTIES
     MACOSX_BUNDLE ON
 )
 
+install(TARGETS Pdf4QtDocDiff)

@@ -21,15 +21,28 @@ set(PDF4QT_VERSION 1.2.2)
 
 project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 
+option(PDF4QT_INSTALL_DEPENDENCIES "Install dependencies" ON)
+option(PDF4QT_INSTALL_QT_DEPENDENCIES "Instal Qt dependencies" ON)
+
+if(WIN32 AND MSVC)
+    option(PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE "Install MSVC redistributable package" ON)
+endif()
+
+set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
+
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE PATH "Installation directory" FORCE)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech OpenGLWidgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech OpenGL OpenGLWidgets Multimedia Network Test)
 qt_standard_project_setup()
 
-find_package(openssl REQUIRED)
+find_package(OpenSSL REQUIRED)
 find_package(lcms REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(freetype CONFIG REQUIRED)
@@ -44,7 +57,7 @@ set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
 
 if (MSVC)
   add_compile_options(/bigobj)
-endif ()
+endif()
 
 add_subdirectory(Pdf4QtLib)
 add_subdirectory(CodeGenerator)
@@ -62,6 +75,68 @@ add_subdirectory(Pdf4QtDocDiff)
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
+if(PDF4QT_INSTALL_DEPENDENCIES)
+    install(DIRECTORY ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/
+        TYPE BIN
+        FILES_MATCHING
+        PATTERN "*.dll"
+        PATTERN "*.so"
+        PATTERN "*.dylib"
+    )
+
+    if(PDF4QT_INSTALL_QT_DEPENDENCIES)
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/bin/
+            RUNTIME DESTINATION bin/
+            FILES_MATCHING
+            REGEX "(Qt6Core|Qt6Gui|Qt6PrintSupport|Qt6Svg|Qt6TextToSpeech|Qt6Widgets|Qt6Xml|Qt6OpenGL|Qt6OpenGLWidgets|Qt6Multimedia|Qt6Network)\\..*"
+            PATTERN "Debug" EXCLUDE
+        )
+
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/platforms/
+            RUNTIME DESTINATION bin/platforms/
+            FILES_MATCHING
+            PATTERN "qwindows.dll"
+            PATTERN "*.so"
+            PATTERN "*.dylib"
+        )
+
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/iconengines/
+            RUNTIME DESTINATION bin/iconengines/
+            FILES_MATCHING
+            REGEX "qsvgicon\\..*"
+        )
+
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/imageformats/
+            RUNTIME DESTINATION bin/imageformats/
+            FILES_MATCHING
+            PATTERN "*.dll"
+            PATTERN "*.so"
+            PATTERN "*.dylib"
+            REGEX "d\\..*" EXCLUDE
+        )
+
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/styles/
+            RUNTIME DESTINATION bin/styles/
+            FILES_MATCHING
+            PATTERN "*.dll"
+            PATTERN "*.so"
+            PATTERN "*.dylib"
+            REGEX "d\\..*" EXCLUDE
+        )
+
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/texttospeech/
+            RUNTIME DESTINATION bin/texttospeech/
+            FILES_MATCHING
+            PATTERN "*.dll"
+            PATTERN "*.so"
+            PATTERN "*.dylib"
+            REGEX "d\\..*" EXCLUDE
+        )
+    endif()
+
+    if(WIN32 AND MSVC AND PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE)
+    endif()
+endif()
 
 #macro(dump_variables)
 #    message(STATUS "dump_variables------------------------------------------{")

@@ -62,3 +62,5 @@ target_include_directories(Pdf4QtViewer PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INC
 set_target_properties(Pdf4QtLib PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION})
+
+install(TARGETS Pdf4QtViewer)

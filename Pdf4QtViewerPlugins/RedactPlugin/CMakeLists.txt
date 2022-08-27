@@ -30,3 +30,4 @@ set_target_properties(RedactPlugin PROPERTIES
                       LIBRARY_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR}
                       RUNTIME_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR})
 
+install(TARGETS RedactPlugin RUNTIME DESTINATION bin/pdfplugins/)

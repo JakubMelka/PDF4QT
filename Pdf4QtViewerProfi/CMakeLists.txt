@@ -27,4 +27,4 @@ set_target_properties(Pdf4QtViewerProfi PROPERTIES
     MACOSX_BUNDLE ON
 )
 
-
+install(TARGETS Pdf4QtViewerProfi)

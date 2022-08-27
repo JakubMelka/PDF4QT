@@ -27,4 +27,4 @@ set_target_properties(Pdf4QtViewerLite PROPERTIES
     MACOSX_BUNDLE ON
 )
 
-
+install(TARGETS Pdf4QtViewerLite)

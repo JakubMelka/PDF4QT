@@ -37,3 +37,4 @@ set_target_properties(ObjectInspectorPlugin PROPERTIES
                       LIBRARY_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR}
                       RUNTIME_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR})
 
+install(TARGETS ObjectInspectorPlugin RUNTIME DESTINATION bin/pdfplugins/)

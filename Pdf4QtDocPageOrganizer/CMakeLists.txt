@@ -38,3 +38,4 @@ set_target_properties(Pdf4QtDocPageOrganizer PROPERTIES
     MACOSX_BUNDLE ON
 )
 
+install(TARGETS Pdf4QtDocPageOrganizer)

@@ -47,3 +47,5 @@ add_executable(PdfTool
 )
 
 target_link_libraries(PdfTool PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Xml)
+
+install(TARGETS PdfTool)
