@@ -28,6 +28,7 @@ add_compile_definitions(PDF4QT_PROJECT_VERSION="${PDF4QT_VERSION}")
 
 if(WIN32 AND MSVC)
     option(PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE "Install MSVC redistributable package" ON)
+    option(PDF4QT_INSTALL_PREPARE_WIX_INSTALLER "Prepare Wix installer for Windows" ON)
 endif()
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
@@ -73,6 +74,7 @@ add_subdirectory(Pdf4QtViewerProfi)
 add_subdirectory(Pdf4QtViewerLite)
 add_subdirectory(Pdf4QtDocPageOrganizer)
 add_subdirectory(Pdf4QtDocDiff)
+add_subdirectory(WixInstaller)
 
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
