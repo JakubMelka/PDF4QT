@@ -88,6 +88,10 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         PATTERN "*.dylib"
     )
 
+    if("${PDF4QT_QT_ROOT}" STREQUAL "")
+        message(WARNING "Set variable PDF4QT_QT_ROOT to Qt6 root directory")
+    endif()
+
     if(PDF4QT_INSTALL_QT_DEPENDENCIES)
         install(DIRECTORY ${PDF4QT_QT_ROOT}/bin/
             RUNTIME DESTINATION bin/
