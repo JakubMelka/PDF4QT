@@ -17,9 +17,11 @@
 
 if(WIN32 AND MSVC AND PDF4QT_INSTALL_PREPARE_WIX_INSTALLER)
     file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" WIX_INSTALL_PREFIX)
+    file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/WixInstaller" PDF4QT_WIX_DIR)
 
     configure_file(PDF4QT.sln.in PDF4QT.sln)
     configure_file(PDF4QT.wixproj.in PDF4QT.wixproj)
     configure_file(Product.wxs.in Product.wxs)
+    configure_file(createInstaller.ps1.in createInstaller.ps1)
     configure_file(explic.rtf explic.rtf)
 endif()
