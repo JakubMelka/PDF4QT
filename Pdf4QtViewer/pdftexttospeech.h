@@ -114,6 +114,7 @@ private:
     void onStopClicked();
 
     void updatePlay();
+    void updateVoices();
     void updateToNextPage(pdf::PDFInteger pageIndex);
 
     QTextToSpeech* m_textToSpeech;

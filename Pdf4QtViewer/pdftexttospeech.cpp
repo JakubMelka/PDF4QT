@@ -83,6 +83,18 @@ void PDFTextToSpeech::setDocument(const pdf::PDFModifiedDocument& document)
     }
 }
 
+void PDFTextToSpeech::updateVoices()
+{
+    QVector<QVoice> voices = m_textToSpeech->availableVoices();
+    m_speechVoiceComboBox->setUpdatesEnabled(false);
+    m_speechVoiceComboBox->clear();
+    for (const QVoice& voice : voices)
+    {
+        m_speechVoiceComboBox->addItem(QString("%1 (%2, %3)").arg(voice.name(), QVoice::genderName(voice.gender()), QVoice::ageName(voice.age())), voice.name());
+    }
+    m_speechVoiceComboBox->setUpdatesEnabled(true);
+}
+
 void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
 {
     Q_ASSERT(viewerSettings);
@@ -103,6 +115,7 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
     if (!settings.m_speechEngine.isEmpty())
     {
         m_textToSpeech = new QTextToSpeech(settings.m_speechEngine, this);
+        m_textToSpeech->setLocale(QLocale(settings.m_speechLocale));
         connect(m_textToSpeech, &QTextToSpeech::stateChanged, this, &PDFTextToSpeech::updatePlay);
         m_state = m_document ? Ready : NoDocument;
 
@@ -115,14 +128,7 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
         }
         m_speechLocaleComboBox->setUpdatesEnabled(true);
 
-        QVector<QVoice> voices = m_textToSpeech->availableVoices();
-        m_speechVoiceComboBox->setUpdatesEnabled(false);
-        m_speechVoiceComboBox->clear();
-        for (const QVoice& voice : voices)
-        {
-            m_speechVoiceComboBox->addItem(QString("%1 (%2, %3)").arg(voice.name(), QVoice::genderName(voice.gender()), QVoice::ageName(voice.age())), voice.name());
-        }
-        m_speechVoiceComboBox->setUpdatesEnabled(true);
+        updateVoices();
     }
     else
     {
@@ -340,6 +346,12 @@ void PDFTextToSpeech::onLocaleChanged()
     if (m_textToSpeech)
     {
         m_textToSpeech->setLocale(QLocale(m_speechLocaleComboBox->currentData().toString()));
+        updateVoices();
+
+        if (m_speechVoiceComboBox->currentIndex() == -1)
+        {
+            m_speechVoiceComboBox->setCurrentIndex(0);
+        }
     }
 }
 

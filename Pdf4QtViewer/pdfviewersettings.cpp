@@ -264,7 +264,7 @@ PDFViewerSettings::Settings::Settings() :
     m_allowLaunchURI(true),
     m_allowDeveloperMode(false),
     m_multithreadingStrategy(pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded),
-    m_compiledPageCacheLimit(128 * 1024),
+    m_compiledPageCacheLimit(512 * 1024),
     m_thumbnailsCacheLimit(PIXMAP_CACHE_LIMIT),
     m_fontCacheLimit(pdf::DEFAULT_FONT_CACHE_LIMIT),
     m_instancedFontCacheLimit(pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT),
