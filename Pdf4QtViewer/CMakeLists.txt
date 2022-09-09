@@ -33,6 +33,7 @@ add_library(Pdf4QtViewer SHARED
     pdfviewermainwindowlite.cpp
     pdfviewersettings.cpp
     pdfviewersettingsdialog.cpp
+    pdfwintaskbarprogress.cpp
     pdfaboutdialog.ui
     pdfadvancedfindwidget.ui
     pdfdocumentpropertiesdialog.ui

@@ -90,10 +90,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_pageZoomSpinBox(nullptr),
     m_isLoadingUI(false),
     m_progress(new pdf::PDFProgress(this)),
-#ifdef WIN_TASKBAR_BUTTON
-    m_taskbarButton(new QWinTaskbarButton(this)),
-    m_progressTaskbarIndicator(nullptr),
-#endif
+    m_progressTaskbarIndicator(new PDFWinTaskBarProgress(this)),
     m_progressDialog(nullptr),
     m_isChangingProgressStep(false)
 {
@@ -104,11 +101,6 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     // Initialize toolbar icon size
     adjustToolbar(ui->mainToolBar);
     ui->mainToolBar->setWindowTitle(tr("Standard"));
-
-    // Initialize task bar progress
-#ifdef WIN_TASKBAR_BUTTON
-    m_progressTaskbarIndicator = m_taskbarButton->progress();
-#endif
 
     // Initialize actions
     m_actionManager->setAction(PDFActionManager::Open, ui->actionOpen);
@@ -355,11 +347,9 @@ void PDFViewerMainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
         m_progressDialog->setCancelButton(nullptr);
     }
 
-#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
-#endif
 
     m_programController->setIsBusy(true);
     m_programController->updateActionsAvailability();
@@ -379,9 +369,7 @@ void PDFViewerMainWindow::onProgressStep(int percentage)
         m_progressDialog->setValue(percentage);
     }
 
-#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->setValue(percentage);
-#endif
 }
 
 void PDFViewerMainWindow::onProgressFinished()
@@ -392,9 +380,8 @@ void PDFViewerMainWindow::onProgressFinished()
         m_progressDialog->deleteLater();
         m_progressDialog = nullptr;
     }
-#ifdef WIN_TASKBAR_BUTTON
+
     m_progressTaskbarIndicator->hide();
-#endif
 
     m_programController->setIsBusy(false);
     m_programController->updateActionsAvailability();
@@ -521,9 +508,7 @@ void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 void PDFViewerMainWindow::showEvent(QShowEvent* event)
 {
     Q_UNUSED(event);
-#ifdef WIN_TASKBAR_BUTTON
-    m_taskbarButton->setWindow(windowHandle());
-#endif
+    m_progressTaskbarIndicator->setWindow(windowHandle());
 }
 
 void PDFViewerMainWindow::dragEnterEvent(QDragEnterEvent* event)
