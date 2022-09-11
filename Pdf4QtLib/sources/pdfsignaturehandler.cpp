@@ -1,4 +1,4 @@
- //    Copyright (C) 2020-2022 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -22,6 +22,11 @@
 #include "pdfutils.h"
 #include "pdfdbgheap.h"
 #include "pdfsignaturehandler_impl.h"
+
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 #include <openssl/err.h>
 #include <openssl/sha.h>
@@ -2100,3 +2105,7 @@ pdf::PDFCertificateStore::CertificateEntries pdf::PDFCertificateStore::getSystem
 
     return result;
 }
+
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#endif

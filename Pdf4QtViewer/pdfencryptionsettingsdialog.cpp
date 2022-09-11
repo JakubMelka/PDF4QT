@@ -17,6 +17,7 @@
 
 #include "pdfencryptionsettingsdialog.h"
 #include "ui_pdfencryptionsettingsdialog.h"
+#include "pdfencryptionstrengthhintwidget.h"
 
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
@@ -33,7 +34,10 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
     QDialog(parent),
     ui(new Ui::PDFEncryptionSettingsDialog),
     m_isUpdatingUi(false),
-    m_documentId(documentId)
+    m_documentId(documentId),
+    m_userPasswordStrengthHintWidget(new PDFEncryptionStrengthHintWidget(this)),
+    m_ownerPasswordStrengthHintWidget(new PDFEncryptionStrengthHintWidget(this)),
+    m_algorithmHintWidget(new PDFEncryptionStrengthHintWidget(this))
 {
     ui->setupUi(this);
 
@@ -45,20 +49,24 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
 
     ui->algorithmComboBox->setCurrentIndex(0);
 
-    ui->algorithmHintWidget->setFixedSize(ui->algorithmHintWidget->minimumSizeHint());
-    ui->userPasswordStrengthHintWidget->setFixedSize(ui->userPasswordStrengthHintWidget->minimumSizeHint());
-    ui->ownerPasswordStrengthHintWidget->setFixedSize(ui->ownerPasswordStrengthHintWidget->minimumSizeHint());
+    m_algorithmHintWidget->setFixedSize(m_algorithmHintWidget->minimumSizeHint());
+    m_userPasswordStrengthHintWidget->setFixedSize(m_userPasswordStrengthHintWidget->minimumSizeHint());
+    m_ownerPasswordStrengthHintWidget->setFixedSize(m_userPasswordStrengthHintWidget->minimumSizeHint());
 
-    ui->algorithmHintWidget->setMinValue(1);
-    ui->algorithmHintWidget->setMaxValue(5);
+    ui->passwordsGroupBoxLayout->addWidget(m_userPasswordStrengthHintWidget, 0, 2);
+    ui->passwordsGroupBoxLayout->addWidget(m_ownerPasswordStrengthHintWidget, 1, 2);
+    ui->methodGroupBoxLayout->addWidget(m_algorithmHintWidget, 0, 2);
+
+    m_algorithmHintWidget->setMinValue(1);
+    m_algorithmHintWidget->setMaxValue(5);
 
     const int passwordOptimalEntropy = pdf::PDFSecurityHandlerFactory::getPasswordOptimalEntropy();
 
-    ui->userPasswordStrengthHintWidget->setMinValue(0);
-    ui->userPasswordStrengthHintWidget->setMaxValue(passwordOptimalEntropy);
+    m_userPasswordStrengthHintWidget->setMinValue(0);
+    m_userPasswordStrengthHintWidget->setMaxValue(passwordOptimalEntropy);
 
-    ui->ownerPasswordStrengthHintWidget->setMinValue(0);
-    ui->ownerPasswordStrengthHintWidget->setMaxValue(passwordOptimalEntropy);
+    m_ownerPasswordStrengthHintWidget->setMinValue(0);
+    m_ownerPasswordStrengthHintWidget->setMaxValue(passwordOptimalEntropy);
 
     connect(ui->algorithmComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFEncryptionSettingsDialog::updateUi);
     connect(ui->userPasswordEnableCheckBox, &QCheckBox::clicked, this, &PDFEncryptionSettingsDialog::updateUi);
@@ -103,17 +111,17 @@ void PDFEncryptionSettingsDialog::updateUi()
     switch (algorithm)
     {
         case pdf::PDFSecurityHandlerFactory::None:
-            ui->algorithmHintWidget->setCurrentValue(1);
+            m_algorithmHintWidget->setCurrentValue(1);
             break;
         case pdf::PDFSecurityHandlerFactory::RC4:
-            ui->algorithmHintWidget->setCurrentValue(2);
+            m_algorithmHintWidget->setCurrentValue(2);
             break;
         case pdf::PDFSecurityHandlerFactory::AES_128:
-            ui->algorithmHintWidget->setCurrentValue(4);
+            m_algorithmHintWidget->setCurrentValue(4);
             break;
         case pdf::PDFSecurityHandlerFactory::AES_256:
         case pdf::PDFSecurityHandlerFactory::Certificate:
-            ui->algorithmHintWidget->setCurrentValue(5);
+            m_algorithmHintWidget->setCurrentValue(5);
             break;
 
         default:
@@ -170,8 +178,8 @@ void PDFEncryptionSettingsDialog::updateUi()
         ui->ownerPasswordEdit->clear();
     }
 
-    ui->userPasswordStrengthHintWidget->setEnabled(ui->userPasswordEnableCheckBox->isChecked());
-    ui->ownerPasswordStrengthHintWidget->setEnabled(ui->ownerPasswordEnableCheckBox->isChecked());
+    m_userPasswordStrengthHintWidget->setEnabled(ui->userPasswordEnableCheckBox->isChecked());
+    m_ownerPasswordStrengthHintWidget->setEnabled(ui->ownerPasswordEnableCheckBox->isChecked());
 
     ui->encryptAllRadioButton->setEnabled(encrypted);
     ui->encryptAllExceptMetadataRadioButton->setEnabled(encrypted);
@@ -204,8 +212,8 @@ void PDFEncryptionSettingsDialog::updatePasswordScore()
     const int userPasswordScore = pdf::PDFSecurityHandlerFactory::getPasswordEntropy(ui->userPasswordEdit->text(), algorithm);
     const int ownerPasswordScore = pdf::PDFSecurityHandlerFactory::getPasswordEntropy(ui->ownerPasswordEdit->text(), algorithm);
 
-    ui->userPasswordStrengthHintWidget->setCurrentValue(userPasswordScore);
-    ui->ownerPasswordStrengthHintWidget->setCurrentValue(ownerPasswordScore);
+    m_userPasswordStrengthHintWidget->setCurrentValue(userPasswordScore);
+    m_ownerPasswordStrengthHintWidget->setCurrentValue(ownerPasswordScore);
 }
 
 void PDFEncryptionSettingsDialog::accept()

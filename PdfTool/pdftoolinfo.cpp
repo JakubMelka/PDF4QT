@@ -155,7 +155,7 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
         {
             QString key = QString::fromLatin1(item.first);
             QVariant valueVariant = item.second;
-            QString value = (valueVariant.type() == QVariant::DateTime) ? convertDateTimeToString(valueVariant.toDateTime().toLocalTime(), options.outputDateFormat) : valueVariant.toString();
+            QString value = (valueVariant.typeId() == QVariant::DateTime) ? convertDateTimeToString(valueVariant.toDateTime().toLocalTime(), options.outputDateFormat) : valueVariant.toString();
             writeProperty("custom-property", key, value);
         }
     }

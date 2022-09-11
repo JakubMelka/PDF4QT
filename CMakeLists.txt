@@ -59,7 +59,11 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
 
 if (MSVC)
-  add_compile_options(/bigobj)
+    add_compile_options(/bigobj)
+endif()
+
+if (MINGW)
+    add_compile_options("-Wa,-mbig-obj")
 endif()
 
 add_subdirectory(Pdf4QtLib)

@@ -12134,19 +12134,19 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
                                 passwordEdit || signature || textEdit;
     const bool isDefaultUi = !isNonDefaultUi || defaultUi;
 
-    if (textEdit || (isDefaultUi && value.value.type() == QVariant::String))
+    if (textEdit || (isDefaultUi && value.value.typeId() == QVariant::String))
     {
         drawUiTextEdit(textEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
-    else if (checkButton || (isDefaultUi && value.value.type() == QVariant::Bool))
+    else if (checkButton || (isDefaultUi && value.value.typeId() == QVariant::Bool))
     {
         drawUiCheckButton(checkButton, value, nominalExtentArea, painter);
     }
-    else if (imageEdit || (isDefaultUi && value.value.type() == QVariant::Image))
+    else if (imageEdit || (isDefaultUi && value.value.typeId() == QVariant::Image))
     {
         drawUiImageEdit(imageEdit, value, errors, nominalExtentArea, painter);
     }
-    else if (numericEdit || (isDefaultUi && value.value.type() == QVariant::Double))
+    else if (numericEdit || (isDefaultUi && value.value.typeId() == QVariant::Double))
     {
         drawUiNumericEdit(numericEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
@@ -12166,9 +12166,9 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     {
         errors << PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("XFA: Buttons not implemented."));
     }
-    else if (dateTimeEdit || (isDefaultUi && (value.value.type() == QVariant::DateTime ||
-                                              value.value.type() == QVariant::Date ||
-                                              value.value.type() == QVariant::Time)))
+    else if (dateTimeEdit || (isDefaultUi && (value.value.typeId() == QVariant::DateTime ||
+                                              value.value.typeId() == QVariant::Date ||
+                                              value.value.typeId() == QVariant::Time)))
     {
         drawUiDateTimeEdit(dateTimeEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
@@ -12391,15 +12391,15 @@ void PDFXFAEngineImpl::drawUiDateTimeEdit(const xfa::XFA_dateTimeEdit* dateTimeE
 
     QString text;
 
-    if (value.value.type() == QVariant::DateTime)
+    if (value.value.typeId() == QVariant::DateTime)
     {
         text = value.value.toDateTime().toString();
     }
-    else if (value.value.type() == QVariant::Time)
+    else if (value.value.typeId() == QVariant::Time)
     {
         text = value.value.toTime().toString();
     }
-    else if (value.value.type() == QVariant::Date)
+    else if (value.value.typeId() == QVariant::Date)
     {
         text = value.value.toDate().toString();
     }

@@ -32,6 +32,7 @@ class QCheckBox;
 
 namespace pdfviewer
 {
+class PDFEncryptionStrengthHintWidget;
 
 class PDFEncryptionSettingsDialog : public QDialog
 {
@@ -57,6 +58,9 @@ private:
     std::map<QCheckBox*, pdf::PDFSecurityHandler::Permission> m_checkBoxToPermission;
     pdf::PDFSecurityHandlerPointer m_updatedSecurityHandler;
     QByteArray m_documentId;
+    PDFEncryptionStrengthHintWidget* m_userPasswordStrengthHintWidget;
+    PDFEncryptionStrengthHintWidget* m_ownerPasswordStrengthHintWidget;
+    PDFEncryptionStrengthHintWidget* m_algorithmHintWidget;
 };
 
 }   // namespace pdfviewer

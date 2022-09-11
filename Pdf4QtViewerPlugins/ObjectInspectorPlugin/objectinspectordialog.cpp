@@ -31,14 +31,16 @@ ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFCMS* cms, const pdf::
     ui(new Ui::ObjectInspectorDialog),
     m_cms(cms),
     m_document(document),
-    m_model(nullptr)
+    m_model(nullptr),
+    m_viewerWidget(new ObjectViewerWidget(this))
 {
     ui->setupUi(this);
 
     m_objectClassifier.classify(document);
 
-    ui->currentObjectWidget->setCms(cms);
-    ui->currentObjectWidget->setDocument(document);
+    m_viewerWidget->setCms(cms);
+    m_viewerWidget->setDocument(document);
+    ui->currentObjectTabLayout->addWidget(m_viewerWidget);
 
     ui->modeComboBox->addItem(tr("Document"), int(PDFObjectInspectorTreeItemModel::Document));
     ui->modeComboBox->addItem(tr("Pages"), int(PDFObjectInspectorTreeItemModel::Page));
@@ -103,8 +105,8 @@ ObjectInspectorDialog::ObjectInspectorDialog(const pdf::PDFCMS* cms, const pdf::
     ui->splitter->setSizes(QList<int>() << pdf::PDFWidgetUtils::scaleDPI_x(this, 300) << pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
 
     connect(ui->objectTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &ObjectInspectorDialog::onCurrentIndexChanged);
-    connect(ui->currentObjectWidget, &ObjectViewerWidget::pinRequest, this, &ObjectInspectorDialog::onPinRequest);
-    connect(ui->currentObjectWidget, &ObjectViewerWidget::unpinRequest, this, &ObjectInspectorDialog::onUnpinRequest);
+    connect(m_viewerWidget, &ObjectViewerWidget::pinRequest, this, &ObjectInspectorDialog::onPinRequest);
+    connect(m_viewerWidget, &ObjectViewerWidget::unpinRequest, this, &ObjectInspectorDialog::onUnpinRequest);
 
     ui->objectTreeView->setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 200));
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
@@ -126,12 +128,12 @@ void ObjectInspectorDialog::onPinRequest()
 {
     ObjectViewerWidget* source = qobject_cast<ObjectViewerWidget*>(sender());
 
-    if (!source || source != ui->currentObjectWidget)
+    if (!source || source != m_viewerWidget)
     {
         return;
     }
 
-    ObjectViewerWidget* cloned = ui->currentObjectWidget->clone(true, this);
+    ObjectViewerWidget* cloned = m_viewerWidget->clone(true, this);
     connect(cloned, &ObjectViewerWidget::pinRequest, this, &ObjectInspectorDialog::onPinRequest);
     connect(cloned, &ObjectViewerWidget::unpinRequest, this, &ObjectInspectorDialog::onUnpinRequest);
     ui->tabWidget->addTab(cloned, cloned->getTitleText());
@@ -141,7 +143,7 @@ void ObjectInspectorDialog::onUnpinRequest()
 {
     ObjectViewerWidget* source = qobject_cast<ObjectViewerWidget*>(sender());
 
-    if (!source || source == ui->currentObjectWidget)
+    if (!source || source == m_viewerWidget)
     {
         return;
     }
@@ -165,7 +167,7 @@ void ObjectInspectorDialog::onCurrentIndexChanged(const QModelIndex& current, co
         isRoot = true;
     }
 
-    ui->currentObjectWidget->setData(reference, qMove(object), isRoot);
+    m_viewerWidget->setData(reference, qMove(object), isRoot);
 }
 
 }   // namespace pdfplugin

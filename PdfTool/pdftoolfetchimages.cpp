@@ -258,7 +258,8 @@ PDFToolAbstractApplication::Options PDFToolFetchImages::getOptionsFlags() const
 void PDFToolFetchImages::onImageExtracted(pdf::PDFInteger pageIndex, pdf::PDFInteger order, const QImage& image)
 {
     QCryptographicHash hasher(QCryptographicHash::Sha512);
-    hasher.addData(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
+    QByteArrayView imageData(image.bits(), image.sizeInBytes());
+    hasher.addData(imageData);
     QByteArray hash = hasher.result();
 
     QMutexLocker lock(&m_mutex);

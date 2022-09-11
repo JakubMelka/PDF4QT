@@ -19,6 +19,7 @@
 #include "pdffont.h"
 #include "pdfconstants.h"
 
+#include <QColorSpace>
 #include <QElapsedTimer>
 
 namespace pdftool
@@ -185,7 +186,7 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
         surfaceFormat = QSurfaceFormat::defaultFormat();
         surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
         surfaceFormat.setSamples(options.renderMSAAsamples);
-        surfaceFormat.setColorSpace(QSurfaceFormat::sRGBColorSpace);
+        surfaceFormat.setColorSpace(QColorSpace(QColorSpace::SRgb));
         surfaceFormat.setSwapBehavior(QSurfaceFormat::DefaultSwapBehavior);
     }
 

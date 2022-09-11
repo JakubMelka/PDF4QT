@@ -116,6 +116,10 @@ target_link_libraries(Pdf4QtLib PRIVATE freetype)
 target_link_libraries(Pdf4QtLib PRIVATE openjp2)
 target_link_libraries(Pdf4QtLib PRIVATE JPEG::JPEG)
 
+if(MINGW)
+    target_link_libraries(Pdf4QtLib PRIVATE Secur32 Mscms Gdi32 User32 crypt32)
+endif()
+
 target_include_directories(Pdf4QtLib INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLib PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 

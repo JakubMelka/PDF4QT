@@ -86,8 +86,7 @@ void GeneratedCodeStorage::generateCode(QTextStream& stream, CodeGeneratorParame
 QObject* Serializer::load(const QDomElement& element, QObject* parent)
 {
     QString className = element.attribute("class");
-    const int metaTypeId = QMetaType::type(className.toLatin1());
-    const QMetaObject* metaObject = QMetaType::metaObjectForType(metaTypeId);
+    const QMetaObject* metaObject = QMetaType::fromName(QByteArrayView(className.toLatin1())).metaObject();
 
     if (metaObject)
     {

@@ -87,6 +87,7 @@ private:
     const pdf::PDFDocument* m_document;
     pdf::PDFWidget* m_widget;
     bool m_needUpdateImage;
+    OutputPreviewWidget* m_outputPreviewWidget;
 
     QFuture<RenderedImage> m_future;
     QFutureWatcher<RenderedImage>* m_futureWatcher;

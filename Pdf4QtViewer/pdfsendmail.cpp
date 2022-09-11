@@ -34,6 +34,8 @@ namespace pdfviewer
 bool PDFSendMail::sendMail(QWidget* parent, QString subject, QString fileName)
 {
 #ifdef Q_OS_WIN
+
+#if !defined(PDF4QT_COMPILER_MINGW)
     QFileInfo fileInfo(fileName);
     std::wstring subjectString = subject.toStdWString();
     std::wstring fileNameString = fileInfo.fileName().toStdWString();
@@ -84,6 +86,7 @@ bool PDFSendMail::sendMail(QWidget* parent, QString subject, QString fileName)
         default:
             return false;
     }
+#endif
 
     return false;
 #elif defined(Q_OS_UNIX)

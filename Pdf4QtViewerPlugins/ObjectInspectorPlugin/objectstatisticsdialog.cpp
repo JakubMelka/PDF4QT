@@ -26,9 +26,12 @@ namespace pdfplugin
 ObjectStatisticsDialog::ObjectStatisticsDialog(const pdf::PDFDocument* document, QWidget *parent) :
     QDialog(parent, Qt::Dialog | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint),
     ui(new Ui::ObjectStatisticsDialog),
-    m_document(document)
+    m_document(document),
+    m_statisticsGraphWidget(new StatisticsGraphWidget(this))
 {
     ui->setupUi(this);
+
+    ui->dialogLayout->addWidget(m_statisticsGraphWidget);
 
     ui->comboBox->addItem(tr("Statistics by Object Function"), int(ByObjectClass));
     ui->comboBox->addItem(tr("Statistics by Object Type"), int(ByObjectType));
@@ -163,7 +166,7 @@ void ObjectStatisticsDialog::updateStatisticsWidget()
             break;
     }
 
-    ui->graphWidget->setStatistics(qMove(statistics));
+    m_statisticsGraphWidget->setStatistics(qMove(statistics));
 }
 
 }   // namespace pdfplugin

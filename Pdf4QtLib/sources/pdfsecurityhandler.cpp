@@ -26,6 +26,11 @@
 
 #include <QRandomGenerator>
 
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include <openssl/rc4.h>
 #include <openssl/md5.h>
 #include <openssl/aes.h>
@@ -2612,3 +2617,8 @@ PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
 }
 
 }   // namespace pdf
+
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#endif
+

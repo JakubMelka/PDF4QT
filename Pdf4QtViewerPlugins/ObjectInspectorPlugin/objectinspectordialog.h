@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 #include "pdfobjectutils.h"
 #include "pdfcms.h"
+#include "objectviewerwidget.h"
 
 #include <QDialog>
 
@@ -52,6 +53,7 @@ private:
     const pdf::PDFDocument* m_document;
     pdf::PDFObjectClassifier m_objectClassifier;
     PDFObjectInspectorTreeItemModel* m_model;
+    ObjectViewerWidget* m_viewerWidget;
 };
 
 }   // namespace pdfplugin

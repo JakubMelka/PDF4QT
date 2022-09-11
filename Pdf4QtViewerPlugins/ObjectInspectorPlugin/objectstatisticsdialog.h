@@ -20,6 +20,7 @@
 
 #include "pdfdocument.h"
 #include "pdfobjectutils.h"
+#include "statisticsgraphwidget.h"
 
 #include <QDialog>
 
@@ -52,6 +53,7 @@ private:
 
     const pdf::PDFDocument* m_document;
     pdf::PDFObjectClassifier::Statistics m_statistics;
+    StatisticsGraphWidget* m_statisticsGraphWidget;
 };
 
 }   // namespace pdfplugin

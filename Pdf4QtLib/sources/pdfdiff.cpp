@@ -883,7 +883,8 @@ void PDFDiff::finalizeGraphicsPieces(PDFDiffPageContext& context)
             continue;
         }
 
-        hasher.addData(reinterpret_cast<const char*>(info.hash.data()), int(info.hash.size()));
+        QByteArrayView view(reinterpret_cast<const char*>(info.hash.data()), info.hash.size());
+        hasher.addData(view);
     }
 
     QByteArray hash = hasher.result();

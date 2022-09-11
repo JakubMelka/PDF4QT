@@ -25,6 +25,10 @@ add_library(AudioBookPlugin SHARED
 
 target_link_libraries(AudioBookPlugin PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets)
 
+if(MINGW)
+    target_link_libraries(AudioBookPlugin PRIVATE ole32 sapi)
+endif()
+
 set_target_properties(AudioBookPlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

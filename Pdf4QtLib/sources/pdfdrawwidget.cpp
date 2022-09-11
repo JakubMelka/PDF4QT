@@ -28,6 +28,7 @@
 #include <QKeyEvent>
 #include <QApplication>
 #include <QPixmapCache>
+#include <QColorSpace>
 
 namespace pdf
 {
@@ -566,7 +567,7 @@ PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QW
     QSurfaceFormat format = this->format();
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setSamples(samplesCount);
-    format.setColorSpace(QSurfaceFormat::sRGBColorSpace);
+    format.setColorSpace(QColorSpace(QColorSpace::SRgb));
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     setFormat(format);
 }

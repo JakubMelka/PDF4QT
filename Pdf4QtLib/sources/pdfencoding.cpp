@@ -2233,9 +2233,9 @@ QString PDFEncoding::convertTextString(const QByteArray& stream)
 
 QString PDFEncoding::convertFromUnicode(const QByteArray& stream)
 {
-    const ushort* bytes = reinterpret_cast<const ushort*>(stream.data());
+    const char16_t* bytes = reinterpret_cast<const char16_t*>(stream.data());
     const int sizeInChars = stream.size();
-    const int sizeSizeInUShorts = sizeInChars / sizeof(const ushort) * sizeof(char);
+    const size_t sizeSizeInUShorts = sizeInChars / sizeof(const ushort) * sizeof(char);
 
     return QString::fromUtf16(bytes, sizeSizeInUShorts);
 }
