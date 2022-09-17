@@ -245,7 +245,7 @@ void PDFStructureTreeTextContentProcessor::finishText()
     if (trimmedText.size() < m_currentText.size())
     {
         // Fix character bounding boxes...
-        if (m_characterBoundingRects.size() == m_currentText.size())
+        if (m_characterBoundingRects.size() == static_cast<size_t>(m_currentText.size()))
         {
             std::vector<QRectF> boundingRects(std::next(m_characterBoundingRects.cbegin(), index), std::next(m_characterBoundingRects.cbegin(), index + trimmedText.length()));
             m_characterBoundingRects = std::move(boundingRects);
@@ -266,7 +266,7 @@ void PDFStructureTreeTextContentProcessor::finishText()
             m_currentText = qMove(reversed);
             std::reverse(m_characterBoundingRects.begin(), m_characterBoundingRects.end());
         }
-        Q_ASSERT(m_currentText.size() == m_characterBoundingRects.size() || m_characterBoundingRects.empty());
+        Q_ASSERT(static_cast<size_t>(m_currentText.size()) == m_characterBoundingRects.size() || m_characterBoundingRects.empty());
         m_textSequence.emplace_back(PDFStructureTreeTextItem::createText(std::move(m_currentText), m_pageIndex, m_currentBoundingBox, std::move(m_characterBoundingRects)));
     }
     m_currentText = QString();

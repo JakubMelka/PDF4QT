@@ -1394,7 +1394,7 @@ void PDFSelectTableTool::drawPage(QPainter* painter,
     if (isTablePicked() && pageIndex == m_pageIndex)
     {
         PDFPainterStateGuard guard(painter);
-        QColor color = QColor::fromRgbF(0.0, 0.0, 0.5, 0.2);
+        QColor color = QColor::fromRgbF(0.0f, 0.0f, 0.5f, 0.2f);
         QRectF rectangle = pagePointToDevicePointMatrix.mapRect(m_pickedRectangle);
 
         const PDFReal lineWidth = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 2.0);

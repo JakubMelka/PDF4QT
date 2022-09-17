@@ -1309,7 +1309,7 @@ void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectan
 
             if (color.isValid())
             {
-                color.setAlphaF(0.2);
+                color.setAlphaF(0.2f);
 
                 // Draw annotation rectangle by highlight color
                 QPainterPath highlightArea;
@@ -2128,8 +2128,8 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
 
     const PDFMarkupAnnotation* markupMainAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
     QColor color = markupMainAnnotation->getDrawColorFromAnnotationColor(markupMainAnnotation->getColor(), 1.0);
-    QColor titleColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.2, 1.0);
-    QColor backgroundColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.9, 1.0);
+    QColor titleColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.2f, 1.0f);
+    QColor backgroundColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.9f, 1.0f);
 
     QString style = "QGroupBox { "
                     "border: 2px solid black; "

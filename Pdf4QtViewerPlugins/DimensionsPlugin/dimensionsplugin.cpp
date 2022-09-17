@@ -232,7 +232,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 pen.setCosmetic(true);
 
                 QColor brushColor = Qt::black;
-                brushColor.setAlphaF(0.1);
+                brushColor.setAlphaF(0.1f);
                 painter->setPen(qMove(pen));
                 painter->setBrush(QBrush(brushColor, isArea ? Qt::SolidPattern : Qt::DiagCrossPattern));
 

@@ -2286,9 +2286,9 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
             PDFPainterStateGuard guard(painter);
             QPen pen(Qt::SolidLine);
             pen.setWidthF(2.0);
-            pen.setColor(QColor::fromRgbF(0.8, 0.8, 0.1, 0.7));
+            pen.setColor(QColor::fromRgbF(0.8f, 0.8f, 0.1f, 0.7f));
             QBrush brush(Qt::SolidPattern);
-            brush.setColor(QColor::fromRgbF(1.0, 1.0, 0.0, 0.2));
+            brush.setColor(QColor::fromRgbF(1.0f, 1.0f, 0.0f, 0.2f));
 
             painter->setPen(std::move(pen));
             painter->setBrush(std::move(brush));

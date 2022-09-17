@@ -206,7 +206,7 @@ PDFCreateLineTypeTool::PDFCreateLineTypeTool(PDFDrawWidgetProxy* proxy, PDFToolM
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreateLineTypeTool::onPointPicked);
 
-    m_fillColor.setAlphaF(0.2);
+    m_fillColor.setAlphaF(0.2f);
 
     updateActions();
 }
@@ -495,7 +495,7 @@ PDFCreateEllipseTool::PDFCreateEllipseTool(PDFDrawWidgetProxy* proxy, PDFToolMan
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateEllipseTool::onRectanglePicked);
 
-    m_fillColor.setAlphaF(0.2);
+    m_fillColor.setAlphaF(0.2f);
 
     updateActions();
 }

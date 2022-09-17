@@ -31,6 +31,11 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 #include <openssl/rc4.h>
 #include <openssl/md5.h>
 #include <openssl/aes.h>
@@ -2605,7 +2610,7 @@ PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
     factory << PDFInteger(int32_t(m_permissions));
     factory.endDictionaryItem();
 
-    // Jakub Melka: 131105 is mysterious value set by Adobe Acrobat Pro
+    // Jakub Melka: 131105 is mysterious value set by Acrobat Pro
     // when using public key security
     factory.beginDictionaryItem("R");
     factory << PDFInteger(131105);
@@ -2622,3 +2627,6 @@ PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
 #pragma GCC diagnostic pop
 #endif
 
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(pop)
+#endif

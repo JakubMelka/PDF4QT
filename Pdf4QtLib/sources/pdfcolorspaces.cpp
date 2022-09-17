@@ -2052,7 +2052,7 @@ std::vector<PDFColorComponent> PDFIndexedColorSpace::transformColorsToBaseColorS
         const int byteOffset = int(colorIndex * colorComponentCount);
 
         // We must point into the array. Check first and last component.
-        Q_ASSERT(byteOffset + colorComponentCount - 1 < m_colors.size());
+        Q_ASSERT(byteOffset + colorComponentCount - 1 < static_cast<size_t>(m_colors.size()));
 
         const char* bytePointer = m_colors.constData() + byteOffset;
 

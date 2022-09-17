@@ -59,7 +59,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
 
 if (MSVC)
-    add_compile_options(/bigobj)
+    add_compile_options(/bigobj /W4 /wd5054 /wd4127 /wd4702)
 endif()
 
 if (MINGW)

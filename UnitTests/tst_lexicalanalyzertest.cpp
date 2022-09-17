@@ -221,20 +221,20 @@ void LexicalAnalyzerTest::test_invalid_input()
     bigNumber.front() = '1';
     bigNumber.back() = 0;
 
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("(\\9adoctalnumber)"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("(\\)"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("123 456 +4-5"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("123 456 +"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("123 456 + 45"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream(bigNumber.constData()), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("/#Q1FF"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("/#1QFF"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("/# "), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("<A bad hexadecimal string>"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("<1FA3"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("<1FA"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream("> albatros"), pdf::PDFException);
-    QVERIFY_EXCEPTION_THROWN(scanWholeStream(")"), pdf::PDFException);
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("(\\9adoctalnumber)"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("(\\)"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +4-5"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 + 45"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream(bigNumber.constData()));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("/#Q1FF"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("/#1QFF"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("/# "));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("<A bad hexadecimal string>"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("<1FA3"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("<1FA"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("> albatros"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream(")"));
 }
 
 void LexicalAnalyzerTest::test_header_regexp()
@@ -434,7 +434,7 @@ void LexicalAnalyzerTest::test_sampled_function()
     }
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -452,10 +452,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -473,10 +473,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -494,10 +494,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -515,10 +515,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -536,10 +536,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -558,10 +558,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -580,10 +580,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -600,10 +600,10 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         const char data[] = " << "
                             "     /FunctionType 0 "
@@ -620,7 +620,7 @@ void LexicalAnalyzerTest::test_sampled_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 }
 
 void LexicalAnalyzerTest::test_exponential_function()
@@ -724,7 +724,7 @@ void LexicalAnalyzerTest::test_exponential_function()
     }
 
     // Test invalid inputs
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -738,9 +738,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -753,9 +753,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -768,9 +768,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -783,9 +783,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -801,9 +801,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -818,9 +818,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -835,9 +835,9 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 2 "
@@ -852,7 +852,7 @@ void LexicalAnalyzerTest::test_exponential_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 }
 
 void LexicalAnalyzerTest::test_stitching_function()
@@ -882,7 +882,7 @@ void LexicalAnalyzerTest::test_stitching_function()
         }
     }
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 3 "
@@ -897,9 +897,9 @@ void LexicalAnalyzerTest::test_stitching_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 3 "
@@ -914,9 +914,9 @@ void LexicalAnalyzerTest::test_stitching_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 3 "
@@ -931,9 +931,9 @@ void LexicalAnalyzerTest::test_stitching_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 3 "
@@ -947,9 +947,9 @@ void LexicalAnalyzerTest::test_stitching_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-    }, pdf::PDFException);
+    });
 
-    QVERIFY_EXCEPTION_THROWN(
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException,
     {
         QByteArray data = " << "
                           "     /FunctionType 3 "
@@ -963,7 +963,7 @@ void LexicalAnalyzerTest::test_stitching_function()
         pdf::PDFFunctionPtr function = pdf::PDFFunction::createFunction(&document, parser.getObject());
 
         QVERIFY(!function);
-                }, pdf::PDFException);
+                });
 }
 
 void LexicalAnalyzerTest::test_postscript_function()

@@ -97,7 +97,7 @@ void PDFRecentFileManager::onRecentFileActionTriggered()
     Q_ASSERT(action);
 
     QVariant data = action->data();
-    if (data.typeId() == QVariant::String)
+    if (data.typeId() == QMetaType::QString)
     {
         emit fileOpenRequest(data.toString());
     }

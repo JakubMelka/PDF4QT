@@ -811,9 +811,9 @@ void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine, const QStri
         QVector<QLocale> locales = textToSpeech.availableLocales();
         ui->speechLocaleComboBox->setUpdatesEnabled(false);
         ui->speechLocaleComboBox->clear();
-        for (const QLocale& locale : locales)
+        for (const QLocale& currentLocale : locales)
         {
-            ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeCountryName()), locale.name());
+            ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(currentLocale.nativeLanguageName(), currentLocale.nativeCountryName()), currentLocale.name());
         }
         ui->speechLocaleComboBox->setUpdatesEnabled(true);
     }

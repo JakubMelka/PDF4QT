@@ -88,7 +88,7 @@ StatisticsGraphWidget::GeometryHint StatisticsGraphWidget::getGeometryHint() con
 
     for (const auto& item : m_statistics.items)
     {
-        Q_ASSERT(item.texts.size() == hint.textWidths.size());
+        Q_ASSERT(static_cast<size_t>(item.texts.size()) == hint.textWidths.size());
 
         for (int i = 0; i < item.texts.size(); ++i)
         {
@@ -152,7 +152,7 @@ void StatisticsGraphWidget::paintEvent(QPaintEvent* event)
         top = currentRect.bottom();
 
         QColor color = (m_selectedColorBox == i) ? selectedColor: item.color;
-        color.setAlphaF(0.8);
+        color.setAlphaF(0.8f);
         painter.fillRect(currentRect, color);
         m_colorBoxes.push_back(currentRect);
     }

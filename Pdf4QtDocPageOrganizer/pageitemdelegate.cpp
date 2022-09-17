@@ -95,7 +95,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     if (option.state.testFlag(QStyle::State_Selected))
     {
         QColor selectedColor = option.palette.color(QPalette::Active, QPalette::Highlight);
-        selectedColor.setAlphaF(0.3);
+        selectedColor.setAlphaF(0.3f);
         painter->fillRect(rect, selectedColor);
     }
 

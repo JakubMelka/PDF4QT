@@ -171,7 +171,7 @@ PDFInteger PDFDocumentReader::findXrefTableOffset(const QByteArray& buffer)
         throw PDFException(tr("Start of object reference table not found."));
     }
 
-    Q_ASSERT(startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK) < buffer.size());
+    Q_ASSERT(startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK) < static_cast<size_t>(buffer.size()));
     PDFLexicalAnalyzer analyzer(buffer.constData() + startXRefPosition + std::strlen(PDF_START_OF_XREF_MARK), buffer.constData() + buffer.size());
     const PDFLexicalAnalyzer::Token token = analyzer.fetch();
     if (token.type != PDFLexicalAnalyzer::TokenType::Integer)

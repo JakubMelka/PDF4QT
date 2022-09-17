@@ -28,6 +28,11 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 #include <openssl/err.h>
 #include <openssl/sha.h>
 #include <openssl/rsa.h>
@@ -2108,4 +2113,8 @@ pdf::PDFCertificateStore::CertificateEntries pdf::PDFCertificateStore::getSystem
 
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
 #pragma GCC diagnostic pop
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(pop)
 #endif
